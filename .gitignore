@@ -1,1 +1,4 @@
 .idea/
+app-engine/.idea/
+aws-lambda/.idea/
+youtube-monitor/.idea/
