@@ -26,28 +26,26 @@ func main()  {
 		"snippet",
 	}
 	listCall := liveChatMessagesService.List(liveChatId, part)
-	response, err := listCall.Do()
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	fmt.Println(len(response.Items))
-	for _, item := range response.Items {
-		fmt.Println(item.Snippet.DisplayMessage)
-	}
-	fmt.Println()
-
-	time.Sleep(5 * time.Second)
-
-	fmt.Println(response.NextPageToken)
-	listCall = liveChatMessagesService.List(liveChatId, part).PageToken(response.NextPageToken)
-	response, err = listCall.Do()
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	fmt.Println(len(response.Items))
-	for _, item := range response.Items {
-		fmt.Println(item.Snippet.DisplayMessage)
+	nextPageToken := ""
+	sleepIntervalMilli := 5000
+	for {
+		fmt.Println(time.Now())
+		if nextPageToken != "" {
+			listCall = listCall.PageToken(nextPageToken)
+		}
+		response, err := listCall.Do()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		fmt.Println(len(response.Items))
+		for _, item := range response.Items {
+			fmt.Println(item.Snippet.DisplayMessage)
+		}
+		nextPageToken = response.NextPageToken
+		sleepIntervalMilli = int(response.PollingIntervalMillis) + 1000
+		fmt.Printf("\n%.1f 秒待機\n", float32(sleepIntervalMilli) / 1000.0)
+		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
+		fmt.Println()
 	}
 }
