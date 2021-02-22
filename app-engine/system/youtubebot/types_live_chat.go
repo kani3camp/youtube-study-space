@@ -5,11 +5,10 @@ import (
 )
 
 type YoutubeLiveChatBot struct {
-	LiveChatId string
-	YoutubeService *youtube.Service
-	LiveChatMessagesService *youtube.LiveChatMessagesService
-	SleepIntervalMilli int
-	NextPageToken string
+	LiveChatId                string
+	YoutubeService            *youtube.Service
+	LiveChatMessagesService   *youtube.LiveChatMessagesService
+	DefaultSleepIntervalMilli int
 }
 
 //type LiveChatMessage struct {

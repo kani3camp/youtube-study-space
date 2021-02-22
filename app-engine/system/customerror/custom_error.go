@@ -13,6 +13,7 @@ const (
 	RoomNotExist
 	InvalidRoomLayout
 	YoutubeLiveChatBotFailed
+	SeatNotFound
 )
 
 type CustomError struct {
@@ -23,6 +24,11 @@ type CustomError struct {
 func (et ErrorType) New(message string) CustomError {
 	return CustomError{ErrorType: et, Body: errors.New(message)}
 }
-func (et ErrorType) Wrap(err error, message string) CustomError {
+func (et ErrorType) Wrap(err error) CustomError {
+	return CustomError{ErrorType: et, Body: err}
+}
+func (et ErrorType) WrapWithMessage(err error, message string) CustomError {
 	return CustomError{ErrorType: et, Body: errors.Wrap(err, message)}
 }
+
+
