@@ -1,5 +1,7 @@
 package myfirestore
 
+import "time"
+
 type ConfigCollection struct {
 	YoutubeLive YoutubeLiveDoc	`firestore:"youtube-live"`
 }
@@ -21,4 +23,14 @@ type Seat struct {
 
 type NoSeatRoomDoc struct {
 	Users []string `firestore:"users"`
+}
+
+
+type UserDoc struct {
+	DailyTotalStudySec int `firestore:"daily-total-study-sec"`
+	TotalStudySec int `firestore:"total-study-sec"`
+	RegistrationDate time.Time `firestore:"registration-date"`
+	StatusMessage string `firestore:"status-message"`
+	LastEntered time.Time `firestore:"last-entered"`
+	LastExited time.Time `firestore:"last-exited"`
 }

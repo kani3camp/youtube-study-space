@@ -54,7 +54,7 @@ func AppEngineMain()  {
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			if strings.HasPrefix(message, "!") {
-				err = _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
+				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
 				if err != nil {
 					fmt.Println("error in system.Command().")
 					fmt.Println(err.Error())

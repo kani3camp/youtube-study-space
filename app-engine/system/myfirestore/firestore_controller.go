@@ -5,6 +5,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
+	"time"
 )
 
 type FirestoreController struct {
@@ -113,7 +114,15 @@ func (controller *FirestoreController) SetUserInNoSeatRoom(userId string, ctx co
 	return nil
 }
 
-
+func (controller *FirestoreController) SetLastEnteredDate(userId string, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
+		LastEnteredFirestore: time.Now(),
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 
 
