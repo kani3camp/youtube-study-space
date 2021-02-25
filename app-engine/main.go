@@ -92,12 +92,10 @@ func DevMain()  {
 		message := scanner.Text()
 
 		// 入力文字列からコマンドを抜き出して処理
-		if strings.HasPrefix(message, "!") {
-			err = _system.Command(message, ctx)
-			if err != nil {
-				fmt.Println("error in system.Command().")
-				fmt.Println(err.Error())
-			}
+		err = _system.Command(message, "test-channel01", "display-name", ctx)
+		if err != nil {
+			fmt.Println("error in system.Command().")
+			fmt.Println(err.Error())
 		}
 	}
 }

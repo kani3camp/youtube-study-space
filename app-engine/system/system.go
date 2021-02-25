@@ -64,7 +64,7 @@ func (s *System) SetProcessedUser(userDisplayName string, userId string) {
 
 // Command: 入力コマンドを解析して実行
 func (s *System) Command(commandString string, userId string, userDisplayName string, ctx context.Context) error {
-	if strings.HasPrefix(commandString, "!") {
+	if strings.HasPrefix(commandString, CommandPrefix) {
 		s.SetProcessedUser(userId, userDisplayName)
 		slice := strings.Split(commandString, HalfWidthSpace)
 		switch slice[0] {
@@ -212,6 +212,7 @@ func (s *System) Out(commandString string, ctx context.Context) error {
 
 func (s *System) ShowUserInfo(commandString string, ctx context.Context) error {
 	// todo そのユーザーはデータがあるか？
+	
 	// todo 情報を返信
 }
 
