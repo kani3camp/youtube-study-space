@@ -31,4 +31,10 @@ func (et ErrorType) WrapWithMessage(err error, message string) CustomError {
 	return CustomError{ErrorType: et, Body: errors.Wrap(err, message)}
 }
 
+func NewNilCustomError() CustomError {
+	return CustomError{
+		ErrorType: Unknown,
+		Body:      nil,
+	}
+}
 
