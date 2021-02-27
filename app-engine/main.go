@@ -19,7 +19,7 @@ func AppEngineMain()  {
 	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
-		fmt.Println("failed myfirestore.NewFirestoreController().")
+		fmt.Println("failed system.NewSystem().")
 		fmt.Println(err.Error())
 		return
 	}
@@ -79,13 +79,14 @@ func DevMain()  {
 	fmt.Println("app started.")
 	ctx := context.Background()
 	// todo
-	clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
-		fmt.Println("failed myfirestore.NewFirestoreController().")
+		fmt.Println(err.Error())
 		return
 	}
+	_ = _system.LineBot.SendMessage("app started.")
 
 	for {
 		// チャット取得
@@ -103,8 +104,24 @@ func DevMain()  {
 	}
 }
 
+func UpdateRoomLayout() {
+	fmt.Println("app started.")
+	ctx := context.Background()
+	// todo
+	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	_system, err := system.NewSystem(ctx, clientOption)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	_system.UpdateRoomLayout("C:\\Users\\momom\\Documents\\GitHub\\youtube-study-space\\app-engine\\default-room-layout.json", ctx)
+}
+
 func main() {
 	// todo デプロイ時切り替え
 	//AppEngineMain()
 	DevMain()
+
+	//UpdateRoomLayout()
 }

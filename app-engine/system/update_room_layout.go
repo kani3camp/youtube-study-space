@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/status"
 	"io/ioutil"
 	"log"
-	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -43,6 +42,7 @@ func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
 		fmt.Println(customErr.Body.Error())
 		return
 	}
+	fmt.Println("Valid layout file.")
 	err = s.SaveRoomLayout(roomLayout, ctx)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -136,7 +136,7 @@ func (s *System) CurrentDefaultRoomLayoutVersion(ctx context.Context) (int, erro
 }
 
 func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx context.Context) error {
-	log.Println("SaveRoomLayout()")
+	fmt.Println("SaveRoomLayout()")
 	
 	// 履歴を保存
 	var oldRoomLayout myfirestore.RoomLayoutDoc
@@ -169,19 +169,23 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 		newSeatIds = append(newSeatIds, newSeat.Id)
 	}
 	if !reflect.DeepEqual(oldSeatIds, newSeatIds) {
-		log.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
-		users, _ := RetrieveRoomUsers(roomLayout.RoomId, client, ctx)
-		for _, user := range users {
-			_ = LeaveRoom(roomLayout.RoomId, user.UserId, client, ctx)
+		fmt.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
+		err := s.ExitAllUserDefaultRoom(ctx)
+		if err != nil {
+			return err
 		}
 	}
-	
 	// 保存
-	_, err = client.Collection(CONFIG).Doc(RoomLayoutsInfo).Collection(RoomLayouts).Doc(roomLayout.RoomId).Set(ctx, roomLayout)
+	err = s.FirestoreController.SaveRoomLayout(roomLayout, ctx)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 	return nil
 }
+
+
+
+
+
+
 

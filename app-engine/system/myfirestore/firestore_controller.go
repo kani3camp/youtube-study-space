@@ -24,8 +24,8 @@ func NewFirestoreController(ctx context.Context, projectId string, clientOption 
 	}, nil
 }
 
-func (controller *FirestoreController) RetrieveYoutubeLiveInfo(ctx context.Context) (YoutubeLiveConfigDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveDocName).Get(ctx)
+func (controller *FirestoreController) RetrieveYoutubeLiveConfig(ctx context.Context) (YoutubeLiveConfigDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Get(ctx)
 	if err != nil {
 		return YoutubeLiveConfigDoc{}, err
 	}
@@ -37,8 +37,34 @@ func (controller *FirestoreController) RetrieveYoutubeLiveInfo(ctx context.Conte
 	return youtubeLiveData, nil
 }
 
+func (controller *FirestoreController) RetrieveLineBotConfig(ctx context.Context) (LineBotConfigDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(LineBotConfigDocName).Get(ctx)
+	if err != nil {
+		return LineBotConfigDoc{}, err
+	}
+	var lineBotConfigData LineBotConfigDoc
+	err = doc.DataTo(&lineBotConfigData)
+	if err != nil {
+		return LineBotConfigDoc{}, err
+	}
+	return lineBotConfigData, nil
+}
+
+func (controller *FirestoreController) RetrieveSystemConstantsConfig(ctx context.Context) (ConstantsConfigDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Get(ctx)
+	if err != nil {
+		return ConstantsConfigDoc{}, err
+	}
+	var constantsConfig ConstantsConfigDoc
+	err = doc.DataTo(&constantsConfig)
+	if err != nil {
+		return ConstantsConfigDoc{}, err
+	}
+	return constantsConfig, nil
+}
+
 func (controller *FirestoreController) RetrieveLiveChatId(ctx context.Context) (string, error) {
-	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveInfo(ctx)
+	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveConfig(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +72,7 @@ func (controller *FirestoreController) RetrieveLiveChatId(ctx context.Context) (
 }
 
 func (controller *FirestoreController) RetrieveNextPageToken(ctx context.Context) (string, error) {
-	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveInfo(ctx)
+	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveConfig(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +80,7 @@ func (controller *FirestoreController) RetrieveNextPageToken(ctx context.Context
 }
 
 func (controller *FirestoreController) SaveNextPageToken(nextPageToken string, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveDocName).Set(ctx, map[string]interface{}{
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Set(ctx, map[string]interface{}{
 		NextPageTokenFirestore: nextPageToken,
 	}, firestore.MergeAll)
 	if err != nil {
@@ -225,6 +251,13 @@ func (controller *FirestoreController) AddRoomLayoutHistory(data interface{}, ct
 	return nil
 }
 
+func (controller *FirestoreController) SaveRoomLayout(roomLayoutData RoomLayoutDoc, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(DefaultRoomLayoutDocName).Set(ctx, roomLayoutData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 
 

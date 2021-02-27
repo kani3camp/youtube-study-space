@@ -11,9 +11,3 @@ type YoutubeLiveChatBot struct {
 	DefaultSleepIntervalMilli int
 }
 
-//type LiveChatMessage struct {
-//	AuthorChannelId string
-//	Message string
-//	PublishedAt time.Time
-//}
-

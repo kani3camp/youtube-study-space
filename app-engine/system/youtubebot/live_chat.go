@@ -7,9 +7,8 @@ import (
 	"google.golang.org/api/youtube/v3"
 )
 
-func NewYoutubeLiveChatBot(liveChatId string, sleepIntervalMilli int, ctx context.Context) (*YoutubeLiveChatBot, error) {
-	// todo get credential properly
-	clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+func NewYoutubeLiveChatBot(liveChatId string, sleepIntervalMilli int, clientOption option.ClientOption, ctx context.Context) (*YoutubeLiveChatBot, error) {
+	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
 	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/music-quiz-287112-83a452727d6d.json")
 	youtubeService, err := youtube.NewService(ctx, clientOption)
 	if err != nil {

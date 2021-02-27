@@ -2,14 +2,22 @@ package myfirestore
 
 import "time"
 
-type ConfigCollection struct {
-	YoutubeLive YoutubeLiveConfigDoc `firestore:"youtube-live"`
+
+type ConstantsConfigDoc struct {
+	MaxWorkTimeMin int `firestore:"max-work-time-min"`
+	MinWorkTimeMin int `firestore:"min-work-time-min"`
 }
 
 type YoutubeLiveConfigDoc struct {
 	LiveChatId string `firestore:"live-chat-id"`
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	NextPageToken string `firestore:"next-page-token"`
+}
+
+type LineBotConfigDoc struct {
+	ChannelSecret string `firestore:"channel-secret"`
+	ChannelToken string `firestore:"channel-token"`
+	DestinationLineId string `firestore:"destination-line-id"`
 }
 
 type DefaultRoomDoc struct {

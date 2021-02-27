@@ -3,6 +3,7 @@ package system
 import (
 	"app.modules/system/customerror"
 	"app.modules/system/myfirestore"
+	"app.modules/system/mylinebot"
 	"app.modules/system/youtubebot"
 	"context"
 	"google.golang.org/api/option"
@@ -23,9 +24,6 @@ const (
 	WorkNameOptionPrefix = "work-"
 	WorkTimeOptionPrefix = "min-"
 
-	MinWorkTime = 5
-	MaxWorkTime = 360
-
 	FullWidthSpace = "　"
 	HalfWidthSpace = " "
 
@@ -34,6 +32,9 @@ const (
 type System struct {
 	FirestoreController *myfirestore.FirestoreController
 	LiveChatBot *youtubebot.YoutubeLiveChatBot
+	LineBot *mylinebot.LineBot
+	MinWorkTimeMin int
+	MaxWorkTimeMin int
 	ProcessedUserId string
 	ProcessedUserDisplayName string
 }
@@ -44,18 +45,38 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 
-	youtubeLiveInfo, err := fsController.RetrieveYoutubeLiveInfo(ctx)
+	// youtube live chat bot
+	youtubeLiveConfig, err := fsController.RetrieveYoutubeLiveConfig(ctx)
 	if err != nil {
 		return System{}, err
 	}
-	bot, err := youtubebot.NewYoutubeLiveChatBot(youtubeLiveInfo.LiveChatId, youtubeLiveInfo.SleepIntervalMilli, ctx)
+	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(youtubeLiveConfig.LiveChatId, youtubeLiveConfig.SleepIntervalMilli, clientOption, ctx)
+	if err != nil {
+		return System{}, err
+	}
+
+	// line bot
+	lineBotConfig, err := fsController.RetrieveLineBotConfig(ctx)
+	if err != nil {
+		return System{}, err
+	}
+	lineBot, err := mylinebot.NewLineBot(lineBotConfig.ChannelSecret, lineBotConfig.ChannelToken, lineBotConfig.DestinationLineId)
+	if err != nil {
+		return System{}, err
+	}
+
+	// system constant values
+	constantsConfig, err := fsController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
 		return System{}, err
 	}
 
 	return System{
 		FirestoreController: fsController,
-		LiveChatBot: bot,
+		LiveChatBot:         liveChatBot,
+		LineBot:             lineBot,
+		MaxWorkTimeMin: constantsConfig.MaxWorkTimeMin,
+		MinWorkTimeMin: constantsConfig.MinWorkTimeMin,
 	}, nil
 }
 
@@ -93,7 +114,7 @@ func (s *System) In(commandString string, ctx context.Context) error {
 	// すでに入室している場合
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
-		// todo lineで通知
+		_ = s.LineBot.SendMessageWithError("failed s.IsUserInRoom()", err)
 		return err
 	}
 	if isInRoom {
@@ -114,47 +135,56 @@ func (s *System) In(commandString string, ctx context.Context) error {
 		}
 	} else {	// 指定された座席番号が有効かチェック
 		seatId = num
-		// その席番号が存在するか
-		isSeatExist, err := s.IsSeatExist(seatId, ctx)
-		if err != nil {
-			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
-				"さん、エラーが発生しました。もう一度試してみてください。")
-			return err
-		} else if ! isSeatExist {
-			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName + "さん、その番号の席は" +
-				"存在しません。他の空いている席を選ぶか、「" + InfoCommand + "」で席を指定せずに入室してください！")
-			return nil
-		}
-		// その席が空いているか
-		isOk, err := s.IfSeatAvailable(seatId, ctx)
-		if err != nil {
-			// todo lineで通知
-			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
-				"さん、エラーが発生しました。もう一度試してみてください。")
-			return err
-		}
-		if ! isOk {
-			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
-				"さん、その席には今は座れません！空いている座席の番号を書いてください！")
-			return nil
+		switch seatId {
+		case 0:
+			break
+		default:
+			// その席番号が存在するか
+			isSeatExist, err := s.IsSeatExist(seatId, ctx)
+			if err != nil {
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
+					"さん、エラーが発生しました。もう一度試してみてください。")
+				return err
+			} else if ! isSeatExist {
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName + "さん、その番号の席は" +
+					"存在しません。他の空いている席を選ぶか、「" + InfoCommand + "」で席を指定せずに入室してください！")
+				return nil
+			}
+			// その席が空いているか
+			isOk, err := s.IfSeatAvailable(seatId, ctx)
+			if err != nil {
+				_ = s.LineBot.SendMessageWithError("failed s.IfSeatAvailable()", err)
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
+					"さん、エラーが発生しました。もう一度試してみてください。")
+				return err
+			}
+			if ! isOk {
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
+					"さん、その席には今は座れません！空いている座席の番号を書いてください！")
+				return nil
+			}
 		}
 	}
 
 	// 追加オプションチェック
 	workName := ""
 	workTimeMin := 120
-	for i := range slice[1:] {
-		if strings.HasPrefix(slice[i], WorkNameOptionPrefix) {
-			workName = strings.TrimLeft(slice[i], WorkNameOptionPrefix)
-		} else if strings.HasPrefix(slice[i], WorkTimeOptionPrefix) {
-			num, err = strconv.Atoi(strings.TrimLeft(slice[i], WorkTimeOptionPrefix))
+	for _, str := range slice[1:] {
+		if strings.HasPrefix(str, WorkNameOptionPrefix) {
+			workName = strings.TrimLeft(str, WorkNameOptionPrefix)
+		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) {
+			num, err = strconv.Atoi(strings.TrimLeft(str, WorkTimeOptionPrefix))
 			if err != nil {
-				if 5 <= num && num <= 360 {
-					workTimeMin = num
-				} else {
-					s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
-						"さん、作業時間（分）は" + strconv.Itoa(MinWorkTime) + "～" + strconv.Itoa(MaxWorkTime) + "の値にしてください。")
-				}
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
+					"さん、「" + WorkTimeOptionPrefix + "」の後の数字は半角になっているか確認してみてください。")
+				return nil
+			}
+			if 5 <= num && num <= 360 {
+				workTimeMin = num
+			} else {
+				s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
+					"さん、作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return nil
 			}
 		}
 	}
@@ -166,7 +196,7 @@ func (s *System) In(commandString string, ctx context.Context) error {
 		err = s.EnterDefaultRoom(seatId, workName, workTimeMin, ctx)
 	}
 	if err != nil {
-		// todo lineで通知
+		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 		s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
 			"さん、エラーが発生しました。もう一度試してみてください。")
 		return err
@@ -176,7 +206,7 @@ func (s *System) In(commandString string, ctx context.Context) error {
 		// 入室時刻を記録
 		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
 		if err != nil {
-			// todo lineで通知
+			_ = s.LineBot.SendMessageWithError("failed to set last entered date", err)
 			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
 				"さん、エラーが発生しました。もう一度試してみてください。")
 			return err
@@ -189,7 +219,7 @@ func (s *System) Out(ctx context.Context) error {
 	// 今勉強中か？
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
-		// todo lineで通知
+		_ = s.LineBot.SendMessageWithError("failed IsUserInRoom()", err)
 		return err
 	}
 	if ! isInRoom {
@@ -267,7 +297,7 @@ func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 }
 
 func (s *System) RetrieveYoutubeLiveInfo(ctx context.Context) (myfirestore.YoutubeLiveConfigDoc, error) {
-	return s.FirestoreController.RetrieveYoutubeLiveInfo(ctx)
+	return s.FirestoreController.RetrieveYoutubeLiveConfig(ctx)
 }
 
 func (s *System) RetrieveNextPageToken(ctx context.Context) (string, error) {
@@ -317,19 +347,19 @@ func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, ctx context.C
 }
 
 func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
-	roomLayoutData, err := s.FirestoreController.RetrieveDefaultRoomLayout(ctx)
+	roomLayout, err := s.FirestoreController.RetrieveDefaultRoomLayout(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
 		return 0, err
 	}
 	
 	var availableSeatIdList []int
-	for _, seatInLayout := range roomLayoutData.Seats {
+	for _, seatInLayout := range roomLayout.Seats {
 		isUsed := false
-		for _, seatInUse := range defaultRoomData.Seats {
+		for _, seatInUse := range defaultRoom.Seats {
 			if seatInLayout.Id == seatInUse.SeatId {
 				isUsed = true
 				break
@@ -361,36 +391,30 @@ func (s *System) ExitRoom(ctx context.Context) error {
 			return customErr.Body
 		}
 	}
-	var workedTimeSec int
-	
+	// 作業時間を計算
+	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+	if err != nil {
+		return err
+	}
+	workedTimeSec := int(time.Now().Sub(userData.LastEntered).Seconds())
+
+	var seat myfirestore.Seat
 	switch seatId {
 	case 0:
 		noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
 		if err != nil {
 			return err
 		}
-		var seat myfirestore.Seat
 		for _, seatInNoSeatRoom := range noSeatRoom.Seats {
 			if seatInNoSeatRoom.UserId == s.ProcessedUserId {
 				seat = seatInNoSeatRoom
 			}
 		}
-		// 作業時間を計算
-		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
-		if err != nil {
-			return err
-		}
-		workedTimeSec := int(time.Now().Sub(userData.LastEntered).Seconds())
 		err = s.FirestoreController.UnSetSeatInNoSeatRoom(seat, ctx)
 		if err != nil {
 			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
 				"さん、残念ながらエラーが発生しました。もう一度試してみてください。")
 			return err
-		}
-		// ログ記録
-		err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
-		if err != nil {
-			// todo lineで通知
 		}
 		s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
 			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）")
@@ -399,42 +423,35 @@ func (s *System) ExitRoom(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var seat myfirestore.Seat
 		for _, seatDefaultRoom := range defaultSeatRoom.Seats {
 			if seatDefaultRoom.UserId == s.ProcessedUserId {
 				seat = seatDefaultRoom
 			}
 		}
-		// 作業時間を計算
-		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
-		if err != nil {
-			return err
-		}
-		workedTimeSec := int(time.Now().Sub(userData.LastEntered).Seconds())
 		err = s.FirestoreController.UnSetSeatInDefaultRoom(seat, ctx)
 		if err != nil {
 			s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName +
 				"さん、残念ながらエラーが発生しました。もう一度試してみてください。")
 			return err
 		}
-		// ログ記録
-		err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
-		if err != nil {
-			// todo lineで通知
-		}
 		s.LiveChatBot.PostMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
 			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）")
 	}
-	// 退室時刻を記録
-	err := s.FirestoreController.SetLastExitedDate(s.ProcessedUserId, ctx)
+	// ログ記録
+	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
 	if err != nil {
-		// todo lineで通知
+		_ = s.LineBot.SendMessageWithError("failed to add an user history", err)
+	}
+	// 退室時刻を記録
+	err = s.FirestoreController.SetLastExitedDate(s.ProcessedUserId, ctx)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed to update last-exited-date", err)
 		return err
 	}
 	// 累計学習時間を更新
 	err = s.UpdateTotalWorkTime(workedTimeSec, ctx)
 	if err != nil {
-		// todo lineで通知
+		_ = s.LineBot.SendMessageWithError("failed to update total study time", err)
 		return err
 	}
 	return nil
@@ -519,7 +536,7 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
 	} else {
 		totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(totalDuration.Minutes())) + "分"
+			strconv.Itoa(int(totalDuration.Minutes()) % 60) + "分"
 	}
 	// 当日の累計
 	var dailyTotalStr string
@@ -546,7 +563,7 @@ func (s *System) ExitAllUserDefaultRoom(ctx context.Context) error {
 			return err
 		}
 	}
-	
+	return nil
 }
 
 
