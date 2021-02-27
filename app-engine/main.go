@@ -15,7 +15,8 @@ func AppEngineMain()  {
 	fmt.Println("app started.")
 	ctx := context.Background()
 	// todo get credential properly
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
 		fmt.Println("failed myfirestore.NewFirestoreController().")
@@ -77,7 +78,9 @@ func AppEngineMain()  {
 func DevMain()  {
 	fmt.Println("app started.")
 	ctx := context.Background()
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	// todo
+	clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
 		fmt.Println("failed myfirestore.NewFirestoreController().")
@@ -92,7 +95,7 @@ func DevMain()  {
 		message := scanner.Text()
 
 		// 入力文字列からコマンドを抜き出して処理
-		err = _system.Command(message, "test-channel01", "display-name", ctx)
+		err = _system.Command(message, "test-channel01", "潤", ctx)
 		if err != nil {
 			fmt.Println("error in system.Command().")
 			fmt.Println(err.Error())

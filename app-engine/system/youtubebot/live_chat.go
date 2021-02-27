@@ -2,13 +2,15 @@ package youtubebot
 
 import (
 	"context"
+	"fmt"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 )
 
 func NewYoutubeLiveChatBot(liveChatId string, sleepIntervalMilli int, ctx context.Context) (*YoutubeLiveChatBot, error) {
 	// todo get credential properly
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/music-quiz-287112-83a452727d6d.json")
+	clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/music-quiz-287112-83a452727d6d.json")
 	youtubeService, err := youtube.NewService(ctx, clientOption)
 	if err != nil {
 		return nil, err
@@ -40,4 +42,5 @@ func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string) ([]*youtube.Li
 
 func (bot *YoutubeLiveChatBot) PostMessage(message string)  {
 	// todo 送れなかった場合はlineで通知
+	fmt.Println(message)
 }

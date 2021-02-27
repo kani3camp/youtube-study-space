@@ -3,10 +3,10 @@ package myfirestore
 import "time"
 
 type ConfigCollection struct {
-	YoutubeLive YoutubeLiveDoc	`firestore:"youtube-live"`
+	YoutubeLive YoutubeLiveConfigDoc `firestore:"youtube-live"`
 }
 
-type YoutubeLiveDoc struct {
+type YoutubeLiveConfigDoc struct {
 	LiveChatId string `firestore:"live-chat-id"`
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	NextPageToken string `firestore:"next-page-token"`
@@ -19,12 +19,13 @@ type DefaultRoomDoc struct {
 type Seat struct {
 	SeatId int `firestore:"seat-id"`
 	UserId string `firestore:"user-id"`
+	UserDisplayName string `firestore:"user-display-name"`
 	WorkName string `firestore:"work-name"`
 	Until time.Time `firestore:"until"`
 }
 
 type NoSeatRoomDoc struct {
-	Seats []Seat `firestore:"users"`
+	Seats []Seat `firestore:"seats"`
 }
 
 

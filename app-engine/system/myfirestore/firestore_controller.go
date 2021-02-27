@@ -1,7 +1,6 @@
 package myfirestore
 
 import (
-	"app.modules/system"
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
@@ -15,7 +14,7 @@ type FirestoreController struct {
 func NewFirestoreController(ctx context.Context, projectId string, clientOption option.ClientOption) (*FirestoreController, error) {
 	var client *firestore.Client
 	var err error
-	client, err = firestore.NewClient(ctx, system.ProjectId, clientOption)
+	client, err = firestore.NewClient(ctx, projectId, clientOption)
 	if err != nil {
 		return nil, err
 	}
@@ -25,15 +24,15 @@ func NewFirestoreController(ctx context.Context, projectId string, clientOption 
 	}, nil
 }
 
-func (controller *FirestoreController) RetrieveYoutubeLiveInfo(ctx context.Context) (YoutubeLiveDoc, error) {
+func (controller *FirestoreController) RetrieveYoutubeLiveInfo(ctx context.Context) (YoutubeLiveConfigDoc, error) {
 	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveDocName).Get(ctx)
 	if err != nil {
-		return YoutubeLiveDoc{}, err
+		return YoutubeLiveConfigDoc{}, err
 	}
-	var youtubeLiveData YoutubeLiveDoc
+	var youtubeLiveData YoutubeLiveConfigDoc
 	err = doc.DataTo(&youtubeLiveData)
 	if err != nil {
-		return YoutubeLiveDoc{}, err
+		return YoutubeLiveConfigDoc{}, err
 	}
 	return youtubeLiveData, nil
 }
@@ -106,9 +105,10 @@ func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName
 	return seat, nil
 }
 
-func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, exitDate time.Time, userId string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		UserId: userId,
+		UserDisplayName: userDisplayName,
 		WorkName: workName,
 		Until: exitDate,
 	}
@@ -152,7 +152,13 @@ func (controller *FirestoreController) UnSetSeatInDefaultRoom(seat Seat, ctx con
 }
 
 func (controller *FirestoreController) UnSetSeatInNoSeatRoom(seat Seat, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
+	//_seat := Seat{
+	//	SeatId:   seat.SeatId,
+	//	UserId:   seat.UserId,
+	//	WorkName: seat.WorkName,
+	//	Until:    seat.Until,
+	//}
+	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayRemove(seat),
 	}, firestore.MergeAll)
 	if err != nil {
@@ -180,7 +186,7 @@ func (controller *FirestoreController) AddUserHistory(userId string, action stri
 		Date:    time.Now(),
 		Details: details,
 	}
-	_, _, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Collection(UserHistory).Add(ctx, history)
+	_, _, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Collection(HISTORY).Add(ctx, history)
 	if err != nil {
 		return err
 	}
@@ -210,4 +216,16 @@ func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTi
 	}
 	return nil
 }
+
+func (controller *FirestoreController) AddRoomLayoutHistory(data interface{}, ctx context.Context) error {
+	_, _, err := controller.FirestoreClient.Collection(CONFIG).Doc(DefaultRoomLayoutDocName).Collection(HISTORY).Add(ctx, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
+
+
 
