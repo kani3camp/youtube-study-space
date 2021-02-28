@@ -6,6 +6,7 @@ import (
 	"app.modules/system/mylinebot"
 	"app.modules/system/youtubebot"
 	"context"
+	"fmt"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -83,6 +84,15 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 func (s *System) SetProcessedUser(userId string, userDisplayName string) {
 	s.ProcessedUserId = userId
 	s.ProcessedUserDisplayName = userDisplayName
+}
+
+func (s *System) CloseFirestoreClient() {
+	err := s.FirestoreController.FirestoreClient.Close()
+	if err != nil {
+		fmt.Println("failed close firestore client.")
+	} else {
+		fmt.Println("successfully closed firestore client.")
+	}
 }
 
 // Command: 入力コマンドを解析して実行

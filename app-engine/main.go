@@ -86,6 +86,7 @@ func DevMain()  {
 		fmt.Println(err.Error())
 		return
 	}
+	defer _system.CloseFirestoreClient()
 	_ = _system.LineBot.SendMessage("app started.")
 
 	for {
