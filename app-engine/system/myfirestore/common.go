@@ -6,6 +6,8 @@ const (
 	USERS                    = "users"
 	HISTORY                  = "history"
 	YouTubeLiveConfigDocName = "youtube-live"
+	YoutubeBotCredentialDocName = "youtube-bot-credential"
+	YoutubeChannelCredentialDocName = "youtube-channel-credential"
 	LineBotConfigDocName     = "line-bot"
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName       = "default"
@@ -18,5 +20,5 @@ const (
 	LastExitedFirestore = "last-exited"
 	DailyTotalStudySecFirestore = "daily-total-study-sec"
 	TotalStudySecFirestore = "total-study-sec"
-
+	LiveChatIdFirestore = "live-chat-id"
 )

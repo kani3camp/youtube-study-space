@@ -6,12 +6,20 @@ import "time"
 type ConstantsConfigDoc struct {
 	MaxWorkTimeMin int `firestore:"max-work-time-min"`
 	MinWorkTimeMin int `firestore:"min-work-time-min"`
+	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 }
 
 type YoutubeLiveConfigDoc struct {
 	LiveChatId string `firestore:"live-chat-id"`
-	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	NextPageToken string `firestore:"next-page-token"`
+}
+
+type YoutubeCredentialDoc struct {
+	AccessToken string `firestore:"access-token"`
+	ClientId string `firestore:"client-id"`
+	ClientSecret string `firestore:"client-secret"`
+	ExpirationDate time.Time `firestore:"expiration-date"`
+	RefreshToken string `firestore:"refresh-token"`
 }
 
 type LineBotConfigDoc struct {

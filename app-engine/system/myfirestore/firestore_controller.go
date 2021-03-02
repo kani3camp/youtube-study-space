@@ -37,6 +37,32 @@ func (controller *FirestoreController) RetrieveYoutubeLiveConfig(ctx context.Con
 	return youtubeLiveData, nil
 }
 
+func (controller *FirestoreController) RetrieveYoutubeBotCredentialConfig(ctx context.Context) (YoutubeCredentialDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeBotCredentialDocName).Get(ctx)
+	if err != nil {
+		return YoutubeCredentialDoc{}, err
+	}
+	var youtubeBotCredential YoutubeCredentialDoc
+	err = doc.DataTo(&youtubeBotCredential)
+	if err != nil {
+		return YoutubeCredentialDoc{}, err
+	}
+	return youtubeBotCredential, nil
+}
+
+func (controller *FirestoreController) RetrieveYoutubeChannelCredentialConfig(ctx context.Context) (YoutubeCredentialDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeChannelCredentialDocName).Get(ctx)
+	if err != nil {
+		return YoutubeCredentialDoc{}, err
+	}
+	var youtubeChannelCredential YoutubeCredentialDoc
+	err = doc.DataTo(&youtubeChannelCredential)
+	if err != nil {
+		return YoutubeCredentialDoc{}, err
+	}
+	return youtubeChannelCredential, nil
+}
+
 func (controller *FirestoreController) RetrieveLineBotConfig(ctx context.Context) (LineBotConfigDoc, error) {
 	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(LineBotConfigDocName).Get(ctx)
 	if err != nil {
@@ -259,6 +285,20 @@ func (controller *FirestoreController) SaveRoomLayout(roomLayoutData RoomLayoutD
 	return nil
 }
 
+func (controller *FirestoreController) SaveLiveChatId(liveChatId string, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Set(ctx, map[string]interface{}{
+		LiveChatIdFirestore: liveChatId,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-
-
+func (controller *FirestoreController) InitializeUser(userId string, userData UserDoc, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, userData)
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -3,3 +3,4 @@ app-engine/.idea/
 aws-lambda/.idea/
 youtube-monitor/.idea/
 app-engine/.DS_Store
+app-engine/.gcloudignore
