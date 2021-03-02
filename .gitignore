@@ -4,3 +4,5 @@ aws-lambda/.idea/
 youtube-monitor/.idea/
 app-engine/.DS_Store
 app-engine/.gcloudignore
+youtube-monitor/.next/
+youtube-monitor/node_modules/
