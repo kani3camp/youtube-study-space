@@ -1,0 +1,22 @@
+# Windows
+
+# 新しく関数をデプロイしたら、タイムアウトが3秒のため長めにしておく
+# rooms,
+#
+# test_rooms,
+
+set GOOS=linux
+go build -o main constants.go credential.go response.go    youtube_rooms.go
+C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
+aws lambda create-function --function-name     youtube_rooms     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 10
+aws lambda update-function-code --function-name     youtube_rooms     --zip-file fileb://main.zip
+
+
+# Mac OS
+
+GOOS=linux go build -o main common.go news.go
+zip main.zip main
+
+aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th
+
+aws lambda update-function-code --function-name news --zip-file fileb://main.zip
