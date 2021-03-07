@@ -1,7 +1,6 @@
-package aws_lambda
+package main
 
 import (
-	"../app-engine/system"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
