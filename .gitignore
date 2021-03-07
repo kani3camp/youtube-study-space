@@ -1,8 +1,8 @@
 .idea/
-app-engine/.idea/
+system/.idea/
 aws-lambda/.idea/
 youtube-monitor/.idea/
-app-engine/.DS_Store
-app-engine/.gcloudignore
+system/.DS_Store
+system/.gcloudignore
 youtube-monitor/.next/
 youtube-monitor/node_modules/
