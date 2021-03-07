@@ -1,4 +1,5 @@
 import React from "react";
+import styles from './Message.module.sass'
 
 class Message extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
@@ -26,7 +27,7 @@ class Message extends React.Component<{}, any> {
   }
 
   render() {
-    return <div>{this.state.message}</div>;
+    return <div id={styles.message}>{this.state.message}</div>;
   }
 }
 

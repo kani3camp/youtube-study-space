@@ -1,13 +1,11 @@
 import React from "react";
+import styles from './Clock.module.sass'
 
-type ClockState = {
-  state: Date;
-};
 
 class Clock extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
 
-  constructor(props: ClockState) {
+  constructor(props: {}) {
     super(props);
     this.state = {
       now: new Date(),
@@ -30,15 +28,19 @@ class Clock extends React.Component<{}, any> {
 
   render() {
     return (
-      <div>
-        <div>
-          {this.state.now.getFullYear()} 年 {this.state.now.getMonth()} 月{" "}
+      <div id={styles.clock}>
+        <div className={styles.dateString}>
+          {this.state.now.getFullYear()} 年 {' '}
+          {this.state.now.getMonth()} 月 {' '}
           {this.state.now.getDate()} 日
         </div>
-        <div>
-          {this.state.now.getHours()}：{this.state.now.getMinutes()}
+        <div className={styles.timeString}>
+          {this.state.now.getHours()}
+          ：
+          {(this.state.now.getMinutes() < 10)
+              ? ('0' + this.state.now.getMinutes().toString())
+              : (this.state.now.getMinutes())}
         </div>
-        <div>{this.state.now.getSeconds()} 秒</div>
       </div>
     );
   }
