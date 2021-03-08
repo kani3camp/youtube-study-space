@@ -66,19 +66,35 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 	}, nil
 }
 
-func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
+func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string, ctx context.Context) ([]*youtube.LiveChatMessage, string, int, error) {
+	fmt.Println("ListMessages()")
 	liveChatMessageService := youtube.NewLiveChatMessagesService(bot.BotYoutubeService)
 	part := []string{
 		"snippet",
 		"authorDetails",
 	}
+	
+	// first call
 	listCall := liveChatMessageService.List(bot.LiveChatId, part)
 	if nextPageToken != "" {
 		listCall = listCall.PageToken(nextPageToken)
 	}
 	response, err := listCall.Do()
 	if err != nil {
-		return nil, "", 0, err
+		// live chat idが変わっている可能性があるため、更新して再試行
+		err := bot.RefreshLiveChatId(ctx)
+		if err != nil {
+			return nil, "", 0, err
+		}
+		// second call
+		listCall := liveChatMessageService.List(bot.LiveChatId, part)
+		if nextPageToken != "" {
+			listCall = listCall.PageToken(nextPageToken)
+		}
+		response, err = listCall.Do()
+		if err != nil {
+			return nil, "", 0, err
+		}
 	}
 	return response.Items, response.NextPageToken, int(response.PollingIntervalMillis), nil
 }
@@ -106,12 +122,11 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	if err != nil {
 		fmt.Println("first post was failed")
 		// post2
-		liveChatId, err := bot.RefreshLiveChatId(ctx)
+		err := bot.RefreshLiveChatId(ctx)
 		if err != nil {
 			return err
 		}
-		bot.LiveChatId = liveChatId
-		liveChatMessage.Snippet.LiveChatId = liveChatId
+		liveChatMessage.Snippet.LiveChatId = bot.LiveChatId
 		liveChatMessageService = youtube.NewLiveChatMessagesService(bot.BotYoutubeService)
 		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
 		_, err = insertCall.Do()
@@ -134,26 +149,29 @@ func (bot *YoutubeLiveChatBot) RefreshAccessToken() error {
 	return nil
 }
 
-func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) (string, error) {
+// RefreshLiveChatId: live chat idを取得するとともに、firestoreに保存（更新）する
+func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {
 	fmt.Println("RefreshLiveChatId()")
 	broadCastsService := youtube.NewLiveBroadcastsService(bot.ChannelYoutubeService)
 	part := []string{"snippet"}
 	listCall := broadCastsService.List(part).BroadcastStatus("active")
 	response, err := listCall.Do()
 	if err != nil {
-		return "", err
+		return err
 	}
 	if len(response.Items) == 1 {
-		fmt.Println("live chat id :", response.Items[0].Snippet.LiveChatId)
-		err := bot.FirestoreController.SaveLiveChatId(response.Items[0].Snippet.LiveChatId, ctx)
+		newLiveChatId := response.Items[0].Snippet.LiveChatId
+		fmt.Println("live chat id :", newLiveChatId)
+		err := bot.FirestoreController.SaveLiveChatId(newLiveChatId, ctx)
 		if err != nil {
-			return "", err
+			return err
 		}
-		return response.Items[0].Snippet.LiveChatId, nil
+		bot.LiveChatId = newLiveChatId
+		return nil
 	} else if len(response.Items) == 0 {
-		return "", errors.New("there are no live broadcast!")
+		return errors.New("there are no live broadcast!")
 	} else {
-		return "", errors.New("more than 2 live broadcasts!: " + strconv.Itoa(len(response.Items)))
+		return errors.New("more than 2 live broadcasts!: " + strconv.Itoa(len(response.Items)))
 	}
 }
 

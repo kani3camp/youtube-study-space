@@ -33,10 +33,10 @@ type DefaultRoomDoc struct {
 }
 
 type Seat struct {
-	SeatId int `json:"seatId" firestore:"seat-id"`
-	UserId string `json:"userId" firestore:"user-id"`
-	UserDisplayName string `json:"userDisplayName" firestore:"user-display-name"`
-	WorkName string `json:"workName" firestore:"work-name"`
+	SeatId int `json:"seat_id" firestore:"seat-id"`
+	UserId string `json:"user_id" firestore:"user-id"`
+	UserDisplayName string `json:"user_display_name" firestore:"user-display-name"`
+	WorkName string `json:"work_name" firestore:"work-name"`
 	Until time.Time `json:"until" firestore:"until"`
 }
 
@@ -46,30 +46,30 @@ type NoSeatRoomDoc struct {
 
 
 type UserDoc struct {
-	DailyTotalStudySec int `json:"dailyTotalStudySec" firestore:"daily-total-study-sec"`
-	TotalStudySec int `json:"totalStudySec" firestore:"total-study-sec"`
-	RegistrationDate time.Time `json:"registrationDate" firestore:"registration-date"`
-	StatusMessage string `json:"statusMessage" firestore:"status-message"`
-	LastEntered time.Time `json:"lastEntered" firestore:"last-entered"`
-	LastExited time.Time `json:"lastExited" firestore:"last-exited"`
+	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec"`
+	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec"`
+	RegistrationDate time.Time `json:"registration_date" firestore:"registration-date"`
+	StatusMessage string `json:"status_message" firestore:"status-message"`
+	LastEntered time.Time `json:"last_entered" firestore:"last-entered"`
+	LastExited time.Time `json:"last_exited" firestore:"last-exited"`
 }
 
 type RoomLayoutDoc struct {
 	Version       int     `json:"version" firestore:"version"`
-	FontSizeRatio float32 `json:"fontSizeRatio" firestore:"font-size-ratio"`
+	FontSizeRatio float32 `json:"font_size_ratio" firestore:"font-size-ratio"`
 	RoomShape     struct {
 		Height int `json:"height" firestore:"height"`
 		Width  int `json:"width" firestore:"width"`
-	} `json:"roomShape" firestore:"room-shape"`
+	} `json:"room_shape" firestore:"room-shape"`
 	SeatShape struct {
 		Height int `json:"height" firestore:"height"`
 		Width  int `json:"width" firestore:"width"`
-	} `json:"seatShape" firestore:"seat-shape"`
+	} `json:"seat_shape" firestore:"seat-shape"`
 	PartitionShapes []struct {
 		Name   string `json:"name" firestore:"name"`
 		Width  int    `json:"width" firestore:"width"`
 		Height int    `json:"height" firestore:"height"`
-	} `json:"partitionShapes" firestore:"partition-shapes"`
+	} `json:"partition_shapes" firestore:"partition-shapes"`
 	Seats []struct {
 		Id       int    `json:"id" firestore:"id"`
 		X        int    `json:"x" firestore:"x"`
@@ -79,7 +79,7 @@ type RoomLayoutDoc struct {
 		Id        int    `json:"id" firestore:"id"`
 		X         int    `json:"x" firestore:"x"`
 		Y         int    `json:"y" firestore:"y"`
-		ShapeType string `json:"shapeType" firestore:"shape-type"`
+		ShapeType string `json:"shape_type" firestore:"shape-type"`
 	} `json:"partitions" firestore:"partitions"`
 }
 

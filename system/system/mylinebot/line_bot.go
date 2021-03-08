@@ -34,7 +34,7 @@ func (bot *LineBot) SendMessage(message string) error {
 }
 
 func (bot *LineBot) SendMessageWithError(message string, err error) error {
-	fmt.Println("sending error to LINE: \n" + err.Error())
+	fmt.Println("sending an error to LINE: \n" + err.Error())
 	message += ":\n" + err.Error()
 	err = bot.SendMessage(message)
 	if err != nil {

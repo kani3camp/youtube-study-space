@@ -4,6 +4,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-func FirestoreCredential(credentialBytes []byte) option.ClientOption {
+func FirestoreClientOption(credentialBytes []byte) option.ClientOption {
 	return option.WithCredentialsJSON(credentialBytes)
 }

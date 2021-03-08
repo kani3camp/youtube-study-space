@@ -141,10 +141,11 @@ func (controller *FirestoreController) RetrieveNoSeatRoom(ctx context.Context) (
 	return noSeatRoomData, nil
 }
 
-func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, exitDate time.Time, userId string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		SeatId: seatId,
 		UserId: userId,
+		UserDisplayName: userDisplayName,
 		WorkName: workName,
 		Until: exitDate,
 	}

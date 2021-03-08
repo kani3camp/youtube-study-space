@@ -349,7 +349,7 @@ func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) er
 
 func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, ctx context.Context) error {
 	exitDate := time.Now().Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, exitDate, s.ProcessedUserId, ctx)
+	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
 	}
@@ -613,6 +613,40 @@ func (s *System) SendLiveChatMessage(message string, ctx context.Context) {
 	return
 }
 
-
+func (s *System) OrganizeDatabase(ctx context.Context) error {
+	// untilを過ぎているdefaultルーム内のユーザーを退室させる
+	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	for _, seat := range defaultRoom.Seats {
+		if seat.Until.Before(time.Now()) {
+			s.ProcessedUserId = seat.UserId
+			s.ProcessedUserDisplayName = seat.UserDisplayName
+			err := s.ExitRoom(ctx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	
+	// no-seat-roomも同様。
+	noSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	for _, seat := range noSeatRoom.Seats {
+		if seat.Until.Before(time.Now()) {
+			s.ProcessedUserId = seat.UserId
+			s.ProcessedUserDisplayName = seat.UserDisplayName
+			err := s.ExitRoom(ctx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	
+	return nil
+}
 
 
