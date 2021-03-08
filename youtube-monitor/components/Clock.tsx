@@ -1,6 +1,5 @@
 import React from "react";
-import styles from './Clock.module.sass'
-
+import styles from "./Clock.module.sass";
 
 class Clock extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
@@ -30,16 +29,17 @@ class Clock extends React.Component<{}, any> {
     return (
       <div id={styles.clock}>
         <div className={styles.dateString}>
-          {this.state.now.getFullYear()} 年 {' '}
-          {this.state.now.getMonth()} 月 {' '}
-          {this.state.now.getDate()} 日
+          {this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}
+          {this.state.now.getFullYear()}
+          {/*{this.state.now.getFullYear()} 年 {' '}*/}
+          {/*{this.state.now.getMonth() + 1} 月 {' '}*/}
+          {/*{this.state.now.getDate()} 日*/}
         </div>
         <div className={styles.timeString}>
-          {this.state.now.getHours()}
-          ：
-          {(this.state.now.getMinutes() < 10)
-              ? ('0' + this.state.now.getMinutes().toString())
-              : (this.state.now.getMinutes())}
+          {this.state.now.getHours()}：
+          {this.state.now.getMinutes() < 10
+            ? "0" + this.state.now.getMinutes().toString()
+            : this.state.now.getMinutes()}
         </div>
       </div>
     );
