@@ -1,38 +1,28 @@
 import React from "react";
-import styles from './StandingRoom.module.sass'
+import styles from "./StandingRoom.module.sass";
+import { NoSeatRoomState } from "../types/room-state";
 
-class StandingRoom extends React.Component<{}, any> {
-    private intervalId: NodeJS.Timeout | undefined;
-    
-    constructor(props: {}) {
-        super(props);
-        this.state = {
-            message: "メッセージです。",
-        };
+class StandingRoom extends React.Component<
+  { no_seat_room_state: NoSeatRoomState },
+  any
+> {
+  render() {
+    if (this.props.no_seat_room_state) {
+      const numStandingWorkers = this.props.no_seat_room_state.seats.length;
+      return (
+        <div id={styles.standingRoom}>
+          <h2>　</h2>
+          <h2>スタンディングルーム</h2>
+          <h3>
+            （<span className={styles.commandString}>!0</span> で入室）
+          </h3>
+          <h2>{numStandingWorkers}人</h2>
+        </div>
+      );
+    } else {
+      return <div id={styles.standingRoom} />;
     }
-    
-    componentDidMount() {
-        this.intervalId = setInterval(() => {
-            // todo reload data
-            this.setState({
-                message: "新しい",
-            });
-        }, 1000);
-    }
-    
-    componentWillUnmount() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-        }
-    }
-    
-    render() {
-        return (
-            <div id={styles.standingRoom}>
-                {this.state.message}
-            </div>
-        );
-    }
+  }
 }
 
 export default StandingRoom;

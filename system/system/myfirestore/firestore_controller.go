@@ -116,7 +116,7 @@ func (controller *FirestoreController) SaveNextPageToken(nextPageToken string, c
 }
 
 func (controller *FirestoreController) RetrieveDefaultRoom(ctx context.Context) (DefaultRoomDoc, error) {
-	var defaultRoomData DefaultRoomDoc
+	defaultRoomData := NewDefaultRoomDoc()
 	doc, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Get(ctx)
 	if err != nil {
 		return DefaultRoomDoc{}, err
@@ -129,7 +129,7 @@ func (controller *FirestoreController) RetrieveDefaultRoom(ctx context.Context) 
 }
 
 func (controller *FirestoreController) RetrieveNoSeatRoom(ctx context.Context) (NoSeatRoomDoc, error) {
-	var noSeatRoomData NoSeatRoomDoc
+	noSeatRoomData := NewNoSeatRoomDoc()
 	doc, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Get(ctx)
 	if err != nil {
 		return NoSeatRoomDoc{}, err
@@ -225,7 +225,7 @@ func (controller *FirestoreController) RetrieveDefaultRoomLayout(ctx context.Con
 	if err != nil {
 		return RoomLayoutDoc{}, err
 	}
-	var roomLayoutData RoomLayoutDoc
+	roomLayoutData := NewRoomLayoutDoc()
 	err = doc.DataTo(&roomLayoutData)
 	if err != nil {
 		return RoomLayoutDoc{}, err
@@ -251,7 +251,7 @@ func (controller *FirestoreController) RetrieveUser(userId string, ctx context.C
 	if err != nil {
 		return UserDoc{}, err
 	}
-	var userData UserDoc
+	userData := UserDoc{}
 	err = doc.DataTo(&userData)
 	if err != nil {
 		return UserDoc{}, err

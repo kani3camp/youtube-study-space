@@ -31,6 +31,11 @@ type LineBotConfigDoc struct {
 type DefaultRoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`
 }
+func NewDefaultRoomDoc() DefaultRoomDoc {
+	return DefaultRoomDoc{
+		Seats: []Seat{},
+	}
+}
 
 type Seat struct {
 	SeatId int `json:"seat_id" firestore:"seat-id"`
@@ -43,7 +48,11 @@ type Seat struct {
 type NoSeatRoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`
 }
-
+func NewNoSeatRoomDoc() NoSeatRoomDoc {
+	return NoSeatRoomDoc{
+		Seats: []Seat{},
+	}
+}
 
 type UserDoc struct {
 	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec"`
@@ -54,6 +63,22 @@ type UserDoc struct {
 	LastExited time.Time `json:"last_exited" firestore:"last-exited"`
 }
 
+type PartitionShape struct {
+	Name   string `json:"name" firestore:"name"`
+	Width  int    `json:"width" firestore:"width"`
+	Height int    `json:"height" firestore:"height"`
+}
+type SeatLayout struct {
+	Id       int    `json:"id" firestore:"id"`
+	X        int    `json:"x" firestore:"x"`
+	Y        int    `json:"y" firestore:"y"`
+}
+type Partition struct {
+	Id        int    `json:"id" firestore:"id"`
+	X         int    `json:"x" firestore:"x"`
+	Y         int    `json:"y" firestore:"y"`
+	ShapeType string `json:"shape_type" firestore:"shape-type"`
+}
 type RoomLayoutDoc struct {
 	Version       int     `json:"version" firestore:"version"`
 	FontSizeRatio float32 `json:"font_size_ratio" firestore:"font-size-ratio"`
@@ -65,22 +90,16 @@ type RoomLayoutDoc struct {
 		Height int `json:"height" firestore:"height"`
 		Width  int `json:"width" firestore:"width"`
 	} `json:"seat_shape" firestore:"seat-shape"`
-	PartitionShapes []struct {
-		Name   string `json:"name" firestore:"name"`
-		Width  int    `json:"width" firestore:"width"`
-		Height int    `json:"height" firestore:"height"`
-	} `json:"partition_shapes" firestore:"partition-shapes"`
-	Seats []struct {
-		Id       int    `json:"id" firestore:"id"`
-		X        int    `json:"x" firestore:"x"`
-		Y        int    `json:"y" firestore:"y"`
-	} `json:"seats" firestore:"seats"`
-	Partitions []struct {
-		Id        int    `json:"id" firestore:"id"`
-		X         int    `json:"x" firestore:"x"`
-		Y         int    `json:"y" firestore:"y"`
-		ShapeType string `json:"shape_type" firestore:"shape-type"`
-	} `json:"partitions" firestore:"partitions"`
+	PartitionShapes []PartitionShape `json:"partition_shapes" firestore:"partition-shapes"`
+	Seats []SeatLayout `json:"seats" firestore:"seats"`
+	Partitions []Partition `json:"partitions" firestore:"partitions"`
+}
+func NewRoomLayoutDoc() RoomLayoutDoc {
+	return RoomLayoutDoc{
+		PartitionShapes: []PartitionShape{},
+		Seats: []SeatLayout{},
+		Partitions: []Partition{},
+	}
 }
 
 type UserHistoryDoc struct {

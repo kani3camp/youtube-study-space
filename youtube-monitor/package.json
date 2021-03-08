@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "next",
-    "build": "next build",
+    "build": "next build && next export",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx"
   },
@@ -20,7 +20,8 @@
     "react-redux": "^7.2.2",
     "redux": "^4.0.5",
     "redux-logger": "^3.0.6",
-    "sass": "^1.32.8"
+    "sass": "^1.32.8",
+    "swr": "^0.4.2"
   },
   "devDependencies": {
     "@types/node": "^14.14.31",

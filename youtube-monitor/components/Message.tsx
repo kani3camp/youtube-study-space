@@ -1,33 +1,20 @@
 import React from "react";
-import styles from './Message.module.sass'
+import styles from "./Message.module.sass";
+import { DefaultRoomState, NoSeatRoomState } from "../types/room-state";
 
-class Message extends React.Component<{}, any> {
-  private intervalId: NodeJS.Timeout | undefined;
-
-  constructor(props: {}) {
-    super(props);
-    this.state = {
-      message: "メッセージです。",
-    };
-  }
-
-  componentDidMount() {
-    this.intervalId = setInterval(() => {
-      // todo reload data
-      this.setState({
-        message: "新しい",
-      });
-    }, 1000);
-  }
-
-  componentWillUnmount() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-  }
-
+class Message extends React.Component<
+  { default_room_state: DefaultRoomState; no_seat_room_state: NoSeatRoomState },
+  any
+> {
   render() {
-    return <div id={styles.message}>{this.state.message}</div>;
+    if (this.props.default_room_state && this.props.no_seat_room_state) {
+      const numWorkers =
+        this.props.default_room_state.seats.length +
+        this.props.no_seat_room_state.seats.length;
+      return <div id={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
+    } else {
+      return <div id={styles.message} />;
+    }
   }
 }
 

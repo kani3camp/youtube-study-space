@@ -1,37 +1,28 @@
 import React from "react";
-import styles from './DefaultRoom.module.sass'
+import styles from "./DefaultRoom.module.sass";
+import fetcher from "../lib/fetcher";
+import {
+  DefaultRoomState,
+  RoomsStateResponse,
+  seat,
+} from "../types/room-state";
+import DefaultRoomLayout from "./DefaultRoomLayout";
+import { RoomLayout } from "../types/room-layout";
 
-class DefaultRoom extends React.Component<{}, any> {
-    private intervalId: NodeJS.Timeout | undefined;
-    
-    constructor(props: {}) {
-        super(props);
-        this.state = {
-            message: "メッセージです。",
-        };
-    }
-    
-    componentDidMount() {
-        this.intervalId = setInterval(() => {
-            // todo reload data
-            this.setState({
-                message: "新しい",
-            });
-        }, 1000);
-    }
-    
-    componentWillUnmount() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-        }
-    }
-    
-    render() {
-        return (
-            <div id={styles.defaultRoom}>
-                {this.state.message}
-            </div>);
-    }
+class DefaultRoom extends React.Component<
+  { layout: RoomLayout; roomState: DefaultRoomState },
+  any
+> {
+  render() {
+    return (
+      <div id={styles.defaultRoom}>
+        <DefaultRoomLayout
+          layout={this.props.layout}
+          roomState={this.props.roomState}
+        />
+      </div>
+    );
+  }
 }
 
 export default DefaultRoom;
