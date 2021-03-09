@@ -130,8 +130,11 @@ func (s *System) In(commandString string, ctx context.Context) error {
 		return err
 	}
 	if isInRoom {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さん、すでに入室しています。まず「" + OutCommand + "」で退室してください。", ctx)
+		// todo
+		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+		//	"さん、すでに入室しています。まず「" + OutCommand + "」で退室してください。", ctx)
+		s.SendLiveChatMessage("Hi, " + s.ProcessedUserDisplayName +
+			". You already left the room.", ctx)
 		return nil
 	}
 
@@ -226,8 +229,11 @@ func (s *System) In(commandString string, ctx context.Context) error {
 			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 		return err
 	} else {
+		// todo
+		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+		//	"さんが作業を始めました！（最大" + strconv.Itoa(workTimeMin) + "分）", ctx)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さんが作業を始めました！（最大" + strconv.Itoa(workTimeMin) + "分）", ctx)
+			" started working!! (" + strconv.Itoa(workTimeMin) + " minutes max.)", ctx)
 		// 入室時刻を記録
 		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
 		if err != nil {
@@ -273,9 +279,13 @@ func (s *System) ShowUserInfo(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さんの本日の作業時間は" + dailyTotalTimeStr + "、" +
-			"累計作業時間は" + totalTimeStr + "です。", ctx)
+		// todo
+		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+		//	"さんの本日の作業時間は" + dailyTotalTimeStr + "、" +
+		//	"累計作業時間は" + totalTimeStr + "です。", ctx)
+		s.SendLiveChatMessage("Hi, " + s.ProcessedUserDisplayName +
+			". Your daily total working time is " + dailyTotalTimeStr + ", " +
+			"cumulative working time is " + totalTimeStr + ".", ctx)
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 			"さんはまだ作業データがありません。「" + InCommand + "」コマンドで作業を始めましょう！", ctx)
@@ -455,8 +465,11 @@ func (s *System) ExitRoom(ctx context.Context) error {
 				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
 			return err
 		}
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+		// todo
+		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
+		//	"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
+			"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	default:
 		defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 		if err != nil {
@@ -473,8 +486,11 @@ func (s *System) ExitRoom(ctx context.Context) error {
 				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
 			return err
 		}
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+		// todo
+		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
+		//	"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
+			"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	}
 	// ログ記録
 	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
@@ -572,19 +588,29 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	var totalStr string
 	totalDuration := time.Duration(userData.TotalStudySec) * time.Second
 	if totalDuration < time.Hour {
-		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
+		// todo
+		//totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
+		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + " minutes"
 	} else {
-		totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(totalDuration.Minutes()) % 60) + "分"
+		// todo
+		//totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
+		//	strconv.Itoa(int(totalDuration.Minutes()) % 60) + "分"
+		totalStr = strconv.Itoa(int(totalDuration.Hours())) + " hours " +
+			strconv.Itoa(int(totalDuration.Minutes()) % 60) + " minutes"
 	}
 	// 当日の累計
 	var dailyTotalStr string
 	dailyTotalDuration := time.Duration(userData.DailyTotalStudySec) * time.Second
 	if dailyTotalDuration < time.Hour {
-		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
+		// todo
+		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
+		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	} else {
-		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
+		// todo
+		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + "時間" +
+		//	strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
+		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + " hours " +
+			strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	}
 	return totalStr, dailyTotalStr, nil
 }
