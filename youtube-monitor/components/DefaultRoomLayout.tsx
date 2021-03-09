@@ -19,7 +19,6 @@ class DefaultRoomLayout extends React.Component<
 
   render() {
     if (this.props.layout && this.props.roomState) {
-      // todo in-user list
       const usedSeatIds = this.props.roomState.seats.map(
         (seat) => seat.seat_id
       );

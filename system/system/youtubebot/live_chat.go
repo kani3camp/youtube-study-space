@@ -143,11 +143,6 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	return nil
 }
 
-func (bot *YoutubeLiveChatBot) RefreshAccessToken() error {
-	fmt.Println("RefreshAccessToken()")
-	// todo
-	return nil
-}
 
 // RefreshLiveChatId: live chat idを取得するとともに、firestoreに保存（更新）する
 func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {

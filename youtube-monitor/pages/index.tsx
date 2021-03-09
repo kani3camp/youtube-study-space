@@ -36,7 +36,6 @@ export default class Home extends React.Component<{}, any> {
           });
         })
         .catch((err) => console.error(err));
-      // todo save to redux
     }, 1500);
   }
 
