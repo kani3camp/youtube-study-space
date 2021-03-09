@@ -303,3 +303,27 @@ func (controller *FirestoreController) InitializeUser(userId string, userData Us
 	}
 	return nil
 }
+
+func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
+	return controller.FirestoreClient.Collection(USERS).DocumentRefs(ctx).GetAll()
+}
+
+func (controller *FirestoreController) ResetDailyTotalStudyTime(userRef *firestore.DocumentRef, ctx context.Context) error {
+	_, err := userRef.Set(ctx, map[string]interface{}{
+		DailyTotalStudySecFirestore: 0,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time.Time, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
+		LastResetDailyTotalStudySecFirestore: date,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}

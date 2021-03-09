@@ -9,13 +9,13 @@ import (
 	"log"
 )
 
-type OrganizeDatabaseResponseStruct struct {
+type ResetDailyTotalStudyTimeResponseStruct struct {
 	Result  string       `json:"result"`
 	Message string       `json:"message"`
 }
 
-func OrganizeDatabase(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	log.Println("OrganizeDatabase()")
+func ResetDailyTotalStudyTime(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	log.Println("ResetDailyTotalStudyTime()")
 	
 	ctx := context.Background()
 	clientOption, err := FirestoreClientOption()
@@ -28,22 +28,22 @@ func OrganizeDatabase(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRe
 	}
 	defer _system.CloseFirestoreClient()
 	
-	err = _system.OrganizeDatabase(ctx)
+	err = _system.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed to organize database", err)
+		_ = _system.LineBot.SendMessageWithError("failed to reset daily total time", err)
 		return ErrorResponse(err)
 	}
 	
-	return OrganizeDatabaseResponse()
+	return ResetDailyTotalStudyTimeResponse()
 }
 
-func OrganizeDatabaseResponse() (events.APIGatewayProxyResponse, error) {
-	var apiResp OrganizeDatabaseResponseStruct
+func ResetDailyTotalStudyTimeResponse() (events.APIGatewayProxyResponse, error) {
+	var apiResp ResetDailyTotalStudyTimeResponseStruct
 	apiResp.Result = OK
 	jsonBytes, _ := json.Marshal(apiResp)
 	return Response(jsonBytes)
 }
 
 func main() {
-	lambda.Start(OrganizeDatabase)
+	lambda.Start(ResetDailyTotalStudyTime)
 }
