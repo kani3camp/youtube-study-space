@@ -180,13 +180,27 @@ func TestSend()  {
 	_system.SendLiveChatMessage("hi", ctx)
 }
 
+func Test() {
+	ctx := context.Background()
+	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
+	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	_system, err := system.NewSystem(ctx, clientOption)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	defer _system.CloseFirestoreClient()
+	
+	_system.ResetDailyTotalStudyTime(ctx)
+}
 
 func main() {
 	// todo デプロイ時切り替え
 	//AppEngineMain()
-	DevMain()
+	//DevMain()
 	//DevCLIMain()
 	//TestSend()
+	Test()
 	
 	//UpdateRoomLayout()
 }

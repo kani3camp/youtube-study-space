@@ -675,4 +675,32 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	return nil
 }
 
-
+func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
+	constantsConfig, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+	if err != nil {
+		return err
+	}
+	previousDate := constantsConfig.LastResetDailyTotalStudySec.Local()
+	now := time.Now()
+	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
+	if isDifferentDay && now.After(previousDate) {
+		userRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)
+		if err != nil {
+			return err
+		}
+		for _, userRef := range userRefs {
+			err := s.FirestoreController.ResetDailyTotalStudyTime(userRef, ctx)
+			if err != nil {
+				return err
+			}
+		}
+		fmt.Println("successfully reset all user's daily total study time.")
+		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("all user's daily total study times are already reset today.")
+	}
+	return nil
+}
