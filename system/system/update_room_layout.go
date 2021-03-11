@@ -5,7 +5,6 @@ import (
 	"app.modules/system/myfirestore"
 	"context"
 	"encoding/json"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io/ioutil"
@@ -28,31 +27,31 @@ const (
 func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
 	rawData, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	var roomLayout myfirestore.RoomLayoutDoc
 	err = json.Unmarshal(rawData, &roomLayout)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	customErr := s.CheckRoomLayoutData(roomLayout, ctx)
 	if customErr.Body != nil {
-		fmt.Println(customErr.Body.Error())
+		log.Println(customErr.Body.Error())
 		return
 	}
-	fmt.Println("Valid layout file.")
+	log.Println("Valid layout file.")
 	err = s.SaveRoomLayout(roomLayout, ctx)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 }
 
 // CheckRoomLayoutData: ルーム作成時の roomLayoutData.Version は 1
 func (s *System) CheckRoomLayoutData(roomLayoutData myfirestore.RoomLayoutDoc, ctx context.Context) customerror.CustomError {
-	fmt.Println("CheckRoomLayoutData()")
+	log.Println("CheckRoomLayoutData()")
 	var idList []int
 	var partitionShapeTypeList []string
 	
@@ -136,7 +135,7 @@ func (s *System) CurrentDefaultRoomLayoutVersion(ctx context.Context) (int, erro
 }
 
 func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx context.Context) error {
-	fmt.Println("SaveRoomLayout()")
+	log.Println("SaveRoomLayout()")
 	
 	// 履歴を保存
 	var oldRoomLayout myfirestore.RoomLayoutDoc
@@ -169,7 +168,7 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 		newSeatIds = append(newSeatIds, newSeat.Id)
 	}
 	if !reflect.DeepEqual(oldSeatIds, newSeatIds) {
-		fmt.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
+		log.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
 		err := s.ExitAllUserDefaultRoom(ctx)
 		if err != nil {
 			return err

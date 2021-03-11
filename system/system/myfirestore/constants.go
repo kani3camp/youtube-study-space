@@ -22,4 +22,6 @@ const (
 	DailyTotalStudySecFirestore = "daily-total-study-sec"
 	TotalStudySecFirestore = "total-study-sec"
 	LiveChatIdFirestore = "live-chat-id"
+	AccessTokenFirestore = "access-token"
+	ExpireDateFirestore = "expiration-date"
 )

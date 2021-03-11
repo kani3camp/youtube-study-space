@@ -327,3 +327,15 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time
 	}
 	return nil
 }
+
+func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeChannelCredentialDocName).Set(ctx, map[string]interface{}{
+		AccessTokenFirestore: accessToken,
+		ExpireDateFirestore:  expireDate,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+

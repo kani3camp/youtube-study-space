@@ -1,7 +1,6 @@
 package main
 
 import (
-	"app.modules/aws-lambda/mydynamodb"
 	"app.modules/system"
 	"app.modules/system/myfirestore"
 	"context"
@@ -23,11 +22,10 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 	log.Println("Rooms()")
 	
 	ctx := context.Background()
-	credentialBytes, err := mydynamodb.RetrieveFirebaseCredentialInBytes()
+	clientOption, err := FirestoreClientOption()
 	if err != nil {
 		return ErrorResponse(err)
 	}
-	clientOption := FirestoreClientOption(credentialBytes)
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
 		return ErrorResponse(err)

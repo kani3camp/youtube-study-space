@@ -6,10 +6,10 @@ import (
 	"app.modules/system/mylinebot"
 	"app.modules/system/youtubebot"
 	"context"
-	"fmt"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -91,9 +91,9 @@ func (s *System) SetProcessedUser(userId string, userDisplayName string) {
 func (s *System) CloseFirestoreClient() {
 	err := s.FirestoreController.FirestoreClient.Close()
 	if err != nil {
-		fmt.Println("failed close firestore client.")
+		log.Println("failed close firestore client.")
 	} else {
-		fmt.Println("successfully closed firestore client.")
+		log.Println("successfully closed firestore client.")
 	}
 }
 
@@ -327,7 +327,7 @@ func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 }
 
 func (s *System) InitializeUser(ctx context.Context) error {
-	fmt.Println("InitializeUser()")
+	log.Println("InitializeUser()")
 	userData := myfirestore.UserDoc{
 		DailyTotalStudySec: 0,
 		TotalStudySec:      0,
@@ -665,6 +665,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
+	log.Println("ResetDailyTotalStudyTime()")
 	constantsConfig, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
 		return err
@@ -683,13 +684,13 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				return err
 			}
 		}
-		fmt.Println("successfully reset all user's daily total study time.")
+		log.Println("successfully reset all user's daily total study time.")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err
 		}
 	} else {
-		fmt.Println("all user's daily total study times are already reset today.")
+		log.Println("all user's daily total study times are already reset today.")
 	}
 	return nil
 }
