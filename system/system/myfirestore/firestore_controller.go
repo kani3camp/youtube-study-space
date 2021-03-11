@@ -339,3 +339,14 @@ func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessT
 	return nil
 }
 
+func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeBotCredentialDocName).Set(ctx, map[string]interface{}{
+		AccessTokenFirestore: accessToken,
+		ExpireDateFirestore:  expireDate,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
