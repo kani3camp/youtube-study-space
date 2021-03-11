@@ -6,3 +6,5 @@ system/.DS_Store
 system/.gcloudignore
 youtube-monitor/.next/
 youtube-monitor/node_modules/
+app-engine/.DS_Store
+app-engine/.gcloudignore
