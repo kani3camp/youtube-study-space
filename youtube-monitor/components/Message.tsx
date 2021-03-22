@@ -11,10 +11,10 @@ class Message extends React.Component<
       const numWorkers =
         this.props.default_room_state.seats.length +
         this.props.no_seat_room_state.seats.length;
-      // return (
-      //   <div id={styles.message}>Currently {numWorkers} people working! 🔥</div>
-      // );
-      return <div id={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
+      return (
+        <div id={styles.message}>Currently {numWorkers} people working! 🔥</div>
+      );
+      // return <div id={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
     } else {
       return <div id={styles.message} />;
     }

@@ -29,10 +29,10 @@ class Clock extends React.Component<{}, any> {
     return (
       <div id={styles.clock}>
         <div className={styles.dateString}>
-          {/*{this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}*/}
-          {/*{this.state.now.getFullYear()}*/}
-          {this.state.now.getFullYear()} 年 {this.state.now.getMonth() + 1} 月{" "}
-          {this.state.now.getDate()} 日
+          {this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}
+          {this.state.now.getFullYear()}
+          {/*{this.state.now.getFullYear()} 年 {this.state.now.getMonth() + 1} 月{" "}*/}
+          {/*{this.state.now.getDate()} 日*/}
         </div>
         <div className={styles.timeString}>
           {this.state.now.getHours()}：
