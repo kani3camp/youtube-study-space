@@ -12,14 +12,14 @@ class StandingRoom extends React.Component<
       return (
         <div id={styles.standingRoom}>
           <h2>　</h2>
-          <h2>Standing Room</h2>
-          {/*<h2>スタンディングルーム</h2>*/}
+          {/*<h2>Standing Room</h2>*/}
+          <h2>スタンディングルーム</h2>
           <h3>
-            {/*（<span className={styles.commandString}>!0</span> で入室）*/}
-            （Enter with <span className={styles.commandString}>!0</span>）
+            （<span className={styles.commandString}>!0</span> で入室）
+            {/*（Enter with <span className={styles.commandString}>!0</span>）*/}
           </h3>
-          <h2>{numStandingWorkers} People</h2>
-          {/*<h2>{numStandingWorkers}人</h2>*/}
+          {/*<h2>{numStandingWorkers} People</h2>*/}
+          <h2>{numStandingWorkers}人</h2>
         </div>
       );
     } else {

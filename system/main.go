@@ -119,7 +119,8 @@ func DevMain() {
 		} else {
 			sleepIntervalMilli = _system.DefaultSleepIntervalMilli
 		}
-		fmt.Printf("\n%.1f 秒待機\n", float32(sleepIntervalMilli) / 1000.0)
+		fmt.Println()
+		log.Printf("waiting for %.1f seconds...\n", float32(sleepIntervalMilli) / 1000.0)
 		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
 	}
 }
