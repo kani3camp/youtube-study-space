@@ -597,7 +597,7 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	} else {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
+			strconv.Itoa(int(dailyTotalDuration.Minutes()) % 60) + "分"
 		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + " hours " +
 		//	strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	}
