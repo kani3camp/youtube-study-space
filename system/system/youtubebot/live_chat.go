@@ -171,8 +171,7 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	return nil
 }
 
-
-// RefreshLiveChatId: live chat idを取得するとともに、firestoreに保存（更新）する
+// RefreshLiveChatId live chat idを取得するとともに、firestoreに保存（更新）する
 func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {
 	log.Println("RefreshLiveChatId()")
 	broadCastsService := youtube.NewLiveBroadcastsService(bot.ChannelYoutubeService)

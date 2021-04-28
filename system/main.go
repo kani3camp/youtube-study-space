@@ -66,7 +66,7 @@ func AppEngineMain()  {
 	}
 }
 
-// ローカル開発用
+// DevMain ローカル開発用
 func DevMain() {
 	ctx := context.Background()
 	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
