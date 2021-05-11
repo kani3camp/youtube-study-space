@@ -70,7 +70,7 @@ func AppEngineMain()  {
 func DevMain() {
 	ctx := context.Background()
 	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:\\Users\\shirasaka\\Documents\\Dev/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	clientOption := option.WithCredentialsFile("C:\\Users\\shirasaka\\OneDrive - 三瓶研究室\\ドキュメント\\Dev/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed system.NewSystem()", err)
