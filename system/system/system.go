@@ -646,7 +646,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	}
 	
 	// no-seat-roomも同様。
-	noSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
 	if err != nil {
 		return err
 	}
