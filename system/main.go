@@ -158,13 +158,13 @@ func UpdateRoomLayout() {
 	log.Println("app started.")
 	ctx := context.Background()
 	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
+	clientOption := option.WithCredentialsFile("C:/Dev/GCP Credentials/youtube-study-space-95bb4187aace.json")
 	_system, err := system.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	_system.UpdateRoomLayout("C:\\Users\\momom\\Documents\\GitHub\\youtube-study-space\\app-engine\\default-room-layout.json", ctx)
+	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
 }
 
 
@@ -202,11 +202,11 @@ func Test() {
 func main() {
 	// todo デプロイ時切り替え
 	//AppEngineMain()
-	DevMain()
+	//DevMain()
 	//DevCLIMain()
 	//TestSend()
 	//Test()
 	
-	//UpdateRoomLayout()
+	UpdateRoomLayout()
 }
 

@@ -23,7 +23,7 @@ const (
 	UpdateRoomLayoutAction = "update-room-layout"
 )
 
-// UpdateRoomLayout: ルームレイアウトを更新。ルームレイアウトが存在しなければ、新規作成
+// UpdateRoomLayout ルームレイアウトを更新。ルームレイアウトが存在しなければ、新規作成
 func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
 	rawData, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
 	}
 }
 
-// CheckRoomLayoutData: ルーム作成時の roomLayoutData.Version は 1
+// CheckRoomLayoutData ルーム作成時の roomLayoutData.Version は 1
 func (s *System) CheckRoomLayoutData(roomLayoutData myfirestore.RoomLayoutDoc, ctx context.Context) customerror.CustomError {
 	log.Println("CheckRoomLayoutData()")
 	var idList []int
