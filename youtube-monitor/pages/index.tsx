@@ -3,6 +3,7 @@ import Clock from "../components/Clock";
 import Message from "../components/Message";
 import DefaultRoom from "../components/DefaultRoom";
 import StandingRoom from "../components/StandingRoom";
+import Timer from "../components/Timer";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse, seat } from "../types/room-state";
 
@@ -65,6 +66,7 @@ export default class Home extends React.Component<{}, any> {
           roomState={this.state.default_room_state}
         />
         <StandingRoom no_seat_room_state={this.state.no_seat_room_state} />
+        <Timer></Timer>
       </div>
     );
   }
