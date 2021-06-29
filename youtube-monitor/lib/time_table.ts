@@ -25,28 +25,47 @@ export type TimeSection = {
 }
 
 export function getCurrentSection(): TimeSection | null {
+    // startsとendsの差は23時間未満とする
     const now: Date = new Date()
     for (const section of TimeTable) {
-        // TODO: 日付またがる時の場合
-        const startsDate: Date = new Date(
-            now.getFullYear(), 
-            now.getMonth(), 
-            now.getDate(), 
-            section.starts.h,
-            section.starts.m
-        )
-        const endsDate: Date = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-            section.ends.h,
-            section.ends.m
-        )
+        const starts = section.starts
+        const ends = section.ends
+        
+        // 適当に初期化
+        let startsDate = now
+        let endsDate = now
+        endsDate.setDate(now.getDate() - 1)
+
+        if (starts.h <= ends.h) {
+            startsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), section.starts.h, section.starts.m)
+            endsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), section.ends.h, section.ends.m)
+        } else {    // 日付またがる時の場合
+            if ((starts.h == now.getHours() && starts.m <= now.getMinutes()) || (starts.h < now.getHours())) {
+                startsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), starts.h, starts.m)
+                endsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, ends.h, ends.m)
+            } else if ((now.getHours() < ends.h) || (now.getHours() == ends.h && now.getMinutes() < ends.m)) {
+                startsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()-1, starts.h, starts.m)
+                endsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), ends.h, ends.m)
+            }
+        }
         if (startsDate <= now && now < endsDate) {
             return section
         }
     }
     console.error('no current section.')
+    return null
+}
+
+export function getNextSection(): TimeSection | null{
+    const currentSection = getCurrentSection()
+    if (currentSection !== null) {
+        for (const section of TimeTable) {
+            if (currentSection.ends.h === section.starts.h &&
+                currentSection.ends.m === section.starts.m) {
+                    return section
+            }
+        }
+    }
     return null
 }
 
