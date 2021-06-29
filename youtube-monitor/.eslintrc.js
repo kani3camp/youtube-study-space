@@ -49,7 +49,7 @@ module.export = {
       "error",
       {
         singleQuote: true,
-        trailingComma: "es5",
+        trailingComma: "es6",
         semi: false,
         printWidth: 110,
         endOfLine: "auto",
