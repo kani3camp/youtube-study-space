@@ -12,8 +12,10 @@ class Timer extends React.Component<{}, any> {
     const now: Date = new Date()
     const currentSection = getCurrentSection()
     if (currentSection !== null) {
-      const remaining_min: number = remainingTime(now.getHours(), now.getMinutes(), currentSection.ends.h, currentSection.ends.m) - 1
+      let remaining_min: number = remainingTime(now.getHours(), now.getMinutes(), currentSection.ends.h, currentSection.ends.m)
       const remaining_sec: number = (60 - now.getSeconds()) % 60
+      if (remaining_sec !== 0)
+        remaining_min -= 1
       const nextSectionType: string = (currentSection.sectionType === SectionType.Study) ? '休憩' : '作業'
       const nextSection = getNextSection()
       if (nextSection !== null) {
