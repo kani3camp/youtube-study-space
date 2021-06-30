@@ -18,7 +18,11 @@ class Timer extends React.Component<{}, any> {
       const nextSection = getNextSection()
       if (nextSection !== null) {
         const nextSectionDuration: number = remainingTime(nextSection.starts.h, nextSection.starts.m, nextSection.ends.h, nextSection.ends.m)
-
+        let sectionMessage = ''
+        if (currentSection.sectionType === SectionType.Study)
+          sectionMessage = '✏️作業✏️'
+        else
+          sectionMessage = '☕️休憩☕️'
         this.setState({
           remaining_min: remaining_min,
           remaining_sec: remaining_sec,
@@ -26,7 +30,8 @@ class Timer extends React.Component<{}, any> {
           currentSectionId: currentSection.sectionId,
           nextSectionDuration: nextSectionDuration,
           nextSection: nextSectionType,
-          sectionType: currentSection.sectionType
+          sectionType: currentSection.sectionType,
+          sectionMessage: sectionMessage,
         })
       }
     }
@@ -41,7 +46,8 @@ class Timer extends React.Component<{}, any> {
       currentSectionId: 0,
       nextSectionDuration: 0,
       nextSection: null,
-      sectionType: SectionType.Break
+      sectionType: SectionType.Break,
+      sectionMessage: '☕️休憩☕️',
     }
   }
 
@@ -62,12 +68,14 @@ class Timer extends React.Component<{}, any> {
   render() {
     return (
         <div id={styles.timer} className={this.state.sectionType === SectionType.Study ? styles.studyMode : styles.breakMode}>
-            <h3 id={styles.timerTitle}>タイマー</h3>
+            {/* <h3 id={styles.timerTitle}>タイマー</h3> */}
+            <div id={styles.timerTitle}>{this.state.sectionMessage}</div>
             <div id={styles.remaining}>
               {this.state.remaining_min}：{this.state.remaining_sec < 10 ? '0' + this.state.remaining_sec : this.state.remaining_sec}
             </div>
             <span>{this.state.currentPartName}　</span>
             <span>{this.state.currentSectionId !== 0 ? ('セクション' + this.state.currentSectionId) : ''}</span>
+            <div className={styles.spacer}/>
             <div>
               <span>次は </span>
               <span>{this.state.nextSectionDuration}</span>
