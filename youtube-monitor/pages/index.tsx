@@ -8,6 +8,7 @@ import BackgroundImage from "../components/BackgroundImage";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse, seat } from "../types/room-state";
 
+
 export default class Home extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
 
