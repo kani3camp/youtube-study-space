@@ -11,7 +11,7 @@ class StandingRoom extends React.Component<
       const numStandingWorkers = this.props.no_seat_room_state.seats.length;
       return (
         <div id={styles.standingRoom}>
-          <h2>　</h2>
+          <h3>　</h3>
           {/*<h2>Standing Room</h2>*/}
           <h2>スタンディング</h2>
           <h3>
