@@ -70,7 +70,6 @@ class Timer extends React.Component<{}, any> {
   render() {
     return (
         <div id={styles.timer} className={this.state.sectionType === SectionType.Study ? styles.studyMode : styles.breakMode}>
-            {/* <h3 id={styles.timerTitle}>タイマー</h3> */}
             <div id={styles.timerTitle}>{this.state.sectionMessage}</div>
             <div id={styles.remaining}>
               {this.state.remaining_min}：{this.state.remaining_sec < 10 ? '0' + this.state.remaining_sec : this.state.remaining_sec}

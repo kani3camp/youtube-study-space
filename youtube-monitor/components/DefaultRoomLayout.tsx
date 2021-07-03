@@ -95,9 +95,8 @@ class DefaultRoomLayout extends React.Component<
             </p>
             <p
               className={styles.userDisplayName}
-              style={{ overflow: "hidden" }}
             >
-              {displayName.substr(0, 4)}
+              {displayName}
             </p>
           </div>
         );
