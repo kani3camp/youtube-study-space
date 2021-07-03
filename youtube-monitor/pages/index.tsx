@@ -7,6 +7,8 @@ import Timer from "../components/Timer";
 import BackgroundImage from "../components/BackgroundImage";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse, seat } from "../types/room-state";
+import BgmPlayer from "../components/BgmPlayer";
+
 
 export default class Home extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
@@ -15,11 +17,11 @@ export default class Home extends React.Component<{}, any> {
     super(props);
     this.state = {
       layout: null,
-      default_room_state: null,
+      default_room_state: null, 
       no_seat_room_state: null,
     };
   }
-
+  
   componentDidMount() {
     const component = this;
     this.intervalId = setInterval(() => {
@@ -27,10 +29,10 @@ export default class Home extends React.Component<{}, any> {
         `https://taa4p9klha.execute-api.ap-northeast-1.amazonaws.com/rooms_state`
       )
         .then((r) => {
-          r.default_room.seats.forEach((item: seat) =>
-            console.log(item.seat_id, item.user_display_name)
-          );
-          console.log("fetch完了");
+          // r.default_room.seats.forEach((item: seat) =>
+          //   console.log(item.seat_id, item.user_display_name)
+          // );
+          // console.log("fetch完了");
           component.setState({
             layout: r.default_room_layout,
             default_room_state: r.default_room,
@@ -58,6 +60,7 @@ export default class Home extends React.Component<{}, any> {
         }}
       >
         <BackgroundImage></BackgroundImage>
+        <BgmPlayer></BgmPlayer>
         <Clock />
         <Message
           default_room_state={this.state.default_room_state}

@@ -7,7 +7,10 @@
     "dev": "next",
     "build": "next build && next export",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint --fix 'src/**/*.{ts,tsx}' && tsc --noEmit",
+    "stylelint": "stylelint 'src/**/*.scss'",
+    "stylelint:fix": "stylelint --fix 'src/**/*.scss'"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +20,7 @@
     "next": "^10.0.7",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-h5-audio-player": "^3.7.1",
     "react-redux": "^7.2.2",
     "redux": "^4.0.5",
     "redux-logger": "^3.0.6",
@@ -36,9 +40,11 @@
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-react": "^7.22.0",
     "eslint-plugin-react-hooks": "^4.2.0",
+    "file-loader": "^6.2.0",
     "jest": "^27.0.6",
     "prettier": "^2.2.1",
     "ts-jest": "^27.0.3",
-    "typescript": "^4.3.4"
+    "typescript": "^4.3.4",
+    "url-loader": "^4.1.1"
   }
 }

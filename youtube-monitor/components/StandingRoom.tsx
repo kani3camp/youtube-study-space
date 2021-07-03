@@ -11,7 +11,6 @@ class StandingRoom extends React.Component<
       const numStandingWorkers = this.props.no_seat_room_state.seats.length;
       return (
         <div id={styles.standingRoom}>
-          <h3>　</h3>
           {/*<h2>Standing Room</h2>*/}
           <h2>スタンディング</h2>
           <h3>
@@ -19,7 +18,7 @@ class StandingRoom extends React.Component<
             {/*（Enter with <span className={styles.commandString}>!0</span>）*/}
           </h3>
           {/*<h2>{numStandingWorkers} People</h2>*/}
-          <h2>{numStandingWorkers}人</h2>
+          <div id={styles.numStandingWorkers}>{numStandingWorkers}人</div>
         </div>
       );
     } else {
