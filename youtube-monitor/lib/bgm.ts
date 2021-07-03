@@ -119,12 +119,12 @@ export const BgmTable: Bgm[] = [
         file: '/audio/東京は朝の七時.mp3',
         forPart: AllPartType,
     },
-    // {
-    //     title: '',
-    //     artist: '',
-    //     file: '',
-    //     forPart: AllPartType,
-    // },
+    {
+        title: 'Somehow (Prod. Khaim)',
+        artist: 'Khaim さん',
+        file: '/audio/Somehow_(Prod._Khaim).mp3',
+        forPart: AllPartType,
+    },
     // {
     //     title: '',
     //     artist: '',
