@@ -4,7 +4,6 @@ import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";
 
-
 const BgmPlayer: React.FC = () => {
     const [lastSectionId, setLastSectionId] = useState(0)
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
@@ -45,16 +44,28 @@ const BgmPlayer: React.FC = () => {
     }
 
     const stop = () => {
-        console.log('stop()')
         const audio: HTMLAudioElement = document.getElementById('music') as HTMLAudioElement
         audio.pause()
     }
 
     useEffect(() => {
-        console.log('useEffect')
+        // console.log('useEffect')
+        // TODO: hide client_id, auth_token
+        // const SC = require('soundcloud')
+        // SC.initialize({
+        //     client_id: 'p0qXnO6vGPGnUE8mStvEVVelga3zO3sy',
+        //     // redirect_uri: 'https://fervent-bartik-64ad56.netlify.app/callback'
+        //   })
+        // const SC = new Soundcloud('p0qXnO6vGPGnUE8mStvEVVelga3zO3sy', '2-290059-1004175628-MFmkDbMUxlKdz')
+        // SC.stream('lofi_girl/3amstudysession').then(function(player){
+        //     player.play()
+        // })
+        // SC.get('tracks/13158665').then(function(tracks){
+        //     alert('Latest track: ' + tracks[0].title);
+        //   })
         const intervalId = setInterval(() => updateState(), 1000)
         return () => {
-            console.log('クリーンアップ')
+            // console.log('クリーンアップ')
             clearInterval(intervalId)
         }
     }, [updateState, loopPlay, stop])   // この第２引数がないといけない。。。
