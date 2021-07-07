@@ -8,67 +8,71 @@ const BgmPlayer: React.FC = () => {
     const [lastSectionId, setLastSectionId] = useState(0)
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
+    let [initialized, setInitialized] = useState(false)
 
     const updateState = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
         const currentSection = getCurrentSection()
 
-        if (currentSection !== null) {
-            // sectionIdが0から変わるタイミングで新しいbgmを再生開始
-            if (lastSectionId === 0 && currentSection.sectionId !== 0) {
-                // partTypeに応じたbgmをランダムに選択
-                const bgm = getCurrentRandomBgm(currentSection?.partName)
-                if (bgm !== null) {
-                    setAudioTitle(bgm.title)
-                    setAudioArtist(bgm.artist)
-                    loopPlay(bgm.file)
-                    setLastSectionId(currentSection.sectionId)
-                }
-            }
-            // sectionIdが0になるタイミングでbgmを停止
-            if (lastSectionId !== 0 && currentSection.sectionId === 0) {
-                setAudioTitle('BGMタイトル')
-                setAudioArtist('BGMアーティスト')
-                stop()
+        // TODO: sectionIdが0から変わるタイミングでチャイムを再生
+        if (lastSectionId === 0 && currentSection.sectionId !== 0) {
+            // partTypeに応じたbgmをランダムに選択
+            const bgm = getCurrentRandomBgm(currentSection?.partName)
+            if (bgm !== null) {
+                setAudioTitle(bgm.title)
+                setAudioArtist(bgm.artist)
+                // audioStart()
                 setLastSectionId(currentSection.sectionId)
             }
         }
+        // TODO: sectionIdが0になるタイミングでチャイムを再生
+        if (lastSectionId !== 0 && currentSection.sectionId === 0) {
+            // stop()
+            setLastSectionId(currentSection.sectionId)
+        }
     }
 
-    const loopPlay = (src: string) => {
-        const audio: HTMLAudioElement = document.getElementById('music') as HTMLAudioElement
-        audio.src = src
-        audio.loop = true
+    const audioStart = () => {
+        const audio = document.getElementById('music') as HTMLAudioElement
+        audio.addEventListener('ended', function() {
+            console.log('ended.')
+            setAudioTitle('BGMタイトル')
+            setAudioArtist('BGMアーティスト')
+            audioNext()
+        })
+        audioNext()
+    }
+
+    const audioNext = () => {
+        const audio = document.getElementById('music') as HTMLAudioElement
+        const currentSection = getCurrentSection()
+        const bgm = getCurrentRandomBgm(currentSection.partName)
+        audio.src = bgm.file
+        setAudioTitle(bgm.title)
+        setAudioArtist(bgm.artist)
         audio.volume = 0.6
         audio.play()
     }
 
     const stop = () => {
-        const audio: HTMLAudioElement = document.getElementById('music') as HTMLAudioElement
+        const audio = document.getElementById('music') as HTMLAudioElement
         audio.pause()
+        setAudioTitle('BGMタイトル')
+        setAudioArtist('BGMアーティスト')
     }
 
     useEffect(() => {
         // console.log('useEffect')
-        // TODO: hide client_id, auth_token
-        // const SC = require('soundcloud')
-        // SC.initialize({
-        //     client_id: 'p0qXnO6vGPGnUE8mStvEVVelga3zO3sy',
-        //     // redirect_uri: 'https://fervent-bartik-64ad56.netlify.app/callback'
-        //   })
-        // const SC = new Soundcloud('p0qXnO6vGPGnUE8mStvEVVelga3zO3sy', '2-290059-1004175628-MFmkDbMUxlKdz')
-        // SC.stream('lofi_girl/3amstudysession').then(function(player){
-        //     player.play()
-        // })
-        // SC.get('tracks/13158665').then(function(tracks){
-        //     alert('Latest track: ' + tracks[0].title);
-        //   })
+        if (!initialized) {
+            setInitialized(true)
+            audioStart()
+        }
         const intervalId = setInterval(() => updateState(), 1000)
         return () => {
             // console.log('クリーンアップ')
             clearInterval(intervalId)
         }
-    }, [updateState, loopPlay, stop])   // この第２引数がないといけない。。。
+    }, [updateState, audioStart, audioNext, stop])   // この第２引数がないといけない。。。
 
 
     return (
