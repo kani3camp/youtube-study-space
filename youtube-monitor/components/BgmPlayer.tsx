@@ -14,20 +14,18 @@ const BgmPlayer: React.FC = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
         const currentSection = getCurrentSection()
 
-        // TODO: sectionIdが0から変わるタイミングでチャイムを再生
+        // sectionIdが0から変わるタイミングでチャイムを再生
         if (lastSectionId === 0 && currentSection.sectionId !== 0) {
             // partTypeに応じたbgmをランダムに選択
             const bgm = getCurrentRandomBgm(currentSection?.partName)
             if (bgm !== null) {
-                setAudioTitle(bgm.title)
-                setAudioArtist(bgm.artist)
-                // audioStart()
+                chime1Play()
                 setLastSectionId(currentSection.sectionId)
             }
         }
-        // TODO: sectionIdが0になるタイミングでチャイムを再生
+        // sectionIdが0になるタイミングでチャイムを再生
         if (lastSectionId !== 0 && currentSection.sectionId === 0) {
-            // stop()
+            chime2Play()
             setLastSectionId(currentSection.sectionId)
         }
     }
@@ -61,6 +59,18 @@ const BgmPlayer: React.FC = () => {
         setAudioArtist('BGMアーティスト')
     }
 
+    const chime1Play = () => {
+        const chime1 = document.getElementById('chime1') as HTMLAudioElement
+        chime1.volume = 0.6
+        chime1.play()
+    }
+
+    const chime2Play = () => {
+        const chime2 = document.getElementById('chime2') as HTMLAudioElement
+        chime2.volume = 0.6
+        chime2.play()
+    }
+
     useEffect(() => {
         // console.log('useEffect')
         if (!initialized) {
@@ -78,6 +88,8 @@ const BgmPlayer: React.FC = () => {
     return (
         <div id={styles.bgmPlayer}>
             <audio autoPlay id='music' src=""></audio>
+            <audio id='chime1' src="/chime/chime1.mp3"></audio>
+            <audio id='chime2' src="/chime/chime2.mp3"></audio>
             <h4>♪ {audioTitle}</h4>
             <h4>by {audioArtist}</h4>
         </div>
