@@ -590,12 +590,6 @@ export const BgmTable: Bgm[] = [
         forPart: AllPartType,
     },
     {
-        title: 'カフェオレオレオ',
-        artist: 'もっぴーさうんど さん',
-        file: '/audio/dova/カフェオレオレオ.mp3',
-        forPart: AllPartType,
-    },
-    {
         title: 'あの子のあだ名はピアノさん',
         artist: 'ネコト さん',
         file: '/audio/dova/あの子のあだ名はピアノさん.mp3',
