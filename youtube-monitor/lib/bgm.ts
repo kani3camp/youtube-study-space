@@ -7,9 +7,9 @@ export type Bgm = {
     forPart: string[]
 }
 
-export function getCurrentRandomBgm(currentPartName: string): Bgm | null {
+export function getCurrentRandomBgm(currentPartName: string): Bgm {
     const bgm_list: Bgm[] = []
-    for (const bgm of BgmTable) {
+    for (const bgm of (BgmTable.concat(LofiGirlBgmTable))) {
         if (bgm.forPart.includes(currentPartName)) {
             bgm_list.push(bgm)
         }
@@ -17,7 +17,8 @@ export function getCurrentRandomBgm(currentPartName: string): Bgm | null {
     if (bgm_list.length > 0) {
         return bgm_list[Math.floor(Math.random() * bgm_list.length)]
     }
-    return null
+    console.error('failed to get current random bgm.')
+    return bgm_list[0]
 }
 
 const AllPartType = [
@@ -32,6 +33,289 @@ const AllPartType = [
     partType.MidNight1,
     partType.MidNight2,
     partType.EarlyMorning,
+]
+
+export const LofiGirlBgmTable: Bgm[] = [
+    {
+        title: 'channel 12',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'recess',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'first heartbreak',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'backpack City',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'becoming',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'c u in class !',
+        artist: 'Flovry x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    // 1 A.M Study Session
+    {
+        title: 'Snowman',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Cotton Cloud',
+        artist: 'Fatb',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'the places we used to walk',
+        artist: 'rook1e x tender spring',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'wool gloves',
+        artist: 'imagiro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'I\'m sorry',
+        artist: 'Glimlip x Yasper',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Nova',
+        artist: 'mell-ø',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'carried away',
+        artist: 'goosetaf x the fields tape x francis',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'snow & sand',
+        artist: 'j\'san x epektase',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Single Phial',
+        artist: 'HM Surf',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Drops',
+        artist: 'Cocabona x Glimlip',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'espresso',
+        artist: 'Aso',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Luminescence',
+        artist: 'Ambulo x mell-ø',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Explorers',
+        artist: 'DLJ x BIDØ',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Wish You Were Mine',
+        artist: 'Sarcastic Sounds',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Reflections',
+        artist: 'BluntOne',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Alone Time',
+        artist: 'Purrple Cat',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Owls of the Night',
+        artist: 'Kupla',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'amber',
+        artist: 'ENRA',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'fever',
+        artist: 'Psalm Trees',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Circle',
+        artist: 'H.1v',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Cuddlin',
+        artist: 'Pandrezz',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Late Night Call',
+        artist: 'Jordy Chandra',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Gyoza',
+        artist: 'less.people',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Keyframe',
+        artist: 'G Mills',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'breeze',
+        artist: 'mvdb',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Lunar Drive',
+        artist: 'Mondo Loops',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Steps',
+        artist: 'dryhope',
+        file: '',
+        forPart: AllPartType,
+    },
+    // North Pole
+    {
+        title: 'Ice Field',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Comforting You',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Satellite',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Take Me Back',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Shield',
+        artist: 'WYS',
+        file: '',
+        forPart: AllPartType,
+    },
+    // L'aventure
+    {
+        title: 'Hello',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Say Yes',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'L\'aventure',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Chérie',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Adieu',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Drifter',
+        artist: 'C4C x kokoro',
+        file: '',
+        forPart: AllPartType,
+    },
+    // 
+    // {
+    //     title: '',
+    //     artist: '',
+    //     file: '',
+    //     forPart: AllPartType,
+    // },
+    // {
+    //     title: '',
+    //     artist: '',
+    //     file: '',
+    //     forPart: AllPartType,
+    // },
 ]
 
 export const BgmTable: Bgm[] = [
