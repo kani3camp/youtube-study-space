@@ -7,5 +7,6 @@ system/.gcloudignore
 youtube-monitor/.next/
 youtube-monitor/node_modules/
 youtube-monitor/out/
+youtube-monitor/public/audio/lofigirl/
 app-engine/.DS_Store
 app-engine/.gcloudignore
