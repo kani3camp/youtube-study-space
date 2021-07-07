@@ -35,6 +35,7 @@ const BgmPlayer: React.FC = () => {
     const audioStart = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
         audio.addEventListener('ended', function() {
+            console.log('ended.')
             setAudioTitle('BGMタイトル')
             setAudioArtist('BGMアーティスト')
             audioNext()
