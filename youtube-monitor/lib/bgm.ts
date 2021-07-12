@@ -9,7 +9,7 @@ export type Bgm = {
 
 export function getCurrentRandomBgm(currentPartName: string): Bgm {
     const bgm_list: Bgm[] = []
-    for (const bgm of (BgmTable.concat(LofiGirlBgmTable))) {
+    for (const bgm of (LofiGirlBgmTable)) {
         if (bgm.forPart.includes(currentPartName)) {
             bgm_list.push(bgm)
         }
@@ -661,37 +661,38 @@ export const LofiGirlBgmTable: Bgm[] = [
         file: '/audio/lofigirl/Contrasts/6. Shade.mp3',
         forPart: AllPartType,
     },
+    // このアルバムはnpm run startのときに再生できなくなる原因となってしまう。原因不明。npm run devだと問題なし。
     // Frozen Roses
-    {
-        title: 'A While',
-        artist: 'a[way]',
-        file: '/audio/lofigirl/Frozen Roses/1 a[way] - A While.mp3',
-        forPart: AllPartType,
-    },
-    {
-        title: 'Frosted Wood',
-        artist: 'a[way]',
-        file: '/audio/lofigirl/Frozen Roses/2 a[way] - Frosted Wood.mp3',
-        forPart: AllPartType,
-    },
-    {
-        title: 'Frozen Snow',
-        artist: 'a[way]',
-        file: '/audio/lofigirl/Frozen Roses/3 a[way] - Frozen Snow.mp3',
-        forPart: AllPartType,
-    },
-    {
-        title: 'Cozy Dreams',
-        artist: 'a[way]',
-        file: '/audio/lofigirl/Frozen Roses/4 a[way] - Cozy Dreams.mp3',
-        forPart: AllPartType,
-    },
-    {
-        title: 'Warm Nights',
-        artist: 'a[way]',
-        file: '/audio/lofigirl/Frozen Roses/5 a[way] - Warm Nights.mp3',
-        forPart: AllPartType,
-    },
+    // {
+    //     title: 'A While',
+    //     artist: 'a[way]',
+    //     file: '/audio/lofigirl/Frozen Roses/1 a[way] - A While.mp3',
+    //     forPart: AllPartType,
+    // },
+    // {
+    //     title: 'Frosted Wood',
+    //     artist: 'a[way]',
+    //     file: '/audio/lofigirl/Frozen Roses/2 a[way] - Frosted Wood.mp3',
+    //     forPart: AllPartType,
+    // },
+    // {
+    //     title: 'Frozen Snow',
+    //     artist: 'a[way]',
+    //     file: '/audio/lofigirl/Frozen Roses/3 a[way] - Frozen Snow.mp3',
+    //     forPart: AllPartType,
+    // },
+    // {
+    //     title: 'Cozy Dreams',
+    //     artist: 'a[way]',
+    //     file: '/audio/lofigirl/Frozen Roses/4 a[way] - Cozy Dreams.mp3',
+    //     forPart: AllPartType,
+    // },
+    // {
+    //     title: 'Warm Nights',
+    //     artist: 'a[way]',
+    //     file: '/audio/lofigirl/Frozen Roses/5 a[way] - Warm Nights.mp3',
+    //     forPart: AllPartType,
+    // },
     // 2 A.M Study Session
     {
         title: 'Missing Earth',
