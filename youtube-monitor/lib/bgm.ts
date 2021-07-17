@@ -1140,12 +1140,43 @@ export const LofiGirlBgmTable: Bgm[] = [
         forPart: AllPartType,
     },
     // 
-    // {
-    //     title: '',
-    //     artist: '',
-    //     file: '',
-    //     forPart: AllPartType,
-    // },
+    {
+        title: 'Pendulum',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Lost',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'A Meditation',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: 'Gentle Wind',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
+    {
+        title: '',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
+    // 
+    {
+        title: 'Nothingness',
+        artist: '',
+        file: '',
+        forPart: AllPartType,
+    },
     // {
     //     title: '',
     //     artist: '',
