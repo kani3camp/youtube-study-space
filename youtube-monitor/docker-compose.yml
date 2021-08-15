@@ -1,0 +1,24 @@
+version: '3'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: youtube-monitor-app
+    volumes:
+      - ./:/usr/src/app
+    working_dir: /usr/src/app
+    ports:
+      - "3000:3000"
+    stdin_open: true
+  release:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: youtube-monitor-release
+    volumes:
+      - ./:/usr/src/app
+    working_dir: /usr/src/app
+    ports:
+      - "10300:3000"
+    stdin_open: true

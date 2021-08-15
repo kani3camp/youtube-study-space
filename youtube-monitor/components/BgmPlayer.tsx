@@ -4,65 +4,92 @@ import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";
 
-
 const BgmPlayer: React.FC = () => {
     const [lastSectionId, setLastSectionId] = useState(0)
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
+    let [initialized, setInitialized] = useState(false)
 
     const updateState = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
         const currentSection = getCurrentSection()
 
-        if (currentSection !== null) {
-            // sectionIdが0から変わるタイミングで新しいbgmを再生開始
-            if (lastSectionId === 0 && currentSection.sectionId !== 0) {
-                // partTypeに応じたbgmをランダムに選択
-                const bgm = getCurrentRandomBgm(currentSection?.partName)
-                if (bgm !== null) {
-                    setAudioTitle(bgm.title)
-                    setAudioArtist(bgm.artist)
-                    loopPlay(bgm.file)
-                    setLastSectionId(currentSection.sectionId)
-                }
-            }
-            // sectionIdが0になるタイミングでbgmを停止
-            if (lastSectionId !== 0 && currentSection.sectionId === 0) {
-                setAudioTitle('BGMタイトル')
-                setAudioArtist('BGMアーティスト')
-                stop()
+        // sectionIdが0から変わるタイミングでチャイムを再生
+        if (lastSectionId === 0 && currentSection.sectionId !== 0) {
+            // partTypeに応じたbgmをランダムに選択
+            const bgm = getCurrentRandomBgm(currentSection?.partName)
+            if (bgm !== null) {
+                chime1Play()
                 setLastSectionId(currentSection.sectionId)
             }
         }
+        // sectionIdが0になるタイミングでチャイムを再生
+        if (lastSectionId !== 0 && currentSection.sectionId === 0) {
+            chime2Play()
+            setLastSectionId(currentSection.sectionId)
+        }
     }
 
-    const loopPlay = (src: string) => {
-        const audio: HTMLAudioElement = document.getElementById('music') as HTMLAudioElement
-        audio.src = src
-        audio.loop = true
+    const audioStart = () => {
+        const audio = document.getElementById('music') as HTMLAudioElement
+        audio.addEventListener('ended', function() {
+            console.log('ended.')
+            setAudioTitle('BGMタイトル')
+            setAudioArtist('BGMアーティスト')
+            audioNext()
+        })
+        audioNext()
+    }
+
+    const audioNext = () => {
+        const audio = document.getElementById('music') as HTMLAudioElement
+        const currentSection = getCurrentSection()
+        const bgm = getCurrentRandomBgm(currentSection.partName)
+        audio.src = bgm.file
+        setAudioTitle(bgm.title)
+        setAudioArtist(bgm.artist)
         audio.volume = 0.6
         audio.play()
     }
 
     const stop = () => {
-        console.log('stop()')
-        const audio: HTMLAudioElement = document.getElementById('music') as HTMLAudioElement
+        const audio = document.getElementById('music') as HTMLAudioElement
         audio.pause()
+        setAudioTitle('BGMタイトル')
+        setAudioArtist('BGMアーティスト')
+    }
+
+    const chime1Play = () => {
+        const chime1 = document.getElementById('chime1') as HTMLAudioElement
+        chime1.volume = 0.7
+        chime1.play()
+    }
+
+    const chime2Play = () => {
+        const chime2 = document.getElementById('chime2') as HTMLAudioElement
+        chime2.volume = 0.7
+        chime2.play()
     }
 
     useEffect(() => {
-        console.log('useEffect')
+        // console.log('useEffect')
+        if (!initialized) {
+            setInitialized(true)
+            audioStart()
+        }
         const intervalId = setInterval(() => updateState(), 1000)
         return () => {
-            console.log('クリーンアップ')
+            // console.log('クリーンアップ')
             clearInterval(intervalId)
         }
-    }, [updateState, loopPlay, stop])   // この第２引数がないといけない。。。
+    }, [updateState, audioStart, audioNext, stop])   // この第２引数がないといけない。。。
 
 
     return (
         <div id={styles.bgmPlayer}>
             <audio autoPlay id='music' src=""></audio>
+            <audio id='chime1' src="/chime/chime1.mp3"></audio>
+            <audio id='chime2' src="/chime/chime2.mp3"></audio>
             <h4>♪ {audioTitle}</h4>
             <h4>by {audioArtist}</h4>
         </div>

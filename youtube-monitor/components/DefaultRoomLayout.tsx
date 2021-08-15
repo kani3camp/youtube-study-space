@@ -73,6 +73,9 @@ class DefaultRoomLayout extends React.Component<
 
       const seatList = roomLayout.seats.map((seat, index) => {
         const isUsed = usedSeatIds.includes(seat.id);
+        const workName = usedSeatIds.includes(seat.id) 
+        ? this.seatWithSeatId(seat.id, this.props.roomState.seats).work_name 
+        : "";
         const displayName = usedSeatIds.includes(seat.id)
           ? this.seatWithSeatId(seat.id, this.props.roomState.seats)
               .user_display_name
@@ -90,14 +93,15 @@ class DefaultRoomLayout extends React.Component<
               fontSize: seatFontSizePx + "px",
             }}
           >
-            <p className={styles.seatNum} style={{ fontWeight: "bold" }}>
+            {!isUsed && <div className={styles.emptySeatNum} style={{ fontWeight: "bold" }}>
               {seat.id}
-            </p>
-            <p
+            </div>}
+            {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
+            <div
               className={styles.userDisplayName}
             >
               {displayName}
-            </p>
+            </div>
           </div>
         );
       });
