@@ -3,7 +3,6 @@ package customerror
 import "github.com/pkg/errors"
 
 type ErrorType uint
-
 const (
 	Unknown ErrorType = iota
 	SeatNotAvailable

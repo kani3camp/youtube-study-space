@@ -16,30 +16,7 @@ import (
 	"time"
 )
 
-const (
-	InCommand = "!in"
-	OutCommand = "!out"
-	InfoCommand = "!info"
-	CommandPrefix = "!"
 
-	WorkNameOptionPrefix = "work-"
-	WorkTimeOptionPrefix = "min-"
-
-	FullWidthSpace = "　"
-	HalfWidthSpace = " "
-
-)
-
-type System struct {
-	FirestoreController *myfirestore.FirestoreController
-	LiveChatBot *youtubebot.YoutubeLiveChatBot
-	LineBot *mylinebot.LineBot
-	MinWorkTimeMin int
-	MaxWorkTimeMin int
-	ProcessedUserId string
-	ProcessedUserDisplayName string
-	DefaultSleepIntervalMilli int
-}
 
 func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, error) {
 	fsController, err := myfirestore.NewFirestoreController(ctx, ProjectId, clientOption)
@@ -118,6 +95,43 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		}
 	}
 	return nil
+}
+
+func (s *System) UnderstandCommand(commandString string, userId string, userDisplayName string, ctx context.Context) (CommandDetails, error) {
+	if strings.HasPrefix(commandString, CommandPrefix) {
+		s.SetProcessedUser(userId, userDisplayName)
+		slice := strings.Split(commandString, HalfWidthSpace)
+		switch slice[0] {
+		case InCommand:
+			slice := strings.Split(commandString, HalfWidthSpace)
+			// 席の指定
+			num, err := strconv.Atoi(strings.TrimLeft(slice[0], ))
+			return CommandDetails{
+				commandType: In,
+				options: CommandOptions{
+					roomType: ,
+					seatId:   ,
+					workName: ,
+					workMin:  ,
+				},
+				commanderChannelId: userId,
+				commanderDisplayName: userDisplayName,
+			}, nil
+		case OutCommand:
+			return s.Out(ctx)
+		case InfoCommand:
+			return s.ShowUserInfo(ctx)
+		default:
+			// !席番号
+			num, err := strconv.Atoi(strings.TrimLeft(slice[0], CommandPrefix))
+			if err == nil && num >= 0 {
+				return s.In(commandString, ctx)
+			}
+		}
+	}
+	return CommandDetails{
+		commandType: NotCommand,
+	}, nil
 }
 
 func (s *System) In(commandString string, ctx context.Context) error {
