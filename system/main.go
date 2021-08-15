@@ -202,9 +202,9 @@ func Test() {
 func main() {
 	// todo デプロイ時切り替え
 	//AppEngineMain()
-	//DevMain()
+	DevMain()
 	//DevCLIMain()
-	TestSend()
+	//TestSend()
 	//Test()
 	
 	//UpdateRoomLayout()
