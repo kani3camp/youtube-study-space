@@ -6,7 +6,7 @@ class StandingRoom extends React.Component<
   { no_seat_room_state: NoSeatRoomState },
   any
 > {
-  render() {
+  render () {
     if (this.props.no_seat_room_state) {
       const numStandingWorkers = this.props.no_seat_room_state.seats.length;
       return (
@@ -14,7 +14,7 @@ class StandingRoom extends React.Component<
           {/*<h2>Standing Room</h2>*/}
           <h2>スタンディング</h2>
           <h3>
-            （<span className={styles.commandString}>!0</span> で入室）
+            （<span className={styles.commandString}><ruby>!0<rt>{'　'}ゼロ</rt></ruby></span> で入室）
             {/*（Enter with <span className={styles.commandString}>!0</span>）*/}
           </h3>
           {/*<h2>{numStandingWorkers} People</h2>*/}
