@@ -74,7 +74,6 @@ export const LofiGirlBgmTable: Bgm[] = [
         file: '/audio/lofigirl/Ages Ago/6. c u in class!.mp3',
         forPart: AllPartType,
     },
-    /*
     // 1 A.M Study Session
     {
         title: 'Snowman',
@@ -663,7 +662,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         file: '/audio/lofigirl/Contrasts/6. Shade.mp3',
         forPart: AllPartType,
     },
-    // このアルバムはnpm run startのときに再生できなくなる原因となってしまう。原因不明。npm run devだと問題なし。
+    // TODO: このアルバムはnpm run startのときに再生できなくなる原因となってしまう。原因不明。npm run devだと問題なし。
     // Frozen Roses
     // {
     //     title: 'A While',
@@ -1773,7 +1772,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         artist: 'Oatmello x Late Era',
         file: '/audio/lofigirl/Dove/06 Good Night w_ Late Era.mp3',
         forPart: AllPartType,
-    },*/
+    },
     // 
     // {
     //     title: '',
