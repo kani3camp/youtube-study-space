@@ -7,7 +7,7 @@ export type Bgm = {
     forPart: string[]
 }
 
-export function getCurrentRandomBgm(currentPartName: string): Bgm {
+export function getCurrentRandomBgm (currentPartName: string): Bgm {
     const bgm_list: Bgm[] = []
     for (const bgm of (LofiGirlBgmTable)) {
         if (bgm.forPart.includes(currentPartName)) {
@@ -36,7 +36,7 @@ const AllPartType = [
 ]
 
 export const LofiGirlBgmTable: Bgm[] = [
-    /*
+
     // Ages Ago
     {
         title: 'channel 12',
@@ -1139,7 +1139,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         artist: 'jhove',
         file: '/audio/lofigirl/Before You Go/9 - before you go - jhove.mp3',
         forPart: AllPartType,
-    }, */
+    },
     // A way of existing
     {
         title: 'Pendulum',
