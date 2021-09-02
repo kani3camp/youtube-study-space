@@ -1,8 +1,9 @@
-import React, {useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
 import styles from "./BgmPlayer.module.sass";
 import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";
+import Wave from "@foobar404/wave"
 
 const BgmPlayer: React.FC = () => {
     const [lastSectionId, setLastSectionId] = useState(0)
@@ -32,7 +33,7 @@ const BgmPlayer: React.FC = () => {
 
     const audioStart = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
-        audio.addEventListener('ended', function() {
+        audio.addEventListener('ended', function () {
             console.log('ended.')
             setAudioTitle('BGMタイトル')
             setAudioArtist('BGMアーティスト')
@@ -75,6 +76,15 @@ const BgmPlayer: React.FC = () => {
         // console.log('useEffect')
         if (!initialized) {
             setInitialized(true)
+
+            let wave = new Wave()
+            const waveOptions = {
+                type: 'bars blocks',
+                colors: ['#555555'],
+                stroke: 0
+            }
+            wave.fromElement('music', styles.audioCanvas, waveOptions)
+
             audioStart()
         }
         const intervalId = setInterval(() => updateState(), 1000)
@@ -86,13 +96,19 @@ const BgmPlayer: React.FC = () => {
 
 
     return (
-        <div id={styles.bgmPlayer}>
-            <audio autoPlay id='music' src=""></audio>
-            <audio id='chime1' src="/chime/chime1.mp3"></audio>
-            <audio id='chime2' src="/chime/chime2.mp3"></audio>
-            <h4>♪ {audioTitle}</h4>
-            <h4>by {audioArtist}</h4>
-        </div>
+        <>
+            <div id={styles.bgmPlayer}>
+                <audio autoPlay id='music' src=""></audio>
+
+                <audio id='chime1' src="/chime/chime1.mp3"></audio>
+                <audio id='chime2' src="/chime/chime2.mp3"></audio>
+                <h4>♪ {audioTitle}</h4>
+                <h4>by {audioArtist}</h4>
+            </div>
+            <div id={styles.audioCanvasDiv}>
+                <canvas id={styles.audioCanvas}></canvas>
+            </div>
+        </>
     )
 }
 

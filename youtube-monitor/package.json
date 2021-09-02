@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@foobar404/wave": "^1.2.7",
     "@reduxjs/toolkit": "^1.5.0",
     "next": "^10.0.7",
     "react": "^17.0.1",
