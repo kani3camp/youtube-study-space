@@ -291,29 +291,26 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	if command.commandType == In {	// default-room
 		seatId, err := s.RandomAvailableSeatId(ctx)
 		if err != nil {
-			_ = s.LineBot.SendMessageWithError("failed s.RandomAvailableSeatId()", err)
-			s.SendLiveChatMessage()
-			return err	// TODO
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			return err
 		}
 		err = s.EnterDefaultRoom(seatId, workName, workTimeMin, ctx)
-		
-	}
-	if err != nil {
-		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-		return err
-	} else {
+		if err != nil {
+			_ = s.LineBot.SendMessageWithError("failed to enter room", err)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			return err
+		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 			"さんが作業を始めました！（最大" + strconv.Itoa(workTimeMin) + "分）", ctx)
 		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 		//	" started working!! (" + strconv.Itoa(workTimeMin) + " minutes max.)", ctx)
+		
 		// 入室時刻を記録
 		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to set last entered date", err)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 			return err
 		}
 	}
