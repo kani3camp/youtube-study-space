@@ -12,61 +12,8 @@ import (
 	"time"
 )
 
-func AppEngineMain()  {
-	ctx := context.Background()
-	_system, err := system.NewSystem(ctx, nil)
-	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed system.NewSystem()", err)
-		return
-	}
-	_ = _system.LineBot.SendMessage("app started.")
-	defer func() {
-		_ = _system.LineBot.SendMessage("app stopped.")
-	}()
-	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
 
-	for {
-		// page token取得
-		pageToken, err := _system.RetrieveNextPageToken(ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve next page token", err)
-			return
-		}
-		// チャット取得
-		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.LiveChatBot.ListMessages(pageToken, ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve chat messages", err)
-			return
-		}
-		// nextPageTokenを保存
-		err = _system.SaveNextPageToken(nextPageToken, ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to save next page token", err)
-			return
-		}
-
-		// コマンドを抜き出して各々処理
-		for _, chatMessage := range chatMessages {
-			message := chatMessage.Snippet.TextMessageDetails.MessageText
-			if strings.HasPrefix(message, system.CommandPrefix) {
-				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
-				if err != nil {
-					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err)
-				}
-			}
-		}
-
-		if pollingIntervalMillis > _system.DefaultSleepIntervalMilli {
-			sleepIntervalMilli = pollingIntervalMillis + 1000
-		} else {
-			sleepIntervalMilli = _system.DefaultSleepIntervalMilli
-		}
-		fmt.Printf("\n%.1f 秒待機\n", float32(sleepIntervalMilli) / 1000.0)
-		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
-	}
-}
-
-// DevMain ローカル開発用
+// DevMain ローカル運用
 func DevMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
@@ -107,8 +54,8 @@ func DevMain(credentialFilePath string) {
 			log.Println(chatMessage.AuthorDetails.DisplayName + ": " + message)
 			if strings.HasPrefix(message, system.CommandPrefix) {
 				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
-				if err != nil {
-					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err)
+				if err.IsNotNil() {
+					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err.Body)
 				}
 			}
 		}
@@ -144,10 +91,10 @@ func DevCLIMain(credentialFilePath string)  {
 		message := scanner.Text()
 
 		// 入力文字列からコマンドを抜き出して処理
-		err = _system.Command(message, "test-channel01", "潤", ctx)
-		if err != nil {
+		err := _system.Command(message, "test-channel01", "潤", ctx)
+		if err.IsNotNil() {
 			log.Println("error in system.Command().")
-			log.Println(err.Error())
+			log.Println(err.Body.Error())
 		}
 	}
 }
@@ -188,8 +135,8 @@ func Test(credentialFilePath string) {
 	defer _system.CloseFirestoreClient()
 	
 	message := ""
-	channelId := ""
-	displayName := ""
+	//channelId := ""
+	//displayName := ""
 	if strings.HasPrefix(message, system.CommandPrefix) {
 		//err := _system.Command(message, channelId, displayName, ctx)
 		//if err != nil {
