@@ -18,6 +18,8 @@ const (
 	InvalidCommand
 	
 	InProcessFailed
+	OutProcessFailed
+	InfoProcessFailed
 )
 
 type CustomError struct {

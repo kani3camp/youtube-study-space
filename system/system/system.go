@@ -83,7 +83,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		return err
 	}
 	
-	// TODO: commandDetailsに基づいて命令処理
+	// commandDetailsに基づいて命令処理
 	switch commandDetails.commandType {
 	case NotCommand:
 		return customerror.NewNil()
@@ -94,13 +94,26 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		fallthrough
 	case SeatIn:
 		err := s.In(commandDetails, ctx)
-		return customerror.InProcessFailed.New(err.Error())
+		if err != nil {
+			return customerror.InProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	case Out:
+		err := s.Out(commandDetails, ctx)
+		if err != nil {
+			return customerror.OutProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	case Info:
+		err := s.ShowUserInfo(commandDetails, ctx)
+		if err != nil {
+			return customerror.InfoProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	default:
-	
+		_ = s.LineBot.SendMessage("Unknown command type")
 	}
-	return
+	return customerror.NewNil()
 }
 
 // ParseCommand コマンドを解析
@@ -151,7 +164,6 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 func (s *System) ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
-	// 追加オプションチェック
 	// 追加オプションチェック
 	options, err := s.ParseOption(slice[1:])
 	if err.IsNotNil() {
@@ -292,13 +304,16 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	// 入室
 	if command.commandType == In {	// default-room
 		seatId, err := s.RandomAvailableSeatId(ctx)
-		// TODO: 0しか空いてない（default-roomが空いてない）ときは？
 		if err != nil {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 			return err
 		}
-		err = s.EnterDefaultRoom(seatId, workName, workTimeMin, ctx)
+		if seatId == 0 {
+			err = s.EnterNoSeatRoom(command.options.workName, command.options.workMin, ctx)
+		} else {
+			err = s.EnterDefaultRoom(seatId, command.options.workName, command.options.workMin, ctx)
+		}
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
@@ -306,9 +321,9 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さんが作業を始めました！（最大" + strconv.Itoa(workTimeMin) + "分）", ctx)
+			"さんが作業を始めました！（最大" + strconv.Itoa(command.options.workMin) + "分）", ctx)
 		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-		//	" started working!! (" + strconv.Itoa(workTimeMin) + " minutes max.)", ctx)
+		//	" started working!! (" + strconv.Itoa(command.options.workMin) + " minutes max.)", ctx)
 		
 		// 入室時刻を記録
 		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
@@ -320,29 +335,28 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
-func (s *System) Out(ctx context.Context) error {
+func (s *System) Out(command CommandDetails, ctx context.Context) error {
 	// 今勉強中か？
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed IsUserInRoom()", err)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください。", ctx)
 		return err
 	}
 	if ! isInRoom {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さん、すでに退室してます！", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、すでに退室してます！", ctx)
 		return nil
 	}
 	// 退室処理
 	err = s.ExitRoom(ctx)
 	if err != nil {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください。", ctx)
 		return err
 	}
 	return nil
 }
 
-func (s *System) ShowUserInfo(ctx context.Context) error {
+func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error {
 	// そのユーザーはデータがあるか？
 	isUserRegistered, err := s.IfUserRegistered(ctx)
 	if err != nil {
@@ -351,6 +365,7 @@ func (s *System) ShowUserInfo(ctx context.Context) error {
 	if isUserRegistered {
 		totalTimeStr, dailyTotalTimeStr, err := s.TotalStudyTimeStrings(ctx)
 		if err != nil {
+			_ = s.LineBot.SendMessageWithError("failed s.TotalStudyTimeStrings()", err)
 			return err
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
@@ -535,7 +550,7 @@ func (s *System) ExitRoom(ctx context.Context) error {
 			return err
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
 		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
 		//	"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	default:
@@ -555,7 +570,7 @@ func (s *System) ExitRoom(ctx context.Context) error {
 			return err
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（作業時間" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
 		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
 		//	"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	}
