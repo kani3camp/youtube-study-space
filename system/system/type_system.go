@@ -29,6 +29,7 @@ type CommandDetails struct {
 type CommandType uint
 const (
 	NotCommand CommandType = iota
+	InvalidCommand
 	In		// !in
 	SeatIn	// !席番号
 	Out		// !out

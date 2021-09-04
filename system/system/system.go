@@ -131,7 +131,10 @@ func (s *System) ParseCommand(commandString string, userId string, userDisplayNa
 			}
 			
 			// 間違いコマンド
-			
+			return CommandDetails{
+				commandType: InvalidCommand,
+				options:     CommandOptions{},
+			}, customerror.NewNil()	// TODO: エラーにしたほうがいいかな？
 		}
 	}
 	return CommandDetails{
