@@ -5,6 +5,7 @@ import "github.com/pkg/errors"
 type ErrorType uint
 const (
 	Unknown ErrorType = iota
+	
 	SeatNotAvailable
 	UserNotInTheRoom
 	UserNotInAnyRoom
@@ -13,6 +14,8 @@ const (
 	InvalidRoomLayout
 	YoutubeLiveChatBotFailed
 	SeatNotFound
+	
+	InvalidCommand
 )
 
 type CustomError struct {
@@ -30,10 +33,17 @@ func (et ErrorType) WrapWithMessage(err error, message string) CustomError {
 	return CustomError{ErrorType: et, Body: errors.Wrap(err, message)}
 }
 
-func NewNilCustomError() CustomError {
+func NewNil() CustomError {
 	return CustomError{
 		ErrorType: Unknown,
 		Body:      nil,
 	}
 }
 
+func (ce CustomError) IsNil() bool {
+	return ce.ErrorType == Unknown && ce.Body == nil
+}
+
+func (ce CustomError) IsNotNil() bool {
+	return !ce.IsNil()
+}

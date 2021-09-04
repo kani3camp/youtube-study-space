@@ -17,7 +17,9 @@ const (
 	CommandPrefix = "!"
 	
 	WorkNameOptionPrefix = "work-"
+	WorkNameOptionShortPrefix = "w-"
 	WorkTimeOptionPrefix = "min-"
+	WorkTimeOptionShortPrefix = "m-"
 	
 	FullWidthSpace = "　"
 	HalfWidthSpace = " "

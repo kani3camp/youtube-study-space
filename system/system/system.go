@@ -97,42 +97,127 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	return nil
 }
 
-func (s *System) UnderstandCommand(commandString string, userId string, userDisplayName string, ctx context.Context) (CommandDetails, error) {
+// ParseCommand コマンドを解析
+func (s *System) ParseCommand(commandString string, userId string, userDisplayName string) (CommandDetails, customerror.CustomError) {
 	if strings.HasPrefix(commandString, CommandPrefix) {
 		s.SetProcessedUser(userId, userDisplayName)
 		slice := strings.Split(commandString, HalfWidthSpace)
 		switch slice[0] {
 		case InCommand:
-			slice := strings.Split(commandString, HalfWidthSpace)
-			// 席の指定
-			num, err := strconv.Atoi(strings.TrimLeft(slice[0], ))
-			return CommandDetails{
-				commandType: In,
-				options: CommandOptions{
-					roomType: ,
-					seatId:   ,
-					workName: ,
-					workMin:  ,
-				},
-				commanderChannelId: userId,
-				commanderDisplayName: userDisplayName,
-			}, nil
+			commandDetails, err := s.ParseIn(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case OutCommand:
-			return s.Out(ctx)
+			return CommandDetails{
+				commandType: Out,
+				options: CommandOptions{},
+			}, customerror.NewNil()
 		case InfoCommand:
-			return s.ShowUserInfo(ctx)
-		default:
-			// !席番号
+			return CommandDetails{
+				commandType: Info,
+				options: CommandOptions{},
+			}, customerror.NewNil()
+		default:	// !席番号 or 間違いコマンド
+			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimLeft(slice[0], CommandPrefix))
 			if err == nil && num >= 0 {
-				return s.In(commandString, ctx)
+				commandDetails, err := s.ParseSeatIn(num, commandString)
+				if err.IsNotNil() {
+					return CommandDetails{}, err
+				}
+				return commandDetails, customerror.NewNil()
 			}
+			
+			// 間違いコマンド
+			
 		}
 	}
 	return CommandDetails{
 		commandType: NotCommand,
-	}, nil
+		options: CommandOptions{},
+	}, customerror.NewNil()
 }
+
+func (s *System) ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	// 追加オプションチェック
+	// 追加オプションチェック
+	options, err := s.ParseOption(slice[1:])
+	if err.IsNotNil() {
+		return CommandDetails{}, err
+	}
+	
+	return CommandDetails{
+		commandType: In,
+		options: options,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	// 追加オプションチェック
+	options, err := s.ParseOption(slice[1:])
+	if err.IsNotNil() {
+		return CommandDetails{}, err
+	}
+	
+	// 追加オプションに席番号を追加
+	options.seatId = seatNum
+	
+	return CommandDetails{
+		commandType: SeatIn,
+		options: options,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseOption(commandSlice []string) (CommandOptions, customerror.CustomError) {
+	workName := ""
+	isWorkNameSet := false
+	workTimeMin := s.DefaultWorkTimeMin	// TODO: firestoreでconfigにしておく
+	isWorkTimeMinSet := false
+	for _, str := range commandSlice {
+		if strings.HasPrefix(str, WorkNameOptionPrefix) && !isWorkNameSet {
+			workName = strings.TrimLeft(str, WorkNameOptionPrefix)
+			isWorkNameSet = true
+		} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) && !isWorkNameSet {
+			workName = strings.TrimLeft(str, WorkNameOptionShortPrefix)
+			isWorkNameSet = true
+		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimLeft(str, WorkTimeOptionPrefix))
+			if err != nil {	// 無効な値
+				return CommandOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
+			}
+			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+				workTimeMin = num
+				isWorkTimeMinSet = true
+			} else {	// 無効な値
+				return CommandOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
+			}
+		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimLeft(str, WorkTimeOptionShortPrefix))
+			if err != nil {	// 無効な値
+				return CommandOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください。")
+			}
+			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+				workTimeMin = num
+				isWorkTimeMinSet = true
+			} else {	// 無効な値
+				return CommandOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください。")
+			}
+		}
+	}
+	return CommandOptions{
+		seatId:   -1,
+		workName: workName,
+		workMin:  workTimeMin,
+	}, customerror.NewNil()
+}
+
+
 
 func (s *System) In(commandString string, ctx context.Context) error {
 	slice := strings.Split(commandString, HalfWidthSpace)
@@ -527,7 +612,7 @@ func (s *System) CurrentSeatId(ctx context.Context) (int, customerror.CustomErro
 	}
 	for _, seat := range defaultRoomData.Seats {
 		if seat.UserId == s.ProcessedUserId {
-			return seat.SeatId, customerror.NewNilCustomError()
+			return seat.SeatId, customerror.NewNil()
 		}
 	}
 	// default room にいなければ、no-seat-room　にいるかどうか
@@ -537,7 +622,7 @@ func (s *System) CurrentSeatId(ctx context.Context) (int, customerror.CustomErro
 	}
 	for _, seat := range noSeatRoomData.Seats {
 		if seat.UserId == s.ProcessedUserId {
-			return 0, customerror.NewNilCustomError()
+			return 0, customerror.NewNil()
 		}
 	}
 	// default-roomにもno-seat-roomにもいない

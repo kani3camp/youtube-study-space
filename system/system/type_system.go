@@ -12,6 +12,7 @@ type System struct {
 	LineBot *mylinebot.LineBot
 	MinWorkTimeMin int
 	MaxWorkTimeMin int
+	DefaultWorkTimeMin int	// TODO: firestoreに追加
 	ProcessedUserId string
 	ProcessedUserDisplayName string
 	DefaultSleepIntervalMilli int
@@ -20,27 +21,23 @@ type System struct {
 type CommandDetails struct {
 	commandType CommandType
 	options CommandOptions
-	commanderChannelId string
-	commanderDisplayName string
+	// 以下2つは不要ならばいつか消す
+	//commanderChannelId string
+	//commanderDisplayName string
 }
 
 type CommandType uint
 const (
 	NotCommand CommandType = iota
-	In
-	Out
-	Info
+	In		// !in
+	SeatIn	// !席番号
+	Out		// !out
+	Info	// !info
 )
 
 type CommandOptions struct {
-	roomType RoomType
 	seatId int
 	workName string
 	workMin int
 }
 
-type RoomType uint
-const (
-	DefaultRoom RoomType = iota
-	NoSeatRoom
-)

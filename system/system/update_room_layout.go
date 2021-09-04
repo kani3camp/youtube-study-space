@@ -112,7 +112,7 @@ func (s *System) CheckRoomLayoutData(roomLayoutData myfirestore.RoomLayoutDoc, c
 			return customerror.InvalidRoomLayout.New("please specify valid shape type, at partition id = " + strconv.Itoa(p.Id))
 		}
 	}
-	return customerror.NewNilCustomError()
+	return customerror.NewNil()
 }
 
 func (s *System) IsExistRoomLayout(ctx context.Context) (bool, error) {
