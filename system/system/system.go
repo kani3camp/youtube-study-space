@@ -296,6 +296,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err	// TODO
 		}
 		err = s.EnterDefaultRoom(seatId, workName, workTimeMin, ctx)
+		
 	}
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
