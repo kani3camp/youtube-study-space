@@ -16,6 +16,8 @@ const (
 	SeatNotFound
 	
 	InvalidCommand
+	
+	InProcessFailed
 )
 
 type CustomError struct {

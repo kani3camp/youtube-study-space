@@ -91,8 +91,10 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		// 暫定で何も反応しない
 		return customerror.NewNil()
 	case In:
-		err := s.In(commandDetails, ctx)
+		fallthrough
 	case SeatIn:
+		err := s.In(commandDetails, ctx)
+		return customerror.InProcessFailed.New(err.Error())
 	case Out:
 	case Info:
 	default:
@@ -290,6 +292,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	// 入室
 	if command.commandType == In {	// default-room
 		seatId, err := s.RandomAvailableSeatId(ctx)
+		// TODO: 0しか空いてない（default-roomが空いてない）ときは？
 		if err != nil {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
