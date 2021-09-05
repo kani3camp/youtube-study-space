@@ -4,6 +4,9 @@
 #
 # test_rooms,
 
+# TODO: regionを変更するコマンドがいるはず
+# TODO: このファイルを書き換えて使い分けるのではなく、テスト環境用と本番環境用に分けるとまだ安全かも？regionの変更忘れとかやだ
+
 set GOOS=linux
 go build -o main constants.go credential.go response.go    youtube_organize_database.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
