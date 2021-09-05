@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"log"
+	"os"
 )
 
 
@@ -14,7 +15,7 @@ import (
 
 func RetrieveFirebaseCredentialInBytes() ([]byte, error) {
 	log.Println("RetrieveFirebaseCredentialInBytes()")
-	region := LambdaRegion
+	region := os.Getenv("AWS_REGION")	// Lambda関数と同じregionのDyanamoDBテーブル
 	sess := session.Must(session.NewSession())
 	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
 	

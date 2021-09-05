@@ -71,6 +71,7 @@ cloud schedulerにより**毎日0時0分**に実行される。
 
 
 ## DynamoDB
+Lambda関数と同じregionのDyanamoDBテーブルであること！
 ### データ
 - Firestoreのアクセス情報（サービスアカウント）
 ### テーブル名：`secrets`
