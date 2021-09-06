@@ -13,9 +13,10 @@ aws lambda update-function-code --function-name     rooms_state     --zip-file f
 
 
 # Mac OS
-GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-3 &&  go build -o main common.go news.go
+GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-3
+go build -o main constants.go credential.go response.go    rooms_state.go
 zip main.zip main
 
-aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 10
+aws lambda create-function --function-name     rooms_state     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 10
 
-aws lambda update-function-code --function-name news --zip-file fileb://main.zip
+aws lambda update-function-code --function-name     rooms_state     --zip-file fileb://main.zip
