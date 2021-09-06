@@ -4,9 +4,13 @@ GCPで`youtube-study-space@appspot.gserviceaccount.com`というサービスア�
 
 
 ## Lambda関数のデプロイ
-1. `deploy.sh`を参照のこと。
-2. AWS CLIにてリージョンを`ap-northeast-1`に設定する
-3. 
+1. `deploy_production.sh`を手順通りに進める（必ずリージョンを確認）
+2. Lambdaコンソール上で関数がデプロイされたことを確認
+3. アップデートしたLambda関数のバージョンとエイリアスを作成し、公開
+   1. アップデートしたLambda関数のバージョンを公開
+   2. エイリアス`stg`がなければ作成し、バージョン`$LATEST`を設定する。
+   3. エイリアス`prod`がすでに作成されており、特定の安定したバージョンが設定されていることを確認する。
+   4. `stg`バージョンで最新のLambda関数が正しく動作することを確認したら、`prod`バージョンに`stg`バージョンと同じバージョンを設定する。
 
 
 ## API Gateway

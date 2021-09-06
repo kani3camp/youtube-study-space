@@ -11,10 +11,10 @@ type FirestoreController struct {
 	FirestoreClient *firestore.Client
 }
 
-func NewFirestoreController(ctx context.Context, projectId string, clientOption option.ClientOption) (*FirestoreController, error) {
+func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreController, error) {
 	var client *firestore.Client
 	var err error
-	client, err = firestore.NewClient(ctx, projectId, clientOption)
+	client, err = firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
 	if err != nil {
 		return nil, err
 	}

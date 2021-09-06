@@ -14,7 +14,7 @@ Youtubeで24時間365日ライブ配信し続ける、オンライン自習室�
 
 ### AWS
 - 本番環境：Tokyo (ap-northeast-1) リージョン
-- テスト環境：Osaka (ap-northeast-3) リージョン
+- テスト環境：N. Virginia (us-east-1) リージョン
 
 
 ## 手順書
