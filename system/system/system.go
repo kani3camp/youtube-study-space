@@ -19,7 +19,7 @@ import (
 
 
 func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, error) {
-	fsController, err := myfirestore.NewFirestoreController(ctx, ProjectId, clientOption)
+	fsController, err := myfirestore.NewFirestoreController(ctx, clientOption)
 	if err != nil {
 		return System{}, err
 	}
