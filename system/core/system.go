@@ -86,7 +86,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	log.Println("parsed command: ", commandDetails)
 	
 	// commandDetailsに基づいて命令処理
-	switch commandDetails.commandType {
+	switch commandDetails.CommandType {
 	case NotCommand:
 		return customerror.NewNil()
 	case InvalidCommand:
@@ -131,13 +131,13 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			return commandDetails, customerror.NewNil()
 		case OutCommand:
 			return CommandDetails{
-				commandType: Out,
-				options: CommandOptions{},
+				CommandType: Out,
+				Options:     CommandOptions{},
 			}, customerror.NewNil()
 		case InfoCommand:
 			return CommandDetails{
-				commandType: Info,
-				options: CommandOptions{},
+				CommandType: Info,
+				Options:     CommandOptions{},
 			}, customerror.NewNil()
 		default:	// !席番号 or 間違いコマンド
 			// !席番号かどうか
@@ -152,14 +152,14 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			
 			// 間違いコマンド
 			return CommandDetails{
-				commandType: InvalidCommand,
-				options:     CommandOptions{},
+				CommandType: InvalidCommand,
+				Options:     CommandOptions{},
 			}, customerror.NewNil()	// TODO: エラーにしたほうがいいかな？
 		}
 	}
 	return CommandDetails{
-		commandType: NotCommand,
-		options: CommandOptions{},
+		CommandType: NotCommand,
+		Options:     CommandOptions{},
 	}, customerror.NewNil()
 }
 
@@ -173,8 +173,8 @@ func (s *System) ParseIn(commandString string) (CommandDetails, customerror.Cust
 	}
 	
 	return CommandDetails{
-		commandType: In,
-		options: options,
+		CommandType: In,
+		Options:     options,
 	}, customerror.NewNil()
 }
 
@@ -188,11 +188,11 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 	}
 	
 	// 追加オプションに席番号を追加
-	options.seatId = seatNum
+	options.SeatId = seatNum
 	
 	return CommandDetails{
-		commandType: SeatIn,
-		options: options,
+		CommandType: SeatIn,
+		Options:     options,
 	}, customerror.NewNil()
 }
 
@@ -233,9 +233,9 @@ func (s *System) ParseOption(commandSlice []string) (CommandOptions, customerror
 		}
 	}
 	return CommandOptions{
-		seatId:   -1,
-		workName: workName,
-		workMin:  workTimeMin,
+		SeatId:   -1,
+		WorkName: workName,
+		WorkMin:  workTimeMin,
 	}, customerror.NewNil()
 }
 
@@ -267,11 +267,11 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	}
 
 	// 席を指定している場合
-	if command.commandType == SeatIn {
+	if command.CommandType == SeatIn {
 		// 指定された座席番号が有効かチェック
-		switch seatId := command.options.seatId; seatId {
+		switch seatId := command.Options.SeatId; seatId {
 		case 0:
-			err = s.EnterNoSeatRoom(command.options.workName, command.options.workMin, ctx)
+			err = s.EnterNoSeatRoom(command.Options.WorkName, command.Options.WorkMin, ctx)
 		default:
 			// その席番号が存在するか
 			isSeatExist, err := s.IsSeatExist(seatId, ctx)
@@ -299,12 +299,12 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 				return nil
 			}
 			// seatIdに着席
-			return s.EnterDefaultRoom(seatId, command.options.workName, command.options.workMin, ctx)
+			return s.EnterDefaultRoom(seatId, command.Options.WorkName, command.Options.WorkMin, ctx)
 		}
 	}
 	
 	// 入室
-	if command.commandType == In {	// default-room
+	if command.CommandType == In { // default-room
 		seatId, err := s.RandomAvailableSeatId(ctx)
 		if err != nil {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
@@ -312,9 +312,9 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if seatId == 0 {
-			err = s.EnterNoSeatRoom(command.options.workName, command.options.workMin, ctx)
+			err = s.EnterNoSeatRoom(command.Options.WorkName, command.Options.WorkMin, ctx)
 		} else {
-			err = s.EnterDefaultRoom(seatId, command.options.workName, command.options.workMin, ctx)
+			err = s.EnterDefaultRoom(seatId, command.Options.WorkName, command.Options.WorkMin, ctx)
 		}
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to enter room", err)
@@ -323,9 +323,9 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さんが作業を始めました！（最大" + strconv.Itoa(command.options.workMin) + "分）", ctx)
+			"さんが作業を始めました！（最大" + strconv.Itoa(command.Options.WorkMin) + "分）", ctx)
 		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-		//	" started working!! (" + strconv.Itoa(command.options.workMin) + " minutes max.)", ctx)
+		//	" started working!! (" + strconv.Itoa(command.Options.WorkMin) + " minutes max.)", ctx)
 		
 		// 入室時刻を記録
 		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)

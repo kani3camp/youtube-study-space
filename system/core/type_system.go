@@ -19,8 +19,8 @@ type System struct {
 }
 
 type CommandDetails struct {
-	commandType CommandType
-	options CommandOptions
+	CommandType CommandType
+	Options     CommandOptions
 	// 以下2つは不要ならばいつか消す
 	//commanderChannelId string
 	//commanderDisplayName string
@@ -37,8 +37,8 @@ const (
 )
 
 type CommandOptions struct {
-	seatId int
-	workName string
-	workMin int
+	SeatId   int
+	WorkName string
+	WorkMin  int
 }
 
