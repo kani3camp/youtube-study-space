@@ -10,4 +10,5 @@ youtube-monitor/out/
 youtube-monitor/public/audio/lofigirl/*
 app-engine/.DS_Store
 app-engine/.gcloudignore
-system/system/.env
+system/.env
+*.exe

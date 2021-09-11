@@ -1,8 +1,8 @@
-package system
+package core
 
 import (
-	"app.modules/system/customerror"
-	"app.modules/system/myfirestore"
+	"app.modules/core/customerror"
+	"app.modules/core/myfirestore"
 	"context"
 	"encoding/json"
 	"google.golang.org/grpc/codes"

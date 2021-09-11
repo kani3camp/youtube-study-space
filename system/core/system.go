@@ -1,10 +1,10 @@
-package system
+package core
 
 import (
-	"app.modules/system/customerror"
-	"app.modules/system/myfirestore"
-	"app.modules/system/mylinebot"
-	"app.modules/system/youtubebot"
+	"app.modules/core/customerror"
+	"app.modules/core/myfirestore"
+	"app.modules/core/mylinebot"
+	"app.modules/core/youtubebot"
 	"context"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -44,7 +44,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 
-	// system constant values
+	// core constant values
 	constantsConfig, err := fsController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
 		return System{}, err
@@ -56,6 +56,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		LineBot:             lineBot,
 		MaxWorkTimeMin: constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin: constantsConfig.MinWorkTimeMin,
+		DefaultWorkTimeMin: constantsConfig.DefaultWorkTimeMin,
 		DefaultSleepIntervalMilli: constantsConfig.SleepIntervalMilli,
 	}, nil
 }
@@ -82,6 +83,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	if err.IsNotNil() {
 		return err
 	}
+	log.Println("parsed command: ", commandDetails)
 	
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.commandType {

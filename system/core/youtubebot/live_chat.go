@@ -1,7 +1,7 @@
 package youtubebot
 
 import (
-	"app.modules/system/myfirestore"
+	"app.modules/core/myfirestore"
 	"context"
 	"encoding/json"
 	"github.com/pkg/errors"

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app.modules/system"
+	"app.modules/core"
 	"bufio"
 	"context"
 	"fmt"
@@ -17,9 +17,9 @@ import (
 func DevMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed system.NewSystem()", err)
+		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
 	_ = _system.LineBot.SendMessage("app started.")
@@ -52,10 +52,10 @@ func DevMain(credentialFilePath string) {
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			log.Println(chatMessage.AuthorDetails.DisplayName + ": " + message)
-			if strings.HasPrefix(message, system.CommandPrefix) {
+			if strings.HasPrefix(message, core.CommandPrefix) {
 				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
 				if err.IsNotNil() {
-					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err.Body)
+					_ = _system.LineBot.SendMessageWithError("error in core.Command()", err.Body)
 				}
 			}
 		}
@@ -75,7 +75,7 @@ func DevCLIMain(credentialFilePath string)  {
 	log.Println("DevCLIMain started.")
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -93,7 +93,7 @@ func DevCLIMain(credentialFilePath string)  {
 		// 入力文字列からコマンドを抜き出して処理
 		err := _system.Command(message, "test-channel01", "潤", ctx)
 		if err.IsNotNil() {
-			log.Println("error in system.Command().")
+			log.Println("error in core.Command().")
 			log.Println(err.Body.Error())
 		}
 	}
@@ -103,7 +103,7 @@ func UpdateRoomLayout(credentialFilePath string) {
 	log.Println("app started.")
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -114,7 +114,7 @@ func UpdateRoomLayout(credentialFilePath string) {
 func TestSend(credentialFilePath string)  {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -127,7 +127,7 @@ func TestSend(credentialFilePath string)  {
 func Test(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -137,10 +137,10 @@ func Test(credentialFilePath string) {
 	message := ""
 	//channelId := ""
 	//displayName := ""
-	if strings.HasPrefix(message, system.CommandPrefix) {
+	if strings.HasPrefix(message, core.CommandPrefix) {
 		//err := _system.Command(message, channelId, displayName, ctx)
 		//if err != nil {
-		//	_ = _system.LineBot.SendMessageWithError("error in system.Command()", err)
+		//	_ = _system.LineBot.SendMessageWithError("error in core.Command()", err)
 		//}
 		
 	}
@@ -148,16 +148,20 @@ func Test(credentialFilePath string) {
 
 
 func main() {
-	system.LoadEnv()
+	core.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	
+	defer func() {
+		log.Println("defer.")
+	}()
 	
 	// todo デプロイ時切り替え
 	//AppEngineMain()
-	//DevMain()
+	DevMain(credentialFilePath)
 	//DevCLIMain()
 	//TestSend()
-	Test(credentialFilePath)
+	//Test(credentialFilePath)
 	
-	//UpdateRoomLayout()
+	//UpdateRoomLayout(credentialFilePath)
 }
 

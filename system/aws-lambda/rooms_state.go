@@ -1,8 +1,8 @@
 package main
 
 import (
-	"app.modules/system"
-	"app.modules/system/myfirestore"
+	"app.modules/core"
+	"app.modules/core/myfirestore"
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
@@ -26,7 +26,7 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 	if err != nil {
 		return ErrorResponse(err)
 	}
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return ErrorResponse(err)
 	}

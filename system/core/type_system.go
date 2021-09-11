@@ -1,9 +1,9 @@
-package system
+package core
 
 import (
-	"app.modules/system/myfirestore"
-	"app.modules/system/mylinebot"
-	"app.modules/system/youtubebot"
+	"app.modules/core/myfirestore"
+	"app.modules/core/mylinebot"
+	"app.modules/core/youtubebot"
 )
 
 type System struct {

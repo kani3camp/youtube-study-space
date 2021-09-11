@@ -1,4 +1,4 @@
-package system
+package core
 
 import (
 	"github.com/joho/godotenv"

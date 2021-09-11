@@ -6,6 +6,7 @@ import "time"
 type ConstantsConfigDoc struct {
 	MaxWorkTimeMin int `firestore:"max-work-time-min"`
 	MinWorkTimeMin int `firestore:"min-work-time-min"`
+	DefaultWorkTimeMin int `firestore:"default-work-time-min"`
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 }

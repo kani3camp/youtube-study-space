@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app.modules/system"
+	"app.modules/core"
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
@@ -22,7 +22,7 @@ func OrganizeDatabase(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRe
 	if err != nil {
 		return ErrorResponse(err)
 	}
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return ErrorResponse(err)
 	}

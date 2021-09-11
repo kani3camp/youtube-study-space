@@ -29,5 +29,11 @@ GCPで`youtube-study-space@appspot.gserviceaccount.com`というサービスア�
 1. GCPプロジェクトが本番用であることを確認
 
 
-
 # 実行手順
+## Botプログラム
+1. 本番用GCPのcredentialを使うように環境変数を設定する
+
+
+## monitor
+
+
