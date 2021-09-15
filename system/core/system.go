@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/guardians"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
 	"app.modules/core/youtubebot"
@@ -753,6 +754,11 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	}
 	
 	return nil
+}
+
+func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
+	checker := guardians.NewLiveStreamChecker(s.FirestoreController, s.LiveChatBot, s.LineBot)
+	return checker.Check(ctx)
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
