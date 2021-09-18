@@ -83,6 +83,7 @@ Lambda関数と同じregionのDyanamoDBテーブルであること！
 - /organize_database
 - /reset_daily_total_study_time
 - /rooms_state
+- /check_live_stream_status
 
 
 
@@ -90,6 +91,7 @@ Lambda関数と同じregionのDyanamoDBテーブルであること！
 - call_lambda_function_organize_database: `* * * * *`
 - call_lambda_function_reset_daily_total_study_time: `0 0 * * *`
 - scheduledFirestoreExport: `every 24 hours (Asia/Tokyo)`
+- call_lambda_function_check_live_stream_status: `* * * * *`
 
 
 ## Pub/Sub
