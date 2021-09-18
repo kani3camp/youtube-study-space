@@ -7,6 +7,7 @@ import (
 	"app.modules/core/mylinebot"
 	"app.modules/core/youtubebot"
 	"context"
+	"github.com/kr/pretty"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -84,7 +85,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	if err.IsNotNil() {
 		return err
 	}
-	log.Println("parsed command: ", commandDetails)
+	log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 	
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.CommandType {
@@ -272,7 +273,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		// 指定された座席番号が有効かチェック
 		switch seatId := command.Options.SeatId; seatId {
 		case 0:
-			err = s.EnterNoSeatRoom(command.Options.WorkName, command.Options.WorkMin, ctx)
+			break
 		default:
 			// その席番号が存在するか
 			isSeatExist, err := s.IsSeatExist(seatId, ctx)
@@ -299,41 +300,40 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 					"さん、その席には今は座れません！空いている座席の番号を書いてください！", ctx)
 				return nil
 			}
-			// seatIdに着席
-			return s.EnterDefaultRoom(seatId, command.Options.WorkName, command.Options.WorkMin, ctx)
 		}
 	}
 	
-	// 入室
-	if command.CommandType == In { // default-room
+	// 席を指定していない場合
+	if command.CommandType == In {
 		seatId, err := s.RandomAvailableSeatId(ctx)
 		if err != nil {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 			return err
 		}
-		if seatId == 0 {
-			err = s.EnterNoSeatRoom(command.Options.WorkName, command.Options.WorkMin, ctx)
-		} else {
-			err = s.EnterDefaultRoom(seatId, command.Options.WorkName, command.Options.WorkMin, ctx)
-		}
-		if err != nil {
-			_ = s.LineBot.SendMessageWithError("failed to enter room", err)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-			return err
-		}
+		command.Options.SeatId = seatId
+	}
+	
+	// 入室
+	if command.Options.SeatId == 0 {
+		err = s.EnterNoSeatRoom(command.Options.WorkName, command.Options.WorkMin, ctx)
+	} else {
+		err = s.EnterDefaultRoom(command.Options.SeatId, command.Options.WorkName, command.Options.WorkMin, ctx)
+	}
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-			"さんが作業を始めました！（最大" + strconv.Itoa(command.Options.WorkMin) + "分）", ctx)
-		//s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-		//	" started working!! (" + strconv.Itoa(command.Options.WorkMin) + " minutes max.)", ctx)
-		
-		// 入室時刻を記録
-		err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
-		if err != nil {
-			_ = s.LineBot.SendMessageWithError("failed to set last entered date", err)
-			return err
-		}
+			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		return err
+	}
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+		"さんが作業を始めました！（最大" + strconv.Itoa(command.Options.WorkMin) + "分）", ctx)
+	
+	// 入室時刻を記録
+	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed to set last entered date", err)
+		return err
 	}
 	return nil
 }
@@ -399,6 +399,7 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 	return true, nil
 }
 
+// IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
 func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
@@ -444,6 +445,7 @@ func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) er
 	return s.FirestoreController.SaveNextPageToken(nextPageToken, ctx)
 }
 
+// EnterDefaultRoom default-roomに入室させる。事前チェックはされている前提。
 func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, ctx context.Context) error {
 	exitDate := time.Now().Add(time.Duration(workTimeMin) * time.Minute)
 	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
@@ -463,6 +465,7 @@ func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, 
 	return nil
 }
 
+// EnterNoSeatRoom no-seat-roomに入室させる。事前チェックはされている前提。
 func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, ctx context.Context) error {
 	exitDate := time.Now().Add(time.Duration(workTimeMin) * time.Minute)
 	seat, err := s.FirestoreController.SetSeatInNoSeatRoom(workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
@@ -482,6 +485,7 @@ func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, ctx context.C
 	return nil
 }
 
+// RandomAvailableSeatId default-roomの席が空いているならその中からランダムな席番号を、空いていないなら0を返す。
 func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 	roomLayout, err := s.FirestoreController.RetrieveDefaultRoomLayout(ctx)
 	if err != nil {
@@ -514,6 +518,7 @@ func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 	}
 }
 
+// ExitRoom ユーザーの席を特定し、退室させる。TODO
 func (s *System) ExitRoom(ctx context.Context) error {
 	seatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.Body != nil {
@@ -554,8 +559,6 @@ func (s *System) ExitRoom(ctx context.Context) error {
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
 			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
-		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
-		//	"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	default:
 		defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 		if err != nil {
@@ -574,8 +577,6 @@ func (s *System) ExitRoom(ctx context.Context) error {
 		}
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
 			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
-		//s.SendLiveChatMessage(s.ProcessedUserDisplayName + " has finished working! " +
-		//	"(" + strconv.Itoa(workedTimeSec / 60) + " minutes)", ctx)
 	}
 	// ログ記録
 	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)

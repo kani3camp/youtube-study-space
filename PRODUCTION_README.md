@@ -35,5 +35,10 @@ GCPで`youtube-study-space@appspot.gserviceaccount.com`というサービスア�
 
 
 ## monitor
+`api_config.ts`で
+```ts
+const api = prodApi
+```
+とする
 
 
