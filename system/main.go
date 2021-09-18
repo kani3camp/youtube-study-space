@@ -18,7 +18,7 @@ func LocalMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile("/Users/drew/Dev/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
 	// clientOption := option.WithCredentialsFile("C:/Dev/GCP credentials/youtube-study-space-a3516f96e3f8.json")
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
