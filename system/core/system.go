@@ -350,13 +350,29 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、すでに退室してます！", ctx)
 		return nil
 	}
+	// 現在座っている席を特定
+	seatId, customErr := s.CurrentSeatId(ctx)
+	if customErr.Body != nil {
+		if customErr.ErrorType == customerror.UserNotInAnyRoom {	// おそらくここには到達しない
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+				"さん、あなたは今ルーム内にはいません。", ctx)
+			return nil
+		} else {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
+				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
+			return customErr.Body
+		}
+	}
 	// 退室処理
-	err = s.ExitRoom(ctx)
+	workedTimeSec, err := s.ExitRoom(seatId, ctx)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください。", ctx)
 		return err
+	} else {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
+			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
+		return nil
 	}
-	return nil
 }
 
 func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error {
@@ -518,24 +534,12 @@ func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 	}
 }
 
-// ExitRoom ユーザーの席を特定し、退室させる。TODO
-func (s *System) ExitRoom(ctx context.Context) error {
-	seatId, customErr := s.CurrentSeatId(ctx)
-	if customErr.Body != nil {
-		if customErr.ErrorType == customerror.UserNotInAnyRoom {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、あなたは今ルーム内にはいません。", ctx)
-			return nil
-		} else {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
-			return customErr.Body
-		}
-	}
+// ExitRoom ユーザーを退室させる。事前チェックはされている前提。
+func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	// 作業時間を計算
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	workedTimeSec := int(time.Now().Sub(userData.LastEntered).Seconds())
 
@@ -544,7 +548,7 @@ func (s *System) ExitRoom(ctx context.Context) error {
 	case 0:
 		noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		for _, seatInNoSeatRoom := range noSeatRoom.Seats {
 			if seatInNoSeatRoom.UserId == s.ProcessedUserId {
@@ -553,16 +557,12 @@ func (s *System) ExitRoom(ctx context.Context) error {
 		}
 		err = s.FirestoreController.UnSetSeatInNoSeatRoom(seat, ctx)
 		if err != nil {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
-			return err
+			return 0, err
 		}
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
 	default:
 		defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		for _, seatDefaultRoom := range defaultSeatRoom.Seats {
 			if seatDefaultRoom.UserId == s.ProcessedUserId {
@@ -571,12 +571,8 @@ func (s *System) ExitRoom(ctx context.Context) error {
 		}
 		err = s.FirestoreController.UnSetSeatInDefaultRoom(seat, ctx)
 		if err != nil {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName +
-				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
-			return err
+			return 0, err
 		}
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんが退室しました！" +
-			"（" + strconv.Itoa(workedTimeSec / 60) + "分）", ctx)
 	}
 	// ログ記録
 	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
@@ -587,15 +583,15 @@ func (s *System) ExitRoom(ctx context.Context) error {
 	err = s.FirestoreController.SetLastExitedDate(s.ProcessedUserId, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to update last-exited-date", err)
-		return err
+		return 0, err
 	}
 	// 累計学習時間を更新
 	err = s.UpdateTotalWorkTime(workedTimeSec, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to update total study time", err)
-		return err
+		return 0, err
 	}
-	return nil
+	return workedTimeSec, nil
 }
 
 func (s *System) CurrentSeatId(ctx context.Context) (int, customerror.CustomError) {
@@ -705,7 +701,7 @@ func (s *System) ExitAllUserDefaultRoom(ctx context.Context) error {
 	for _, seat := range defaultRoom.Seats {
 		s.ProcessedUserId = seat.UserId
 		s.ProcessedUserDisplayName = seat.UserDisplayName
-		err := s.ExitRoom(ctx)
+		_, err := s.ExitRoom(seat.SeatId, ctx)
 		if err != nil {
 			return err
 		}
@@ -721,8 +717,8 @@ func (s *System) SendLiveChatMessage(message string, ctx context.Context) {
 	return
 }
 
+// OrganizeDatabase untilを過ぎているdefaultルーム内のユーザーを退室させる。
 func (s *System) OrganizeDatabase(ctx context.Context) error {
-	// untilを過ぎているdefaultルーム内のユーザーを退室させる
 	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
 		return err
@@ -731,7 +727,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		if seat.Until.Before(time.Now()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
-			err := s.ExitRoom(ctx)
+			_, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
 				return err
 			}
@@ -747,7 +743,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		if seat.Until.Before(time.Now()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
-			err := s.ExitRoom(ctx)
+			_, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
 				return err
 			}
@@ -782,13 +778,17 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				return err
 			}
 		}
-		log.Println("successfully reset all user's daily total study time.")
+		msg := "successfully reset all user's daily total study time."
+		log.Println(msg)
+		_ = s.LineBot.SendMessage(msg)
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err
 		}
 	} else {
-		log.Println("all user's daily total study times are already reset today.")
+		msg := "all user's daily total study times are already reset today."
+		log.Println(msg)
+		_ = s.LineBot.SendMessage(msg)
 	}
 	return nil
 }

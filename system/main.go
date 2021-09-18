@@ -13,8 +13,8 @@ import (
 )
 
 
-// DevMain ローカル運用
-func DevMain(credentialFilePath string) {
+// LocalMain ローカル運用
+func LocalMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
 	_system, err := core.NewSystem(ctx, clientOption)
@@ -22,8 +22,10 @@ func DevMain(credentialFilePath string) {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
+	_system.SendLiveChatMessage("起動しました。", ctx)
 	_ = _system.LineBot.SendMessage("app started.")
 	defer func() {
+		_system.SendLiveChatMessage("寝ます。", ctx)
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
@@ -151,13 +153,9 @@ func main() {
 	core.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
-	defer func() {
-		log.Println("defer.")
-	}()
-	
-	// todo デプロイ時切り替え
+	// TODO: デプロイ時切り替え
 	//AppEngineMain()
-	DevMain(credentialFilePath)
+	LocalMain(credentialFilePath)
 	//DevCLIMain()
 	//TestSend()
 	//Test(credentialFilePath)
