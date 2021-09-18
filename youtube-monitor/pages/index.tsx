@@ -8,6 +8,7 @@ import BackgroundImage from "../components/BackgroundImage";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse, seat } from "../types/room-state";
 import BgmPlayer from "../components/BgmPlayer";
+import api from "../lib/api_config";
 
 
 export default class Home extends React.Component<{}, any> {
@@ -25,9 +26,7 @@ export default class Home extends React.Component<{}, any> {
   componentDidMount() {
     const component = this;
     this.intervalId = setInterval(() => {
-      fetcher<RoomsStateResponse>(
-        `https://taa4p9klha.execute-api.ap-northeast-1.amazonaws.com/rooms_state`
-      )
+      fetcher<RoomsStateResponse>(api.roomsState)
         .then((r) => {
           // r.default_room.seats.forEach((item: seat) =>
           //   console.log(item.seat_id, item.user_display_name)

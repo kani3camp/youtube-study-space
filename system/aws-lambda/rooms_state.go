@@ -1,8 +1,9 @@
 package main
 
 import (
-	"app.modules/system"
-	"app.modules/system/myfirestore"
+	"app.modules/aws-lambda/lambdautils"
+	"app.modules/core"
+	"app.modules/core/myfirestore"
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
@@ -22,29 +23,29 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 	log.Println("Rooms()")
 	
 	ctx := context.Background()
-	clientOption, err := FirestoreClientOption()
+	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
-	_system, err := system.NewSystem(ctx, clientOption)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	defer _system.CloseFirestoreClient()
 	
 	defaultRoom, err := _system.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	
 	noSeatRoom, err := _system.FirestoreController.RetrieveNoSeatRoom(ctx)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	
 	defaultRoomLayout, err := _system.FirestoreController.RetrieveDefaultRoomLayout(ctx)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	
 	return RoomsResponse(defaultRoom, noSeatRoom, defaultRoomLayout)
@@ -52,12 +53,12 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 
 func RoomsResponse(defaultRoom myfirestore.DefaultRoomDoc, noSeatRoom myfirestore.NoSeatRoomDoc, defaultRoomLayout myfirestore.RoomLayoutDoc) (events.APIGatewayProxyResponse, error) {
 	var apiResp RoomsResponseStruct
-	apiResp.Result = OK
+	apiResp.Result = lambdautils.OK
 	apiResp.DefaultRoom = defaultRoom
 	apiResp.NoSeatRoom = noSeatRoom
 	apiResp.DefaultRoomLayout = defaultRoomLayout
 	jsonBytes, _ := json.Marshal(apiResp)
-	return Response(jsonBytes)
+	return lambdautils.Response(jsonBytes)
 }
 
 func main() {

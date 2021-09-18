@@ -1,8 +1,8 @@
 package main
 
 import (
-	"app.modules/system"
-	"bufio"
+	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
@@ -12,72 +12,20 @@ import (
 	"time"
 )
 
-func AppEngineMain()  {
+
+// LocalMain ローカル運用
+func LocalMain(credentialFilePath string) {
 	ctx := context.Background()
-	_system, err := system.NewSystem(ctx, nil)
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed system.NewSystem()", err)
+		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
+	_system.SendLiveChatMessage("起動しました。", ctx)
 	_ = _system.LineBot.SendMessage("app started.")
 	defer func() {
-		_ = _system.LineBot.SendMessage("app stopped.")
-	}()
-	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
-
-	for {
-		// page token取得
-		pageToken, err := _system.RetrieveNextPageToken(ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve next page token", err)
-			return
-		}
-		// チャット取得
-		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.LiveChatBot.ListMessages(pageToken, ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve chat messages", err)
-			return
-		}
-		// nextPageTokenを保存
-		err = _system.SaveNextPageToken(nextPageToken, ctx)
-		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to save next page token", err)
-			return
-		}
-
-		// コマンドを抜き出して各々処理
-		for _, chatMessage := range chatMessages {
-			message := chatMessage.Snippet.TextMessageDetails.MessageText
-			if strings.HasPrefix(message, system.CommandPrefix) {
-				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
-				if err != nil {
-					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err)
-				}
-			}
-		}
-
-		if pollingIntervalMillis > _system.DefaultSleepIntervalMilli {
-			sleepIntervalMilli = pollingIntervalMillis + 1000
-		} else {
-			sleepIntervalMilli = _system.DefaultSleepIntervalMilli
-		}
-		fmt.Printf("\n%.1f 秒待機\n", float32(sleepIntervalMilli) / 1000.0)
-		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
-	}
-}
-
-// DevMain ローカル開発用
-func DevMain() {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile("/Users/drew/Dev/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	// clientOption := option.WithCredentialsFile("C:/Dev/GCP credentials/youtube-study-space-a3516f96e3f8.json")
-	_system, err := system.NewSystem(ctx, clientOption)
-	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed system.NewSystem()", err)
-		return
-	}
-	_ = _system.LineBot.SendMessage("app started.")
-	defer func() {
+		_system.SendLiveChatMessage("寝ます。", ctx)
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
@@ -106,10 +54,10 @@ func DevMain() {
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			log.Println(chatMessage.AuthorDetails.DisplayName + ": " + message)
-			if strings.HasPrefix(message, system.CommandPrefix) {
+			if strings.HasPrefix(message, core.CommandPrefix) {
 				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
-				if err != nil {
-					_ = _system.LineBot.SendMessageWithError("error in system.Command()", err)
+				if err.IsNotNil() {
+					_ = _system.LineBot.SendMessageWithError("error in core.Command()", err.Body)
 				}
 			}
 		}
@@ -125,88 +73,33 @@ func DevMain() {
 	}
 }
 
-func DevCLIMain()  {
-	log.Println("app started.")
+
+
+func Test(credentialFilePath string) {
 	ctx := context.Background()
-	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
-	_system, err := system.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer _system.CloseFirestoreClient()
-	_ = _system.LineBot.SendMessage("app started.")
-
-	for {
-		// チャット取得
-		fmt.Printf("\n>> ")
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		message := scanner.Text()
-
-		// 入力文字列からコマンドを抜き出して処理
-		err = _system.Command(message, "test-channel01", "潤", ctx)
-		if err != nil {
-			log.Println("error in system.Command().")
-			log.Println(err.Error())
-		}
-	}
-}
-
-func UpdateRoomLayout() {
-	log.Println("app started.")
-	ctx := context.Background()
-	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:/Dev/GCP Credentials/youtube-study-space-95bb4187aace.json")
-	_system, err := system.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
-}
-
-
-func TestSend()  {
-	ctx := context.Background()
-	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:/Dev/GCP Credentials/youtube-study-space-95bb4187aace.json")
-	_system, err := system.NewSystem(ctx, clientOption)
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 	defer _system.CloseFirestoreClient()
 	
-	//_system.SendLiveChatMessage("hi", ctx)
+	fmt.Println(utils.JstNow().Format(time.RFC3339))
+	fmt.Println(utils.JstNow().Format(time.RFC3339))
 }
 
-func Test() {
-	ctx := context.Background()
-	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/youtube-study-space-95bb4187aace.json")
-	_system, err := system.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer _system.CloseFirestoreClient()
-	
-	err = _system.ResetDailyTotalStudyTime(ctx)
-	if err != nil {
-		log.Println(err.Error())
-	}
-}
 
 func main() {
-	// todo デプロイ時切り替え
-	//AppEngineMain()
-	DevMain()
-	//DevCLIMain()
-	//TestSend()
-	//Test()
+	core.LoadEnv()
+	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
-	//UpdateRoomLayout()
+	// TODO: デプロイ時切り替え
+	LocalMain(credentialFilePath)
+	// Test(credentialFilePath)
+	
+	// UpdateRoomLayout(credentialFilePath)
+	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
+	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }
 
