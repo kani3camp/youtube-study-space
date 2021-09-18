@@ -2,7 +2,6 @@ package main
 
 import (
 	"app.modules/core"
-	"bufio"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
@@ -73,34 +72,6 @@ func LocalMain(credentialFilePath string) {
 	}
 }
 
-func DevCLIMain(credentialFilePath string)  {
-	log.Println("DevCLIMain started.")
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer _system.CloseFirestoreClient()
-	_ = _system.LineBot.SendMessage("app started.")
-
-	for {
-		// チャット取得
-		fmt.Printf("\n>> ")
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		message := scanner.Text()
-
-		// 入力文字列からコマンドを抜き出して処理
-		err := _system.Command(message, "test-channel01", "潤", ctx)
-		if err.IsNotNil() {
-			log.Println("error in core.Command().")
-			log.Println(err.Body.Error())
-		}
-	}
-}
-
 func UpdateRoomLayout(credentialFilePath string) {
 	log.Println("app started.")
 	ctx := context.Background()
@@ -113,18 +84,6 @@ func UpdateRoomLayout(credentialFilePath string) {
 	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
 }
 
-func TestSend(credentialFilePath string)  {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer _system.CloseFirestoreClient()
-	
-	//_system.SendLiveChatMessage("hi", ctx)
-}
 
 func Test(credentialFilePath string) {
 	ctx := context.Background()
@@ -154,10 +113,7 @@ func main() {
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	// TODO: デプロイ時切り替え
-	//AppEngineMain()
 	LocalMain(credentialFilePath)
-	//DevCLIMain()
-	//TestSend()
 	//Test(credentialFilePath)
 	
 	//UpdateRoomLayout(credentialFilePath)
