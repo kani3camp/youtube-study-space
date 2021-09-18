@@ -3,7 +3,6 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
@@ -97,11 +96,11 @@ func main() {
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	// TODO: デプロイ時切り替え
-	//LocalMain(credentialFilePath)
+	LocalMain(credentialFilePath)
 	// Test(credentialFilePath)
 	
 	// UpdateRoomLayout(credentialFilePath)
-	direct_operations.ExportUsersCollectionJson(credentialFilePath)
+	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
 	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }
 
