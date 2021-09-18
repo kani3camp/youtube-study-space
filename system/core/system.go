@@ -669,24 +669,18 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	totalDuration := time.Duration(userData.TotalStudySec) * time.Second
 	if totalDuration < time.Hour {
 		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
-		//totalStr = strconv.Itoa(int(totalDuration.Minutes())) + " minutes"
 	} else {
 		totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
 			strconv.Itoa(int(totalDuration.Minutes()) % 60) + "分"
-		//totalStr = strconv.Itoa(int(totalDuration.Hours())) + " hours " +
-		//	strconv.Itoa(int(totalDuration.Minutes()) % 60) + " minutes"
 	}
 	// 当日の累計
 	var dailyTotalStr string
 	dailyTotalDuration := time.Duration(userData.DailyTotalStudySec) * time.Second
 	if dailyTotalDuration < time.Hour {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
-		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	} else {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + "時間" +
 			strconv.Itoa(int(dailyTotalDuration.Minutes()) % 60) + "分"
-		//dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + " hours " +
-		//	strconv.Itoa(int(dailyTotalDuration.Minutes())) + " minutes"
 	}
 	return totalStr, dailyTotalStr, nil
 }
@@ -776,17 +770,13 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				return err
 			}
 		}
-		msg := "successfully reset all user's daily total study time."
-		log.Println(msg)
-		_ = s.LineBot.SendMessage(msg)
+		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time.")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err
 		}
 	} else {
-		msg := "all user's daily total study times are already reset today."
-		log.Println(msg)
-		_ = s.LineBot.SendMessage(msg)
+		_ = s.LineBot.SendMessage("all user's daily total study times are already reset today.")
 	}
 	return nil
 }
