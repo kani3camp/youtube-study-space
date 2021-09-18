@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"context"
 	"encoding/json"
@@ -18,20 +19,20 @@ func ResetDailyTotalStudyTime(_ events.APIGatewayProxyRequest) (events.APIGatewa
 	log.Println("ResetDailyTotalStudyTime()")
 	
 	ctx := context.Background()
-	clientOption, err := FirestoreClientOption()
+	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	defer _system.CloseFirestoreClient()
 	
 	err = _system.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed to reset daily total time", err)
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	
 	return ResetDailyTotalStudyTimeResponse()
@@ -39,9 +40,9 @@ func ResetDailyTotalStudyTime(_ events.APIGatewayProxyRequest) (events.APIGatewa
 
 func ResetDailyTotalStudyTimeResponse() (events.APIGatewayProxyResponse, error) {
 	var apiResp ResetDailyTotalStudyTimeResponseStruct
-	apiResp.Result = OK
+	apiResp.Result = lambdautils.OK
 	jsonBytes, _ := json.Marshal(apiResp)
-	return Response(jsonBytes)
+	return lambdautils.Response(jsonBytes)
 }
 
 func main() {

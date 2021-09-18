@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
 	"context"
@@ -21,13 +22,13 @@ func LambdaSandBox(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 	log.Println("LambdaSandBox()")
 	
 	ctx := context.Background()
-	clientOption, err := FirestoreClientOption()
+	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	defer _system.CloseFirestoreClient()
 	
@@ -39,9 +40,9 @@ func LambdaSandBox(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 
 func LambdaSandBoxResponse() (events.APIGatewayProxyResponse, error) {
 	var apiResp LambdaSandBoxResponseStruct
-	apiResp.Result = OK
+	apiResp.Result = lambdautils.OK
 	jsonBytes, _ := json.Marshal(apiResp)
-	return Response(jsonBytes)
+	return lambdautils.Response(jsonBytes)
 }
 
 func main() {

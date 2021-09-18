@@ -1,0 +1,79 @@
+package direct_operations
+
+import (
+	"app.modules/core"
+	"app.modules/core/utils"
+	"context"
+	"encoding/json"
+	"google.golang.org/api/option"
+	"log"
+	"os"
+)
+
+func UpdateRoomLayout(credentialFilePath string) {
+	ctx := context.Background()
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	_system, err := core.NewSystem(ctx, clientOption)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
+}
+
+func ExitAllUsersAllRoom(credentialFilePath string) {
+	ctx := context.Background()
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	_system, err := core.NewSystem(ctx, clientOption)
+	if err != nil {
+		panic(err)
+		return
+	}
+	
+	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
+	err = _system.ExitAllUserDefaultRoom(ctx)
+	if err != nil {
+		panic(err)
+		return
+	}
+	err = _system.ExitAllUserNoSeatRoom(ctx)
+	if err != nil {
+		panic(err)
+		return
+	}
+	_system.SendLiveChatMessage("全ユーザーを退室させました。", ctx)
+}
+
+func ExportUsersCollectionJson(credentialFilePath string) {
+	ctx := context.Background()
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	_system, err := core.NewSystem(ctx, clientOption)
+	if err != nil {
+		panic(err)
+		return
+	}
+	
+	allUsersTotalStudySecList, err := _system.RetrieveAllUsersTotalStudySecList(ctx)
+	if err != nil {
+		panic(err)
+		return
+	}
+	
+	now := utils.JstNow()
+	dateString := now.Format("2006-01-02_15-04-05")
+	f, err := os.Create("./" + dateString + "_user-total-study-sec-list.json")
+	if err != nil {
+		panic(err)
+		return
+	}
+	defer func() {_ = f.Close()}()
+	
+	jsonEnc := json.NewEncoder(f)
+	jsonEnc.SetIndent("", "\t")
+	err = jsonEnc.Encode(allUsersTotalStudySecList)
+	if err != nil {
+		panic(err)
+		return
+	}
+	log.Println("finished exporting json.")
+}

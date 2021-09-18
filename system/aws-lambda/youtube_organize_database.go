@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"context"
 	"encoding/json"
@@ -18,20 +19,20 @@ func OrganizeDatabase(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRe
 	log.Println("OrganizeDatabase()")
 	
 	ctx := context.Background()
-	clientOption, err := FirestoreClientOption()
+	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	defer _system.CloseFirestoreClient()
 	
 	err = _system.OrganizeDatabase(ctx)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed to organize database", err)
-		return ErrorResponse(err)
+		return lambdautils.ErrorResponse(err)
 	}
 	
 	return OrganizeDatabaseResponse()
@@ -39,9 +40,9 @@ func OrganizeDatabase(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyRe
 
 func OrganizeDatabaseResponse() (events.APIGatewayProxyResponse, error) {
 	var apiResp OrganizeDatabaseResponseStruct
-	apiResp.Result = OK
+	apiResp.Result = lambdautils.OK
 	jsonBytes, _ := json.Marshal(apiResp)
-	return Response(jsonBytes)
+	return lambdautils.Response(jsonBytes)
 }
 
 func main() {

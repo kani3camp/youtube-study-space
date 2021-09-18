@@ -42,3 +42,8 @@ type CommandOptions struct {
 	WorkMin  int
 }
 
+
+type UserIdTotalStudySecSet struct {
+	UserId string	`json:"user_id"`
+	TotalStudySec int	`json:"total_study_sec"`
+}

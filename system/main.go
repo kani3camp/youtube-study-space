@@ -73,17 +73,6 @@ func LocalMain(credentialFilePath string) {
 	}
 }
 
-func UpdateRoomLayout(credentialFilePath string) {
-	log.Println("app started.")
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
-}
 
 
 func Test(credentialFilePath string) {
@@ -107,8 +96,10 @@ func main() {
 	
 	// TODO: デプロイ時切り替え
 	LocalMain(credentialFilePath)
-	//Test(credentialFilePath)
+	// Test(credentialFilePath)
 	
-	//UpdateRoomLayout(credentialFilePath)
+	// UpdateRoomLayout(credentialFilePath)
+	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
+	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }
 
