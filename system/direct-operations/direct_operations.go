@@ -18,6 +18,7 @@ func UpdateRoomLayout(credentialFilePath string) {
 		log.Println(err.Error())
 		return
 	}
+	
 	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
 }
 

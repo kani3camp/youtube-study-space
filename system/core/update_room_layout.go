@@ -23,7 +23,7 @@ const (
 	UpdateRoomLayoutAction = "update-room-layout"
 )
 
-// UpdateRoomLayout ルームレイアウトを更新。ルームレイアウトが存在しなければ、新規作成
+// UpdateRoomLayout ルームレイアウトを更新。ルームレイアウトが存在しなければ、新規作成。
 func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
 	rawData, err := ioutil.ReadFile(filePath)
 	if err != nil {

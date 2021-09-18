@@ -81,8 +81,9 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	s.SetProcessedUser(userId, userDisplayName)
 
 	commandDetails, err := s.ParseCommand(commandString)
-	if err.IsNotNil() {
-		return err
+	if err.IsNotNil() {	// これはシステム内部のエラーではなく、コマンドが悪いということなので、return nil
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、" + err.Body.Error(), ctx)
+		return customerror.NewNil()
 	}
 	log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 
@@ -200,7 +201,7 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 func (s *System) ParseOption(commandSlice []string) (CommandOptions, customerror.CustomError) {
 	workName := ""
 	isWorkNameSet := false
-	workTimeMin := s.DefaultWorkTimeMin // TODO: firestoreでconfigにしておく
+	workTimeMin := s.DefaultWorkTimeMin
 	isWorkTimeMinSet := false
 	for _, str := range commandSlice {
 		if strings.HasPrefix(str, WorkNameOptionPrefix) && !isWorkNameSet {
@@ -735,9 +736,15 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		if seat.Until.Before(utils.JstNow()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
-			_, err := s.ExitRoom(seat.SeatId, ctx)
+			
+			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
+				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（" + s.ProcessedUserId + "）の退室処理中にエラーが発生しました。", err)
 				return err
+			} else {
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
+					"（"+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+				return nil
 			}
 		}
 	}
