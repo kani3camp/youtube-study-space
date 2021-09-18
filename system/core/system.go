@@ -5,6 +5,7 @@ import (
 	"app.modules/core/guardians"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
+	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 	"context"
 	"github.com/kr/pretty"
@@ -390,9 +391,6 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 			"さんの本日の作業時間は" + dailyTotalTimeStr + "、" +
 			"累計作業時間は" + totalTimeStr + "です。", ctx)
-		//s.SendLiveChatMessage("Hi, " + s.ProcessedUserDisplayName +
-		//	". Your daily total working time is " + dailyTotalTimeStr + ", " +
-		//	"cumulative working time is " + totalTimeStr + ".", ctx)
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName +
 			"さんはまだ作業データがありません。「" + InCommand + "」コマンドで作業を始めましょう！", ctx)
@@ -444,7 +442,7 @@ func (s *System) InitializeUser(ctx context.Context) error {
 	userData := myfirestore.UserDoc{
 		DailyTotalStudySec: 0,
 		TotalStudySec:      0,
-		RegistrationDate:   time.Now(),
+		RegistrationDate:   utils.JstNow(),
 	}
 	return s.FirestoreController.InitializeUser(s.ProcessedUserId, userData, ctx)
 }
@@ -463,7 +461,7 @@ func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) er
 
 // EnterDefaultRoom default-roomに入室させる。事前チェックはされている前提。
 func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, ctx context.Context) error {
-	exitDate := time.Now().Add(time.Duration(workTimeMin) * time.Minute)
+	exitDate := utils.JstNow().Add(time.Duration(workTimeMin) * time.Minute)
 	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
@@ -483,13 +481,13 @@ func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, 
 
 // EnterNoSeatRoom no-seat-roomに入室させる。事前チェックはされている前提。
 func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, ctx context.Context) error {
-	exitDate := time.Now().Add(time.Duration(workTimeMin) * time.Minute)
+	exitDate := utils.JstNow().Add(time.Duration(workTimeMin) * time.Minute)
 	seat, err := s.FirestoreController.SetSeatInNoSeatRoom(workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
 	}
-	// 退室時刻を記録
-	err = s.FirestoreController.SetLastExitedDate(s.ProcessedUserId, ctx)
+	// 入室時刻を記録
+	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
 	if err != nil {
 		return err
 	}
@@ -527,7 +525,7 @@ func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 	}
 	
 	if len(availableSeatIdList) > 0 {
-		rand.Seed(time.Now().UnixNano())
+		rand.Seed(utils.JstNow().UnixNano())
 		return availableSeatIdList[rand.Intn(len(availableSeatIdList))], nil
 	} else {
 		return 0, nil
@@ -541,7 +539,7 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	workedTimeSec := int(time.Now().Sub(userData.LastEntered).Seconds())
+	workedTimeSec := int(utils.JstNow().Sub(userData.LastEntered).Seconds())
 
 	var seat myfirestore.Seat
 	switch seatId {
@@ -724,7 +722,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		return err
 	}
 	for _, seat := range defaultRoom.Seats {
-		if seat.Until.Before(time.Now()) {
+		if seat.Until.Before(utils.JstNow()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
 			_, err := s.ExitRoom(seat.SeatId, ctx)
@@ -740,7 +738,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		return err
 	}
 	for _, seat := range noSeatRoom.Seats {
-		if seat.Until.Before(time.Now()) {
+		if seat.Until.Before(utils.JstNow()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
 			_, err := s.ExitRoom(seat.SeatId, ctx)
@@ -765,7 +763,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 		return err
 	}
 	previousDate := constantsConfig.LastResetDailyTotalStudySec.Local()
-	now := time.Now()
+	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
 		userRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)

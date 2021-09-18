@@ -1,6 +1,7 @@
 package myfirestore
 
 import (
+	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
@@ -176,7 +177,7 @@ func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, exit
 
 func (controller *FirestoreController) SetLastEnteredDate(userId string, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
-		LastEnteredFirestore: time.Now(),
+		LastEnteredFirestore: utils.JstNow(),
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -186,7 +187,7 @@ func (controller *FirestoreController) SetLastEnteredDate(userId string, ctx con
 
 func (controller *FirestoreController) SetLastExitedDate(userId string, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
-		LastExitedFirestore: time.Now(),
+		LastExitedFirestore: utils.JstNow(),
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -236,7 +237,7 @@ func (controller *FirestoreController) RetrieveDefaultRoomLayout(ctx context.Con
 func (controller *FirestoreController) AddUserHistory(userId string, action string, details interface{}, ctx context.Context) error {
 	history := UserHistoryDoc{
 		Action:  action,
-		Date:    time.Now(),
+		Date:    utils.JstNow(),
 		Details: details,
 	}
 	_, _, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Collection(HISTORY).Add(ctx, history)

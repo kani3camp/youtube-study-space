@@ -2,6 +2,7 @@ package youtubebot
 
 import (
 	"app.modules/core/myfirestore"
+	"app.modules/core/utils"
 	"context"
 	"encoding/json"
 	"github.com/pkg/errors"
@@ -102,7 +103,7 @@ func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string, ctx context.Co
 		if err != nil {
 			return nil, "", 0, err
 		}
-		if botCredentialConfig.ExpirationDate.Before(time.Now()) {
+		if botCredentialConfig.ExpirationDate.Before(utils.JstNow()) {
 			// access tokenが期限切れのため、更新する
 			err := bot.RefreshBotAccessToken(ctx)
 			if err != nil {
@@ -163,7 +164,7 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 			return err
 		}
 	}
-	//if config.ExpireDate.Before(time.Now()) {
+	//if config.ExpireDate.Before(core.JstNow()) {
 	//	log.Println("access token is expired. refreshing...")
 	//	_ = RefreshChannelAccessToken(&config, client, ctx)
 	//}
@@ -352,7 +353,7 @@ func (bot *YoutubeLiveChatBot) _RefreshAccessToken(clientId string, clientSecret
 		newAccessToken := responseBody.AccessToken
 		log.Println("new access token: " + newAccessToken)
 		
-		newExpirationDate := time.Now().Add(time.Duration(responseBody.ExpiresIn) * time.Second)
+		newExpirationDate := utils.JstNow().Add(time.Duration(responseBody.ExpiresIn) * time.Second)
 		return newAccessToken, newExpirationDate, nil
 	} else {
 		return "", time.Time{}, err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
@@ -95,16 +96,8 @@ func Test(credentialFilePath string) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	message := ""
-	//channelId := ""
-	//displayName := ""
-	if strings.HasPrefix(message, core.CommandPrefix) {
-		//err := _system.Command(message, channelId, displayName, ctx)
-		//if err != nil {
-		//	_ = _system.LineBot.SendMessageWithError("error in core.Command()", err)
-		//}
-		
-	}
+	fmt.Println(utils.JstNow().Format(time.RFC3339))
+	fmt.Println(utils.JstNow().Format(time.RFC3339))
 }
 
 

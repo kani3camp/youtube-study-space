@@ -3,6 +3,7 @@ package core
 import (
 	"app.modules/core/customerror"
 	"app.modules/core/myfirestore"
+	"app.modules/core/utils"
 	"context"
 	"encoding/json"
 	"google.golang.org/grpc/codes"
@@ -11,7 +12,6 @@ import (
 	"log"
 	"reflect"
 	"strconv"
-	"time"
 )
 
 const (
@@ -150,10 +150,10 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 		}
 	}
 	_ = s.FirestoreController.AddRoomLayoutHistory(map[string]interface{}{
-		ActionFirestore: UpdateRoomLayoutAction,
+		ActionFirestore:        UpdateRoomLayoutAction,
 		OldRoomLayoutFirestore: oldRoomLayout,
 		NewRoomLayoutFirestore: roomLayout,
-		DateFirestore:            time.Now(),
+		DateFirestore:          utils.JstNow(),
 	}, ctx)
 	
 	// 前後で座席に変更があった場合、現在そのルームにいる人を強制的に退室させる
