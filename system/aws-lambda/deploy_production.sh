@@ -1,7 +1,7 @@
 # TODO: ################## これは本番環境用です!!!!!!!!!!! ###################
 
 
-# rooms_state, youtube_organize_database, reset_daily_total_study_time
+# rooms_state, youtube_organize_database, reset_daily_total_study_time, check_live_stream_status, lambda_sandbox
 
 
 # Windows (PowerShell)
