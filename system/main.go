@@ -98,7 +98,7 @@ func main() {
 	LocalMain(credentialFilePath)
 	// Test(credentialFilePath)
 	
-	// UpdateRoomLayout(credentialFilePath)
+	//direct_operations.UpdateRoomLayout(credentialFilePath)
 	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
 	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }

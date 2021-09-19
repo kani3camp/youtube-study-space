@@ -24,29 +24,28 @@ const (
 )
 
 // UpdateRoomLayout ルームレイアウトを更新。ルームレイアウトが存在しなければ、新規作成。
-func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) {
+func (s *System) UpdateRoomLayout(filePath string, ctx context.Context) error {
 	rawData, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Println(err.Error())
-		return
+		return err
 	}
 	var roomLayout myfirestore.RoomLayoutDoc
 	err = json.Unmarshal(rawData, &roomLayout)
 	if err != nil {
-		log.Println(err.Error())
-		return
+		return err
 	}
 	customErr := s.CheckRoomLayoutData(roomLayout, ctx)
 	if customErr.Body != nil {
 		log.Println(customErr.Body.Error())
-		return
+		return customErr.Body
 	}
 	log.Println("Valid layout file.")
 	err = s.SaveRoomLayout(roomLayout, ctx)
 	if err != nil {
 		log.Println(err.Error())
-		return
+		return err
 	}
+	return nil
 }
 
 // CheckRoomLayoutData ルーム作成時の roomLayoutData.Version は 1
@@ -149,12 +148,15 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 			return err
 		}
 	}
-	_ = s.FirestoreController.AddRoomLayoutHistory(map[string]interface{}{
+	err = s.FirestoreController.AddRoomLayoutHistory(map[string]interface{}{
 		ActionFirestore:        UpdateRoomLayoutAction,
 		OldRoomLayoutFirestore: oldRoomLayout,
 		NewRoomLayoutFirestore: roomLayout,
 		DateFirestore:          utils.JstNow(),
 	}, ctx)
+	if err != nil {
+		return err
+	}
 	
 	// 前後で座席に変更があった場合、現在そのルームにいる人を強制的に退室させる
 	// 現在の座席idリスト
@@ -169,6 +171,7 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 	}
 	if !reflect.DeepEqual(oldSeatIds, newSeatIds) {
 		log.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
+		s.SendLiveChatMessage("座席レイアウトを更新します。現在画面上の席で作業中の人は全員退室させますので、再度入ってください。", ctx)
 		err := s.ExitAllUserDefaultRoom(ctx)
 		if err != nil {
 			return err
@@ -179,6 +182,7 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 	if err != nil {
 		return err
 	}
+	s.SendLiveChatMessage("座席レイアウトの更新が完了しました。", ctx)
 	return nil
 }
 
