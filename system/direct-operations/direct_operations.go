@@ -19,7 +19,11 @@ func UpdateRoomLayout(credentialFilePath string) {
 		return
 	}
 	
-	_system.UpdateRoomLayout("./default-room-layout.json", ctx)
+	err = _system.UpdateRoomLayout("../room_layouts/ver2.json", ctx)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
 }
 
 func ExitAllUsersAllRoom(credentialFilePath string) {
