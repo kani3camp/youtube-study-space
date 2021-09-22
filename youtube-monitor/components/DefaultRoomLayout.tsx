@@ -7,7 +7,7 @@ class DefaultRoomLayout extends React.Component<
   { layout: RoomLayout; roomState: DefaultRoomState },
   any
 > {
-  seatWithSeatId(seatId: number, seats: seat[]) {
+  seatWithSeatId (seatId: number, seats: seat[]) {
     let targetSeat: seat = seats[0];
     seats.forEach((seat) => {
       if (seat.seat_id === seatId) {
@@ -17,14 +17,14 @@ class DefaultRoomLayout extends React.Component<
     return targetSeat;
   }
 
-  render() {
+  render () {
     if (this.props.layout && this.props.roomState) {
       const usedSeatIds = this.props.roomState.seats.map(
         (seat) => seat.seat_id
       );
 
       const emptySeatColor = "#fce7d2";
-      const filledSeatColor = "#ee989f";
+      const filledSeatColor = "#FEA795";
 
       const roomLayout = this.props.layout;
       const roomShape = {
@@ -73,12 +73,12 @@ class DefaultRoomLayout extends React.Component<
 
       const seatList = roomLayout.seats.map((seat, index) => {
         const isUsed = usedSeatIds.includes(seat.id);
-        const workName = usedSeatIds.includes(seat.id) 
-        ? this.seatWithSeatId(seat.id, this.props.roomState.seats).work_name 
-        : "";
+        const workName = usedSeatIds.includes(seat.id)
+          ? this.seatWithSeatId(seat.id, this.props.roomState.seats).work_name
+          : "";
         const displayName = usedSeatIds.includes(seat.id)
           ? this.seatWithSeatId(seat.id, this.props.roomState.seats)
-              .user_display_name
+            .user_display_name
           : "";
         return (
           <div
