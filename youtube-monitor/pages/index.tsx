@@ -18,12 +18,12 @@ export default class Home extends React.Component<{}, any> {
     super(props);
     this.state = {
       layout: null,
-      default_room_state: null, 
+      default_room_state: null,
       no_seat_room_state: null,
     };
   }
-  
-  componentDidMount() {
+
+  componentDidMount () {
     const component = this;
     this.intervalId = setInterval(() => {
       fetcher<RoomsStateResponse>(api.roomsState)
@@ -39,16 +39,16 @@ export default class Home extends React.Component<{}, any> {
           });
         })
         .catch((err) => console.error(err));
-    }, 1500);
+    }, 2000);
   }
 
-  componentWillUnmount() {
+  componentWillUnmount () {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
   }
 
-  render() {
+  render () {
     return (
       <div
         style={{
@@ -70,7 +70,7 @@ export default class Home extends React.Component<{}, any> {
           roomState={this.state.default_room_state}
         />
         <StandingRoom no_seat_room_state={this.state.no_seat_room_state} />
-        <Timer/>
+        <Timer />
       </div>
     );
   }
