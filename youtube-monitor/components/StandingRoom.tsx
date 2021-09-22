@@ -12,7 +12,8 @@ class StandingRoom extends React.Component<
       return (
         <div id={styles.standingRoom}>
           {/*<h2>Standing Room</h2>*/}
-          <h2>スタンディング</h2>
+          <div className={styles.preTitle}>何人でも入れる</div>
+          <h2 className={styles.title}>スタンディング</h2>
           <h3>
             （<span className={styles.commandString}><ruby>!0<rt>{'　'}ゼロ</rt></ruby></span> で入室）
             {/*（Enter with <span className={styles.commandString}>!0</span>）*/}
