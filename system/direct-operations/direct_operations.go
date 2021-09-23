@@ -19,7 +19,7 @@ func UpdateRoomLayout(credentialFilePath string) {
 		return
 	}
 	
-	err = _system.UpdateRoomLayout("../room_layouts/ver2.json", ctx)
+	err = _system.UpdateRoomLayout("../room_layouts/sea_of_seat.json", ctx)
 	if err != nil {
 		log.Println(err.Error())
 		return
