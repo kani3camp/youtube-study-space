@@ -1,6 +1,6 @@
 {
-  "version": 5,
-  "font_size_ratio": 0.035,
+  "version": 6,
+  "font_size_ratio": 0.03,
   "room_shape": {
     "width": 355,
     "height": 240
