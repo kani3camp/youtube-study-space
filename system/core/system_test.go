@@ -125,8 +125,8 @@ func TestSystem_ParseCommand(t *testing.T) {
 			t.Error(err)
 		}
 		if !reflect.DeepEqual(commandDetails, testCase.ExpectedOutput) {
-			fmt.Printf("%# v", pretty.Formatter(commandDetails))
-			fmt.Printf("%# v", pretty.Formatter(testCase.ExpectedOutput))
+			fmt.Printf("%# v\n", pretty.Formatter(commandDetails))
+			fmt.Printf("%# v\n", pretty.Formatter(testCase.ExpectedOutput))
 			t.Error("command details do not match.")
 		}
 		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.ExpectedOutput))
