@@ -15,4 +15,3 @@ system/main.exe
 system/.env
 system/aws-lambda/main
 system/aws-lambda/main.zip
-system/main.exe
