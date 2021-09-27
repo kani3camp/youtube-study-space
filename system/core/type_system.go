@@ -12,7 +12,7 @@ type System struct {
 	LineBot *mylinebot.LineBot
 	MinWorkTimeMin int
 	MaxWorkTimeMin int
-	DefaultWorkTimeMin int	// TODO: firestoreに追加
+	DefaultWorkTimeMin int
 	ProcessedUserId string
 	ProcessedUserDisplayName string
 	DefaultSleepIntervalMilli int
