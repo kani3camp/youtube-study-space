@@ -205,13 +205,27 @@ func (controller *FirestoreController) UnSetSeatInDefaultRoom(seat Seat, ctx con
 	return nil
 }
 
+func (controller *FirestoreController) SetMyRankVisible(userId string, rankVisible bool, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
+		RankVisibleFirestore: rankVisible,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (controller *FirestoreController) SetMyDefaultStudyMin(userId string, defaultStudyMin int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
+		DefaultStudyMinFirestore: defaultStudyMin,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (controller *FirestoreController) UnSetSeatInNoSeatRoom(seat Seat, ctx context.Context) error {
-	//_seat := Seat{
-	//	SeatId:   seat.SeatId,
-	//	UserId:   seat.UserId,
-	//	WorkName: seat.WorkName,
-	//	Until:    seat.Until,
-	//}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayRemove(seat),
 	}, firestore.MergeAll)

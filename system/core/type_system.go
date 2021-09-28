@@ -20,10 +20,9 @@ type System struct {
 
 type CommandDetails struct {
 	CommandType CommandType
-	Options     CommandOptions
-	// 以下2つは不要ならばいつか消す
-	//commanderChannelId string
-	//commanderDisplayName string
+	InOptions   InOptions
+	InfoOption InfoOption
+	MyOptions   []MyOption
 }
 
 type CommandType uint
@@ -34,14 +33,31 @@ const (
 	SeatIn	// !席番号
 	Out		// !out
 	Info	// !info
+	My		// !my
 )
 
-type CommandOptions struct {
+type InfoOption struct {
+	ShowDetails bool
+}
+
+type MyOptionType uint
+const (
+	RankVisible MyOptionType = iota
+	DefaultStudyMin
+)
+
+type InOptions struct {
 	SeatId   int
 	WorkName string
 	WorkMin  int
 }
 
+type MyOption struct {
+	Type MyOptionType
+	IntValue int
+	BoolValue bool
+	StringValue string
+}
 
 type UserIdTotalStudySecSet struct {
 	UserId string	`json:"user_id"`

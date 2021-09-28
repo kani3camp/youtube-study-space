@@ -68,8 +68,9 @@ type UserDoc struct {
 	RegistrationDate time.Time `json:"registration_date" firestore:"registration-date"`
 	StatusMessage string `json:"status_message" firestore:"status-message"`
 	LastEntered time.Time `json:"last_entered" firestore:"last-entered"`
-	LastExited time.Time `json:"last_exited" firestore:"last-exited"`
-	RankEnabled bool `json:"rank_enabled" firestore:"rank-enabled"`
+	LastExited      time.Time `json:"last_exited" firestore:"last-exited"`
+	RankVisible     bool      `json:"rank_visible" firestore:"rank-visible"`
+	DefaultStudyMin int       `json:"default_study_min" firestore:"default-study-min"`
 }
 
 type PartitionShape struct {

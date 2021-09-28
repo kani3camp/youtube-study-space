@@ -38,14 +38,14 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input:          "in",
 			ExpectedOutput: CommandDetails{
 				CommandType: NotCommand,
-				Options: CommandOptions{},
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!in",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				Options: CommandOptions{
+				InOptions: InOptions{
 					SeatId:   -1,
 					WorkName: "",
 					WorkMin:  s.DefaultWorkTimeMin,
@@ -56,7 +56,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!in work-てすと min-50",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				Options:     CommandOptions{
+				InOptions:     InOptions{
 					SeatId: -1,
 					WorkName: "てすと",
 					WorkMin: 50,
@@ -67,18 +67,19 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!in min-60 work-わーく",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				Options:     CommandOptions{
+				InOptions:     InOptions{
 					SeatId: -1,
 					WorkName: "わーく",
 					WorkMin: 60,
 				},
 			},
 		},
+		// TODO: w-やm-のテスト追加
 		{
 			Input: "!0",
 			ExpectedOutput: CommandDetails{
 				CommandType: SeatIn,
-				Options:     CommandOptions{
+				InOptions:     InOptions{
 					SeatId: 0,
 					WorkName: "",
 					WorkMin: s.DefaultWorkTimeMin,
@@ -89,7 +90,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!12 work-てすと",
 			ExpectedOutput: CommandDetails{
 				CommandType: SeatIn,
-				Options:     CommandOptions{
+				InOptions:     InOptions{
 					SeatId:   12,
 					WorkName: "てすと",
 					WorkMin:  s.DefaultWorkTimeMin,
@@ -100,21 +101,52 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "out",
 			ExpectedOutput: CommandDetails{
 				CommandType: NotCommand,
-				Options: CommandOptions{},
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!out",
 			ExpectedOutput: CommandDetails{
 				CommandType: Out,
-				Options: CommandOptions{},
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!info",
 			ExpectedOutput: CommandDetails{
 				CommandType: Info,
-				Options: CommandOptions{},
+				InOptions:   InOptions{},
+			},
+		},
+		{
+			Input: "!my",
+			ExpectedOutput: CommandDetails{
+				CommandType: My,
+				MyOptions: nil,
+			},
+		},
+		{
+			Input: "!my rank=on",
+			ExpectedOutput: CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: true,
+					},
+				},
+			},
+		},
+		{
+			Input: "!my rank=off",
+			ExpectedOutput: CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: false,
+					},
+				},
 			},
 		},
 	}
@@ -125,8 +157,8 @@ func TestSystem_ParseCommand(t *testing.T) {
 			t.Error(err)
 		}
 		if !reflect.DeepEqual(commandDetails, testCase.ExpectedOutput) {
-			fmt.Printf("%# v\n", pretty.Formatter(commandDetails))
-			fmt.Printf("%# v\n", pretty.Formatter(testCase.ExpectedOutput))
+			fmt.Printf("result:\n%# v\n", pretty.Formatter(commandDetails))
+			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.ExpectedOutput))
 			t.Error("command details do not match.")
 		}
 		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.ExpectedOutput))
