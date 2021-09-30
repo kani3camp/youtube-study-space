@@ -446,7 +446,7 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 }
 
 func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error {
-	// そのユーザーはデータがあるか？
+	// そのユーザーはドキュメントがあるか？
 	isUserRegistered, err := s.IfUserRegistered(ctx)
 	if err != nil {
 		return err
@@ -484,8 +484,20 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 }
 
 func (s *System) My(command CommandDetails, ctx context.Context) error {
-	// TODO: 登録されていないユーザーだった場合、そのままデータを保存したら自動で作成されるのか実験。読み込みのときにそのプロパティがなくても大丈夫なのか実験。
-	
+	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
+	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
+	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
+	// そのユーザーはドキュメントがあるか？
+	isUserRegistered, err := s.IfUserRegistered(ctx)
+	if err != nil {
+		return err
+	}
+	if !isUserRegistered {	// ない場合は作成。
+		err := s.InitializeUser(ctx)
+		if err != nil {
+			return err
+		}
+	}
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
