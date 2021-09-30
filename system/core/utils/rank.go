@@ -112,3 +112,9 @@ func GetRank(totalStudySec int) (Rank, error) {
 		}, nil
 	}
 }
+
+func GetInvisibleRank() Rank {
+	return Rank{
+		ColorCode: "#AAAAAA",
+	}
+}

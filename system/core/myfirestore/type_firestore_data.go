@@ -1,7 +1,6 @@
 package myfirestore
 
 import (
-	"app.modules/core/utils"
 	"time"
 )
 
@@ -50,7 +49,7 @@ type Seat struct {
 	WorkName string `json:"work_name" firestore:"work-name"`
 	EnteredAt time.Time `json:"entered_at" firestore:"entered-at"`
 	Until time.Time `json:"until" firestore:"until"`
-	Rank utils.Rank `json:"rank" firestore:"rank"`
+	ColorCode string `json:"color_code" firestore:"color-code"`
 }
 
 type NoSeatRoomDoc struct {

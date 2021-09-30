@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 	"log"
 	"os"
 	"strings"
@@ -17,6 +18,23 @@ import (
 func LocalMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
+	
+	// 本番GCPプロジェクトの場合はCLI上で確認
+	creds, _ := transport.Creds(ctx, clientOption)
+	if creds.ProjectID == "youtube-study-space" {
+		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
+		var s string
+		_, _ = fmt.Scanf("%s", &s)
+		if s != "yes" {
+			return
+		}
+	} else if creds.ProjectID == "test-youtube-study-space" {
+		log.Println("credential of test-youtube-study-space")
+	} else {
+		log.Println("unknown project id on the credential.")
+		return
+	}
+	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)

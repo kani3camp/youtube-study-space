@@ -142,13 +142,15 @@ func (controller *FirestoreController) RetrieveNoSeatRoom(ctx context.Context) (
 	return noSeatRoomData, nil
 }
 
-func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		SeatId: seatId,
 		UserId: userId,
 		UserDisplayName: userDisplayName,
 		WorkName: workName,
+		EnteredAt: enterDate,
 		Until: exitDate,
+		ColorCode: seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),
@@ -159,12 +161,14 @@ func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName
 	return seat, nil
 }
 
-func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		UserId: userId,
 		UserDisplayName: userDisplayName,
 		WorkName: workName,
+		EnteredAt: enterDate,
 		Until: exitDate,
+		ColorCode: seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),

@@ -383,12 +383,35 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		}
 		command.InOptions.SeatId = seatId
 	}
+	
+	// ランクから席の色を決定
+	var seatColorCode string
+	userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed to RetrieveUser", err)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		return err
+	}
+	if userDoc.RankVisible {
+		rank, err := utils.GetRank(userDoc.TotalStudySec)
+		if err != nil {
+			_ = s.LineBot.SendMessageWithError("failed to GetRank", err)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			return err
+		}
+		seatColorCode = rank.ColorCode
+	} else {
+		rank := utils.GetInvisibleRank()
+		seatColorCode = rank.ColorCode
+	}
 
 	// 入室
 	if command.InOptions.SeatId == 0 {
-		err = s.EnterNoSeatRoom(command.InOptions.WorkName, command.InOptions.WorkMin, ctx)
+		err = s.EnterNoSeatRoom(command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
 	} else {
-		err = s.EnterDefaultRoom(command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin, ctx)
+		err = s.EnterDefaultRoom(command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
 	}
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
@@ -591,9 +614,10 @@ func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) er
 }
 
 // EnterDefaultRoom default-roomに入室させる。事前チェックはされている前提。
-func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, ctx context.Context) error {
-	exitDate := utils.JstNow().Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
+func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
+	enterDate := utils.JstNow()
+	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
+	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
 	}
@@ -611,9 +635,10 @@ func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, 
 }
 
 // EnterNoSeatRoom no-seat-roomに入室させる。事前チェックはされている前提。
-func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, ctx context.Context) error {
-	exitDate := utils.JstNow().Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeatInNoSeatRoom(workName, exitDate, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
+func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
+	enterDate := utils.JstNow()
+	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
+	seat, err := s.FirestoreController.SetSeatInNoSeatRoom(workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
 	}
