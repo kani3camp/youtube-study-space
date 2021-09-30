@@ -17,11 +17,14 @@ const (
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
 	NextPageTokenFirestore = "next-page-token"
 	SeatsFirestore = "seats"
-	LastEnteredFirestore = "last-entered"
-	LastExitedFirestore = "last-exited"
-	DailyTotalStudySecFirestore = "daily-total-study-sec"
-	TotalStudySecFirestore = "total-study-sec"
 	LiveChatIdFirestore = "live-chat-id"
 	AccessTokenFirestore = "access-token"
 	ExpireDateFirestore = "expiration-date"
+	
+	LastEnteredFirestore = "last-entered"
+	LastExitedFirestore = "last-exited"
+	DailyTotalStudySecFirestore = "daily-total-study-sec"
+	TotalStudySecFirestore   = "total-study-sec"
+	RankVisibleFirestore     = "rank-visible"
+	DefaultStudyMinFirestore = "default-study-min"
 )

@@ -3,10 +3,10 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 	"log"
 	"os"
 	"strings"
@@ -18,6 +18,23 @@ import (
 func LocalMain(credentialFilePath string) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
+	
+	// 本番GCPプロジェクトの場合はCLI上で確認
+	creds, _ := transport.Creds(ctx, clientOption)
+	if creds.ProjectID == "youtube-study-space" {
+		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
+		var s string
+		_, _ = fmt.Scanf("%s", &s)
+		if s != "yes" {
+			return
+		}
+	} else if creds.ProjectID == "test-youtube-study-space" {
+		log.Println("credential of test-youtube-study-space")
+	} else {
+		log.Println("unknown project id on the credential.")
+		return
+	}
+	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
@@ -54,7 +71,7 @@ func LocalMain(credentialFilePath string) {
 		// コマンドを抜き出して各々処理
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
-			log.Println(chatMessage.AuthorDetails.DisplayName + ": " + message)
+			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			if strings.HasPrefix(message, core.CommandPrefix) {
 				err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
 				if err.IsNotNil() {
@@ -96,10 +113,10 @@ func main() {
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	// TODO: デプロイ時切り替え
-	//LocalMain(credentialFilePath)
+	LocalMain(credentialFilePath)
 	// Test(credentialFilePath)
 	
-	direct_operations.UpdateRoomLayout(credentialFilePath)
+	//direct_operations.UpdateRoomLayout(credentialFilePath)
 	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
 	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }
