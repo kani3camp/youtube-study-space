@@ -3,6 +3,7 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
+	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"google.golang.org/api/option"
