@@ -100,7 +100,7 @@ func main() {
 	// Test(credentialFilePath)
 	
 	//direct_operations.UpdateRoomLayout(credentialFilePath)
-	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
-	direct_operations.ExitAllUsersAllRoom(credentialFilePath)
+	direct_operations.ExportUsersCollectionJson(credentialFilePath)
+	//direct_operations.ExitAllUsersAllRoom(credentialFilePath)
 }
 
