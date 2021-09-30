@@ -1,6 +1,8 @@
 package myfirestore
 
-import "time"
+import (
+	"time"
+)
 
 
 type ConstantsConfigDoc struct {
@@ -45,7 +47,9 @@ type Seat struct {
 	UserId string `json:"user_id" firestore:"user-id"`
 	UserDisplayName string `json:"user_display_name" firestore:"user-display-name"`
 	WorkName string `json:"work_name" firestore:"work-name"`
+	EnteredAt time.Time `json:"entered_at" firestore:"entered-at"`
 	Until time.Time `json:"until" firestore:"until"`
+	ColorCode string `json:"color_code" firestore:"color-code"`
 }
 
 type NoSeatRoomDoc struct {
@@ -63,7 +67,9 @@ type UserDoc struct {
 	RegistrationDate time.Time `json:"registration_date" firestore:"registration-date"`
 	StatusMessage string `json:"status_message" firestore:"status-message"`
 	LastEntered time.Time `json:"last_entered" firestore:"last-entered"`
-	LastExited time.Time `json:"last_exited" firestore:"last-exited"`
+	LastExited      time.Time `json:"last_exited" firestore:"last-exited"`
+	RankVisible     bool      `json:"rank_visible" firestore:"rank-visible"`
+	DefaultStudyMin int       `json:"default_study_min" firestore:"default-study-min"`
 }
 
 type PartitionShape struct {

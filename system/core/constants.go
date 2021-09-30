@@ -7,28 +7,45 @@ import (
 
 const (
 	EnterAction = "enter"
-	ExitAction = "exit"
-	
-	InCommand = "!in"
-	OutCommand = "!out"
-	InfoCommand = "!info"
+	ExitAction  = "exit"
+
 	CommandPrefix = "!"
+
+	InCommand   = "!in"
+	OutCommand  = "!out"
+	InfoCommand = "!info"
+	MyCommand   = "!my"
+
+	WorkNameOptionPrefix            = "work="
+	WorkNameOptionShortPrefix       = "w="
+	WorkNameOptionPrefixLegacy      = "work-"
+	WorkNameOptionShortPrefixLegacy = "w-"
+
+	WorkTimeOptionPrefix            = "min="
+	WorkTimeOptionShortPrefix       = "m="
+	WorkTimeOptionPrefixLegacy      = "min-"
+	WorkTimeOptionShortPrefixLegacy = "m-"
 	
-	WorkNameOptionPrefix = "work-"
-	WorkNameOptionShortPrefix = "w-"
-	WorkTimeOptionPrefix = "min-"
-	WorkTimeOptionShortPrefix = "m-"
-	
+	InfoDetailsOption = "d"
+
+	RankVisibleMyOptionPrefix = "rank="
+	RankVisibleMyOptionOn  = "on"
+	RankVisibleMyOptionOff = "off"
+
+	DefaultMinMyOptionPrefix     = "min="
+	DefaultMinMyOptionShorPrefix = "m="
+
 	FullWidthSpace = "　"
 	HalfWidthSpace = " "
-
 )
-
 
 func LoadEnv() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println(err.Error())
-		log.Fatal("Error loading .env file")
+		err = godotenv.Load("../.env")
+		if err != nil {
+			log.Println(err.Error())
+			log.Fatal("Error loading .env file")
+		}
 	}
 }

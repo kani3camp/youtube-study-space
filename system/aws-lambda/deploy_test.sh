@@ -5,15 +5,16 @@
 
 
 # Windows (PowerShell)
-# ディレクトリを移動
+cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region us-east-1
-go build -o main    youtube_organize_database.go
+go build -o main    check_live_stream_status.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
 aws lambda create-function --function-name     lambda_sandbox     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20
-aws lambda update-function-code --function-name     youtube_organize_database     --zip-file fileb://main.zip
+aws lambda update-function-code --function-name     check_live_stream_status     --zip-file fileb://main.zip
 
 
 # Mac OS
+cd system; cd aws-lambda  # ディレクトリを移動
 GOARCH=amd64 && GOOS=linux && aws configure set region us-east-1 &&  go build -o main common.go news.go
 zip main.zip main
 
