@@ -13,7 +13,9 @@ export type seat = {
   user_id: string;
   user_display_name: string;
   work_name: string;
+  entered_at: Date;
   until: Date;
+  color_code: string;
 };
 
 export type RoomsStateResponse = {

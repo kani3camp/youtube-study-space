@@ -19,12 +19,12 @@ class DefaultRoomLayout extends React.Component<
 
   render () {
     if (this.props.layout && this.props.roomState) {
+      const roomSeats = this.props.roomState.seats
       const usedSeatIds = this.props.roomState.seats.map(
         (seat) => seat.seat_id
       );
 
-      const emptySeatColor = "#fce7d2";
-      const filledSeatColor = "#FEA795";
+      const emptySeatColor = "#FFF6ED";
 
       const roomLayout = this.props.layout;
       const roomShape = {
@@ -80,12 +80,13 @@ class DefaultRoomLayout extends React.Component<
           ? this.seatWithSeatId(seat.id, this.props.roomState.seats)
             .user_display_name
           : "";
+        const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
         return (
           <div
             key={seat.id}
             className={styles.seat}
             style={{
-              backgroundColor: isUsed ? filledSeatColor : emptySeatColor,
+              backgroundColor: isUsed ? seatColor : emptySeatColor,
               left: seatPositions[index].x + "%",
               top: seatPositions[index].y + "%",
               width: seatShape.width + "%",

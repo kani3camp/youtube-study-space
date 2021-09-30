@@ -5,6 +5,7 @@
 
 
 # Windows (PowerShell)
+cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region ap-northeast-1
 go build -o main     check_live_stream_status.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
@@ -15,6 +16,7 @@ aws lambda update-function-code --function-name     check_live_stream_status    
 # TODO: ################## これは本番環境用です!!!!!!!!!!! ###################
 
 # Mac OS
+cd system; cd aws-lambda  # ディレクトリを移動
 GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-1 &&  go build -o main common.go news.go
 zip main.zip main
 

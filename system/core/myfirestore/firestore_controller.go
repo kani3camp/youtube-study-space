@@ -142,13 +142,15 @@ func (controller *FirestoreController) RetrieveNoSeatRoom(ctx context.Context) (
 	return noSeatRoomData, nil
 }
 
-func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		SeatId: seatId,
 		UserId: userId,
 		UserDisplayName: userDisplayName,
 		WorkName: workName,
+		EnteredAt: enterDate,
 		Until: exitDate,
+		ColorCode: seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),
@@ -159,12 +161,14 @@ func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName
 	return seat, nil
 }
 
-func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, exitDate time.Time, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		UserId: userId,
 		UserDisplayName: userDisplayName,
 		WorkName: workName,
+		EnteredAt: enterDate,
 		Until: exitDate,
+		ColorCode: seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),
@@ -205,13 +209,27 @@ func (controller *FirestoreController) UnSetSeatInDefaultRoom(seat Seat, ctx con
 	return nil
 }
 
+func (controller *FirestoreController) SetMyRankVisible(userId string, rankVisible bool, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
+		RankVisibleFirestore: rankVisible,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (controller *FirestoreController) SetMyDefaultStudyMin(userId string, defaultStudyMin int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
+		DefaultStudyMinFirestore: defaultStudyMin,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (controller *FirestoreController) UnSetSeatInNoSeatRoom(seat Seat, ctx context.Context) error {
-	//_seat := Seat{
-	//	SeatId:   seat.SeatId,
-	//	UserId:   seat.UserId,
-	//	WorkName: seat.WorkName,
-	//	Until:    seat.Until,
-	//}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayRemove(seat),
 	}, firestore.MergeAll)
