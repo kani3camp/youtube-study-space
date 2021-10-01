@@ -127,6 +127,9 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 
 // ParseCommand コマンドを解析
 func (s *System) ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
+	// 全角スペースを半角に変換
+	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
+	
 	if strings.HasPrefix(commandString, CommandPrefix) {
 		slice := strings.Split(commandString, HalfWidthSpace)
 		switch slice[0] {
