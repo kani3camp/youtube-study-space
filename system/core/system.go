@@ -156,6 +156,8 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case CommandPrefix:	// 典型的なミスコマンド「! in」「! out」とか。
+			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimLeft(slice[0], CommandPrefix))
