@@ -3,9 +3,9 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
@@ -15,8 +15,10 @@ import (
 )
 
 
-// LocalMain ローカル運用
-func LocalMain(credentialFilePath string) {
+func Init() (option.ClientOption, context.Context, error) {
+	core.LoadEnv()
+	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
 	
@@ -27,14 +29,18 @@ func LocalMain(credentialFilePath string) {
 		var s string
 		_, _ = fmt.Scanf("%s", &s)
 		if s != "yes" {
-			return
+			return nil, nil, errors.New("")
 		}
 	} else if creds.ProjectID == "test-youtube-study-space" {
 		log.Println("credential of test-youtube-study-space")
 	} else {
-		log.Println("unknown project id on the credential.")
-		return
+		return nil, nil, errors.New("unknown project id on the credential.")
 	}
+	return clientOption, ctx, nil
+}
+
+// LocalMain ローカル運用
+func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
@@ -94,9 +100,7 @@ func LocalMain(credentialFilePath string) {
 
 
 
-func Test(credentialFilePath string) {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
+func Test(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
@@ -110,15 +114,18 @@ func Test(credentialFilePath string) {
 
 
 func main() {
-	core.LoadEnv()
-	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	clientOption, ctx, err := Init()
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
 	
-	// TODO: デプロイ時切り替え
-	LocalMain(credentialFilePath)
-	// Test(credentialFilePath)
+	// デプロイ時切り替え
+	LocalMain(clientOption, ctx)
+	//Test(clientOption, ctx)
 	
-	//direct_operations.UpdateRoomLayout(credentialFilePath)
-	//direct_operations.ExportUsersCollectionJson(credentialFilePath)
-	direct_operations.ExitAllUsersAllRoom(credentialFilePath)
+	//direct_operations.UpdateRoomLayout("../room_layouts/ver2.json", clientOption, ctx)
+	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
+	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
 }
 

@@ -8,7 +8,6 @@ import (
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 	"context"
-	"github.com/kr/pretty"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -85,7 +84,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、" + err.Body.Error(), ctx)
 		return customerror.NewNil()
 	}
-	log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
+	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.CommandType {
