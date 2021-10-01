@@ -10,25 +10,21 @@ import (
 	"os"
 )
 
-func UpdateRoomLayout(credentialFilePath string) {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
+func UpdateRoomLayout(roomLayoutFilePath string, clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 	
-	err = _system.UpdateRoomLayout("../room_layouts/sea_of_seat.json", ctx)
+	err = _system.UpdateRoomLayout(roomLayoutFilePath, ctx)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 }
 
-func ExitAllUsersAllRoom(credentialFilePath string) {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
+func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
@@ -49,9 +45,7 @@ func ExitAllUsersAllRoom(credentialFilePath string) {
 	_system.SendLiveChatMessage("全ユーザーを退室させました。", ctx)
 }
 
-func ExportUsersCollectionJson(credentialFilePath string) {
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
+func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)

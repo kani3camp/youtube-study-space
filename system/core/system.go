@@ -8,7 +8,6 @@ import (
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 	"context"
-	"github.com/kr/pretty"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -85,7 +84,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、" + err.Body.Error(), ctx)
 		return customerror.NewNil()
 	}
-	log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
+	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.CommandType {
@@ -128,6 +127,9 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 
 // ParseCommand コマンドを解析
 func (s *System) ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
+	// 全角スペースを半角に変換
+	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
+	
 	if strings.HasPrefix(commandString, CommandPrefix) {
 		slice := strings.Split(commandString, HalfWidthSpace)
 		switch slice[0] {
@@ -154,6 +156,8 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case CommandPrefix:	// 典型的なミスコマンド「! in」「! out」とか。
+			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimLeft(slice[0], CommandPrefix))

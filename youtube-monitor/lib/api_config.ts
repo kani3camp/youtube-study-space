@@ -8,6 +8,6 @@ const testApi = {
     roomsState: `https://vlqdvjrta8.execute-api.us-east-1.amazonaws.com/rooms_state`,
 }
 
-const api = prodApi
+const api = testApi
 
 export default api
