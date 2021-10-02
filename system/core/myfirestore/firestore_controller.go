@@ -369,3 +369,54 @@ func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken
 	return nil
 }
 
+func (controller *FirestoreController) UpdateWorkNameInDefaultRoom(workName string, userId string, ctx context.Context) error {
+	// seatsを取得
+	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	seats := defaultRoomDoc.Seats
+	
+	// seatsを更新
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].WorkName = workName
+			break
+		}
+	}
+	
+	// seatsをセット
+	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Update(ctx, []firestore.Update{
+		{Path: SeatsFirestore, Value: seats},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (controller *FirestoreController) UpdateWorkNameInNoSeatRoom(workName string, userId string, ctx context.Context) error {
+	// seatsを取得
+	noSeatRoomDoc, err := controller.RetrieveNoSeatRoom(ctx)
+	if err != nil {
+		return err
+	}
+	seats := noSeatRoomDoc.Seats
+	
+	// seatsを更新
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].WorkName = workName
+			break
+		}
+	}
+	
+	// seatsをセット
+	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Update(ctx, []firestore.Update{
+		{Path: SeatsFirestore, Value: seats},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -23,6 +23,7 @@ type CommandDetails struct {
 	InOptions   InOptions
 	InfoOption InfoOption
 	MyOptions   []MyOption
+	ChangeOptions []ChangeOption
 }
 
 type CommandType uint
@@ -34,6 +35,7 @@ const (
 	Out		// !out
 	Info	// !info
 	My		// !my
+	Change 	// !change
 )
 
 type InfoOption struct {
@@ -46,6 +48,11 @@ const (
 	DefaultStudyMin
 )
 
+type ChangeOptionType uint
+const (
+	WorkName ChangeOptionType = iota
+)
+
 type InOptions struct {
 	SeatId   int
 	WorkName string
@@ -56,6 +63,11 @@ type MyOption struct {
 	Type MyOptionType
 	IntValue int
 	BoolValue bool
+	StringValue string
+}
+
+type ChangeOption struct {
+	Type ChangeOptionType
 	StringValue string
 }
 

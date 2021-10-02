@@ -119,8 +119,13 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.MyProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
+	case Change:
+		err := s.Change(commandDetails, ctx)
+		if err != nil {
+			return customerror.ChangeProcessFailed.New(err.Error())
+		}
 	default:
-		_ = s.LineBot.SendMessage("Unknown command type")
+		_ = s.LineBot.SendMessage("Unknown command: " + commandString)
 	}
 	return customerror.NewNil()
 }
@@ -156,11 +161,17 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case ChangeCommand:
+			commandDetails, err := s.ParseChange(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case CommandPrefix:	// 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
-			num, err := strconv.Atoi(strings.TrimLeft(slice[0], CommandPrefix))
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
 			if err == nil && num >= 0 {
 				commandDetails, err := s.ParseSeatIn(num, commandString)
 				if err.IsNotNil() {
@@ -326,7 +337,7 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 	for _, str := range commandSlice {
 		if strings.HasPrefix(str, RankVisibleMyOptionPrefix) && !isRankVisibleSet {
 			var rankVisible bool
-			rankVisibleStr := strings.TrimLeft(str, RankVisibleMyOptionPrefix)
+			rankVisibleStr := strings.TrimPrefix(str, RankVisibleMyOptionPrefix)
 			if rankVisibleStr == RankVisibleMyOptionOn {
 				rankVisible = true
 			} else if rankVisibleStr == RankVisibleMyOptionOff {
@@ -339,6 +350,50 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 				BoolValue: rankVisible,
 			})
 			isRankVisibleSet = true
+		}
+	}
+	return options, customerror.NewNil()
+}
+
+func (s *System) ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	// 追加オプションチェック
+	options, err := s.ParseChangeOptions(slice[1:])
+	if err.IsNotNil() {
+		return CommandDetails{}, err
+	}
+	
+	return CommandDetails{
+		CommandType: Change,
+		ChangeOptions: options,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, customerror.CustomError) {
+	isWorkNameSet := false
+	
+	var options []ChangeOption
+	
+	for _, str := range commandSlice {
+		if strings.HasPrefix(str, WorkNameOptionPrefix) && !isWorkNameSet {
+			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
+			options = append(options, ChangeOption{
+				Type: WorkName,
+				StringValue: workName,
+			})
+			isWorkNameSet = true
+		} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) && !isWorkNameSet {
+			workName := strings.TrimPrefix(str, WorkNameOptionShortPrefix)
+			options = append(options, ChangeOption{
+				Type: WorkName,
+				StringValue: workName,
+			})
+			isWorkNameSet = true
+		} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) && !isWorkNameSet {
+			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionPrefixLegacy + "」は使えません。")
+		} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) && !isWorkNameSet {
+			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionShortPrefixLegacy + "」は使えません。")
 		}
 	}
 	return options, customerror.NewNil()
@@ -584,6 +639,39 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
+func (s *System) Change(command CommandDetails, ctx context.Context) error {
+	// そのユーザーは入室中か？
+	isUserInRoom, err := s.IsUserInRoom(ctx)
+	if err != nil {
+		return err
+	}
+	if !isUserInRoom {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、入室中のみ使えるコマンドです。", ctx)
+		return nil
+	}
+	
+	// オプションが1つ以上指定されているか？
+	if len(command.ChangeOptions) == 0 {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、オプションが正しく設定されているか確認してください。", ctx)
+		return nil
+	}
+	
+	for _, changeOption := range command.ChangeOptions {
+		if changeOption.Type == WorkName {
+			// 作業名を書きかえ
+			err := s.UpdateWorkName(changeOption.StringValue, ctx)
+			if err != nil {
+				_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				return err
+			}
+		}
+	}
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんの作業名を更新しました。", ctx)
+	return nil
+}
+
 // IfSeatAvailable 席番号がseatIdの席が空いているかどうか。seatIdは存在するという前提
 func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) {
 	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
@@ -599,8 +687,27 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 	return true, nil
 }
 
-// IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
+// IsUserInRoom そのユーザーが default/no-seat ルーム内にいるか？登録済みかに関わらず。
 func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
+	isUserInDefaultRoom, err := s.IsUserInDefaultRoom(ctx)
+	if err != nil {
+		return false, err
+	}
+	if isUserInDefaultRoom {
+		return true, nil
+	}
+	
+	isUserInNoSeatRoom, err := s.IsUserInNoSeatRoom(ctx)
+	if err != nil {
+		return false, err
+	}
+	if isUserInNoSeatRoom {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s *System) IsUserInDefaultRoom(ctx context.Context) (bool, error) {
 	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
 		return false, err
@@ -610,7 +717,10 @@ func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 			return true, nil
 		}
 	}
+	return false, nil
+}
 
+func (s *System) IsUserInNoSeatRoom(ctx context.Context) (bool, error) {
 	noSeatRoomData, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
 	if err != nil {
 		return false, err
@@ -1014,3 +1124,35 @@ func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserI
 	}
 	return set, nil
 }
+
+// UpdateWorkName 入室中のユーザーの作業名を更新する。入室中かどうかはチェック済みとする。
+func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
+	// default-roomの場合
+	isUserInDefaultRoom, err := s.IsUserInDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	if isUserInDefaultRoom {
+		err := s.FirestoreController.UpdateWorkNameInDefaultRoom(workName, s.ProcessedUserId, ctx)
+		if err != nil {
+			return err
+		}
+	}
+	
+	// no-seat-roomの場合
+	isUserInNoSeatRoom, err := s.IsUserInNoSeatRoom(ctx)
+	if err != nil {
+		return err
+	}
+	if isUserInNoSeatRoom {
+		err := s.FirestoreController.UpdateWorkNameInNoSeatRoom(workName, s.ProcessedUserId, ctx)
+		if err != nil {
+			return err
+		}
+	}
+	
+	return nil
+}
+
+
+
