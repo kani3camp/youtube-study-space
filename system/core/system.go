@@ -253,7 +253,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("最大作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefix))
@@ -264,7 +264,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("最大作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
@@ -275,7 +275,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("最大作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
@@ -286,7 +286,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("最大作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
 			}
 		}
 	}
