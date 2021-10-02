@@ -222,13 +222,13 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 	isWorkTimeMinSet := false
 	for _, str := range commandSlice {
 		if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) && !isWorkNameSet {
-			workName = strings.TrimLeft(str, WorkNameOptionPrefixLegacy)
+			workName = strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
 			isWorkNameSet = true
 		} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) && !isWorkNameSet {
-			workName = strings.TrimLeft(str, WorkNameOptionShortPrefixLegacy)
+			workName = strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
 			isWorkNameSet = true
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimLeft(str, WorkTimeOptionPrefixLegacy))
+			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください。")
 			}
@@ -239,7 +239,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 				return InOptions{}, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimLeft(str, WorkTimeOptionShortPrefixLegacy))
+			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください。")
 			}
