@@ -2,7 +2,6 @@ package main
 
 import (
 	"app.modules/core"
-	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -108,8 +107,12 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	fmt.Println(utils.JstNow().Format(time.RFC3339))
-	fmt.Println(utils.JstNow().Format(time.RFC3339))
+	str := "w-w"
+	hasPrefix := strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	workName := strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	
+	log.Println(hasPrefix)
+	log.Println(workName)
 }
 
 

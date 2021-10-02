@@ -4,18 +4,46 @@ import (
 	"context"
 	"fmt"
 	"github.com/kr/pretty"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
+	"log"
 	"os"
 	"reflect"
 	"testing"
 )
 
-func NewTestSystem() (System, error) {
+func InitTest() (option.ClientOption, context.Context, error) {
 	LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	
+	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	s, err := NewSystem(context.Background(), clientOption)
+	
+	// 本番GCPプロジェクトの場合はCLI上で確認
+	creds, _ := transport.Creds(ctx, clientOption)
+	if creds.ProjectID == "youtube-study-space" {
+		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
+		var s string
+		_, _ = fmt.Scanf("%s", &s)
+		if s != "yes" {
+			return nil, nil, errors.New("")
+		}
+	} else if creds.ProjectID == "test-youtube-study-space" {
+		log.Println("credential of test-youtube-study-space")
+	} else {
+		return nil, nil, errors.New("unknown project id on the credential.")
+	}
+	return clientOption, ctx, nil
+}
+
+func NewTestSystem() (System, error) {
+	clientOption, ctx, err := InitTest()
+	if err != nil {
+		return System{}, err
+	}
+	s, err := NewSystem(ctx, clientOption)
 	if err != nil {
 		return System{}, err
 	}
@@ -70,6 +98,17 @@ func TestSystem_ParseCommand(t *testing.T) {
 				InOptions:     InOptions{
 					SeatId: -1,
 					WorkName: "わーく",
+					WorkMin: 60,
+				},
+			},
+		},
+		{
+			Input: "!in min-60 work-w",
+			ExpectedOutput: CommandDetails{
+				CommandType: In,
+				InOptions:     InOptions{
+					SeatId: -1,
+					WorkName: "w",
 					WorkMin: 60,
 				},
 			},
