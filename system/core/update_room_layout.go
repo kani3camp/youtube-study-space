@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/status"
 	"io/ioutil"
 	"log"
-	"reflect"
 	"strconv"
 )
 
@@ -158,7 +157,7 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 		return err
 	}
 	
-	// 前後で座席に変更があった場合、現在そのルームにいる人を強制的に退室させる
+	// 座席数が減った場合、現在そのルームにいる人を強制的に退室させる
 	// 現在の座席idリスト
 	var oldSeatIds []int
 	for _, oldSeat := range oldRoomLayout.Seats {
@@ -169,14 +168,31 @@ func (s *System) SaveRoomLayout(roomLayout myfirestore.RoomLayoutDoc, ctx contex
 	for _, newSeat := range roomLayout.Seats {
 		newSeatIds = append(newSeatIds, newSeat.Id)
 	}
-	if !reflect.DeepEqual(oldSeatIds, newSeatIds) {
-		log.Println("oldSeatIds != newSeatIds. so all users in the room will forcibly be left")
-		s.SendLiveChatMessage("座席レイアウトを更新します。現在画面上の席で作業中の人は全員退室させますので、再度入ってください。", ctx)
+	// 新レイアウトにない番号の席が現在の座席にあるか
+	needExitAllUsers := false
+	for _, oldSeatId := range oldSeatIds {
+		isIncluded := false
+		for _, newSeatId := range newSeatIds {
+			if oldSeatId == newSeatId {
+				isIncluded = true
+			}
+		}
+		if !isIncluded {	// 新レイアウトにない番号の席が現在の座席にある
+			needExitAllUsers = true
+			break
+		}
+	}
+	
+	if needExitAllUsers {
+		log.Println("old seats includes a seat that isn't in new seats. so all users in the room will forcibly be left")
+		s.SendLiveChatMessage("現在画面上の席で作業中の人は全員退室させますので、再度入ってください。", ctx)
 		err := s.ExitAllUserDefaultRoom(ctx)
 		if err != nil {
 			return err
 		}
 	}
+	s.SendLiveChatMessage("座席レイアウトを更新します。", ctx)
+	
 	// 保存
 	err = s.FirestoreController.SaveRoomLayout(roomLayout, ctx)
 	if err != nil {
