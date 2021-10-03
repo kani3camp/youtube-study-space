@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "font_size_ratio": 0.025,
   "room_shape": {
     "width": 330,
@@ -424,7 +424,7 @@
     },
     {
       "id": 10,
-      "x": 160,
+      "x": 158,
       "y": 135,
       "shape_type": "vl2"
     },
