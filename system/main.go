@@ -127,7 +127,7 @@ func main() {
 	LocalMain(clientOption, ctx)
 	//Test(clientOption, ctx)
 	
-	//direct_operations.UpdateRoomLayout("../room_layouts/ver2.json", clientOption, ctx)
+	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
 }
