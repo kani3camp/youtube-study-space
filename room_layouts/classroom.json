@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "font_size_ratio": 0.025,
   "room_shape": {
     "width": 330,
@@ -71,7 +71,7 @@
       "height": 25
     },    {
       "name": "hl4",
-      "width": 125,
+      "width": 126,
       "height": 5
     },
     {
