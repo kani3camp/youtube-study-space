@@ -24,7 +24,7 @@ class DefaultRoomLayout extends React.Component<
         (seat) => seat.seat_id
       );
 
-      const emptySeatColor = "#FFF6ED";
+      const emptySeatColor = "#F3E8DC";
 
       const roomLayout = this.props.layout;
       const roomShape = {
