@@ -39,6 +39,10 @@ const BgmPlayer: React.FC = () => {
             setAudioArtist('BGMアーティスト')
             audioNext()
         })
+        audio.addEventListener('error', function () {
+            console.log('error loading audio file.')
+            audioNext()
+        })
         audioNext()
     }
 
