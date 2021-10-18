@@ -420,6 +420,20 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		return err
 	}
 	if isInRoom {
+		// todo 判断
+		// !inの場合は席はそのまま、workのみチェック
+		if command.CommandType == In {
+			if command.InOptions.WorkName != "" {
+			
+			}
+		}
+		
+		// default-roomの場合
+		
+		
+		// no-seat-roomの場合
+		
+		
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 			"さん、すでに入室しています。まず「"+OutCommand+"」で退室してください。", ctx)
 		return nil
