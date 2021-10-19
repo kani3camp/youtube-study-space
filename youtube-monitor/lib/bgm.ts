@@ -1984,6102 +1984,6102 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: "Stray",
         artist: "Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/12 Casiio - Stray (Kupla Master2) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Dont Let Go",
         artist: "Blue Wednesday x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/13 Blue Wednesday - Dont let go w tender spring (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Remorse",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/14 Thaehan - Remorse (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Pink Night Sky",
         artist: "Dr Dundiff",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/15 Dr Dundiff - Pink Night Sky (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Mmmm",
         artist: "G Mills x HM surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/16 G Mills x HM surf - Mmmm (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Nautilus",
         artist: "mell-ø x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/17 mell-ø x Phlocalyst - Nautilus (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "3 am",
         artist: "DLJ x TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/18 DLJ x TABAL - 3 am (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Soft to Touch",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/19 Kupla - Soft to Touch (first master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Vivid Memories",
         artist: "Otaam x Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/20 Otaam x Sitting Duck - vivid memories (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Floating Away",
         artist: "Glimlip x Yasper",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/21 Glimlip x Yasper - Floating Away (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Nostalgia",
         artist: "Glimlip x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/22 Glimlip x Sleepermane - Nostalgia (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Untold Stories",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/23 Yasumu - Untold Stories (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Desire",
         artist: "Nospirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/24 Nospirit x Fatb - Desire (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Wandering Another world",
         artist: "Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/25 Mondoloops - Wandering Another World (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Snowflakes",
         artist: "Eisu x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/26 Eisu x softy - Snowflakes (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Quilted Dreams",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/27 kainbeats - Quilted Dreams (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Psilo",
         artist: "lofty x pointy features",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/28 lofty x pointy features - psilo (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "30. Before",
         artist: "Chiccote's Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/30 chiccotes - before (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "1. Ponds",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lazy Sunday/31 Elior - Ponds (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     // "Staring Through",
     {
         title: "sun",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/1-sun.mp3",
         forPart: AllPartType
     },
     {
         title: "off",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/2-off.mp3",
         forPart: AllPartType
     },
     {
         title: "cold",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/3-cold.mp3",
         forPart: AllPartType
     },
     {
         title: "station",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/4-station (master).mp3",
         forPart: AllPartType
     },
     {
         title: "bodies",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/5-bodies.mp3",
         forPart: AllPartType
     },
     {
         title: "sing",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/6-sing.mp3",
         forPart: AllPartType
     },
     {
         title: "slow",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/7-slow.mp3",
         forPart: AllPartType
     },
     {
         title: "put",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/8-put (1).mp3",
         forPart: AllPartType
     },
     {
         title: "painting",
         artist: "Kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Through/9-painting.mp3",
         forPart: AllPartType
     },
     // "Silent River",
     {
         title: "Raining",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/01 Mila Coolness - Raining.mp3",
         forPart: AllPartType
     },
     {
         title: "Silent River",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/02 Mila Coolness - Silent River.mp3",
         forPart: AllPartType
     },
     {
         title: "Heron",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/03 Mila Coolness - Heron.mp3",
         forPart: AllPartType
     },
     {
         title: "Ibis",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/04 Mila Coolness - Ibis.mp3",
         forPart: AllPartType
     },
     {
         title: "Balance",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/05 Mila Coolness - Balance.mp3",
         forPart: AllPartType
     },
     {
         title: "Surf",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/06 Mila Coolness - Surf.mp3",
         forPart: AllPartType
     },
     {
         title: "Far Away",
         artist: "Mila Coolness",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Silent River/07 Mila Coolness - Far Away.mp3",
         forPart: AllPartType
     },
     // "Life Forms",
     {
         title: "Eons",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/01 Kupla - Eons (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Heroes",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/02 Kupla - Heroes (master 5).mp3",
         forPart: AllPartType
     },
     {
         title: "A Waltz for My Best Friend",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/03 Kupla - A Waltz for My Best Friend (master 2).mp3",
         forPart: AllPartType
     },
     {
         title: "Magic",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/04 Kupla - Magic (master6).mp3",
         forPart: AllPartType
     },
     {
         title: "Soft to Touch",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/05 Kupla - Soft to Touch (first master).mp3",
         forPart: AllPartType
     },
     {
         title: "Those Were the Days",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/06 Kupla - Those Were the Days (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Mycelium",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/07 Kupla - Mycelium (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Weightless",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/08 Kupla - Weightless (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Microscopic",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/09 Kupla - Microscopic (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Distant Lands",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/10 Kupla - Distant Lands (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Natural Ways",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/11 Kupla - Natural Ways (master 2).mp3",
         forPart: AllPartType
     },
     {
         title: "Purple Vision",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/12 Kupla - Purple Vision (master).mp3",
         forPart: AllPartType
     },
     {
         title: "4. Sylvan",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/14 Kupla - Sylvan (master 2).mp3",
         forPart: AllPartType
     },
     {
         title: "5. Last Walk",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/15 Kupla - Last Walk (master 2).mp3",
         forPart: AllPartType
     },
     {
         title: "6. Safe Haven",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Life Forms/16 Kupla - Safe Haven (Master).mp3",
         forPart: AllPartType
     },
     // "Florist",
     {
         title: "Violet",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Florist/01 Violet.mp3",
         forPart: AllPartType
     },
     {
         title: "Orchid",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Florist/02 Orchid.mp3",
         forPart: AllPartType
     },
     {
         title: "Hyacinth",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Florist/03 Hyacinth.mp3",
         forPart: AllPartType
     },
     {
         title: "Catmint",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Florist/04 Catmint.mp3",
         forPart: AllPartType
     },
     {
         title: "Hydraengea",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Florist/05 Hydrangea.mp3",
         forPart: AllPartType
     },
     // "Inside Space",
     {
         title: "An Unknown Journey",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Inside Space/1. TABAL - An Unknown Journey.mp3",
         forPart: AllPartType
     },
     {
         title: "Crystal Land",
         artist: "TABAL x Blumen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Inside Space/2. TABAL x Blumen - Crystal Land.mp3",
         forPart: AllPartType
     },
     {
         title: "Inside Space",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Inside Space/3. TABAL - Inside Space.mp3",
         forPart: AllPartType
     },
     {
         title: "Menthol Breathing",
         artist: "TABAL x tah.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Inside Space/4. TABAL x tah. - Menthol Breathing.mp3",
         forPart: AllPartType
     },
     {
         title: "No Return",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Inside Space/5. TABAL - No Return.mp3",
         forPart: AllPartType
     },
     // "Window Seat",
     {
         title: "Counting Sheep",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/1 counting sheep [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Moon",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/2 blue moon [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Staying In",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/3 staying in [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Pink Skies",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/4 pink skies [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Rainy Day",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/5 rainy day [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Dusk",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/6 dusk [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Dawn",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/7 dawn [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Cloudburst",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/8 cloudburst [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Moonwake",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/9 moonwake [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Breeze",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/10 breeze [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Midnight",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/11 midnight [final].mp3",
         forPart: AllPartType
     },
     {
         title: "Letting Go",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Window Seat/12 letting go [final].mp3",
         forPart: AllPartType
     },
     // "Illusion",
     {
         title: "away",
         artist: "Chiccote's Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Illusion/1. away.mp3",
         forPart: AllPartType
     },
     {
         title: "finding",
         artist: "Chiccote's Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Illusion/2. finding.mp3",
         forPart: AllPartType
     },
     {
         title: "timeless",
         artist: "Chiccote's Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Illusion/3. timeless.mp3",
         forPart: AllPartType
     },
     {
         title: "back",
         artist: "Chiccote's Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Illusion/4. back.mp3",
         forPart: AllPartType
     },
     {
         title: "illusion",
         artist: "Chiccote's Beats x Pueblo Vista",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Illusion/5. illusion.mp3",
         forPart: AllPartType
     },
     // "Cocobolo",
     {
         title: "Sugar Haze",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/1. sugar haze.mp3",
         forPart: AllPartType
     },
     {
         title: "Icy Waves",
         artist: "HM Surf x Iceboi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/2. icy waves SURF and ICEBOI.mp3",
         forPart: AllPartType
     },
     {
         title: "Mount And Blade",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/3. mount and blade.mp3",
         forPart: AllPartType
     },
     {
         title: "The Vet",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/4. the vet (new mix123).mp3",
         forPart: AllPartType
     },
     {
         title: "Mud",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/5. mud master.mp3",
         forPart: AllPartType
     },
     {
         title: "Cloyster",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/6. Cloyster (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "It's Chronic",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/7. its chronic (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Hey Jerry",
         artist: "HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cocobolo/8. hey jerry (mastered).mp3",
         forPart: AllPartType
     },
     // "Solitude",
     {
         title: "The Day You Left",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/1. amies _ cxlt - the day you left .mp3",
         forPart: AllPartType
     },
     {
         title: "Broken",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/2. amies _ cxlt - broken .mp3",
         forPart: AllPartType
     },
     {
         title: "Not The Same",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/3. amies _ cxlt - not the same .mp3",
         forPart: AllPartType
     },
     {
         title: "Isolated",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/4. amies _ cxlt - isolated.mp3",
         forPart: AllPartType
     },
     {
         title: "Things Will Work Out",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/5. amies _ cxlt - things will work out .mp3",
         forPart: AllPartType
     },
     {
         title: "It's Okay",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Solitude/6. amies _ cxlt - it_s okay .mp3",
         forPart: AllPartType
     },
     // "Beginnings",
     {
         title: "Feels Like Home",
         artist: "Iamalex x Dillan Witherow ft. tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/1. Feels Like Home - Iamalex and Dillan Witherow (feat. tender spring).mp3",
         forPart: AllPartType
     },
     {
         title: "Nightwalk",
         artist: "Iamalex x Dillan Witherow ft. Azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/2. Nightwalk - Iamalex and Dillan Witherow (feat. azula).mp3",
         forPart: AllPartType
     },
     {
         title: "Above Water",
         artist: "Iamalex x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/3. Above Water - Iamalex and Dillan Witherow.mp3",
         forPart: AllPartType
     },
     {
         title: "Over The Clouds",
         artist: "Iamalex x Dillan Witherow ft. Azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/4. Over The Clouds - Iamalex and Dillan Witherow(feat. azula).mp3",
         forPart: AllPartType
     },
     {
         title: "Coral",
         artist: "Iamalex x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/5. Coral - Iamalex and Dillan Witherow.mp3",
         forPart: AllPartType
     },
     {
         title: "Falling Forward",
         artist: "Iamalex x Dillan Witherow ft. Chris Mazuera",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/6. Falling Forward - Iamalex and Dillan Witherow(feat. Chris Mazuera).mp3",
         forPart: AllPartType
     },
     {
         title: "Lazy Morning",
         artist: "Iamalex x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beginnings/7. Lazy Morning - Iamalex and Dillan Witherow.mp3",
         forPart: AllPartType
     },
     // "La Hague",
     {
         title: "Going South",
         artist: "Blumen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/1 - Blumen - Going South.mp3",
         forPart: AllPartType
     },
     {
         title: "La Hague",
         artist: "Blumen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/2 - Blumen - La Hague.mp3",
         forPart: AllPartType
     },
     {
         title: "On My Way",
         artist: "Blumen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/3 - Blumen - On my Way.mp3",
         forPart: AllPartType
     },
     {
         title: "Stay",
         artist: "Blumen x Tah.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/4 - Blumen x Tah. - Stay.mp3",
         forPart: AllPartType
     },
     {
         title: "L'Aube",
         artist: "Blumen x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/5 - Blumen x mell-o -L_Aube.mp3",
         forPart: AllPartType
     },
     {
         title: "Control the Sky",
         artist: "Blumen x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/La Hague/6 - Blumen x Hoogway - Control the Sky.mp3",
         forPart: AllPartType
     },
     // "Memories We Made",
     {
         title: "Memories We Made",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/01 No Spirit - Memories We Made (Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Trees In The Wind",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/02 No Spirit - Trees In The Wind (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Rain In My Head",
         artist: "No Spirit x Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/03 No Spirit x Kupla - Rain in my Head (Master1).mp3",
         forPart: AllPartType
     },
     {
         title: "Hope",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/04 No Spirit - Hope (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "In The Grass",
         artist: "No Spirit x Flaneur",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/05 No Spirit x Flaneur - in the grass (Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Some Alone Time",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/06 No Spirit - Some Alone Time (Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Train Of Thought",
         artist: "No Spirit x Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/07 No Spirit _ Sitting Duck - Train Of Thought (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "La Rochelle",
         artist: "No Spirit x mell-ø x Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/08 No Spirit _ Mell-o _ Sitting Duck - La Rochelle (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Havanna",
         artist: "No Spirit x Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/09 No Spirit _ Sitting Duck - Havanna (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Purple Sky",
         artist: "No Spirit x Swink",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/10 No Spirit x Swink - Purple sky (Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Washed Ashore",
         artist: "No Spirit x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/11 No Spirit x Mondo Loops - Washed Ashore (Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Waiting For The Sun",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memories we made/12 No Spirit - Waiting For The Sun (Master3).mp3",
         forPart: AllPartType
     },
     // "Feel free to imagine",
     {
         title: "Get lost in the mind's ocean",
         artist: "Eugenio Izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feel free to imagine/1. Get lost in the mind_s ocean.mp3",
         forPart: AllPartType
     },
     {
         title: "I'll wait for you at home, even if it's raining",
         artist: "Eugenio Izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feel free to imagine/2. I_ll wait for you at home, even if it_s raining.mp3",
         forPart: AllPartType
     },
     {
         title: "Distant, but near realities",
         artist: "Eugenio Izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feel free to imagine/3. Distant, but near realities.mp3",
         forPart: AllPartType
     },
     {
         title: "Climb the roof breathe better",
         artist: "Eugenio Izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feel free to imagine/4. Climb the roof to breathe better.mp3",
         forPart: AllPartType
     },
     {
         title: "The fairie's city",
         artist: "Eugenio Izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feel free to imagine/5. The fairie_s city.mp3",
         forPart: AllPartType
     },
     // "3 A.M Study Session",
     {
         title: "Glowing lights",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/01 No Spirit - Glowing lights (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "somewhere else",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/02 dryhope - somewhere else (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "sheets",
         artist: "Eisu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/03 Eisu - sheets (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Phantasm",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/04 Casiio _ Sleepermane - Phantasm (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "after sunset",
         artist: "Project AER x WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/05 Project AER x WYS - after sunset (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Luna",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/06 Tenno - Luna (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Lucid",
         artist: "Sebastian Kamae x Intoku",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/07 Sebastian Kamae _ Intoku - Lucid (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "contemplation",
         artist: "epektase x j'san",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/08 epektase x j_san - contemplation (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Signals",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/09 Casiio _ Sleepermane - Signals (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Feelings",
         artist: "Phlocalyst x Living Room",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/10 Phlocalyst _ Living Room - Feelings (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Blind Forest",
         artist: "Pandrezz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/11 Pandrezz - Blind Forest (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Show Me How",
         artist: "SwuM x chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/12 SwuM x chief. - Show Me How (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Numb",
         artist: "Comodo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/13 Comodo - Numb (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Weightless",
         artist: "TABAL x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/14 TABAL x mell-ø - Weightless (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Night Bus",
         artist: "Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/15 Ambulo - Night Bus (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Fireflies",
         artist: "Kanisan x Frad",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/16 Kanisan x Frad - Fireflies (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Timeless",
         artist: "H.1",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/17 H.1 - Timeless (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Recharge",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/18 Yasumu - Recharge (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "fade away",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/19 cxlt. - fade away (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Escape Route",
         artist: "Mondo Loops x Kanisan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/20 Mondo Loops x Kanisan - Escape Route (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "fateful slumber",
         artist: "towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/21 towerz - fateful slumber (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Crescent",
         artist: "brillion.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/22 brillion. - Crescent (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "persist",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/23 less.people - persist (Kupla Master2).mp3",
         forPart: AllPartType
     },
     {
         title: "Drifting Far Away",
         artist: "Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/3 am study session/24 Mondoloops - Drifting Far Away (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     // "Cabin Fever",
     {
         title: "Love Cabin",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/1. Love Cabin.mp3",
         forPart: AllPartType
     },
     {
         title: "Driving Alone",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/2. driving alone.mp3",
         forPart: AllPartType
     },
     {
         title: "Don't let her Go",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/3 - dont let her go.mp3",
         forPart: AllPartType
     },
     {
         title: "Glitter",
         artist: "xander. x Carrick",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/4 Glitter ft. Carrick.mp3",
         forPart: AllPartType
     },
     {
         title: "Dreams Come True",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/5. Dreams Come True .mp3",
         forPart: AllPartType
     },
     {
         title: "Morning Time",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/6. Morning Time.mp3",
         forPart: AllPartType
     },
     {
         title: "Missing You",
         artist: "xander.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cabin Fever/7. Missing You.mp3",
         forPart: AllPartType
     },
     // "Kenopsia",
     {
         title: "Gravity",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/1. Gravity.mp3",
         forPart: AllPartType
     },
     {
         title: "Childhood Home",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/2. Childhood Home.mp3",
         forPart: AllPartType
     },
     {
         title: "Quetzal",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/3. Quetzal.mp3",
         forPart: AllPartType
     },
     {
         title: "Higher State",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/4. Higher State.mp3",
         forPart: AllPartType
     },
     {
         title: "Evoke",
         artist: "dryhope x dontcry",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/5. Evoke (w_ Dontcry).mp3",
         forPart: AllPartType
     },
     {
         title: "No Secrets",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Kenopsia/6. No Secrets.mp3",
         forPart: AllPartType
     },
     // "Moonglow",
     {
         title: "Warm Meadows",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/warm meadows.mp3",
         forPart: AllPartType
     },
     {
         title: "Balcony Nights",
         artist: "S N U G x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/balcony nights ft. Spencer Hunt.mp3",
         forPart: AllPartType
     },
     {
         title: "Blankets",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/blankets.mp3",
         forPart: AllPartType
     },
     {
         title: "Dreams of You",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/dreams of you.mp3",
         forPart: AllPartType
     },
     {
         title: "Snooze",
         artist: "S N U G x Jordy Chandra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/snooze ft. Jordy Chandra.mp3",
         forPart: AllPartType
     },
     {
         title: "Stargazing",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/stargazing.mp3",
         forPart: AllPartType
     },
     {
         title: "Missing You",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/missing you.mp3",
         forPart: AllPartType
     },
     {
         title: "Night Coffee",
         artist: "S N U G x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/night coffee ft. Mondo Loops.mp3",
         forPart: AllPartType
     },
     {
         title: "At Ease",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Moonglow/at ease.mp3",
         forPart: AllPartType
     },
     // "In Motion",
     {
         title: "Seasons",
         artist: "ENRA x Dr Niar",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/1.ENRA - seasons (feat dr niar).mp3",
         forPart: AllPartType
     },
     {
         title: "In Motion",
         artist: "ENRA",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/2.ENRA - in motion.mp3",
         forPart: AllPartType
     },
     {
         title: "Consequences",
         artist: "ENRA",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/3.ENRA - consequences.mp3",
         forPart: AllPartType
     },
     {
         title: "Silver Lining",
         artist: "ENRA x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/4.ENRA - silver lining (feat Sleepermane).mp3",
         forPart: AllPartType
     },
     {
         title: "Where We Left Off",
         artist: "ENRA",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/5.ENRA - where we left off.mp3",
         forPart: AllPartType
     },
     {
         title: "Virginia",
         artist: "ENRA",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/In Motion/6.ENRA - virginia.mp3",
         forPart: AllPartType
     },
     // "Heading Home",
     {
         title: "Reflections",
         artist: "Ajmw x chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Heading Home/1. AJMW - Reflections ft. chief..mp3",
         forPart: AllPartType
     },
     {
         title: "Way Back When",
         artist: "Ajmw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Heading Home/2. AJMW - Way Back When.mp3",
         forPart: AllPartType
     },
     {
         title: "Hometown",
         artist: "Ajmw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Heading Home/3. AJMW - Hometown.mp3",
         forPart: AllPartType
     },
     {
         title: "Patterns",
         artist: "Ajmw x less.people x C4C x Dwyer",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Heading Home/4. AJMW - Patterns ft. less.people - C4C - Dwyer.mp3",
         forPart: AllPartType
     },
     {
         title: "Clouds",
         artist: "Ajmw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Heading Home/5. AJMW - Clouds.mp3",
         forPart: AllPartType
     },
     // "Wonderland Chapter 1",
     {
         title: "Wonderland",
         artist: "Sitting Duck x Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/1. Wonderland - Sitting Duck x Squeeda.mp3",
         forPart: AllPartType
     },
     {
         title: "The Unknown",
         artist: "Sitting Duck x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/2. The Unknown - Sitting Duck x Mondo Loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Ancient Tales",
         artist: "Sitting Duck x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/3. Ancient Tales - Sitting Duck x Mondo Loops .mp3",
         forPart: AllPartType
     },
     {
         title: "Setting Sails",
         artist: "Sitting Duck x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/4. Setting Sails - Sitting Duck x Mondo Loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Be Kind",
         artist: "Sitting Duck x Dillan Witherow  x Azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/5. Be Kind - Sitting Duck _ Dillan Witherow _ Azula .mp3",
         forPart: AllPartType
     },
     {
         title: "Dreamstate",
         artist: "Sitting Duck x Dillan Witherow  x Azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/6. Dreamstate - Sitting Duck x Dillan Witherow x Azula.mp3",
         forPart: AllPartType
     },
     {
         title: "Slow Mornings",
         artist: "Sitting Duck x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/7. Slow Mornings - Sitting Duck x Hoffy Beats.mp3",
         forPart: AllPartType
     },
     {
         title: "Forest Whispers",
         artist: "Sitting Duck x Ambulo x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter 1/8. Forest Whispers - Sitting Duck x Ambulo x Louk .mp3",
         forPart: AllPartType
     },
     // "The Ridge",
     {
         title: "The Ridge",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/01 allem iversom - the ridge.mp3",
         forPart: AllPartType
     },
     {
         title: "Whole Again",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/02 allem iversom - whole again.mp3",
         forPart: AllPartType
     },
     {
         title: "Moon",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/03 allem iversom - moon.mp3",
         forPart: AllPartType
     },
     {
         title: "Wasting",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/04 allem iversom - wasting (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Howufeel",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/05 allem iversom - howufeel.mp3",
         forPart: AllPartType
     },
     {
         title: "The End",
         artist: "Allem Iversom",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Ridge/06 allem iversom - the end.mp3",
         forPart: AllPartType
     },
     // "Drifting Away",
     {
         title: "Wishing, Waiting",
         artist: "Hevi x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Drifting away/1 Wishing, Waiting.mp3",
         forPart: AllPartType
     },
     {
         title: "If You Knew",
         artist: "Hevi x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Drifting away/2 If You Knew.mp3",
         forPart: AllPartType
     },
     {
         title: "Runaway",
         artist: "Hevi x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Drifting away/3 Runaway.mp3",
         forPart: AllPartType
     },
     {
         title: "Uncertainty",
         artist: "Hevi x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Drifting away/4 Uncertainty.mp3",
         forPart: AllPartType
     },
     {
         title: "Empathise",
         artist: "Hevi x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Drifting away/5 Empathise.mp3",
         forPart: AllPartType
     },
     // "Azure Blue",
     {
         title: "Downt The Port",
         artist: "Miramare x Clément Matra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Azure Blue/1 Miramare x Clément Matrat - Down The Port (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Foam",
         artist: "Miramare x Clément Matra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Azure Blue/2.Miramare x Clément Matrat - Foam (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Marseille",
         artist: "Miramare x Clément Matra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Azure Blue/3Miramare x Clément Matrat - Marseille (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Ocean Drift",
         artist: "Miramare x Clément Matra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Azure Blue/4Miramare x Clément Matrat - Ocean Drift (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "That Old Beach House",
         artist: "Miramare x Clément Matra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Azure Blue/5Miramare x Clément Matrat - That Old Beach House (Master).mp3",
         forPart: AllPartType
     },
     // "Autumn in Budapest",
     {
         title: "Aether",
         artist: "BluntOne x Ky akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/01_Aether(w_Kyakasha).mp3",
         forPart: AllPartType
     },
     {
         title: "Zen Fusion",
         artist: "BluntOne x Baen Mow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/02_ZenFusion(feat.BaenMow)_final.mp3",
         forPart: AllPartType
     },
     {
         title: "Natures Cures",
         artist: "BluntOne",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/03_NatureCures.mp3",
         forPart: AllPartType
     },
     {
         title: "Thrivin'",
         artist: "BluntOne x Fatb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/04_Thrivin(w_Fatb).mp3",
         forPart: AllPartType
     },
     {
         title: "Misty Dawn",
         artist: "BluntOne",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/05_MistyDawn.mp3",
         forPart: AllPartType
     },
     {
         title: "Pocket Full of Hope",
         artist: "BluntOne x Baen Mow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/06_PocketFullOfHope(w_Baen).mp3",
         forPart: AllPartType
     },
     {
         title: "Air Never been So Fresh",
         artist: "BluntOne",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/07_AirNeverBeenSoFresh.mp3",
         forPart: AllPartType
     },
     {
         title: "Simplicity",
         artist: "BluntOne",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/08_Simplicity.mp3",
         forPart: AllPartType
     },
     {
         title: "Danube Blues",
         artist: "BluntOne Baen Mow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Autumn in Budapest/09_DanubeBlues(w_BaenMow).mp3",
         forPart: AllPartType
     },
     // "Time Remembered",
     {
         title: "neff",
         artist: "chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/1. neff.mp3",
         forPart: AllPartType
     },
     {
         title: "message in a bottle",
         artist: "chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/2. message in a bottle.mp3",
         forPart: AllPartType
     },
     {
         title: "ashes",
         artist: "chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/3. ashes.mp3",
         forPart: AllPartType
     },
     {
         title: "distance",
         artist: "chief. x Kurt Stewart",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/4. distance w_ kurt stewart v2.mp3",
         forPart: AllPartType
     },
     {
         title: "you used to",
         artist: "chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/5. you used to.mp3",
         forPart: AllPartType
     },
     {
         title: "liquid",
         artist: "chief. x Odyssee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/6. liquid w_ odyssee v2.mp3",
         forPart: AllPartType
     },
     {
         title: "downtown",
         artist: "chief. x Joe Nora",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/7. downtown w_ joe nora.mp3",
         forPart: AllPartType
     },
     {
         title: "it happens",
         artist: "chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time Remembered/8. it happens.mp3",
         forPart: AllPartType
     },
     // "Chance Encounter",
     {
         title: "Rewinding Memories",
         artist: "Refeeld x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Chance Encounter/1 Refeeld x Project AER - Rewinding Memories.mp3",
         forPart: AllPartType
     },
     {
         title: "Tell Me Your Name",
         artist: "Refeeld x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Chance Encounter/2__Tell_Me_Your_Name.mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Terrain",
         artist: "Refeeld x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Chance Encounter/3 Refeeld x Project AER - Blue Terrain.mp3",
         forPart: AllPartType
     },
     {
         title: "Your Best Option",
         artist: "Refeeld x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Chance Encounter/4 Refeeld x Project AER - Your Best Option.mp3",
         forPart: AllPartType
     },
     {
         title: "Maybe We're Still Sleeping",
         artist: "Refeeld x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Chance Encounter/5 Refeeld x Project AER - Maybe We_re Still Sleeping.mp3",
         forPart: AllPartType
     },
     // "Until Forever",
     {
         title: "We Met",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/1 We Met.mp3",
         forPart: AllPartType
     },
     {
         title: "First Dates",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/2 First Dates.mp3",
         forPart: AllPartType
     },
     {
         title: "Day One",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/3 Day One.mp3",
         forPart: AllPartType
     },
     {
         title: "Fallen in Love",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/4 Fallen in Love.mp3",
         forPart: AllPartType
     },
     {
         title: "Discovering",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/5 Discovering.mp3",
         forPart: AllPartType
     },
     {
         title: "Feeling home",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/6 Feeling Home.mp3",
         forPart: AllPartType
     },
     {
         title: "At The Sea",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/7 At The Sea.mp3",
         forPart: AllPartType
     },
     {
         title: "Island Walks",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/8 Island Walks.mp3",
         forPart: AllPartType
     },
     {
         title: "Soulmates",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/9 Soulmates.mp3",
         forPart: AllPartType
     },
     {
         title: "Thermal Baths",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/10 Thermal Baths.mp3",
         forPart: AllPartType
     },
     {
         title: "Different Cities",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/11 Different Cities.mp3",
         forPart: AllPartType
     },
     {
         title: "Pancakes",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/12 Pancakes.mp3",
         forPart: AllPartType
     },
     {
         title: "Balcony Breakfast",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/13 Balcony Breakfast .mp3",
         forPart: AllPartType
     },
     {
         title: "Chocolate Puddings",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/14 Chocolate Puddings.mp3",
         forPart: AllPartType
     },
     {
         title: "Late Night Talks",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/15 Late Night Talks.mp3",
         forPart: AllPartType
     },
     {
         title: "Until Forever",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Forever/16 Until Forever.mp3",
         forPart: AllPartType
     },
     // "Underneath",
     {
         title: "Surfaced",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/1_Surfaced.mp3",
         forPart: AllPartType
     },
     {
         title: "underneath",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/2. Underneath.mp3",
         forPart: AllPartType
     },
     {
         title: "Lightning bugs",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/3. Lightning bugs.mp3",
         forPart: AllPartType
     },
     {
         title: "Atlantis",
         artist: "Casiio x Sleepermane ft. Sling Dilly",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/4. Atlantis w Sling Dilly.mp3",
         forPart: AllPartType
     },
     {
         title: "Cascades",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/5. Cascades.mp3",
         forPart: AllPartType
     },
     {
         title: "Prisms",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/6. Prisms.mp3",
         forPart: AllPartType
     },
     {
         title: "Wishing Well",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/7. Wishing Well.mp3",
         forPart: AllPartType
     },
     {
         title: "Luna",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/8. Luna.mp3",
         forPart: AllPartType
     },
     {
         title: "Lagoon",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/9. Lagoon.mp3",
         forPart: AllPartType
     },
     {
         title: "Wetlands",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/10. Wetlands.mp3",
         forPart: AllPartType
     },
     {
         title: "Depths",
         artist: "Casiio x Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Underneath/11. Depths.mp3",
         forPart: AllPartType
     },
     // "Riverside",
     {
         title: "Riverside",
         artist: "Slo Loris",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Riverside/1. Riverside (Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Aftercastle",
         artist: "Slo Loris x Strehlow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Riverside/2. Aftercastle (Slo Loris x Strehlow) (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Kings of the Indoors",
         artist: "Slo Loris x Tender Spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Riverside/3. Kings of the Indoors (Slo Loris x Tender Spring .mp3",
         forPart: AllPartType
     },
     {
         title: "Lily Field",
         artist: "Slo Loris",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Riverside/4. Lily Fieldwav.mp3",
         forPart: AllPartType
     },
     {
         title: "Pier",
         artist: "Slo Loris",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Riverside/5. Pier .mp3",
         forPart: AllPartType
     },
     // "Until Tomorrow",
     {
         title: "Until Tomorrow",
         artist: "Towerz x Fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/1 - Until Tomorrow ft. Fourwalls.mp3",
         forPart: AllPartType
     },
     {
         title: "Distant Thoughts",
         artist: "Towerz x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/2 - Distant Thoughts ft. Hoogway.mp3",
         forPart: AllPartType
     },
     {
         title: "Drifting",
         artist: "Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/3 - Drifting.mp3",
         forPart: AllPartType
     },
     {
         title: "Hearts",
         artist: "Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/4 - Hearts.mp3",
         forPart: AllPartType
     },
     {
         title: "Chao",
         artist: "Towerz x Chris Mazuera",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/5 - Chao ft. Chris Mazuera.mp3",
         forPart: AllPartType
     },
     {
         title: "Catbug",
         artist: "Towerz x Tender Spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/6 - Catbug ft. Tender Spring.mp3",
         forPart: AllPartType
     },
     {
         title: "Aimless Wander",
         artist: "Towerz x Fourwalls x Farewell",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/7 - Towerz ft. Fourwalls x Farewell - Aimless Wander.mp3",
         forPart: AllPartType
     },
     {
         title: "Skinny Atlas",
         artist: "Towerz x Skinny Atlas",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Until Tomorrow/8 -Serendipity ft. Skinny Atlas.mp3",
         forPart: AllPartType
     },
     // "Zero",
     {
         title: "Zero",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/1. Zero v2.mp3",
         forPart: AllPartType
     },
     {
         title: "Poolside",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/2. Poolside v2.mp3",
         forPart: AllPartType
     },
     {
         title: "Sunrise",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/3. Sunrise v2.mp3",
         forPart: AllPartType
     },
     {
         title: "Dunes",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/4 Dunes v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Snooze",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/5. Snooze v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Wake Up",
         artist: "Sebastian Kamae x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Zero/6. Wake Up v3.mp3",
         forPart: AllPartType
     },
     // "Bedtime Stories Pt. 3",
     {
         title: "Interlude",
         artist: "brillion.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(1 - brillion. - Interlude.mp3",
         forPart: AllPartType
     },
     {
         title: "Summit",
         artist: "brillion. x Kurt Stewart",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(2 - brillion. x Kurt Stewart - Summit.mp3",
         forPart: AllPartType
     },
     {
         title: "Forever",
         artist: "brillion. x Khutko",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(3.) brillion. x Khutko - Forever (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Drift",
         artist: "brillion. x  chief.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(4.) brillion. x chief. - Drift (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Searching",
         artist: "brillion. x Fatb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(5.) REPLACE brillion. x Fatb - Searching (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Moonglow",
         artist: "brillion. x Hm Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(6.) brillion. x Hm Surf - Moonglow (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Melatonin",
         artist: "brillion. x Sleepdealer",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(7.) brillion. x Sleepdealer - Melatonin (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Orbit",
         artist: "brillion. x Lucid Green",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(8.) brillion. x Lucid Green - Orbit (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "My Spaceship",
         artist: "brillion.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(9.) REPLACE brillion. - My Spaceship (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Floating",
         artist: "brillion. x Jazzinuf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(11.) REPLACE brillion. x Odyssee - Down To Earth (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Down To Earth",
         artist: "brillion. x Odyssee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(11.) REPLACE brillion. x Odyssee - Down To Earth (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Discovery",
         artist: "brillion. x NOlfo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(12.) brillion. x Nolfo - Discovery (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Arrival",
         artist: "brillion. x Imagiro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(13.) REPLACE brillion. x Imagiro - Arrival (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Eternal",
         artist: "brillion. x No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(14.) REPLACE brillion. x No Spirit - Eternal (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Transcendence",
         artist: "brillion. x Sitting Duck x Hoffy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Bedtime Stories Pt. 3/(15.) brillion. x Sitting Duck x Hoffy - Transcendence (Master).mp3",
         forPart: AllPartType
     },
     // "A Friendly Warmth",
     {
         title: "It’s alright to feel afraid",
         artist: "Tender Spring x Blurred Figures",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/1 - it_s alright to feel afraid.mp3",
         forPart: AllPartType
     },
     {
         title: "Keep friends close",
         artist: "Tender Spring x Blurred Figures ft. Chris Mazuera",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/2 - keep friends close (w chris mazuera _ louk).mp3",
         forPart: AllPartType
     },
     {
         title: "A friendly warmth",
         artist: "Tender Spring x Blurred Figures",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/3 - a friendly warmth.mp3",
         forPart: AllPartType
     },
     {
         title: "Birds of a feather",
         artist: "Tender Spring x Blurred Figures ft. Middle School",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/4 - birds of a feather (w middle school).mp3",
         forPart: AllPartType
     },
     {
         title: "Don’t worry, I’ll always be here",
         artist: "Tender Spring x Blurred Figures",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/5 - don_t worry, i_ll always be here.mp3",
         forPart: AllPartType
     },
     {
         title: "Hugs",
         artist: "Tender Spring x Blurred Figures ft. INKY!",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Friendly Warmth/6 - hugs (w inky!).mp3",
         forPart: AllPartType
     },
     // "The Beauty Around Us",
     {
         title: "Reverie",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/1. Reverie 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Moonflower",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/2. Moonflower 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Hiding Place",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/3. Hiding Place 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Cloud Cover",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/4. Cloud Cover 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Lakeview",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/5. Lakeview 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Skylark",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/6. Skylark 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Until The Morning Comes",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/7. Until The Morning Comes 3.mp3",
         forPart: AllPartType
     },
     {
         title: "The Overlook",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/8. The Overlook 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Constellation",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/9. Constellation 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Daisies",
         artist: "softy x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Beatuty Around Us/10. Daisies 3.mp3",
         forPart: AllPartType
     },
     // "The Prophecy",
     {
         title: "Kaya Village",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/1 Tenno - Kaya Village.mp3",
         forPart: AllPartType
     },
     {
         title: "Daydreaming",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/2 Tenno - Daydreaming.mp3",
         forPart: AllPartType
     },
     {
         title: "Vision",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/3 Tenno - Vision.mp3",
         forPart: AllPartType
     },
     {
         title: "The Seeker",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/4 Tenno - The Seeker.mp3",
         forPart: AllPartType
     },
     {
         title: "Sacred Tree",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/5 Tenno - Sacred Tree.mp3",
         forPart: AllPartType
     },
     {
         title: "The Prophecy Unfolds",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Prophecy/6 Tenno - The Prophecy Unfolds.mp3",
         forPart: AllPartType
     },
     // "Lanterns",
     {
         title: "Under A Wishing Sky",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lanterns/01 Under A Wishing Sky.mp3",
         forPart: AllPartType
     },
     {
         title: "Celestial",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lanterns/02 Celestial.mp3",
         forPart: AllPartType
     },
     {
         title: "Your Light",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lanterns/04 Fireworks.mp3",
         forPart: AllPartType
     },
     {
         title: "Fireworks",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lanterns/04 Fireworks.mp3",
         forPart: AllPartType
     },
     {
         title: "Singing to the Moon",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Lanterns/05 Singing to the Moon.mp3",
         forPart: AllPartType
     },
     // "Forever Changing",
     {
         title: "Forever Changing",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/1 Laffey - Forever Changing (MasterV3).mp3",
         forPart: AllPartType
     },
     {
         title: "Home",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/2 Laffey - Home (MasterV2).mp3",
         forPart: AllPartType
     },
     {
         title: "Constellations",
         artist: "Laffey x Oatmello",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/3 Laffey - Constellations ft. Oatmello (MasterV2).mp3",
         forPart: AllPartType
     },
     {
         title: "Stillness",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/4 Laffey - Stillness (MasterV3).mp3",
         forPart: AllPartType
     },
     {
         title: "Astral",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/5 Laffey - Astral (Master V2).mp3",
         forPart: AllPartType
     },
     {
         title: "Under The Stars",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/6 Laffey - Under The Stars (MasterV2).mp3",
         forPart: AllPartType
     },
     {
         title: "Looking Back",
         artist: "Laffey x Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/7 Laffey - Looking Back ft. Yasumu (MasterV2).mp3",
         forPart: AllPartType
     },
     {
         title: "By The Pond",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/8 Laffey - By The Pond (Master V3).mp3",
         forPart: AllPartType
     },
     {
         title: "Midnight",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/9 Laffey - Midnight (MasterV2).mp3",
         forPart: AllPartType
     },
     {
         title: "Sunsets",
         artist: "Laffey x Rook1e",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Forever Changing/10 Laffey - Sunsets ft. Rook1e (Master V2).mp3",
         forPart: AllPartType
     },
     // "Been Thinking",
     {
         title: "Blue eyes",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/01. jhove - blue eyes (final master version).mp3",
         forPart: AllPartType
     },
     {
         title: "Far Away",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/02. jhove - far away (final master version).mp3",
         forPart: AllPartType
     },
     {
         title: "Above Couds",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/03. jhove - above clouds (final master version).mp3",
         forPart: AllPartType
     },
     {
         title: "About Us",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/04. jhove - about us (master).mp3",
         forPart: AllPartType
     },
     {
         title: "You",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/05. jhove - you (master).mp3",
         forPart: AllPartType
     },
     {
         title: "After Hours",
         artist: "Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Been Thinking/06. jhove - after hours (master).mp3",
         forPart: AllPartType
     },
     // "Escapade",
     {
         title: "Moon Waltz",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/1. Moon Waltz.mp3",
         forPart: AllPartType
     },
     {
         title: "Explorers",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/2. Explorers.mp3",
         forPart: AllPartType
     },
     {
         title: "Escape With Me",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/3. Escape With Me.mp3",
         forPart: AllPartType
     },
     {
         title: "Our Hideaway",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/4. Our Hideaway.mp3",
         forPart: AllPartType
     },
     {
         title: "Infinite",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/5. Infinite.mp3",
         forPart: AllPartType
     },
     {
         title: "Midnight Sky",
         artist: "Elijah Lee x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Escapade/6. Midnight Sky.mp3",
         forPart: AllPartType
     },
     // "Rüya",
     {
         title: "Rüya",
         artist: "Kanisan x WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/1. kanisan - rüya (ft. wys).mp3",
         forPart: AllPartType
     },
     {
         title: "Left Alone",
         artist: "Kanisan x Nymano",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/2. kanisan - left alone (ft. nymano).mp3",
         forPart: AllPartType
     },
     {
         title: "Kokoro",
         artist: "Kanisan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/3. kanisan - kokoro.mp3",
         forPart: AllPartType
     },
     {
         title: "Couldn't Help",
         artist: "Kanisan x Pandrezz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/4. kanisan - couldn_t help (ft. pandrezz).mp3",
         forPart: AllPartType
     },
     {
         title: "Withheld Call",
         artist: "Kanisan x Mau",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/5. kanisan - withheld call (ft. mau).mp3",
         forPart: AllPartType
     },
     {
         title: "Lights Out",
         artist: "Kanisan x  Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/6. kanisan - lights out (ft. mondo loops).mp3",
         forPart: AllPartType
     },
     {
         title: "Hour Away",
         artist: "Kanisan x Sadtoi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/7. kanisan - hours away (ft. sadtoi).mp3",
         forPart: AllPartType
     },
     {
         title: "Sorrow",
         artist: "Kanisan x pointy features",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rüya/8. kanisan - sorrow (ft. pointy features).mp3",
         forPart: AllPartType
     },
     // "Distant Worlds",
     {
         title: "Alien Sky",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/1 - Alien Sky.mp3",
         forPart: AllPartType
     },
     {
         title: "Missing You",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/2 - Missing You.mp3",
         forPart: AllPartType
     },
     {
         title: "Falling Star",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/3 - Falling Star.mp3",
         forPart: AllPartType
     },
     {
         title: "Lunar Eclipse",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/4 - Lunar Eclipse.mp3",
         forPart: AllPartType
     },
     {
         title: "Too Tired",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/5 - Too Tired.mp3",
         forPart: AllPartType
     },
     {
         title: "Reflection",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/6 - Reflection.mp3",
         forPart: AllPartType
     },
     {
         title: "Cold Pizza",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/7 - Cold Pizza.mp3",
         forPart: AllPartType
     },
     {
         title: "Finding Myself",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/8 - Finding Myself.mp3",
         forPart: AllPartType
     },
     {
         title: "After the Rain",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/9 - After the Rain.mp3",
         forPart: AllPartType
     },
     {
         title: "Morning Light",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Worlds/10 - Morning Light.mp3",
         forPart: AllPartType
     },
     {
         title: "Tabula Rasa",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Dove",
         forPart: AllPartType
     },
     // "Angelic",
     {
         title: "Lilac",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/1 - Lilac.mp3",
         forPart: AllPartType
     },
     {
         title: "Moonwalker",
         artist: "Kainbeats x Kanisan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/2 - Moonwalker w Kanisan.mp3",
         forPart: AllPartType
     },
     {
         title: "Steadfast",
         artist: "Kainbeats x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/3 - Steadfast w Hoogway.mp3",
         forPart: AllPartType
     },
     {
         title: "Purity",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/4 - Purity.mp3",
         forPart: AllPartType
     },
     {
         title: "Outcast",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/5 - Outcast.mp3",
         forPart: AllPartType
     },
     {
         title: "Ephemerality",
         artist: "Kainbeats x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/6 - Ephemerality w cxlt..mp3",
         forPart: AllPartType
     },
     {
         title: "Angelic",
         artist: "Kainbeats x Hevi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/7 - Angelic w Hevi.mp3",
         forPart: AllPartType
     },
     {
         title: "Pure Warmth",
         artist: "Kainbeats x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Angelic/8 - Pure Warmth w Mondo Loops.mp3",
         forPart: AllPartType
     },
     // "Walls",
     {
         title: "Discover",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/1. Discover mstr v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Walls",
         artist: "Elior x Aylior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/2. Walls mstr v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Lucid Dreams",
         artist: "Elior x DJ Garlik",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/3. Lucid Dreams mstr v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Liza",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/4. Liza mstr v4.mp3",
         forPart: AllPartType
     },
     {
         title: "Moving On",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/5. Moving On mstr v3.mp3",
         forPart: AllPartType
     },
     {
         title: "Savour",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Walls/6. Savour - Broomstick v8 (mstr v3).mp3",
         forPart: AllPartType
     },
     // "One day it’s over",
     {
         title: "As the world burns",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/as the world burns_.mp3",
         forPart: AllPartType
     },
     {
         title: "Hoboken",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/hoboken_.mp3",
         forPart: AllPartType
     },
     {
         title: "Healthy distraction",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/healthy distraction_.mp3",
         forPart: AllPartType
     },
     {
         title: "Dowsy",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/drowsy_.mp3",
         forPart: AllPartType
     },
     {
         title: "You all sound the same",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/You all sound the same_.mp3",
         forPart: AllPartType
     },
     {
         title: "Starting late",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/starting late_.mp3",
         forPart: AllPartType
     },
     {
         title: "28 days",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/28 days_.mp3",
         forPart: AllPartType
     },
     {
         title: "Capturing the light",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/capturing the light_.mp3",
         forPart: AllPartType
     },
     {
         title: "Firefly",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/firefly_.mp3",
         forPart: AllPartType
     },
     {
         title: "I wish you love",
         artist: "less.people",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/One day it's over/Iwish you love_.mp3",
         forPart: AllPartType
     },
     // "Nostalgia",
     {
         title: "Infinity ...",
         artist: "Mujo x Sweet Medicine ft. Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/01 - Mujo x Sweet Medicine x Mondo Loops - Infinity (NEW VERSION).mp3",
         forPart: AllPartType
     },
     {
         title: "SchoolYard",
         artist: "Mujo x Sweet Medicine ft. WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/02 - Mujo x Sweet Medicine x WYS - SchoolYard.mp3",
         forPart: AllPartType
     },
     {
         title: "Lagoon",
         artist: "Mujo x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/03 - Mujo x Sweet Medicine - Lagoon.mp3",
         forPart: AllPartType
     },
     {
         title: "Crystals",
         artist: "Mujo x Sweet Medicine ft. Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/04 - Mujo x Sweet Medicine x Casiio - Crystals.mp3",
         forPart: AllPartType
     },
     {
         title: "Escaped",
         artist: "Mujo x Sweet Medicine ft. Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/05 - Mujo x Sweet Medicine x Mondo Loops - Escaped.mp3",
         forPart: AllPartType
     },
     {
         title: "Nostalgia",
         artist: "Mujo x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nostalgia/06 - Mujo x Sweet Medicine - Nostalgia.mp3",
         forPart: AllPartType
     },
     // "Memory Within A Dream",
     {
         title: "Yerba Mate",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/1 Yerba Mate.mp3",
         forPart: AllPartType
     },
     {
         title: "In The End",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/2 In The End.mp3",
         forPart: AllPartType
     },
     {
         title: "Yuma",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/3 Yuma.mp3",
         forPart: AllPartType
     },
     {
         title: "Desireless",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/4 Desireless.mp3",
         forPart: AllPartType
     },
     {
         title: "Overthinking",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/5 Overthinking.mp3",
         forPart: AllPartType
     },
     {
         title: "Memory Within A Dream",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/6 Memory Within A Dream.mp3",
         forPart: AllPartType
     },
     {
         title: "Solar Reset",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/7 Solar Reset.mp3",
         forPart: AllPartType
     },
     {
         title: "Join Me",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/8 Join Me.mp3",
         forPart: AllPartType
     },
     {
         title: "You've Forgotten How",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/9 You_ve Forgotten How.mp3",
         forPart: AllPartType
     },
     {
         title: "Constant Motion",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/10 Constant Motion.mp3",
         forPart: AllPartType
     },
     {
         title: "38 Hz",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/11 38 Hz.mp3",
         forPart: AllPartType
     },
     {
         title: "Canella",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/12 Canella.mp3",
         forPart: AllPartType
     },
     {
         title: "Fragments Of Our Youth",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/13 Fragments Of Our Youth.mp3",
         forPart: AllPartType
     },
     {
         title: "It Was Always There",
         artist: "Ky Akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Memory within A dream/14 It Was Always There.mp3",
         forPart: AllPartType
     },
     // "Latibule",
     {
         title: "Windmill City",
         artist: "goosetaf x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/1 Windmill City w_ Dillan Witherow.mp3",
         forPart: AllPartType
     },
     {
         title: "Silk",
         artist: "goosetaf x Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/2 Silk w_ Blue Wednesday.mp3",
         forPart: AllPartType
     },
     {
         title: "Full of Heart",
         artist: "goosetaf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/3 Full of Heart.mp3",
         forPart: AllPartType
     },
     {
         title: "Tree Sap",
         artist: "goosetaf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/4 Tree Sap.mp3",
         forPart: AllPartType
     },
     {
         title: "Tucked Inside",
         artist: "goosetaf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/5 Tucked Inside.mp3",
         forPart: AllPartType
     },
     {
         title: "Afternoon Commute",
         artist: "goosetaf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/6 - Afternoon Commute.mp3",
         forPart: AllPartType
     },
     {
         title: "Siren",
         artist: "goosetaf x brillion.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/7 Siren w_ brillion..mp3",
         forPart: AllPartType
     },
     {
         title: "Somewhere Away",
         artist: "goosetaf x INKY!",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Latibule/8 Somewhere Away (feat. INKY!).mp3",
         forPart: AllPartType
     },
     // "outer space",
     {
         title: "takeoff",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/1 - takeoff - MASTER v3.mp3",
         forPart: AllPartType
     },
     {
         title: "outer space",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/2 - outer space - MASTER v6.mp3",
         forPart: AllPartType
     },
     {
         title: "alone in the void",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/3 - alone in the void- MASTER v2.mp3",
         forPart: AllPartType
     },
     {
         title: "outer peace | inner demons",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/4 - outer peace � inner demons - MASTER v4.mp3",
         forPart: AllPartType
     },
     {
         title: "deep dive",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/5 - deep dive - MASTER v1.mp3",
         forPart: AllPartType
     },
     {
         title: "a new world",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/6 - a new world - MASTER v3.mp3",
         forPart: AllPartType
     },
     {
         title: "on the edge",
         artist: "j'san x epektase",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/outer space/7- on the edge - MASTER v3.mp3",
         forPart: AllPartType
     },
     // "Cozy Winter ☕",
     {
         title: "Over The Moon",
         artist: "Team  Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/1 Team Astro - Over The Moon (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "After You",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/2 Hoogway - After You (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Moonlit Walk",
         artist: "Purpple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/03 Purrple Cat - Moonlit Walk (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Fjallstoppur",
         artist: "Enluv x E I S U",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/04 Enluv _ E I S U - Fjallstoppur (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Vulnerable",
         artist: "Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/05 squeeda - Vulnerable (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "sparkler",
         artist: "Towerz x farewell",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/06 towerz x farewell - sparkler (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "night lamp",
         artist: "jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/07 jhove - night lamp (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "overthinking",
         artist: "cxlt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/08 cxlt - overthinking (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Soaring",
         artist: "Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/09 Elior - Soaring (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Rain Come Again",
         artist: "Xander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/10 Xander - Rain Come Again (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Drifting",
         artist: "G Mills x aimless",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/11 G Mills x aimless - Drifting (Kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "San Francisco",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/12 WYS - San Francisco (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Love's Dissonance",
         artist: "lofty x pointy features x quist",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/13 lofty x pointy features x quist - Love_s Dissonance (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Tetra",
         artist: "Monma x Cocabona",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/14 Monma x Cocabona - Tetra (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "every second",
         artist: "aimless x Soho",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/15 aimless x Soho - every second (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Ebs and Flows",
         artist: "Glimlip",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/16 Glimlip - Ebs and Flows (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Days Will Pass",
         artist: "TABAL x eaup",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/17 TABAL x eaup - Days Will Pass (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Serene",
         artist: "Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/18 Ambulo - Serene (Kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Inside Out",
         artist: "Sleepermane x Sling Dilly",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/19 Sleepermane _ Sling Dilly - Inside Out (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Dreaming of Snow",
         artist: "Otaam x Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/20 Otaam x squeeda - Dreaming of Snow (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Floating",
         artist: "eaup x Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/21 eaup ft. Elior - Floating (Kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Campfire",
         artist: "bert x Nerok",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/22 bert x Nerok - Campfire (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Hammock",
         artist: "Azula x IamAlex x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/23 azula iamalex Dillan Witherow - Hammock (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Sixth Station",
         artist: "Anbuu x Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/24 anbuu - Sixth Station w Blue Wednesday (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Heated Blanket",
         artist: "Tysu x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/25 tysu x spencer hunt - Heated Blanket.mp3",
         forPart: AllPartType
     },
     {
         title: "Formless",
         artist: "Kainbeats x S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/26 Kainbeats _ S N U G - Formless (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Counting Stars",
         artist: "Chiccote's Beat x Pueblo Vista",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/27 Chiccote_s Beats x  Pueblo Vista - Counting Stars (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "moonfall",
         artist: "Towerz x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/28 towerz x hoogway - moonfall (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Waves",
         artist: "Fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/29 fourwalls - Waves (Kupla Master).mp3",
         forPart: AllPartType
     },
     {
         title: "a roomful of memories and longing",
         artist: "Celestial Alignment",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/30 celestial alignment - a roomful of memories and longing (Kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "Always Drifting",
         artist: "Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/31 Mondo Loops - Always Drifting (kupla master).mp3",
         forPart: AllPartType
     },
     {
         title: "As The Sun Sets",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cozy Winter/32 Laffey - As The Sun Sets (kupla master).mp3",
         forPart: AllPartType
     },
     // "Staring Contest",
     {
         title: "Nobody There",
         artist: "fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/1 FOURWALLS - NOBODY THERE.mp3",
         forPart: AllPartType
     },
     {
         title: "Staring Contest",
         artist: "fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/2 FOURWALLS - STARING CONTEST.mp3",
         forPart: AllPartType
     },
     {
         title: "Firefly",
         artist: "fourwalls x Skinny Atlas",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/3 FOURWALLS - FIREFLY FT. SKINNY ATLAS.mp3",
         forPart: AllPartType
     },
     {
         title: "Skin",
         artist: "fourwalls x nighlight",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/4 skin ft nightlight master(1).mp3",
         forPart: AllPartType
     },
     {
         title: "Above The Clouds",
         artist: "fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/5 FOURWALLS - ABOVE THE CLOUDS.mp3",
         forPart: AllPartType
     },
     {
         title: "Out West",
         artist: "fourwalls x Chris Mazuera",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/6 FOURWALLS - OUT WEST FT. CHRIS MAZUERA.mp3",
         forPart: AllPartType
     },
     {
         title: "Waiting At The Lights",
         artist: "fourwalls x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/7 FOURWALLS - WAITING AT THE LIGHTS FT. TENDER SPRING.mp3",
         forPart: AllPartType
     },
     {
         title: "Remembering",
         artist: "fourwalls x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/8 FOURWALLS - REMEMBERING YOU FT. TOWERZ.mp3",
         forPart: AllPartType
     },
     {
         title: "Smile From A Friend",
         artist: "fourwalls x farewell",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Staring Contest/smile from a friend ft farewell master(1).mp3",
         forPart: AllPartType
     },
     // "The Pursuit of Simplicity",
     {
         title: "Go Time",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/1. Go Time v10.mp3",
         forPart: AllPartType
     },
     {
         title: "Skkip Town",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/2. Skip Town v11.mp3",
         forPart: AllPartType
     },
     {
         title: "Vagabond Life",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/3. Vagabond Life v11.mp3",
         forPart: AllPartType
     },
     {
         title: "New Homeland",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/4. New Homeland v10.mp3",
         forPart: AllPartType
     },
     {
         title: "Build with Love",
         artist: "C4C x Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/5. Build with Love (ft. Blue Wednesday) v10.mp3",
         forPart: AllPartType
     },
     {
         title: "Light a Fire",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/6. Light a Fire v10.mp3",
         forPart: AllPartType
     },
     {
         title: "Enjoy",
         artist: "C4C",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The pursuit of Simplicity/7. Enjoy v10.mp3",
         forPart: AllPartType
     },
     // "Melodic Nostalgic",
     {
         title: "introspection",
         artist: "tomcbumpz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melodic Nostalgic/1. introspection (master).mp3",
         forPart: AllPartType
     },
     {
         title: "saudade",
         artist: "tomcbumpz x Yutaka hirasaka",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melodic Nostalgic/2. saudade (w_ yutaka hirasaka) (master).mp3",
         forPart: AllPartType
     },
     {
         title: "eyes shut, mind open",
         artist: "tomcbumpz x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melodic Nostalgic/3. eyes shut, mind open (w_ tender spring) (master).mp3",
         forPart: AllPartType
     },
     {
         title: "within & without",
         artist: "tomcbumpz x Paniyolo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melodic Nostalgic/4. within _ without (w_ paniyolo) (master).mp3",
         forPart: AllPartType
     },
     {
         title: "be",
         artist: "tomcbumpz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melodic Nostalgic/5. be (master).mp3",
         forPart: AllPartType
     },
     // "Temple Garden",
     {
         title: "Lotus",
         artist: "BVG",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Temple Garden/1 - BVG - lotus (Shortened version).mp3",
         forPart: AllPartType
     },
     {
         title: "Gentle Wind",
         artist: "BVG",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Temple Garden/2 - BVG - Gentle Wind.mp3",
         forPart: AllPartType
     },
     {
         title: "Spring Rain",
         artist: "BVG",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Temple Garden/3 - BVG - Spring Rain (Shortened Version).mp3",
         forPart: AllPartType
     },
     {
         title: "Youth",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Temple Garden/4 - BVG x møndberg - Youth.mp3",
         forPart: AllPartType
     },
     {
         title: "Spirited Away",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Temple Garden/5 - BVG x møndberg - spirited away (final version 4).mp3",
         forPart: AllPartType
     },
     // "River Glow",
     {
         title: "Dusk",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/1) Dusk.mp3",
         forPart: AllPartType
     },
     {
         title: "Down by the Lake",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/2) Down by the Lake.mp3",
         forPart: AllPartType
     },
     {
         title: "Fire Flies",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/3) Fire Flies.mp3",
         forPart: AllPartType
     },
     {
         title: "Mercury Retrograde",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/4) Mercury Retrograde.mp3",
         forPart: AllPartType
     },
     {
         title: "Astral Hour",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/5) Astral Hour.mp3",
         forPart: AllPartType
     },
     {
         title: "Diamonds",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/6) Diamonds.mp3",
         forPart: AllPartType
     },
     {
         title: "Pillow Beat with Strehlow",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/7) Pillow Beat with Strehlow.mp3",
         forPart: AllPartType
     },
     {
         title: "Marmalade Sky",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/8) Marmalade Sky.mp3",
         forPart: AllPartType
     },
     {
         title: "Crystal Lake",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/9) Crystal Lake.mp3",
         forPart: AllPartType
     },
     {
         title: "River Glow",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/10) River Glow.mp3",
         forPart: AllPartType
     },
     {
         title: "Traces of Light",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/11) Traces of Light.mp3",
         forPart: AllPartType
     },
     {
         title: "Sliver Of Morning",
         artist: "Tyluv.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/River Glow/12) Sliver of Morning.mp3",
         forPart: AllPartType
     },
     // "Time In Motion",
     {
         title: "Unwritten",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/1 Dontcry _ Nokiaa - Unwritten.mp3",
         forPart: AllPartType
     },
     {
         title: "Mind Pool",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/3 Dontcry _ Nokiaa - Garden Flower.mp3",
         forPart: AllPartType
     },
     {
         title: "Garden Flower",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/3 Dontcry _ Nokiaa - Garden Flower.mp3",
         forPart: AllPartType
     },
     {
         title: "Distant Memory",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/4 Dontcry _ Nokiaa - Distant Memory.mp3",
         forPart: AllPartType
     },
     {
         title: "EthereaL",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/5 Dontcry _ Nokiaa - EthereaL.mp3",
         forPart: AllPartType
     },
     {
         title: "No Words",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/6 Dontcry _ Nokiaa - No Words.mp3",
         forPart: AllPartType
     },
     {
         title: "Light Years Apart",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/7 Dontcry _ Nokiaa - Light Years Apart.mp3",
         forPart: AllPartType
     },
     {
         title: "Grey",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/8 Dontcry _ Nokiaa - Grey.mp3",
         forPart: AllPartType
     },
     {
         title: "Feels Like Home",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/9 Dontcry _ Nokiaa - Feels Like Home.mp3",
         forPart: AllPartType
     },
     {
         title: "Bluebird",
         artist: "Dontcry x Nokiaa ft. Sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Time in Motion/10 Dontcry _ Nokiaa - Bluebird (ft. Sleepermane).mp3",
         forPart: AllPartType
     },
     // "Before It's Late",
     {
         title: "Late",
         artist: "Hevi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/1. Late [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "These Are The Nights",
         artist: "Hevi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/2. These Are The Nights [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Imaginary",
         artist: "Hevi x Kurt Stewart x S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/3. Imaginary (feat. Kurt Stewart _ S N U G) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "We Had Better Days",
         artist: "Hevi x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/4. We Had Better Days (feat. Softy) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Lucid",
         artist: "Hevi x Naga",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/5. Lucid (feat. Naga) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Beyond the Dreams",
         artist: "Hevi x Stuffed Tomato",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/6. Beyond the Dreams (feat. Stuffed Tomato) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Finally Breathing",
         artist: "Hevi x Redmatic",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/8. Mind At Ease [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Mind At Ease",
         artist: "Hevi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/8. Mind At Ease [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Alone",
         artist: "Hevi x INKY!",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/9. Alone (feat. INKY!) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Bedtime",
         artist: "Hevi x probablyasleep",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/10. Bedtime (feat. probablyasleep) mastered.mp3",
         forPart: AllPartType
     },
     {
         title: "Lonely Nights",
         artist: "Hevi x Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/11. Lonely Nights (feat. Trxxshed) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Yesterday",
         artist: "Hevi x Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/12. Yesterday (feat. Trxxshed) [Final].mp3",
         forPart: AllPartType
     },
     {
         title: "Leave This Town",
         artist: "Hevi x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/before it's late/13. Leave This Town (feat. tender spring) [Final].mp3",
         forPart: AllPartType
     },
     // "Traveler",
     {
         title: "Travelers",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/1. Team Astro - Travelers.mp3",
         forPart: AllPartType
     },
     {
         title: "Lucid",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/2. Team Astro - Lucid.mp3",
         forPart: AllPartType
     },
     {
         title: "See You When I See You",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/3. Team Astro - See You When I See You.mp3",
         forPart: AllPartType
     },
     {
         title: "Planet Buddies",
         artist: "Team Astro x cocabona",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/4. Team Astro x cocabona - Planet Buddies.mp3",
         forPart: AllPartType
     },
     {
         title: "Snowflakes",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/5. Team Astro - Snowflakes.mp3",
         forPart: AllPartType
     },
     {
         title: "Beehive",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/6. Team Astro - Beehive.mp3",
         forPart: AllPartType
     },
     {
         title: "Countdown to Zero",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/7. Team Astro - Countdown to Zero.mp3",
         forPart: AllPartType
     },
     {
         title: "Nothingness",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/8. Team Astro - Nothingness.mp3",
         forPart: AllPartType
     },
     {
         title: "Searching...",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/9. Team Astro - Searching....mp3",
         forPart: AllPartType
     },
     {
         title: "Pluto",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/10. Team Astro - Pluto.mp3",
         forPart: AllPartType
     },
     {
         title: "Stop Calling Me Cute",
         artist: "Team Astro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Traveler/11. Team Astro - Stop Calling Me Cute.mp3",
         forPart: AllPartType
     },
     // "Blue Woods",
     {
         title: "Finally Breathing",
         artist: "GlobulDub",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Blue Woods/Finally Breathing - GlobulDub.mp3",
         forPart: AllPartType
     },
     {
         title: "Gone Home",
         artist: "GlobulDub",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Blue Woods/Gone Home - GlobulDub.mp3",
         forPart: AllPartType
     },
     {
         title: "Night Cat",
         artist: "GlobulDub",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Blue Woods/Night Cat - GlobulDub.mp3",
         forPart: AllPartType
     },
     {
         title: "Sail",
         artist: "GlobulDub",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Blue Woods/Sail - GlobulDub.mp3",
         forPart: AllPartType
     },
     {
         title: "Sweet Memories",
         artist: "GlobulDub",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Blue Woods/Sweet Memories - GlobulDub.mp3",
         forPart: AllPartType
     },
     // "Precious Moments",
     {
         title: "Heading Home",
         artist: "Celestial Alignment ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/01_heading_home.mp3",
         forPart: AllPartType
     },
     {
         title: "Hammock",
         artist: "Celestial Alignment ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/02_hammock.mp3",
         forPart: AllPartType
     },
     {
         title: "The Feeling Is Still There",
         artist: "Celestial Alignment x Mecklin",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/03_the_feeling_is_still_there_ft_mecklin.mp3",
         forPart: AllPartType
     },
     {
         title: "Let Me Get You A Glass",
         artist: "Celestial Alignment ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/04_let_me_get_you_a_glass.mp3",
         forPart: AllPartType
     },
     {
         title: "Eaves",
         artist: "Celestial Alignment x Payubeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/05_eaves_ft_payubeats.mp3",
         forPart: AllPartType
     },
     {
         title: "Precious Moments",
         artist: "Celestial Alignment x Glacier Kid",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/06_precious_moments_2nd_version_ft_glacier_kid (1).mp3",
         forPart: AllPartType
     },
     {
         title: "It's All Good",
         artist: "Celestial Alignment ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Precious Moments/07_its_all_good_after_all.mp3",
         forPart: AllPartType
     },
     // "Winter Love",
     {
         title: "Winter Love",
         artist: "Dr. Dundiff",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/1. Winter Love - Dr. Dundiff (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Snowday",
         artist: "Dr. Dundiff",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/2. Snowday - Dr. Dundiff (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Through the Woods",
         artist: "Dr. Dundiff x Ian Ewing",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/3. Through the Woods - Dr. Dundiff ft. Ian Ewing (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Whistiling Winds",
         artist: "Dr. Dundiff",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/4. Whistling Winds - Dr. Dundiff (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "From My Window",
         artist: "Dr. Dundiff x Cocabona",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/5. From My Window - Dr. Dundiff ft. Cocabona (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Orange Leaves",
         artist: "Dr. Dundiff",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Winter Love/6. Orange Leaves - Dr. Dundiff (Master).mp3",
         forPart: AllPartType
     },
     // "A Bridge Between",
     {
         title: "A Bridge Between",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/1. towerz _ hi jude - a bridge between master.mp3",
         forPart: AllPartType
     },
     {
         title: "Something To Cherish",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/2. towerz _ hi jude - something to cherish master.mp3",
         forPart: AllPartType
     },
     {
         title: "Heartsease",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/3. towerz _ hi jude - heartsease master.mp3",
         forPart: AllPartType
     },
     {
         title: "Willows",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/4. towerz _ hi jude - willows master.mp3",
         forPart: AllPartType
     },
     {
         title: "Familiar Feeling",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/5. towerz _ hi jude - familiar feeling master.mp3",
         forPart: AllPartType
     },
     {
         title: "Lighted Path",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/6. towerz _ hi jude - lighted path master.mp3",
         forPart: AllPartType
     },
     {
         title: "Ripples",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/8. towerz _ hi jude - abundance master.mp3",
         forPart: AllPartType
     },
     {
         title: "Abundance",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/8. towerz _ hi jude - abundance master.mp3",
         forPart: AllPartType
     },
     {
         title: "Empty Spaces",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/9. towerz _ hi jude - empty spaces master.mp3",
         forPart: AllPartType
     },
     {
         title: "Choices",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/10. towerz _ hi jude - choices master.mp3",
         forPart: AllPartType
     },
     {
         title: "Seeking Peace",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/11. towerz _ hi jude - seeking peace master.mp3",
         forPart: AllPartType
     },
     {
         title: "Arrowhead",
         artist: "Towerz x hi jude",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A bridge Between/12. towerz _ hi jude - arrowhead master.mp3",
         forPart: AllPartType
     },
     // "Land of Calm",
     {
         title: "Rent a Van",
         artist: "Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/1 - Tom Doolie - Rent a Van.mp3",
         forPart: AllPartType
     },
     {
         title: "Awake",
         artist: "Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/2 - Tom Doolie - Awake.mp3",
         forPart: AllPartType
     },
     {
         title: "Mavericks",
         artist: "Tom Doolie ft. Hya x Rich Jacques",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/3 - Tom Doolie - Mavericks (feat. HYA _ Rich Jacques).mp3",
         forPart: AllPartType
     },
     {
         title: "Into you",
         artist: "Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/4 - Tom Doolie - into you.mp3",
         forPart: AllPartType
     },
     {
         title: "Rehab",
         artist: "Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/5 - Tom Doolie - Rehab.mp3",
         forPart: AllPartType
     },
     {
         title: "Sincere",
         artist: "Tom Doolie x DAO",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Land of Calm/6 - Tom Doolie - Sincere (ft. DAO).mp3",
         forPart: AllPartType
     },
     // "Relatives",
     {
         title: "Playgrounds",
         artist: "Phlocalyst  ft. mell-ø x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Relatives/1 Phlocalyst _ mell-ø _ Akīn - Playgrounds.mp3",
         forPart: AllPartType
     },
     {
         title: "Homage",
         artist: "Phlocalyst ft. Sátyr x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Relatives/2 Phlocalyst _ Sátyr _ Akīn - Homage.mp3",
         forPart: AllPartType
     },
     {
         title: "Bamboo",
         artist: "Phlocalyst ft. Elior x Living Room",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Relatives/3 Phlocalyst _ Elior _ Living Room - Bamboo.mp3",
         forPart: AllPartType
     },
     {
         title: "Beautiful Morning",
         artist: "Phlocalyst ft. Living Room x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Relatives/4 Phlocalyst _ Living Room _ Akīn - Beautiful Morning.mp3",
         forPart: AllPartType
     },
     {
         title: "Old Friend",
         artist: "Phlocalyst ft. Living Room x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Relatives/5 Phlocalyst _ Living Room _ Akīn - Old Friend.mp3",
         forPart: AllPartType
     },
     // "Midnight Gazing",
     {
         title: "Hidden In Dusk",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/1. Hidden In Dusk 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Elusive",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/2. Elusive 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Star Sailing",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/3. Star Sailing 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Note",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/4. Blue Note 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Evening Porch",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/5. Evening Porch 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Gilding",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/6. Gliding 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Forrest Lullaby",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/7. Forrest Lullaby 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Dragons Dreams",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/9. Goyo 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Goyo",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/9. Goyo 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Homebound",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/10. Homebound 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Late Night Magic",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/11. Late Night Magic .mp3",
         forPart: AllPartType
     },
     {
         title: "On The Way Home",
         artist: "Mondo Loops x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Midnight Gazing/12. On The Way Home.mp3",
         forPart: AllPartType
     },
     // "Nightfall",
     {
         title: "NightFall",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/1. nightfall.mp3",
         forPart: AllPartType
     },
     {
         title: "Frost",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/2. frost.mp3",
         forPart: AllPartType
     },
     {
         title: "Alaska",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/3. alaska.mp3",
         forPart: AllPartType
     },
     {
         title: "Afloat",
         artist: "S N U G x Nuver ft. Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/4. afloat ft. Project Aer.mp3",
         forPart: AllPartType
     },
     {
         title: "Lighthouse",
         artist: "S N U G x Nuver ft. Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/5. lighthouse ft. Sitting Duck.mp3",
         forPart: AllPartType
     },
     {
         title: "After Dark",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/6. after dark.mp3",
         forPart: AllPartType
     },
     {
         title: "Moonscapes",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/7. moonscapes.mp3",
         forPart: AllPartType
     },
     {
         title: "Horizons",
         artist: "S N U G x Nuver ft. Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/8. horizons ft. Mondo Loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Paths",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/9. paths.mp3",
         forPart: AllPartType
     },
     {
         title: "Dazed",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/10.dazed.mp3",
         forPart: AllPartType
     },
     {
         title: "Nova",
         artist: "S N U G x Nuver ft. Jordy Chandra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/11. nova ft. Jordy Chandra.mp3",
         forPart: AllPartType
     },
     {
         title: "It's Getting Late",
         artist: "S N U G x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Nightfall/12. it_s getting late.mp3",
         forPart: AllPartType
     },
     // "Hourglass",
     {
         title: "Hourglass",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Hourglass/01 Hourglass (master) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "No Regrets",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Hourglass/02 No Regrets (master) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "One Last Time",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Hourglass/03 One Last Time (master) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Grains of Sand",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Hourglass/04 Grains of Sand (master) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Ephemeral",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Hourglass/05 Ephemeral (master) 2.mp3",
         forPart: AllPartType
     },
     // "Falling dreams",
     {
         title: "a lonely star",
         artist: "jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/1. jhove - a lonely star.mp3",
         forPart: AllPartType
     },
     {
         title: "before i met you",
         artist: "jhove x elijah lee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/2. jhove - before i met you ft elijah lee.mp3",
         forPart: AllPartType
     },
     {
         title: "beyond the stars",
         artist: "jhove x tysu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/3. jhove - beyond the stars ft tysu.mp3",
         forPart: AllPartType
     },
     {
         title: "closes eyes",
         artist: "jhove x hm surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/4. jhove - closed eyes ft hm surf.mp3",
         forPart: AllPartType
     },
     {
         title: "times flies",
         artist: "jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/5. jhove - time flies.mp3",
         forPart: AllPartType
     },
     {
         title: "in the morning",
         artist: "jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/6. jhove - in the morning.mp3",
         forPart: AllPartType
     },
     {
         title: "i know, goodbye",
         artist: "jhove x amess",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Falling Dreams/7. jhove - i know, goodbye ft amess.mp3",
         forPart: AllPartType
     },
     // "Evermore",
     {
         title: "True Love",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/01 - True Love.mp3",
         forPart: AllPartType
     },
     {
         title: "Mourning Dove",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/02 - Mourning Dove.mp3",
         forPart: AllPartType
     },
     {
         title: "Practiced Compassion",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/03 - Practiced Compassion.mp3",
         forPart: AllPartType
     },
     {
         title: "Aftermath",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/04 - Aftermath.mp3",
         forPart: AllPartType
     },
     {
         title: "Arizona Zero",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/05 - Arizona Zero.mp3",
         forPart: AllPartType
     },
     {
         title: "Down the Line",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/06 - Down the Line.mp3",
         forPart: AllPartType
     },
     {
         title: "Washed Out",
         artist: "WYS x Sweet Medicine",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Evermore/07 - Washed Out.mp3",
         forPart: AllPartType
     },
     // "Feelings",
     {
         title: "Inner Peace",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/1 Bcalm - Banks - Inner Peace (New Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Firelight",
         artist: "Bcalm x Banks ft. Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/2 Firelight (ft Purrple Cat).mp3",
         forPart: AllPartType
     },
     {
         title: "Comfort",
         artist: "Bcalm x Banks ft. Fletcher Reed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/3 - Comfort (ft Fletcher Reed).mp3",
         forPart: AllPartType
     },
     {
         title: "Sleep Patterns",
         artist: "Bcalm x Banks ft. Sleep Patterns",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/4 - Sleep Patterns (ft Sleep Patterns).mp3",
         forPart: AllPartType
     },
     {
         title: "Crystalize",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/5 - Crystalize ft Casiio.mp3",
         forPart: AllPartType
     },
     {
         title: "Winter Sun",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/6 - Winter Sun.mp3",
         forPart: AllPartType
     },
     {
         title: "Because",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/7 - Because.mp3",
         forPart: AllPartType
     },
     {
         title: "Toughts",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/8 - Thoughts.mp3",
         forPart: AllPartType
     },
     {
         title: "I'll Remember u",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/9 - I_ll Remember u.mp3",
         forPart: AllPartType
     },
     {
         title: "Mary",
         artist: "Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Feelings/10 - Mary ft Purrple Cat.mp3",
         forPart: AllPartType
     },
     // "Growth Patterns",
     {
         title: "Growth",
         artist: "Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/01 Growth_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "A Better Place",
         artist: "Project AER x cxlt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/02 A Better Place w cxlt_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "Brighter  Days",
         artist: "Project AER x Refeeld",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/03 Brighter Days w Refeeld_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "Likelife",
         artist: "Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/Project AER - Likelife_MASTER v2.mp3",
         forPart: AllPartType
     },
     {
         title: "Mind Over Matter",
         artist: "Project AER x Fletcher Reed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/07 Mind Over Matter w Fletcher Reed_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "Open Eyes",
         artist: "Project AER x WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/12 Open Eyes w WYS_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "Downtime",
         artist: "Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/14 Downtime_MASTER.mp3",
         forPart: AllPartType
     },
     {
         title: "The Finality of it All",
         artist: "Project AER x Colours in Context",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Growth Pattern/15 The Finality of It All w Colours in Context_MASTER.mp3",
         forPart: AllPartType
     },
     // "Polar",
     {
         title: "Noctilucent",
         artist: "Ambulo x Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/1.Ambulo_x_Squeeda-Noctilucent.mp3",
         forPart: AllPartType
     },
     {
         title: "Polar",
         artist: "Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/2.Ambulo-Polar.mp3",
         forPart: AllPartType
     },
     {
         title: "Sun dog",
         artist: "Ambulo x Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/3.Ambulo_x_squeeda-Sun dog.mp3",
         forPart: AllPartType
     },
     {
         title: "Resilience",
         artist: "Ambulo x mell-o",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/4.Ambulo_x_mell-o-Resilience.mp3",
         forPart: AllPartType
     },
     {
         title: "Child",
         artist: "Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/5.Ambulo-Child.mp3",
         forPart: AllPartType
     },
     {
         title: "Pleasant",
         artist: "Ambulo x Kasper",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/6.Ambulo_x_Kasper_lindmark-Pleasant.mp3",
         forPart: AllPartType
     },
     {
         title: "Intentions",
         artist: "Ambulo x Kasper",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Polar/7.Ambulo_x_Kasper_Lindmark-Intentions.mp3",
         forPart: AllPartType
     },
     // "Tender Memories",
     {
         title: "Reassuring Skies",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/01 - Reassuring Skies.mp3",
         forPart: AllPartType
     },
     {
         title: "Tender Memories",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/02 - Tender Memories.mp3",
         forPart: AllPartType
     },
     {
         title: "Daydreaming",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/03 - Daydreaming.mp3",
         forPart: AllPartType
     },
     {
         title: "Lost in Thought",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/04 - Lost in Thought.mp3",
         forPart: AllPartType
     },
     {
         title: "Almost Asleep",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/05 - Almost Asleep.mp3",
         forPart: AllPartType
     },
     {
         title: "Caring",
         artist: "Lenny Loops x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Tender Memories/06 - Caring.mp3",
         forPart: AllPartType
     },
     // "Last Light",
     {
         title: "Hidden Clouds",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/1. TABAL - Hidden Clouds.mp3",
         forPart: AllPartType
     },
     {
         title: "A Childish Day",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/2. TABAL - A Childish Day.mp3",
         forPart: AllPartType
     },
     {
         title: "Last Light",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/3. TABAL - Last Light.mp3",
         forPart: AllPartType
     },
     {
         title: "The Other Way",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/4. TABAL - The Other Way.mp3",
         forPart: AllPartType
     },
     {
         title: "Fireflies",
         artist: "TABAL x  DLJ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/5. TABAL x DLJ - Fireflies.mp3",
         forPart: AllPartType
     },
     {
         title: "Finally Home",
         artist: "TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Last Light/6. TABAL - Finally Home.mp3",
         forPart: AllPartType
     },
     // "Motions",
     {
         title: "Wander",
         artist: "Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/1. Wander (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Ember",
         artist: "Tibeauthetraveler x Eleven",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/2. Ember ft. Eleven (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Northern Lights",
         artist: "Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/3. Northern Lights (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Motions",
         artist: "Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/4. Motions (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Water Circles",
         artist: "Tibeauthetraveler x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/5. Water Circles ft. Hoogway (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Starry Night",
         artist: "Tibeauthetraveler  x Just Steezy Things",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/6. Starry Night ft Just Steezy Things (master).mp3",
         forPart: AllPartType
     },
     {
         title: "Out of Breath",
         artist: "Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Motions/7. Out of Breath (master).mp3",
         forPart: AllPartType
     },
     // "Before Sunrise",
     {
         title: "Fig Trees",
         artist: "Dillan Witherow x Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/1. Fig Trees ft. Blue Wednesday - Master 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Rose Bay",
         artist: "Dillan Witherow x Santpoort",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/2. Rose Bay ft. Santpoort - Master 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Before Sunrise",
         artist: "Dillan Witherow x tender spring x azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/3. Before Sunrise ft. tender spring and azula - Master 2.mp3",
         forPart: AllPartType
     },
     {
         title: "twopointeight",
         artist: "Dillan Witherow x Blurred Figures",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/4. twopointeight ft. Blurred Figures - Master 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Inside Out",
         artist: "Dillan Witherow Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/5. Inside Out ft. Blue Wednesday - Master 3.mp3",
         forPart: AllPartType
     },
     {
         title: "Field of Stars",
         artist: "Dillan Witherow x Sitting Duck x No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/6. Field of Stars ft. Sitting Duck and No Spirit - Master 6.mp3",
         forPart: AllPartType
     },
     {
         title: "Superlunary",
         artist: "Dillan Witherow x G Mills",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/7. Superlunary ft. G Mills - Master 3.mp3",
         forPart: AllPartType
     },
     {
         title: "To You, From Me",
         artist: "Dillan Witherow x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/8. To You, From Me ft. tender spring - Master 4.mp3",
         forPart: AllPartType
     },
     {
         title: "Hiding In a Flower",
         artist: "Dillan Witherow x No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/9. Hiding In a Flower ft. No Spirit - Master 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Opposite Ends",
         artist: "Dillan Witherow x WYS x azula",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/10. Opposite Ends Ft. WYS _ azula - Master 5.mp3",
         forPart: AllPartType
     },
     {
         title: "First Snow",
         artist: "Dillan Witherow x Sitting Duck",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Before Sunrise/11. First Snow ft. Sitting Duck - Master 2.mp3",
         forPart: AllPartType
     },
     // "After Hours",
     {
         title: "Long Walk Short Dock",
         artist: "Blue Wednesday x Dillan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/After Hours/01 Long Walk, Short Dock (ft Dillan Witherow).mp3",
         forPart: AllPartType
     },
     {
         title: "Dots",
         artist: "Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/After Hours/02 Dots.mp3",
         forPart: AllPartType
     },
     {
         title: "Wildflower",
         artist: "Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/After Hours/03 Wildflower v2.mp3",
         forPart: AllPartType
     },
     {
         title: "Attic",
         artist: "Blue Wednesday x INKY!",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/After Hours/04 Attic (feat. INKY!) v2.mp3",
         forPart: AllPartType
     },
     {
         title: "I See You In Slow Motion",
         artist: "Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/After Hours/05 I See You In Slow Motion v2.mp3",
         forPart: AllPartType
     },
     // "Homeland",
     {
         title: "Farewell",
         artist: "L'Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/1.Farewell.mp3",
         forPart: AllPartType
     },
     {
         title: "Speculations",
         artist: "L'Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/2.Speculations.mp3",
         forPart: AllPartType
     },
     {
         title: "Past Things",
         artist: "L'Outlander x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/3.Past Things ft. Mondo Loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Looking For Answers",
         artist: "L'Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/4.Looking For Answers.mp3",
         forPart: AllPartType
     },
     {
         title: "Higher Calling",
         artist: "L'Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/5.Higher Calling.mp3",
         forPart: AllPartType
     },
     {
         title: "Homeland",
         artist: "L'Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Homeland/6.Homeland.mp3",
         forPart: AllPartType
     },
     // "A Day At A Time",
     {
         title: "A Day At A Time",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/1 Laffey - A Day At A Time (Master V2).mp3",
         forPart: AllPartType
     },
     {
         title: "Infinite",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/2 Laffey - Infinite (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "In This Moment",
         artist: "Laffey x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/3 Laffey - In This Moment ft. Softy (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "New Beginnings",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/4 Laffey - New Beginnings (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Acceptance",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/5 Laffey - Acceptance (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Together",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/6 Laffey - Together (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Exhale",
         artist: "Laffey x Dilan Witherow",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/7 Laffey - Exhale ft. Dillan Witherow (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Auburn",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/8 Laffey - Auburn (Master V2).mp3",
         forPart: AllPartType
     },
     {
         title: "Compassion",
         artist: "Laffey x  Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/9 Laffey - Compassion ft. Softy (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Comfort",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/10 Laffey - Comfort (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "The Journey",
         artist: "Laffey x Sunlight Jr.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/11 Laffey - The Journey ft. Sunlight Jr. (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "A New Path",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/12 Laffey - A New Path (Master V1).mp3",
         forPart: AllPartType
     },
     {
         title: "Healing",
         artist: "Laffey",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/A Day at a time/13 Laffey - Healing (Master V2).mp3",
         forPart: AllPartType
     },
     // "Distant Images",
     {
         title: "Slow Ride",
         artist: "Softy x Kaspa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/1. Slow Ride (w. Kaspa) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Hideaway",
         artist: "Softy x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/2. Hideaway (w. mondo loops) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Evergreen",
         artist: "Softy x Lucid Green",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/3. Evergreen (w. lucid green) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Lining",
         artist: "Softy x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/4. Blue Lining (w. mondo loops) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Glimpses",
         artist: "Softy x Lucid Green",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/5. Glimpses (w. lucid green) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Solstice",
         artist: "Softy x Pointy Features",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/6. Solstice (w. Pointy Features) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Inside All Day",
         artist: "Softy x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/7. Inside All Day (w. hoogway) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Homesick",
         artist: "Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/8. Homesick (1).mp3",
         forPart: AllPartType
     },
     {
         title: "After All",
         artist: "Softy x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/9. After all (w. hoogway) .mp3",
         forPart: AllPartType
     },
     {
         title: "Contrasts",
         artist: "Softy x Kaspa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/10. Contrasts (w. kaspa) .mp3",
         forPart: AllPartType
     },
     {
         title: "Sundown",
         artist: "Softy x Celestial Alignment",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/11. Sundown (w. Celestial Alignment) .mp3",
         forPart: AllPartType
     },
     {
         title: "Close To",
         artist: "Softy x Refeeld",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Distant Images/12. Close To (w. Refeeld) .mp3",
         forPart: AllPartType
     },
     // "Retro Colors",
     {
         title: "Ivory",
         artist: "Trxxshed x Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/01 - Ivory (ft. jhove).mp3",
         forPart: AllPartType
     },
     {
         title: "Synesthesia",
         artist: "Trxxshed x Clangon",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/02 - Synesthesia (ft. clangon).mp3",
         forPart: AllPartType
     },
     {
         title: "Lost In Between",
         artist: "Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/03 - Lost In Between.mp3",
         forPart: AllPartType
     },
     {
         title: "Magnitude",
         artist: "Trxxshed x j'san",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/04 - Magnitude (ft. j_san).mp3",
         forPart: AllPartType
     },
     {
         title: "Passing Time",
         artist: "Trxxshed x fourwalls",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/05 - Passing Time (ft. fourwalls).mp3",
         forPart: AllPartType
     },
     {
         title: "Reminiscence",
         artist: "Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/06 - Reminiscence.mp3",
         forPart: AllPartType
     },
     {
         title: "Altitude",
         artist: "Trxxshed x Lomtre",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/07 - Altitude (ft. lomtre).mp3",
         forPart: AllPartType
     },
     {
         title: "Saturated",
         artist: "Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/08 - Saturated.mp3",
         forPart: AllPartType
     },
     {
         title: "Early Days",
         artist: "Trxxshed x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/09 - Early Days (ft. cxlt.).mp3",
         forPart: AllPartType
     },
     {
         title: "Dysomnia",
         artist: "Trxxshed x Creative Self",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/10 - Dysomnia (ft. creative self).mp3",
         forPart: AllPartType
     },
     {
         title: "Obscure Sorrows",
         artist: "Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Retro Colors/11 - Obscure Sorrows.mp3",
         forPart: AllPartType
     },
     // "Rituals",
     {
         title: "Rituals",
         artist: "Living Room x M e a d o w",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/1. Living Room x M e a d o w - Rituals.mp3",
         forPart: AllPartType
     },
     {
         title: "Buddha",
         artist: "Living Room x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/2. Living Room x Phlocalyst - Buddha.mp3",
         forPart: AllPartType
     },
     {
         title: "Kyoto Sunrise",
         artist: "Living Room x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/3. Living Room x Mondo Loops - Kyoto Sunrise.mp3",
         forPart: AllPartType
     },
     {
         title: "Circle Of Truste",
         artist: "Living Room x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/4. Living Room x Akīn - Circle of Trust.mp3",
         forPart: AllPartType
     },
     {
         title: "Consciousness",
         artist: "Living Room x ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/5. Living Room - Consciousness.mp3",
         forPart: AllPartType
     },
     {
         title: "Sublime",
         artist: "Living Room x Otaam",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/6. Living Room x Otaam - Sublime.mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Hour",
         artist: "Living Room x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/7. Living Room x Phlocalyst - Blue Hour.mp3",
         forPart: AllPartType
     },
     {
         title: "Sleepmodee",
         artist: "Living Room x Rudy Raw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Rituals/8. Living Room x Rudy Raw - Sleepmodee.mp3",
         forPart: AllPartType
     },
     // "Wonderland Chapter II",
     {
         title: "Chasing Dreams",
         artist: "Sitting Duck x Khukto",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Beau Diako _ Sitting Duck - Chasing Dreams 1 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Save Tonight",
         artist: "Sitting Duck x Khukto",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Beau Diako _ Sitting Duck - save tonight 2 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Sweet Honey",
         artist: "Sitting Duck x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Mondo Loops _ Sitting Duck - sweet honey 1 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Hope",
         artist: "Sitting Duck x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Mondo Loops _ Sitting Duck - hope 1 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Lessons We Learned",
         artist: "Sitting Duck x No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/No Spirirt _ Sitting Duck - lessons we learned 2 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Reflection",
         artist: "Sitting Duck x Cloud Break",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Cloud Break _ Sitting Duck - Reflection 2 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Changes",
         artist: "Sitting Duck x Nuver",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Nuver _ Sitting Duck - Changes 1 1.mp3",
         forPart: AllPartType
     },
     {
         title: "Faded",
         artist: "Sitting Duck x Sinnr",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wonderland Chapter II/Sinnr _ Sitting Duck - faded 3 1.mp3",
         forPart: AllPartType
     },
     // "Wilderness",
     {
         title: "dim the lights",
         artist: "Nvmb x Lona Moor",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/1_dim_the_lights.mp3",
         forPart: AllPartType
     },
     {
         title: "wilderness",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/2_wilderness.mp3",
         forPart: AllPartType
     },
     {
         title: "intimate",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/3_intimate.mp3",
         forPart: AllPartType
     },
     {
         title: "your colors",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/4_your_colors.mp3",
         forPart: AllPartType
     },
     {
         title: "lakeside",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/5_lakeside.mp3",
         forPart: AllPartType
     },
     {
         title: "funny place",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/6_funny_place.mp3",
         forPart: AllPartType
     },
     {
         title: "campfire",
         artist: "Nvmb",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/7_campfire.mp3",
         forPart: AllPartType
     },
     {
         title: "inaudible",
         artist: "Nvmb x Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Wilderness/8_inaudible.mp3",
         forPart: AllPartType
     },
     // "Shine On",
     {
         title: "Coral Caves",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/8. Coral Caves.mp3",
         forPart: AllPartType
     },
     {
         title: "Nightcall",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/2. Nightcall.mp3",
         forPart: AllPartType
     },
     {
         title: "Dozy",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/4. Dozy.mp3",
         forPart: AllPartType
     },
     {
         title: "Kindred Spirits",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/3. Kindred Spirits.mp3",
         forPart: AllPartType
     },
     {
         title: "Low Tide",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/9. Low Tide.mp3",
         forPart: AllPartType
     },
     {
         title: "Moon Base",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/6. Moon Base.mp3",
         forPart: AllPartType
     },
     {
         title: "Five Years",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/Five Years.mp3",
         forPart: AllPartType
     },
     {
         title: "Seven Seas",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/Seven Seas.mp3",
         forPart: AllPartType
     },
     {
         title: "Afloat",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/7. Afloat.mp3",
         forPart: AllPartType
     },
     {
         title: "Red Alley",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/5. Red Alley.mp3",
         forPart: AllPartType
     },
     {
         title: "Lights Low",
         artist: "Pointy features x Kanisan x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Shine On/1. Lights Low.mp3",
         forPart: AllPartType
     },
     // "Oblivion",
     {
         title: "Destination Unknown",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/01 amies - Destination Unknown.mp3",
         forPart: AllPartType
     },
     {
         title: "Levitate",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/02 amies _ cxlt. - Levitate.mp3",
         forPart: AllPartType
     },
     {
         title: "Leave The World Behind",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/03 amies - Leave The World Behind.mp3",
         forPart: AllPartType
     },
     {
         title: "Follow Me",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/04 amies - Follow Me.mp3",
         forPart: AllPartType
     },
     {
         title: "Lost In Time",
         artist: "amies x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/05 amies _ softy - Lost In Space.mp3",
         forPart: AllPartType
     },
     {
         title: "Arriving",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/06 amies - Arriving.mp3",
         forPart: AllPartType
     },
     {
         title: "Memory Lane",
         artist: "amies x midnight alpha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/07 amies _ midnight alpha. - Memory Lane.mp3",
         forPart: AllPartType
     },
     {
         title: "Dimensions",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/08 amies - Dimensions.mp3",
         forPart: AllPartType
     },
     {
         title: "Silenced",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/09 amies - Silenced.mp3",
         forPart: AllPartType
     },
     {
         title: "New Beginning",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Oblivion/10 amies - New Beginning.mp3",
         forPart: AllPartType
     },
     // "Can We Talk",
     {
         title: "Call You Soon",
         artist: "Glimlip x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Can We Talk/1. Glimlip x Louk - Call You Soon.mp3",
         forPart: AllPartType
     },
     {
         title: "How Have You Been",
         artist: "Glimlip x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Can We Talk/2. Glimlip x Louk - How Have You Been.mp3",
         forPart: AllPartType
     },
     {
         title: "Your Words Not Mine",
         artist: "Glimlip x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Can We Talk/3. Glimlip x Louk - Your Words Not Mine.mp3",
         forPart: AllPartType
     },
     {
         title: "I'll Meet You At The Station",
         artist: "Glimlip x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Can We Talk/4. Glimlip x Louk - I_ll Meet You At The Station.mp3",
         forPart: AllPartType
     },
     {
         title: "Seeing You Is Like",
         artist: "Glimlip x Louk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Can We Talk/5. Glimlip x Louk - Seeing You Is Like.mp3",
         forPart: AllPartType
     },
     // "Sons of the Dew",
     {
         title: "We Met in the Forest",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/1 Raimu - We Met in the Forest.mp3",
         forPart: AllPartType
     },
     {
         title: "Wisteria Arbour",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/2 Raimu - Wisteria Arbour.mp3",
         forPart: AllPartType
     },
     {
         title: "Samurai's Dream",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/3 Raimu - Samurai_s Dream.mp3",
         forPart: AllPartType
     },
     {
         title: "Nagano, 5 Am",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/4 Raimu - Nagano, 5 Am.mp3",
         forPart: AllPartType
     },
     {
         title: "Kosame",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/5 Raimu - Kosame.mp3",
         forPart: AllPartType
     },
     {
         title: "Love Under The Roof",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/6 Raimu - Love Under the Roof.mp3",
         forPart: AllPartType
     },
     {
         title: "Overgrown",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/7 Raimu - Overgrown.mp3",
         forPart: AllPartType
     },
     {
         title: "Kami's Gift",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/8 Raimu - Kami_s Gift.mp3",
         forPart: AllPartType
     },
     {
         title: "Botanicals",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/9 Raimu - Botanicals.mp3",
         forPart: AllPartType
     },
     {
         title: "Despite the Pain",
         artist: "Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Sons of the Dew/10 Raimu - Despite the Pain.mp3",
         forPart: AllPartType
     },
     // "Melody Mountain",
     {
         title: "Lavender",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/01 Kupla - Lavender.mp3",
         forPart: AllPartType
     },
     {
         title: "Orion",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/02 Kupla - Orion (Final Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Memory of You",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/03 Kupla - Memory of You.mp3",
         forPart: AllPartType
     },
     {
         title: "Tender Souls",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/04 Kupla - Tender Souls.mp3",
         forPart: AllPartType
     },
     {
         title: "Under the Bridge",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/05 Kupla - Under The Bridge.mp3",
         forPart: AllPartType
     },
     {
         title: "Valley of Hope",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/06 Kupla - Valley of Hope (final master).mp3",
         forPart: AllPartType
     },
     {
         title: "Melody Mountain",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/07 Kupla - Melody Mountain.mp3",
         forPart: AllPartType
     },
     {
         title: "Castles in the Snow",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/08 Kupla - Castles In The Snow.mp3",
         forPart: AllPartType
     },
     {
         title: "Fairies",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/09 Kupla - Fairies.mp3",
         forPart: AllPartType
     },
     {
         title: "Orchid",
         artist: "Kupla",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Melody Mountain/10 Kupla - Orchid.mp3",
         forPart: AllPartType
     },
     // "Cloud Studies",
     {
         title: "Almost Dreaming",
         artist: "Enluv",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Almost Dreaming.mp3",
         forPart: AllPartType
     },
     {
         title: "Cloud Studies",
         artist: "Enluv x E I S U x tapei",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Cloud Studies w_ E I S U _ tapei.mp3",
         forPart: AllPartType
     },
     {
         title: "Woodland Hills",
         artist: "Enluv x Squeeda x No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Woodland Hills w_ no spirit _ squeeda.mp3",
         forPart: AllPartType
     },
     {
         title: "Balance",
         artist: "Enluv x Sitting Duck x Squeeda",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Balance w_ Squeeda _ Sitting Duck.mp3",
         forPart: AllPartType
     },
     {
         title: "Contemplate",
         artist: "Enluv",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Contemplate.mp3",
         forPart: AllPartType
     },
     {
         title: "Within",
         artist: "Enluv",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Within.mp3",
         forPart: AllPartType
     },
     {
         title: "Winterhome",
         artist: "Enluv x tapei",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Winterhome w_ tapei.mp3",
         forPart: AllPartType
     },
     {
         title: "Frozen Over",
         artist: "Enluv x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Frozen Over w_ softy.mp3",
         forPart: AllPartType
     },
     {
         title: "Altitude",
         artist: "Enluv x tysu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Altitude w_ tysu.mp3",
         forPart: AllPartType
     },
     {
         title: "Flying Away",
         artist: "Enluv",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Cloud Studies/Flying Away.mp3",
         forPart: AllPartType
     },
     // "Days of Tomorrow",
     {
         title: "Driving North",
         artist: "M e a d o w x Living Room x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/01 Driving North (21) Master 1.0.mp3",
         forPart: AllPartType
     },
     {
         title: "Empty Streets",
         artist: "M e a d o w x Rudy Raw x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/02 Empty Streets (19) Master 1.0.mp3",
         forPart: AllPartType
     },
     {
         title: "Stargazing",
         artist: "M e a d o w x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/03 Stargazing Master 1.0.mp3",
         forPart: AllPartType
     },
     {
         title: "Time",
         artist: "M e a d o w x Drxnk x Sátyr",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/04 Time (27) Master 1.0.mp3",
         forPart: AllPartType
     },
     {
         title: "Fluid",
         artist: "M e a d o w x Sátyr x Drxnk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/05 Fluid (28) Master 1.1.mp3",
         forPart: AllPartType
     },
     {
         title: "Leaves",
         artist: "M e a d o w x Drxnk x Sátyr",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/06 Leaves (26) Master 1.0.mp3",
         forPart: AllPartType
     },
     {
         title: "Evening",
         artist: "M e a d o w x Otaam",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Days of Tomorrow/07 Evening Stroll Master 1.1.mp3",
         forPart: AllPartType
     },
     // "4 A.M Study Session",
     {
         title: "Snooze Button",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A1- 01 Purrple Cat - Snooze Button (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Parallel",
         artist: "Tom Doolie x lōland",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A2 - 02 Tom Doolie - Parallel feat lōland (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Counting Sheep",
         artist: "jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A3 - 03 jhove - counting sheep (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Bliss",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A4 - 04 Dontcry _ Nokiaa - Bliss (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Above the Clouds",
         artist: "amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A5 - 05 amies - above the clouds (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Sayonara",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/A6 - 06 Tenno - Sayonara (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Im Fine",
         artist: "Kayou",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B1 - 07 Kayou - Im Fine (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Secret Garden",
         artist: "Thaehan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B2 - 08 Thaehan - Secret Garden (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Carry Me",
         artist: "No Spirit",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B3 - 09 No Spirit - Carry Me (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Alaska",
         artist: "lōland x Nokiaa x Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B4 - 10 Loland x Nokiaa x Tom Doolie - Alaska (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Night Walk",
         artist: "l'Outlander x Kanisan",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B5 - 11 L_outlander - Night Walk Ft Kanisan (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Drowsy Town",
         artist: "Miramare x Clément Matrat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/B6 - 12 Miramare _ Clément Matrat - Drowsy Town (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Nemui",
         artist: "lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C1 - 13 lilac - nemui (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Sunsets",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C2 - 14 Yasumu - Sunsets (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Voyager",
         artist: "dryhope",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C3 - 15 Dryhope - Voyager (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Shimmer",
         artist: "sleepermane",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C4 - 16 sleepermane x sling dilly - shimmer (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Night Drive",
         artist: "Ky akasha",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C5 - 17 Ky Akasha - Night Drive (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Drowning",
         artist: "Kanisan x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/C6 - 18 kanisan x hoogway - drowning (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Shimmering Nights",
         artist: "Mondo Loops x Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D1 - 19 Mondo Loops - Shimmering Nights (With Yasumu) (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Everything Went Quiet",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D2 - 20 cxlt - everything went quiet (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Lullaby",
         artist: "Chiccotes Beats x Pueblo Vista",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D3 - 21 Chiccotes Beats x Pueblo Vista - Lullaby (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Imaginary",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D4 - 22 amies _ cxlt - Imaginary (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Patience",
         artist: "Arbour",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D5 - 23 arbour - patience (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Midsummer",
         artist: "Sebastian Kamae",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D6 - 24 Sebastian Kamae - Midsummer (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     {
         title: "Rainbowsend",
         artist: "Living Room",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/4 A.M Study Session/D7 - 25 Living Room - Rainbowsend (Kupla Master) (1).mp3",
         forPart: AllPartType
     },
     // "Pegan Hill",
     {
         title: "Old Cars",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/01 Old Cars.mp3",
         forPart: AllPartType
     },
     {
         title: "The Brook",
         artist: "Kurt Stewart x Lomme x Yutaka Hirasaka",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/02 The Brook (with Yutaka Hirasaka).mp3",
         forPart: AllPartType
     },
     {
         title: "Cope",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/03 Cope.mp3",
         forPart: AllPartType
     },
     {
         title: "The Long Way",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/04 The Long Way.mp3",
         forPart: AllPartType
     },
     {
         title: "Window Seat",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/05 Window Seat.mp3",
         forPart: AllPartType
     },
     {
         title: "Daydreams",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/06 Daydreams.mp3",
         forPart: AllPartType
     },
     {
         title: "Adrift",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/07 Adrift.mp3",
         forPart: AllPartType
     },
     {
         title: "Nightfall",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/08 Nightfall.mp3",
         forPart: AllPartType
     },
     {
         title: "Moonlight",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/09 Moonlight.mp3",
         forPart: AllPartType
     },
     {
         title: "Years Ago",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/10 Years Ago.mp3",
         forPart: AllPartType
     },
     {
         title: "Moments",
         artist: "Kurt Stewart x Lomme",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Pegan Hill/11 Moments.mp3",
         forPart: AllPartType
     },
     // "Ghosts of the Floating World",
     {
         title: "Teahouse Spirits",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/1. Teahouse Spirits.mp3",
         forPart: AllPartType
     },
     {
         title: "Streelight Reverie",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/2. Streetlight Reverie.mp3",
         forPart: AllPartType
     },
     {
         title: "Kami",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/3. Kami.mp3",
         forPart: AllPartType
     },
     {
         title: "One Summer Afternoon",
         artist: "Kalaido ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/4. One Summer Afternoon.mp3",
         forPart: AllPartType
     },
     {
         title: "Power Lines and Pastel Skies",
         artist: "Kalaido x biosphere",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/5. Power Lines and Pastel Skies (w_ biosphere).mp3",
         forPart: AllPartType
     },
     {
         title: "Floating Ghosts",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/6. Floating Ghosts.mp3",
         forPart: AllPartType
     },
     {
         title: "Maboroshi",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/7. Maboroshi.mp3",
         forPart: AllPartType
     },
     {
         title: "Phantoms and Dreams",
         artist: "Kalaido ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/8. Phantoms and Dreams.mp3",
         forPart: AllPartType
     },
     {
         title: "Sleepy Town",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/9. Sleepy Town.mp3",
         forPart: AllPartType
     },
     {
         title: "Houses on Hills",
         artist: "Kalaido x Kennebec",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/10. Houses on Hills (w_ Kennebec).mp3",
         forPart: AllPartType
     },
     {
         title: "Yume",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/11. Yume.mp3",
         forPart: AllPartType
     },
     {
         title: "Ending Theme",
         artist: "Kalaido x aqualina",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/12. Ending Theme (w_ aqualina).mp3",
         forPart: AllPartType
     },
     {
         title: "Night Yokai",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/13. Night Yokai.mp3",
         forPart: AllPartType
     },
     {
         title: "Neon Memories",
         artist: "Kalaido",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Ghost of the Floating World/14. Neon Memories.mp3",
         forPart: AllPartType
     },
     // "Departure",
     {
         title: "Departure",
         artist: "Peak Twilight x S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/1 Departure ft. S N U G (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Ascent",
         artist: "Peak Twilight x Aizyc",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/2 Ascent ft. Ayzic (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Lunar Shores",
         artist: "Peak Twilight x no one’s perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/3 Lunar Shores ft. no one_s perfect (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Magical Connection",
         artist: "Peak Twilight x Prithvi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/4 Magical Connection ft. Prithvi (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Desolation",
         artist: "Peak Twilight x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/5 Desolation ft. mell-o (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Picturesque",
         artist: "Peak Twilight x Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/6 Picturesque ft. Tibeauthetraveler (final master v2).mp3",
         forPart: AllPartType
     },
     {
         title: "Until We Meet Again",
         artist: "Peak Twilight x amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Departure/7 Until We Meet Again ft. amies (final master v2).mp3",
         forPart: AllPartType
     },
     // "love you two",
     {
         title: "My Person",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/1-my person.mp3",
         forPart: AllPartType
     },
     {
         title: "Builder Home",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/2-builder home.mp3",
         forPart: AllPartType
     },
     {
         title: "Cool Winds",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/3-cool winds.mp3",
         forPart: AllPartType
     },
     {
         title: "Their Chair",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/4-their chair.mp3",
         forPart: AllPartType
     },
     {
         title: "Can’t See",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/5-cant see.mp3",
         forPart: AllPartType
     },
     {
         title: "Turn Ways",
         artist: "kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/love you two/6-turn ways.mp3",
         forPart: AllPartType
     },
     // "Mirror of Time",
     {
         title: "Repressed Emotions",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/1 Repressed Emotions.mp3",
         forPart: AllPartType
     },
     {
         title: "Left Behind",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/2 Left Behind.mp3",
         forPart: AllPartType
     },
     {
         title: "Searching for Answers",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/3 Searching For Answers.mp3",
         forPart: AllPartType
     },
     {
         title: "Brighter Days",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/4 Brighter Days.mp3",
         forPart: AllPartType
     },
     {
         title: "A New Beginning",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/5 A New Beginning.mp3",
         forPart: AllPartType
     },
     {
         title: "Flowstate",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/6 Flowstate.mp3",
         forPart: AllPartType
     },
     {
         title: "Petrichor",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/7 Petrichor.mp3",
         forPart: AllPartType
     },
     {
         title: "How We Feel",
-        artist: "Yasumu",
+        artist: "public/audio/lofigirl/Mirror of Time/8 How We Feel.mp3",
         file: "xxxxxxxxxxxx",
         forPart: AllPartType
     },
     {
         title: "Dreamlands",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/9 Dreamlands.mp3",
         forPart: AllPartType
     },
     {
         title: "Mirror of Time",
         artist: "Yasumu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Mirror of Time/10 Mirror of Time.mp3",
         forPart: AllPartType
     },
     // "Golden Hour",
     {
         title: "Dreams We Shared",
         artist: "Fourwalls x jhove x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Golden Hour/1 DREAMS WE SHARED FT TOWERZ.mp3",
         forPart: AllPartType
     },
     {
         title: "Still Shining",
         artist: "Fourwalls x jhove x Skinny Atlas",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Golden Hour/2 STILL SHINING FT SKINNY ATLASwav.mp3",
         forPart: AllPartType
     },
     {
         title: "La Lune",
         artist: "Fourwalls x jhove x allove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Golden Hour/4 LA LUNE FT ALLOVE.mp3",
         forPart: AllPartType
     },
     {
         title: "Pillow Fight",
         artist: "Fourwalls x jhove x nightlight",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Golden Hour/7 PILLOW FIGHT FT NIGHTLIGHT.mp3",
         forPart: AllPartType
     },
     {
         title: "Golden Hour",
         artist: "Fourwalls x jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Golden Hour/8 GOLDEN HOUR.mp3",
         forPart: AllPartType
     },
     // "Somewhere In Time",
     {
         title: "Somewhere In Time",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/01 Somewhere In Time .mp3",
         forPart: AllPartType
     },
     {
         title: "Slow Hours",
         artist: "cxlt. x herman.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/02 Slow Hours (w_ herman.) .mp3",
         forPart: AllPartType
     },
     {
         title: "Above The Quiet City",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/03 Above The Quiet City .mp3",
         forPart: AllPartType
     },
     {
         title: "After The Rain",
         artist: "cxlt. x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/04 After The Rain (w_ Project AER).mp3",
         forPart: AllPartType
     },
     {
         title: "Canvas",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/05 Canvas .mp3",
         forPart: AllPartType
     },
     {
         title: "Reliving",
         artist: "cxlt. x amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/06 Reliving (w_ amies).mp3",
         forPart: AllPartType
     },
     {
         title: "In Between",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/07 In Between .mp3",
         forPart: AllPartType
     },
     {
         title: "Glowing Light",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/08 Glowing Light .mp3",
         forPart: AllPartType
     },
     {
         title: "Blurred",
         artist: "cxlt. x lednem",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/09 Blurred (w_ lednem).mp3",
         forPart: AllPartType
     },
     {
         title: "Home, Now",
         artist: "cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Somewhere in Time/10 Home, Now.mp3",
         forPart: AllPartType
     },
     // "Finding Beauty",
     {
         title: "Midnight Journey",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/1 Midnight Journey.mp3",
         forPart: AllPartType
     },
     {
         title: "Fading Stars",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/2 Fading Stars.mp3",
         forPart: AllPartType
     },
     {
         title: "Wanderer ft. kudo",
         artist: "Kainbeats x kudo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/3 Wanderer x kudo.mp3",
         forPart: AllPartType
     },
     {
         title: "Lonely Path",
         artist: "Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/4 Lonely Path.mp3",
         forPart: AllPartType
     },
     {
         title: "Respite",
         artist: "Kainbeats x Kurt Stewart",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/5 Respite w Kurt Stewart.mp3",
         forPart: AllPartType
     },
     {
         title: "Cirrus Bridge",
         artist: "Kainbeats x no one’s perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/6 Cirrus Bridge x no one_s perfect.mp3",
         forPart: AllPartType
     },
     {
         title: "Cloudy Springs",
         artist: "Kainbeats x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/7 Cloudy Springs x softy.mp3",
         forPart: AllPartType
     },
     {
         title: "Hillside Tree",
         artist: "Kainbeats x S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/8 Hillside Tree x S N U G.mp3",
         forPart: AllPartType
     },
     {
         title: "Glass Spire",
         artist: "Kainbeats x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/9 Glass Spire w towerz.mp3",
         forPart: AllPartType
     },
     {
         title: "Palace in The Sky",
         artist: "Kainbeats x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Finding Beauty/10 Palace in the Sky x cxlt.mp3",
         forPart: AllPartType
     },
     // "Satellite Nights",
     {
         title: "Meteor Shower",
         artist: "drkmnd x Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/1. Meteor Shower ft. Ambulo.mp3",
         forPart: AllPartType
     },
     {
         title: "Satellite Nights",
         artist: "drkmnd",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/2. Satellite Nights.mp3",
         forPart: AllPartType
     },
     {
         title: "Pluto",
         artist: "drkmnd x Allem Iverson",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/3. Pluto ft. allem iversom.mp3",
         forPart: AllPartType
     },
     {
         title: "Jupiter Jam",
         artist: "drkmnd",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/4. Jupiter Jam.mp3",
         forPart: AllPartType
     },
     {
         title: "Signal",
         artist: "drkmnd",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/5. Signal.mp3",
         forPart: AllPartType
     },
     {
         title: "Last Alive",
         artist: "drkmnd",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Satellite Nights/6. Last Alive.mp3",
         forPart: AllPartType
     },
     // "Violet",
     {
         title: "Walk Out",
         artist: "Khutko x Blue Wednesday",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Violet/Khutko - Walk Out [with Blue Wednesday] (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Underbelly",
         artist: "Khutko",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Violet/Khutko - Underbelly (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Chimes",
         artist: "Khutko",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Violet/Khutko - Chimes (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Violet",
         artist: "Khutko",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Violet/Khutko - Violet (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Pillow",
         artist: "Khutko",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Violet/Khutko - Underbelly (Master).mp3",
         forPart: AllPartType
     },
     // "Vanishing Journey",
     {
         title: "Night Drive",
         artist: "Elijah Lee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/1_Night_Drive.mp3",
         forPart: AllPartType
     },
     {
         title: "Birdcage",
         artist: "Elijah Lee x Epona",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/2_Birdcage.mp3",
         forPart: AllPartType
     },
     {
         title: "Trapped in My Mind",
         artist: "Elijah Lee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/3_Trapped_in_My_Mind.mp3",
         forPart: AllPartType
     },
     {
         title: "Calm",
         artist: "Elijah Lee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/4_Calm.mp3",
         forPart: AllPartType
     },
     {
         title: "Introspection",
         artist: "Elijah Lee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/5_Introspection.mp3",
         forPart: AllPartType
     },
     {
         title: "Coming Home",
         artist: "Elijah Lee x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/6_Coming_Home.mp3",
         forPart: AllPartType
     },
     {
         title: "Sigh of Relief",
         artist: "Elijah Lee x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Vanishing Journey/7_Sigh_of_Relief.mp3",
         forPart: AllPartType
     },
     // "High Flying",
     {
         title: "Warm Shimmers",
         artist: "Loafy Building x Project AER",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A1 Warm Shimmers (Project AER) (M2).mp3",
         forPart: AllPartType
     },
     {
         title: "Found Movement",
         artist: "Loafy Building x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A2 Found Movement (Hoogway) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Timeless",
         artist: "Loafy Building x Ayzic",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A3 Timeless (Ayzic) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "High Flying",
         artist: "Loafy Building x Yestalgia",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A4 High Flying (Yestalgia) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Moonglow",
         artist: "Loafy Building x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A6 Moonglow (Mondo) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Max’s Garden",
         artist: "Loafy Building x w00ds",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A7 Max's Garden (w00ds) (M2).mp3",
         forPart: AllPartType
     },
     {
         title: "Sleepless Wonder",
         artist: "Loafy Building x Hoffy Beats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/High Flying/A9 Sleepless Wonder (Hoffy) (M).mp3",
         forPart: AllPartType
     },
     // "Particles",
     {
         title: "Afterglow",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/1. Afterglow.mp3",
         forPart: AllPartType
     },
     {
         title: "Bamboo",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/2. Bamboo.mp3",
         forPart: AllPartType
     },
     {
         title: "Cycles",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/3. Cycles.mp3",
         forPart: AllPartType
     },
     {
         title: "Suntai",
         artist: "Sleepermane x Casiio x Odyssee",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/4. Suntai (ft. Odyssee).mp3",
         forPart: AllPartType
     },
     {
         title: "Maya",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/5. Maya.mp3",
         forPart: AllPartType
     },
     {
         title: "Particles",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/6. Particles.mp3",
         forPart: AllPartType
     },
     {
         title: "Magenta",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/7. Magenta.mp3",
         forPart: AllPartType
     },
     {
         title: "Returnal",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/8. Returnal.mp3",
         forPart: AllPartType
     },
     {
         title: "Distant Blue",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/9. Distant Blue.mp3",
         forPart: AllPartType
     },
     {
         title: "Mockingbird",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/10. Mockingbird.mp3",
         forPart: AllPartType
     },
     {
         title: "Atoms",
         artist: "Sleepermane x Casiio",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Particles/11. Atoms.mp3",
         forPart: AllPartType
     },
     // "Argo",
     {
         title: "Flood",
         artist: "Sátyr x Drxnk",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/01 - Sátyr _ Drxnk - Flood.mp3",
         forPart: AllPartType
     },
     {
         title: "Circle",
         artist: "Sátyr x Phlocalyst x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/02 - Sátyr, Phlocalyst _ mell-ø - Circle.mp3",
         forPart: AllPartType
     },
     {
         title: "Emerald",
         artist: "Sátyr x Phlocalyst x Rudy Raw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/03 - Sátyr, Phlocalyst _ Rudy Raw - Emerald.mp3",
         forPart: AllPartType
     },
     {
         title: "Cicada",
         artist: "Sátyr x Phlocalyst x LESKY",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/04 - Sátyr, Phlocalyst _ LESKY - Cicada.mp3",
         forPart: AllPartType
     },
     {
         title: "Marble",
         artist: "Sátyr x Drxnk x Elior",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/05 - Sátyr, Drxnk _ Elior - Marble.mp3",
         forPart: AllPartType
     },
     {
         title: "Hyacinth",
         artist: "Sátyr x Drxnk x Akīn",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/06 - Sátyr, Drxnk _ Akīn - Hyacinth.mp3",
         forPart: AllPartType
     },
     {
         title: "Lucid Dreamin'",
         artist: "Sátyr x Drxnk x Living Room",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Argo/07 - Sátyr, Drxnk _ Living Room - Lucid Dream.mp3",
         forPart: AllPartType
     },
     // "Floating Dreams",
     {
         title: "Sunday Morning",
         artist: "BVG x møndberg x Spencer Hunt",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/1 - BVG x møndberg - Sunday Morning (ft spencer hunt).mp3",
         forPart: AllPartType
     },
     {
         title: "set sail",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/2 - BVG x møndberg - Set Sail (Shortened).mp3",
         forPart: AllPartType
     },
     {
         title: "Dreams Can Come True",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/3 - BVG x møndberg - Dreams Can Come True (Shortened).mp3",
         forPart: AllPartType
     },
     {
         title: "almost home",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/4 - BVG x møndberg - Almost Home (Shortened).mp3",
         forPart: AllPartType
     },
     {
         title: "Fireplace",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/5 - BVG x møndberg - Fireplace.mp3",
         forPart: AllPartType
     },
     {
         title: "insomnia",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/BVG x møndberg - insomnia.mp3",
         forPart: AllPartType
     },
     {
         title: "after rain",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/BVG x møndberg - after rain.mp3",
         forPart: AllPartType
     },
     {
         title: "The World at Night",
         artist: "BVG x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Floating Dreams/BVG x møndberg - The World At Night (final render).mp3",
         forPart: AllPartType
     },
     // "When I Dreamt of You",
     {
         title: "I Want To See You Smile",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/When I dreamt of You/1. I want to see you smile.mp3",
         forPart: AllPartType
     },
     {
         title: "Perfume",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/When I dreamt of You/2. perfume.mp3",
         forPart: AllPartType
     },
     {
         title: "When I Dreamt of You",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/When I dreamt of You/3. when i dreamt of you.mp3",
         forPart: AllPartType
     },
     {
         title: "Dearest",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/When I dreamt of You/4. dearest.mp3",
         forPart: AllPartType
     },
     {
         title: "Dry Your Eyes",
         artist: "Lilac",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/When I dreamt of You/5. dry your eyes.mp3",
         forPart: AllPartType
     },
     // "The Story",
     {
         title: "Wishing Well",
         artist: "Kaspa. x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Story/1. Kaspa. x softy - Wishing Well .mp3",
         forPart: AllPartType
     },
     {
         title: "Holding On",
         artist: "Kaspa. x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Story/2. Kaspa. x softy - Holding On .mp3",
         forPart: AllPartType
     },
     {
         title: "Star Trails",
         artist: "Kaspa. x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Story/3. Kaspa. x Mondo Loops - Star Trail .mp3",
         forPart: AllPartType
     },
     {
         title: "English Rain",
         artist: "Kaspa. x Pointy Features",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Story/4. Kaspa. x Pointy Features - English Rain .mp3",
         forPart: AllPartType
     },
     {
         title: "Mull Over",
         artist: "Kaspa. x eaup",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/The Story/5. Kaspa. x Eaup - Mull Over .mp3",
         forPart: AllPartType
     },
     // "Beauty In All Forms",
     {
         title: "Beauty In All Forms",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/1. Beauty In All Forms.mp3",
         forPart: AllPartType
     },
     {
         title: "Stay Here",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/2. Stay Here.mp3",
         forPart: AllPartType
     },
     {
         title: "Forever More",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/3. Forever More.mp3",
         forPart: AllPartType
     },
     {
         title: "Lovely",
         artist: "Hoogway x High On Stars",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/4. Lovely x High On Stars.mp3",
         forPart: AllPartType
     },
     {
         title: "Earl Grey",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/5. Earl Grey.mp3",
         forPart: AllPartType
     },
     {
         title: "Soft Garden",
         artist: "Hoogway x Softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/6. Soft Gardens x Softy.mp3",
         forPart: AllPartType
     },
     {
         title: "Days Like This",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/7. Days Like This.mp3",
         forPart: AllPartType
     },
     {
         title: "Through Your Eyes",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/8. Through Your Eyes.mp3",
         forPart: AllPartType
     },
     {
         title: "Rivage",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/9. Rivage.mp3",
         forPart: AllPartType
     },
     {
         title: "Heading North",
         artist: "Hoogway x DLJ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/10. Heading North x DLJ.mp3",
         forPart: AllPartType
     },
     {
         title: "Etoiles",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/11. Etoiles.mp3",
         forPart: AllPartType
     },
     {
         title: "Healing",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/12. Healing.mp3",
         forPart: AllPartType
     },
     {
         title: "All In The Stars",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/13. All In The Stars.mp3",
         forPart: AllPartType
     },
     {
         title: "Miles Away",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/14. Miles Away.mp3",
         forPart: AllPartType
     },
     {
         title: "For The Roses",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/15. For The Roses.mp3",
         forPart: AllPartType
     },
     {
         title: "Outside For A While",
         artist: "Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Beauty in all Forms/16. Outside For A While.mp3",
         forPart: AllPartType
     },
     // "Daydreaming",
     {
         title: "Cabin In The Forest",
         artist: "Xander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Cabin In A Forest.mp3",
         forPart: AllPartType
     },
     {
         title: "Leaves",
         artist: "Xander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Leaves.mp3",
         forPart: AllPartType
     },
     {
         title: "Love Stories",
         artist: "Xander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Love Stories.mp3",
         forPart: AllPartType
     },
     {
         title: "Lodge",
         artist: "Xander x Chris Mazuera",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Lodge w_Chris Mazuera.mp3",
         forPart: AllPartType
     },
     {
         title: "Somber",
         artist: "Xander x Philip Somber",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Gloomy w_Philip Somber.mp3",
         forPart: AllPartType
     },
     {
         title: "Love Is Still Here",
         artist: "Xander x Carrick",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Love Is Still Here w_Carrick.mp3",
         forPart: AllPartType
     },
     {
         title: "Summer Love",
         artist: "Xander x Carrick",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Summer Love w_Carrick.mp3",
         forPart: AllPartType
     },
     {
         title: "Dreaming",
         artist: "Xander x Philip Somber",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Dreaming w_Philip Somber.mp3",
         forPart: AllPartType
     },
     {
         title: "Something Between Us",
         artist: "Xander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Something Between Us.mp3",
         forPart: AllPartType
     },
     {
         title: "Warm Summer",
         artist: "Xander x Philip Somber",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Warm summer w_Philip Somber.mp3",
         forPart: AllPartType
     },
     {
         title: "Miss What We Had",
         artist: "Xander x Goosetaf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Daydreaming/Miss What We Had w_goosetaf.mp3",
         forPart: AllPartType
     },
     // "beyond the pines",
     {
         title: "letting go",
         artist: "steezy prime",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/1. steezy prime - letting go.mp3",
         forPart: AllPartType
     },
     {
         title: "haven",
         artist: "steezy prime",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/2. steezy prime - haven.mp3",
         forPart: AllPartType
     },
     {
         title: "sanctuary",
         artist: "steezy prime",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/3. steezy prime - sanctuary.mp3",
         forPart: AllPartType
     },
     {
         title: "campfire",
         artist: "steezy prime x Devon Rea",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/4. steezy prime - campfire (w_ devon rea).mp3",
         forPart: AllPartType
     },
     {
         title: "youth",
         artist: "steezy prime x Ayzic",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/5. steezy prime - youth (w_ ayzic).mp3",
         forPart: AllPartType
     },
     {
         title: "beluga",
         artist: "steezy prime x tender spring",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/6. steezy prime - beluga (w_ tender spring).mp3",
         forPart: AllPartType
     },
     {
         title: "canopy",
         artist: "steezy prime x no one's perfect",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/7. steezy prime - canopy (w_ no one_s perfect).mp3",
         forPart: AllPartType
     },
     {
         title: "promises",
         artist: "steezy prime x Tibeauthetraveler",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/beyond the pines/8. steezy prime - promises (w_ tibeauthetraveler).mp3",
         forPart: AllPartType
     },
     // "Reflections in the moonlight",
     {
         title: "Starry night",
         artist: "eugenio izzi x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Reflections in the moonlight/1. Starry night (feat. Mondo Loops).mp3",
         forPart: AllPartType
     },
     {
         title: "A fresh breath",
         artist: "eugenio izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Reflections in the moonlight/2. A fresh breath.mp3",
         forPart: AllPartType
     },
     {
         title: "Lethargy",
         artist: "eugenio izzi x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Reflections in the moonlight/3. Lethargy (feat. Hoogway).mp3",
         forPart: AllPartType
     },
     {
         title: "Like a serendipity",
         artist: "eugenio izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Reflections in the moonlight/4. Like a serendipity.mp3",
         forPart: AllPartType
     },
     {
         title: "The autumn sea",
         artist: "eugenio izzi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Reflections in the moonlight/5. The autumn sea.mp3",
         forPart: AllPartType
     },
     // "Purple Skies",
     {
         title: "Fading Mist",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/fading mist.mp3",
         forPart: AllPartType
     },
     {
         title: "Evenings",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/evenings.mp3",
         forPart: AllPartType
     },
     {
         title: "Purple Skies",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/purple skies.mp3",
         forPart: AllPartType
     },
     {
         title: "Dusk",
         artist: "S N U G x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/dusk ft. mondo loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Findings",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/findings.mp3",
         forPart: AllPartType
     },
     {
         title: "New Beginnings",
         artist: "S N U G x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/new beginnings ft. mondo loops.mp3",
         forPart: AllPartType
     },
     {
         title: "Haze",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/haze.mp3",
         forPart: AllPartType
     },
     {
         title: "Another Era",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/another era.mp3",
         forPart: AllPartType
     },
     {
         title: "Illusion",
         artist: "S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/illusion.mp3",
         forPart: AllPartType
     },
     {
         title: "Late Return",
         artist: "S N U G x Jordy Chandra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/Purple Skies/late return ft. Jordy Chandra.mp3",
         forPart: AllPartType
     },
     // "Sleep Cycles EP",
@@ -8117,734 +8117,734 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: "Massa",
         artist: "l’Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - L'outlander - Massa/1.Massa.mp3",
         forPart: AllPartType
     },
     {
         title: "Goshen",
         artist: "l’Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - L'outlander - Massa/2.Goshen.mp3",
         forPart: AllPartType
     },
     {
         title: "Desert Night",
         artist: "l’Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - L'outlander - Massa/3.Desert Night.mp3",
         forPart: AllPartType
     },
     {
         title: "To The Euphrates",
         artist: "l’Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - L'outlander - Massa/4.To The Euphrates.mp3",
         forPart: AllPartType
     },
     {
         title: "The Silk Road",
         artist: "l’Outlander",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - L'outlander - Massa/5.The Silk Road.mp3",
         forPart: AllPartType
     },
     // "Perspectives",
     {
         title: "Seashore",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Seashore - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Can't Stay",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Can't Stay - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Cold Water",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Cold Water - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "On My Own",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/On my Own - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Another Life",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Another Life - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Mist",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Mist - (Master).mp3",
         forPart: AllPartType
     },
     {
         title: "Circles",
         artist: "Dontcry x Nokiaa",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3-Dontcry x Nokiaa - Perspectives/Circles - (Master).mp3",
         forPart: AllPartType
     },
     // "Adventure Island",
     {
         title: "Where We Take Us",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Where the Waves Take Us.mp3",
         forPart: AllPartType
     },
     {
         title: "Time Stands Still",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Time Stands Still.mp3",
         forPart: AllPartType
     },
     {
         title: "Breathtaking",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Breathtaking.mp3",
         forPart: AllPartType
     },
     {
         title: "Ferris Wheel",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Ferris Wheel.mp3",
         forPart: AllPartType
     },
     {
         title: "Shipwreck Cove",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Shipwreck Cove.mp3",
         forPart: AllPartType
     },
     {
         title: "Lost Treasure",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Lost Treasure.mp3",
         forPart: AllPartType
     },
     {
         title: "Rainbow Falls",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Rainbow Falls.mp3",
         forPart: AllPartType
     },
     {
         title: "Storm Clouds",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Storm Clouds.mp3",
         forPart: AllPartType
     },
     {
         title: "Puddle Jumping",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Puddle Jumping.mp3",
         forPart: AllPartType
     },
     {
         title: "Mysterious Lights",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Mysterious Lights.mp3",
         forPart: AllPartType
     },
     {
         title: "Around the Campfire",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Around the Campfire.mp3",
         forPart: AllPartType
     },
     {
         title: "S’mores",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/S'mores.mp3",
         forPart: AllPartType
     },
     {
         title: "Wanted",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Wanted.mp3",
         forPart: AllPartType
     },
     {
         title: "Journey’s End",
         artist: "Purrple Cat",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Purrple Cat - Adventure Island/Journey's End.mp3",
         forPart: AllPartType
     },
     // "offline",
     {
         title: "breezehome",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/1. breezehome.mp3",
         forPart: AllPartType
     },
     {
         title: "getting better",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/2. getting better.mp3",
         forPart: AllPartType
     },
     {
         title: "oregon",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/3. oregon.mp3",
         forPart: AllPartType
     },
     {
         title: "cheat codes",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/4. cheat codes.mp3",
         forPart: AllPartType
     },
     {
         title: "sincerely",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/5. sincerely.mp3",
         forPart: AllPartType
     },
     {
         title: "apart",
         artist: "Bert x møndberg",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/6. apart ft. møndberg.mp3",
         forPart: AllPartType
     },
     {
         title: "soul gem",
         artist: "Bert",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/7. soul gem.mp3",
         forPart: AllPartType
     },
     {
         title: "two moons",
         artist: "Bert x Trxxshed",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/8. two moons ft. txxshed.mp3",
         forPart: AllPartType
     },
     {
         title: "fuji",
         artist: "Bert x Jhove",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Bert - offline/9. fuji ft.jhove.mp3",
         forPart: AllPartType
     },
     // "The Shallows",
     {
         title: "the shallows",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - the shallows (master).mp3",
         forPart: AllPartType
     },
     {
         title: "companion",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - companion (master).mp3",
         forPart: AllPartType
     },
     {
         title: "extend",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - extend (master).mp3",
         forPart: AllPartType
     },
     {
         title: "undertones",
         artist: "hi jude x Towerz x edelwize",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz ft. edelwize - undertones (master).mp3",
         forPart: AllPartType
     },
     {
         title: "distant places",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - distant places (master).mp3",
         forPart: AllPartType
     },
     {
         title: "oath",
         artist: "hi jude x Towerz x Xandra",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz ft. xandra - oath (master).mp3",
         forPart: AllPartType
     },
     {
         title: "close to home",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - close to home (master).mp3",
         forPart: AllPartType
     },
     {
         title: "lakeside",
         artist: "hi jude x Towerz",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - hi jude x towerz - the shallows/hi jude & towerz - lakeside (master).mp3",
         forPart: AllPartType
     },
     // "The Bad Party",
     {
         title: "The Bad Party",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/1) The Bad Party (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "Trampoline",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/2) Trampoline (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "Numb",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/3) Numb (mastered) .mp3",
         forPart: AllPartType
     },
     {
         title: "By The Pool",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/4) By The Pool (mastered) .mp3",
         forPart: AllPartType
     },
     {
         title: "Her",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/5) Her (mastered) .mp3",
         forPart: AllPartType
     },
     {
         title: "Rehash",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/6) Rehash (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "Sleeping On A Chair",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/7) Sleeping On A Chair (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "Unspoken",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/8) Unspoken (mastered).mp3",
         forPart: AllPartType
     },
     {
         title: "Constant Fear",
         artist: "WYS",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - WYS - The Bad Party/9) Constant Fear (mastered).mp3",
         forPart: AllPartType
     },
     // "Time Capsule",
     {
         title: "Endless Seas",
         artist: "DLJ x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x Hoogway - Endless Seas.mp3",
         forPart: AllPartType
     },
     {
         title: "To the Moon",
         artist: "DLJ x BIDØ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x BIDO - To the Moon.mp3",
         forPart: AllPartType
     },
     {
         title: "Thousands of Dots",
         artist: "DLJ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ - Thousands of Dots.mp3",
         forPart: AllPartType
     },
     {
         title: "Souvenir",
         artist: "DLJ x Nymano",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x Nymano - Souvenir.mp3",
         forPart: AllPartType
     },
     {
         title: "Sand City",
         artist: "DLJ",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ - Sand City.mp3",
         forPart: AllPartType
     },
     {
         title: "Moving Parts",
         artist: "DLJ x Dosi",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x Dosi - Moving Parts.mp3",
         forPart: AllPartType
     },
     {
         title: "Far Away",
         artist: "DLJ x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x Hoogway - Far Away.mp3",
         forPart: AllPartType
     },
     {
         title: "Same Thoughts",
         artist: "DLJ x Tah.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x Tah. Same Thoughts.mp3",
         forPart: AllPartType
     },
     {
         title: "Lost Stars",
         artist: "DLJ x TABAL",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DLJ - Time Capsule/DLJ x TABAL - Lost Stars.mp3",
         forPart: AllPartType
     },
     // "Nocturne",
     {
         title: "Nocturne",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/1. Nocturne.mp3",
         forPart: AllPartType
     },
     {
         title: "Nighttide",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/2. Nighttide.mp3",
         forPart: AllPartType
     },
     {
         title: "Lost In Thoughts",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/3. Lost In Thought.mp3",
         forPart: AllPartType
     },
     {
         title: "Blue Moon",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/4. Blue Moon.mp3",
         forPart: AllPartType
     },
     {
         title: "Into The Void",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/5. Into The Void.mp3",
         forPart: AllPartType
     },
     {
         title: "Fireflies",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/6. Fireflies.mp3",
         forPart: AllPartType
     },
     {
         title: "Echoes In Time",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/7. Echoes In Time.mp3",
         forPart: AllPartType
     },
     {
         title: "Eden",
         artist: "amies x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Amies x cxlt. - Nocturne/8. Eden.mp3",
         forPart: AllPartType
     },
     // "Sea Beams",
     {
         title: "Escapade",
         artist: "Kinissue x Hoffy Beats x Ambulo",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Kinissue & Hoffy Beats & Ambulo - Escapade (M) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Shore",
         artist: "Kinissue x cxlt. x softy",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Shore-Feat. Cxlt, Softy.mp3",
         forPart: AllPartType
     },
     {
         title: "Sea Beams",
         artist: "Kinissue x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Kinissue & Banks - SeaBeams (M) 2.mp3",
         forPart: AllPartType
     },
     {
         title: "Amorous",
         artist: "Kinissue x steezy prime",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Kinissue & steezy prime - Amorous (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Cascade",
         artist: "Kinissue x Ayzic",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Kinissue & Ayzic - Cascade (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Shipwreck",
         artist: "Kinissue x Pointy Features",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Kinissue - Sea Beams/Kinissue & Pointy Features - Shipwreck (M) 2.mp3",
         forPart: AllPartType
     },
     // "Imagenero",
     {
         title: "Warm Atmos",
         artist: "Rudy Raw x HM Surf",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/01 Warm Atmos ft. HM Surf.mp3",
         forPart: AllPartType
     },
     {
         title: "Golden Clouds",
         artist: "Rudy Raw x mell-ø",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/02 Golden Clouds ft. Mellø.mp3",
         forPart: AllPartType
     },
     {
         title: "Liquid Spots",
         artist: "Rudy Raw x Sátyr x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/03 Liquid Spots ft. Sátyr & Phlocalyst.mp3",
         forPart: AllPartType
     },
     {
         title: "Cosmic Nights",
         artist: "Rudy Raw x Phlocalyst",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/04 Cosmic Nights ft. Phlocalyst.mp3",
         forPart: AllPartType
     },
     {
         title: "Peaceful Fusion",
         artist: "Rudy Raw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/05 Peaceful Fusion.mp3",
         forPart: AllPartType
     },
     {
         title: "Space Magnet",
         artist: "Rudy Raw x Tom Doolie",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/06 Space Magnet ft. Tom Doolie.mp3",
         forPart: AllPartType
     },
     {
         title: "Acoustic Dreams",
         artist: "Rudy Raw",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Rudy Raw - Imagenero/07 Acoustic Dreams.mp3",
         forPart: AllPartType
     },
     // "Shelter",
     {
         title: "Leicester Square",
         artist: "Loafy Building x Socrab x ticofaces",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/1. Leicester Square (feat. Socrab & ticofaces) (M2).mp3",
         forPart: AllPartType
     },
     {
         title: "Reflecting",
         artist: "Loafy Building x Hoogway",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/2. Reflecting (feat. Hoogway) (M3).mp3",
         forPart: AllPartType
     },
     {
         title: "Busyland",
         artist: "Loafy Building x Tibeauthetraveler x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/3. Busyland (feat. Tibeauthetraveler & Mondo Loops) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Floods of Calm",
         artist: "Loafy Building x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/4. Floods of Calm (feat. Mondo Loops).mp3",
         forPart: AllPartType
     },
     {
         title: "Navy Skies",
         artist: "Loafy Building x Ayzic",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/5. Navy Skies (feat. Ayzic).mp3",
         forPart: AllPartType
     },
     {
         title: "Shelter",
         artist: "Loafy Building x w00ds",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/6. Shelter (feat. w00ds) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "Camden to Chinatown",
         artist: "Loafy Building x Raimu",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/7. Camden to Chinatown (feat. Raimu).mp3",
         forPart: AllPartType
     },
     {
         title: "Somewhere",
         artist: "Loafy Building x Mondo Loops",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/8. Somewhere (feat. Mondo Loops) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "True Colours",
         artist: " Loafy Building x ticofaces x Socrab",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/9. True Colours (feat. ticofaces & Socrab) (M).mp3",
         forPart: AllPartType
     },
     {
         title: "My Happy Place",
         artist: "Loafy Building x Kainbeats",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Loafy Building - Shelter/10. My Happy Place (feat. Kainbeats) (M).mp3",
         forPart: AllPartType
     },
     // "A place above heaven",
     {
         title: "Safest place on earth",
         artist: "aMess x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Safest place on earth.mp3",
         forPart: AllPartType
     },
     {
         title: "Final moments",
         artist: "aMess x kokoro",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Final moments.mp3",
         forPart: AllPartType
     },
     {
         title: "Field of flowers",
         artist: "aMess x S N U G",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Field of Flowers.mp3",
         forPart: AllPartType
     },
     {
         title: "I’ll be here in the morning",
         artist: "aMess",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/I'll be here in the morning .mp3",
         forPart: AllPartType
     },
     {
         title: "Dependency",
         artist: "aMess",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Dependancy .mp3",
         forPart: AllPartType
     },
     {
         title: "Friday nights",
         artist: "aMess x amies",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Friday Nights.mp3",
         forPart: AllPartType
     },
     {
         title: "Midnight walk",
         artist: "aMess x cxlt.",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Midnight walk.mp3",
         forPart: AllPartType
     },
     {
         title: "Your cozy home",
         artist: "aMess",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Your cozy home.mp3",
         forPart: AllPartType
     },
     {
         title: "Endless",
         artist: "aMess x Bcalm x Banks",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - aMess - A place above heaven/Endless.mp3",
         forPart: AllPartType
     },
     // "The Inner Light",
     {
         title: "Pure Soul",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Pure Soul.mp3",
         forPart: AllPartType
     },
     {
         title: "Between Worlds",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Between Worlds.mp3",
         forPart: AllPartType
     },
     {
         title: "Imaginary",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Imaginary.mp3",
         forPart: AllPartType
     },
     {
         title: "Komorebi",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Komorebi.mp3",
         forPart: AllPartType
     },
     {
         title: "Overgrown",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Overgrown.mp3",
         forPart: AllPartType
     },
     {
         title: "Healing River",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Healing River.mp3",
         forPart: AllPartType
     },
     {
         title: "Bittersweet Sorrow",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Bittersweet Sorrow.mp3",
         forPart: AllPartType
     },
     {
         title: "Butterfly Lullaby",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Butterfly Lullaby.mp3",
         forPart: AllPartType
     },
     {
         title: "Warm Sleep",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Warm Sleep.mp3",
         forPart: AllPartType
     },
     {
         title: "Light",
         artist: "Tenno",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - Tenno - The Inner Light/Light.mp3",
         forPart: AllPartType
     },
     // "Enchantments",
     {
         title: "Aisuru",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Aisuru.mp3",
         forPart: AllPartType
     },
     {
         title: "Evening Rain",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Evening Rain.mp3",
         forPart: AllPartType
     },
     {
         title: "Heart of Sakura",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Heart of Sakura.mp3",
         forPart: AllPartType
     },
     {
         title: "The Secret Road",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/The Secret Road.mp3",
         forPart: AllPartType
     },
     {
         title: "Pure Dream",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Pure Dream.mp3",
         forPart: AllPartType
     },
     {
         title: "Allure",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Allure.mp3",
         forPart: AllPartType
     },
     {
         title: "Quiet Whisper",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Quite Whisper.mp3",
         forPart: AllPartType
     },
     {
         title: "A While Ago",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/A While Ago.mp3",
         forPart: AllPartType
     },
     {
         title: "Place I’ve Never Been Before",
         artist: "DaniSogen",
-        file: "xxxxxxxxxxxx",
+        file: "public/audio/lofigirl/MP3 - DaniSogen - Enchantments/Place I've never been before.mp3",
         forPart: AllPartType
     },
     // "Shifting Past",
