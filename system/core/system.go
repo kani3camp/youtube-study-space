@@ -412,77 +412,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 	}
-
-	// すでに入室している場合
-	isInRoom, err := s.IsUserInRoom(ctx)
-	if err != nil {
-		_ = s.LineBot.SendMessageWithError("failed s.IsUserInRoom()", err)
-		return err
-	}
-	if isInRoom {
-		// todo 判断
-		// !inの場合: 席はそのまま、workのみチェック
-		if command.CommandType == In {
-			if command.InOptions.WorkName != "" {
-				// 作業名を書きかえ
-				err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
-				if err != nil {
-					_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-					return err
-				}
-			}
-			currentSeatId, err := s.CurrentSeatId(ctx)
-			if err.IsNotNil() {
-				_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", err.Body)
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
-				return err.Body
-			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに入室しています（" + strconv.Itoa(currentSeatId) + "番席）。", ctx)
-		} else if command.CommandType == SeatIn {
-			currentSeatId, err := s.CurrentSeatId(ctx)
-			if err.IsNotNil() {
-				_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", err.Body)
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
-				return err.Body
-			}
-			
-			if command.InOptions.SeatId == currentSeatId {
-				// 今と同じ席番号の場合: 席はそのまま、workのみチェック
-				if command.InOptions.WorkName != "" {
-					// 作業名を書きかえ
-					err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
-					if err != nil {
-						_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
-						s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-							"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-						return err
-					}
-				}
-			} else {
-				// 今と別の席番号の場合: 退室させてから、入室させる。workは指定がない場合引き継ぐ。
-				currentSeat, err := s.CurrentSeat(ctx)
-				if err.IsNotNil() {
-					_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", err.Body)
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
-					return err.Body
-				}
-				if command.InOptions.WorkName == "" && currentSeat.WorkName != "" {
-					command.InOptions.WorkName = currentSeat.WorkName
-				}
-				
-				// 退室
-				// TODO
-				
-				// 入室
-				// TODO
-				
-			}
-		}
-		return nil
-	}
-
+	
 	// 席を指定している場合
 	if command.CommandType == SeatIn {
 		// 指定された座席番号が有効かチェック
@@ -517,8 +447,84 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			}
 		}
 	}
+	
+	// すでに入室している場合
+	isInRoom, err := s.IsUserInRoom(ctx)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed s.IsUserInRoom()", err)
+		return err
+	}
+	if isInRoom {
+		if command.CommandType == In {	// !inの場合: 席はそのまま、workのみチェック
+			currentSeatId, err := s.CurrentSeatId(ctx)
+			if err.IsNotNil() {
+				_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", err.Body)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+				return err.Body
+			}
+			
+			if command.InOptions.WorkName != "" {
+				// 作業名を書きかえ
+				err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
+				if err != nil {
+					_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
+					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					return err
+				}
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（" + strconv.Itoa(currentSeatId) + "番席）。", ctx)
+			} else {
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに入室しています（" + strconv.Itoa(currentSeatId) + "番席）。", ctx)
+			}
+			return nil
+		} else if command.CommandType == SeatIn {
+			currentSeat, customErr := s.CurrentSeat(ctx)
+			if customErr.IsNotNil() {
+				_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", customErr.Body)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+				return customErr.Body
+			}
+			
+			if command.InOptions.SeatId == currentSeat.SeatId {	// 今と同じ席番号の場合
+				// 席はそのまま、workのみチェック
+				if command.InOptions.WorkName != "" {
+					// 作業名を書きかえ
+					err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
+					if err != nil {
+						_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
+						s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+							"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+						return err
+					}
+					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を変更しました。", ctx)
+				}
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんはすでに" +
+					strconv.Itoa(currentSeat.SeatId) + "番の席に座っています。", ctx)
+				return nil
+			} else {
+				// 今と別の席番号の場合: 指定した座席に座れるか確認し、退室させてから、入室させる。workは指定がない場合引き継ぐ。
+				if command.InOptions.WorkName == "" && currentSeat.WorkName != "" {
+					command.InOptions.WorkName = currentSeat.WorkName
+				}
+				
+				// 退室処理
+				workedTimeSec, err := s.ExitRoom(currentSeat.SeatId, ctx)
+				if err != nil {
+					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					return err
+				}
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが席を移動します🚶（" +
+					strconv.Itoa(currentSeat.SeatId) + "→" + strconv.Itoa(command.InOptions.SeatId) +"番席）"+
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+				
+				// 入室処理: このまま次の処理に進む
+			}
+		}
+	}
+	
+	// ここまで来ると入室処理は確定
 
-	// 席を指定していない場合
+	// 席を指定していない場合: 空いている席の番号をランダムに決定
 	if command.CommandType == In {
 		seatId, err := s.RandomAvailableSeatId(ctx)
 		if err != nil {
@@ -608,7 +614,7 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 		return err
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
-			"（"+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+			"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 		return nil
 	}
 }
@@ -707,6 +713,12 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、入室中のみ使えるコマンドです。", ctx)
 		return nil
 	}
+	currentSeatId, customErr := s.CurrentSeatId(ctx)
+	if customErr.IsNotNil() {
+		_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", customErr.Body)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+		return customErr.Body
+	}
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.ChangeOptions) == 0 {
@@ -726,7 +738,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			}
 		}
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんの作業名を更新しました。", ctx)
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんの作業名を更新しました（" + strconv.Itoa(currentSeatId) + "番席）。", ctx)
 	return nil
 }
 

@@ -307,6 +307,7 @@ func (bot *YoutubeLiveChatBot) RefreshBotAccessToken(ctx context.Context) error 
 }
 
 func (bot *YoutubeLiveChatBot) _RefreshAccessToken(clientId string, clientSecret string, refreshToken string, ctx context.Context) (string, time.Time, error) {
+	log.Println("_RefreshAccessToken()")
 	youtubeLiveConfig, err := bot.FirestoreController.RetrieveYoutubeLiveConfig(ctx)
 	if err != nil {
 		return "", time.Time{}, err
