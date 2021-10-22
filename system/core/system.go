@@ -173,8 +173,10 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			return CommandDetails{
 				CommandType: InvalidCommand,
 				InOptions:   InOptions{},
-			}, customerror.NewNil() // TODO: エラーにしたほうがいいかな？
+			}, customerror.NewNil()
 		}
+	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
+		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください!")
 	}
 	return CommandDetails{
 		CommandType: NotCommand,
