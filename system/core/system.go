@@ -478,7 +478,7 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 	// 現在座っている席を特定
 	seatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.Body != nil {
-		if customErr.ErrorType == customerror.UserNotInAnyRoom { // おそらくここには到達しない
+		if customErr.ErrorType == customerror.UserNotInAnyRoom { // TODO: おそらくここには到達しない
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 				"さん、あなたは今ルーム内にはいません。", ctx)
 			return nil
