@@ -1134,7 +1134,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				return err
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
-					"（"+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 				return nil
 			}
 		}
