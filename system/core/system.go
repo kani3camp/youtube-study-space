@@ -858,39 +858,46 @@ func (s *System) IfUserRegistered(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// TotalStudyTimeStrings リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
 func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, error) {
+	// 入室中ならばリアルタイムの作業時間も加算する
+	realtimeDuration := time.Duration(0)
+	realtimeDailyDuration := time.Duration(0)
+	if isInRoom, _ := s.IsUserInRoom(ctx); isInRoom {
+		// 作業時間を計算
+		jstNow := utils.JstNow()
+		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+		if err != nil {
+			return "", "", err
+		}
+		workedTimeSec := int(jstNow.Sub(userData.LastEntered).Seconds())
+		realtimeDuration = time.Duration(workedTimeSec) * time.Second
+		
+		var dailyWorkedTimeSec int
+		if workedTimeSec > utils.InSeconds(jstNow) {
+			dailyWorkedTimeSec = utils.InSeconds(jstNow)
+		} else {
+			dailyWorkedTimeSec = workedTimeSec
+		}
+		realtimeDailyDuration = time.Duration(dailyWorkedTimeSec) * time.Second
+	}
+	
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
 		return "", "", err
 	}
 	// 累計
 	var totalStr string
-	totalDuration := time.Duration(userData.TotalStudySec) * time.Second
+	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec) * time.Second
 	if totalDuration < time.Hour {
 		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
 	} else {
 		totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
 			strconv.Itoa(int(totalDuration.Minutes())%60) + "分"
 	}
-	// 当日のリアルタイム累計
+	// 当日の累計
 	var dailyTotalStr string
-	dailyTotalDuration := time.Duration(userData.DailyTotalStudySec) * time.Second
-	if isInRoom, _ := s.IsUserInRoom(ctx); isInRoom {
-		// 作業時間を計算
-		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
-		if err != nil {
-			return "", "", err
-		}
-		workedTimeSec := int(utils.JstNow().Sub(userData.LastEntered).Seconds())
-		var dailyWorkedTimeSec int
-		jstNow := utils.JstNow()
-		if workedTimeSec > utils.InSeconds(jstNow) {
-			dailyWorkedTimeSec = utils.InSeconds(jstNow)
-		} else {
-			dailyWorkedTimeSec = workedTimeSec
-		}
-		dailyTotalDuration += time.Duration(dailyWorkedTimeSec) * time.Second
-	}
+	dailyTotalDuration := realtimeDailyDuration + time.Duration(userData.DailyTotalStudySec) * time.Second
 	if dailyTotalDuration < time.Hour {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
 	} else {
