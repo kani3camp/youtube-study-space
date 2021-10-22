@@ -21,6 +21,7 @@ const (
 	OutProcessFailed
 	InfoProcessFailed
 	MyProcessFailed
+	ChangeProcessFailed
 )
 
 type CustomError struct {
