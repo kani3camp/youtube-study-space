@@ -10,6 +10,7 @@ const (
 	ExitAction  = "exit"
 
 	CommandPrefix = "!"
+	WrongCommandPrefix = "！"
 
 	InCommand   = "!in"
 	OutCommand  = "!out"
