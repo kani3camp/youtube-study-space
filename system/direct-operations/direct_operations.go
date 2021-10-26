@@ -45,6 +45,26 @@ func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) 
 	_system.SendLiveChatMessage("全ユーザーを退室させました。", ctx)
 }
 
+func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
+	_system, err := core.NewSystem(ctx, clientOption)
+	if err != nil {
+		panic(err)
+		return
+	}
+	
+	_system.SetProcessedUser(userId, "**")
+	outCommandDetails := core.CommandDetails{
+		CommandType:   core.Out,
+		InOptions: core.InOptions{},
+	}
+	
+	err = _system.Out(outCommandDetails, ctx)
+	if err != nil {
+		panic(err)
+		return
+	}
+}
+
 func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
