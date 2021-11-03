@@ -12,8 +12,8 @@ app-engine/.DS_Store
 app-engine/.gcloudignore
 system/app.modules.exe
 system/main.exe
+system/main
 system/.env
 system/aws-lambda/main
 system/aws-lambda/main.zip
 
-system/main.exe
