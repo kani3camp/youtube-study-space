@@ -132,8 +132,6 @@ func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string, ctx context.Co
 
 func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) error {
 	log.Println("sending a message to Youtube Live \"" + message + "\"")
-	// todo 送れなかった場合はlineで通知
-	// first call
 	part := []string{"snippet"}
 	liveChatMessage := youtube.LiveChatMessage{
 		Snippet:         &youtube.LiveChatMessageSnippet{
@@ -147,14 +145,32 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	}
 	liveChatMessageService := youtube.NewLiveChatMessagesService(bot.BotYoutubeService)
 	insertCall := liveChatMessageService.Insert(part, &liveChatMessage)
+	
+	// first call
 	_, err := insertCall.Do()
 	if err != nil {
 		log.Println("first post was failed")
-		// post2
-		err := bot.RefreshLiveChatId(ctx)
+		
+		// bot credentialのaccess tokenが期限切れの可能性
+		botCredentialConfig, err := bot.FirestoreController.RetrieveYoutubeBotCredentialConfig(ctx)
 		if err != nil {
 			return err
 		}
+		if botCredentialConfig.ExpirationDate.Before(utils.JstNow()) {
+			// access tokenが期限切れのため、更新する
+			err := bot.RefreshBotAccessToken(ctx)
+			if err != nil {
+				return err
+			}
+		} else {
+			// live chat idが変わっている可能性があるため、更新して再試行
+			err := bot.RefreshLiveChatId(ctx)
+			if err != nil {
+				return err
+			}
+		}
+		
+		// second call
 		liveChatMessage.Snippet.LiveChatId = bot.LiveChatId
 		liveChatMessageService = youtube.NewLiveChatMessagesService(bot.BotYoutubeService)
 		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
