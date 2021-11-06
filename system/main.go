@@ -46,10 +46,10 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
-	_system.SendLiveChatMessage("起動しました。", ctx)
+	_system.SendLiveChatMessage("起動！", ctx)
 	_ = _system.LineBot.SendMessage("app started.")
 	defer func() {
-		_system.SendLiveChatMessage("寝ます。", ctx)
+		_system.SendLiveChatMessage("エラーが起きたため終了します", ctx)
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
