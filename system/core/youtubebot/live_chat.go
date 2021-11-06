@@ -98,6 +98,7 @@ func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string, ctx context.Co
 	response, err := listCall.Do()
 	if err != nil {
 		log.Println("first call failed in ListMessages().")
+		log.Println(err)
 		// bot credentialのaccess tokenが期限切れの可能性
 		botCredentialConfig, err := bot.FirestoreController.RetrieveYoutubeBotCredentialConfig(ctx)
 		if err != nil {
@@ -124,6 +125,7 @@ func (bot *YoutubeLiveChatBot) ListMessages(nextPageToken string, ctx context.Co
 		}
 		response, err = listCall.Do()
 		if err != nil {
+			log.Println("second call failed in ListMessages().")
 			return nil, "", 0, err
 		}
 	}
@@ -220,7 +222,40 @@ func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {
 		bot.LiveChatId = newLiveChatId
 		return nil
 	} else if len(response.Items) == 0 {
-		return errors.New("there are no live broadcast!")
+		// たまに、配信してるのにこの結果になることがあるかも（未確認）しれないので、もう一度。
+		broadCastsService := youtube.NewLiveBroadcastsService(bot.ChannelYoutubeService)
+		part := []string{"snippet"}
+		listCall := broadCastsService.List(part).BroadcastStatus("active")
+		response, err := listCall.Do()
+		if err != nil {
+			// channel credentialのaccess tokenを更新する必要がある可能性
+			log.Println("first call failed in RefreshLiveChatId().")
+			err := bot.RefreshChannelAccessToken(ctx)
+			if err != nil {
+				return err
+			}
+			log.Println("trying second call in RefreshLiveChatId()...")
+			broadCastsService = youtube.NewLiveBroadcastsService(bot.ChannelYoutubeService)
+			listCall = broadCastsService.List(part).BroadcastStatus("active")
+			response, err = listCall.Do()
+			if err != nil {
+				return err
+			}
+		}
+		if len(response.Items) == 1 {
+			newLiveChatId := response.Items[0].Snippet.LiveChatId
+			log.Println("live chat id :", newLiveChatId)
+			err := bot.FirestoreController.SaveLiveChatId(newLiveChatId, ctx)
+			if err != nil {
+				return err
+			}
+			bot.LiveChatId = newLiveChatId
+			return nil
+		} else if len(response.Items) == 0 {
+			return errors.New("there are no live broadcast!")
+		} else {
+			return errors.New("more than 2 live broadcasts!: " + strconv.Itoa(len(response.Items)))
+		}
 	} else {
 		return errors.New("more than 2 live broadcasts!: " + strconv.Itoa(len(response.Items)))
 	}
