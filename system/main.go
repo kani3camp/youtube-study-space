@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/transport"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,6 +54,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
+	numContinuousListMessagesFailed := 0
 	
 	for {
 		// page token取得
@@ -64,8 +66,16 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		// チャット取得
 		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.LiveChatBot.ListMessages(pageToken, ctx)
 		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve chat messages", err)
-			return
+			_ = _system.LineBot.SendMessageWithError("（" + strconv.Itoa(numContinuousListMessagesFailed + 1) +
+				"回目） failed to retrieve chat messages", err)
+			numContinuousListMessagesFailed += 1
+			if numContinuousListMessagesFailed > 5 {
+				break
+			} else {
+				continue
+			}
+		} else {
+			numContinuousListMessagesFailed = 0
 		}
 		// nextPageTokenを保存
 		err = _system.SaveNextPageToken(nextPageToken, ctx)
