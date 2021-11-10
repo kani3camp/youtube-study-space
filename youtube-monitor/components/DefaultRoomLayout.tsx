@@ -30,7 +30,7 @@ class DefaultRoomLayout extends React.Component<
       const roomShape = {
         widthPx:
           (1000 * roomLayout.room_shape.width) / roomLayout.room_shape.height,
-        heightPx: 900,
+        heightPx: 1000,
       };
 
       const seatFontSizePx = roomShape.widthPx * roomLayout.font_size_ratio;
