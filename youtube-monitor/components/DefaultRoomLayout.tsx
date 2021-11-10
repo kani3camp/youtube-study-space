@@ -29,7 +29,7 @@ class DefaultRoomLayout extends React.Component<
       const roomLayout = this.props.layout;
       const roomShape = {
         widthPx:
-          (900 * roomLayout.room_shape.width) / roomLayout.room_shape.height,
+          (1000 * roomLayout.room_shape.width) / roomLayout.room_shape.height,
         heightPx: 900,
       };
 
