@@ -662,7 +662,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         file: '/audio/lofigirl/Contrasts/6. Shade.mp3',
         forPart: AllPartType,
     },
-    // TODO: このアルバムはnpm run startのときに再生できなくなる原因となってしまう。原因不明。npm run devだと問題なし。
+    // このアルバムはnpm run startのときに再生できなくなる原因となってしまう。原因不明。npm run devだと問題なし。
     // Frozen Roses
     {
         title: 'A While',

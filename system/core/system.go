@@ -134,6 +134,8 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 func (s *System) ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
 	// 全角スペースを半角に変換
 	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
+	// 全角イコールを半角に変換
+	commandString = strings.Replace(commandString, "＝", "=", -1)
 	
 	if strings.HasPrefix(commandString, CommandPrefix) {
 		slice := strings.Split(commandString, HalfWidthSpace)
@@ -592,7 +594,7 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 	// 現在座っている席を特定
 	seatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.Body != nil {
-		if customErr.ErrorType == customerror.UserNotInAnyRoom { // おそらくここには到達しない
+		if customErr.ErrorType == customerror.UserNotInAnyRoom { // TODO: おそらくここには到達しない
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 				"さん、あなたは今ルーム内にはいません。", ctx)
 			return nil
@@ -903,6 +905,14 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 		return 0, err
 	}
 	workedTimeSec := int(utils.JstNow().Sub(userData.LastEntered).Seconds())
+	var dailyWorkedTimeSec int
+	jstNow := utils.JstNow()
+	// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
+	if workedTimeSec > utils.InSeconds(jstNow) {
+		dailyWorkedTimeSec = utils.InSeconds(jstNow)
+	} else {
+		dailyWorkedTimeSec = workedTimeSec
+	}
 
 	var seat myfirestore.Seat
 	switch seatId {
@@ -947,7 +957,7 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 		return 0, err
 	}
 	// 累計学習時間を更新
-	err = s.UpdateTotalWorkTime(workedTimeSec, ctx)
+	err = s.UpdateTotalWorkTime(workedTimeSec, dailyWorkedTimeSec, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to update total study time", err)
 		return 0, err
@@ -1021,15 +1031,17 @@ func (s *System) IsSeatExist(seatId int, ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *System) UpdateTotalWorkTime(workedTimeSec int, ctx context.Context) error {
+func (s *System) UpdateTotalWorkTime(workedTimeSec int, dailyWorkedTimeSec int, ctx context.Context) error {
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
 		return err
 	}
+	// 更新前の値
 	previousTotalSec := userData.TotalStudySec
 	previousDailyTotalSec := userData.DailyTotalStudySec
+	// 更新後の値
 	newTotalSec := previousTotalSec + workedTimeSec
-	newDailyTotalSec := previousDailyTotalSec + workedTimeSec
+	newDailyTotalSec := previousDailyTotalSec + dailyWorkedTimeSec
 	err = s.FirestoreController.UpdateTotalTime(s.ProcessedUserId, newTotalSec, newDailyTotalSec, ctx)
 	if err != nil {
 		return err
@@ -1049,14 +1061,37 @@ func (s *System) IfUserRegistered(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// TotalStudyTimeStrings リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
 func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, error) {
+	// 入室中ならばリアルタイムの作業時間も加算する
+	realtimeDuration := time.Duration(0)
+	realtimeDailyDuration := time.Duration(0)
+	if isInRoom, _ := s.IsUserInRoom(ctx); isInRoom {
+		// 作業時間を計算
+		jstNow := utils.JstNow()
+		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+		if err != nil {
+			return "", "", err
+		}
+		workedTimeSec := int(jstNow.Sub(userData.LastEntered).Seconds())
+		realtimeDuration = time.Duration(workedTimeSec) * time.Second
+		
+		var dailyWorkedTimeSec int
+		if workedTimeSec > utils.InSeconds(jstNow) {
+			dailyWorkedTimeSec = utils.InSeconds(jstNow)
+		} else {
+			dailyWorkedTimeSec = workedTimeSec
+		}
+		realtimeDailyDuration = time.Duration(dailyWorkedTimeSec) * time.Second
+	}
+	
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
 		return "", "", err
 	}
 	// 累計
 	var totalStr string
-	totalDuration := time.Duration(userData.TotalStudySec) * time.Second
+	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec) * time.Second
 	if totalDuration < time.Hour {
 		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
 	} else {
@@ -1065,7 +1100,7 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	}
 	// 当日の累計
 	var dailyTotalStr string
-	dailyTotalDuration := time.Duration(userData.DailyTotalStudySec) * time.Second
+	dailyTotalDuration := realtimeDailyDuration + time.Duration(userData.DailyTotalStudySec) * time.Second
 	if dailyTotalDuration < time.Hour {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
 	} else {
@@ -1184,7 +1219,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				return err
 			}
 		}
-		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time.")
+		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time. (" + strconv.Itoa(len(userRefs)) + " users)")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err
