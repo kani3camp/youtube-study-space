@@ -54,15 +54,25 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
+	
+	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	
 	for {
 		// page token取得
 		pageToken, err := _system.RetrieveNextPageToken(ctx)
 		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to retrieve next page token", err)
-			return
+			_ = _system.LineBot.SendMessageWithError("（" + strconv.Itoa(numContinuousRetrieveNextPageTokenFailed + 1) + "回目） failed to retrieve next page token", err)
+			numContinuousRetrieveNextPageTokenFailed += 1
+			if numContinuousRetrieveNextPageTokenFailed > 5 {
+				break
+			} else {
+				continue
+			}
+		} else {
+			numContinuousRetrieveNextPageTokenFailed = 0
 		}
+		
 		// チャット取得
 		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.LiveChatBot.ListMessages(pageToken, ctx)
 		if err != nil {
@@ -77,6 +87,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
+		
 		// nextPageTokenを保存
 		err = _system.SaveNextPageToken(nextPageToken, ctx)
 		if err != nil {
