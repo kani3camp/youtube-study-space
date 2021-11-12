@@ -395,9 +395,9 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 			})
 			isWorkNameSet = true
 		} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) && !isWorkNameSet {
-			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionPrefixLegacy + "」は使えません。")
+			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionPrefixLegacy + "」は使えません。「" + WorkNameOptionPrefix + "」を使ってください。")
 		} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) && !isWorkNameSet {
-			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionShortPrefixLegacy + "」は使えません。")
+			return nil, customerror.InvalidCommand.New("「" + WorkNameOptionShortPrefixLegacy + "」は使えません。「" + WorkNameOptionShortPrefix + "」を使ってください。")
 		}
 	}
 	return options, customerror.NewNil()
