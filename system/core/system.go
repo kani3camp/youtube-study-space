@@ -1219,7 +1219,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				return err
 			}
 		}
-		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time.")
+		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time. (" + strconv.Itoa(len(userRefs)) + " users)")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err

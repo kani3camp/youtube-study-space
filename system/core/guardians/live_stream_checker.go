@@ -81,7 +81,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	if streamStatus != "active" {
 		_ = checker.LineBot.SendMessage("stream status is now : " + streamStatus)
 	}
-	if healthStatus != "good" && healthStatus != "ok" {
+	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
 		_ = checker.LineBot.SendMessage("stream HEALTH status is now : " + healthStatus)
 	}
 	
