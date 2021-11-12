@@ -730,6 +730,7 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	workedTimeSec := int(utils.JstNow().Sub(userData.LastEntered).Seconds())
 	var dailyWorkedTimeSec int
 	jstNow := utils.JstNow()
+	// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
 	if workedTimeSec > utils.InSeconds(jstNow) {
 		dailyWorkedTimeSec = utils.InSeconds(jstNow)
 	} else {
