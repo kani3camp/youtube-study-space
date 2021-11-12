@@ -146,7 +146,7 @@ func main() {
 	LocalMain(clientOption, ctx)
 	//Test(clientOption, ctx)
 	
-	//direct_operations.UpdateRoomLayout("../room_layouts/pachinko_classroom_151.json", clientOption, ctx)
+	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
 	//direct_operations.ExitSpecificUser("UCN61FE7NtU0URA_u9vWWdjw", clientOption, ctx)
