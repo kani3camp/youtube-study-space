@@ -3,6 +3,7 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
+	"cloud.google.com/go/bigquery"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -37,6 +38,15 @@ func Init() (option.ClientOption, context.Context, error) {
 		return nil, nil, errors.New("unknown project id on the credential.")
 	}
 	return clientOption, ctx, nil
+}
+
+func GetCurrentProjectId() string {
+	utils.LoadEnv()
+	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	ctx := context.Background()
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	creds, _ := transport.Creds(ctx, clientOption)
+	return creds.ProjectID
 }
 
 // LocalMain ローカル運用
@@ -136,17 +146,32 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	jstNow := utils.JstNow()
-	thresholdTime := time.Date(
-		jstNow.Year(),
-		jstNow.Month(),
-		jstNow.Day(),
-		16, 37, 0, 0,
-		utils.JapanLocation())
-	err = _system.DeleteLiveChatHistoryBeforeDate(thresholdTime, ctx)
+	bigqueryClient, err := bigquery.NewClient(ctx, GetCurrentProjectId())
 	if err != nil {
 		panic(err)
 	}
+	defer bigqueryClient.Close()
+	
+	gcsRef := bigquery.NewGCSReference("gs://firestore-collection-export-test-youtube-study-space/live-chat-history-collection/all_namespaces/kind_live-chat-history/all_namespaces_kind_live-chat-history.export_metadata")
+	gcsRef.AllowJaggedRows = true
+	gcsRef.SourceFormat = bigquery.DatastoreBackup
+	
+	myDataset := bigqueryClient.Dataset("test-youtube-study-space:firestore_export_asia_southeast2")
+	loader := myDataset.Table("test-live-chat-history").LoaderFrom(gcsRef)
+	loader.WriteDisposition = bigquery.WriteTruncate
+	loader.Location = "asia-southeast2"
+	job, err := loader.Run(ctx)
+	if err != nil {
+		panic(err)
+	}
+	status, err := job.Wait(ctx)
+	if err != nil {
+		panic(err)
+	}
+	if err := status.Err(); err != nil {
+		panic(err)
+	}
+	log.Printf("status: %v\n", status)
 }
 
 
