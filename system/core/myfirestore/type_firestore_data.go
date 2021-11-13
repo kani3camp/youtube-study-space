@@ -117,5 +117,14 @@ type UserHistoryDoc struct {
 	Details interface{} `json:"details" firestore:"details"`
 }
 
+type LiveChatHistoryDoc struct {
+	AuthorChannelId string `json:"author_channel_id" firestore:"author-channel-id"`
+	AuthorDisplayName string `json:"author_display_name" firestore:"author-display-name"`
+	Id string `json:"id" firestore:"id"`	// メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
+	LiveChatId string `json:"live_chat_id" firestore:"live-chat-id"`	// ライブ配信ごとのid。ずっと続く配信だと不変。
+	Message string `json:"message" firestore:"message"`
+	PublishedAt time.Time `json:"published_at" firestore:"published-at"`
+	Type string `json:"type" firestore:"type"`
+}
 
 

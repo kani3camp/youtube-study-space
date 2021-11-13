@@ -2,6 +2,7 @@ package main
 
 import (
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -16,7 +17,7 @@ import (
 
 
 func Init() (option.ClientOption, context.Context, error) {
-	core.LoadEnv()
+	utils.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()

@@ -5,6 +5,8 @@ const (
 	ROOMS                    = "rooms"
 	USERS                    = "users"
 	HISTORY                  = "history"
+	LIVE_CHAT_HISTORY = "live-chat-history"
+	
 	YouTubeLiveConfigDocName = "youtube-live"
 	YoutubeBotCredentialDocName = "youtube-bot-credential"
 	YoutubeChannelCredentialDocName = "youtube-channel-credential"
