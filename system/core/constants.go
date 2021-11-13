@@ -1,9 +1,5 @@
 package core
 
-import (
-	"github.com/joho/godotenv"
-	"log"
-)
 
 const (
 	EnterAction = "enter"

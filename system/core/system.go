@@ -9,6 +9,7 @@ import (
 	"app.modules/core/youtubebot"
 	"context"
 	"google.golang.org/api/option"
+	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
@@ -1279,5 +1280,29 @@ func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
 	return nil
 }
 
+func (s *System) AddLiveChatHistory(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
+	publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
+	if err != nil {
+		return err
+	}
+	
+	liveChatHistoryDoc := myfirestore.LiveChatHistoryDoc{
+		AuthorChannelId:   chatMessage.AuthorDetails.ChannelId,
+		AuthorDisplayName: chatMessage.AuthorDetails.ProfileImageUrl,
+		AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
+		AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
+		Id:                chatMessage.Id,
+		LiveChatId:        chatMessage.Snippet.LiveChatId,
+		Message:           chatMessage.Snippet.TextMessageDetails.MessageText,
+		PublishedAt:       publishedAt,
+		Type:              chatMessage.Snippet.Type,
+	}
+	err = s.FirestoreController.AddLiveChatHistory(liveChatHistoryDoc, ctx)
+	if err != nil {
+		return err
+	}
+	
+	return nil
+}
 
 

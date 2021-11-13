@@ -5,6 +5,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
+	"strconv"
 	"time"
 )
 
@@ -420,3 +421,14 @@ func (controller *FirestoreController) UpdateWorkNameInNoSeatRoom(workName strin
 	}
 	return nil
 }
+
+func (controller *FirestoreController) AddLiveChatHistory(liveChatHistoryDoc LiveChatHistoryDoc, ctx context.Context) error {
+	docId := "live-chat_" + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.PublishedAt.Nanosecond())
+	_, err := controller.FirestoreClient.Collection(LIVE_CHAT_HISTORY).Doc(docId).Set(ctx, liveChatHistoryDoc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
