@@ -19,6 +19,20 @@ func InSeconds(t time.Time) int {
 	return t.Second() + int(time.Minute.Seconds()) * t.Minute() + int(time.Hour.Seconds()) * t.Hour()
 }
 
+func Get7daysBeforeJust0AM(date time.Time) time.Time {
+	date7daysBefore := Get7daysBefore(date)
+	return time.Date(
+		date7daysBefore.Year(),
+		date7daysBefore.Month(),
+		date7daysBefore.Day(),
+		0, 0, 0, 0,
+		JapanLocation())
+}
+
+func Get7daysBefore(date time.Time) time.Time {
+	return date.AddDate(0, 0, -7)
+}
+
 func LoadEnv() {
 	err := godotenv.Load()
 	if err != nil {

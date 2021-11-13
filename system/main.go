@@ -137,18 +137,16 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	// === ここまでおまじない ===
 	
 	jstNow := utils.JstNow()
-	fmt.Println(jstNow)
-	
-	jst7daysBeforeNow := jstNow.AddDate(0, 0, -7)
-	fmt.Println(jst7daysBeforeNow)
-	
-	jst7daysBeforeNowJust0AM := time.Date(
-		jst7daysBeforeNow.Year(),
-		jst7daysBeforeNow.Month(),
-		jst7daysBeforeNow.Day(),
-		0, 0, 0, 0,
+	thresholdTime := time.Date(
+		jstNow.Year(),
+		jstNow.Month(),
+		jstNow.Day(),
+		16, 37, 0, 0,
 		utils.JapanLocation())
-	fmt.Println(jst7daysBeforeNowJust0AM)
+	err = _system.DeleteLiveChatHistoryBeforeDate(thresholdTime, ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 
