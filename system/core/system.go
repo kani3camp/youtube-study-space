@@ -1281,21 +1281,23 @@ func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
 }
 
 func (s *System) AddLiveChatHistory(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
+	// publishedAtの値の例: "2021-11-13T07:21:30.486982+00:00"
 	publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
 	if err != nil {
 		return err
 	}
+	publishedAt = publishedAt.In(utils.JapanLocation())
 	
 	liveChatHistoryDoc := myfirestore.LiveChatHistoryDoc{
-		AuthorChannelId:   chatMessage.AuthorDetails.ChannelId,
-		AuthorDisplayName: chatMessage.AuthorDetails.ProfileImageUrl,
+		AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
+		AuthorDisplayName:     chatMessage.AuthorDetails.DisplayName,
 		AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
 		AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
-		Id:                chatMessage.Id,
-		LiveChatId:        chatMessage.Snippet.LiveChatId,
-		Message:           chatMessage.Snippet.TextMessageDetails.MessageText,
-		PublishedAt:       publishedAt,
-		Type:              chatMessage.Snippet.Type,
+		Id:                    chatMessage.Id,
+		LiveChatId:            chatMessage.Snippet.LiveChatId,
+		MessageText:           chatMessage.Snippet.TextMessageDetails.MessageText,
+		PublishedAt:           publishedAt,
+		Type:                  chatMessage.Snippet.Type,
 	}
 	err = s.FirestoreController.AddLiveChatHistory(liveChatHistoryDoc, ctx)
 	if err != nil {

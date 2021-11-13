@@ -124,7 +124,7 @@ type LiveChatHistoryDoc struct {
 	AuthorIsChatModerator bool `json:"author_is_chat_moderator" firestore:"author-is-chat-moderator"`
 	Id string `json:"id" firestore:"id"`	// メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
 	LiveChatId string `json:"live_chat_id" firestore:"live-chat-id"`	// ライブ配信ごとのid。ずっと続く配信だと不変。
-	Message string `json:"message" firestore:"message"`
+	MessageText string    `json:"message_text" firestore:"message-text"`
 	PublishedAt time.Time `json:"published_at" firestore:"published-at"`
 	Type string `json:"type" firestore:"type"`
 }
