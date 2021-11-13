@@ -98,7 +98,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
-			err = _system.AddLiveChatHistory(ctx, chatMessage)
+			err = _system.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
 				_ = _system.LineBot.SendMessageWithError("failed to add live chat history", err)
 				return

@@ -1280,7 +1280,7 @@ func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
 	return nil
 }
 
-func (s *System) AddLiveChatHistory(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
+func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
 	// publishedAtの値の例: "2021-11-13T07:21:30.486982+00:00"
 	publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
 	if err != nil {
@@ -1299,11 +1299,28 @@ func (s *System) AddLiveChatHistory(ctx context.Context, chatMessage *youtube.Li
 		PublishedAt:           publishedAt,
 		Type:                  chatMessage.Snippet.Type,
 	}
-	err = s.FirestoreController.AddLiveChatHistory(liveChatHistoryDoc, ctx)
+	err = s.FirestoreController.AddLiveChatHistoryDoc(liveChatHistoryDoc, ctx)
 	if err != nil {
 		return err
 	}
 	
+	return nil
+}
+
+func (s *System) DeleteLiveChatHistoryBeforeDate(date time.Time, ctx context.Context) error {
+	// date以前の全てのlive chat history docsをクエリで取得
+	docIds, err := s.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(date, ctx)
+	if err != nil {
+		return err
+	}
+	
+	// forで各docをdeleteしていく
+	for _, docId := range docIds {
+		err := s.FirestoreController.DeleteLiveChatHistoryDoc(docId, ctx)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

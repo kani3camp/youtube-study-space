@@ -15,6 +15,7 @@ const (
 	DefaultRoomDocName       = "default"
 	NoSeatRoomDocName        = "no-seat"
 	DefaultRoomLayoutDocName = "default-room-layout"
+	PublishedAtDocName = "published-at"
 	
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
 	NextPageTokenFirestore = "next-page-token"
