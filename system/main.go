@@ -146,7 +146,7 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	bigqueryClient, err := bigquery.NewClient(ctx, GetCurrentProjectId())
+	bigqueryClient, err := bigquery.NewClient(ctx, GetCurrentProjectId(), clientOption)
 	if err != nil {
 		panic(err)
 	}
@@ -156,8 +156,9 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	gcsRef.AllowJaggedRows = true
 	gcsRef.SourceFormat = bigquery.DatastoreBackup
 	
-	myDataset := bigqueryClient.Dataset("test-youtube-study-space:firestore_export_asia_southeast2")
-	loader := myDataset.Table("test-live-chat-history").LoaderFrom(gcsRef)
+	myDataset := bigqueryClient.Dataset("firestore_export_asia_southeast2")
+	loader := myDataset.Table("tmp").LoaderFrom(gcsRef)
+	//loader := myDataset.Table("test-live-chat-history").LoaderFrom(gcsRef)
 	loader.WriteDisposition = bigquery.WriteTruncate
 	loader.Location = "asia-southeast2"
 	job, err := loader.Run(ctx)
@@ -171,7 +172,28 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	if err := status.Err(); err != nil {
 		panic(err)
 	}
-	log.Printf("status: %v\n", status)
+	if status.State == bigquery.Done {
+		log.Println("Done")
+	} else {
+		log.Println("Doneじゃない")
+	}
+	
+	q := bigqueryClient.Query("SELECT * FROM `test-youtube-study-space.firestore_export_asia_southeast2.tmp`")
+	q.Location = "asia-southeast2"
+	q.WriteDisposition = bigquery.WriteAppend
+	q.QueryConfig.Dst = myDataset.Table("test-live-chat-history")
+	job, err = q.Run(ctx)
+	if err != nil {
+		panic(err)
+	}
+	status, err = job.Wait(ctx)
+	if err != nil {
+		panic(err)
+	}
+	if err := status.Err(); err != nil {
+		panic(err)
+	}
+	
 }
 
 
@@ -183,8 +205,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	//LocalMain(clientOption, ctx)
+	Test(clientOption, ctx)
 	
 	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
