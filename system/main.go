@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -135,13 +134,21 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 		return
 	}
 	defer _system.CloseFirestoreClient()
+	// === ここまでおまじない ===
 	
-	str := "w-w"
-	hasPrefix := strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
-	workName := strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	jstNow := utils.JstNow()
+	fmt.Println(jstNow)
 	
-	log.Println(hasPrefix)
-	log.Println(workName)
+	jst7daysBeforeNow := jstNow.AddDate(0, 0, -7)
+	fmt.Println(jst7daysBeforeNow)
+	
+	jst7daysBeforeNowJust0AM := time.Date(
+		jst7daysBeforeNow.Year(),
+		jst7daysBeforeNow.Month(),
+		jst7daysBeforeNow.Day(),
+		0, 0, 0, 0,
+		utils.JapanLocation())
+	fmt.Println(jst7daysBeforeNowJust0AM)
 }
 
 
@@ -153,8 +160,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	//LocalMain(clientOption, ctx)
+	Test(clientOption, ctx)
 	
 	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
