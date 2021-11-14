@@ -60,9 +60,10 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	}, nil
 }
 
-func (s *System) SetProcessedUser(userId string, userDisplayName string) {
+func (s *System) SetProcessedUser(userId string, userDisplayName string, isChatModerator bool, isChatOwner bool) {
 	s.ProcessedUserId = userId
 	s.ProcessedUserDisplayName = userDisplayName
+	s.ProcessedUserIsModeratorOrOwner = isChatModerator || isChatOwner
 }
 
 func (s *System) CloseFirestoreClient() {
@@ -75,8 +76,8 @@ func (s *System) CloseFirestoreClient() {
 }
 
 // Command 入力コマンドを解析して実行
-func (s *System) Command(commandString string, userId string, userDisplayName string, ctx context.Context) customerror.CustomError {
-	s.SetProcessedUser(userId, userDisplayName)
+func (s *System) Command(commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, ctx context.Context) customerror.CustomError {
+	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 
 	commandDetails, err := s.ParseCommand(commandString)
 	if err.IsNotNil() { // これはシステム内部のエラーではなく、コマンドが悪いということなので、return nil
@@ -133,6 +134,12 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.ReportProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
+	case Kick:
+		err := s.Kick(commandDetails, ctx)
+		if err != nil {
+			return customerror.KickProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	default:
 		_ = s.LineBot.SendMessage("Unknown command: " + commandString)
 	}
@@ -187,6 +194,12 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				CommandType: Report,
 				ReportMessage: commandString,
 			}, customerror.NewNil()
+		case KickCommand:
+			commandDetails, err := s.ParseKick(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
 		default: // 間違いコマンド
@@ -345,6 +358,26 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 		}
 	}
 	return options, customerror.NewNil()
+}
+
+func (s *System) ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var kickSeatId int
+	if len(slice) >= 2 {
+		num, err := strconv.Atoi(slice[1])
+		if err != nil {
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください。")
+		}
+		kickSeatId = num
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください。")
+	}
+	
+	return CommandDetails{
+		CommandType: Kick,
+		KickSeatId:   kickSeatId,
+	}, customerror.NewNil()
 }
 
 func (s *System) ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
@@ -588,6 +621,41 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
+func (s *System) Kick(command CommandDetails, ctx context.Context) error {
+	// commanderはモデレーターかチャットオーナーか
+	if s.ProcessedUserIsModeratorOrOwner {
+		// ターゲットの座席は誰か使っているか
+		isSeatAvailable, err := s.IfSeatAvailable(command.KickSeatId, ctx)
+		if err != nil {
+			return err
+		}
+		if !isSeatAvailable {
+			// ユーザーを強制退室させる
+			seat, cerr := s.RetrieveSeatBySeatId(command.KickSeatId, ctx)
+			if cerr.IsNotNil() {
+				return cerr.Body
+			}
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.SeatId) + "番席の" + seat.UserDisplayName + "さんを退室させます。", ctx)
+			
+			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+			outCommandDetails := CommandDetails{
+				CommandType:   Out,
+				InOptions: InOptions{},
+			}
+			
+			err := s.Out(outCommandDetails, ctx)
+			if err != nil {
+				return err
+			}
+		} else {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません。", ctx)
+		}
+	} else {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんは「" + KickCommand + "」コマンドを使用できません。", ctx)
+	}
+	return nil
+}
+
 func (s *System) My(command CommandDetails, ctx context.Context) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
@@ -673,7 +741,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
-// IfSeatAvailable 席番号がseatIdの席が空いているかどうか。seatIdは存在するという前提
+// IfSeatAvailable 席番号がseatIdの席が空いているかどうか。
 func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) {
 	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
@@ -686,6 +754,20 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 	}
 	// ここまで来ると指定された番号の席が使われていないということ
 	return true, nil
+}
+
+func (s *System) RetrieveSeatBySeatId(seatId int, ctx context.Context) (myfirestore.Seat, customerror.CustomError) {
+	roomDoc, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
+	}
+	for _, seat := range roomDoc.Seats {
+		if seat.SeatId == seatId {
+			return seat, customerror.NewNil()
+		}
+	}
+	// ここまで来ると指定された番号の席が使われていないということ
+	return myfirestore.Seat{}, customerror.SeatNotFound.New("that seat is not used.")
 }
 
 // IsUserInRoom そのユーザーが default/no-seat ルーム内にいるか？登録済みかに関わらず。

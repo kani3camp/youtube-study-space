@@ -15,6 +15,7 @@ type System struct {
 	DefaultWorkTimeMin int
 	ProcessedUserId string
 	ProcessedUserDisplayName string
+	ProcessedUserIsModeratorOrOwner bool
 	DefaultSleepIntervalMilli int
 }
 
@@ -25,6 +26,7 @@ type CommandDetails struct {
 	MyOptions   []MyOption
 	ChangeOptions []ChangeOption
 	ReportMessage string
+	KickSeatId	int
 }
 
 type CommandType uint
@@ -38,6 +40,7 @@ const (
 	Change 	// !change
 	Seat	// !seat
 	Report	// !report
+	Kick	// !kick
 )
 
 type InfoOption struct {

@@ -24,6 +24,7 @@ const (
 	ChangeProcessFailed
 	SeatProcessFailed
 	ReportProcessFailed
+	KickProcessFailed
 )
 
 type CustomError struct {
