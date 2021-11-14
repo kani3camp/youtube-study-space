@@ -950,7 +950,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	previousDate := constantsConfig.LastResetDailyTotalStudySec.Local()
+	previousDate := constantsConfig.LastResetDailyTotalStudySec.In(utils.JapanLocation())
 	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
