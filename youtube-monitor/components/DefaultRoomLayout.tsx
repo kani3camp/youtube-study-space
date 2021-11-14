@@ -9,13 +9,15 @@ import { bindActionCreators } from "redux";
 
 
 const DefaultRoomLayout = ({ }: any) => {
-  const MAX_NUM_ITEMS_PER_PAGE = 48
-  const PAGING_INTERVAL_SEC = 5
+  const MAX_NUM_ITEMS_PER_PAGE = 42
+  const PAGING_INTERVAL_MSEC = 5000
+  const PROGRESS_BAR_REFRESH_INTERVAL_MSEC = 30
+  const PROGRESS_BAR_GROW_RATE = PROGRESS_BAR_REFRESH_INTERVAL_MSEC / PAGING_INTERVAL_MSEC * 100
 
   const [roomState, setRoomState] = useState<DefaultRoomState>()
   const [displaySeats, setDisplaySeats] = useState<seat[]>([])
   const [initialized, setInitialized] = useState<boolean>(false)
-  // const [canRefreshPage, setCanRefreshPage] = useState<boolean>(true)
+  const [progressBarWidth, setProgressBarWidth] = useState<number>(0)
 
   useEffect(() => {
     console.log('useEffect')
@@ -37,16 +39,8 @@ const DefaultRoomLayout = ({ }: any) => {
           setRoomState(r.default_room)
         })
         .catch((err) => console.error(err));
-    }, PAGING_INTERVAL_SEC * 1000);
+    }, PAGING_INTERVAL_MSEC);
 
-    // const interval = setInterval(() => {
-    //   console.log('interval')
-    //   let time = new Date()
-    //   console.log(time)
-    //   time.setSeconds(time.getSeconds() + PAGING_INTERVAL_SEC)
-    //   console.log(time)
-    //   // setCanRefreshPage(true)
-    // }, PAGING_INTERVAL_SEC * 1000);
     setInitialized(true)
   }
 
@@ -112,101 +106,83 @@ const DefaultRoomLayout = ({ }: any) => {
       })
       // console.log('nextDisplaySeats: ', nextDisplaySeats)
 
-      // setCanRefreshPage(false)
       setDisplaySeats(nextDisplaySeats)
+      // resetProgressBar()
       console.log('完了')
     } else {
       setDisplaySeats([])
     }
   }
 
+  // const resetProgressBar = () => {
+  //   const progressBarDiv = document.getElementById('progress-bar')
+  //   if (progressBarDiv) {
+  //     progressBarDiv.style.width = "0%"
+  //   } else {
+  //     console.error('failed to get progress bar div')
+  //   }
+  //   setTimeout(growProgressBar, 100)
+  // }
+
+  // const growProgressBar = () => {
+  //   // console.log(growProgressBar.name)
+  //   const progressBarDiv = document.getElementById('progress-bar')
+  //   if (progressBarDiv) {
+  //     const currentWidth = Number(progressBarDiv.style.width.replace('%', ''))
+  //     // console.log(progressBarDiv.style.width)
+  //     // console.log('current width: ', currentWidth)
+  //     if (currentWidth < 100) {
+  //       progressBarDiv.style.width = (currentWidth + PROGRESS_BAR_GROW_RATE).toString() + "%"
+  //     } else {
+  //       return  // 100%に達してる場合はsetTimeoutループは終了
+  //     }
+  //   } else {
+  //     console.error('failed to get progress bar div')
+  //   }
+  //   setTimeout(growProgressBar, 100)
+  // }
+
   if (roomState) {
-    const roomSeats = roomState.seats
-
-    const sortSeats = (seats: seat[]): seat[] => {
-      let seatIds: number[] = []
-      seats.forEach((each_seat: seat) => {
-        seatIds.push(each_seat.seat_id)
-      })
-      seatIds.sort((a, b) => {
-        return a - b
-      })
-      let sortedSeats: seat[] = []
-      seatIds.forEach((seatId) => {
-        seats.forEach((each_seat) => {
-          if (each_seat.seat_id === seatId) {
-            sortedSeats.push(each_seat)
-          }
-        })
-      })
-      return sortedSeats
-    }
-
-
-    const seatList = sortSeats(roomState.seats).slice(0, MAX_NUM_ITEMS_PER_PAGE).map((seat, index) => {
-      const workName = seat.work_name
-      const displayName = seat.user_display_name
-      const seatColor = roomSeats.find(s => s.seat_id === seat.seat_id)?.color_code;
-      return (
-        <div
-          key={seat.seat_id}
-          className={styles.seat}
-          style={{
-            backgroundColor: seatColor,
-            width: "14%",
-            height: "10%",
-            fontSize: "1rem",
-          }}
-        >
-          {<div className={styles.seatId} style={{ fontWeight: "bold" }}>
-            {seat.seat_id}
-          </div>}
-          {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
-          <div
-            className={styles.userDisplayName}
-          >
-            {displayName}
-          </div>
-        </div>
-      )
-    })
-
     return (
-      <div
-        id={styles.roomLayout}
-      >
-        {/* {seatList} */}
-        {
-          displaySeats.map((eachSeat: seat) => {
-            const workName = eachSeat.work_name
-            const displayName = eachSeat.user_display_name
-            const seatColor = roomSeats.find(s => s.seat_id === eachSeat.seat_id)?.color_code;
+      <>
+        <div
+          id={styles.roomLayout}
+        >
+          {/* {seatList} */}
+          {
+            displaySeats.map((eachSeat: seat) => {
+              const workName = eachSeat.work_name
+              const displayName = eachSeat.user_display_name
+              const seatColor = roomState.seats.find(s => s.seat_id === eachSeat.seat_id)?.color_code;
 
-            return (
-              <div
-                key={eachSeat.seat_id}
-                className={styles.seat}
-                style={{
-                  backgroundColor: seatColor,
-                  width: "14%",
-                  height: "10%",
-                  fontSize: "1rem",
-                }}
-              >
-                {<div className={styles.seatId} style={{ fontWeight: "bold" }}>
-                  {eachSeat.seat_id}
-                </div>}
-                {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
+              return (
                 <div
-                  className={styles.userDisplayName}
+                  key={eachSeat.seat_id}
+                  className={styles.seat}
+                  style={{
+                    backgroundColor: seatColor,
+                  }}
                 >
-                  {displayName}
+                  {<div className={styles.seatId} style={{ fontWeight: "bold" }}>
+                    {eachSeat.seat_id}
+                  </div>}
+                  {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
+                  <div
+                    className={styles.userDisplayName}
+                  >
+                    {displayName}
+                  </div>
+
                 </div>
-              </div>
-            );
-          })
-        }
-      </div>
+
+              );
+            })
+          }
+
+        </div>
+        {/* <div id="progress-bar" className={styles.progressBar} style={{
+        }}></div> */}
+      </>
     );
   } else {
     return <div>Loading</div>;
