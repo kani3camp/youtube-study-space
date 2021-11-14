@@ -11,12 +11,18 @@ const StandingRoom = () => {
 
       <div className={styles.seat} >
         <div className={styles.seatId}>座席番号</div>
-        <div className={styles.standingWorkName}>作業内容</div>
-        <div className={styles.standingUserDisplayName}>名前</div>
+        <div className={styles.workName}>作業内容</div>
+        <div className={styles.userDisplayName}>名前</div>
       </div>
 
       <div>
-        <span>入室する：</span><ruby></ruby>
+        <div>
+          <span>入室する：</span><span className={styles.commandString}>!in</span>
+
+        </div>
+        <div>
+          <span>退室する：</span><span className={styles.commandString}>!out</span>
+        </div>
       </div>
 
     </div>

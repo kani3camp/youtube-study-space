@@ -6,6 +6,8 @@ import api from "../lib/api_config";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse } from "../types/room-state";
 import { bindActionCreators } from "redux";
+import Message from "../components/Message";
+
 
 
 const DefaultRoomLayout = ({ }: any) => {
@@ -182,6 +184,10 @@ const DefaultRoomLayout = ({ }: any) => {
         </div>
         {/* <div id="progress-bar" className={styles.progressBar} style={{
         }}></div> */}
+
+        <Message
+          default_room_state={roomState}
+        ></Message>
       </>
     );
   } else {
