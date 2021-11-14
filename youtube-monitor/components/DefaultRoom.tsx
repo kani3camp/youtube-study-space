@@ -9,20 +9,12 @@ import {
 import DefaultRoomLayout from "./DefaultRoomLayout";
 import { RoomLayout } from "../types/room-layout";
 
-class DefaultRoom extends React.Component<
-  { layout: RoomLayout; roomState: DefaultRoomState },
-  any
-> {
-  render() {
-    return (
-      <div id={styles.defaultRoom}>
-        <DefaultRoomLayout
-          layout={this.props.layout}
-          roomState={this.props.roomState}
-        />
-      </div>
-    );
-  }
+const DefaultRoom = () => {
+  return (
+    <div id={styles.defaultRoom}>
+      <DefaultRoomLayout />
+    </div>
+  );
 }
 
 export default DefaultRoom;

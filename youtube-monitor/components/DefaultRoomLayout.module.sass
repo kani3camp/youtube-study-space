@@ -2,23 +2,34 @@
   position: relative
   top: 0
   left: 0
+  width: 100%
+  height: 100%
+  box-sizing: border-box
   margin: auto
   border: solid 6px #303030
+  display: flex
+  flex-wrap: wrap
+  overflow: hidden
 
 .seat
-  position: absolute
+  // position: absolute
+  margin: 0.3rem
   display: flex
   flex-direction: column
   justify-content: center
   align-items: center
+  border: solid black 0.1rem
 
 .partition
   position: absolute
   background-color: #2d2b41
 
-.emptySeatNum
+.seatId
   margin: 0
-  font-size: 1.5em
+  position: relative
+  top: 0
+  left: 0
+  font-size: 0.7em
   color: #414141
 .usedSeatNum
   font-size: 0.7em

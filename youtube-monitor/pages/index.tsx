@@ -65,10 +65,8 @@ export default class Home extends React.Component<{}, any> {
           default_room_state={this.state.default_room_state}
           no_seat_room_state={this.state.no_seat_room_state}
         />
-        <DefaultRoom
-          layout={this.state.layout}
-          roomState={this.state.default_room_state}
-        />
+        <DefaultRoom />
+
         <StandingRoom no_seat_room_state={this.state.no_seat_room_state} />
         <Timer />
       </div>
