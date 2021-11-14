@@ -27,6 +27,7 @@ type CommandDetails struct {
 	ChangeOptions []ChangeOption
 	ReportMessage string
 	KickSeatId	int
+	AddMinutes	int
 }
 
 type CommandType uint
@@ -41,6 +42,7 @@ const (
 	Seat	// !seat
 	Report	// !report
 	Kick	// !kick
+	Add		// !add
 )
 
 type InfoOption struct {

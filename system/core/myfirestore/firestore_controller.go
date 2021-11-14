@@ -235,6 +235,33 @@ func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTi
 	return nil
 }
 
+func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userId string, ctx context.Context) error {
+	// seatsを取得
+	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	seats := defaultRoomDoc.Seats
+	
+	// seatsを更新
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].Until = newUntil
+			break
+		}
+	}
+	
+	// seatsをセット
+	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Update(ctx, []firestore.Update{
+		{Path: SeatsFirestore, Value: seats},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
 func (controller *FirestoreController) SaveLiveChatId(liveChatId string, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Set(ctx, map[string]interface{}{
 		LiveChatIdFirestore: liveChatId,
