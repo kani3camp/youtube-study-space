@@ -16,10 +16,11 @@ aws lambda update-function-code --function-name     reset_daily_total_study_time
 # TODO: ################## これは本番環境用です!!!!!!!!!!! ###################
 
 # Mac OS
-cd system; cd aws-lambda  # ディレクトリを移動
-GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-1 &&  go build -o main common.go news.go
+cd system; cd aws-lambda;  # ディレクトリを移動
+GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-1
+go build -o main    youtube_organize_database.go
 zip main.zip main
 
 aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20
 
-aws lambda update-function-code --function-name news --zip-file fileb://main.zip
+aws lambda update-function-code --function-name   youtube_organize_database   --zip-file fileb://main.zip
