@@ -11,8 +11,6 @@ const (
 	LineBotConfigDocName     = "line-bot"
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName       = "default"
-	NoSeatRoomDocName        = "no-seat"
-	DefaultRoomLayoutDocName = "default-room-layout"
 	
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
 	NextPageTokenFirestore = "next-page-token"

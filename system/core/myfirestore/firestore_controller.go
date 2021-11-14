@@ -129,19 +129,6 @@ func (controller *FirestoreController) RetrieveDefaultRoom(ctx context.Context) 
 	return defaultRoomData, nil
 }
 
-func (controller *FirestoreController) RetrieveNoSeatRoom(ctx context.Context) (NoSeatRoomDoc, error) {
-	noSeatRoomData := NewNoSeatRoomDoc()
-	doc, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Get(ctx)
-	if err != nil {
-		return NoSeatRoomDoc{}, err
-	}
-	err = doc.DataTo(&noSeatRoomData)
-	if err != nil {
-		return NoSeatRoomDoc{}, err
-	}
-	return noSeatRoomData, nil
-}
-
 func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		SeatId: seatId,
@@ -153,24 +140,6 @@ func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName
 		ColorCode: seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
-		SeatsFirestore: firestore.ArrayUnion(seat),
-	}, firestore.MergeAll)
-	if err != nil {
-		return Seat{}, err
-	}
-	return seat, nil
-}
-
-func (controller *FirestoreController) SetSeatInNoSeatRoom(workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
-	seat := Seat{
-		UserId: userId,
-		UserDisplayName: userDisplayName,
-		WorkName: workName,
-		EnteredAt: enterDate,
-		Until: exitDate,
-		ColorCode: seatColorCode,
-	}
-	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),
 	}, firestore.MergeAll)
 	if err != nil {
@@ -229,29 +198,6 @@ func (controller *FirestoreController) SetMyDefaultStudyMin(userId string, defau
 	return nil
 }
 
-func (controller *FirestoreController) UnSetSeatInNoSeatRoom(seat Seat, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Set(ctx, map[string]interface{}{
-		SeatsFirestore: firestore.ArrayRemove(seat),
-	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (controller *FirestoreController) RetrieveDefaultRoomLayout(ctx context.Context) (RoomLayoutDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(DefaultRoomLayoutDocName).Get(ctx)
-	if err != nil {
-		return RoomLayoutDoc{}, err
-	}
-	roomLayoutData := NewRoomLayoutDoc()
-	err = doc.DataTo(&roomLayoutData)
-	if err != nil {
-		return RoomLayoutDoc{}, err
-	}
-	return roomLayoutData, nil
-}
-
 func (controller *FirestoreController) AddUserHistory(userId string, action string, details interface{}, ctx context.Context) error {
 	history := UserHistoryDoc{
 		Action:  action,
@@ -283,22 +229,6 @@ func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTi
 		DailyTotalStudySecFirestore: newDailyTotalTimeSec,
 		TotalStudySecFirestore: newTotalTimeSec,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (controller *FirestoreController) AddRoomLayoutHistory(data interface{}, ctx context.Context) error {
-	_, _, err := controller.FirestoreClient.Collection(CONFIG).Doc(DefaultRoomLayoutDocName).Collection(HISTORY).Add(ctx, data)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (controller *FirestoreController) SaveRoomLayout(roomLayoutData RoomLayoutDoc, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(DefaultRoomLayoutDocName).Set(ctx, roomLayoutData)
 	if err != nil {
 		return err
 	}
@@ -395,28 +325,4 @@ func (controller *FirestoreController) UpdateWorkNameInDefaultRoom(workName stri
 	return nil
 }
 
-func (controller *FirestoreController) UpdateWorkNameInNoSeatRoom(workName string, userId string, ctx context.Context) error {
-	// seatsを取得
-	noSeatRoomDoc, err := controller.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return err
-	}
-	seats := noSeatRoomDoc.Seats
-	
-	// seatsを更新
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].WorkName = workName
-			break
-		}
-	}
-	
-	// seatsをセット
-	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(NoSeatRoomDocName).Update(ctx, []firestore.Update{
-		{Path: SeatsFirestore, Value: seats},
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
+

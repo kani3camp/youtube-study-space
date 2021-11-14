@@ -10,19 +10,6 @@ import (
 	"os"
 )
 
-func UpdateRoomLayout(roomLayoutFilePath string, clientOption option.ClientOption, ctx context.Context) {
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	
-	err = _system.UpdateRoomLayout(roomLayoutFilePath, ctx)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-}
 
 func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)

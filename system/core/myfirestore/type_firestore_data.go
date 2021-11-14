@@ -52,14 +52,6 @@ type Seat struct {
 	ColorCode string `json:"color_code" firestore:"color-code"`
 }
 
-type NoSeatRoomDoc struct {
-	Seats []Seat `json:"seats" firestore:"seats"`
-}
-func NewNoSeatRoomDoc() NoSeatRoomDoc {
-	return NoSeatRoomDoc{
-		Seats: []Seat{},
-	}
-}
 
 type UserDoc struct {
 	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec"`
@@ -72,44 +64,6 @@ type UserDoc struct {
 	DefaultStudyMin int       `json:"default_study_min" firestore:"default-study-min"`
 }
 
-type PartitionShape struct {
-	Name   string `json:"name" firestore:"name"`
-	Width  int    `json:"width" firestore:"width"`
-	Height int    `json:"height" firestore:"height"`
-}
-type SeatLayout struct {
-	Id       int    `json:"id" firestore:"id"`
-	X        int    `json:"x" firestore:"x"`
-	Y        int    `json:"y" firestore:"y"`
-}
-type Partition struct {
-	Id        int    `json:"id" firestore:"id"`
-	X         int    `json:"x" firestore:"x"`
-	Y         int    `json:"y" firestore:"y"`
-	ShapeType string `json:"shape_type" firestore:"shape-type"`
-}
-type RoomLayoutDoc struct {
-	Version       int     `json:"version" firestore:"version"`
-	FontSizeRatio float32 `json:"font_size_ratio" firestore:"font-size-ratio"`
-	RoomShape     struct {
-		Height int `json:"height" firestore:"height"`
-		Width  int `json:"width" firestore:"width"`
-	} `json:"room_shape" firestore:"room-shape"`
-	SeatShape struct {
-		Height int `json:"height" firestore:"height"`
-		Width  int `json:"width" firestore:"width"`
-	} `json:"seat_shape" firestore:"seat-shape"`
-	PartitionShapes []PartitionShape `json:"partition_shapes" firestore:"partition-shapes"`
-	Seats []SeatLayout `json:"seats" firestore:"seats"`
-	Partitions []Partition `json:"partitions" firestore:"partitions"`
-}
-func NewRoomLayoutDoc() RoomLayoutDoc {
-	return RoomLayoutDoc{
-		PartitionShapes: []PartitionShape{},
-		Seats: []SeatLayout{},
-		Partitions: []Partition{},
-	}
-}
 
 type UserHistoryDoc struct {
 	Action string `json:"action" firestore:"action"`

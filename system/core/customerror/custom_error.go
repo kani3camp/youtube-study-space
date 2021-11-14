@@ -22,6 +22,7 @@ const (
 	InfoProcessFailed
 	MyProcessFailed
 	ChangeProcessFailed
+	SeatProcessFailed
 )
 
 type CustomError struct {

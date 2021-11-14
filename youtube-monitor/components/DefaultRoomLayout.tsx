@@ -12,7 +12,7 @@ import Message from "../components/Message";
 
 const DefaultRoomLayout = ({ }: any) => {
   const MAX_NUM_ITEMS_PER_PAGE = 42
-  const PAGING_INTERVAL_MSEC = 5000
+  const PAGING_INTERVAL_MSEC = 15 * 1000
   const PROGRESS_BAR_REFRESH_INTERVAL_MSEC = 30
   const PROGRESS_BAR_GROW_RATE = PROGRESS_BAR_REFRESH_INTERVAL_MSEC / PAGING_INTERVAL_MSEC * 100
 

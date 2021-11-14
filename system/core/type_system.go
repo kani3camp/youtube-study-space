@@ -31,11 +31,11 @@ const (
 	NotCommand CommandType = iota
 	InvalidCommand
 	In		// !in
-	SeatIn	// !席番号
 	Out		// !out
 	Info	// !info
 	My		// !my
 	Change 	// !change
+	Seat	// !seat
 )
 
 type InfoOption struct {
@@ -54,7 +54,6 @@ const (
 )
 
 type InOptions struct {
-	SeatId   int
 	WorkName string
 	WorkMin  int
 }

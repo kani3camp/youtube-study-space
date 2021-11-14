@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -80,8 +79,8 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	s.SetProcessedUser(userId, userDisplayName)
 
 	commandDetails, err := s.ParseCommand(commandString)
-	if err.IsNotNil() {	// これはシステム内部のエラーではなく、コマンドが悪いということなので、return nil
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、" + err.Body.Error(), ctx)
+	if err.IsNotNil() { // これはシステム内部のエラーではなく、コマンドが悪いということなので、return nil
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、"+err.Body.Error(), ctx)
 		return customerror.NewNil()
 	}
 	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
@@ -94,8 +93,6 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		// 暫定で何も反応しない
 		return customerror.NewNil()
 	case In:
-		fallthrough
-	case SeatIn:
 		err := s.In(commandDetails, ctx)
 		if err != nil {
 			return customerror.InProcessFailed.New(err.Error())
@@ -124,6 +121,11 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		if err != nil {
 			return customerror.ChangeProcessFailed.New(err.Error())
 		}
+	case Seat:
+		err := s.ShowSeatInfo(commandDetails, ctx)
+		if err != nil {
+			return customerror.SeatProcessFailed.New(err.Error())
+		}
 	default:
 		_ = s.LineBot.SendMessage("Unknown command: " + commandString)
 	}
@@ -136,7 +138,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
 	// 全角イコールを半角に変換
 	commandString = strings.Replace(commandString, "＝", "=", -1)
-	
+
 	if strings.HasPrefix(commandString, CommandPrefix) {
 		slice := strings.Split(commandString, HalfWidthSpace)
 		switch slice[0] {
@@ -169,20 +171,13 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
-		case CommandPrefix:	// 典型的なミスコマンド「! in」「! out」とか。
+		case SeatCommand:
+			return CommandDetails{
+				CommandType: Seat,
+			}, customerror.NewNil()
+		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
-		default: // !席番号 or 間違いコマンド
-			// !席番号かどうか
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
-			if err == nil && num >= 0 {
-				commandDetails, err := s.ParseSeatIn(num, commandString)
-				if err.IsNotNil() {
-					return CommandDetails{}, err
-				}
-				return commandDetails, customerror.NewNil()
-			}
-
-			// 間違いコマンド
+		default: // 間違いコマンド
 			return CommandDetails{
 				CommandType: InvalidCommand,
 				InOptions:   InOptions{},
@@ -212,24 +207,6 @@ func (s *System) ParseIn(commandString string) (CommandDetails, customerror.Cust
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
-	// 追加オプションチェック
-	options, err := s.ParseInOptions(slice[1:])
-	if err.IsNotNil() {
-		return CommandDetails{}, err
-	}
-
-	// 追加オプションに席番号を追加
-	options.SeatId = seatNum
-
-	return CommandDetails{
-		CommandType: SeatIn,
-		InOptions:   options,
-	}, customerror.NewNil()
-}
-
 func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.CustomError) {
 	workName := ""
 	isWorkNameSet := false
@@ -248,7 +225,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 		} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) && !isWorkNameSet {
 			workName = strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
 			isWorkNameSet = true
-		}  else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
+		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefix))
 			if err != nil { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
@@ -295,7 +272,6 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 		}
 	}
 	return InOptions{
-		SeatId:   -1,
 		WorkName: workName,
 		WorkMin:  workTimeMin,
 	}, customerror.NewNil()
@@ -303,7 +279,7 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 
 func (s *System) ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-	
+
 	if len(slice) >= 2 {
 		if slice[1] == InfoDetailsOption {
 			return CommandDetails{
@@ -326,16 +302,16 @@ func (s *System) ParseMy(commandString string) (CommandDetails, customerror.Cust
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
-	
+
 	return CommandDetails{
 		CommandType: My,
-		MyOptions: options,
+		MyOptions:   options,
 	}, customerror.NewNil()
 }
 
 func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError) {
 	isRankVisibleSet := false
-	
+
 	var options []MyOption
 
 	for _, str := range commandSlice {
@@ -361,36 +337,36 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 
 func (s *System) ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-	
+
 	// 追加オプションチェック
 	options, err := s.ParseChangeOptions(slice[1:])
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
-	
+
 	return CommandDetails{
-		CommandType: Change,
+		CommandType:   Change,
 		ChangeOptions: options,
 	}, customerror.NewNil()
 }
 
 func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, customerror.CustomError) {
 	isWorkNameSet := false
-	
+
 	var options []ChangeOption
-	
+
 	for _, str := range commandSlice {
 		if strings.HasPrefix(str, WorkNameOptionPrefix) && !isWorkNameSet {
 			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
 			options = append(options, ChangeOption{
-				Type: WorkName,
+				Type:        WorkName,
 				StringValue: workName,
 			})
 			isWorkNameSet = true
 		} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) && !isWorkNameSet {
 			workName := strings.TrimPrefix(str, WorkNameOptionShortPrefix)
 			options = append(options, ChangeOption{
-				Type: WorkName,
+				Type:        WorkName,
 				StringValue: workName,
 			})
 			isWorkNameSet = true
@@ -402,7 +378,6 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 	}
 	return options, customerror.NewNil()
 }
-
 
 func (s *System) In(command CommandDetails, ctx context.Context) error {
 	// 初回の利用の場合はユーザーデータを初期化
@@ -416,42 +391,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 	}
-	
-	// 席を指定している場合
-	if command.CommandType == SeatIn {
-		// 指定された座席番号が有効かチェック
-		switch seatId := command.InOptions.SeatId; seatId {
-		case 0:
-			break
-		default:
-			// その席番号が存在するか
-			isSeatExist, err := s.IsSeatExist(seatId, ctx)
-			if err != nil {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-				_ = s.LineBot.SendMessageWithError("failed s.IsSeatExist()", err)
-				return err
-			} else if !isSeatExist {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+
-					"存在しません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください！", ctx)
-				return nil
-			}
-			// その席が空いているか
-			isOk, err := s.IfSeatAvailable(seatId, ctx)
-			if err != nil {
-				_ = s.LineBot.SendMessageWithError("failed s.IfSeatAvailable()", err)
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-				return err
-			}
-			if !isOk {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、その席には今は座れません！空いている座席の番号を書いてください！", ctx)
-				return nil
-			}
-		}
-	}
-	
+
 	// すでに入室している場合
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
@@ -465,73 +405,33 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
 			return customErr.Body
 		}
-		
-		if command.CommandType == In {	// !inの場合: 席はそのまま、workのみチェック
-			if command.InOptions.WorkName != "" {
-				// 作業名を書きかえ
-				err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
-				if err != nil {
-					_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-					return err
-				}
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（" + strconv.Itoa(currentSeat.SeatId) + "番席）。", ctx)
-			} else {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに入室しています（" + strconv.Itoa(currentSeat.SeatId) + "番席）。", ctx)
+
+		if command.InOptions.WorkName != "" {
+			// 作業名を書きかえ
+			err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
+			if err != nil {
+				_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				return err
 			}
-			return nil
-		} else if command.CommandType == SeatIn {
-			if command.InOptions.SeatId == currentSeat.SeatId {	// 今と同じ席番号の場合
-				// 席はそのまま、workのみチェック
-				if command.InOptions.WorkName != "" {
-					// 作業名を書きかえ
-					err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
-					if err != nil {
-						_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
-						s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-							"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-						return err
-					}
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を変更しました（" + strconv.Itoa(currentSeat.SeatId) + "番席）。", ctx)
-				}
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんはすでに" +
-					strconv.Itoa(currentSeat.SeatId) + "番の席に座っています。", ctx)
-				return nil
-			} else {
-				// 今と別の席番号の場合: 指定した座席に座れるか確認し、退室させてから、入室させる。workは指定がない場合引き継ぐ。
-				if command.InOptions.WorkName == "" && currentSeat.WorkName != "" {
-					command.InOptions.WorkName = currentSeat.WorkName
-				}
-				
-				// 退室処理
-				workedTimeSec, err := s.ExitRoom(currentSeat.SeatId, ctx)
-				if err != nil {
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-					return err
-				}
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが席を移動します🚶（" +
-					strconv.Itoa(currentSeat.SeatId) + "→" + strconv.Itoa(command.InOptions.SeatId) +"番席）"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
-				
-				// 入室処理: このまま次の処理に進む
-			}
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeat.SeatId)+"番席）。", ctx)
+		} else {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに入室しています（"+strconv.Itoa(currentSeat.SeatId)+"番席）。", ctx)
 		}
+		return nil
 	}
-	
+
 	// ここまで来ると入室処理は確定
 
-	// 席を指定していない場合: 空いている席の番号をランダムに決定
-	if command.CommandType == In {
-		seatId, err := s.RandomAvailableSeatId(ctx)
-		if err != nil {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-			return err
-		}
-		command.InOptions.SeatId = seatId
+	// 席番号を決定
+	seatId, err := s.MinAvailableSeatId(ctx)
+	if err != nil {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		return err
 	}
-	
+
 	// ランクから席の色を決定
 	var seatColorCode string
 	userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
@@ -556,11 +456,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	}
 
 	// 入室
-	if command.InOptions.SeatId == 0 {
-		err = s.EnterNoSeatRoom(command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
-	} else {
-		err = s.EnterDefaultRoom(command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
-	}
+	err = s.EnterDefaultRoom(seatId, command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
@@ -568,7 +464,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		return err
 	}
 	s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-		"さんが作業を始めました🔥（最大"+strconv.Itoa(command.InOptions.WorkMin)+"分、" + strconv.Itoa(command.InOptions.SeatId) + "番席）", ctx)
+		"さんが作業を始めました🔥（最大"+strconv.Itoa(command.InOptions.WorkMin)+"分、"+strconv.Itoa(seatId)+"番席）", ctx)
 
 	// 入室時刻を記録
 	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
@@ -594,15 +490,9 @@ func (s *System) Out(command CommandDetails, ctx context.Context) error {
 	// 現在座っている席を特定
 	seatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.Body != nil {
-		if customErr.ErrorType == customerror.UserNotInAnyRoom { // TODO: おそらくここには到達しない
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、あなたは今ルーム内にはいません。", ctx)
-			return nil
-		} else {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
-			return customErr.Body
-		}
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+			"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
+		return customErr.Body
 	}
 	// 退室処理
 	workedTimeSec, err := s.ExitRoom(seatId, ctx)
@@ -629,10 +519,10 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			_ = s.LineBot.SendMessageWithError("failed s.TotalStudyTimeStrings()", err)
 			return err
 		}
-		liveChatMessage += s.ProcessedUserDisplayName+
-			"さんの本日の作業時間は"+dailyTotalTimeStr+"、"+
-			"累計作業時間は"+totalTimeStr+"です。"
-		
+		liveChatMessage += s.ProcessedUserDisplayName +
+			"さんの本日の作業時間は" + dailyTotalTimeStr + "、" +
+			"累計作業時間は" + totalTimeStr + "です。"
+
 		if command.InfoOption.ShowDetails {
 			userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 			if err != nil {
@@ -653,6 +543,29 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 	}
 	return nil
 }
+func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error {
+	// そのユーザーは入室しているか？
+	isUserInRoom, err := s.IsUserInRoom(ctx)
+	if err != nil {
+		return err
+	}
+	if isUserInRoom {
+		currentSeat, err := s.CurrentSeat(ctx)
+		if err.IsNotNil() {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			_ = s.LineBot.SendMessageWithError("failed s.CurrentSeat()", err.Body)
+		}
+		
+		remainingMinutes := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんは" + strconv.Itoa(currentSeat.SeatId) + "番の席に座っています。自動退室までの残り時間は" + strconv.Itoa(remainingMinutes) + "分です。", ctx)
+	} else {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+			"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！", ctx)
+	}
+	return nil
+}
+
+
 
 func (s *System) My(command CommandDetails, ctx context.Context) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
@@ -663,19 +576,19 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !isUserRegistered {	// ない場合は作成。
+	if !isUserRegistered { // ない場合は作成。
 		err := s.InitializeUser(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	
+
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、オプションが正しく設定されているか確認してください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください。", ctx)
 		return nil
 	}
-	
+
 	for _, myOption := range command.MyOptions {
 		if myOption.Type == RankVisible {
 			err := s.FirestoreController.SetMyRankVisible(s.ProcessedUserId, myOption.BoolValue, ctx)
@@ -696,7 +609,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			}
 		}
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんのmy設定を更新しました。", ctx)
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのmy設定を更新しました。", ctx)
 	return nil
 }
 
@@ -707,7 +620,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		return err
 	}
 	if !isUserInRoom {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、入室中のみ使えるコマンドです。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです。", ctx)
 		return nil
 	}
 	currentSeatId, customErr := s.CurrentSeatId(ctx)
@@ -716,13 +629,13 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
 		return customErr.Body
 	}
-	
+
 	// オプションが1つ以上指定されているか？
 	if len(command.ChangeOptions) == 0 {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、オプションが正しく設定されているか確認してください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください。", ctx)
 		return nil
 	}
-	
+
 	for _, changeOption := range command.ChangeOptions {
 		if changeOption.Type == WorkName {
 			// 作業名を書きかえ
@@ -735,7 +648,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			}
 		}
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんの作業名を更新しました（" + strconv.Itoa(currentSeatId) + "番席）。", ctx)
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeatId)+"番席）。", ctx)
 	return nil
 }
 
@@ -763,14 +676,6 @@ func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 	if isUserInDefaultRoom {
 		return true, nil
 	}
-	
-	isUserInNoSeatRoom, err := s.IsUserInNoSeatRoom(ctx)
-	if err != nil {
-		return false, err
-	}
-	if isUserInNoSeatRoom {
-		return true, nil
-	}
 	return false, nil
 }
 
@@ -781,19 +686,6 @@ func (s *System) IsUserInDefaultRoom(ctx context.Context) (bool, error) {
 	}
 	for _, seatInDefaultRoom := range defaultRoomData.Seats {
 		if seatInDefaultRoom.UserId == s.ProcessedUserId {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *System) IsUserInNoSeatRoom(ctx context.Context) (bool, error) {
-	noSeatRoomData, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return false, err
-	}
-	for _, seatInNoSeatRoom := range noSeatRoomData.Seats {
-		if seatInNoSeatRoom.UserId == s.ProcessedUserId {
 			return true, nil
 		}
 	}
@@ -843,60 +735,6 @@ func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, 
 	return nil
 }
 
-// EnterNoSeatRoom no-seat-roomに入室させる。事前チェックはされている前提。
-func (s *System) EnterNoSeatRoom(workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
-	enterDate := utils.JstNow()
-	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeatInNoSeatRoom(workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
-	if err != nil {
-		return err
-	}
-	// 入室時刻を記録
-	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
-	if err != nil {
-		return err
-	}
-	// ログ記録
-	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, EnterAction, seat, ctx)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RandomAvailableSeatId default-roomの席が空いているならその中からランダムな席番号を、空いていないなら0を返す。
-func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
-	roomLayout, err := s.FirestoreController.RetrieveDefaultRoomLayout(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	var availableSeatIdList []int
-	for _, seatInLayout := range roomLayout.Seats {
-		isUsed := false
-		for _, seatInUse := range defaultRoom.Seats {
-			if seatInLayout.Id == seatInUse.SeatId {
-				isUsed = true
-				break
-			}
-		}
-		if !isUsed {
-			availableSeatIdList = append(availableSeatIdList, seatInLayout.Id)
-		}
-	}
-
-	if len(availableSeatIdList) > 0 {
-		rand.Seed(utils.JstNow().UnixNano())
-		return availableSeatIdList[rand.Intn(len(availableSeatIdList))], nil
-	} else {
-		return 0, nil
-	}
-}
-
 // ExitRoom ユーザーを退室させる。事前チェックはされている前提。
 func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	// 作業時間を計算
@@ -915,35 +753,18 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	}
 
 	var seat myfirestore.Seat
-	switch seatId {
-	case 0:
-		noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-		if err != nil {
-			return 0, err
+	defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, seatDefaultRoom := range defaultSeatRoom.Seats {
+		if seatDefaultRoom.UserId == s.ProcessedUserId {
+			seat = seatDefaultRoom
 		}
-		for _, seatInNoSeatRoom := range noSeatRoom.Seats {
-			if seatInNoSeatRoom.UserId == s.ProcessedUserId {
-				seat = seatInNoSeatRoom
-			}
-		}
-		err = s.FirestoreController.UnSetSeatInNoSeatRoom(seat, ctx)
-		if err != nil {
-			return 0, err
-		}
-	default:
-		defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
-		if err != nil {
-			return 0, err
-		}
-		for _, seatDefaultRoom := range defaultSeatRoom.Seats {
-			if seatDefaultRoom.UserId == s.ProcessedUserId {
-				seat = seatDefaultRoom
-			}
-		}
-		err = s.FirestoreController.UnSetSeatInDefaultRoom(seat, ctx)
-		if err != nil {
-			return 0, err
-		}
+	}
+	err = s.FirestoreController.UnSetSeatInDefaultRoom(seat, ctx)
+	if err != nil {
+		return 0, err
 	}
 	// ログ記録
 	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, ExitAction, seat, ctx)
@@ -962,38 +783,20 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 		_ = s.LineBot.SendMessageWithError("failed to update total study time", err)
 		return 0, err
 	}
-	
+
 	log.Println(s.ProcessedUserId + " exited the room. seat id: " + strconv.Itoa(seatId))
 	return workedTimeSec, nil
 }
 
 func (s *System) CurrentSeatId(ctx context.Context) (int, customerror.CustomError) {
-	// ますは Default room にいるかどうか
-	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
-	if err != nil {
-		return 0, customerror.Unknown.Wrap(err)
+	currentSeat, err := s.CurrentSeat(ctx)
+	if err.IsNotNil() {
+		return -1, err
 	}
-	for _, seat := range defaultRoomData.Seats {
-		if seat.UserId == s.ProcessedUserId {
-			return seat.SeatId, customerror.NewNil()
-		}
-	}
-	// default room にいなければ、no-seat-room　にいるかどうか
-	noSeatRoomData, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return 0, customerror.Unknown.Wrap(err)
-	}
-	for _, seat := range noSeatRoomData.Seats {
-		if seat.UserId == s.ProcessedUserId {
-			return 0, customerror.NewNil()
-		}
-	}
-	// default-roomにもno-seat-roomにもいない
-	return -1, customerror.UserNotInAnyRoom.New("the user is not in any room.")
+	return currentSeat.SeatId, customerror.NewNil()
 }
 
 func (s *System) CurrentSeat(ctx context.Context) (myfirestore.Seat, customerror.CustomError) {
-	// ますは Default room にいるかどうか
 	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
 	if err != nil {
 		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
@@ -1003,32 +806,8 @@ func (s *System) CurrentSeat(ctx context.Context) (myfirestore.Seat, customerror
 			return seat, customerror.NewNil()
 		}
 	}
-	// default room にいなければ、no-seat-room　にいるかどうか
-	noSeatRoomData, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
-	}
-	for _, seat := range noSeatRoomData.Seats {
-		if seat.UserId == s.ProcessedUserId {
-			return seat, customerror.NewNil()
-		}
-	}
-	// default-roomにもno-seat-roomにもいない
+	// 入室していない
 	return myfirestore.Seat{}, customerror.UserNotInAnyRoom.New("the user is not in any room.")
-}
-
-func (s *System) IsSeatExist(seatId int, ctx context.Context) (bool, error) {
-	// room-layoutを読み込む
-	roomLayout, err := s.FirestoreController.RetrieveDefaultRoomLayout(ctx)
-	if err != nil {
-		return false, err
-	}
-	for _, seat := range roomLayout.Seats {
-		if seat.Id == seatId {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (s *System) UpdateTotalWorkTime(workedTimeSec int, dailyWorkedTimeSec int, ctx context.Context) error {
@@ -1075,7 +854,7 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 		}
 		workedTimeSec := int(jstNow.Sub(userData.LastEntered).Seconds())
 		realtimeDuration = time.Duration(workedTimeSec) * time.Second
-		
+
 		var dailyWorkedTimeSec int
 		if workedTimeSec > utils.InSeconds(jstNow) {
 			dailyWorkedTimeSec = utils.InSeconds(jstNow)
@@ -1084,14 +863,14 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 		}
 		realtimeDailyDuration = time.Duration(dailyWorkedTimeSec) * time.Second
 	}
-	
+
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
 		return "", "", err
 	}
 	// 累計
 	var totalStr string
-	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec) * time.Second
+	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec)*time.Second
 	if totalDuration < time.Hour {
 		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
 	} else {
@@ -1100,7 +879,7 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	}
 	// 当日の累計
 	var dailyTotalStr string
-	dailyTotalDuration := realtimeDailyDuration + time.Duration(userData.DailyTotalStudySec) * time.Second
+	dailyTotalDuration := realtimeDailyDuration + time.Duration(userData.DailyTotalStudySec)*time.Second
 	if dailyTotalDuration < time.Hour {
 		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
 	} else {
@@ -1117,23 +896,6 @@ func (s *System) ExitAllUserDefaultRoom(ctx context.Context) error {
 		return err
 	}
 	for _, seat := range defaultRoom.Seats {
-		s.ProcessedUserId = seat.UserId
-		s.ProcessedUserDisplayName = seat.UserDisplayName
-		_, err := s.ExitRoom(seat.SeatId, ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ExitAllUserNoSeatRoom no-seat-roomの全てのユーザーを退室させる。
-func (s *System) ExitAllUserNoSeatRoom(ctx context.Context) error {
-	noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return err
-	}
-	for _, seat := range noSeatRoom.Seats {
 		s.ProcessedUserId = seat.UserId
 		s.ProcessedUserDisplayName = seat.UserDisplayName
 		_, err := s.ExitRoom(seat.SeatId, ctx)
@@ -1162,10 +924,10 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		if seat.Until.Before(utils.JstNow()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
-			
+
 			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
-				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（" + s.ProcessedUserId + "）の退室処理中にエラーが発生しました。", err)
+				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました。", err)
 				return err
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
@@ -1174,23 +936,6 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			}
 		}
 	}
-
-	// no-seat-roomも同様。
-	noSeatRoom, err := s.FirestoreController.RetrieveNoSeatRoom(ctx)
-	if err != nil {
-		return err
-	}
-	for _, seat := range noSeatRoom.Seats {
-		if seat.Until.Before(utils.JstNow()) {
-			s.ProcessedUserId = seat.UserId
-			s.ProcessedUserDisplayName = seat.UserDisplayName
-			_, err := s.ExitRoom(seat.SeatId, ctx)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -1232,7 +977,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 
 func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserIdTotalStudySecSet, error) {
 	var set []UserIdTotalStudySecSet
-	
+
 	userDocRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)
 	if err != nil {
 		return set, err
@@ -1252,7 +997,6 @@ func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserI
 
 // UpdateWorkName 入室中のユーザーの作業名を更新する。入室中かどうかはチェック済みとする。
 func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
-	// default-roomの場合
 	isUserInDefaultRoom, err := s.IsUserInDefaultRoom(ctx)
 	if err != nil {
 		return err
@@ -1263,21 +1007,44 @@ func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
 			return err
 		}
 	}
-	
-	// no-seat-roomの場合
-	isUserInNoSeatRoom, err := s.IsUserInNoSeatRoom(ctx)
-	if err != nil {
-		return err
-	}
-	if isUserInNoSeatRoom {
-		err := s.FirestoreController.UpdateWorkNameInNoSeatRoom(workName, s.ProcessedUserId, ctx)
-		if err != nil {
-			return err
-		}
-	}
-	
 	return nil
 }
+
+// MinAvailableSeatId 空いている最小の番号の席番号を求める
+func (s *System) MinAvailableSeatId(ctx context.Context) (int, error) {
+	roomDoc, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return -1, err
+	}
+	
+	if len(roomDoc.Seats) > 0 {
+		// 使用されている座席番号リストを取得
+		var usedSeatIds []int
+		for _, seat := range roomDoc.Seats {
+			usedSeatIds = append(usedSeatIds, seat.SeatId)
+		}
+		
+		// 使用されていない最小の席番号を求める。1から順に探索
+		searchingSeatId := 1
+		for {
+			// searchingSeatIdがusedSeatIdsに含まれているか
+			isUsed := false
+			for _, usedSeatId := range usedSeatIds {
+				if usedSeatId == searchingSeatId {
+					isUsed = true
+				}
+			}
+			if !isUsed {	// 使われていなければその席番号を返す
+				return searchingSeatId, nil
+			}
+			searchingSeatId += 1
+		}
+	} else {	// 誰も入室していない場合
+		return 1, nil
+	}
+}
+
+
 
 
 
