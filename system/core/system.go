@@ -126,6 +126,13 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		if err != nil {
 			return customerror.SeatProcessFailed.New(err.Error())
 		}
+		return customerror.NewNil()
+	case Report:
+		err := s.Report(commandDetails, ctx)
+		if err != nil {
+			return customerror.ReportProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	default:
 		_ = s.LineBot.SendMessage("Unknown command: " + commandString)
 	}
@@ -174,6 +181,11 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 		case SeatCommand:
 			return CommandDetails{
 				CommandType: Seat,
+			}, customerror.NewNil()
+		case ReportCommand:
+			return CommandDetails{
+				CommandType: Report,
+				ReportMessage: commandString,
 			}, customerror.NewNil()
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
@@ -543,6 +555,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 	}
 	return nil
 }
+
 func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error {
 	// そのユーザーは入室しているか？
 	isUserInRoom, err := s.IsUserInRoom(ctx)
@@ -565,7 +578,15 @@ func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error
 	return nil
 }
 
-
+func (s *System) Report(command CommandDetails, ctx context.Context) error {
+	err := s.LineBot.SendMessage(s.ProcessedUserId + "（" + s.ProcessedUserDisplayName + "）さんから" + ReportCommand + "を受信しました。\n\n" + command.ReportMessage)
+	if err != nil {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。", ctx)
+		return err
+	}
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、管理者へメッセージを送信しました。", ctx)
+	return nil
+}
 
 func (s *System) My(command CommandDetails, ctx context.Context) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。

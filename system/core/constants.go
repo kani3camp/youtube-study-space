@@ -18,6 +18,7 @@ const (
 	MyCommand   = "!my"
 	ChangeCommand = "!change"
 	SeatCommand = "!seat"
+	ReportCommand = "!report"
 
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="

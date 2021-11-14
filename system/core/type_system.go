@@ -24,6 +24,7 @@ type CommandDetails struct {
 	InfoOption InfoOption
 	MyOptions   []MyOption
 	ChangeOptions []ChangeOption
+	ReportMessage string
 }
 
 type CommandType uint
@@ -36,6 +37,7 @@ const (
 	My		// !my
 	Change 	// !change
 	Seat	// !seat
+	Report	// !report
 )
 
 type InfoOption struct {
@@ -74,3 +76,4 @@ type UserIdTotalStudySecSet struct {
 	UserId string	`json:"user_id"`
 	TotalStudySec int	`json:"total_study_sec"`
 }
+

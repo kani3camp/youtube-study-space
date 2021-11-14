@@ -23,6 +23,7 @@ const (
 	MyProcessFailed
 	ChangeProcessFailed
 	SeatProcessFailed
+	ReportProcessFailed
 )
 
 type CustomError struct {
