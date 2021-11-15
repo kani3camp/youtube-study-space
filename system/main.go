@@ -2,6 +2,7 @@ package main
 
 import (
 	"app.modules/core"
+	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -143,11 +144,11 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
+	//LocalMain(clientOption, ctx)
 	//Test(clientOption, ctx)
 	
 	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
-	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
+	direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
 	//direct_operations.ExitSpecificUser("UCN61FE7NtU0URA_u9vWWdjw", clientOption, ctx)
 }

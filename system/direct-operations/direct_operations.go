@@ -88,7 +88,7 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 	defer func() {_ = f.Close()}()
 	
 	jsonEnc := json.NewEncoder(f)
-	jsonEnc.SetIndent("", "\t")
+	//jsonEnc.SetIndent("", "\t")
 	err = jsonEnc.Encode(allUsersTotalStudySecList)
 	if err != nil {
 		panic(err)
