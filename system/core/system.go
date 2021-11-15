@@ -648,8 +648,8 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			return err
 		}
 		liveChatMessage += s.ProcessedUserDisplayName +
-			"さんの本日の作業時間は" + dailyTotalTimeStr + "、" +
-			"累計作業時間は" + totalTimeStr + "です。"
+			"さん　[本日の作業時間：" + dailyTotalTimeStr + "]" +
+			" [累計作業時間：" + totalTimeStr + "]"
 
 		if command.InfoOption.ShowDetails {
 			userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
@@ -657,12 +657,15 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 				_ = s.LineBot.SendMessageWithError("failed fetch user doc", err)
 				return err
 			}
+			
 			switch userDoc.RankVisible {
 			case true:
-				liveChatMessage += "また、ランク表示はオンです。"
+				liveChatMessage += " [ランク表示：オン]"
 			case false:
-				liveChatMessage += "また、ランク表示はオフです。"
+				liveChatMessage += " [ランク表示：オフ]"
 			}
+			
+			liveChatMessage += " [登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "]"
 		}
 		s.SendLiveChatMessage(liveChatMessage, ctx)
 	} else {
