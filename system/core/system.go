@@ -648,8 +648,8 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			return err
 		}
 		liveChatMessage += s.ProcessedUserDisplayName +
-			"さん　[本日の作業時間：" + dailyTotalTimeStr + "]" +
-			" [累計作業時間：" + totalTimeStr + "]"
+			"さん　［本日の作業時間：" + dailyTotalTimeStr + "］" +
+			" ［累計作業時間：" + totalTimeStr + "］"
 
 		if command.InfoOption.ShowDetails {
 			userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
@@ -660,12 +660,12 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			
 			switch userDoc.RankVisible {
 			case true:
-				liveChatMessage += " [ランク表示：オン]"
+				liveChatMessage += "［ランク表示：オン］"
 			case false:
-				liveChatMessage += " [ランク表示：オフ]"
+				liveChatMessage += "［ランク表示：オフ］"
 			}
 			
-			liveChatMessage += " [登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "]"
+			liveChatMessage += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
 		}
 		s.SendLiveChatMessage(liveChatMessage, ctx)
 	} else {
