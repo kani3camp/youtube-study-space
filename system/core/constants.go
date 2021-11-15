@@ -21,6 +21,7 @@ const (
 	ReportCommand = "!report"
 	KickCommand = "!kick"
 	AddCommand = "!add"
+	RankCommand = "!rank"
 
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="

@@ -146,6 +146,12 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.AddProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
+	case Rank:
+		err := s.Rank(commandDetails, ctx)
+		if err != nil {
+			return customerror.RankProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	default:
 		_ = s.LineBot.SendMessage("Unknown command: " + commandString)
 	}
@@ -212,6 +218,10 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case RankCommand:
+			return CommandDetails{
+				CommandType: Rank,
+			}, customerror.NewNil()
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
 		default: // 間違いコマンド
@@ -593,7 +603,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
-func (s *System) Out(command CommandDetails, ctx context.Context) error {
+func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	// 今勉強中か？
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
@@ -662,7 +672,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 	return nil
 }
 
-func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error {
+func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 	// そのユーザーは入室しているか？
 	isUserInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
@@ -733,6 +743,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
+	
 	// そのユーザーはドキュメントがあるか？
 	isUserRegistered, err := s.IfUserRegistered(ctx)
 	if err != nil {
@@ -753,12 +764,31 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 
 	for _, myOption := range command.MyOptions {
 		if myOption.Type == RankVisible {
-			err := s.FirestoreController.SetMyRankVisible(s.ProcessedUserId, myOption.BoolValue, ctx)
+			userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 			if err != nil {
-				_ = s.LineBot.SendMessageWithError("failed to set my-rank-visible", err)
+				_ = s.LineBot.SendMessageWithError("faield  s.FirestoreController.RetrieveUser()", err)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 				return err
+			}
+			// 現在の値と、設定したい値が同じなら、変更なし
+			if userDoc.RankVisible == myOption.BoolValue {
+				var rankVisibleString string
+				if userDoc.RankVisible {
+					rankVisibleString = "オン"
+				} else {
+					rankVisibleString = "オフ"
+				}
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんのランク表示モードはすでに" + rankVisibleString + "です。", ctx)
+			} else {
+				// 違うなら、切替
+				err := s.ToggleRankVisible(ctx)
+				if err != nil {
+					_ = s.LineBot.SendMessageWithError("failed to ToggleRankVisible", err)
+					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					return err
+				}
 			}
 		}
 		if myOption.Type == DefaultStudyMin {
@@ -769,9 +799,9 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 				return err
 			}
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんのデフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。", ctx)
 		}
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのmy設定を更新しました。", ctx)
 	return nil
 }
 
@@ -846,6 +876,77 @@ func (s *System) Add(command CommandDetails, ctx context.Context) error {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです。", ctx)
 	}
 
+	return nil
+}
+
+func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
+	// そのユーザーはドキュメントがあるか？
+	isUserRegistered, err := s.IfUserRegistered(ctx)
+	if err != nil {
+		return err
+	}
+	if !isUserRegistered { // ない場合は作成。
+		err := s.InitializeUser(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	
+	// ランク表示設定のON/OFFを切り替える
+	err = s.ToggleRankVisible(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *System) ToggleRankVisible(ctx context.Context) error {
+	// get current value
+	userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+	if err != nil {
+		return err
+	}
+	currentRankVisible := userDoc.RankVisible
+	newRankVisible := !currentRankVisible
+	
+	// set reverse value
+	err = s.FirestoreController.SetMyRankVisible(s.ProcessedUserId, newRankVisible, ctx)
+	if err != nil {
+		return err
+	}
+	
+	var newValueString string
+	if newRankVisible {
+		newValueString = "オン"
+	} else {
+		newValueString = "オフ"
+	}
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さんのランク表示を" + newValueString + "にしました。", ctx)
+	
+	// 入室中であれば、座席の色も変える
+	isUserInRoom, err := s.IsUserInRoom(ctx)
+	if isUserInRoom {
+		var rank utils.Rank
+		if newRankVisible {	// ランクから席の色を取得
+			rank, err = utils.GetRank(userDoc.TotalStudySec)
+			if err != nil {
+				_ = s.LineBot.SendMessageWithError("failed to GetRank", err)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				return err
+			}
+		} else {	// ランク表示オフの色を取得
+			rank = utils.GetInvisibleRank()
+		}
+		// 席の色を更新
+		err := s.FirestoreController.UpdateSeatColorCode(rank.ColorCode, s.ProcessedUserId, ctx)
+		if err != nil {
+			_ = s.LineBot.SendMessageWithError("failed to s.FirestoreController.UpdateSeatColorCode()", err)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してください。", ctx)
+			return err
+		}
+	}
+	
 	return nil
 }
 

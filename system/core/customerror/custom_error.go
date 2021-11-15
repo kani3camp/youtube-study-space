@@ -26,6 +26,7 @@ const (
 	ReportProcessFailed
 	KickProcessFailed
 	AddProcessFailed
+	RankProcessFailed
 )
 
 type CustomError struct {

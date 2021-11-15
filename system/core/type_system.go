@@ -43,6 +43,7 @@ const (
 	Report	// !report
 	Kick	// !kick
 	Add		// !add
+	Rank	// !rank
 )
 
 type InfoOption struct {

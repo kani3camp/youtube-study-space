@@ -352,4 +352,30 @@ func (controller *FirestoreController) UpdateWorkNameInDefaultRoom(workName stri
 	return nil
 }
 
+func (controller *FirestoreController) UpdateSeatColorCode(colorCode string, userId string, ctx context.Context) error {
+	// seatsを取得
+	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	if err != nil {
+		return err
+	}
+	seats := defaultRoomDoc.Seats
+	
+	// seatsを更新
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].ColorCode = colorCode
+			break
+		}
+	}
+	
+	// seatsをセット
+	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Update(ctx, []firestore.Update{
+		{Path: SeatsFirestore, Value: seats},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 
