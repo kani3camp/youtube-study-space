@@ -19,7 +19,7 @@ func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) 
 	}
 	
 	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
-	err = _system.ExitAllUserDefaultRoom(ctx)
+	err = _system.ExitAllUserInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return

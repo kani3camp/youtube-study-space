@@ -584,7 +584,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	}
 
 	// 入室
-	err = s.EnterDefaultRoom(seatId, command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
+	err = s.EnterRoom(seatId, command.InOptions.WorkName, command.InOptions.WorkMin, seatColorCode, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
@@ -955,11 +955,11 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 
 // IfSeatAvailable 席番号がseatIdの席が空いているかどうか。
 func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) {
-	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	roomData, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return false, err
 	}
-	for _, seat := range defaultRoomData.Seats {
+	for _, seat := range roomData.Seats {
 		if seat.SeatId == seatId {
 			return false, nil
 		}
@@ -969,7 +969,7 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 }
 
 func (s *System) RetrieveSeatBySeatId(seatId int, ctx context.Context) (myfirestore.Seat, customerror.CustomError) {
-	roomDoc, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	roomDoc, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
 	}
@@ -982,25 +982,14 @@ func (s *System) RetrieveSeatBySeatId(seatId int, ctx context.Context) (myfirest
 	return myfirestore.Seat{}, customerror.SeatNotFound.New("that seat is not used.")
 }
 
-// IsUserInRoom そのユーザーが default/no-seat ルーム内にいるか？登録済みかに関わらず。
+// IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
 func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
-	isUserInDefaultRoom, err := s.IsUserInDefaultRoom(ctx)
+	roomData, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return false, err
 	}
-	if isUserInDefaultRoom {
-		return true, nil
-	}
-	return false, nil
-}
-
-func (s *System) IsUserInDefaultRoom(ctx context.Context) (bool, error) {
-	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
-	if err != nil {
-		return false, err
-	}
-	for _, seatInDefaultRoom := range defaultRoomData.Seats {
-		if seatInDefaultRoom.UserId == s.ProcessedUserId {
+	for _, seat := range roomData.Seats {
+		if seat.UserId == s.ProcessedUserId {
 			return true, nil
 		}
 	}
@@ -1029,11 +1018,11 @@ func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) er
 	return s.FirestoreController.SaveNextPageToken(nextPageToken, ctx)
 }
 
-// EnterDefaultRoom default-roomに入室させる。事前チェックはされている前提。
-func (s *System) EnterDefaultRoom(seatId int, workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
+// EnterRoom 入室させる。事前チェックはされている前提。
+func (s *System) EnterRoom(seatId int, workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
 	enterDate := utils.JstNow()
 	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeatInDefaultRoom(seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
+	seat, err := s.FirestoreController.SetSeat(seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
 	if err != nil {
 		return err
 	}
@@ -1068,16 +1057,16 @@ func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
 	}
 
 	var seat myfirestore.Seat
-	defaultSeatRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	room, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return 0, err
 	}
-	for _, seatDefaultRoom := range defaultSeatRoom.Seats {
-		if seatDefaultRoom.UserId == s.ProcessedUserId {
-			seat = seatDefaultRoom
+	for _, seatInRoom := range room.Seats {
+		if seatInRoom.UserId == s.ProcessedUserId {
+			seat = seatInRoom
 		}
 	}
-	err = s.FirestoreController.UnSetSeatInDefaultRoom(seat, ctx)
+	err = s.FirestoreController.UnSetSeatInRoom(seat, ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -1112,11 +1101,11 @@ func (s *System) CurrentSeatId(ctx context.Context) (int, customerror.CustomErro
 }
 
 func (s *System) CurrentSeat(ctx context.Context) (myfirestore.Seat, customerror.CustomError) {
-	defaultRoomData, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	roomData, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
 	}
-	for _, seat := range defaultRoomData.Seats {
+	for _, seat := range roomData.Seats {
 		if seat.UserId == s.ProcessedUserId {
 			return seat, customerror.NewNil()
 		}
@@ -1204,13 +1193,13 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	return totalStr, dailyTotalStr, nil
 }
 
-// ExitAllUserDefaultRoom default-roomの全てのユーザーを退室させる。
-func (s *System) ExitAllUserDefaultRoom(ctx context.Context) error {
-	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+// ExitAllUserInRoom roomの全てのユーザーを退室させる。
+func (s *System) ExitAllUserInRoom(ctx context.Context) error {
+	room, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return err
 	}
-	for _, seat := range defaultRoom.Seats {
+	for _, seat := range room.Seats {
 		s.ProcessedUserId = seat.UserId
 		s.ProcessedUserDisplayName = seat.UserDisplayName
 		_, err := s.ExitRoom(seat.SeatId, ctx)
@@ -1229,13 +1218,13 @@ func (s *System) SendLiveChatMessage(message string, ctx context.Context) {
 	return
 }
 
-// OrganizeDatabase untilを過ぎているdefaultルーム内のユーザーを退室させる。
+// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。
 func (s *System) OrganizeDatabase(ctx context.Context) error {
-	defaultRoom, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	room, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return err
 	}
-	for _, seat := range defaultRoom.Seats {
+	for _, seat := range room.Seats {
 		if seat.Until.Before(utils.JstNow()) {
 			s.ProcessedUserId = seat.UserId
 			s.ProcessedUserDisplayName = seat.UserDisplayName
@@ -1312,12 +1301,12 @@ func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserI
 
 // UpdateWorkName 入室中のユーザーの作業名を更新する。入室中かどうかはチェック済みとする。
 func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
-	isUserInDefaultRoom, err := s.IsUserInDefaultRoom(ctx)
+	isUserInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
 		return err
 	}
-	if isUserInDefaultRoom {
-		err := s.FirestoreController.UpdateWorkNameInDefaultRoom(workName, s.ProcessedUserId, ctx)
+	if isUserInRoom {
+		err := s.FirestoreController.UpdateWorkNameAtSeat(workName, s.ProcessedUserId, ctx)
 		if err != nil {
 			return err
 		}
@@ -1327,7 +1316,7 @@ func (s *System) UpdateWorkName(workName string, ctx context.Context) error {
 
 // MinAvailableSeatId 空いている最小の番号の席番号を求める
 func (s *System) MinAvailableSeatId(ctx context.Context) (int, error) {
-	roomDoc, err := s.FirestoreController.RetrieveDefaultRoom(ctx)
+	roomDoc, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return -1, err
 	}

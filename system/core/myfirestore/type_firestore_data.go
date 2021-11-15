@@ -33,11 +33,11 @@ type LineBotConfigDoc struct {
 	DestinationLineId string `firestore:"destination-line-id"`
 }
 
-type DefaultRoomDoc struct {
+type RoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`
 }
-func NewDefaultRoomDoc() DefaultRoomDoc {
-	return DefaultRoomDoc{
+func NewRoomDoc() RoomDoc {
+	return RoomDoc{
 		Seats: []Seat{},
 	}
 }

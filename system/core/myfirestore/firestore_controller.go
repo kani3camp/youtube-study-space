@@ -116,20 +116,20 @@ func (controller *FirestoreController) SaveNextPageToken(nextPageToken string, c
 	return nil
 }
 
-func (controller *FirestoreController) RetrieveDefaultRoom(ctx context.Context) (DefaultRoomDoc, error) {
-	defaultRoomData := NewDefaultRoomDoc()
+func (controller *FirestoreController) RetrieveRoom(ctx context.Context) (RoomDoc, error) {
+	roomData := NewRoomDoc()
 	doc, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Get(ctx)
 	if err != nil {
-		return DefaultRoomDoc{}, err
+		return RoomDoc{}, err
 	}
-	err = doc.DataTo(&defaultRoomData)
+	err = doc.DataTo(&roomData)
 	if err != nil {
-		return DefaultRoomDoc{}, err
+		return RoomDoc{}, err
 	}
-	return defaultRoomData, nil
+	return roomData, nil
 }
 
-func (controller *FirestoreController) SetSeatInDefaultRoom(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
+func (controller *FirestoreController) SetSeat(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
 		SeatId: seatId,
 		UserId: userId,
@@ -168,7 +168,7 @@ func (controller *FirestoreController) SetLastExitedDate(userId string, ctx cont
 	return nil
 }
 
-func (controller *FirestoreController) UnSetSeatInDefaultRoom(seat Seat, ctx context.Context) error {
+func (controller *FirestoreController) UnSetSeatInRoom(seat Seat, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayRemove(seat),
 	}, firestore.MergeAll)
@@ -237,11 +237,11 @@ func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTi
 
 func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userId string, ctx context.Context) error {
 	// seatsを取得
-	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	roomDoc, err := controller.RetrieveRoom(ctx)
 	if err != nil {
 		return err
 	}
-	seats := defaultRoomDoc.Seats
+	seats := roomDoc.Seats
 	
 	// seatsを更新
 	for i, seat := range seats {
@@ -326,13 +326,13 @@ func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken
 	return nil
 }
 
-func (controller *FirestoreController) UpdateWorkNameInDefaultRoom(workName string, userId string, ctx context.Context) error {
+func (controller *FirestoreController) UpdateWorkNameAtSeat(workName string, userId string, ctx context.Context) error {
 	// seatsを取得
-	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	roomDoc, err := controller.RetrieveRoom(ctx)
 	if err != nil {
 		return err
 	}
-	seats := defaultRoomDoc.Seats
+	seats := roomDoc.Seats
 	
 	// seatsを更新
 	for i, seat := range seats {
@@ -354,11 +354,11 @@ func (controller *FirestoreController) UpdateWorkNameInDefaultRoom(workName stri
 
 func (controller *FirestoreController) UpdateSeatColorCode(colorCode string, userId string, ctx context.Context) error {
 	// seatsを取得
-	defaultRoomDoc, err := controller.RetrieveDefaultRoom(ctx)
+	roomDoc, err := controller.RetrieveRoom(ctx)
 	if err != nil {
 		return err
 	}
-	seats := defaultRoomDoc.Seats
+	seats := roomDoc.Seats
 	
 	// seatsを更新
 	for i, seat := range seats {

@@ -13,8 +13,8 @@ import (
 
 type RoomsResponseStruct struct {
 	Result  string       `json:"result"`
-	Message string       `json:"message"`
-	DefaultRoom   myfirestore.DefaultRoomDoc `json:"default_room"`
+	Message string                    `json:"message"`
+	DefaultRoom   myfirestore.RoomDoc `json:"default_room"`
 }
 
 func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -31,7 +31,7 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 	}
 	defer _system.CloseFirestoreClient()
 	
-	defaultRoom, err := _system.FirestoreController.RetrieveDefaultRoom(ctx)
+	defaultRoom, err := _system.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return lambdautils.ErrorResponse(err)
 	}
@@ -39,7 +39,7 @@ func Rooms(_ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, err
 	return RoomsResponse(defaultRoom)
 }
 
-func RoomsResponse(defaultRoom myfirestore.DefaultRoomDoc) (events.APIGatewayProxyResponse, error) {
+func RoomsResponse(defaultRoom myfirestore.RoomDoc) (events.APIGatewayProxyResponse, error) {
 	var apiResp RoomsResponseStruct
 	apiResp.Result = lambdautils.OK
 	apiResp.DefaultRoom = defaultRoom
