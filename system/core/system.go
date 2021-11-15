@@ -486,6 +486,10 @@ func (s *System) ParseAdd(commandString string) (CommandDetails, customerror.Cus
 	} else {
 		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + WorkTimeOptionPrefix + "」で指定してください。")
 	}
+	
+	if workTimeMin == 0 {
+		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください。")
+	}
 
 	return CommandDetails{
 		CommandType: Add,
