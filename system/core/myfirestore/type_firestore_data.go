@@ -13,25 +13,28 @@ type ConstantsConfigDoc struct {
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 }
 
-type YoutubeLiveConfigDoc struct {
-	LiveChatId string `firestore:"live-chat-id"`
-	NextPageToken string `firestore:"next-page-token"`
+type CredentialsConfigDoc struct {
+	LineBotChannelSecret string `firestore:"line-bot-channel-secret"`
+	LineBotChannelToken string `firestore:"line-bot-channel-token"`
+	LineBotDestinationLineId string `firestore:"line-bot-destination-line-id"`
+	
+	YoutubeBotAccessToken string `firestore:"youtube-bot-access-token"`
+	YoutubeBotClientId string `firestore:"youtube-bot-client-id"`
+	YoutubeBotClientSecret string `firestore:"youtube-bot-client-secret"`
+	YoutubeBotExpirationDate time.Time `firestore:"youtube-bot-expiration-date"`
+	YoutubeBotRefreshToken string `firestore:"youtube-bot-refresh-token"`
+	
+	YoutubeChannelAccessToken string `firestore:"youtube-channel-access-token"`
+	YoutubeChannelClientId string `firestore:"youtube-channel-client-id"`
+	YoutubeChannelClientSecret string `firestore:"youtube-channel-client-secret"`
+	YoutubeChannelExpirationDate time.Time `firestore:"youtube-channel-expiration-date"`
+	YoutubeChannelRefreshToken string `firestore:"youtube-channel-refresh-token"`
+	
+	YoutubeLiveChatId string `firestore:"youtube-live-chat-id"`
+	YoutubeLiveChatNextPageToken string `firestore:"youtube-live-chat-next-page-token"`
 	OAuthRefreshTokenUrl string `firestore:"o-auth-refresh-token-url"`
 }
 
-type YoutubeCredentialDoc struct {
-	AccessToken string `firestore:"access-token"`
-	ClientId string `firestore:"client-id"`
-	ClientSecret string `firestore:"client-secret"`
-	ExpirationDate time.Time `firestore:"expiration-date"`
-	RefreshToken string `firestore:"refresh-token"`
-}
-
-type LineBotConfigDoc struct {
-	ChannelSecret string `firestore:"channel-secret"`
-	ChannelToken string `firestore:"channel-token"`
-	DestinationLineId string `firestore:"destination-line-id"`
-}
 
 type RoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`

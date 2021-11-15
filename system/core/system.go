@@ -22,23 +22,21 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	if err != nil {
 		return System{}, err
 	}
-
-	// youtube live chat bot
-	youtubeLiveConfig, err := fsController.RetrieveYoutubeLiveConfig(ctx)
+	
+	// credentials
+	credentialsDoc, err := fsController.RetrieveCredentialsConfig(ctx)
 	if err != nil {
 		return System{}, err
 	}
-	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(youtubeLiveConfig.LiveChatId, fsController, ctx)
+
+	// youtube live chat bot
+	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatId, fsController, ctx)
 	if err != nil {
 		return System{}, err
 	}
 
 	// line bot
-	lineBotConfig, err := fsController.RetrieveLineBotConfig(ctx)
-	if err != nil {
-		return System{}, err
-	}
-	lineBot, err := mylinebot.NewLineBot(lineBotConfig.ChannelSecret, lineBotConfig.ChannelToken, lineBotConfig.DestinationLineId)
+	lineBot, err := mylinebot.NewLineBot(credentialsDoc.LineBotChannelSecret,credentialsDoc.LineBotChannelToken, credentialsDoc.LineBotDestinationLineId)
 	if err != nil {
 		return System{}, err
 	}
@@ -1004,10 +1002,6 @@ func (s *System) InitializeUser(ctx context.Context) error {
 		RegistrationDate:   utils.JstNow(),
 	}
 	return s.FirestoreController.InitializeUser(s.ProcessedUserId, userData, ctx)
-}
-
-func (s *System) RetrieveYoutubeLiveInfo(ctx context.Context) (myfirestore.YoutubeLiveConfigDoc, error) {
-	return s.FirestoreController.RetrieveYoutubeLiveConfig(ctx)
 }
 
 func (s *System) RetrieveNextPageToken(ctx context.Context) (string, error) {

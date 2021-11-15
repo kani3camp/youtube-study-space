@@ -25,56 +25,17 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	}, nil
 }
 
-func (controller *FirestoreController) RetrieveYoutubeLiveConfig(ctx context.Context) (YoutubeLiveConfigDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Get(ctx)
+func (controller *FirestoreController) RetrieveCredentialsConfig(ctx context.Context) (CredentialsConfigDoc, error) {
+	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Get(ctx)
 	if err != nil {
-		return YoutubeLiveConfigDoc{}, err
+		return CredentialsConfigDoc{}, err
 	}
-	var youtubeLiveData YoutubeLiveConfigDoc
-	err = doc.DataTo(&youtubeLiveData)
+	var credentialsData CredentialsConfigDoc
+	err = doc.DataTo(&credentialsData)
 	if err != nil {
-		return YoutubeLiveConfigDoc{}, err
+		return CredentialsConfigDoc{}, err
 	}
-	return youtubeLiveData, nil
-}
-
-func (controller *FirestoreController) RetrieveYoutubeBotCredentialConfig(ctx context.Context) (YoutubeCredentialDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeBotCredentialDocName).Get(ctx)
-	if err != nil {
-		return YoutubeCredentialDoc{}, err
-	}
-	var youtubeBotCredential YoutubeCredentialDoc
-	err = doc.DataTo(&youtubeBotCredential)
-	if err != nil {
-		return YoutubeCredentialDoc{}, err
-	}
-	return youtubeBotCredential, nil
-}
-
-func (controller *FirestoreController) RetrieveYoutubeChannelCredentialConfig(ctx context.Context) (YoutubeCredentialDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeChannelCredentialDocName).Get(ctx)
-	if err != nil {
-		return YoutubeCredentialDoc{}, err
-	}
-	var youtubeChannelCredential YoutubeCredentialDoc
-	err = doc.DataTo(&youtubeChannelCredential)
-	if err != nil {
-		return YoutubeCredentialDoc{}, err
-	}
-	return youtubeChannelCredential, nil
-}
-
-func (controller *FirestoreController) RetrieveLineBotConfig(ctx context.Context) (LineBotConfigDoc, error) {
-	doc, err := controller.FirestoreClient.Collection(CONFIG).Doc(LineBotConfigDocName).Get(ctx)
-	if err != nil {
-		return LineBotConfigDoc{}, err
-	}
-	var lineBotConfigData LineBotConfigDoc
-	err = doc.DataTo(&lineBotConfigData)
-	if err != nil {
-		return LineBotConfigDoc{}, err
-	}
-	return lineBotConfigData, nil
+	return credentialsData, nil
 }
 
 func (controller *FirestoreController) RetrieveSystemConstantsConfig(ctx context.Context) (ConstantsConfigDoc, error) {
@@ -91,23 +52,23 @@ func (controller *FirestoreController) RetrieveSystemConstantsConfig(ctx context
 }
 
 func (controller *FirestoreController) RetrieveLiveChatId(ctx context.Context) (string, error) {
-	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveConfig(ctx)
+	credentialsDoc, err := controller.RetrieveCredentialsConfig(ctx)
 	if err != nil {
 		return "", err
 	}
-	return youtubeLiveDoc.LiveChatId, nil
+	return credentialsDoc.YoutubeLiveChatId, nil
 }
 
 func (controller *FirestoreController) RetrieveNextPageToken(ctx context.Context) (string, error) {
-	youtubeLiveDoc, err := controller.RetrieveYoutubeLiveConfig(ctx)
+	credentialsDoc, err := controller.RetrieveCredentialsConfig(ctx)
 	if err != nil {
 		return "", err
 	}
-	return youtubeLiveDoc.NextPageToken, nil
+	return credentialsDoc.YoutubeLiveChatNextPageToken, nil
 }
 
 func (controller *FirestoreController) SaveNextPageToken(nextPageToken string, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Set(ctx, map[string]interface{}{
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
 		NextPageTokenFirestore: nextPageToken,
 	}, firestore.MergeAll)
 	if err != nil {
@@ -263,7 +224,7 @@ func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userI
 
 
 func (controller *FirestoreController) SaveLiveChatId(liveChatId string, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YouTubeLiveConfigDocName).Set(ctx, map[string]interface{}{
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
 		LiveChatIdFirestore: liveChatId,
 	}, firestore.MergeAll)
 	if err != nil {
@@ -305,9 +266,9 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time
 }
 
 func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeChannelCredentialDocName).Set(ctx, map[string]interface{}{
-		AccessTokenFirestore: accessToken,
-		ExpireDateFirestore:  expireDate,
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
+		YoutubeChannelAccessTokenFirestore: accessToken,
+		YoutubeChannelExpirationDate:  expireDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -316,9 +277,9 @@ func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessT
 }
 
 func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(YoutubeBotCredentialDocName).Set(ctx, map[string]interface{}{
-		AccessTokenFirestore: accessToken,
-		ExpireDateFirestore:  expireDate,
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
+		YoutubeBotAccessTokenFirestore: accessToken,
+		YoutubeBotExpirationDateFirestore:  expireDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err

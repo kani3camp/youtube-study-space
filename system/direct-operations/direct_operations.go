@@ -11,7 +11,7 @@ import (
 )
 
 
-func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) {
+func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
@@ -20,11 +20,6 @@ func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) 
 	
 	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
 	err = _system.ExitAllUserInRoom(ctx)
-	if err != nil {
-		panic(err)
-		return
-	}
-	err = _system.ExitAllUserNoSeatRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
@@ -75,7 +70,7 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 	defer func() {_ = f.Close()}()
 	
 	jsonEnc := json.NewEncoder(f)
-	jsonEnc.SetIndent("", "\t")
+	//jsonEnc.SetIndent("", "\t")
 	err = jsonEnc.Encode(allUsersTotalStudySecList)
 	if err != nil {
 		panic(err)
