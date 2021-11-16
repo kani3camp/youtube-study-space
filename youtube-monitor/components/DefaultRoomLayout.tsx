@@ -34,6 +34,12 @@ const DefaultRoomLayout = ({ }: any) => {
   }, [initialized, roomState]);
 
   const init = () => {
+    fetcher<RoomsStateResponse>(api.roomsState)
+      .then((r) => {
+        setRoomState(r.default_room)
+      })
+      .catch((err) => console.error(err));
+
     const fetchIntervalId = setInterval(() => {
       console.log('fetching')
       fetcher<RoomsStateResponse>(api.roomsState)
