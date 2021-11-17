@@ -1194,8 +1194,7 @@ func (s *System) ExitAllUserInRoom(ctx context.Context) error {
 		return err
 	}
 	for _, seat := range room.Seats {
-		s.ProcessedUserId = seat.UserId
-		s.ProcessedUserDisplayName = seat.UserDisplayName
+		s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 		_, err := s.ExitRoom(seat.SeatId, ctx)
 		if err != nil {
 			return err
@@ -1220,8 +1219,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	}
 	for _, seat := range room.Seats {
 		if seat.Until.Before(utils.JstNow()) {
-			s.ProcessedUserId = seat.UserId
-			s.ProcessedUserDisplayName = seat.UserDisplayName
+			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 
 			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
@@ -1230,7 +1228,6 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
-				return nil
 			}
 		}
 	}
