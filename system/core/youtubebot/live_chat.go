@@ -147,7 +147,9 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	// first call
 	_, err := insertCall.Do()
 	if err != nil {
-		log.Println("first post was failed")
+		log.Println("first post was failed", err)
+		
+		// todo もう一度
 		
 		// bot credentialのaccess tokenが期限切れの可能性
 		credentialConfig, err := bot.FirestoreController.RetrieveCredentialsConfig(ctx)
@@ -218,6 +220,8 @@ func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {
 		bot.LiveChatId = newLiveChatId
 		return nil
 	} else if len(response.Items) == 0 {
+		log.Println("ライブ1個もやってない（1回目）")
+		
 		// たまに、配信してるのにこの結果になることがあるかも（未確認）しれないので、もう一度。
 		broadCastsService := youtube.NewLiveBroadcastsService(bot.ChannelYoutubeService)
 		part := []string{"snippet"}
@@ -248,7 +252,7 @@ func (bot *YoutubeLiveChatBot) RefreshLiveChatId(ctx context.Context) error {
 			bot.LiveChatId = newLiveChatId
 			return nil
 		} else if len(response.Items) == 0 {
-			return errors.New("there are no live broadcast!")
+			return errors.New("2回試したけどライブ1個もやってない")
 		} else {
 			return errors.New("more than 2 live broadcasts!: " + strconv.Itoa(len(response.Items)))
 		}
