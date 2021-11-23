@@ -15,6 +15,7 @@ type System struct {
 	DefaultWorkTimeMin int
 	ProcessedUserId string
 	ProcessedUserDisplayName string
+	ProcessedUserIsModeratorOrOwner bool
 	DefaultSleepIntervalMilli int
 }
 
@@ -24,6 +25,9 @@ type CommandDetails struct {
 	InfoOption InfoOption
 	MyOptions   []MyOption
 	ChangeOptions []ChangeOption
+	ReportMessage string
+	KickSeatId	int
+	AddMinutes	int
 }
 
 type CommandType uint
@@ -31,11 +35,15 @@ const (
 	NotCommand CommandType = iota
 	InvalidCommand
 	In		// !in
-	SeatIn	// !席番号
 	Out		// !out
 	Info	// !info
 	My		// !my
 	Change 	// !change
+	Seat	// !seat
+	Report	// !report
+	Kick	// !kick
+	Add		// !add
+	Rank	// !rank
 )
 
 type InfoOption struct {
@@ -54,7 +62,6 @@ const (
 )
 
 type InOptions struct {
-	SeatId   int
 	WorkName string
 	WorkMin  int
 }
@@ -75,3 +82,4 @@ type UserIdTotalStudySecSet struct {
 	UserId string	`json:"user_id"`
 	TotalStudySec int	`json:"total_study_sec"`
 }
+

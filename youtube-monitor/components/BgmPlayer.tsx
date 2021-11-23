@@ -83,8 +83,8 @@ const BgmPlayer: React.FC = () => {
 
             let wave = new Wave()
             const waveOptions = {
-                type: 'bars blocks',
-                colors: ['#555555'],
+                type: 'wave',
+                colors: ['#000', '#111'],
                 stroke: 0
             }
             wave.fromElement('music', styles.audioCanvas, waveOptions)

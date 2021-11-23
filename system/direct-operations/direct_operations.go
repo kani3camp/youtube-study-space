@@ -10,21 +10,8 @@ import (
 	"os"
 )
 
-func UpdateRoomLayout(roomLayoutFilePath string, clientOption option.ClientOption, ctx context.Context) {
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	
-	err = _system.UpdateRoomLayout(roomLayoutFilePath, ctx)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-}
 
-func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) {
+func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
@@ -32,12 +19,7 @@ func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) 
 	}
 	
 	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
-	err = _system.ExitAllUserDefaultRoom(ctx)
-	if err != nil {
-		panic(err)
-		return
-	}
-	err = _system.ExitAllUserNoSeatRoom(ctx)
+	err = _system.ExitAllUserInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
@@ -52,7 +34,7 @@ func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx conte
 		return
 	}
 	
-	_system.SetProcessedUser(userId, "**")
+	_system.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
 		CommandType:   core.Out,
 		InOptions: core.InOptions{},

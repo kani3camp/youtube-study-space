@@ -2,35 +2,50 @@
   position: relative
   top: 0
   left: 0
+  width: 100%
+  height: 1080px - 70px
+  padding: 0.3rem
+  box-sizing: border-box
   margin: auto
   border: solid 6px #303030
+  display: flex
+  flex-wrap: wrap
+  overflow: hidden
 
 .seat
-  position: absolute
+  width: 7.3rem
+  height: 3.5rem
+  margin: 0.2rem
   display: flex
   flex-direction: column
   justify-content: center
   align-items: center
+  border-radius: 0.15rem
+  // border: solid black 0.03rem
 
 .partition
   position: absolute
   background-color: #2d2b41
 
-.emptySeatNum
+.seatId
   margin: 0
-  font-size: 1.5em
+  position: relative
+  top: 0
+  left: 0
+  font-size: 0.7em
   color: #414141
 .usedSeatNum
   font-size: 0.7em
 
 .workName
   margin: 0
-  font-size: 0.7em
+  font-size: 0.9em
   color: #24317e
   max-width: 100%
   text-overflow: ellipsis
   overflow: hidden
   white-space: nowrap
+  font-weight: bolder
 
 .userDisplayName
   margin: 0
@@ -39,5 +54,11 @@
   text-overflow: ellipsis
   overflow: hidden
   white-space: nowrap
-
   color: #202020
+
+// .progressBar
+//   position: relative
+//   bottom: 0
+//   left: 0
+//   background-color: green
+//   height: 5%

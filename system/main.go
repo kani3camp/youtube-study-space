@@ -100,7 +100,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, ctx)
+			err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner, ctx)
 			if err.IsNotNil() {
 				_ = _system.LineBot.SendMessageWithError("error in core.Command()", err.Body)
 			}
@@ -147,8 +147,7 @@ func main() {
 	//LocalMain(clientOption, ctx)
 	//Test(clientOption, ctx)
 	
-	//direct_operations.UpdateRoomLayout("../room_layouts/classroom.json", clientOption, ctx)
-	direct_operations.ExportUsersCollectionJson(clientOption, ctx)
+	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
 	//direct_operations.ExitSpecificUser("UCN61FE7NtU0URA_u9vWWdjw", clientOption, ctx)
 }

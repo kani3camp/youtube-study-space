@@ -40,13 +40,13 @@ func NewLiveStreamChecker(
 
 
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
-	channelCredential, err := checker.FirestoreController.RetrieveYoutubeChannelCredentialConfig(ctx)
+	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx)
 	if err != nil {
 		return err
 	}
 	config := &oauth2.Config{
-		ClientID: channelCredential.ClientId,
-		ClientSecret: channelCredential.ClientSecret,
+		ClientID:     credentials.YoutubeChannelClientId,
+		ClientSecret: credentials.YoutubeChannelClientSecret,
 		Endpoint:     oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
@@ -56,10 +56,10 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 		Scopes:       nil,
 	}
 	channelOauthToken := &oauth2.Token{
-		AccessToken: channelCredential.AccessToken,
+		AccessToken:  credentials.YoutubeChannelAccessToken,
 		TokenType:    "Bearer",
-		RefreshToken: channelCredential.RefreshToken,
-		Expiry:       channelCredential.ExpirationDate,
+		RefreshToken: credentials.YoutubeChannelRefreshToken,
+		Expiry:       credentials.YoutubeChannelExpirationDate,
 	}
 	channelClientOption := option.WithTokenSource(config.TokenSource(ctx, channelOauthToken))
 	service, err := youtube.NewService(ctx, channelClientOption)

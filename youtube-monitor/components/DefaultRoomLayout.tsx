@@ -1,143 +1,203 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useReducer } from "react";
 import styles from "./DefaultRoomLayout.module.sass";
 import { RoomLayout } from "../types/room-layout";
 import { DefaultRoomState, seat } from "../types/room-state";
+import api from "../lib/api_config";
+import fetcher from "../lib/fetcher";
+import { RoomsStateResponse } from "../types/room-state";
+import { bindActionCreators } from "redux";
+import Message from "../components/Message";
 
-class DefaultRoomLayout extends React.Component<
-  { layout: RoomLayout; roomState: DefaultRoomState },
-  any
-> {
-  seatWithSeatId (seatId: number, seats: seat[]) {
-    let targetSeat: seat = seats[0];
-    seats.forEach((seat) => {
-      if (seat.seat_id === seatId) {
-        targetSeat = seat;
-      }
-    });
-    return targetSeat;
+
+
+const DefaultRoomLayout = ({ }: any) => {
+  const MAX_NUM_ITEMS_PER_PAGE = 42
+  const PAGING_INTERVAL_MSEC = 15 * 1000
+  const PROGRESS_BAR_REFRESH_INTERVAL_MSEC = 30
+  const PROGRESS_BAR_GROW_RATE = PROGRESS_BAR_REFRESH_INTERVAL_MSEC / PAGING_INTERVAL_MSEC * 100
+
+  const [roomState, setRoomState] = useState<DefaultRoomState>()
+  const [displaySeats, setDisplaySeats] = useState<seat[]>([])
+  const [initialized, setInitialized] = useState<boolean>(false)
+  const [progressBarWidth, setProgressBarWidth] = useState<number>(0)
+
+  useEffect(() => {
+    console.log('useEffect')
+    if (!initialized) {
+      init()
+    } else {
+      const now = new Date()
+      // if (canRefreshPage) {
+      updateDisplaySeats(roomState)
+      // }
+    }
+  }, [initialized, roomState]);
+
+  const init = () => {
+    fetcher<RoomsStateResponse>(api.roomsState)
+      .then((r) => {
+        setRoomState(r.default_room)
+      })
+      .catch((err) => console.error(err));
+
+    const fetchIntervalId = setInterval(() => {
+      console.log('fetching')
+      fetcher<RoomsStateResponse>(api.roomsState)
+        .then((r) => {
+          setRoomState(r.default_room)
+        })
+        .catch((err) => console.error(err));
+    }, PAGING_INTERVAL_MSEC);
+
+    setInitialized(true)
   }
 
-  render () {
-    if (this.props.layout && this.props.roomState) {
-      const roomSeats = this.props.roomState.seats
-      const usedSeatIds = this.props.roomState.seats.map(
-        (seat) => seat.seat_id
-      );
+  const maxSeatIndex = (seats: seat[]): number => {
+    let maxSeatIndex = 0
+    seats.forEach((each_seat: seat) => {
+      if (each_seat.seat_id > maxSeatIndex) {
+        maxSeatIndex = each_seat.seat_id
+      }
+    })
+    return maxSeatIndex
+  }
 
-      const emptySeatColor = "#F3E8DC";
+  const updateDisplaySeats = (roomState: DefaultRoomState | undefined) => {
+    if (roomState && roomState?.seats.length > 0) {
+      // console.log('previous display setas: ', displaySeats)
 
-      const roomLayout = this.props.layout;
-      const roomShape = {
-        widthPx:
-          (1000 * roomLayout.room_shape.width) / roomLayout.room_shape.height,
-        heightPx: 1000,
-      };
+      // 前回のページの最後尾の席番号を求める
+      let previousLastSeatId = 0
+      if (displaySeats.length > 0) {
+        previousLastSeatId = displaySeats[displaySeats.length - 1].seat_id
+      }
+      // console.log('previousLastSeatId: ', previousLastSeatId)
 
-      const seatFontSizePx = roomShape.widthPx * roomLayout.font_size_ratio;
-
-      const seatShape = {
-        width:
-          (100 * roomLayout.seat_shape.width) / roomLayout.room_shape.width,
-        height:
-          (100 * roomLayout.seat_shape.height) / roomLayout.room_shape.height,
-      };
-
-      const seatPositions = roomLayout.seats.map((seat) => ({
-        x: (100 * seat.x) / roomLayout.room_shape.width,
-        y: (100 * seat.y) / roomLayout.room_shape.height,
-      }));
-
-      const partitionShapes = roomLayout.partitions.map((partition) => {
-        const partitionShapes = roomLayout.partition_shapes;
-        const shapeType = partition.shape_type;
-        let widthPercent;
-        let heightPercent;
-        for (let i = 0; i < partitionShapes.length; i++) {
-          if (partitionShapes[i].name === shapeType) {
-            widthPercent =
-              (100 * partitionShapes[i].width) / roomLayout.room_shape.width;
-            heightPercent =
-              (100 * partitionShapes[i].height) / roomLayout.room_shape.height;
-          }
+      // 次のページの先頭の席番号を求める
+      let nextInitialSeatId = maxSeatIndex(roomState.seats) // 初期化。
+      roomState.seats.forEach((each_seat: seat) => {
+        if (each_seat.seat_id > previousLastSeatId && each_seat.seat_id < nextInitialSeatId) {
+          nextInitialSeatId = each_seat.seat_id
+          // console.log('暫定：', nextInitialSeatId)
         }
-        return {
-          widthPercent,
-          heightPercent,
-        };
-      });
+      })
+      // console.log('nextInitialSeatId: ', nextInitialSeatId)
 
-      const partitionPositions = roomLayout.partitions.map((partition) => ({
-        x: (100 * partition.x) / roomLayout.room_shape.width,
-        y: (100 * partition.y) / roomLayout.room_shape.height,
-      }));
+      let allSeatIds: number[] = []
+      roomState.seats.forEach((each_seat: seat) => {
+        allSeatIds.push(each_seat.seat_id)
+      })
+      allSeatIds.sort((a, b) => {
+        return a - b
+      })
 
-      const seatList = roomLayout.seats.map((seat, index) => {
-        const isUsed = usedSeatIds.includes(seat.id);
-        const workName = usedSeatIds.includes(seat.id)
-          ? this.seatWithSeatId(seat.id, this.props.roomState.seats).work_name
-          : "";
-        const displayName = usedSeatIds.includes(seat.id)
-          ? this.seatWithSeatId(seat.id, this.props.roomState.seats)
-            .user_display_name
-          : "";
-        const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
-        return (
-          <div
-            key={seat.id}
-            className={styles.seat}
-            style={{
-              backgroundColor: isUsed ? seatColor : emptySeatColor,
-              left: seatPositions[index].x + "%",
-              top: seatPositions[index].y + "%",
-              width: seatShape.width + "%",
-              height: seatShape.height + "%",
-              fontSize: seatFontSizePx + "px",
-            }}
-          >
-            {!isUsed && <div className={styles.emptySeatNum} style={{ fontWeight: "bold" }}>
-              {seat.id}
-            </div>}
-            {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
-            <div
-              className={styles.userDisplayName}
-            >
-              {displayName}
-            </div>
-          </div>
-        );
-      });
+      let nextDisplaySeatIds: number[] = []
+      const nextInitialSeatIndex = allSeatIds.findIndex(item => item === nextInitialSeatId)
+      let allocatingIndex = nextInitialSeatIndex
+      while (true) {
+        // props.roomState.seatsの全ての席を割り当てるか、MAX_NUM_ITEMS_PER_PAGE個の席を割り当てるまで
+        if (nextDisplaySeatIds.length === roomState.seats.length || nextDisplaySeatIds.length === MAX_NUM_ITEMS_PER_PAGE) {
+          break
+        }
+        nextDisplaySeatIds.push(allSeatIds[allocatingIndex])
+        allocatingIndex = (allocatingIndex + 1) % roomState.seats.length
+      }
+      // console.log('nextDisplaySeatIds: ', nextDisplaySeatIds)
 
-      const partitionList = roomLayout.partitions.map((partition, index) => (
-        <div
-          key={partition.id}
-          className={styles.partition}
-          style={{
-            left: partitionPositions[index].x + "%",
-            top: partitionPositions[index].y + "%",
-            width: partitionShapes[index].widthPercent + "%",
-            height: partitionShapes[index].heightPercent + "%",
-          }}
-        />
-      ));
+      let nextDisplaySeats: seat[] = []
+      nextDisplaySeatIds.forEach((each_id: number) => {
+        roomState.seats.forEach((each_seat: seat) => {
+          if (each_seat.seat_id === each_id) {
+            nextDisplaySeats.push(each_seat)
+          }
+        })
+      })
+      // console.log('nextDisplaySeats: ', nextDisplaySeats)
 
-      return (
-        <div>
-          <div
-            id={styles.roomLayout}
-            style={{
-              width: roomShape.widthPx + "px",
-              height: roomShape.heightPx + "px",
-            }}
-          >
-            {seatList}
-
-            {partitionList}
-          </div>
-        </div>
-      );
+      setDisplaySeats(nextDisplaySeats)
+      // resetProgressBar()
+      console.log('完了')
     } else {
-      return <div>Loading</div>;
+      setDisplaySeats([])
     }
+  }
+
+  // const resetProgressBar = () => {
+  //   const progressBarDiv = document.getElementById('progress-bar')
+  //   if (progressBarDiv) {
+  //     progressBarDiv.style.width = "0%"
+  //   } else {
+  //     console.error('failed to get progress bar div')
+  //   }
+  //   setTimeout(growProgressBar, 100)
+  // }
+
+  // const growProgressBar = () => {
+  //   // console.log(growProgressBar.name)
+  //   const progressBarDiv = document.getElementById('progress-bar')
+  //   if (progressBarDiv) {
+  //     const currentWidth = Number(progressBarDiv.style.width.replace('%', ''))
+  //     // console.log(progressBarDiv.style.width)
+  //     // console.log('current width: ', currentWidth)
+  //     if (currentWidth < 100) {
+  //       progressBarDiv.style.width = (currentWidth + PROGRESS_BAR_GROW_RATE).toString() + "%"
+  //     } else {
+  //       return  // 100%に達してる場合はsetTimeoutループは終了
+  //     }
+  //   } else {
+  //     console.error('failed to get progress bar div')
+  //   }
+  //   setTimeout(growProgressBar, 100)
+  // }
+
+  if (roomState) {
+    return (
+      <>
+        <div
+          id={styles.roomLayout}
+        >
+          {/* {seatList} */}
+          {
+            displaySeats.map((eachSeat: seat) => {
+              const workName = eachSeat.work_name
+              const displayName = eachSeat.user_display_name
+              const seatColor = roomState.seats.find(s => s.seat_id === eachSeat.seat_id)?.color_code;
+
+              return (
+                <div
+                  key={eachSeat.seat_id}
+                  className={styles.seat}
+                  style={{
+                    backgroundColor: seatColor,
+                  }}
+                >
+                  {<div className={styles.seatId} style={{ fontWeight: "bold" }}>
+                    {eachSeat.seat_id}
+                  </div>}
+                  {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
+                  <div
+                    className={styles.userDisplayName}
+                  >
+                    {displayName}
+                  </div>
+
+                </div>
+
+              );
+            })
+          }
+
+        </div>
+        {/* <div id="progress-bar" className={styles.progressBar} style={{
+        }}></div> */}
+
+        <Message
+          default_room_state={roomState}
+        ></Message>
+      </>
+    );
+  } else {
+    return <div>Loading</div>;
   }
 }
 
