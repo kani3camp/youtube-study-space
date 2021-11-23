@@ -2,7 +2,6 @@ package main
 
 import (
 	"app.modules/core"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -144,7 +143,7 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	//LocalMain(clientOption, ctx)
+	LocalMain(clientOption, ctx)
 	//Test(clientOption, ctx)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
