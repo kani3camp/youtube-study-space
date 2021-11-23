@@ -2,30 +2,31 @@ import React from "react";
 import styles from "./StandingRoom.module.sass";
 import { NoSeatRoomState } from "../types/room-state";
 
-class StandingRoom extends React.Component<
-  { no_seat_room_state: NoSeatRoomState },
-  any
-> {
-  render () {
-    if (this.props.no_seat_room_state) {
-      const numStandingWorkers = this.props.no_seat_room_state.seats.length;
-      return (
-        <div id={styles.standingRoom}>
-          {/*<h2>Standing Room</h2>*/}
-          <div className={styles.preTitle}>何人でも入れる</div>
-          <h2 className={styles.title}>スタンディング</h2>
-          <h3 className={styles.description}>
-            （<span className={styles.commandString}><ruby>!0<rt>{'　'}ゼロ</rt></ruby></span> で入室）
-            {/*（Enter with <span className={styles.commandString}>!0</span>）*/}
-          </h3>
-          {/*<h2>{numStandingWorkers} People</h2>*/}
-          <div id={styles.numStandingWorkers}>{numStandingWorkers}人</div>
+const StandingRoom = () => {
+  return (
+    <div id={styles.standingRoom}>
+      <h3 className={styles.description}>
+        座席の見方
+      </h3>
+
+      <div className={styles.seat} >
+        <div className={styles.seatId}>座席番号</div>
+        <div className={styles.workName}>作業内容</div>
+        <div className={styles.userDisplayName}>名前</div>
+      </div>
+
+      <div>
+        <div>
+          <span>入室する：</span><span className={styles.commandString}>!in</span>
+
         </div>
-      );
-    } else {
-      return <div id={styles.standingRoom} />;
-    }
-  }
+        <div>
+          <span>退室する：</span><span className={styles.commandString}>!out</span>
+        </div>
+      </div>
+
+    </div>
+  );
 }
 
 export default StandingRoom;

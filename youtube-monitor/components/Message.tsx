@@ -3,14 +3,12 @@ import styles from "./Message.module.sass";
 import { DefaultRoomState, NoSeatRoomState } from "../types/room-state";
 
 class Message extends React.Component<
-  { default_room_state: DefaultRoomState; no_seat_room_state: NoSeatRoomState },
+  { default_room_state: DefaultRoomState },
   any
 > {
-  render() {
-    if (this.props.default_room_state && this.props.no_seat_room_state) {
-      const numWorkers =
-        this.props.default_room_state.seats.length +
-        this.props.no_seat_room_state.seats.length;
+  render () {
+    if (this.props.default_room_state) {
+      const numWorkers = this.props.default_room_state.seats.length
       // return (
       //   <div id={styles.message}>Currently {numWorkers} people working! 🔥</div>
       // );
@@ -20,5 +18,5 @@ class Message extends React.Component<
     }
   }
 }
- 
+
 export default Message;

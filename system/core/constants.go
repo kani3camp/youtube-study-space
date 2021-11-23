@@ -17,6 +17,11 @@ const (
 	InfoCommand = "!info"
 	MyCommand   = "!my"
 	ChangeCommand = "!change"
+	SeatCommand = "!seat"
+	ReportCommand = "!report"
+	KickCommand = "!kick"
+	AddCommand = "!add"
+	RankCommand = "!rank"
 
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="

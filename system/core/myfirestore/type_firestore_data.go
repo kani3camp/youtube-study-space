@@ -13,31 +13,34 @@ type ConstantsConfigDoc struct {
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 }
 
-type YoutubeLiveConfigDoc struct {
-	LiveChatId string `firestore:"live-chat-id"`
-	NextPageToken string `firestore:"next-page-token"`
+type CredentialsConfigDoc struct {
+	LineBotChannelSecret string `firestore:"line-bot-channel-secret"`
+	LineBotChannelToken string `firestore:"line-bot-channel-token"`
+	LineBotDestinationLineId string `firestore:"line-bot-destination-line-id"`
+	
+	YoutubeBotAccessToken string `firestore:"youtube-bot-access-token"`
+	YoutubeBotClientId string `firestore:"youtube-bot-client-id"`
+	YoutubeBotClientSecret string `firestore:"youtube-bot-client-secret"`
+	YoutubeBotExpirationDate time.Time `firestore:"youtube-bot-expiration-date"`
+	YoutubeBotRefreshToken string `firestore:"youtube-bot-refresh-token"`
+	
+	YoutubeChannelAccessToken string `firestore:"youtube-channel-access-token"`
+	YoutubeChannelClientId string `firestore:"youtube-channel-client-id"`
+	YoutubeChannelClientSecret string `firestore:"youtube-channel-client-secret"`
+	YoutubeChannelExpirationDate time.Time `firestore:"youtube-channel-expiration-date"`
+	YoutubeChannelRefreshToken string `firestore:"youtube-channel-refresh-token"`
+	
+	YoutubeLiveChatId string `firestore:"youtube-live-chat-id"`
+	YoutubeLiveChatNextPageToken string `firestore:"youtube-live-chat-next-page-token"`
 	OAuthRefreshTokenUrl string `firestore:"o-auth-refresh-token-url"`
 }
 
-type YoutubeCredentialDoc struct {
-	AccessToken string `firestore:"access-token"`
-	ClientId string `firestore:"client-id"`
-	ClientSecret string `firestore:"client-secret"`
-	ExpirationDate time.Time `firestore:"expiration-date"`
-	RefreshToken string `firestore:"refresh-token"`
-}
 
-type LineBotConfigDoc struct {
-	ChannelSecret string `firestore:"channel-secret"`
-	ChannelToken string `firestore:"channel-token"`
-	DestinationLineId string `firestore:"destination-line-id"`
-}
-
-type DefaultRoomDoc struct {
+type RoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`
 }
-func NewDefaultRoomDoc() DefaultRoomDoc {
-	return DefaultRoomDoc{
+func NewRoomDoc() RoomDoc {
+	return RoomDoc{
 		Seats: []Seat{},
 	}
 }
@@ -52,14 +55,6 @@ type Seat struct {
 	ColorCode string `json:"color_code" firestore:"color-code"`
 }
 
-type NoSeatRoomDoc struct {
-	Seats []Seat `json:"seats" firestore:"seats"`
-}
-func NewNoSeatRoomDoc() NoSeatRoomDoc {
-	return NoSeatRoomDoc{
-		Seats: []Seat{},
-	}
-}
 
 type UserDoc struct {
 	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec"`
@@ -72,44 +67,6 @@ type UserDoc struct {
 	DefaultStudyMin int       `json:"default_study_min" firestore:"default-study-min"`
 }
 
-type PartitionShape struct {
-	Name   string `json:"name" firestore:"name"`
-	Width  int    `json:"width" firestore:"width"`
-	Height int    `json:"height" firestore:"height"`
-}
-type SeatLayout struct {
-	Id       int    `json:"id" firestore:"id"`
-	X        int    `json:"x" firestore:"x"`
-	Y        int    `json:"y" firestore:"y"`
-}
-type Partition struct {
-	Id        int    `json:"id" firestore:"id"`
-	X         int    `json:"x" firestore:"x"`
-	Y         int    `json:"y" firestore:"y"`
-	ShapeType string `json:"shape_type" firestore:"shape-type"`
-}
-type RoomLayoutDoc struct {
-	Version       int     `json:"version" firestore:"version"`
-	FontSizeRatio float32 `json:"font_size_ratio" firestore:"font-size-ratio"`
-	RoomShape     struct {
-		Height int `json:"height" firestore:"height"`
-		Width  int `json:"width" firestore:"width"`
-	} `json:"room_shape" firestore:"room-shape"`
-	SeatShape struct {
-		Height int `json:"height" firestore:"height"`
-		Width  int `json:"width" firestore:"width"`
-	} `json:"seat_shape" firestore:"seat-shape"`
-	PartitionShapes []PartitionShape `json:"partition_shapes" firestore:"partition-shapes"`
-	Seats []SeatLayout `json:"seats" firestore:"seats"`
-	Partitions []Partition `json:"partitions" firestore:"partitions"`
-}
-func NewRoomLayoutDoc() RoomLayoutDoc {
-	return RoomLayoutDoc{
-		PartitionShapes: []PartitionShape{},
-		Seats: []SeatLayout{},
-		Partitions: []Partition{},
-	}
-}
 
 type UserHistoryDoc struct {
 	Action string `json:"action" firestore:"action"`

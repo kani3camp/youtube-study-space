@@ -74,7 +74,6 @@ func TestSystem_ParseCommand(t *testing.T) {
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
 				InOptions: InOptions{
-					SeatId:   -1,
 					WorkName: "",
 					WorkMin:  s.DefaultWorkTimeMin,
 				},
@@ -85,7 +84,6 @@ func TestSystem_ParseCommand(t *testing.T) {
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
 				InOptions:     InOptions{
-					SeatId: -1,
 					WorkName: "てすと",
 					WorkMin: 50,
 				},
@@ -96,7 +94,6 @@ func TestSystem_ParseCommand(t *testing.T) {
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
 				InOptions:     InOptions{
-					SeatId: -1,
 					WorkName: "わーく",
 					WorkMin: 60,
 				},
@@ -107,35 +104,12 @@ func TestSystem_ParseCommand(t *testing.T) {
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
 				InOptions:     InOptions{
-					SeatId: -1,
 					WorkName: "w",
 					WorkMin: 60,
 				},
 			},
 		},
 		// TODO: w-やm-のテスト追加
-		{
-			Input: "!0",
-			ExpectedOutput: CommandDetails{
-				CommandType: SeatIn,
-				InOptions:     InOptions{
-					SeatId: 0,
-					WorkName: "",
-					WorkMin: s.DefaultWorkTimeMin,
-				},
-			},
-		},
-		{
-			Input: "!12 work-てすと",
-			ExpectedOutput: CommandDetails{
-				CommandType: SeatIn,
-				InOptions:     InOptions{
-					SeatId:   12,
-					WorkName: "てすと",
-					WorkMin:  s.DefaultWorkTimeMin,
-				},
-			},
-		},
 		{
 			Input: "out",
 			ExpectedOutput: CommandDetails{
@@ -217,11 +191,14 @@ func TestSystem_SetProcessedUser(t *testing.T) {
 	
 	userId := "user1-id"
 	userDisplayName := "user1-display-name"
-	s.SetProcessedUser(userId, userDisplayName)
+	isChatModerator := false
+	isChatOwner := false
+	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 	
 	// 正しくセットされたか
 	assert.Equal(t, s.ProcessedUserId, userId)
 	assert.Equal(t, s.ProcessedUserDisplayName, userDisplayName)
+	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, isChatModerator || isChatOwner)
 }
 
 

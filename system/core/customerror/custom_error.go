@@ -22,6 +22,11 @@ const (
 	InfoProcessFailed
 	MyProcessFailed
 	ChangeProcessFailed
+	SeatProcessFailed
+	ReportProcessFailed
+	KickProcessFailed
+	AddProcessFailed
+	RankProcessFailed
 )
 
 type CustomError struct {
