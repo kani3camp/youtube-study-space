@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import styles from "./BgmPlayer.module.sass";
+import * as styles from "./BgmPlayer.styles";
 import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";
@@ -10,6 +10,9 @@ const BgmPlayer: React.FC = () => {
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
     let [initialized, setInitialized] = useState(false)
+
+    const audioDivId = 'music'
+    const audioCanvasId = 'audioCanvas'
 
     const updateState = () => {
         const audio = document.getElementById('music') as HTMLAudioElement
@@ -87,7 +90,7 @@ const BgmPlayer: React.FC = () => {
                 colors: ['#000', '#111'],
                 stroke: 0
             }
-            wave.fromElement('music', styles.audioCanvas, waveOptions)
+            wave.fromElement(audioDivId, audioCanvasId, waveOptions)
 
             audioStart()
         }
@@ -101,16 +104,16 @@ const BgmPlayer: React.FC = () => {
 
     return (
         <>
-            <div id={styles.bgmPlayer}>
-                <audio autoPlay id='music' src=""></audio>
+            <div css={styles.bgmPlayer}>
+                <audio autoPlay id={audioDivId}></audio>
 
                 <audio id='chime1' src="/chime/chime1.mp3"></audio>
                 <audio id='chime2' src="/chime/chime2.mp3"></audio>
                 <h4>♪ {audioTitle}</h4>
                 <h4>by {audioArtist}</h4>
             </div>
-            <div id={styles.audioCanvasDiv}>
-                <canvas id={styles.audioCanvas}></canvas>
+            <div css={styles.audioCanvasDiv}>
+                <canvas id={audioCanvasId} css={styles.audioCanvas}></canvas>
             </div>
         </>
     )

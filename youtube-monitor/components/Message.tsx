@@ -1,5 +1,5 @@
 import React from "react";
-import styles from "./Message.module.sass";
+import * as styles from "./Message.styles";
 import { DefaultRoomState, NoSeatRoomState } from "../types/room-state";
 
 class Message extends React.Component<
@@ -12,9 +12,9 @@ class Message extends React.Component<
       // return (
       //   <div id={styles.message}>Currently {numWorkers} people working! 🔥</div>
       // );
-      return <div id={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
+      return <div css={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
     } else {
-      return <div id={styles.message} />;
+      return <div css={styles.message} />;
     }
   }
 }

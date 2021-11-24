@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useReducer } from "react";
-import styles from "./DefaultRoomLayout.module.sass";
+import * as styles from "./DefaultRoomLayout.styles";
 import { RoomLayout } from "../types/room-layout";
 import { DefaultRoomState, seat } from "../types/room-state";
 import api from "../lib/api_config";
@@ -154,7 +154,7 @@ const DefaultRoomLayout = ({ }: any) => {
     return (
       <>
         <div
-          id={styles.roomLayout}
+          css={styles.roomLayout}
         >
           {/* {seatList} */}
           {
@@ -166,17 +166,17 @@ const DefaultRoomLayout = ({ }: any) => {
               return (
                 <div
                   key={eachSeat.seat_id}
-                  className={styles.seat}
+                  css={styles.seat}
                   style={{
                     backgroundColor: seatColor,
                   }}
                 >
-                  {<div className={styles.seatId} style={{ fontWeight: "bold" }}>
+                  {<div css={styles.seatId} style={{ fontWeight: "bold" }}>
                     {eachSeat.seat_id}
                   </div>}
-                  {workName !== '' && (<div className={styles.workName}>{workName}</div>)}
+                  {workName !== '' && (<div css={styles.workName}>{workName}</div>)}
                   <div
-                    className={styles.userDisplayName}
+                    css={styles.userDisplayName}
                   >
                     {displayName}
                   </div>

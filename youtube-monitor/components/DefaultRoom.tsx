@@ -1,11 +1,11 @@
 import React from "react";
-import styles from "./DefaultRoom.module.sass";
+import * as styles from "./DefaultRoom.styles";
 import DefaultRoomLayout from "./DefaultRoomLayout";
 import { RoomLayout } from "../types/room-layout";
 
 const DefaultRoom = () => {
   return (
-    <div id={styles.defaultRoom}>
+    <div css={styles.defaultRoom}>
       <DefaultRoomLayout />
     </div>
   );
