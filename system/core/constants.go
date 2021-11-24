@@ -21,6 +21,10 @@ const (
 	ReportCommand = "!report"
 	KickCommand = "!kick"
 	AddCommand = "!add"
+	Extend1Command = "!ext"
+	Extend2Command = "!plus"
+	Extend3Command = "!more"
+	Extend4Command = "!okawari"
 	RankCommand = "!rank"
 
 	WorkNameOptionPrefix            = "work="

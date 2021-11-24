@@ -210,6 +210,14 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case Extend1Command:
+			fallthrough
+		case Extend2Command:
+			fallthrough
+		case Extend3Command:
+			fallthrough
+		case Extend4Command:
+			fallthrough
 		case AddCommand:
 			commandDetails, err := s.ParseAdd(commandString)
 			if err.IsNotNil() {
