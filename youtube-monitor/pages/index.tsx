@@ -1,4 +1,4 @@
-import React from "react";
+import React, { FC } from "react";
 import Clock from "../components/Clock";
 import DefaultRoom from "../components/DefaultRoom";
 import StandingRoom from "../components/StandingRoom";
@@ -7,7 +7,7 @@ import BackgroundImage from "../components/BackgroundImage";
 import BgmPlayer from "../components/BgmPlayer";
 
 
-const Home = () => {
+const Home: FC = () => {
   return (
     <div
       style={{

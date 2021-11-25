@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import * as styles from "./BgmPlayer.styles";
 import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";
 import Wave from "@foobar404/wave"
 
-const BgmPlayer: React.FC = () => {
+const BgmPlayer: FC = () => {
     const [lastSectionId, setLastSectionId] = useState(0)
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer } from "react";
+import React, { useState, useEffect, useReducer, FC } from "react";
 import * as styles from "./DefaultRoomLayout.styles";
 import { RoomLayout } from "../types/room-layout";
 import { DefaultRoomState, seat } from "../types/room-state";
@@ -10,7 +10,7 @@ import Message from "../components/Message";
 
 
 
-const DefaultRoomLayout = ({ }: any) => {
+const DefaultRoomLayout: FC = ({ }: any) => {
   const MAX_NUM_ITEMS_PER_PAGE = 42
   const PAGING_INTERVAL_MSEC = 15 * 1000
   const PROGRESS_BAR_REFRESH_INTERVAL_MSEC = 30
@@ -122,34 +122,6 @@ const DefaultRoomLayout = ({ }: any) => {
     }
   }
 
-  // const resetProgressBar = () => {
-  //   const progressBarDiv = document.getElementById('progress-bar')
-  //   if (progressBarDiv) {
-  //     progressBarDiv.style.width = "0%"
-  //   } else {
-  //     console.error('failed to get progress bar div')
-  //   }
-  //   setTimeout(growProgressBar, 100)
-  // }
-
-  // const growProgressBar = () => {
-  //   // console.log(growProgressBar.name)
-  //   const progressBarDiv = document.getElementById('progress-bar')
-  //   if (progressBarDiv) {
-  //     const currentWidth = Number(progressBarDiv.style.width.replace('%', ''))
-  //     // console.log(progressBarDiv.style.width)
-  //     // console.log('current width: ', currentWidth)
-  //     if (currentWidth < 100) {
-  //       progressBarDiv.style.width = (currentWidth + PROGRESS_BAR_GROW_RATE).toString() + "%"
-  //     } else {
-  //       return  // 100%に達してる場合はsetTimeoutループは終了
-  //     }
-  //   } else {
-  //     console.error('failed to get progress bar div')
-  //   }
-  //   setTimeout(growProgressBar, 100)
-  // }
-
   if (roomState) {
     return (
       <>
@@ -171,7 +143,7 @@ const DefaultRoomLayout = ({ }: any) => {
                     backgroundColor: seatColor,
                   }}
                 >
-                  {<div css={styles.seatId} style={{ fontWeight: "bold" }}>
+                  {<div css={styles.seatId}>
                     {eachSeat.seat_id}
                   </div>}
                   {workName !== '' && (<div css={styles.workName}>{workName}</div>)}

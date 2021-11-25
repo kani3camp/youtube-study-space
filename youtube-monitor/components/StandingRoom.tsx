@@ -1,8 +1,8 @@
-import React from "react";
+import React, { FC } from "react";
 import * as styles from "./StandingRoom.styles";
 import { NoSeatRoomState } from "../types/room-state";
 
-const StandingRoom = () => {
+const StandingRoom: FC = () => {
   return (
     <div css={styles.standingRoom}>
       <h3 css={styles.description}>

@@ -39,6 +39,7 @@ export const seatId = css`
   top: 0;
   left: 0;
   font-size: 0.7em;
+  font-weight: bold;
   color: #414141;
 `
 
