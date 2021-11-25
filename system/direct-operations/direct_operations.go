@@ -5,6 +5,7 @@ import (
 	"app.modules/core/utils"
 	"context"
 	"encoding/json"
+	"fmt"
 	"google.golang.org/api/option"
 	"log"
 	"os"
@@ -12,6 +13,13 @@ import (
 
 
 func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
+	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
+	var s string
+	_, _ = fmt.Scanf("%s", &s)
+	if s != "yes" {
+		return
+	}
+	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
