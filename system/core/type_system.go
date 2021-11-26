@@ -59,6 +59,7 @@ const (
 type ChangeOptionType uint
 const (
 	WorkName ChangeOptionType = iota
+	WorkTime
 )
 
 type InOptions struct {
@@ -76,6 +77,7 @@ type MyOption struct {
 type ChangeOption struct {
 	Type ChangeOptionType
 	StringValue string
+	IntValue int
 }
 
 type UserIdTotalStudySecSet struct {
