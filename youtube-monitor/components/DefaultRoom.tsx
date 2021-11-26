@@ -4,18 +4,19 @@ import * as styles from "./DefaultRoom.styles";
 
 
 import { RoomLayout } from "../types/room-layout";
-import { DefaultRoomState, seat } from "../types/room-state";
+import { DefaultRoomState, Seat } from "../types/room-state";
 import api from "../lib/api_config";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse } from "../types/room-state";
 import { bindActionCreators } from "redux";
 import Message from "../components/Message";
+import { numSeatsBasicRooms } from "../rooms/basic-rooms-config";
 const DefaultRoom = () => {
   const MAX_NUM_ITEMS_PER_PAGE = 42
   const PAGING_INTERVAL_MSEC = 15 * 1000
 
   const [roomState, setRoomState] = useState<DefaultRoomState>()
-  const [displaySeats, setDisplaySeats] = useState<seat[]>([])
+  const [displaySeats, setDisplaySeats] = useState<Seat[]>([])
   const [initialized, setInitialized] = useState<boolean>(false)
 
   useEffect(() => {
@@ -30,7 +31,19 @@ const DefaultRoom = () => {
     }
   }, [initialized, roomState]);
 
-  const init = () => {
+  const init = async () => {
+    // seats取得
+    await fetcher<RoomsStateResponse>(api.roomsState)
+      .then((r) => {
+        setRoomState(r.default_room)
+        // もし
+        if (r.default_room.seats.length >= numSeatsBasicRooms()) {
+        }
+
+      })
+      .catch((err) => console.error(err));
+      
+    
     fetcher<RoomsStateResponse>(api.roomsState)
       .then((r) => {
         setRoomState(r.default_room)
@@ -49,9 +62,9 @@ const DefaultRoom = () => {
     setInitialized(true)
   }
 
-  const maxSeatIndex = (seats: seat[]): number => {
+  const maxSeatIndex = (seats: Seat[]): number => {
     let maxSeatIndex = 0
-    seats.forEach((each_seat: seat) => {
+    seats.forEach((each_seat: Seat) => {
       if (each_seat.seat_id > maxSeatIndex) {
         maxSeatIndex = each_seat.seat_id
       }
@@ -72,7 +85,7 @@ const DefaultRoom = () => {
 
       // 次のページの先頭の席番号を求める
       let nextInitialSeatId = maxSeatIndex(roomState.seats) // 初期化。
-      roomState.seats.forEach((each_seat: seat) => {
+      roomState.seats.forEach((each_seat: Seat) => {
         if (each_seat.seat_id > previousLastSeatId && each_seat.seat_id < nextInitialSeatId) {
           nextInitialSeatId = each_seat.seat_id
           // console.log('暫定：', nextInitialSeatId)
@@ -81,7 +94,7 @@ const DefaultRoom = () => {
       // console.log('nextInitialSeatId: ', nextInitialSeatId)
 
       let allSeatIds: number[] = []
-      roomState.seats.forEach((each_seat: seat) => {
+      roomState.seats.forEach((each_seat: Seat) => {
         allSeatIds.push(each_seat.seat_id)
       })
       allSeatIds.sort((a, b) => {
@@ -101,9 +114,9 @@ const DefaultRoom = () => {
       }
       // console.log('nextDisplaySeatIds: ', nextDisplaySeatIds)
 
-      let nextDisplaySeats: seat[] = []
+      let nextDisplaySeats: Seat[] = []
       nextDisplaySeatIds.forEach((each_id: number) => {
-        roomState.seats.forEach((each_seat: seat) => {
+        roomState.seats.forEach((each_seat: Seat) => {
           if (each_seat.seat_id === each_id) {
             nextDisplaySeats.push(each_seat)
           }
@@ -127,7 +140,7 @@ const DefaultRoom = () => {
         >
           {/* {seatList} */}
           {
-            displaySeats.map((eachSeat: seat) => {
+            displaySeats.map((eachSeat: Seat) => {
               const workName = eachSeat.work_name
               const displayName = eachSeat.user_display_name
               const seatColor = roomState.seats.find(s => s.seat_id === eachSeat.seat_id)?.color_code;

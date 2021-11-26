@@ -1,14 +1,14 @@
 import { DefaultRoomState } from "../store/default-room/slice";
 
 export type DefaultRoomState = {
-  seats: seat[];
+  seats: Seat[];
 };
 
 export type NoSeatRoomState = {
-  seats: seat[];
+  seats: Seat[];
 };
 
-export type seat = {
+export type Seat = {
   seat_id: number;
   user_id: string;
   user_display_name: string;
@@ -18,10 +18,10 @@ export type seat = {
   color_code: string;
 };
 
+// TODO: lambda側とあってるか確認
 export type RoomsStateResponse = {
   result: string;
   message: string;
   default_room: DefaultRoomState;
-  no_seat_room: NoSeatRoomState;
-  default_room_layout: RoomLayout;
+  max_seats: number;
 };
