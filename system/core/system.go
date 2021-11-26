@@ -138,8 +138,8 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.KickProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
-	case Add:
-		err := s.Add(commandDetails, ctx)
+	case More:
+		err := s.More(commandDetails, ctx)
 		if err != nil {
 			return customerror.AddProcessFailed.New(err.Error())
 		}
@@ -210,16 +210,10 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
-		case Extend1Command:
+		case OkawariCommand:
 			fallthrough
-		case Extend2Command:
-			fallthrough
-		case Extend3Command:
-			fallthrough
-		case Extend4Command:
-			fallthrough
-		case AddCommand:
-			commandDetails, err := s.ParseAdd(commandString)
+		case MoreCommand:
+			commandDetails, err := s.ParseMore(commandString)
 			if err.IsNotNil() {
 				return CommandDetails{}, err
 			}
@@ -452,7 +446,7 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 	return options, customerror.NewNil()
 }
 
-func (s *System) ParseAdd(commandString string) (CommandDetails, customerror.CustomError) {
+func (s *System) ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 指定時間
@@ -508,8 +502,8 @@ func (s *System) ParseAdd(commandString string) (CommandDetails, customerror.Cus
 	}
 
 	return CommandDetails{
-		CommandType: Add,
-		AddMinutes:  workTimeMin,
+		CommandType: More,
+		MoreMinutes: workTimeMin,
 	}, customerror.NewNil()
 }
 
@@ -853,7 +847,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
-func (s *System) Add(command CommandDetails, ctx context.Context) error {
+func (s *System) More(command CommandDetails, ctx context.Context) error {
 	// 入室しているか？
 	isUserInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
@@ -865,22 +859,21 @@ func (s *System) Add(command CommandDetails, ctx context.Context) error {
 		if cerr.IsNotNil() {
 			return cerr.Body
 		}
-		newUntil := currentSeat.Until.Add(time.Duration(command.AddMinutes) * time.Minute)
-		// もし延長後の時間が最大作業時間を超えていたら、却下
+		newUntil := currentSeat.Until.Add(time.Duration(command.MoreMinutes) * time.Minute)
+		// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
 		if int(newUntil.Sub(utils.JstNow()).Minutes()) > s.MaxWorkTimeMin {
-			remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
+			newUntil = utils.JstNow().Add(time.Duration(s.MaxWorkTimeMin) * time.Minute)
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、現在時刻から"+
-				strconv.Itoa(s.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。現在の自動退室までの残り時間は"+
-				strconv.Itoa(remainingWorkMin)+"分です。", ctx)
-			return nil
+				strconv.Itoa(s.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。延長できる最大の時間で設定します。", ctx)
 		}
 
 		err := s.FirestoreController.UpdateSeatUntil(newUntil, s.ProcessedUserId, ctx)
 		if err != nil {
 			return err
 		}
+		addedMin := int(newUntil.Sub(currentSeat.Until).Minutes())
 		remainingWorkMin := int(newUntil.Sub(utils.JstNow()).Minutes())
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(command.AddMinutes)+"分延長しました。自動退室まで残り" + strconv.Itoa(remainingWorkMin) + "分です。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(addedMin)+"分延長しました。自動退室まで残り" + strconv.Itoa(remainingWorkMin) + "分です。", ctx)
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです。", ctx)
 	}
