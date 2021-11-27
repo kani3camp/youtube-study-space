@@ -4,8 +4,6 @@ import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"context"
-	"encoding/json"
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
 	"log"
@@ -16,46 +14,40 @@ type SetMaxSeatsParams struct {
 }
 
 type SetMaxSeatsResponseStruct struct {
-	Result  string       `json:"result"`
-	Message string                    `json:"message"`
+	Result  string `json:"result"`
+	Message string `json:"message"`
 }
 
-func SetMaxSeats(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	log.Println("Rooms()")
+func SetMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
+	log.Println("SetMaxSeats()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return lambdautils.ErrorResponse(err)
+		return SetMaxSeatsResponseStruct{}, err
 	}
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return lambdautils.ErrorResponse(err)
+		return SetMaxSeatsResponseStruct{}, err
 	}
 	defer _system.CloseFirestoreClient()
 	
-	// リクエストパラメータ読み込み
-	params := SetMaxSeatsParams{}
-	_ = json.Unmarshal([]byte(request.Body), &params)
-	
 	// TODO: 有効な値かチェック
-	if params.MaxSeats >= 0 {
-		//err = _system.FirestoreController.SetMaxSeats(params.MaxSeats, ctx)
-		//if err != nil {
-		//	return lambdautils.ErrorResponse(err)
-		//}
-	} else {
-		return lambdautils.ErrorResponse(errors.New("invalid parameter"))
+	if request.MaxSeats <= 0 {
+		return SetMaxSeatsResponseStruct{}, errors.New("invalid parameter")
+	}
+	err = _system.FirestoreController.SetMaxSeats(request.MaxSeats, ctx)
+	if err != nil {
+		return SetMaxSeatsResponseStruct{}, err
 	}
 	
-	return SetMaxSeatsResponse()
+	return SetMaxSeatsResponse(), nil
 }
 
-func SetMaxSeatsResponse() (events.APIGatewayProxyResponse, error) {
+func SetMaxSeatsResponse() SetMaxSeatsResponseStruct {
 	var apiResp SetMaxSeatsResponseStruct
 	apiResp.Result = lambdautils.OK
-	jsonBytes, _ := json.Marshal(apiResp)
-	return lambdautils.Response(jsonBytes)
+	return apiResp
 }
 
 func main() {
