@@ -32,7 +32,6 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, e
 	}
 	defer _system.CloseFirestoreClient()
 	
-	// TODO: 有効な値かチェック
 	if request.DesiredMaxSeats <= 0 {
 		return SetMaxSeatsResponseStruct{}, errors.New("invalid parameter")
 	}

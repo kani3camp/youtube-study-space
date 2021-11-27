@@ -2,6 +2,7 @@ package main
 
 import (
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -47,18 +48,37 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
-	//_system.SendLiveChatMessage("起動！", ctx)
-	_ = _system.LineBot.SendMessage("app started.")
+	
+	_ = _system.LineBot.SendMessage("Botが起動しました")
 	defer func() {
 		_system.SendLiveChatMessage("エラーが起きたため終了します", ctx)
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
+	
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
+	checkDesiredMaxSeatsIntervalMin := _system.CheckDesiredMaxSeatsIntervalMin
+	
+	lastCheckedDesiredMaxSeats := utils.JstNow()
 	
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	
 	for {
+		// max_seatsを変えるか確認
+		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalMin) * time.Minute)) {
+			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+			if err != nil {
+				_ = _system.LineBot.SendMessageWithError("_system.FirestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
+			} else {
+				if constants.DesiredMaxSeats != constants.MaxSeats {
+					err := _system.AdjustMaxSeats(ctx)
+					if err != nil {
+						_ = _system.LineBot.SendMessageWithError("failed _system.AdjustMaxSeats()", err)
+					}
+				}
+			}
+		}
+		
 		// page token取得
 		pageToken, err := _system.RetrieveNextPageToken(ctx)
 		if err != nil {

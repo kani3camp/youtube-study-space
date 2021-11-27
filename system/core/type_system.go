@@ -17,6 +17,7 @@ type System struct {
 	ProcessedUserDisplayName string
 	ProcessedUserIsModeratorOrOwner bool
 	DefaultSleepIntervalMilli int
+	CheckDesiredMaxSeatsIntervalMin int
 }
 
 type CommandDetails struct {

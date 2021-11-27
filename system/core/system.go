@@ -55,6 +55,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		MinWorkTimeMin:            constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:        constantsConfig.DefaultWorkTimeMin,
 		DefaultSleepIntervalMilli: constantsConfig.SleepIntervalMilli,
+		CheckDesiredMaxSeatsIntervalMin: constantsConfig.CheckDesiredMaxSeatsIntervalMin,
 	}, nil
 }
 
@@ -71,6 +72,54 @@ func (s *System) CloseFirestoreClient() {
 	} else {
 		log.Println("successfully closed firestore client.")
 	}
+}
+
+func (s *System) AdjustMaxSeats(ctx context.Context) error {
+	log.Println("AdjustMaxSeats()")
+	// TODO
+	constants, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if constants.DesiredMaxSeats == constants.MaxSeats {
+		return nil
+	} else if constants.DesiredMaxSeats > constants.MaxSeats {	// 席を増やす
+		err := s.FirestoreController.SetMaxSeats(constants.MaxSeats, ctx)
+		if err != nil {
+			return err
+		}
+	} else {	// 席を減らす
+		// max_seatsを減らしても、空席率が設定値以上か確認
+		room, err := s.FirestoreController.RetrieveRoom(ctx)
+		if err != nil {
+			return err
+		}
+		if int(float32(constants.DesiredMaxSeats) * (1.0 - constants.MinVacancyRate)) < len(room.Seats) {
+			log.Println("減らそうとしすぎ。キャンセル。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats)))
+			return nil
+		} else {
+			// TODO
+			// 消えてしまう席にいるユーザーを移動させる
+			for _, seat := range room.Seats {
+				if seat.SeatId > constants.DesiredMaxSeats {
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+					// 移動先の席を探索
+					targetSeatId, err := s.MinAvailableSeatId(ctx)
+					if err != nil {
+						return err
+					}
+					// 退室
+					
+					// 移動先に入室
+				}
+			}
+			
+			// 確認
+			
+			// max_seatsを更新
+		}
+	}
+	return
 }
 
 // Command 入力コマンドを解析して実行
