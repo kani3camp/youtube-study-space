@@ -589,34 +589,31 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		}
 	}
 
-	// すでに入室している場合
+	// すでに入室しているか
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed s.IsUserInRoom()", err)
 		return err
 	}
-	if isInRoom {
-		currentSeat, customErr := s.CurrentSeat(ctx)
-		if customErr.IsNotNil() {
-			_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", customErr.Body)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+	if isInRoom {	// 入室中だったら一旦退室させる
+		// 現在座っている席を特定
+		seatId, customErr := s.CurrentSeatId(ctx)
+		if customErr.Body != nil {
+			_ = s.LineBot.SendMessageWithError("failed in s.CurrentSeatId(ctx)", customErr.Body)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
+				"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
 			return customErr.Body
 		}
-
-		if command.InOptions.WorkName != "" {
-			// 作業名を書きかえ
-			err := s.UpdateWorkName(command.InOptions.WorkName, ctx)
-			if err != nil {
-				_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
-				return err
-			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeat.SeatId)+"番席）。", ctx)
+		// 退室処理
+		workedTimeSec, err := s.ExitRoom(seatId, ctx)
+		if err != nil {
+			_ = s.LineBot.SendMessageWithError("failed in s.ExitRoom(seatId, ctx)", customErr.Body)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			return err
 		} else {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに入室しています（"+strconv.Itoa(currentSeat.SeatId)+"番席）。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが再入室します。" +
+				"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 		}
-		return nil
 	}
 
 	// ここまで来ると入室処理は確定
@@ -687,6 +684,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	// 現在座っている席を特定
 	seatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.Body != nil {
+		_ = s.LineBot.SendMessageWithError("failed in s.CurrentSeatId(ctx)", customErr.Body)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 			"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
 		return customErr.Body
@@ -694,6 +692,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	// 退室処理
 	workedTimeSec, err := s.ExitRoom(seatId, ctx)
 	if err != nil {
+		_ = s.LineBot.SendMessageWithError("failed in s.ExitRoom(seatId, ctx)", customErr.Body)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 		return err
 	} else {
