@@ -19,9 +19,12 @@ const (
 	ChangeCommand = "!change"
 	SeatCommand = "!seat"
 	ReportCommand = "!report"
-	KickCommand = "!kick"
-	AddCommand = "!add"
-	RankCommand = "!rank"
+	KickCommand    = "!kick"
+	MoreCommand    = "!more"
+	OkawariCommand = "!okawari"
+	RankCommand    = "!rank"
+	
+	LegacyAddCommand = "!add"
 
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="

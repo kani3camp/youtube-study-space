@@ -147,7 +147,7 @@ func main() {
 	//Test(clientOption, ctx)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
-	//direct_operations.ExitAllUsersAllRoom(clientOption, ctx)
+	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
 	//direct_operations.ExitSpecificUser("UCN61FE7NtU0URA_u9vWWdjw", clientOption, ctx)
 }
 
