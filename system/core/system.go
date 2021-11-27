@@ -109,8 +109,9 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 					}
 					// 移動させる
 					inCommandDetails := CommandDetails{
-						CommandType:   In,
+						CommandType:   SeatIn,
 						InOptions:     InOptions{
+							SeatId: targetSeatId,
 							WorkName: seat.WorkName,
 							WorkMin:  int(seat.Until.Sub(utils.JstNow()).Minutes()),
 						},
