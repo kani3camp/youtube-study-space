@@ -98,7 +98,6 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			log.Println("減らそうとしすぎ。キャンセル。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats)))
 			return nil
 		} else {
-			// TODO
 			// 消えてしまう席にいるユーザーを移動させる
 			for _, seat := range room.Seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
@@ -108,15 +107,25 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 					if err != nil {
 						return err
 					}
-					// 退室
-					
-					// 移動先に入室
+					// 移動させる
+					inCommandDetails := CommandDetails{
+						CommandType:   In,
+						InOptions:     InOptions{
+							WorkName: seat.WorkName,
+							WorkMin:  int(seat.Until.Sub(utils.JstNow()).Minutes()),
+						},
+					}
+					err = s.In(inCommandDetails, ctx)
+					if err != nil {
+						return err
+					}
 				}
 			}
-			
-			// 確認
-			
 			// max_seatsを更新
+			err := s.FirestoreController.SetMaxSeats(constants.DesiredMaxSeats, ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return
