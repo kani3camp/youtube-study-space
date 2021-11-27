@@ -63,6 +63,7 @@ const (
 )
 
 type InOptions struct {
+	SeatId   int
 	WorkName string
 	WorkMin  int
 }
