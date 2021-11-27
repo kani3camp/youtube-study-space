@@ -129,7 +129,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			}
 		}
 	}
-	return
+	return nil
 }
 
 // Command 入力コマンドを解析して実行
