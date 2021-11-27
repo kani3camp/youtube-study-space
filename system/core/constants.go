@@ -23,6 +23,8 @@ const (
 	MoreCommand    = "!more"
 	OkawariCommand = "!okawari"
 	RankCommand    = "!rank"
+	
+	LegacyAddCommand = "!add"
 
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="

@@ -210,6 +210,8 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		case LegacyAddCommand:
+			return CommandDetails{}, customerror.InvalidCommand.New("「" +LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください。")
 		case OkawariCommand:
 			fallthrough
 		case MoreCommand:
