@@ -18,8 +18,8 @@ type SetMaxSeatsResponseStruct struct {
 	Message string `json:"message"`
 }
 
-func SetMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
-	log.Println("SetMaxSeats()")
+func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
+	log.Println("SetDesiredMaxSeats()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -51,5 +51,5 @@ func SetMaxSeatsResponse() SetMaxSeatsResponseStruct {
 }
 
 func main() {
-	lambda.Start(SetMaxSeats)
+	lambda.Start(SetDesiredMaxSeats)
 }
