@@ -10,7 +10,7 @@ import (
 )
 
 type SetMaxSeatsParams struct {
-	MaxSeats int `json:"max_seats"`
+	DesiredMaxSeats int `json:"desired_max_seats"`
 }
 
 type SetMaxSeatsResponseStruct struct {
@@ -33,10 +33,10 @@ func SetMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
 	defer _system.CloseFirestoreClient()
 	
 	// TODO: 有効な値かチェック
-	if request.MaxSeats <= 0 {
+	if request.DesiredMaxSeats <= 0 {
 		return SetMaxSeatsResponseStruct{}, errors.New("invalid parameter")
 	}
-	err = _system.FirestoreController.SetMaxSeats(request.MaxSeats, ctx)
+	err = _system.FirestoreController.SetDesiredMaxSeats(request.DesiredMaxSeats, ctx)
 	if err != nil {
 		return SetMaxSeatsResponseStruct{}, err
 	}

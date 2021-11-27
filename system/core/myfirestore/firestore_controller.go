@@ -265,6 +265,16 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time
 	return nil
 }
 
+func (controller *FirestoreController) SetDesiredMaxSeats(desiredMaxSeats int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
+		DesiredMaxSeatsFirestore: desiredMaxSeats,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (controller *FirestoreController) SetMaxSeats(maxSeats int, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
 		MaxSeatsFirestore: maxSeats,

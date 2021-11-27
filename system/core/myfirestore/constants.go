@@ -9,6 +9,7 @@ const (
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName       = "default"
 	
+	DesiredMaxSeatsFirestore = "desired-max-seats"
 	MaxSeatsFirestore = "max-seats"
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
 	
