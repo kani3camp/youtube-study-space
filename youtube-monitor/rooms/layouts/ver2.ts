@@ -1,6 +1,6 @@
 import { RoomLayout } from "../../types/room-layout";
 
-export const room1layout: RoomLayout = {
+export const ver2RoomLayout: RoomLayout = {
     version: 12,
     font_size_ratio: 0.04,
     room_shape: {

@@ -1,5 +1,6 @@
 import { RoomLayout } from "../types/room-layout";
-import { room1layout } from "./layouts/room1";
+import { classRoomLayout } from "./layouts/classroom";
+import { ver2RoomLayout } from "./layouts/ver2";
 
 type RoomsConfig = {
     roomLayouts: RoomLayout[];
@@ -7,11 +8,11 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [room1layout]
+    roomLayouts: [ver2RoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
-    roomLayouts: []
+    roomLayouts: [classRoomLayout]
 }
 
 
