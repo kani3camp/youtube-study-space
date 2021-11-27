@@ -38,12 +38,12 @@ func SetMaxSeats(request events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 	params := SetMaxSeatsParams{}
 	_ = json.Unmarshal([]byte(request.Body), &params)
 	
-	// 有効な値かチェック
+	// TODO: 有効な値かチェック
 	if params.MaxSeats >= 0 {
-		err = _system.FirestoreController.SetMaxSeats(params.MaxSeats, ctx)
-		if err != nil {
-			return lambdautils.ErrorResponse(err)
-		}
+		//err = _system.FirestoreController.SetMaxSeats(params.MaxSeats, ctx)
+		//if err != nil {
+		//	return lambdautils.ErrorResponse(err)
+		//}
 	} else {
 		return lambdautils.ErrorResponse(errors.New("invalid parameter"))
 	}
