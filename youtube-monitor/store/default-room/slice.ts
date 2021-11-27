@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { DefaultRoomState } from "../../types/room-state";
+import { SeatsState } from "../../types/room-state";
 
-export const initialState: DefaultRoomState = {
+export const initialState: SeatsState = {
   seats: [],
 };
 
@@ -10,8 +10,8 @@ const defaultRoomSlice = createSlice({
   initialState,
   reducers: {
     updateState: (
-      state: DefaultRoomState,
-      action: PayloadAction<DefaultRoomState>
+      state: SeatsState,
+      action: PayloadAction<SeatsState>
     ) => action.payload,
   },
 });

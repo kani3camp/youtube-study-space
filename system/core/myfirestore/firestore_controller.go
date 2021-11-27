@@ -265,6 +265,16 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time
 	return nil
 }
 
+func (controller *FirestoreController) SetMaxSeats(maxSeats int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
+		MaxSeatsFirestore: maxSeats,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
 		YoutubeChannelAccessTokenFirestore: accessToken,

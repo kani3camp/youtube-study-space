@@ -1,9 +1,9 @@
 import React, { FC } from "react";
 import * as styles from "./Message.styles";
-import { DefaultRoomState, NoSeatRoomState } from "../types/room-state";
+import { SeatsState } from "../types/room-state";
 
 type Props = {
-  default_room_state: DefaultRoomState
+  default_room_state: SeatsState
 }
 
 const Message: FC<Props> = (props) => {

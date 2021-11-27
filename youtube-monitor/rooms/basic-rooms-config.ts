@@ -16,7 +16,7 @@ export const temporaryRooms: RoomsConfig = {
 }
 
 
-export const numSeatsBasicRooms = (): number => {
+export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0
     basicRooms.roomLayouts.forEach(r => {
         numSeatsBasicRooms += r.seats.length

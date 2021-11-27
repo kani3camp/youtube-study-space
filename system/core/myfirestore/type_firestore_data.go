@@ -11,6 +11,7 @@ type ConstantsConfigDoc struct {
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"`
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
+	MaxSeats int `firestore:"max-seats" json:"max_seats"`
 }
 
 type CredentialsConfigDoc struct {

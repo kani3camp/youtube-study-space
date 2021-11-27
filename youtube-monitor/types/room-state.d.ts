@@ -1,10 +1,5 @@
-import { DefaultRoomState } from "../store/default-room/slice";
 
-export type DefaultRoomState = {
-  seats: Seat[];
-};
-
-export type NoSeatRoomState = {
+export type SeatsState = {
   seats: Seat[];
 };
 
@@ -22,6 +17,6 @@ export type Seat = {
 export type RoomsStateResponse = {
   result: string;
   message: string;
-  default_room: DefaultRoomState;
+  default_room: SeatsState;
   max_seats: number;
 };

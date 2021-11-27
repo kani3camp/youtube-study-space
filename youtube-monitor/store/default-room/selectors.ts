@@ -1,6 +1,7 @@
 import { useSelector } from "react-redux";
-import { DefaultRoomState } from "../../types/room-state";
+import { SeatsState } from "../../types/room-state";
 
+// TODO: これ使ってる？
 export const useCounterState = () => {
-  return useSelector((state: { defaultRoom: DefaultRoomState }) => state);
+  return useSelector((state: { defaultRoom: SeatsState }) => state);
 };
