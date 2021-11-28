@@ -924,7 +924,7 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 		
 		realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 		remainingMinutes := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingMinutes)+"分。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingMinutes)+"分です。", ctx)
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 			"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！", ctx)
