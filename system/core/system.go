@@ -1222,8 +1222,9 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 	return nil
 }
 
-// IfSeatAvailable 席番号がseatIdの席が空いているかどうか。seatIdは存在するという前提
+// IfSeatAvailable 席番号がseatIdの席が空いているかどうか。
 func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) {
+	// 使われているかどうか
 	roomData, err := s.FirestoreController.RetrieveRoom(ctx)
 	if err != nil {
 		return false, err
@@ -1234,7 +1235,14 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 		}
 	}
 	// ここまで来ると指定された番号の席が使われていないということ
-	return true, nil
+	
+	// 存在するかどうか
+	isExist, err := s.IsSeatExist(seatId, ctx)
+	if err != nil {
+		return false, err
+	}
+	                      
+	return isExist, nil
 }
 
 func (s *System) RetrieveSeatBySeatId(seatId int, ctx context.Context) (myfirestore.Seat, customerror.CustomError) {
