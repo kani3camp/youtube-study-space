@@ -27,25 +27,24 @@ type CommandDetails struct {
 	MyOptions   []MyOption
 	ChangeOptions []ChangeOption
 	ReportMessage string
-	KickSeatId	int
-	AddMinutes	int
+	KickSeatId  int
+	MoreMinutes int
 }
 
 type CommandType uint
 const (
 	NotCommand CommandType = iota
 	InvalidCommand
-	In		// !in
-	SeatIn	// !席番号
-	Out		// !out
-	Info	// !info
-	My		// !my
-	Change 	// !change
-	Seat	// !seat
-	Report	// !report
-	Kick	// !kick
-	Add		// !add
-	Rank	// !rank
+	In     // !in
+	Out    // !out
+	Info   // !info
+	My     // !my
+	Change // !change
+	Seat   // !seat
+	Report // !report
+	Kick   // !kick
+	More   // !more
+	Rank   // !rank
 )
 
 type InfoOption struct {
@@ -61,6 +60,7 @@ const (
 type ChangeOptionType uint
 const (
 	WorkName ChangeOptionType = iota
+	WorkTime
 )
 
 type InOptions struct {
@@ -79,6 +79,7 @@ type MyOption struct {
 type ChangeOption struct {
 	Type ChangeOptionType
 	StringValue string
+	IntValue int
 }
 
 type UserIdTotalStudySecSet struct {

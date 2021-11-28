@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next",
     "build": "next build && next export",
-    "start": "next start",
+    "start": "next start -p 18080",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint --fix 'src/**/*.{ts,tsx}' && tsc --noEmit",
     "stylelint": "stylelint 'src/**/*.scss'",

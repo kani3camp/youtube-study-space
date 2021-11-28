@@ -2,7 +2,6 @@ package main
 
 import (
 	"app.modules/core"
-	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
