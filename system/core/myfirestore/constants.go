@@ -10,9 +10,9 @@ const (
 	DefaultRoomDocName       = "default"
 	
 	DesiredMaxSeatsFirestore = "desired-max-seats"
-	MaxSeatsFirestore = "max-seats"
-	CheckDesiredMaxSeatsIntervalMinFirestore = "check-desired-max-seats-interval-min"
-	MinVacancyRateFirestore = "min-vacancy-rate"
+	MaxSeatsFirestore                        = "max-seats"
+	CheckDesiredMaxSeatsIntervalSecFirestore = "check-desired-max-seats-interval-sec"
+	MinVacancyRateFirestore                  = "min-vacancy-rate"
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
 	
 	NextPageTokenFirestore = "youtube-live-chat-next-page-token"

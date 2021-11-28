@@ -7,6 +7,7 @@ type Props = {
   roomLayout: RoomLayout;
   seats: Seat[];
   firstSeatId: number;
+  maxSeats: number;
 }
 
 const DefaultRoomLayout: FC<Props> = (props) => {
@@ -18,6 +19,10 @@ const DefaultRoomLayout: FC<Props> = (props) => {
       }
     });
     return targetSeat;
+  }
+  
+  const globalSeatId = (layout_seat_id: number, first_seat_id: number) => {
+    return first_seat_id + layout_seat_id
   }
 
   if (props.roomLayout) {
@@ -74,21 +79,22 @@ const DefaultRoomLayout: FC<Props> = (props) => {
     }));
 
     const seatList = props.roomLayout.seats.map((seat, index) => {
-      const isUsed = usedSeatIds.includes(seat.id);
-      const workName = usedSeatIds.includes(seat.id)
-        ? seatWithSeatId(seat.id, props.seats).work_name
+      const global_seat_id = globalSeatId(seat.id, props.firstSeatId)
+      const isUsed = usedSeatIds.includes(global_seat_id);
+      const workName = isUsed
+        ? seatWithSeatId(global_seat_id, props.seats).work_name
         : "";
-      const displayName = usedSeatIds.includes(seat.id)
-        ? seatWithSeatId(seat.id, props.seats)
-          .user_display_name
+      const displayName = isUsed
+        ? seatWithSeatId(global_seat_id, props.seats).user_display_name
         : "";
-      const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
+      // const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
+      const seat_color = isUsed ? seatWithSeatId(global_seat_id, props.seats).color_code : emptySeatColor
       return (
         <div
-          key={seat.id}
+          key={global_seat_id}
           css={styles.seat}
           style={{
-            backgroundColor: isUsed ? seatColor : emptySeatColor,
+            backgroundColor: seat_color,
             left: seatPositions[index].x + "%",
             top: seatPositions[index].y + "%",
             width: seatShape.width + "%",
@@ -97,7 +103,7 @@ const DefaultRoomLayout: FC<Props> = (props) => {
           }}
         >
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
-            {seat.id}
+            {global_seat_id}
           </div>
           {workName !== '' && (<div css={styles.workName}>{workName}</div>)}
           <div

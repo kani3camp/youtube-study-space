@@ -48,14 +48,14 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	}
 
 	return System{
-		FirestoreController:       fsController,
-		LiveChatBot:               liveChatBot,
-		LineBot:                   lineBot,
-		MaxWorkTimeMin:            constantsConfig.MaxWorkTimeMin,
-		MinWorkTimeMin:            constantsConfig.MinWorkTimeMin,
-		DefaultWorkTimeMin:        constantsConfig.DefaultWorkTimeMin,
-		DefaultSleepIntervalMilli: constantsConfig.SleepIntervalMilli,
-		CheckDesiredMaxSeatsIntervalMin: constantsConfig.CheckDesiredMaxSeatsIntervalMin,
+		FirestoreController:             fsController,
+		LiveChatBot:                     liveChatBot,
+		LineBot:                         lineBot,
+		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
+		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
+		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
+		DefaultSleepIntervalMilli:       constantsConfig.SleepIntervalMilli,
+		CheckDesiredMaxSeatsIntervalSec: constantsConfig.CheckDesiredMaxSeatsIntervalSec,
 	}, nil
 }
 
@@ -76,7 +76,6 @@ func (s *System) CloseFirestoreClient() {
 
 func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	log.Println("AdjustMaxSeats()")
-	// TODO
 	constants, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
 		return err
@@ -84,7 +83,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	if constants.DesiredMaxSeats == constants.MaxSeats {
 		return nil
 	} else if constants.DesiredMaxSeats > constants.MaxSeats {	// 席を増やす
-		err := s.FirestoreController.SetMaxSeats(constants.MaxSeats, ctx)
+		err := s.FirestoreController.SetMaxSeats(constants.DesiredMaxSeats, ctx)
 		if err != nil {
 			return err
 		}

@@ -56,7 +56,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	}()
 	
 	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
-	checkDesiredMaxSeatsIntervalMin := _system.CheckDesiredMaxSeatsIntervalMin
+	checkDesiredMaxSeatsIntervalSec := _system.CheckDesiredMaxSeatsIntervalSec
 	
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 	
@@ -65,7 +65,8 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	for {
 		// max_seatsを変えるか確認
-		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalMin) * time.Minute)) {
+		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
+			log.Println("checking desired max seats")
 			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
 			if err != nil {
 				_ = _system.LineBot.SendMessageWithError("_system.FirestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
@@ -77,6 +78,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 					}
 				}
 			}
+			lastCheckedDesiredMaxSeats = utils.JstNow()
 		}
 		
 		// page token取得

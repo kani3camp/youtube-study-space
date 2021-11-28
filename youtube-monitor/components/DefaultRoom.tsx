@@ -12,46 +12,48 @@ import { bindActionCreators } from "redux";
 import Message from "../components/Message";
 import { basicRooms, numSeatsInAllBasicRooms, temporaryRooms } from "../rooms/basic-rooms-config";
 import DefaultRoomLayout from "./DefaultRoomLayout";
+import { roomLayout } from "./DefaultRoomLayout.styles";
+
+
 const DefaultRoom = () => {
-  const PAGING_INTERVAL_MSEC = 10 * 1000
+  const PAGING_INTERVAL_MSEC = 5 * 1000
 
   const [seatsState, setSeatsState] = useState<SeatsState | undefined>(undefined)
   // const [displayRoomLayout, setDisplayRoomLayout] = useState<RoomLayout>()
   const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
   const [firstDisplaySeatId, setFirstDisplaySeatId] = useState<number>(0)
-  const [displaySeats, setDisplaySeats] = useState<Seat[]>([])
   const [maxSeats, setMaxSeats] = useState<number>(0)
   const [initialized, setInitialized] = useState<boolean>(false)
   const [roomLayouts, setRoomLayouts] = useState<RoomLayout[]>([])
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
 
   useEffect(() => {
     console.log('useEffect')
     if (!initialized) {
       setInitialized(true)
       init()
+    } else {
+      updateDisplay(lastUpdated, roomLayouts[displayRoomIndex], seatsState)
     }
-  }, [initialized, seatsState, roomLayouts]);
+  }, [initialized, seatsState, roomLayouts, displayRoomIndex, lastUpdated]);
 
   const init = async () => {
     console.log(init.name)
     await checkAndUpdateRoomLayouts()
     const fetchIntervalId = setInterval(async () => {
       await checkAndUpdateRoomLayouts()
-      updateDisplayRoom(roomLayouts, seatsState)
     }, PAGING_INTERVAL_MSEC);
-    // const updateDisplayIntervalId = setInterval(async () => {
-    //   await updateDisplayRoom(roomLayouts, seatsState)
-    // }, )
   }
   
   const checkAndUpdateRoomLayouts = async () => {
-    let seats_state: SeatsState
-    let max_seats: number
+    let seats_state: SeatsState = {seats: []}
+    let max_seats: number = 0
     
-    console.log(checkAndUpdateRoomLayouts.name)
     // seats取得
-    await fetcher<RoomsStateResponse>(api.roomsState)
+    await new Promise<void>(async (resolve, reject) => {
+      fetcher<RoomsStateResponse>(api.roomsState)
       .then(async (r) => {
+        console.log('fetchした')
         setSeatsState(r.default_room)
         seats_state = r.default_room
         setMaxSeats(r.max_seats)
@@ -100,9 +102,37 @@ const DefaultRoom = () => {
         
         // TODO: ルーム数が減るときは、displayRoomIndexは確認したほうがいいかも
         setRoomLayouts(next_display_room_layouts)
-
+        resolve()
       })
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error(err)
+        reject()
+      })
+    })
+
+  }
+  
+  const updateDisplay = (last_updated: Date, roomLayout: RoomLayout, seats_state: SeatsState | undefined) => {
+    if (roomLayout && seats_state) {
+      const diffMilliSecond = (new Date()).getTime() - lastUpdated.getTime()
+      if (diffMilliSecond >= PAGING_INTERVAL_MSEC) {
+        console.log('o')
+        // 次に表示するルームのレイアウトのインデックスを求める
+        const nextDisplayRoomIndex = (displayRoomIndex + 1) % roomLayouts.length
+        
+        // 次に表示するルームの最初の席の番号を求める
+        let firstSeatId = 0
+        for (let i=0; i<nextDisplayRoomIndex; i++) {
+          firstSeatId += roomLayouts[i].seats.length
+        }
+              
+        setFirstDisplaySeatId(firstSeatId)
+        setDisplayRoomIndex(nextDisplayRoomIndex)
+        setLastUpdated(new Date())
+        }
+    } else {
+      console.log('x')
+    }
   }
   
   const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
@@ -113,40 +143,10 @@ const DefaultRoom = () => {
     return count
   }
 
-  const maxSeatIndex = (seats: Seat[]): number => {
-    let maxSeatIndex = 0
-    seats.forEach((each_seat: Seat) => {
-      if (each_seat.seat_id > maxSeatIndex) {
-        maxSeatIndex = each_seat.seat_id
-      }
-    })
-    return maxSeatIndex
-  }
-
-  const updateDisplayRoom = (roomLayouts: RoomLayout[], seatsState: SeatsState | undefined) => {
-    if (seatsState && seatsState?.seats.length > 0) {
-      // 次に表示するルームのレイアウトのインデックスを求める
-      const nextDisplayRoomIndex = (displayRoomIndex + 1) % roomLayouts.length
-      
-      // 次に表示するルームの最初の席の番号を求める
-      let firstSeatId = 0
-      for (let i=0; i<nextDisplayRoomIndex; i++) {
-        firstSeatId += roomLayouts[i].seats.length
-      }
-            
-      setFirstDisplaySeatId(firstSeatId)
-      setDisplayRoomIndex(nextDisplayRoomIndex)
-      console.log('完了')
-    } else {
-      setFirstDisplaySeatId(0)
-      setDisplayRoomIndex(0)
-    }
-  }
-
   if (seatsState) {
     return (
       <div css={styles.defaultRoom}>
-        <DefaultRoomLayout roomLayout={roomLayouts[displayRoomIndex]} seats={seatsState.seats} firstSeatId={firstDisplaySeatId}>
+        <DefaultRoomLayout roomLayout={roomLayouts[displayRoomIndex]} seats={seatsState.seats} firstSeatId={firstDisplaySeatId} maxSeats={maxSeats}>
         </DefaultRoomLayout>
         <Message
           default_room_state={seatsState}
