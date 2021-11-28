@@ -12,9 +12,9 @@ type Props = {
 const DefaultRoomLayout: FC<Props> = (props) => {
   return (
     <div>
-      <p>{props.seats.length}</p>
+      {/* <p>{props.seats.length}</p>
       <p>{props.firstSeatId}</p>
-      <p>{props.roomLayout.seats.length}</p>
+      <p>{props.roomLayout.seats.length}</p> */}
         <div
           css={styles.roomLayout}
         >
