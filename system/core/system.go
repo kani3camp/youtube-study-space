@@ -151,6 +151,8 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		// 暫定で何も反応しない
 		return customerror.NewNil()
 	case In:
+		fallthrough
+	case SeatIn:
 		err := s.In(commandDetails, ctx)
 		if err != nil {
 			return customerror.InProcessFailed.New(err.Error())
