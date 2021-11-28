@@ -36,6 +36,7 @@ const (
 	NotCommand CommandType = iota
 	InvalidCommand
 	In     // !in
+	SeatIn	// !席番号
 	Out    // !out
 	Info   // !info
 	My     // !my
