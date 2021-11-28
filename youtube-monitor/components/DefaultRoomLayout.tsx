@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useReducer, FC } from "react";
 import * as styles from "./DefaultRoomLayout.styles";
 import { RoomLayout } from "../types/room-layout";
-import { Seat, SeatsState } from "../types/room-state";
+import { Seat, SeatsState } from "../types/api";
 
 type Props = {
   roomLayout: RoomLayout;
@@ -12,6 +12,9 @@ type Props = {
 const DefaultRoomLayout: FC<Props> = (props) => {
   return (
     <div>
+      <p>{props.seats.length}</p>
+      <p>{props.firstSeatId}</p>
+      <p>{props.roomLayout.seats.length}</p>
         <div
           css={styles.roomLayout}
         >

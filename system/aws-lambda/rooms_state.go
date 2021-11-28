@@ -13,6 +13,8 @@ type RoomsResponseStruct struct {
 	Result      string              `json:"result"`
 	Message     string              `json:"message"`
 	DefaultRoom myfirestore.RoomDoc `json:"default_room"`
+	MaxSeats int `json:"max_seats"`
+	MinVacancyRate float32 `json:"min_vacancy_rate"`
 }
 
 func Rooms() (RoomsResponseStruct, error) {
@@ -34,13 +36,20 @@ func Rooms() (RoomsResponseStruct, error) {
 		return RoomsResponseStruct{}, err
 	}
 	
-	return RoomsResponse(defaultRoom), nil
+	constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+	if err != nil {
+		return RoomsResponseStruct{}, err
+	}
+	
+	return RoomsResponse(defaultRoom, constants.MaxSeats, constants.MinVacancyRate), nil
 }
 
-func RoomsResponse(defaultRoom myfirestore.RoomDoc) RoomsResponseStruct {
+func RoomsResponse(defaultRoom myfirestore.RoomDoc, maxSeats int, minVacancyRate float32) RoomsResponseStruct {
 	var apiResp RoomsResponseStruct
 	apiResp.Result = lambdautils.OK
 	apiResp.DefaultRoom = defaultRoom
+	apiResp.MaxSeats = maxSeats
+	apiResp.MinVacancyRate = minVacancyRate
 	return apiResp
 }
 

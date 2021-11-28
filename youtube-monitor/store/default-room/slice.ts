@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { SeatsState } from "../../types/room-state";
+import { SeatsState } from "../../types/api";
 
 export const initialState: SeatsState = {
   seats: [],

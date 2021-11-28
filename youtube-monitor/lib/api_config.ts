@@ -5,7 +5,8 @@ const prodApi = {
 }
 
 const testApi = {
-    roomsState: `https://vlqdvjrta8.execute-api.us-east-1.amazonaws.com/rooms_state`,
+    roomsState: `https://q8ff9jqwef.execute-api.us-east-1.amazonaws.com/default/rooms_state`,
+    setDesiredMaxSeats: `https://q8ff9jqwef.execute-api.us-east-1.amazonaws.com/default/set_desired_max_seats`,
 }
 
 const api = testApi

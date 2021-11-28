@@ -13,10 +13,18 @@ export type Seat = {
   color_code: string;
 };
 
-// TODO: lambda側とあってるか確認
 export type RoomsStateResponse = {
   result: string;
   message: string;
   default_room: SeatsState;
   max_seats: number;
+  min_vacancy_rate: number;
+};
+
+
+
+
+export type SetDesiredMaxSeatsResponse = {
+  result: string;
+  message: string;
 };

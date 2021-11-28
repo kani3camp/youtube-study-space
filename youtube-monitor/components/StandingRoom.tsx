@@ -1,6 +1,5 @@
 import React, { FC } from "react";
 import * as styles from "./StandingRoom.styles";
-import { NoSeatRoomState } from "../types/room-state";
 
 const StandingRoom: FC = () => {
   return (

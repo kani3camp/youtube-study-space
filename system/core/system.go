@@ -99,6 +99,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return nil
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
+			s.SendLiveChatMessage("人数が減ったためルームを減らします。必要な場合は席を移動してもらうことがあります。", ctx)
 			for _, seat := range room.Seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)

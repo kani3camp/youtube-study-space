@@ -1,6 +1,6 @@
 import React, { FC } from "react";
 import * as styles from "./Message.styles";
-import { SeatsState } from "../types/room-state";
+import { SeatsState } from "../types/api";
 
 type Props = {
   default_room_state: SeatsState
