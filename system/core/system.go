@@ -704,7 +704,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if !isOk {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"存在しません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください！", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください！", ctx)
 			return nil
 		}
 	}
@@ -1241,7 +1241,7 @@ func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	                      
+	
 	return isExist, nil
 }
 
