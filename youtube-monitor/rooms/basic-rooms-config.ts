@@ -8,7 +8,7 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [ver2RoomLayout]
+    roomLayouts: [ver2RoomLayout, ver2RoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {

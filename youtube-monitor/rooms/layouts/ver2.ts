@@ -2,7 +2,7 @@ import { RoomLayout } from "../../types/room-layout";
 
 export const ver2RoomLayout: RoomLayout = {
     version: 12,
-    font_size_ratio: 0.04,
+    font_size_ratio: 0.025,
     room_shape: {
         width: 330,
         height: 230
