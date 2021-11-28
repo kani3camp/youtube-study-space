@@ -29,22 +29,19 @@ export const seatId = css`
   position: relative;
   top: 0;
   left: 0;
-  font-size: 0.7em;
   color: #414141;
 `
 
 export const emptySeatNum = css`
   margin: 0;
-  font-size: 1.5em;
   color: #414141;
 `
 export const usedSeatNum = css`
-  font-size: 0.7em;
+
 `
 
 export const workName = css`
   margin: 0;
-  font-size: 0.7em;
   color: #24317e;
   max-width: 100%;
   text-overflow: ellipsis;
@@ -55,7 +52,6 @@ export const workName = css`
 
 export const userDisplayName = css`
   margin: 0;
-  font-size: 1em;
   max-width: 100%;
   text-overflow: ellipsis;
   overflow: hidden;
