@@ -731,10 +731,9 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 				_ = s.LineBot.SendMessageWithError("failed in s.ExitRoom(seatId, ctx)", customErr.Body)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
 				return err
-			} else {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが再入室します。"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 			}
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが再入室します。"+
+				"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 			// 入室処理: このまま次の処理に進む
 		} else if command.CommandType == SeatIn {
 			if command.InOptions.SeatId == currentSeat.SeatId {	// 今と同じ席番号の場合、作業名と入室時間を更新
