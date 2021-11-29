@@ -1173,6 +1173,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 }
 
 func (s *System) ToggleRankVisible(ctx context.Context) error {
+	// TODO: 入室中にランクアップしても、新しい色が反映されるようにする
 	// get current value
 	userDoc, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {

@@ -62,6 +62,7 @@ const DefaultRoom = () => {
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
         let final_desired_max_seats: number
         const min_seats_by_vacancy_rate = Math.ceil(r.default_room.seats.length / r.min_vacancy_rate)
+        console.log('少なくとも', min_seats_by_vacancy_rate, 'は確定')
         // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
         if (min_seats_by_vacancy_rate > numSeatsInAllBasicRooms()) {
           let current_num_seats: number = numSeatsInAllBasicRooms()
@@ -74,9 +75,11 @@ const DefaultRoom = () => {
         } else {  // そうでなければ、基本ルームの席数とするべき
           final_desired_max_seats = numSeatsInAllBasicRooms()
         }
+        console.log(final_desired_max_seats, r.max_seats)
         
         // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
         if (final_desired_max_seats !== r.max_seats) {
+          console.log('リクエストを送る', final_desired_max_seats, r.max_seats)
           await fetcher<SetDesiredMaxSeatsResponse>(api.setDesiredMaxSeats, {
             method: 'POST',
             body: JSON.stringify({
@@ -86,17 +89,18 @@ const DefaultRoom = () => {
             console.log('リクエストした')
           })
         }
-        
+                
         // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
-        let next_display_room_layouts: RoomLayout[] = basicRooms.roomLayouts  // まずは基本ルームを設定
+        let next_display_room_layouts: RoomLayout[] = [...basicRooms.roomLayouts]  // まずは基本ルームを設定
         // 必要なぶんだけ臨時レイアウトを追加
         if (max_seats > numSeatsInAllBasicRooms()) {
           let current_adding_temporary_room_index = 0
           while (numSeatsOfRoomLayouts(next_display_room_layouts) < max_seats) {
-            next_display_room_layouts.concat(temporaryRooms.roomLayouts[current_adding_temporary_room_index])
-            current_adding_temporary_room_index++
+            next_display_room_layouts.push(temporaryRooms.roomLayouts[current_adding_temporary_room_index])
+            current_adding_temporary_room_index = (current_adding_temporary_room_index + 1) % temporaryRooms.roomLayouts.length
           }
         }
+        
         
         // レイアウト的にmax_seatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
         
@@ -114,7 +118,7 @@ const DefaultRoom = () => {
   
   const updateDisplay = (last_updated: Date, roomLayout: RoomLayout, seats_state: SeatsState | undefined) => {
     if (roomLayout && seats_state) {
-      const diffMilliSecond = (new Date()).getTime() - lastUpdated.getTime()
+      const diffMilliSecond = (new Date()).getTime() - last_updated.getTime()
       if (diffMilliSecond >= PAGING_INTERVAL_MSEC) {
         console.log('o')
         // 次に表示するルームのレイアウトのインデックスを求める
@@ -149,7 +153,8 @@ const DefaultRoom = () => {
         <DefaultRoomLayout roomLayout={roomLayouts[displayRoomIndex]} seats={seatsState.seats} firstSeatId={firstDisplaySeatId} maxSeats={maxSeats}>
         </DefaultRoomLayout>
         <Message
-          default_room_state={seatsState}
+          current_room_index={displayRoomIndex}
+          seats_state={seatsState}
         ></Message>
       </div>
     );
