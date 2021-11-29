@@ -1093,10 +1093,10 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			
 			if requestedUntil.Before(utils.JstNow()) { // もし現在時刻で指定時間よりも経過していたら却下
 				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.IntValue)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.IntValue)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
 			} else if requestedUntil.After(utils.JstNow().Add(time.Duration(s.MaxWorkTimeMin) * time.Minute)) { // もし現在時刻より最大延長可能時間以上後なら却下
 				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
 			} else { // それ以外なら延長
 				err := s.FirestoreController.UpdateSeatUntil(requestedUntil, s.ProcessedUserId, ctx)
 				if err != nil {
@@ -1106,7 +1106,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 				remainingWorkMin := int(requestedUntil.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.IntValue)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.IntValue)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
 			}
 		}
 	}
