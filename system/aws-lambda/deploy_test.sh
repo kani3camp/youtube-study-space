@@ -7,10 +7,10 @@
 # Windows (PowerShell)
 cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region us-east-1
-go build -o main    set_desired_max_seats.go
+go build -o main    youtube_organize_database.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
-aws lambda create-function --function-name     set_desired_max_seats     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20
-aws lambda update-function-code --function-name     set_desired_max_seats     --zip-file fileb://main.zip
+aws lambda create-function --function-name     rooms_state     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20
+aws lambda update-function-code --function-name     youtube_organize_database     --zip-file fileb://main.zip
 
 
 # Mac OS
