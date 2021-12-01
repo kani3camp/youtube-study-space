@@ -278,7 +278,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			}
 			return commandDetails, customerror.NewNil()
 		case LegacyAddCommand:
-			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください。")
+			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
 		case OkawariCommand:
 			fallthrough
 		case MoreCommand:
@@ -292,7 +292,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				CommandType: Rank,
 			}, customerror.NewNil()
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
-			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください。")
+			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください")
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
@@ -311,7 +311,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			}, customerror.NewNil()
 		}
 	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
-		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください!")
+		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください")
 	}
 	return CommandDetails{
 		CommandType: NotCommand,
@@ -373,46 +373,46 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefix))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
+				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください。")
+				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください。")
+				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください。")
+				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		}
 	}
@@ -469,7 +469,7 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 			} else if rankVisibleStr == RankVisibleMyOptionOff {
 				rankVisible = false
 			} else {
-				return []MyOption{}, customerror.InvalidCommand.New("「" + RankVisibleMyOptionPrefix + "」の後の値を確認してください。")
+				return []MyOption{}, customerror.InvalidCommand.New("「" + RankVisibleMyOptionPrefix + "」の後の値を確認してください")
 			}
 			options = append(options, MyOption{
 				Type:      RankVisible,
@@ -488,11 +488,11 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください。")
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
 		}
 		kickSeatId = num
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください。")
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
 	}
 	
 	return CommandDetails{
@@ -554,7 +554,7 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefix))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -563,12 +563,12 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 				})
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -577,12 +577,12 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 				})
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -591,12 +591,12 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 				})
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
 		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
 			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -605,7 +605,7 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 				})
 				isWorkTimeMinSet = true
 			} else { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください。")
+				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
 		}
 	}
@@ -621,50 +621,50 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 		if strings.HasPrefix(slice[1], WorkTimeOptionPrefix) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], WorkTimeOptionShortPrefix) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], WorkTimeOptionPrefixLegacy) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], WorkTimeOptionShortPrefixLegacy) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください。")
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
 		}
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + WorkTimeOptionPrefix + "」で指定してください。")
+		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + WorkTimeOptionPrefix + "」で指定してください")
 	}
 	
 	if workTimeMin == 0 {
-		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください。")
+		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください")
 	}
 	
 	return CommandDetails{
@@ -692,22 +692,22 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		// その席番号が存在するか
 		isSeatExist, err := s.IsSeatExist(command.InOptions.SeatId, ctx)
 		if err != nil {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			_ = s.LineBot.SendMessageWithError("failed s.IsSeatExist()", err)
 			return err
 		} else if !isSeatExist {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"存在しません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください！", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"存在しません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください", ctx)
 			return nil
 		}
 		// その席が空いているか
 		isOk, err := s.IfSeatAvailable(command.InOptions.SeatId, ctx)
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed s.IfSeatAvailable()", err)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			return err
 		}
 		if !isOk {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください！", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください", ctx)
 			return nil
 		}
 	}
@@ -723,7 +723,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		currentSeat, customErr := s.CurrentSeat(ctx)
 		if customErr.IsNotNil() {
 			_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", customErr.Body)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
 			return customErr.Body
 		}
 		
@@ -732,10 +732,10 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 			workedTimeSec, err := s.ExitRoom(currentSeat.SeatId, ctx)
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError("failed in s.ExitRoom(seatId, ctx)", customErr.Body)
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return err
 			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが再入室します。"+
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが再入室します"+
 				"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 			// 入室処理: このまま次の処理に進む
 		} else if command.CommandType == SeatIn {
@@ -745,7 +745,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 				if err != nil {
 					_ = s.LineBot.SendMessageWithError("failed to UpdateSeatWorkName", err)
 					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+						"さん、エラーが発生しました。もう一度試してみてください", ctx)
 					return err
 				}
 				// 入室時間を更新
@@ -754,11 +754,11 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 				if err != nil {
 					_ = s.LineBot.SendMessageWithError("failed to UpdateSeatUntil", err)
 					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+						"さん、エラーが発生しました。もう一度試してみてください", ctx)
 					return err
 				}
 				
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんはすでに" + strconv.Itoa(currentSeat.SeatId) + "番の席に座っています。作業名と入室時間を更新しました。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんはすでに" + strconv.Itoa(currentSeat.SeatId) + "番の席に座っています。作業名と入室時間を更新しました", ctx)
 				return nil
 			} else { 	// 今と別の席番号の場合: 退室させてから、入室させる。
 				// 作業名は指定がない場合引き継ぐ。
@@ -770,7 +770,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 				workedTimeSec, err := s.ExitRoom(currentSeat.SeatId, ctx)
 				if err != nil {
 					_ = s.LineBot.SendMessageWithError("failed to ExitRoom for " + s.ProcessedUserId, err)
-					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 					return err
 				}
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが席を移動します🚶（" +
@@ -789,7 +789,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		seatId, err := s.RandomAvailableSeatId(ctx)
 		if err != nil {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			return err
 		}
 		command.InOptions.SeatId = seatId
@@ -801,7 +801,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to RetrieveUser", err)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			"さん、エラーが発生しました。もう一度試してみてください", ctx)
 		return err
 	}
 	if userDoc.RankVisible {
@@ -809,7 +809,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to GetRank", err)
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			return err
 		}
 		seatColorCode = rank.ColorCode
@@ -823,7 +823,7 @@ func (s *System) In(command CommandDetails, ctx context.Context) error {
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed to enter room", err)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-			"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			"さん、エラーが発生しました。もう一度試してみてください", ctx)
 		return err
 	}
 	s.SendLiveChatMessage(s.ProcessedUserDisplayName+
@@ -843,11 +843,11 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	isInRoom, err := s.IsUserInRoom(ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed IsUserInRoom()", err)
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 		return err
 	}
 	if !isInRoom {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに退室しています。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに退室しています", ctx)
 		return nil
 	}
 	// 現在座っている席を特定
@@ -855,17 +855,17 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	if customErr.Body != nil {
 		_ = s.LineBot.SendMessageWithError("failed in s.CurrentSeatId(ctx)", customErr.Body)
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-			"さん、残念ながらエラーが発生しました。もう一度試してみてください。", ctx)
+			"さん、残念ながらエラーが発生しました。もう一度試してみてください", ctx)
 		return customErr.Body
 	}
 	// 退室処理
 	workedTimeSec, err := s.ExitRoom(seatId, ctx)
 	if err != nil {
 		_ = s.LineBot.SendMessageWithError("failed in s.ExitRoom(seatId, ctx)", customErr.Body)
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 		return err
 	} else {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 			"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 		return nil
 	}
@@ -921,13 +921,13 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 	if isUserInRoom {
 		currentSeat, err := s.CurrentSeat(ctx)
 		if err.IsNotNil() {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			_ = s.LineBot.SendMessageWithError("failed s.CurrentSeat()", err.Body)
 		}
 		
 		realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 		remainingMinutes := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingMinutes)+"分です。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingMinutes)+"分です", ctx)
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+
 			"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！", ctx)
@@ -938,10 +938,10 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 func (s *System) Report(command CommandDetails, ctx context.Context) error {
 	err := s.LineBot.SendMessage(s.ProcessedUserId + "（" + s.ProcessedUserDisplayName + "）さんから" + ReportCommand + "を受信しました。\n\n" + command.ReportMessage)
 	if err != nil {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
 		return err
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました。", ctx)
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました", ctx)
 	return nil
 }
 
@@ -959,7 +959,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 			if cerr.IsNotNil() {
 				return cerr.Body
 			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席の"+seat.UserDisplayName+"さんを退室させます。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席の"+seat.UserDisplayName+"さんを退室させます", ctx)
 			
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			outCommandDetails := CommandDetails{
@@ -972,10 +972,10 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				return err
 			}
 		} else {
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません", ctx)
 		}
 	} else {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません", ctx)
 	}
 	return nil
 }
@@ -999,7 +999,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください", ctx)
 		return nil
 	}
 	
@@ -1009,7 +1009,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError("faield  s.FirestoreController.RetrieveUser()", err)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return err
 			}
 			// 現在の値と、設定したい値が同じなら、変更なし
@@ -1020,14 +1020,14 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				} else {
 					rankVisibleString = "オフ"
 				}
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのランク表示モードはすでに"+rankVisibleString+"です。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのランク表示モードはすでに"+rankVisibleString+"です", ctx)
 			} else {
 				// 違うなら、切替
 				err := s.ToggleRankVisible(ctx)
 				if err != nil {
 					_ = s.LineBot.SendMessageWithError("failed to ToggleRankVisible", err)
 					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+						"さん、エラーが発生しました。もう一度試してみてください", ctx)
 					return err
 				}
 			}
@@ -1037,10 +1037,10 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError("failed to set my-default-study-min", err)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return err
 			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのデフォルトの作業時間を"+strconv.Itoa(myOption.IntValue)+"分に設定しました。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのデフォルトの作業時間を"+strconv.Itoa(myOption.IntValue)+"分に設定しました", ctx)
 		}
 	}
 	return nil
@@ -1053,19 +1053,19 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		return err
 	}
 	if !isUserInRoom {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです", ctx)
 		return nil
 	}
 	currentSeatId, customErr := s.CurrentSeatId(ctx)
 	if customErr.IsNotNil() {
 		_ = s.LineBot.SendMessageWithError("failed CurrentSeatId", customErr.Body)
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
 		return customErr.Body
 	}
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.ChangeOptions) == 0 {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください", ctx)
 		return nil
 	}
 	
@@ -1076,10 +1076,10 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError("failed to UpdateWorkName", err)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return err
 			}
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeatId)+"番席）。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeatId)+"番席）", ctx)
 		}
 		if changeOption.Type == WorkTime {
 			// 作業時間（入室時間から自動退室までの時間）を変更
@@ -1087,7 +1087,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			if cerr.IsNotNil() {
 				_ = s.LineBot.SendMessageWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return cerr.Body
 			}
 			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
@@ -1096,20 +1096,20 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			
 			if requestedUntil.Before(utils.JstNow()) { // もし現在時刻で指定時間よりも経過していたら却下
 				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.IntValue)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.IntValue)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です", ctx)
 			} else if requestedUntil.After(utils.JstNow().Add(time.Duration(s.MaxWorkTimeMin) * time.Minute)) { // もし現在時刻より最大延長可能時間以上後なら却下
 				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です", ctx)
 			} else { // それ以外なら延長
 				err := s.FirestoreController.UpdateSeatUntil(requestedUntil, s.ProcessedUserId, ctx)
 				if err != nil {
 					_ = s.LineBot.SendMessageWithError("failed to s.FirestoreController.UpdateSeatUntil", cerr.Body)
 					s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+						"さん、エラーが発生しました。もう一度試してみてください", ctx)
 					return err
 				}
 				remainingWorkMin := int(requestedUntil.Sub(utils.JstNow()).Minutes())
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.IntValue)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.IntValue)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です", ctx)
 			}
 		}
 	}
@@ -1133,22 +1133,22 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		if int(newUntil.Sub(utils.JstNow()).Minutes()) > s.MaxWorkTimeMin {
 			newUntil = utils.JstNow().Add(time.Duration(s.MaxWorkTimeMin) * time.Minute)
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、現在時刻から"+
-				strconv.Itoa(s.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。延長できる最大の時間で設定します。", ctx)
+				strconv.Itoa(s.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。延長できる最大の時間で設定します", ctx)
 		}
 		
 		err := s.FirestoreController.UpdateSeatUntil(newUntil, s.ProcessedUserId, ctx)
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to s.FirestoreController.UpdateSeatUntil", cerr.Body)
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+				"さん、エラーが発生しました。もう一度試してみてください", ctx)
 			return err
 		}
 		addedMin := int(newUntil.Sub(currentSeat.Until).Minutes())
 		realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 		remainingWorkMin := int(newUntil.Sub(utils.JstNow()).Minutes())
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(addedMin)+"分延長しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(addedMin)+"分延長しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です", ctx)
 	} else {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです。", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです", ctx)
 	}
 	
 	return nil
@@ -1197,7 +1197,7 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 	} else {
 		newValueString = "オフ"
 	}
-	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのランク表示を"+newValueString+"にしました。", ctx)
+	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんのランク表示を"+newValueString+"にしました", ctx)
 	
 	// 入室中であれば、座席の色も変える
 	isUserInRoom, err := s.IsUserInRoom(ctx)
@@ -1208,7 +1208,7 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError("failed to GetRank", err)
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください。", ctx)
+					"さん、エラーが発生しました。もう一度試してみてください", ctx)
 				return err
 			}
 		} else { // ランク表示オフの色を取得
@@ -1218,7 +1218,7 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 		err := s.FirestoreController.UpdateSeatColorCode(rank.ColorCode, s.ProcessedUserId, ctx)
 		if err != nil {
 			_ = s.LineBot.SendMessageWithError("failed to s.FirestoreController.UpdateSeatColorCode()", err)
-			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください。", ctx)
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください", ctx)
 			return err
 		}
 	}
@@ -1353,7 +1353,7 @@ func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 			return 0, err
 		}
 		if newMaxSeats <= constants.MaxSeats {
-			_ = s.LineBot.SendMessage("newMaxSeats: 設定されている空席率を満たすような値を求めることができませんでした。")
+			_ = s.LineBot.SendMessage("newMaxSeats: 設定されている空席率を満たすような値を求めることができませんでした")
 			return 0, errors.New("エラーが発生しました。")
 		}
 		return constants.MaxSeats + 1, nil
@@ -1563,10 +1563,10 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
-				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました。", err)
+				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 				return err
 			} else {
-				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました！"+
+				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
 			}
 		}
