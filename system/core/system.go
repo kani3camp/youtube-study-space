@@ -98,9 +98,12 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return err
 		}
 		if int(float32(constants.DesiredMaxSeats) * (1.0 - constants.MinVacancyRate)) < len(room.Seats) {
-			message := "減らそうとしすぎ。キャンセル。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current max seats: " + strconv.Itoa(constants.MaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats))
-			log.Println(message)
+			message := "減らそうとしすぎ。desiredは却下し、desired max seats <= current max seatsとします。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current max seats: " + strconv.Itoa(constants.MaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats))
 			_ = s.LineBot.SendMessage(message)
+			err := s.FirestoreController.SetDesiredMaxSeats(constants.MaxSeats, ctx)
+			if err != nil {
+				return err
+			}
 			return nil
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる

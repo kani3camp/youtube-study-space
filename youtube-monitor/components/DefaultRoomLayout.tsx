@@ -99,7 +99,7 @@ const DefaultRoomLayout: FC<Props> = (props) => {
             top: seatPositions[index].y + "%",
             width: seatShape.width + "%",
             height: seatShape.height + "%",
-            fontSize: seatFontSizePx + "px",
+            fontSize: isUsed? seatFontSizePx + "px" : seatFontSizePx * 2 + 'px',
           }}
         >
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
