@@ -86,6 +86,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	if constants.DesiredMaxSeats == constants.MaxSeats {
 		return nil
 	} else if constants.DesiredMaxSeats > constants.MaxSeats {	// 席を増やす
+		s.SendLiveChatMessage("ルームを増やします⬆", ctx)
 		err := s.FirestoreController.SetMaxSeats(constants.DesiredMaxSeats, ctx)
 		if err != nil {
 			return err
@@ -97,11 +98,13 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return err
 		}
 		if int(float32(constants.DesiredMaxSeats) * (1.0 - constants.MinVacancyRate)) < len(room.Seats) {
-			log.Println("減らそうとしすぎ。キャンセル。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats)))
+			message := "減らそうとしすぎ。キャンセル。desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", current max seats: " + strconv.Itoa(constants.MaxSeats) + ", current seats: " + strconv.Itoa(len(room.Seats))
+			log.Println(message)
+			_ = s.LineBot.SendMessage(message)
 			return nil
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
-			s.SendLiveChatMessage("人数が減ったためルームを減らします。必要な場合は席を移動してもらうことがあります。", ctx)
+			s.SendLiveChatMessage("人数が減ったためルームを減らします⬇　必要な場合は席を移動してもらうことがあります。", ctx)
 			for _, seat := range room.Seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
@@ -1223,6 +1226,15 @@ func (s *System) ToggleRankVisible(ctx context.Context) error {
 	return nil
 }
 
+// IsSeatExist 席番号1～max-seatsの席かどうかを判定。
+func (s *System) IsSeatExist(seatId int, ctx context.Context) (bool, error) {
+	constants, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+	if err != nil {
+		return false, err
+	}
+	return 1 <= seatId && seatId <= constants.MaxSeats, nil
+}
+
 // IfSeatAvailable 席番号がseatIdの席が空いているかどうか。
 func (s *System) IfSeatAvailable(seatId int, ctx context.Context) (bool, error) {
 	// 使われているかどうか
@@ -1260,6 +1272,18 @@ func (s *System) RetrieveSeatBySeatId(seatId int, ctx context.Context) (myfirest
 	return myfirestore.Seat{}, customerror.SeatNotFound.New("that seat is not used.")
 }
 
+func (s *System) IfUserRegistered(ctx context.Context) (bool, error) {
+	_, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 // IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
 func (s *System) IsUserInRoom(ctx context.Context) (bool, error) {
 	roomData, err := s.FirestoreController.RetrieveRoom(ctx)
@@ -1290,27 +1314,6 @@ func (s *System) RetrieveNextPageToken(ctx context.Context) (string, error) {
 
 func (s *System) SaveNextPageToken(nextPageToken string, ctx context.Context) error {
 	return s.FirestoreController.SaveNextPageToken(nextPageToken, ctx)
-}
-
-// EnterRoom 入室させる。事前チェックはされている前提。
-func (s *System) EnterRoom(seatId int, workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
-	enterDate := utils.JstNow()
-	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.FirestoreController.SetSeat(seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
-	if err != nil {
-		return err
-	}
-	// 入室時刻を記録
-	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
-	if err != nil {
-		return err
-	}
-	// ログ記録
-	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, EnterAction, seat, ctx)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // RandomAvailableSeatId roomの席が空いているならその中からランダムな席番号を、空いていないならmax-seatsを増やし、最小の空席番号を返す。
@@ -1357,6 +1360,26 @@ func (s *System) RandomAvailableSeatId(ctx context.Context) (int, error) {
 	}
 }
 
+// EnterRoom 入室させる。事前チェックはされている前提。
+func (s *System) EnterRoom(seatId int, workName string, workTimeMin int, seatColorCode string, ctx context.Context) error {
+	enterDate := utils.JstNow()
+	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
+	seat, err := s.FirestoreController.SetSeat(seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName, ctx)
+	if err != nil {
+		return err
+	}
+	// 入室時刻を記録
+	err = s.FirestoreController.SetLastEnteredDate(s.ProcessedUserId, ctx)
+	if err != nil {
+		return err
+	}
+	// ログ記録
+	err = s.FirestoreController.AddUserHistory(s.ProcessedUserId, EnterAction, seat, ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 // ExitRoom ユーザーを退室させる。事前チェックはされている前提。
 func (s *System) ExitRoom(seatId int, ctx context.Context) (int, error) {
@@ -1433,15 +1456,6 @@ func (s *System) CurrentSeat(ctx context.Context) (myfirestore.Seat, customerror
 	return myfirestore.Seat{}, customerror.UserNotInAnyRoom.New("the user is not in any room.")
 }
 
-// IsSeatExist 席番号1～max-seatsの席かどうかを判定。
-func (s *System) IsSeatExist(seatId int, ctx context.Context) (bool, error) {
-	constants, err := s.FirestoreController.RetrieveSystemConstantsConfig(ctx)
-	if err != nil {
-		return false, err
-	}
-	return 1 <= seatId && seatId <= constants.MaxSeats, nil
-}
-
 func (s *System) UpdateTotalWorkTime(workedTimeSec int, dailyWorkedTimeSec int, ctx context.Context) error {
 	userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
 	if err != nil {
@@ -1460,18 +1474,6 @@ func (s *System) UpdateTotalWorkTime(workedTimeSec int, dailyWorkedTimeSec int, 
 	return nil
 }
 
-func (s *System) IfUserRegistered(ctx context.Context) (bool, error) {
-	_, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
-	if err != nil {
-		if status.Code(err) == codes.NotFound {
-			return false, nil
-		} else {
-			return false, err
-		}
-	}
-	return true, nil
-}
-
 // TotalStudyTimeStrings リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
 func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, error) {
 	// 入室中ならばリアルタイムの作業時間も加算する
@@ -1480,11 +1482,15 @@ func (s *System) TotalStudyTimeStrings(ctx context.Context) (string, string, err
 	if isInRoom, _ := s.IsUserInRoom(ctx); isInRoom {
 		// 作業時間を計算
 		jstNow := utils.JstNow()
-		userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
-		if err != nil {
-			return "", "", err
+		//userData, err := s.FirestoreController.RetrieveUser(s.ProcessedUserId, ctx)
+		//if err != nil {
+		//	return "", "", err
+		//}
+		currentSeat, err := s.CurrentSeat(ctx)
+		if err.IsNotNil() {
+			return "", "", err.Body
 		}
-		workedTimeSec := int(jstNow.Sub(userData.LastEntered).Seconds())
+		workedTimeSec := int(jstNow.Sub(currentSeat.EnteredAt).Seconds())
 		realtimeDuration = time.Duration(workedTimeSec) * time.Second
 		
 		var dailyWorkedTimeSec int
