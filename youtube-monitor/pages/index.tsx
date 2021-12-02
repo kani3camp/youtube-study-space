@@ -1,6 +1,6 @@
 import React, { FC } from "react";
 import Clock from "../components/Clock";
-import DefaultRoom from "../components/DefaultRoom";
+import Room from "../components/Room";
 import StandingRoom from "../components/StandingRoom";
 import Timer from "../components/Timer";
 import BackgroundImage from "../components/BackgroundImage";
@@ -20,7 +20,7 @@ const Home: FC = () => {
       <BackgroundImage></BackgroundImage>
       <BgmPlayer></BgmPlayer>
       <Clock />
-      <DefaultRoom />
+      <Room />
 
       <StandingRoom />
       <Timer />

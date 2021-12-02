@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useReducer, FC } from "react";
-import * as styles from "./DefaultRoomLayout.styles";
+import * as styles from "./LayoutDisplay.styles";
 import { RoomLayout } from "../types/room-layout";
 import { Seat } from "../types/api";
 
 type Props = {
-  roomLayout: RoomLayout;
+  roomLayouts: RoomLayout[];
+  roomIndex: number;
   seats: Seat[];
   firstSeatId: number;
   maxSeats: number;
 }
 
-const DefaultRoomLayout: FC<Props> = (props) => {
+const LayoutDisplay: FC<Props> = (props) => {
   const seatWithSeatId = (seatId: number, seats: Seat[]) => {
     let targetSeat: Seat = seats[0];
     seats.forEach((seat) => {
@@ -25,15 +26,20 @@ const DefaultRoomLayout: FC<Props> = (props) => {
     return first_seat_id + layout_seat_id
   }
 
-  if (props.roomLayout) {
-    const roomSeats = props.seats
+  if (props.roomLayouts && props.roomLayouts.length > 0) {
     const usedSeatIds = props.seats.map(
       (seat) => seat.seat_id
     );
 
     const emptySeatColor = "#F3E8DC";
-
-    const roomLayout = props.roomLayout;
+    
+    let roomLayout: RoomLayout
+    // ルームが減った瞬間などは、インデックスがlengthを超える場合がある
+    if (props.roomIndex >= props.roomLayouts.length) {
+      roomLayout = props.roomLayouts[0]
+    } else {
+      roomLayout = props.roomLayouts[props.roomIndex]
+    }
     const roomShape = {
       widthPx:
         (1000 * roomLayout.room_shape.width) / roomLayout.room_shape.height,
@@ -78,7 +84,7 @@ const DefaultRoomLayout: FC<Props> = (props) => {
       y: (100 * partition.y) / roomLayout.room_shape.height,
     }));
 
-    const seatList = props.roomLayout.seats.map((seat, index) => {
+    const seatList = roomLayout.seats.map((seat, index) => {
       const global_seat_id = globalSeatId(seat.id, props.firstSeatId)
       const isUsed = usedSeatIds.includes(global_seat_id);
       const workName = isUsed
@@ -148,4 +154,4 @@ const DefaultRoomLayout: FC<Props> = (props) => {
 
 }
 
-export default DefaultRoomLayout;
+export default LayoutDisplay;

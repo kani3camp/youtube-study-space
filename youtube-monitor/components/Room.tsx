@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useReducer } from "react";
 
-import * as styles from "./DefaultRoom.styles";
+import * as styles from "./Room.styles";
 
 
 import { RoomLayout } from "../types/room-layout";
@@ -9,13 +9,13 @@ import api from "../lib/api_config";
 import fetcher from "../lib/fetcher";
 import { RoomsStateResponse } from "../types/api";
 import { bindActionCreators } from "redux";
-import Message from "../components/Message";
+import Message from "./Message";
 import { basicRooms, numSeatsInAllBasicRooms, temporaryRooms } from "../rooms/basic-rooms-config";
-import DefaultRoomLayout from "./DefaultRoomLayout";
-import { roomLayout } from "./DefaultRoomLayout.styles";
+import LayoutDisplay from "./LayoutDisplay";
+import { roomLayout } from "./LayoutDisplay.styles";
 
 
-const DefaultRoom = () => {
+const Room = () => {
   const PAGING_INTERVAL_MSEC = 5 * 1000
 
   const [seatsState, setSeatsState] = useState<SeatsState | undefined>(undefined)
@@ -150,8 +150,8 @@ const DefaultRoom = () => {
   if (seatsState) {
     return (
       <div css={styles.defaultRoom}>
-        <DefaultRoomLayout roomLayout={roomLayouts[displayRoomIndex]} seats={seatsState.seats} firstSeatId={firstDisplaySeatId} maxSeats={maxSeats}>
-        </DefaultRoomLayout>
+        <LayoutDisplay roomLayouts={roomLayouts} roomIndex={displayRoomIndex} seats={seatsState.seats} firstSeatId={firstDisplaySeatId} maxSeats={maxSeats}>
+        </LayoutDisplay>
         <Message
           current_room_index={displayRoomIndex}
           seats_state={seatsState}
@@ -165,4 +165,4 @@ const DefaultRoom = () => {
 
 }
 
-export default DefaultRoom;
+export default Room;
