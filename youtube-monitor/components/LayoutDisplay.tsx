@@ -26,7 +26,7 @@ const LayoutDisplay: FC<Props> = (props) => {
     return first_seat_id + layout_seat_id
   }
 
-  if (props.roomLayouts && props.roomLayouts.length > 0) {
+  if (props.roomLayouts && props.roomLayouts.length > 0 && props.roomIndex < props.roomLayouts.length) {
     const usedSeatIds = props.seats.map(
       (seat) => seat.seat_id
     );
