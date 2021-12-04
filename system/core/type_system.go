@@ -16,7 +16,8 @@ type System struct {
 	ProcessedUserId string
 	ProcessedUserDisplayName string
 	ProcessedUserIsModeratorOrOwner bool
-	DefaultSleepIntervalMilli int
+	DefaultSleepIntervalMilli       int
+	CheckDesiredMaxSeatsIntervalSec int
 }
 
 type CommandDetails struct {
@@ -35,6 +36,7 @@ const (
 	NotCommand CommandType = iota
 	InvalidCommand
 	In     // !in
+	SeatIn	// !席番号
 	Out    // !out
 	Info   // !info
 	My     // !my
@@ -63,6 +65,7 @@ const (
 )
 
 type InOptions struct {
+	SeatId   int
 	WorkName string
 	WorkMin  int
 }

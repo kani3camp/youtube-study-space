@@ -149,8 +149,6 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	if err != nil {
 		log.Println("first post was failed", err)
 		
-		// todo もう一度
-		
 		// bot credentialのaccess tokenが期限切れの可能性
 		credentialConfig, err := bot.FirestoreController.RetrieveCredentialsConfig(ctx)
 		if err != nil {

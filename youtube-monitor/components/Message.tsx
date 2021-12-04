@@ -1,21 +1,23 @@
-import React from "react";
-import styles from "./Message.module.sass";
-import { DefaultRoomState, NoSeatRoomState } from "../types/room-state";
+import React, { FC } from "react";
+import * as styles from "./Message.styles";
+import { SeatsState } from "../types/api";
 
-class Message extends React.Component<
-  { default_room_state: DefaultRoomState },
-  any
-> {
-  render () {
-    if (this.props.default_room_state) {
-      const numWorkers = this.props.default_room_state.seats.length
-      // return (
-      //   <div id={styles.message}>Currently {numWorkers} people working! 🔥</div>
-      // );
-      return <div id={styles.message}>現在、{numWorkers}人が作業中🔥</div>;
-    } else {
-      return <div id={styles.message} />;
-    }
+type Props = {
+  current_room_index: number
+  seats_state: SeatsState
+}
+
+const Message: FC<Props> = (props) => {
+  if (props.seats_state) {
+    const numWorkers = props.seats_state.seats.length
+    return (
+    <div css={styles.message}>
+      <div css={styles.roomName}>ルーム{props.current_room_index + 1} ☝</div>
+      <div css={styles.numStudyingPeople}>現在、{numWorkers}人が作業中🔥</div>
+    </div>
+    )
+  } else {
+    return <div css={styles.message} />;
   }
 }
 
