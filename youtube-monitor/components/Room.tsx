@@ -16,7 +16,7 @@ import { roomLayout } from "./LayoutDisplay.styles";
 
 
 const Room = () => {
-  const PAGING_INTERVAL_MSEC = 5 * 1000
+  const PAGING_INTERVAL_MSEC = 8 * 1000
 
   const [seatsState, setSeatsState] = useState<SeatsState | undefined>(undefined)
   // const [displayRoomLayout, setDisplayRoomLayout] = useState<RoomLayout>()
@@ -28,7 +28,7 @@ const Room = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
 
   useEffect(() => {
-    console.log('useEffect')
+    // console.log('useEffect')
     if (!initialized) {
       setInitialized(true)
       init()
@@ -53,7 +53,7 @@ const Room = () => {
     await new Promise<void>(async (resolve, reject) => {
       fetcher<RoomsStateResponse>(api.roomsState)
       .then(async (r) => {
-        console.log('fetchした')
+        // console.log('fetchした')
         setSeatsState(r.default_room)
         seats_state = r.default_room
         setMaxSeats(r.max_seats)
@@ -62,7 +62,7 @@ const Room = () => {
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
         let final_desired_max_seats: number
         const min_seats_by_vacancy_rate = Math.ceil(r.default_room.seats.length / (1 - r.min_vacancy_rate))
-        console.log('少なくとも', min_seats_by_vacancy_rate, 'は確定')
+        // console.log('少なくとも', min_seats_by_vacancy_rate, 'は確定')
         // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
         if (min_seats_by_vacancy_rate > numSeatsInAllBasicRooms()) {
           let current_num_seats: number = numSeatsInAllBasicRooms()
@@ -75,7 +75,7 @@ const Room = () => {
         } else {  // そうでなければ、基本ルームの席数とするべき
           final_desired_max_seats = numSeatsInAllBasicRooms()
         }
-        console.log(final_desired_max_seats, r.max_seats)
+        // console.log(final_desired_max_seats, r.max_seats)
         
         // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
         if (final_desired_max_seats !== r.max_seats) {
@@ -102,9 +102,8 @@ const Room = () => {
         }
         
         
-        // レイアウト的にmax_seatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
+        // TODO: レイアウト的にmax_seatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
         
-        // TODO: ルーム数が減るときは、displayRoomIndexは確認したほうがいいかも
         setRoomLayouts(next_display_room_layouts)
         resolve()
       })
@@ -120,7 +119,6 @@ const Room = () => {
     if (roomLayout && seats_state) {
       const diffMilliSecond = (new Date()).getTime() - last_updated.getTime()
       if (diffMilliSecond >= PAGING_INTERVAL_MSEC) {
-        console.log('o')
         // 次に表示するルームのレイアウトのインデックスを求める
         const nextDisplayRoomIndex = (displayRoomIndex + 1) % roomLayouts.length
         
@@ -135,7 +133,6 @@ const Room = () => {
         setLastUpdated(new Date())
         }
     } else {
-      console.log('x')
     }
   }
   

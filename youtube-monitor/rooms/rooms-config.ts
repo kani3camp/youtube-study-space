@@ -1,5 +1,5 @@
 import { RoomLayout } from "../types/room-layout";
-import { CircleRoomLayout } from "./layouts/circle_room";
+import { circleRoomLayout } from "./layouts/circle_room";
 import { classRoomLayout } from "./layouts/classroom";
 import { mazeRoomLayout } from "./layouts/maze_room";
 import { ver2RoomLayout } from "./layouts/ver2";
@@ -10,11 +10,11 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [CircleRoomLayout]
+    roomLayouts: [circleRoomLayout, mazeRoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
-    roomLayouts: [CircleRoomLayout]
+    roomLayouts: [classRoomLayout]
 }
 
 

@@ -1,6 +1,6 @@
 import { RoomLayout } from "../../types/room-layout";
 
-export const CircleRoomLayout: RoomLayout = {
+export const circleRoomLayout: RoomLayout = {
     version: 1,
     font_size_ratio: 0.018,
     room_shape: {
