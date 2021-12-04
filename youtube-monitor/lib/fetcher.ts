@@ -29,10 +29,13 @@ const wrap = <T>(task: Promise<Response>): Promise<T> => {
 };
 
 const fetcher = <T = any>(
-  input: RequestInfo,
-  init?: RequestInit
+  url: RequestInfo,
+  init: RequestInit = {}
 ): Promise<T> => {
-  return wrap<T>(fetch(input, init));
+  const requestHeaders: HeadersInit = new Headers();
+  requestHeaders.append('x-api-key', process.env.NEXT_PUBLIC_API_KEY!)
+  init.headers = requestHeaders
+  return wrap<T>(fetch(url, init));
 };
 
 export default fetcher;

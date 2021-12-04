@@ -2,6 +2,7 @@
 system/.idea/
 aws-lambda/.idea/
 youtube-monitor/.idea/
+youtube-monitor/.env
 system/.DS_Store
 system/.gcloudignore
 youtube-monitor/.next/
