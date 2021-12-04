@@ -1,7 +1,8 @@
 import React from "react";
-import styles from "./Timer.module.sass";
+import * as styles from "./Timer.styles";
 import { TimeSection, SectionType, remainingTime, getCurrentSection, getNextSection } from "../lib/time_table";
 import next from "next";
+import { serializeStyles } from "@emotion/serialize";
 
 
 
@@ -65,19 +66,17 @@ class Timer extends React.Component<{}, any> {
     }
   }
 
-
-
   render () {
     return (
-      <div id={styles.timer} className={this.state.sectionType === SectionType.Study ? styles.studyMode : styles.breakMode}>
-        <div id={styles.timerTitle}>{this.state.sectionMessage}</div>
-        <div id={styles.remaining}>
+      <div css={[styles.timer, this.state.sectionType === SectionType.Study ? styles.studyMode : styles.breakMode]}>
+        <div css={styles.timerTitle}>{this.state.sectionMessage}</div>
+        <div css={styles.remaining}>
           {this.state.remaining_min}：{this.state.remaining_sec < 10 ? '0' + this.state.remaining_sec : this.state.remaining_sec}
         </div>
         <span>{this.state.currentPartName}　</span>
         <span>{this.state.currentSectionId !== 0 ? ('セクション' + this.state.currentSectionId) : ''}</span>
-        <div className={styles.spacer} />
-        <div className={styles.nextDescription}>
+        <div css={styles.spacer} />
+        <div css={styles.nextDescription}>
           <span>次は </span>
           <span>{this.state.nextSectionDuration}</span>
           <span>分 </span>

@@ -11,6 +11,10 @@ type ConstantsConfigDoc struct {
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"`
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
+	MaxSeats int `firestore:"max-seats" json:"max_seats"`
+	DesiredMaxSeats                 int     `firestore:"desired-max-seats" json:"desired_max_seats"`
+	CheckDesiredMaxSeatsIntervalSec int     `firestore:"check-desired-max-seats-interval-sec"`
+	MinVacancyRate                  float32 `firestore:"min-vacancy-rate" json:"min_vacancy_rate"`
 }
 
 type CredentialsConfigDoc struct {

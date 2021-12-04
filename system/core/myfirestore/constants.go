@@ -9,7 +9,12 @@ const (
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName       = "default"
 	
+	DesiredMaxSeatsFirestore = "desired-max-seats"
+	MaxSeatsFirestore                        = "max-seats"
+	CheckDesiredMaxSeatsIntervalSecFirestore = "check-desired-max-seats-interval-sec"
+	MinVacancyRateFirestore                  = "min-vacancy-rate"
 	LastResetDailyTotalStudySecFirestore = "last-reset-daily-total-study-sec"
+	
 	NextPageTokenFirestore = "youtube-live-chat-next-page-token"
 	SeatsFirestore = "seats"
 	LiveChatIdFirestore = "youtube-live-chat-id"

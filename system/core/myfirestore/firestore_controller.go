@@ -196,31 +196,6 @@ func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTi
 	return nil
 }
 
-func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userId string, ctx context.Context) error {
-	// seatsを取得
-	roomDoc, err := controller.RetrieveRoom(ctx)
-	if err != nil {
-		return err
-	}
-	seats := roomDoc.Seats
-	
-	// seatsを更新
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].Until = newUntil
-			break
-		}
-	}
-	
-	// seatsをセット
-	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Update(ctx, []firestore.Update{
-		{Path: SeatsFirestore, Value: seats},
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 
 func (controller *FirestoreController) SaveLiveChatId(liveChatId string, ctx context.Context) error {
@@ -265,6 +240,26 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(date time
 	return nil
 }
 
+func (controller *FirestoreController) SetDesiredMaxSeats(desiredMaxSeats int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
+		DesiredMaxSeatsFirestore: desiredMaxSeats,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (controller *FirestoreController) SetMaxSeats(maxSeats int, ctx context.Context) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx, map[string]interface{}{
+		MaxSeatsFirestore: maxSeats,
+	}, firestore.MergeAll)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
 		YoutubeChannelAccessTokenFirestore: accessToken,
@@ -287,7 +282,8 @@ func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken
 	return nil
 }
 
-func (controller *FirestoreController) UpdateWorkNameAtSeat(workName string, userId string, ctx context.Context) error {
+// UpdateSeatWorkName 入室中のユーザーの作業名を更新する。入室中かどうかはチェック済みとする。
+func (controller *FirestoreController) UpdateSeatWorkName(workName string, userId string, ctx context.Context) error {
 	// seatsを取得
 	roomDoc, err := controller.RetrieveRoom(ctx)
 	if err != nil {
@@ -339,4 +335,29 @@ func (controller *FirestoreController) UpdateSeatColorCode(colorCode string, use
 	return nil
 }
 
+func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userId string, ctx context.Context) error {
+	// seatsを取得
+	roomDoc, err := controller.RetrieveRoom(ctx)
+	if err != nil {
+		return err
+	}
+	seats := roomDoc.Seats
+	
+	// seatsを更新
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].Until = newUntil
+			break
+		}
+	}
+	
+	// seatsをセット
+	_, err = controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Update(ctx, []firestore.Update{
+		{Path: SeatsFirestore, Value: seats},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
