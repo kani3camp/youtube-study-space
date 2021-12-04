@@ -5,6 +5,7 @@ youtube-monitor/.idea/
 system/.DS_Store
 system/.gcloudignore
 youtube-monitor/.next/
+youtube-monitor/.env
 youtube-monitor/node_modules/
 youtube-monitor/out/
 youtube-monitor/public/audio/lofigirl/*
