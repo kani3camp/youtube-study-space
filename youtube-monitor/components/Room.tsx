@@ -10,7 +10,7 @@ import fetcher from "../lib/fetcher";
 import { RoomsStateResponse } from "../types/api";
 import { bindActionCreators } from "redux";
 import Message from "./Message";
-import { basicRooms, numSeatsInAllBasicRooms, temporaryRooms } from "../rooms/basic-rooms-config";
+import { basicRooms, numSeatsInAllBasicRooms, temporaryRooms } from "../rooms/rooms-config";
 import LayoutDisplay from "./LayoutDisplay";
 import { roomLayout } from "./LayoutDisplay.styles";
 

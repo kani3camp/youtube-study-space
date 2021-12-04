@@ -5,7 +5,7 @@ export const roomLayout = css`
   top: 0;
   left: 0;
   width: 100%;
-  height: calc(1080px - 70px);
+  height: calc(1080px - 80px);
   box-sizing: border-box;
   margin: auto;
   border: solid 6px #303030;
