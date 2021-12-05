@@ -19,7 +19,7 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return &FirestoreController{
 		FirestoreClient: client,
 	}, nil
@@ -92,13 +92,13 @@ func (controller *FirestoreController) RetrieveRoom(ctx context.Context) (RoomDo
 
 func (controller *FirestoreController) SetSeat(seatId int, workName string, enterDate time.Time, exitDate time.Time, seatColorCode string, userId string, userDisplayName string, ctx context.Context) (Seat, error) {
 	seat := Seat{
-		SeatId: seatId,
-		UserId: userId,
+		SeatId:          seatId,
+		UserId:          userId,
 		UserDisplayName: userDisplayName,
-		WorkName: workName,
-		EnteredAt: enterDate,
-		Until: exitDate,
-		ColorCode: seatColorCode,
+		WorkName:        workName,
+		EnteredAt:       enterDate,
+		Until:           exitDate,
+		ColorCode:       seatColorCode,
 	}
 	_, err := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName).Set(ctx, map[string]interface{}{
 		SeatsFirestore: firestore.ArrayUnion(seat),
@@ -109,9 +109,9 @@ func (controller *FirestoreController) SetSeat(seatId int, workName string, ente
 	return seat, nil
 }
 
-func (controller *FirestoreController) SetLastEnteredDate(userId string, ctx context.Context) error {
+func (controller *FirestoreController) SetLastEnteredDate(userId string, enteredDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
-		LastEnteredFirestore: utils.JstNow(),
+		LastEnteredFirestore: enteredDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -119,9 +119,9 @@ func (controller *FirestoreController) SetLastEnteredDate(userId string, ctx con
 	return nil
 }
 
-func (controller *FirestoreController) SetLastExitedDate(userId string, ctx context.Context) error {
+func (controller *FirestoreController) SetLastExitedDate(userId string, exitedDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
-		LastExitedFirestore: utils.JstNow(),
+		LastExitedFirestore: exitedDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -188,15 +188,13 @@ func (controller *FirestoreController) RetrieveUser(userId string, ctx context.C
 func (controller *FirestoreController) UpdateTotalTime(userId string, newTotalTimeSec int, newDailyTotalTimeSec int, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(USERS).Doc(userId).Set(ctx, map[string]interface{}{
 		DailyTotalStudySecFirestore: newDailyTotalTimeSec,
-		TotalStudySecFirestore: newTotalTimeSec,
+		TotalStudySecFirestore:      newTotalTimeSec,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-
-
 
 func (controller *FirestoreController) SaveLiveChatId(liveChatId string, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
@@ -263,7 +261,7 @@ func (controller *FirestoreController) SetMaxSeats(maxSeats int, ctx context.Con
 func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
 		YoutubeChannelAccessTokenFirestore: accessToken,
-		YoutubeChannelExpirationDate:  expireDate,
+		YoutubeChannelExpirationDate:       expireDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -273,8 +271,8 @@ func (controller *FirestoreController) SetAccessTokenOfChannelCredential(accessT
 
 func (controller *FirestoreController) SetAccessTokenOfBotCredential(accessToken string, expireDate time.Time, ctx context.Context) error {
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName).Set(ctx, map[string]interface{}{
-		YoutubeBotAccessTokenFirestore: accessToken,
-		YoutubeBotExpirationDateFirestore:  expireDate,
+		YoutubeBotAccessTokenFirestore:    accessToken,
+		YoutubeBotExpirationDateFirestore: expireDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -360,4 +358,3 @@ func (controller *FirestoreController) UpdateSeatUntil(newUntil time.Time, userI
 	}
 	return nil
 }
-
