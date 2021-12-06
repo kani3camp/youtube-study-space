@@ -33,7 +33,7 @@ const Room = () => {
       setInitialized(true)
       init()
     } else {
-      updateDisplay(lastUpdated, roomLayouts[displayRoomIndex], seatsState)
+      updateDisplay(lastUpdated, roomLayouts, displayRoomIndex, seatsState)
     }
   }, [initialized, seatsState, roomLayouts, displayRoomIndex, lastUpdated]);
 
@@ -115,17 +115,17 @@ const Room = () => {
 
   }
 
-  const updateDisplay = (last_updated: Date, roomLayout: RoomLayout, seats_state: SeatsState | undefined) => {
-    if (roomLayout && seats_state) {
+  const updateDisplay = (last_updated: Date, room_layouts: RoomLayout[], room_index: number, seats_state: SeatsState | undefined) => {
+    if (room_layouts && seats_state) {
       const diffMilliSecond = (new Date()).getTime() - last_updated.getTime()
       if (diffMilliSecond >= PAGING_INTERVAL_MSEC) {
         // 次に表示するルームのレイアウトのインデックスを求める
-        const nextDisplayRoomIndex = (displayRoomIndex + 1) % roomLayouts.length
+        const nextDisplayRoomIndex = (room_index + 1) % room_layouts.length
 
         // 次に表示するルームの最初の席の番号を求める
         let firstSeatId = 0
         for (let i = 0; i < nextDisplayRoomIndex; i++) {
-          firstSeatId += roomLayouts[i].seats.length
+          firstSeatId += room_layouts[i].seats.length
         }
 
         setFirstDisplaySeatId(firstSeatId)
