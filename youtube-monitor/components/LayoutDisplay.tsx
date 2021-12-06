@@ -21,7 +21,7 @@ const LayoutDisplay: FC<Props> = (props) => {
     });
     return targetSeat;
   }
-  
+
   const globalSeatId = (layout_seat_id: number, first_seat_id: number) => {
     return first_seat_id + layout_seat_id
   }
@@ -32,7 +32,7 @@ const LayoutDisplay: FC<Props> = (props) => {
     );
 
     const emptySeatColor = "#F3E8DC";
-    
+
     let roomLayout: RoomLayout
     // ルームが減った瞬間などは、インデックスがlengthを超える場合がある
     if (props.roomIndex >= props.roomLayouts.length) {
@@ -105,7 +105,7 @@ const LayoutDisplay: FC<Props> = (props) => {
             top: seatPositions[index].y + "%",
             width: seatShape.width + "%",
             height: seatShape.height + "%",
-            fontSize: isUsed? seatFontSizePx + "px" : seatFontSizePx * 2 + 'px',
+            fontSize: isUsed ? seatFontSizePx + "px" : seatFontSizePx * 2 + 'px',
           }}
         >
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
@@ -120,7 +120,7 @@ const LayoutDisplay: FC<Props> = (props) => {
         </div>
       );
     });
-    
+
 
     const partitionList = roomLayout.partitions.map((partition, index) => (
       <div
@@ -149,7 +149,9 @@ const LayoutDisplay: FC<Props> = (props) => {
       </div>
     );
   } else {
-    return <div>Loading</div>;
+    return <div>
+      Loading
+    </div>;
   }
 
 }
