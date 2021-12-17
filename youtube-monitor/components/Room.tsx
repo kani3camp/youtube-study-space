@@ -151,6 +151,7 @@ const Room = () => {
         </LayoutDisplay>
         <Message
           current_room_index={displayRoomIndex}
+          current_rooms_length={roomLayouts.length}
           seats_state={seatsState}
         ></Message>
       </div>
