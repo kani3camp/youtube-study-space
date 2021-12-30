@@ -16,6 +16,7 @@ import { roomLayout } from "./LayoutDisplay.styles";
 
 
 const Room = () => {
+  const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
   const PAGING_INTERVAL_MSEC = 8 * 1000
 
   const [seatsState, setSeatsState] = useState<SeatsState | undefined>(undefined)
@@ -42,7 +43,7 @@ const Room = () => {
     await checkAndUpdateRoomLayouts()
     const fetchIntervalId = setInterval(async () => {
       await checkAndUpdateRoomLayouts()
-    }, PAGING_INTERVAL_MSEC);
+    }, DATA_FETCHING_INTERVAL_MSEC);
   }
 
   const checkAndUpdateRoomLayouts = async () => {
