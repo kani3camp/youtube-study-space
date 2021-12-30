@@ -4,34 +4,38 @@ GCPで`youtube-study-space@appspot.gserviceaccount.com`というサービスア�
 
 
 ## Lambda関数のデプロイ
-1. `deploy_production.sh`を手順通りに進める（必ずリージョンを確認）
-2. Lambdaコンソール上で関数がデプロイされたことを確認
-3. アップデートしたLambda関数のバージョンとエイリアスを作成し、公開
-   1. アップデートしたLambda関数のバージョンを公開
-   2. エイリアス`stg`がなければ作成し、バージョン`$LATEST`を設定する。
-   3. エイリアス`prod`がすでに作成されており、特定の安定したバージョンが設定されていることを確認する。
-   4. `stg`バージョンで最新のLambda関数が正しく動作することを確認したら、`prod`バージョンに`stg`バージョンと同じバージョンを設定する。
+1. `system/aws-lambda/deploy_production.sh`を手順通りに進める（必ずリージョンを確認）
+   - デプロイするコードのgoファイル名を必要な部分に指定
+   - ファイルのコンパイル・圧縮
+   - aws cliでデプロイ
 
 
 ## API Gateway
 1. AWSリージョンが本番用であることを確認
+2. REST APIを新規作成
+3. エンドポイントを作成し、各々lambda関数と統合
+4. 少なくとも`/set_desired_max_seats`はAPIキーを設定
+5. 作業が終わったら、最後にAPIをデプロイ
 
 
 ## Cloud Scheduler
 1. GCPプロジェクトが本番用であることを確認
+2. README.mdの情報を参照しながらよしなに設定
 
 
 ## DynamoDB
 1. AWSリージョンが本番用であることを確認
+2. README.mdの情報を参照しながらよしなに設定
 
 
 ## Cloud Functions
 1. GCPプロジェクトが本番用であることを確認
+2. README.mdの情報を参照しながらよしなに設定
 
 
 # 実行手順
 ## Botプログラム
-1. 本番用GCPのcredentialを使うように環境変数を設定する
+1. 本番用GCPのcredentialを使うように環境変数`CREDENTIAL_FILE_LOCATION`を設定する
 
 
 ## monitor

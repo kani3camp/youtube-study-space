@@ -38,32 +38,8 @@ Youtubeで24時間365日ライブ配信し続ける、オンライン自習室�
   - 設定可能な最小入室時間
   - 席数
   - その他
-### データ構造 `system/core/myfirestore/type_firestore_data.go`
-- configコレクション
-  - constants
-  - credentials
-- roomsコレクション
-  - default
-    - seats（席情報の配列）
-      - 席番号
-      - 作業名
-      - 表示ユーザー名
-      - ユーザーID
-      - 入室日時
-      - 自動退室予定時刻
-      - 席の背景色のカラーコード
-- usersコレクション
-  - ユーザーのyoutubeチャンネルIDがドキュメントID
-    - historyコレクション（そのユーザーの行動ログ）
-      - 行動の種類（入室・退室など）
-      - 日時
-      - 行動の詳細
-    - 当日の累計作業時間
-    - 累計作業時間
-    - ランク表示設定（bool）
-    - 登録日
-    - 最終入室日時
-    - 最終退室日時
+### データ構造 
+`system/core/myfirestore/type_firestore_data.go`を参照。
 
 
 
@@ -101,16 +77,19 @@ Lambda関数と同じregionのDyanamoDBテーブルであること！
 - Firestoreのアクセス情報（サービスアカウント）のjson文字列
 
 注意：json内で出てくるprivate keyの値の文字列内のエスケープは調整する必要があった気がする。
+
 ### テーブル名：`secrets`
 
 
 ## API Gateway
-### API名：`youtube-study-space-http-api`
+### API名：`youtube-study-space-rest-api`
 #### エンドポイント
-- /organize_database
-- /reset_daily_total_study_time
-- /rooms_state
-- /check_live_stream_status
+各エンドポイントは、同じ名前のlambda関数と統合する。
+- GET /organize_database
+- GET /reset_daily_total_study_time
+- GET /rooms_state
+- GET /check_live_stream_status
+- POST /set_desired_max_seats
 
 
 
@@ -122,6 +101,7 @@ Lambda関数と同じregionのDyanamoDBテーブルであること！
 
 
 ## Pub/Sub
+[このドキュメント](https://firebase.google.com/docs/firestore/solutions/schedule-export) を参考に、毎日1回firestoreのデータをcloud storageにバックアップする。
 ### Topic name: `projects/youtube-study-space/topics/initiateFirestoreExport`
 
 
@@ -129,12 +109,15 @@ Lambda関数と同じregionのDyanamoDBテーブルであること！
 ### firestoreExport
 cloud scheduler + Pub/Subにより**毎日**実行される。
 Firestoreのデータをエクスポートする。
-#### 環境変数：
+#### 環境変数：なし
 
 
 ## Youtubeモニター
 - ローカルでNext.jsのサーバーを立てる。
-- public/audio/lofigirl/に音声ファイルを入れておくこと。
+- `public/audio/lofigirl/`に音声ファイルを入れておく。 
+フォルダ構成は`youtube-monitor/lib/bgm.ts`の内容と合わせる。
+- `youtube-monitor/.env`を作成し、環境変数`NEXT_PUBLIC_API_KEY`を設定しておく。
+値はAPI Gatewayで設定したAPIキー。
 
 
 
