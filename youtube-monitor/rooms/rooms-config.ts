@@ -4,6 +4,7 @@ import { classRoomLayout } from "./layouts/classroom";
 import { IlineRoomLayout } from "./layouts/iline_room";
 import { mazeRoomLayout } from "./layouts/maze_room";
 import { oneSeatRoomLayout } from "./layouts/one_seat_room";
+import { SimpleRoomLayout } from "./layouts/simple_room";
 import { ver2RoomLayout } from "./layouts/ver2";
 
 type RoomsConfig = {
@@ -12,7 +13,8 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [circleRoomLayout, mazeRoomLayout, IlineRoomLayout]
+    // roomLayouts: [circleRoomLayout, mazeRoomLayout, IlineRoomLayout]
+    roomLayouts: [SimpleRoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
