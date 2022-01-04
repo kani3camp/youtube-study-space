@@ -44,7 +44,7 @@ export const SimpleRoomLayout: RoomLayout = {
         },
         {
             name: "h85",
-            width: 35,
+            width: 85,
             height: 5
         },
     ],
@@ -283,7 +283,7 @@ export const SimpleRoomLayout: RoomLayout = {
         {
             id: 5,
             x: 45,
-            y: 100,
+            y: 120,
             shape_type: "v25"
         },
         {
@@ -372,7 +372,7 @@ export const SimpleRoomLayout: RoomLayout = {
         },
         {
             id: 20,
-            x: 160,
+            x: 165,
             y: 175,
             shape_type: "h35"
         },
@@ -492,7 +492,7 @@ export const SimpleRoomLayout: RoomLayout = {
         },
         {
             id: 40,
-            x: 160,
+            x: 165,
             y: 85,
             shape_type: "h35"
         },
