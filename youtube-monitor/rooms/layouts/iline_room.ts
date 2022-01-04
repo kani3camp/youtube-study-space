@@ -1,6 +1,6 @@
 import { RoomLayout } from "../../types/room-layout";
 
-export const IlineRoomLayout: RoomLayout = {
+export const iLineRoomLayout: RoomLayout = {
     version: 1,
     font_size_ratio: 0.013,
     room_shape: {
