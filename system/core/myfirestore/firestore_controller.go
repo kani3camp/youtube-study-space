@@ -218,6 +218,10 @@ func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Contex
 	return controller.FirestoreClient.Collection(USERS).DocumentRefs(ctx).GetAll()
 }
 
+func (controller *FirestoreController) RetrieveAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator {
+	return controller.FirestoreClient.Collection(USERS).Where(DailyTotalStudySecFirestore, "!=", 0).Documents(ctx)
+}
+
 func (controller *FirestoreController) ResetDailyTotalStudyTime(userRef *firestore.DocumentRef, ctx context.Context) error {
 	_, err := userRef.Set(ctx, map[string]interface{}{
 		DailyTotalStudySecFirestore: 0,

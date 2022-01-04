@@ -17,7 +17,7 @@ aws lambda update-function-code --function-name     youtube_organize_database   
 
 # Mac OS
 cd system; cd aws-lambda;  # ディレクトリを移動
-GOARCH=amd64 && GOOS=linux && aws configure set region ap-northeast-1
+GOARCH=amd64 GOOS=linux && aws configure set region ap-northeast-1
 go build -o main    youtube_organize_database.go
 zip main.zip main
 

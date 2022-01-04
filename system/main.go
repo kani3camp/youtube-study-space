@@ -6,12 +6,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -148,12 +148,30 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	str := "w-w"
-	hasPrefix := strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
-	workName := strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
-	
-	log.Println(hasPrefix)
-	log.Println(workName)
+	userIter := _system.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
+	if err != nil {
+		panic(err)
+	}
+	count := 0
+	for {
+		doc, err := userIter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+		err = _system.FirestoreController.ResetDailyTotalStudyTime(doc.Ref, ctx)
+		if err != nil {
+			panic(err)
+		}
+		count += 1
+	}
+	_ = _system.LineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
+	err = _system.FirestoreController.SetLastResetDailyTotalStudyTime(utils.JstNow(), ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -164,8 +182,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	//LocalMain(clientOption, ctx)
+	Test(clientOption, ctx)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
