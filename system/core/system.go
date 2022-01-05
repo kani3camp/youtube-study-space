@@ -9,6 +9,7 @@ import (
 	"app.modules/core/youtubebot"
 	"context"
 	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1594,17 +1595,26 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
-		userRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)
+		userIter := s.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
 		if err != nil {
 			return err
 		}
-		for _, userRef := range userRefs {
-			err := s.FirestoreController.ResetDailyTotalStudyTime(userRef, ctx)
+		count := 0
+		for {
+			doc, err := userIter.Next()
+			if err == iterator.Done {
+				break
+			}
 			if err != nil {
 				return err
 			}
+			err = s.FirestoreController.ResetDailyTotalStudyTime(doc.Ref, ctx)
+			if err != nil {
+				return err
+			}
+			count += 1
 		}
-		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time. (" + strconv.Itoa(len(userRefs)) + " users)")
+		_ = s.LineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err
