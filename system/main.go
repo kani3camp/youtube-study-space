@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
@@ -148,30 +147,14 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	userIter := _system.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
+	userId := ""
+	userDoc, err := _system.FirestoreController.RetrieveUser(userId, ctx)
 	if err != nil {
 		panic(err)
 	}
-	count := 0
-	for {
-		doc, err := userIter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		err = _system.FirestoreController.ResetDailyTotalStudyTime(doc.Ref, ctx)
-		if err != nil {
-			panic(err)
-		}
-		count += 1
-	}
-	_ = _system.LineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
-	err = _system.FirestoreController.SetLastResetDailyTotalStudyTime(utils.JstNow(), ctx)
-	if err != nil {
-		panic(err)
-	}
+	fmt.Printf("%v\n", userDoc)
+	fmt.Println(userDoc.RegistrationDate.In(utils.JapanLocation()).Format(time.RFC3339))
+	log.Println("end")
 }
 
 func main() {
