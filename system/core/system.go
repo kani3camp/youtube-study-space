@@ -1570,7 +1570,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
-				return err
+				// !outとバッティングしたときにここに来るが、止めることではない
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
