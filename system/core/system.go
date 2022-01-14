@@ -865,7 +865,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		return err
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
-			"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+			"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seatId)+"番席）", ctx)
 		return nil
 	}
 }
@@ -1573,7 +1573,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				// !outとバッティングしたときにここに来るが、止めることではない
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）", ctx)
 			}
 		}
 	}
