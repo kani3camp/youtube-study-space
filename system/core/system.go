@@ -272,10 +272,11 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				CommandType: Seat,
 			}, customerror.NewNil()
 		case ReportCommand:
-			return CommandDetails{
-				CommandType:   Report,
-				ReportMessage: commandString,
-			}, customerror.NewNil()
+			commandDetails, err := s.ParseReport(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case KickCommand:
 			commandDetails, err := s.ParseKick(commandString)
 			if err.IsNotNil() {
@@ -503,6 +504,22 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	return CommandDetails{
 		CommandType: Kick,
 		KickSeatId:  kickSeatId,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var reportMessage string
+	if len(slice) == 1 {
+		return CommandDetails{}, customerror.InvalidCommand.New("!reportの右にスペースを空けてメッセージを書いてください。")
+	} else { // len(slice) > 1
+		reportMessage = commandString
+	}
+	
+	return CommandDetails{
+		CommandType:   Report,
+		ReportMessage: reportMessage,
 	}, customerror.NewNil()
 }
 
@@ -935,7 +952,15 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 }
 
 func (s *System) Report(command CommandDetails, ctx context.Context) error {
-	err := s.LineBot.SendMessage(s.ProcessedUserId + "（" + s.ProcessedUserDisplayName + "）さんから" + ReportCommand + "を受信しました。\n\n" + command.ReportMessage)
+	if command.ReportMessage == "" { // !reportのみは不可
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、スペースを空けてメッセージを書いてください。", ctx)
+		return nil
+	}
+	
+	err := s.LineBot.SendMessage("【" + ReportCommand + "受信】\n" +
+		"チャンネルID: " + s.ProcessedUserId + "\n" +
+		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
+		command.ReportMessage)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
 		return err
