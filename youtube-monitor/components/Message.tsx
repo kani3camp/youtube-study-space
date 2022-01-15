@@ -14,7 +14,7 @@ const Message: FC<Props> = (props) => {
     return (
       <div css={styles.message}>
         <div css={styles.roomName}>ルーム{props.current_room_index + 1} / {props.current_rooms_length} ☝</div>
-        <div css={styles.numStudyingPeople}>現在、{numWorkers}人が作業中🐟</div>
+        <div css={styles.numStudyingPeople}>{numWorkers}人が作業中🐟</div>
       </div>
     )
   } else {

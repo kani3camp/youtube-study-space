@@ -1,4 +1,4 @@
-import { partType } from "./time_table"
+import { PartType } from "./time_table"
 
 export type Bgm = {
     title: string
@@ -7,10 +7,16 @@ export type Bgm = {
     forPart: string[]
 }
 
-export function getCurrentRandomBgm(currentPartName: string): Bgm {
+
+/**
+ * 現在のパートタイプに応じて，ランダムにBGMを選ぶ．
+ * @param {string} currentPartType 現在のパートタイプ
+ * @returns {Bgm} 現在のBGM
+ */
+export function getCurrentRandomBgm(currentPartType: string): Bgm {
     const bgm_list: Bgm[] = []
     for (const bgm of (LofiGirlBgmTable)) {
-        if (bgm.forPart.includes(currentPartName)) {
+        if (bgm.forPart.includes(currentPartType)) {
             bgm_list.push(bgm)
         }
     }
@@ -18,21 +24,21 @@ export function getCurrentRandomBgm(currentPartName: string): Bgm {
         return bgm_list[Math.floor(Math.random() * bgm_list.length)]
     }
     console.error('failed to get current random bgm.')
-    return bgm_list[0]
+    return LofiGirlBgmTable[0]  // 適当なBGMを返す
 }
 
 const AllPartType = [
-    partType.Morning,
-    partType.BeforeNoon,
-    partType.Noon,
-    partType.AfterNoon1,
-    partType.AfterNoon2,
-    partType.Evening,
-    partType.Night1,
-    partType.Night2,
-    partType.MidNight1,
-    partType.MidNight2,
-    partType.EarlyMorning,
+    PartType.Morning,
+    PartType.BeforeNoon,
+    PartType.Noon,
+    PartType.AfterNoon1,
+    PartType.AfterNoon2,
+    PartType.Evening,
+    PartType.Night1,
+    PartType.Night2,
+    PartType.MidNight1,
+    PartType.MidNight2,
+    PartType.EarlyMorning,
 ]
 
 export const LofiGirlBgmTable: Bgm[] = [
