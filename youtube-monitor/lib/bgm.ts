@@ -7,10 +7,16 @@ export type Bgm = {
     forPart: string[]
 }
 
-export function getCurrentRandomBgm(currentPartName: string): Bgm {
+
+/**
+ * 現在のパートタイプに応じて，ランダムにBGMを選ぶ．
+ * @param {string} currentPartType 現在のパートタイプ
+ * @returns {Bgm} 現在のBGM
+ */
+export function getCurrentRandomBgm(currentPartType: string): Bgm {
     const bgm_list: Bgm[] = []
     for (const bgm of (LofiGirlBgmTable)) {
-        if (bgm.forPart.includes(currentPartName)) {
+        if (bgm.forPart.includes(currentPartType)) {
             bgm_list.push(bgm)
         }
     }
@@ -18,7 +24,7 @@ export function getCurrentRandomBgm(currentPartName: string): Bgm {
         return bgm_list[Math.floor(Math.random() * bgm_list.length)]
     }
     console.error('failed to get current random bgm.')
-    return bgm_list[0]
+    return LofiGirlBgmTable[0]  // 適当なBGMを返す
 }
 
 const AllPartType = [
