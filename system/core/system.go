@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/discordbot"
 	"app.modules/core/guardians"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
@@ -45,6 +46,12 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 	
+	// discord bot
+	discordBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordBotToken, credentialsDoc.DiscordBotTextChannelId)
+	if err != nil {
+		return System{}, err
+	}
+	
 	// core constant values
 	constantsConfig, err := fsController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
@@ -55,6 +62,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		FirestoreController:             fsController,
 		LiveChatBot:                     liveChatBot,
 		LineBot:                         lineBot,
+		DiscordBot:                      discordBot,
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
@@ -957,14 +965,24 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		return nil
 	}
 	
-	err := s.LineBot.SendMessage("【" + ReportCommand + "受信】\n" +
+	lineMessage := "【" + ReportCommand + "受信】\n" +
 		"チャンネルID: " + s.ProcessedUserId + "\n" +
 		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
-		command.ReportMessage)
+		command.ReportMessage
+	err := s.LineBot.SendMessage(lineMessage)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
-		return err
+		log.Println(err)
 	}
+	
+	discordMessage := "【" + ReportCommand + "受信】\n" +
+		"チャンネル名: `" + s.ProcessedUserDisplayName + "`\n" +
+		"メッセージ: `" + command.ReportMessage + "`"
+	err = s.DiscordBot.SendMessage(discordMessage)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("discordへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
+	}
+	
 	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました", ctx)
 	return nil
 }
