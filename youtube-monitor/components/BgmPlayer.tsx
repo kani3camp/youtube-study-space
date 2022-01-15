@@ -13,15 +13,16 @@ const BgmPlayer: FC = () => {
 
     const audioDivId = 'music'
     const audioCanvasId = 'audioCanvas'
+    const chime1DivId = 'chime1'
+    const chime2DivId = 'chime2'
 
     const updateState = () => {
-        const audio = document.getElementById('music') as HTMLAudioElement
         const currentSection = getCurrentSection()
 
         // sectionIdが0から変わるタイミングでチャイムを再生
         if (lastSectionId === 0 && currentSection.sectionId !== 0) {
             // partTypeに応じたbgmをランダムに選択
-            const bgm = getCurrentRandomBgm(currentSection?.partName)
+            const bgm = getCurrentRandomBgm(currentSection?.partType)
             if (bgm !== null) {
                 chime1Play()
                 setLastSectionId(currentSection.sectionId)
@@ -35,7 +36,7 @@ const BgmPlayer: FC = () => {
     }
 
     const audioStart = () => {
-        const audio = document.getElementById('music') as HTMLAudioElement
+        const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.addEventListener('ended', function () {
             console.log('ended.')
             setAudioTitle('BGMタイトル')
@@ -50,9 +51,9 @@ const BgmPlayer: FC = () => {
     }
 
     const audioNext = () => {
-        const audio = document.getElementById('music') as HTMLAudioElement
+        const audio = document.getElementById(audioDivId) as HTMLAudioElement
         const currentSection = getCurrentSection()
-        const bgm = getCurrentRandomBgm(currentSection.partName)
+        const bgm = getCurrentRandomBgm(currentSection.partType)
         audio.src = bgm.file
         setAudioTitle(bgm.title)
         setAudioArtist(bgm.artist)
@@ -61,20 +62,20 @@ const BgmPlayer: FC = () => {
     }
 
     const stop = () => {
-        const audio = document.getElementById('music') as HTMLAudioElement
+        const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.pause()
         setAudioTitle('BGMタイトル')
         setAudioArtist('BGMアーティスト')
     }
 
     const chime1Play = () => {
-        const chime1 = document.getElementById('chime1') as HTMLAudioElement
+        const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
         chime1.volume = 0.7
         chime1.play()
     }
 
     const chime2Play = () => {
-        const chime2 = document.getElementById('chime2') as HTMLAudioElement
+        const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
         chime2.volume = 0.7
         chime2.play()
     }
@@ -107,8 +108,8 @@ const BgmPlayer: FC = () => {
             <div css={styles.bgmPlayer}>
                 <audio autoPlay id={audioDivId}></audio>
 
-                <audio id='chime1' src="/chime/chime1.mp3"></audio>
-                <audio id='chime2' src="/chime/chime2.mp3"></audio>
+                <audio id={chime1DivId} src="/chime/chime1.mp3"></audio>
+                <audio id={chime2DivId} src="/chime/chime2.mp3"></audio>
                 <h4>♪ {audioTitle}</h4>
                 <h4>by {audioArtist}</h4>
             </div>

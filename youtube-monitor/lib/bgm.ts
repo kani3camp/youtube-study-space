@@ -1,4 +1,4 @@
-import { partType } from "./time_table"
+import { PartType } from "./time_table"
 
 export type Bgm = {
     title: string
@@ -22,17 +22,17 @@ export function getCurrentRandomBgm(currentPartName: string): Bgm {
 }
 
 const AllPartType = [
-    partType.Morning,
-    partType.BeforeNoon,
-    partType.Noon,
-    partType.AfterNoon1,
-    partType.AfterNoon2,
-    partType.Evening,
-    partType.Night1,
-    partType.Night2,
-    partType.MidNight1,
-    partType.MidNight2,
-    partType.EarlyMorning,
+    PartType.Morning,
+    PartType.BeforeNoon,
+    PartType.Noon,
+    PartType.AfterNoon1,
+    PartType.AfterNoon2,
+    PartType.Evening,
+    PartType.Night1,
+    PartType.Night2,
+    PartType.MidNight1,
+    PartType.MidNight2,
+    PartType.EarlyMorning,
 ]
 
 export const LofiGirlBgmTable: Bgm[] = [

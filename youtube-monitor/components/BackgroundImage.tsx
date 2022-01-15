@@ -18,11 +18,11 @@ class BackgroundImage extends React.Component<{}, any> {
     const now = new Date()
     const currentSection = getCurrentSection()
 
-    if (currentSection?.partName !== this.state.lastPartName) {
+    if (currentSection?.partType !== this.state.lastPartName) {
       this.setState({
         srcUrl: this.unsplash_url + ',' + now.getTime(),
         lastFetchedDate: now.getDate(),
-        lastPartName: currentSection?.partName,
+        lastPartName: currentSection?.partType,
       })
     }
   }
