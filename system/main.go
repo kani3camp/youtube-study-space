@@ -147,14 +147,10 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	userId := ""
-	userDoc, err := _system.FirestoreController.RetrieveUser(userId, ctx)
+	err = _system.DiscordBot.SendMessage("hello")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%v\n", userDoc)
-	fmt.Println(userDoc.RegistrationDate.In(utils.JapanLocation()).Format(time.RFC3339))
-	log.Println("end")
 }
 
 func main() {
@@ -165,8 +161,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	//LocalMain(clientOption, ctx)
+	Test(clientOption, ctx)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

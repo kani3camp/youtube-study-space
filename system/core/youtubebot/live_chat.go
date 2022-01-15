@@ -26,9 +26,6 @@ type AccessTokenResponseStruct struct {
 }
 
 func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreController, ctx context.Context) (*YoutubeLiveChatBot, error) {
-	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
-	//clientOption := option.WithCredentialsFile("C:/Development/GCP Credentials/music-quiz-287112-83a452727d6d.json")
-	
 	credentials, err := controller.RetrieveCredentialsConfig(ctx)
 	if err != nil {
 		return nil, err

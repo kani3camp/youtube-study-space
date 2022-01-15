@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/discordbot"
 	"app.modules/core/guardians"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
@@ -45,6 +46,12 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 	
+	// discord bot
+	discordBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordBotToken, credentialsDoc.DiscordBotTextChannelId)
+	if err != nil {
+		return System{}, err
+	}
+	
 	// core constant values
 	constantsConfig, err := fsController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
@@ -55,6 +62,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		FirestoreController:             fsController,
 		LiveChatBot:                     liveChatBot,
 		LineBot:                         lineBot,
+		DiscordBot:                      discordBot,
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
