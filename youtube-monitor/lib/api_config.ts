@@ -10,6 +10,6 @@ const testApi = {
     setDesiredMaxSeats: `https://q8ff9jqwef.execute-api.us-east-1.amazonaws.com/default/set_desired_max_seats`,
 }
 
-const api = testApi
+const api = prodApi
 
 export default api
