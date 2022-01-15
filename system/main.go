@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -148,12 +147,14 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	str := "w-w"
-	hasPrefix := strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
-	workName := strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
-	
-	log.Println(hasPrefix)
-	log.Println(workName)
+	userId := ""
+	userDoc, err := _system.FirestoreController.RetrieveUser(userId, ctx)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%v\n", userDoc)
+	fmt.Println(userDoc.RegistrationDate.In(utils.JapanLocation()).Format(time.RFC3339))
+	log.Println("end")
 }
 
 func main() {

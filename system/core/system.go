@@ -9,6 +9,7 @@ import (
 	"app.modules/core/youtubebot"
 	"context"
 	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -271,10 +272,11 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				CommandType: Seat,
 			}, customerror.NewNil()
 		case ReportCommand:
-			return CommandDetails{
-				CommandType:   Report,
-				ReportMessage: commandString,
-			}, customerror.NewNil()
+			commandDetails, err := s.ParseReport(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case KickCommand:
 			commandDetails, err := s.ParseKick(commandString)
 			if err.IsNotNil() {
@@ -502,6 +504,22 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	return CommandDetails{
 		CommandType: Kick,
 		KickSeatId:  kickSeatId,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var reportMessage string
+	if len(slice) == 1 {
+		return CommandDetails{}, customerror.InvalidCommand.New("!reportの右にスペースを空けてメッセージを書いてください。")
+	} else { // len(slice) > 1
+		reportMessage = commandString
+	}
+	
+	return CommandDetails{
+		CommandType:   Report,
+		ReportMessage: reportMessage,
 	}, customerror.NewNil()
 }
 
@@ -864,7 +882,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		return err
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
-			"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+			"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seatId)+"番席）", ctx)
 		return nil
 	}
 }
@@ -934,7 +952,15 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 }
 
 func (s *System) Report(command CommandDetails, ctx context.Context) error {
-	err := s.LineBot.SendMessage(s.ProcessedUserId + "（" + s.ProcessedUserDisplayName + "）さんから" + ReportCommand + "を受信しました。\n\n" + command.ReportMessage)
+	if command.ReportMessage == "" { // !reportのみは不可
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、スペースを空けてメッセージを書いてください。", ctx)
+		return nil
+	}
+	
+	err := s.LineBot.SendMessage("【" + ReportCommand + "受信】\n" +
+		"チャンネルID: " + s.ProcessedUserId + "\n" +
+		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
+		command.ReportMessage)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
 		return err
@@ -1569,10 +1595,10 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			workedTimeSec, err := s.ExitRoom(seat.SeatId, ctx)
 			if err != nil {
 				_ = s.LineBot.SendMessageWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
-				return err
+				// !outとバッティングしたときにここに来るが、止めることではない
 			} else {
 				s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分）", ctx)
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）", ctx)
 			}
 		}
 	}
@@ -1594,17 +1620,26 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
-		userRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)
+		userIter := s.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
 		if err != nil {
 			return err
 		}
-		for _, userRef := range userRefs {
-			err := s.FirestoreController.ResetDailyTotalStudyTime(userRef, ctx)
+		count := 0
+		for {
+			doc, err := userIter.Next()
+			if err == iterator.Done {
+				break
+			}
 			if err != nil {
 				return err
 			}
+			err = s.FirestoreController.ResetDailyTotalStudyTime(doc.Ref, ctx)
+			if err != nil {
+				return err
+			}
+			count += 1
 		}
-		_ = s.LineBot.SendMessage("successfully reset all user's daily total study time. (" + strconv.Itoa(len(userRefs)) + " users)")
+		_ = s.LineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
 		err = s.FirestoreController.SetLastResetDailyTotalStudyTime(now, ctx)
 		if err != nil {
 			return err

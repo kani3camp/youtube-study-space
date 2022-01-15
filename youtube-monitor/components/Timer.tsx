@@ -29,7 +29,7 @@ class Timer extends React.Component<{}, any> {
         this.setState({
           remaining_min: remaining_min,
           remaining_sec: remaining_sec,
-          currentPartName: currentSection.partName,
+          currentPartName: currentSection.partType,
           currentSectionId: currentSection.sectionId,
           nextSectionDuration: nextSectionDuration,
           nextSection: nextSectionType,
