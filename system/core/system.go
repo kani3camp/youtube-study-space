@@ -965,14 +965,24 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		return nil
 	}
 	
-	err := s.LineBot.SendMessage("【" + ReportCommand + "受信】\n" +
+	lineMessage := "【" + ReportCommand + "受信】\n" +
 		"チャンネルID: " + s.ProcessedUserId + "\n" +
 		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
-		command.ReportMessage)
+		command.ReportMessage
+	err := s.LineBot.SendMessage(lineMessage)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
-		return err
+		log.Println(err)
 	}
+	
+	discordMessage := "【" + ReportCommand + "受信】\n" +
+		"チャンネル名: `" + s.ProcessedUserDisplayName + "`\n\n" +
+		"メッセージ: `" + command.ReportMessage + "`"
+	err = s.DiscordBot.SendMessage(discordMessage)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("discordへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
+	}
+	
 	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました", ctx)
 	return nil
 }

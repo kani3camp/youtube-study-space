@@ -24,6 +24,7 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 }
 
 func (bot *DiscordBot) SendMessage(message string) error {
+	log.Println("sending a message to Discord \"", message+"\"")
 	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
 	if err != nil {
 		return err
