@@ -976,7 +976,7 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 	}
 	
 	discordMessage := "【" + ReportCommand + "受信】\n" +
-		"チャンネル名: `" + s.ProcessedUserDisplayName + "`\n\n" +
+		"チャンネル名: `" + s.ProcessedUserDisplayName + "`\n" +
 		"メッセージ: `" + command.ReportMessage + "`"
 	err = s.DiscordBot.SendMessage(discordMessage)
 	if err != nil {
