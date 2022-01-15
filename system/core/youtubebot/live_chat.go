@@ -18,14 +18,12 @@ import (
 	"time"
 )
 
-
 type AccessTokenResponseStruct struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
 	Scope       string `json:"scope"`
 	TokenType   string `json:"token_type"`
 }
-
 
 func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreController, ctx context.Context) (*YoutubeLiveChatBot, error) {
 	//clientOption := option.WithCredentialsFile("/Users/drew/Development/機密ファイル/GCP/youtube-study-space-c4bcd4edbd8a.json")
@@ -38,13 +36,13 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 	config := &oauth2.Config{
 		ClientID:     credentials.YoutubeChannelClientId,
 		ClientSecret: credentials.YoutubeChannelClientSecret,
-		Endpoint:     oauth2.Endpoint{
+		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
 			AuthStyle: 0,
 		},
-		RedirectURL:  "https://youtube.com/",
-		Scopes:       nil,
+		RedirectURL: "https://youtube.com/",
+		Scopes:      nil,
 	}
 	channelOauthToken := &oauth2.Token{
 		AccessToken:  credentials.YoutubeChannelAccessToken,
@@ -71,10 +69,10 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 	}
 	
 	return &YoutubeLiveChatBot{
-		LiveChatId:                liveChatId,
+		LiveChatId:            liveChatId,
 		ChannelYoutubeService: channelYoutubeService,
-		BotYoutubeService: botYoutubeService,
-		FirestoreController: controller,
+		BotYoutubeService:     botYoutubeService,
+		FirestoreController:   controller,
 	}, nil
 }
 
@@ -132,13 +130,13 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 	log.Println("sending a message to Youtube Live \"" + message + "\"")
 	part := []string{"snippet"}
 	liveChatMessage := youtube.LiveChatMessage{
-		Snippet:         &youtube.LiveChatMessageSnippet{
-			DisplayMessage:          message,
-			LiveChatId:              bot.LiveChatId,
-			TextMessageDetails:      &youtube.LiveChatTextMessageDetails{
-				MessageText:     message,
+		Snippet: &youtube.LiveChatMessageSnippet{
+			DisplayMessage: message,
+			LiveChatId:     bot.LiveChatId,
+			TextMessageDetails: &youtube.LiveChatTextMessageDetails{
+				MessageText: message,
 			},
-			Type:                    "textMessageEvent",
+			Type: "textMessageEvent",
 		},
 	}
 	liveChatMessageService := youtube.NewLiveChatMessagesService(bot.BotYoutubeService)
@@ -178,10 +176,6 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 			return err
 		}
 	}
-	//if config.ExpireDate.Before(core.JstNow()) {
-	//	log.Println("access token is expired. refreshing...")
-	//	_ = RefreshChannelAccessToken(&config, client, ctx)
-	//}
 	
 	return nil
 }
@@ -278,13 +272,13 @@ func (bot *YoutubeLiveChatBot) RefreshChannelAccessToken(ctx context.Context) er
 	config := &oauth2.Config{
 		ClientID:     credentialConfig.YoutubeChannelClientId,
 		ClientSecret: credentialConfig.YoutubeChannelClientSecret,
-		Endpoint:     oauth2.Endpoint{
+		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
 			AuthStyle: 0,
 		},
-		RedirectURL:  "https://youtube.com/",
-		Scopes:       nil,
+		RedirectURL: "https://youtube.com/",
+		Scopes:      nil,
 	}
 	channelOauthToken := &oauth2.Token{
 		AccessToken:  newAccessToken,
@@ -326,13 +320,13 @@ func (bot *YoutubeLiveChatBot) RefreshBotAccessToken(ctx context.Context) error 
 	config := &oauth2.Config{
 		ClientID:     credentialConfig.YoutubeBotClientId,
 		ClientSecret: credentialConfig.YoutubeBotClientSecret,
-		Endpoint:     oauth2.Endpoint{
+		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
 			AuthStyle: 0,
 		},
-		RedirectURL:  "https://youtube.com/",
-		Scopes:       nil,
+		RedirectURL: "https://youtube.com/",
+		Scopes:      nil,
 	}
 	botOauthToken := &oauth2.Token{
 		AccessToken:  newAccessToken,
@@ -409,8 +403,3 @@ func (bot *YoutubeLiveChatBot) _RefreshAccessToken(clientId string, clientSecret
 		return "", time.Time{}, err
 	}
 }
-
-
-
-
-
