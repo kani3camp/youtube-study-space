@@ -1072,6 +1072,7 @@ func (s *System) See(command CommandDetails, ctx context.Context) error {
 			untilMinutes := seat.Until.Sub(utils.JstNow()).Minutes()
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席には"+
 				seat.UserDisplayName+"さんが"+strconv.Itoa(int(sinceMinutes))+"分間着席しており、"+
+				"作業名は\""+seat.WorkName+"\"です。"+
 				strconv.Itoa(int(untilMinutes))+"分後に自動退室予定です。", ctx)
 		} else {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません", ctx)
