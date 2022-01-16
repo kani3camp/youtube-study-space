@@ -2,6 +2,7 @@ import React, { useState, useEffect, useReducer, FC } from "react";
 import * as styles from "./LayoutDisplay.styles";
 import { RoomLayout } from "../types/room-layout";
 import { Seat } from "../types/api";
+import { Constants } from "../lib/constants";
 
 type Props = {
   roomLayouts: RoomLayout[];
@@ -101,17 +102,19 @@ const LayoutDisplay: FC<Props> = (props) => {
         console.log('文字幅に応じて作業名のフォントサイズを調整')
         const canvas: HTMLCanvasElement = document.createElement('canvas')
         const context = canvas.getContext('2d')
-        console.log(canvas.style.fontFamily)
-        context!.font = workNameFontSizePx.toString() + 'px \'M PLUS Rounded 1c\', sans-serif'
+        context!.font = workNameFontSizePx.toString() + 'px ' + Constants.fontFamily
         const metrics = context!.measureText(workName)
         console.log('seatFontSize: ' + seatFontSizePx)
-        console.log('context.font: ' + context!.font)
-        console.log(workName)
-        console.log(metrics.width)
+        console.log('workName: ' + workName)
+        console.log('metrics.width: ' + metrics.width)
         const actualSeatWidth = roomShape.widthPx * seatShape.width / 100
         console.log('seat width: ' + actualSeatWidth)
         if (metrics.width > actualSeatWidth) {
           workNameFontSizePx *= actualSeatWidth / metrics.width
+          workNameFontSizePx *= 0.95  // ほんの少し縮めないと，入りきらない
+          if (workNameFontSizePx < seatFontSizePx * 0.7) {
+            workNameFontSizePx = seatFontSizePx * 0.7   // 最小でもデフォルトの0.7倍のフォントサイズ
+          }
         }
         console.log('workNameFontSize: ' + workNameFontSizePx)
       }
