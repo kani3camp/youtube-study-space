@@ -93,8 +93,29 @@ const LayoutDisplay: FC<Props> = (props) => {
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
         : "";
-      // const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
       const seat_color = isUsed ? seatWithSeatId(global_seat_id, props.seats).color_code : emptySeatColor
+      
+      // 文字幅に応じて作業名のフォントサイズを調整
+      let workNameFontSizePx = seatFontSizePx
+      if (isUsed) {
+        console.log('文字幅に応じて作業名のフォントサイズを調整')
+        const canvas: HTMLCanvasElement = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        console.log(canvas.style.fontFamily)
+        context!.font = workNameFontSizePx.toString() + 'px \'M PLUS Rounded 1c\', sans-serif'
+        const metrics = context!.measureText(workName)
+        console.log('seatFontSize: ' + seatFontSizePx)
+        console.log('context.font: ' + context!.font)
+        console.log(workName)
+        console.log(metrics.width)
+        const actualSeatWidth = roomShape.widthPx * seatShape.width / 100
+        console.log('seat width: ' + actualSeatWidth)
+        if (metrics.width > actualSeatWidth) {
+          workNameFontSizePx *= actualSeatWidth / metrics.width
+        }
+        console.log('workNameFontSize: ' + workNameFontSizePx)
+      }
+      
       return (
         <div
           key={global_seat_id}
@@ -111,7 +132,16 @@ const LayoutDisplay: FC<Props> = (props) => {
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
             {global_seat_id}
           </div>
-          {workName !== '' && (<div css={styles.workName}>{workName}</div>)}
+          {workName !== '' && (
+          <div 
+          css={styles.workName} 
+          style={{
+            fontSize: workNameFontSizePx + 'px'
+          }}
+          >
+            {workName}
+            </div>
+          )}
           <div
             css={styles.userDisplayName}
           >
