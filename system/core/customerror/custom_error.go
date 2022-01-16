@@ -3,6 +3,7 @@ package customerror
 import "github.com/pkg/errors"
 
 type ErrorType uint
+
 const (
 	Unknown ErrorType = iota
 	
@@ -25,6 +26,7 @@ const (
 	SeatProcessFailed
 	ReportProcessFailed
 	KickProcessFailed
+	SeeProcessFailed
 	AddProcessFailed
 	RankProcessFailed
 )

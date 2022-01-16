@@ -218,6 +218,12 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.KickProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
+	case See:
+		err := s.See(commandDetails, ctx)
+		if err != nil {
+			return customerror.SeeProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	case More:
 		err := s.More(commandDetails, ctx)
 		if err != nil {
@@ -287,6 +293,12 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			return commandDetails, customerror.NewNil()
 		case KickCommand:
 			commandDetails, err := s.ParseKick(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
+		case SeeCommand:
+			commandDetails, err := s.ParseSee(commandString)
 			if err.IsNotNil() {
 				return CommandDetails{}, err
 			}
@@ -512,6 +524,26 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	return CommandDetails{
 		CommandType: Kick,
 		KickSeatId:  kickSeatId,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseSee(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var targetSeatId int
+	if len(slice) >= 2 {
+		num, err := strconv.Atoi(slice[1])
+		if err != nil {
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+		}
+		targetSeatId = num
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+	}
+	
+	return CommandDetails{
+		CommandType: See,
+		SeeSeatId:   targetSeatId,
 	}, customerror.NewNil()
 }
 
@@ -1018,6 +1050,34 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		}
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません", ctx)
+	}
+	return nil
+}
+
+func (s *System) See(command CommandDetails, ctx context.Context) error {
+	// commanderはモデレーターかチャットオーナーか
+	if s.ProcessedUserIsModeratorOrOwner {
+		// ターゲットの座席は誰か使っているか
+		isSeatAvailable, err := s.IfSeatAvailable(command.SeeSeatId, ctx)
+		if err != nil {
+			return err
+		}
+		if !isSeatAvailable {
+			// 座席情報を表示する
+			seat, cerr := s.RetrieveSeatBySeatId(command.SeeSeatId, ctx)
+			if cerr.IsNotNil() {
+				return cerr.Body
+			}
+			sinceMinutes := utils.JstNow().Sub(seat.EnteredAt).Minutes()
+			untilMinutes := seat.Until.Sub(utils.JstNow()).Minutes()
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席には"+
+				seat.UserDisplayName+"さんが"+strconv.Itoa(int(sinceMinutes))+"分間着席しており、"+
+				strconv.Itoa(int(untilMinutes))+"分後に自動退室予定です。", ctx)
+		} else {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません", ctx)
+		}
+	} else {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+SeeCommand+"」コマンドを使用できません", ctx)
 	}
 	return nil
 }
