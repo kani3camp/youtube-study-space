@@ -13,8 +13,7 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    // roomLayouts: [circleRoomLayout, mazeRoomLayout]
-    roomLayouts: [circleRoomLayout]
+    roomLayouts: [circleRoomLayout, mazeRoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
