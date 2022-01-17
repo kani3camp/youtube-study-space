@@ -218,8 +218,8 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.KickProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
-	case See:
-		err := s.See(commandDetails, ctx)
+	case Check:
+		err := s.Check(commandDetails, ctx)
 		if err != nil {
 			return customerror.SeeProcessFailed.New(err.Error())
 		}
@@ -297,8 +297,8 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
-		case SeeCommand:
-			commandDetails, err := s.ParseSee(commandString)
+		case CheckCommand:
+			commandDetails, err := s.ParseCheck(commandString)
 			if err.IsNotNil() {
 				return CommandDetails{}, err
 			}
@@ -527,7 +527,7 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseSee(commandString string) (CommandDetails, customerror.CustomError) {
+func (s *System) ParseCheck(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -542,8 +542,8 @@ func (s *System) ParseSee(commandString string) (CommandDetails, customerror.Cus
 	}
 	
 	return CommandDetails{
-		CommandType: See,
-		SeeSeatId:   targetSeatId,
+		CommandType: Check,
+		CheckSeatId: targetSeatId,
 	}, customerror.NewNil()
 }
 
@@ -1054,17 +1054,17 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 	return nil
 }
 
-func (s *System) See(command CommandDetails, ctx context.Context) error {
+func (s *System) Check(command CommandDetails, ctx context.Context) error {
 	// commanderはモデレーターかチャットオーナーか
 	if s.ProcessedUserIsModeratorOrOwner {
 		// ターゲットの座席は誰か使っているか
-		isSeatAvailable, err := s.IfSeatAvailable(command.SeeSeatId, ctx)
+		isSeatAvailable, err := s.IfSeatAvailable(command.CheckSeatId, ctx)
 		if err != nil {
 			return err
 		}
 		if !isSeatAvailable {
 			// 座席情報を表示する
-			seat, cerr := s.RetrieveSeatBySeatId(command.SeeSeatId, ctx)
+			seat, cerr := s.RetrieveSeatBySeatId(command.CheckSeatId, ctx)
 			if cerr.IsNotNil() {
 				return cerr.Body
 			}
@@ -1078,7 +1078,7 @@ func (s *System) See(command CommandDetails, ctx context.Context) error {
 			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません", ctx)
 		}
 	} else {
-		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+SeeCommand+"」コマンドを使用できません", ctx)
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+CheckCommand+"」コマンドを使用できません", ctx)
 	}
 	return nil
 }

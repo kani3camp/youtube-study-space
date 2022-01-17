@@ -23,8 +23,8 @@ const (
 	OkawariCommand = "!okawari"
 	RankCommand    = "!rank"
 	
-	KickCommand = "!kick"
-	SeeCommand  = "!see"
+	KickCommand  = "!kick"
+	CheckCommand = "!check"
 	
 	LegacyAddCommand = "!add"
 	

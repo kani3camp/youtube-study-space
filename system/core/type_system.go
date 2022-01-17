@@ -30,7 +30,7 @@ type CommandDetails struct {
 	ChangeOptions []ChangeOption
 	ReportMessage string
 	KickSeatId    int
-	SeeSeatId     int
+	CheckSeatId   int
 	MoreMinutes   int
 }
 
@@ -48,7 +48,7 @@ const (
 	Seat   // !seat
 	Report // !report
 	Kick   // !kick
-	See    // !see
+	Check  // !check
 	More   // !more
 	Rank   // !rank
 )
