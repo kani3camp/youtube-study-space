@@ -133,21 +133,22 @@ func (bot *YoutubeLiveChatBot) PostMessage(message string, ctx context.Context) 
 		return bot._PostMessage(message, ctx)
 	}
 	var messages []string
-	for message != "" {
+	for {
+		if utf8.RuneCountInString(message) <= MAX_LIVE_CHAT_MESSAGE_LENGTH {
+			messages = append(messages, message)
+			break
+		}
 		var p int // 文字列中のインデックス
 		for i, _ := range message {
 			if utf8.RuneCountInString(message[:i]) > MAX_LIVE_CHAT_MESSAGE_LENGTH {
-				p = i - 1
 				break
 			}
-			if i+1 == len(message) { // 最後の文字
-				p = i - 1
-			}
+			p = i
 		}
 		
 		// リストに追加
 		messages = append(messages, message[:p])
-		message = message[:p]
+		message = message[p:]
 	}
 	for _, m := range messages {
 		err := bot._PostMessage(m, ctx)
