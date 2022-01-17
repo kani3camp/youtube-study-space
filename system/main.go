@@ -147,10 +147,8 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	err = _system.DiscordBot.SendMessage("hello")
-	if err != nil {
-		panic(err)
-	}
+	message := ""
+	_system.SendLiveChatMessage(message, ctx)
 }
 
 func main() {

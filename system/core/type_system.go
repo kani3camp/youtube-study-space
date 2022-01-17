@@ -12,6 +12,7 @@ type System struct {
 	LiveChatBot                     *youtubebot.YoutubeLiveChatBot
 	LineBot                         *mylinebot.LineBot
 	DiscordBot                      *discordbot.DiscordBot
+	LiveChatBotChannelId            string
 	MinWorkTimeMin                  int
 	MaxWorkTimeMin                  int
 	DefaultWorkTimeMin              int
@@ -30,6 +31,7 @@ type CommandDetails struct {
 	ChangeOptions []ChangeOption
 	ReportMessage string
 	KickSeatId    int
+	CheckSeatId   int
 	MoreMinutes   int
 }
 
@@ -47,6 +49,7 @@ const (
 	Seat   // !seat
 	Report // !report
 	Kick   // !kick
+	Check  // !check
 	More   // !more
 	Rank   // !rank
 )
