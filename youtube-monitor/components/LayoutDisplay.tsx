@@ -2,6 +2,7 @@ import React, { useState, useEffect, useReducer, FC } from "react";
 import * as styles from "./LayoutDisplay.styles";
 import { RoomLayout } from "../types/room-layout";
 import { Seat } from "../types/api";
+import { Constants } from "../lib/constants";
 
 type Props = {
   roomLayouts: RoomLayout[];
@@ -93,8 +94,25 @@ const LayoutDisplay: FC<Props> = (props) => {
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
         : "";
-      // const seatColor = roomSeats.find(s => s.seat_id === seat.id)?.color_code;
       const seat_color = isUsed ? seatWithSeatId(global_seat_id, props.seats).color_code : emptySeatColor
+      
+      // 文字幅に応じて作業名のフォントサイズを調整
+      let workNameFontSizePx = seatFontSizePx
+      if (isUsed) {
+        const canvas: HTMLCanvasElement = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        context!.font = workNameFontSizePx.toString() + 'px ' + Constants.fontFamily
+        const metrics = context!.measureText(workName)
+        const actualSeatWidth = roomShape.widthPx * seatShape.width / 100
+        if (metrics.width > actualSeatWidth) {
+          workNameFontSizePx *= actualSeatWidth / metrics.width
+          workNameFontSizePx *= 0.95  // ほんの少し縮めないと，入りきらない
+          if (workNameFontSizePx < seatFontSizePx * 0.7) {
+            workNameFontSizePx = seatFontSizePx * 0.7   // 最小でもデフォルトの0.7倍のフォントサイズ
+          }
+        }
+      }
+      
       return (
         <div
           key={global_seat_id}
@@ -111,7 +129,16 @@ const LayoutDisplay: FC<Props> = (props) => {
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
             {global_seat_id}
           </div>
-          {workName !== '' && (<div css={styles.workName}>{workName}</div>)}
+          {workName !== '' && (
+          <div 
+          css={styles.workName} 
+          style={{
+            fontSize: workNameFontSizePx + 'px'
+          }}
+          >
+            {workName}
+            </div>
+          )}
           <div
             css={styles.userDisplayName}
           >
