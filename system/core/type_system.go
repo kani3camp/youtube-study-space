@@ -1,42 +1,47 @@
 package core
 
 import (
+	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
 	"app.modules/core/youtubebot"
 )
 
 type System struct {
-	FirestoreController *myfirestore.FirestoreController
-	LiveChatBot *youtubebot.YoutubeLiveChatBot
-	LineBot *mylinebot.LineBot
-	MinWorkTimeMin int
-	MaxWorkTimeMin int
-	DefaultWorkTimeMin int
-	ProcessedUserId string
-	ProcessedUserDisplayName string
+	FirestoreController             *myfirestore.FirestoreController
+	LiveChatBot                     *youtubebot.YoutubeLiveChatBot
+	LineBot                         *mylinebot.LineBot
+	DiscordBot                      *discordbot.DiscordBot
+	LiveChatBotChannelId            string
+	MinWorkTimeMin                  int
+	MaxWorkTimeMin                  int
+	DefaultWorkTimeMin              int
+	ProcessedUserId                 string
+	ProcessedUserDisplayName        string
 	ProcessedUserIsModeratorOrOwner bool
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
 }
 
 type CommandDetails struct {
-	CommandType CommandType
-	InOptions   InOptions
-	InfoOption InfoOption
-	MyOptions   []MyOption
+	CommandType   CommandType
+	InOptions     InOptions
+	InfoOption    InfoOption
+	MyOptions     []MyOption
 	ChangeOptions []ChangeOption
 	ReportMessage string
-	KickSeatId  int
-	MoreMinutes int
+	KickSeatId    int
+	CheckSeatId   int
+	MoreMinutes   int
 }
 
 type CommandType uint
+
 const (
 	NotCommand CommandType = iota
 	InvalidCommand
 	In     // !in
-	SeatIn	// !席番号
+	SeatIn // !席番号
 	Out    // !out
 	Info   // !info
 	My     // !my
@@ -44,6 +49,7 @@ const (
 	Seat   // !seat
 	Report // !report
 	Kick   // !kick
+	Check  // !check
 	More   // !more
 	Rank   // !rank
 )
@@ -53,12 +59,14 @@ type InfoOption struct {
 }
 
 type MyOptionType uint
+
 const (
 	RankVisible MyOptionType = iota
 	DefaultStudyMin
 )
 
 type ChangeOptionType uint
+
 const (
 	WorkName ChangeOptionType = iota
 	WorkTime
@@ -71,20 +79,19 @@ type InOptions struct {
 }
 
 type MyOption struct {
-	Type MyOptionType
-	IntValue int
-	BoolValue bool
+	Type        MyOptionType
+	IntValue    int
+	BoolValue   bool
 	StringValue string
 }
 
 type ChangeOption struct {
-	Type ChangeOptionType
+	Type        ChangeOptionType
 	StringValue string
-	IntValue int
+	IntValue    int
 }
 
 type UserIdTotalStudySecSet struct {
-	UserId string	`json:"user_id"`
-	TotalStudySec int	`json:"total_study_sec"`
+	UserId        string `json:"user_id"`
+	TotalStudySec int    `json:"total_study_sec"`
 }
-

@@ -147,14 +147,8 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	userId := ""
-	userDoc, err := _system.FirestoreController.RetrieveUser(userId, ctx)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%v\n", userDoc)
-	fmt.Println(userDoc.RegistrationDate.In(utils.JapanLocation()).Format(time.RFC3339))
-	log.Println("end")
+	message := ""
+	_system.SendLiveChatMessage(message, ctx)
 }
 
 func main() {

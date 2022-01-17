@@ -8,43 +8,45 @@ import (
 const (
 	EnterAction = "enter"
 	ExitAction  = "exit"
-
-	CommandPrefix = "!"
+	
+	CommandPrefix      = "!"
 	WrongCommandPrefix = "！"
-
-	InCommand   = "!in"
-	OutCommand  = "!out"
-	InfoCommand = "!info"
-	MyCommand   = "!my"
-	ChangeCommand = "!change"
-	SeatCommand = "!seat"
-	ReportCommand = "!report"
-	KickCommand    = "!kick"
+	
+	InCommand      = "!in"
+	OutCommand     = "!out"
+	InfoCommand    = "!info"
+	MyCommand      = "!my"
+	ChangeCommand  = "!change"
+	SeatCommand    = "!seat"
+	ReportCommand  = "!report"
 	MoreCommand    = "!more"
 	OkawariCommand = "!okawari"
 	RankCommand    = "!rank"
 	
+	KickCommand  = "!kick"
+	CheckCommand = "!check"
+	
 	LegacyAddCommand = "!add"
-
+	
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="
 	WorkNameOptionPrefixLegacy      = "work-"
 	WorkNameOptionShortPrefixLegacy = "w-"
-
+	
 	WorkTimeOptionPrefix            = "min="
 	WorkTimeOptionShortPrefix       = "m="
 	WorkTimeOptionPrefixLegacy      = "min-"
 	WorkTimeOptionShortPrefixLegacy = "m-"
 	
 	InfoDetailsOption = "d"
-
+	
 	RankVisibleMyOptionPrefix = "rank="
-	RankVisibleMyOptionOn  = "on"
-	RankVisibleMyOptionOff = "off"
-
+	RankVisibleMyOptionOn     = "on"
+	RankVisibleMyOptionOff    = "off"
+	
 	DefaultMinMyOptionPrefix     = "min="
 	DefaultMinMyOptionShorPrefix = "m="
-
+	
 	FullWidthSpace = "　"
 	HalfWidthSpace = " "
 )

@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/discordbot"
 	"app.modules/core/guardians"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
@@ -45,6 +46,12 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 	
+	// discord bot
+	discordBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordBotToken, credentialsDoc.DiscordBotTextChannelId)
+	if err != nil {
+		return System{}, err
+	}
+	
 	// core constant values
 	constantsConfig, err := fsController.RetrieveSystemConstantsConfig(ctx)
 	if err != nil {
@@ -55,6 +62,8 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		FirestoreController:             fsController,
 		LiveChatBot:                     liveChatBot,
 		LineBot:                         lineBot,
+		DiscordBot:                      discordBot,
+		LiveChatBotChannelId:            credentialsDoc.YoutubeBotChannelId,
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
@@ -145,6 +154,9 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 
 // Command 入力コマンドを解析して実行
 func (s *System) Command(commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, ctx context.Context) customerror.CustomError {
+	if userId == s.LiveChatBotChannelId {
+		return customerror.NewNil()
+	}
 	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 	
 	commandDetails, err := s.ParseCommand(commandString)
@@ -208,6 +220,12 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		err := s.Kick(commandDetails, ctx)
 		if err != nil {
 			return customerror.KickProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
+	case Check:
+		err := s.Check(commandDetails, ctx)
+		if err != nil {
+			return customerror.CheckProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
 	case More:
@@ -279,6 +297,12 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			return commandDetails, customerror.NewNil()
 		case KickCommand:
 			commandDetails, err := s.ParseKick(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
+		case CheckCommand:
+			commandDetails, err := s.ParseCheck(commandString)
 			if err.IsNotNil() {
 				return CommandDetails{}, err
 			}
@@ -504,6 +528,26 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	return CommandDetails{
 		CommandType: Kick,
 		KickSeatId:  kickSeatId,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseCheck(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var targetSeatId int
+	if len(slice) >= 2 {
+		num, err := strconv.Atoi(slice[1])
+		if err != nil {
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+		}
+		targetSeatId = num
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+	}
+	
+	return CommandDetails{
+		CommandType: Check,
+		CheckSeatId: targetSeatId,
 	}, customerror.NewNil()
 }
 
@@ -957,14 +1001,24 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		return nil
 	}
 	
-	err := s.LineBot.SendMessage("【" + ReportCommand + "受信】\n" +
+	lineMessage := "【" + ReportCommand + "受信】\n" +
 		"チャンネルID: " + s.ProcessedUserId + "\n" +
 		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
-		command.ReportMessage)
+		command.ReportMessage
+	err := s.LineBot.SendMessage(lineMessage)
 	if err != nil {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、エラーが発生しました", ctx)
-		return err
+		log.Println(err)
 	}
+	
+	discordMessage := "【" + ReportCommand + "受信】\n" +
+		"チャンネル名: `" + s.ProcessedUserDisplayName + "`\n" +
+		"メッセージ: `" + command.ReportMessage + "`"
+	err = s.DiscordBot.SendMessage(discordMessage)
+	if err != nil {
+		_ = s.LineBot.SendMessageWithError("discordへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
+	}
+	
 	s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました", ctx)
 	return nil
 }
@@ -1000,6 +1054,35 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		}
 	} else {
 		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません", ctx)
+	}
+	return nil
+}
+
+func (s *System) Check(command CommandDetails, ctx context.Context) error {
+	// commanderはモデレーターかチャットオーナーか
+	if s.ProcessedUserIsModeratorOrOwner {
+		// ターゲットの座席は誰か使っているか
+		isSeatAvailable, err := s.IfSeatAvailable(command.CheckSeatId, ctx)
+		if err != nil {
+			return err
+		}
+		if !isSeatAvailable {
+			// 座席情報を表示する
+			seat, cerr := s.RetrieveSeatBySeatId(command.CheckSeatId, ctx)
+			if cerr.IsNotNil() {
+				return cerr.Body
+			}
+			sinceMinutes := utils.JstNow().Sub(seat.EnteredAt).Minutes()
+			untilMinutes := seat.Until.Sub(utils.JstNow()).Minutes()
+			message := s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.SeatId) + "番席には" +
+				seat.UserDisplayName + "さんが" + strconv.Itoa(int(sinceMinutes)) + "分間着席しており、" +
+				"作業名は\"" + seat.WorkName + "\"です。" + strconv.Itoa(int(untilMinutes)) + "分後に自動退室予定です。"
+			s.SendLiveChatMessage(message, ctx)
+		} else {
+			s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません", ctx)
+		}
+	} else {
+		s.SendLiveChatMessage(s.ProcessedUserDisplayName+"さんは「"+CheckCommand+"」コマンドを使用できません", ctx)
 	}
 	return nil
 }
