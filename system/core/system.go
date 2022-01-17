@@ -63,6 +63,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		LiveChatBot:                     liveChatBot,
 		LineBot:                         lineBot,
 		DiscordBot:                      discordBot,
+		LiveChatBotChannelId:            credentialsDoc.YoutubeBotChannelId,
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
@@ -153,6 +154,9 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 
 // Command 入力コマンドを解析して実行
 func (s *System) Command(commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, ctx context.Context) customerror.CustomError {
+	if userId == s.LiveChatBotChannelId {
+		return customerror.NewNil()
+	}
 	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 	
 	commandDetails, err := s.ParseCommand(commandString)

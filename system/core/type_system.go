@@ -12,6 +12,7 @@ type System struct {
 	LiveChatBot                     *youtubebot.YoutubeLiveChatBot
 	LineBot                         *mylinebot.LineBot
 	DiscordBot                      *discordbot.DiscordBot
+	LiveChatBotChannelId            string
 	MinWorkTimeMin                  int
 	MaxWorkTimeMin                  int
 	DefaultWorkTimeMin              int

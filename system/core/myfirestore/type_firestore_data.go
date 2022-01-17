@@ -43,6 +43,7 @@ type CredentialsConfigDoc struct {
 	YoutubeBotClientSecret   string    `firestore:"youtube-bot-client-secret"`
 	YoutubeBotExpirationDate time.Time `firestore:"youtube-bot-expiration-date"`
 	YoutubeBotRefreshToken   string    `firestore:"youtube-bot-refresh-token"`
+	YoutubeBotChannelId      string    `firestore:"youtube-bot-channel-id"`
 	
 	// ライブ配信用youtubeチャンネルのAPIアクセス情報
 	YoutubeChannelAccessToken    string    `firestore:"youtube-channel-access-token"`
