@@ -26,7 +26,7 @@ const (
 	SeatProcessFailed
 	ReportProcessFailed
 	KickProcessFailed
-	SeeProcessFailed
+	CheckProcessFailed
 	AddProcessFailed
 	RankProcessFailed
 )

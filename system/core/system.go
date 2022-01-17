@@ -225,7 +225,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	case Check:
 		err := s.Check(commandDetails, ctx)
 		if err != nil {
-			return customerror.SeeProcessFailed.New(err.Error())
+			return customerror.CheckProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
 	case More:
