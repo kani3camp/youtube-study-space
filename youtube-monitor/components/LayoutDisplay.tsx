@@ -99,16 +99,11 @@ const LayoutDisplay: FC<Props> = (props) => {
       // 文字幅に応じて作業名のフォントサイズを調整
       let workNameFontSizePx = seatFontSizePx
       if (isUsed) {
-        console.log('文字幅に応じて作業名のフォントサイズを調整')
         const canvas: HTMLCanvasElement = document.createElement('canvas')
         const context = canvas.getContext('2d')
         context!.font = workNameFontSizePx.toString() + 'px ' + Constants.fontFamily
         const metrics = context!.measureText(workName)
-        console.log('seatFontSize: ' + seatFontSizePx)
-        console.log('workName: ' + workName)
-        console.log('metrics.width: ' + metrics.width)
         const actualSeatWidth = roomShape.widthPx * seatShape.width / 100
-        console.log('seat width: ' + actualSeatWidth)
         if (metrics.width > actualSeatWidth) {
           workNameFontSizePx *= actualSeatWidth / metrics.width
           workNameFontSizePx *= 0.95  // ほんの少し縮めないと，入りきらない
@@ -116,7 +111,6 @@ const LayoutDisplay: FC<Props> = (props) => {
             workNameFontSizePx = seatFontSizePx * 0.7   // 最小でもデフォルトの0.7倍のフォントサイズ
           }
         }
-        console.log('workNameFontSize: ' + workNameFontSizePx)
       }
       
       return (
