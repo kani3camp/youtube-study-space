@@ -246,12 +246,12 @@ export const HimajinRoomLayout: RoomLayout = {
         },
         {
             id: 39,
-            x: 205,
+            x: 295,
             y: 150
         },
         {
             id: 40,
-            x: 205,
+            x: 295,
             y: 180
         },
     ],
