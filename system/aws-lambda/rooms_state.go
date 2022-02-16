@@ -4,17 +4,18 @@ import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/myfirestore"
+	"cloud.google.com/go/firestore"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
 	"log"
 )
 
 type RoomsResponseStruct struct {
-	Result      string              `json:"result"`
-	Message     string              `json:"message"`
-	DefaultRoom myfirestore.RoomDoc `json:"default_room"`
-	MaxSeats int `json:"max_seats"`
-	MinVacancyRate float32 `json:"min_vacancy_rate"`
+	Result         string              `json:"result"`
+	Message        string              `json:"message"`
+	DefaultRoom    myfirestore.RoomDoc `json:"default_room"`
+	MaxSeats       int                 `json:"max_seats"`
+	MinVacancyRate float32             `json:"min_vacancy_rate"`
 }
 
 func Rooms() (RoomsResponseStruct, error) {
@@ -31,12 +32,21 @@ func Rooms() (RoomsResponseStruct, error) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	defaultRoom, err := _system.FirestoreController.RetrieveRoom(ctx)
-	if err != nil {
-		return RoomsResponseStruct{}, err
-	}
-	
-	constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+	var defaultRoom myfirestore.RoomDoc
+	var constants myfirestore.ConstantsConfigDoc
+	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		var err error
+		defaultRoom, err = _system.FirestoreController.RetrieveRoom(ctx, tx)
+		if err != nil {
+			return err
+		}
+		
+		constants, err = _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return RoomsResponseStruct{}, err
 	}
