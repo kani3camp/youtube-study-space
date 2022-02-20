@@ -15,6 +15,7 @@ const (
 	InvalidRoomLayout
 	YoutubeLiveChatBotFailed
 	SeatNotFound
+	NoSeatAvailable
 	
 	InvalidCommand
 	
