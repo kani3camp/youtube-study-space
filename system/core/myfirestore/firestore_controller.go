@@ -33,6 +33,15 @@ func (controller *FirestoreController) get(ctx context.Context, tx *firestore.Tr
 	}
 }
 
+func (controller *FirestoreController) set(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}, opts ...firestore.SetOption) error {
+	if tx != nil {
+		return tx.Set(ref, data, opts...)
+	} else {
+		_, err := ref.Set(ctx, data, opts...)
+		return err
+	}
+}
+
 func (controller *FirestoreController) RetrieveCredentialsConfig(ctx context.Context, tx *firestore.Transaction) (CredentialsConfigDoc, error) {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	doc, err := controller.get(ctx, tx, ref)
@@ -229,8 +238,9 @@ func (controller *FirestoreController) UpdateTotalTime(
 	return nil
 }
 
-func (controller *FirestoreController) SaveLiveChatId(_ context.Context, tx *firestore.Transaction, liveChatId string) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName), map[string]interface{}{
+func (controller *FirestoreController) SaveLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
+	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
+	err := controller.set(ctx, tx, ref, map[string]interface{}{
 		LiveChatIdFirestore: liveChatId,
 	}, firestore.MergeAll)
 	if err != nil {
@@ -243,7 +253,7 @@ func (controller *FirestoreController) InitializeUser(tx *firestore.Transaction,
 	return tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), userData)
 }
 
-func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Context, _ *firestore.Transaction) ([]*firestore.DocumentRef, error) {
+func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
 	return controller.FirestoreClient.Collection(USERS).DocumentRefs(ctx).GetAll()
 }
 
@@ -302,8 +312,9 @@ func (controller *FirestoreController) SetAccessTokenOfChannelCredential(tx *fir
 	return nil
 }
 
-func (controller *FirestoreController) SetAccessTokenOfBotCredential(_ context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName), map[string]interface{}{
+func (controller *FirestoreController) SetAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
+	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
+	err := controller.set(ctx, tx, ref, map[string]interface{}{
 		YoutubeBotAccessTokenFirestore:    accessToken,
 		YoutubeBotExpirationDateFirestore: expireDate,
 	}, firestore.MergeAll)
