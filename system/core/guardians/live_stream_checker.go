@@ -12,48 +12,46 @@ import (
 )
 
 type LiveStreamsListResponse struct {
-	Kind string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	TokenType   string `json:"token_type"`
+	Kind      string `json:"access_token"`
+	ExpiresIn int    `json:"expires_in"`
+	Scope     string `json:"scope"`
+	TokenType string `json:"token_type"`
 }
 
 type LiveStreamChecker struct {
-	YoutubeLiveChatBot *youtubebot.YoutubeLiveChatBot
-	LineBot *mylinebot.LineBot
+	YoutubeLiveChatBot  *youtubebot.YoutubeLiveChatBot
+	LineBot             *mylinebot.LineBot
 	FirestoreController *myfirestore.FirestoreController
 }
-
 
 func NewLiveStreamChecker(
 	controller *myfirestore.FirestoreController,
 	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
 	lineBot *mylinebot.LineBot,
-	) *LiveStreamChecker {
+) *LiveStreamChecker {
 	
 	return &LiveStreamChecker{
-		YoutubeLiveChatBot: youtubeLiveChatBot,
-		LineBot: lineBot,
+		YoutubeLiveChatBot:  youtubeLiveChatBot,
+		LineBot:             lineBot,
 		FirestoreController: controller,
 	}
 }
 
-
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
-	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx)
+	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
 	if err != nil {
 		return err
 	}
 	config := &oauth2.Config{
 		ClientID:     credentials.YoutubeChannelClientId,
 		ClientSecret: credentials.YoutubeChannelClientSecret,
-		Endpoint:     oauth2.Endpoint{
+		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
 			AuthStyle: 0,
 		},
-		RedirectURL:  "https://youtube.com/",
-		Scopes:       nil,
+		RedirectURL: "https://youtube.com/",
+		Scopes:      nil,
 	}
 	channelOauthToken := &oauth2.Token{
 		AccessToken:  credentials.YoutubeChannelAccessToken,
@@ -86,5 +84,3 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	
 	return nil
 }
-
-

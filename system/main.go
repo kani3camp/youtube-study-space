@@ -52,7 +52,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_ = _system.LineBot.SendMessage("Botが起動しました")
 	defer func() {
-		_system.SendLiveChatMessage("エラーが起きたため終了します", ctx)
+		_system.SendLiveChatMessage(ctx, "エラーが起きたため終了します")
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	
@@ -68,7 +68,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			log.Println("checking desired max seats")
-			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
+			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
 			if err != nil {
 				_ = _system.LineBot.SendMessageWithError("_system.FirestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
 			} else {
@@ -83,7 +83,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		}
 		
 		// page token取得
-		pageToken, err := _system.RetrieveNextPageToken(ctx)
+		pageToken, err := _system.RetrieveNextPageToken(ctx, nil)
 		if err != nil {
 			_ = _system.LineBot.SendMessageWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
@@ -112,7 +112,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		}
 		
 		// nextPageTokenを保存
-		err = _system.SaveNextPageToken(nextPageToken, ctx)
+		err = _system.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
 			_ = _system.LineBot.SendMessageWithError("failed to save next page token", err)
 			return
@@ -148,7 +148,7 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	defer _system.CloseFirestoreClient()
 	
 	message := ""
-	_system.SendLiveChatMessage(message, ctx)
+	_system.SendLiveChatMessage(ctx, message)
 }
 
 func main() {
