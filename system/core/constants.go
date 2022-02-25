@@ -22,6 +22,9 @@ const (
 	MoreCommand    = "!more"
 	OkawariCommand = "!okawari"
 	RankCommand    = "!rank"
+	BreakCommand   = "!break"
+	RestCommand    = "!rest"
+	ChillCommand   = "!chill"
 	
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
@@ -33,10 +36,10 @@ const (
 	WorkNameOptionPrefixLegacy      = "work-"
 	WorkNameOptionShortPrefixLegacy = "w-"
 	
-	WorkTimeOptionPrefix            = "min="
-	WorkTimeOptionShortPrefix       = "m="
-	WorkTimeOptionPrefixLegacy      = "min-"
-	WorkTimeOptionShortPrefixLegacy = "m-"
+	TimeOptionPrefix            = "min="
+	TimeOptionShortPrefix       = "m="
+	TimeOptionPrefixLegacy      = "min-"
+	TimeOptionShortPrefixLegacy = "m-"
 	
 	InfoDetailsOption = "d"
 	

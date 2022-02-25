@@ -15,6 +15,8 @@ type System struct {
 	LiveChatBotChannelId            string
 	MinWorkTimeMin                  int
 	MaxWorkTimeMin                  int
+	MinBreakTimeMin                 int
+	MaxBreakTimeMin                 int
 	DefaultWorkTimeMin              int
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
@@ -33,6 +35,7 @@ type CommandDetails struct {
 	KickSeatId    int
 	CheckSeatId   int
 	MoreMinutes   int
+	BreakMinutes  int
 }
 
 type CommandType uint
@@ -52,6 +55,7 @@ const (
 	Check  // !check
 	More   // !more
 	Rank   // !rank
+	Break  // !break
 )
 
 type InfoOption struct {

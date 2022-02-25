@@ -397,10 +397,10 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 		} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) && !isWorkNameSet {
 			workName = strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
 			isWorkNameSet = true
-		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefix))
+		} else if strings.HasPrefix(str, TimeOptionPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionPrefix))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
+				return InOptions{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
@@ -408,10 +408,10 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 			} else { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefix))
+		} else if strings.HasPrefix(str, TimeOptionShortPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
+				return InOptions{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
@@ -419,10 +419,10 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 			} else { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
+		} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
+				return InOptions{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
@@ -430,10 +430,10 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 			} else { // 無効な値
 				return InOptions{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
+		} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return InOptions{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
+				return InOptions{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
@@ -614,10 +614,10 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 				StringValue: workName,
 			})
 			isWorkNameSet = true
-		} else if strings.HasPrefix(str, WorkTimeOptionPrefix) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefix))
+		} else if strings.HasPrefix(str, TimeOptionPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionPrefix))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -628,10 +628,10 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 			} else { // 無効な値
 				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefix) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefix))
+		} else if strings.HasPrefix(str, TimeOptionShortPrefix) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -642,10 +642,10 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 			} else { // 無効な値
 				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionPrefixLegacy))
+		} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -656,10 +656,10 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 			} else { // 無効な値
 				return []ChangeOption{}, customerror.InvalidCommand.New("入室時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "以上の値にしてください")
 			}
-		} else if strings.HasPrefix(str, WorkTimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
-			num, err := strconv.Atoi(strings.TrimPrefix(str, WorkTimeOptionShortPrefixLegacy))
+		} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) && !isWorkTimeMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return []ChangeOption{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
+				return []ChangeOption{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num { // 延長できるシステムなので、上限はなし
 				options = append(options, ChangeOption{
@@ -681,40 +681,40 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 	// 指定時間
 	var workTimeMin int
 	if len(slice) >= 2 {
-		if strings.HasPrefix(slice[1], WorkTimeOptionPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionPrefix))
+		if strings.HasPrefix(slice[1], TimeOptionPrefix) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefix + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
 				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(slice[1], WorkTimeOptionShortPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionShortPrefix))
+		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefix) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefix + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
 				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(slice[1], WorkTimeOptionPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionPrefixLegacy))
+		} else if strings.HasPrefix(slice[1], TimeOptionPrefixLegacy) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionPrefixLegacy + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
 			} else { // 無効な値
 				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
 			}
-		} else if strings.HasPrefix(slice[1], WorkTimeOptionShortPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], WorkTimeOptionShortPrefixLegacy))
+		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefixLegacy) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + WorkTimeOptionShortPrefixLegacy + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
 			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
 				workTimeMin = num
@@ -723,7 +723,7 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 			}
 		}
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + WorkTimeOptionPrefix + "」で指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + TimeOptionPrefix + "」で指定してください")
 	}
 	
 	if workTimeMin == 0 {
@@ -733,6 +733,67 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 	return CommandDetails{
 		CommandType: More,
 		MoreMinutes: workTimeMin,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	// 指定時間
+	var breakTimeMin int
+	if len(slice) >= 2 {
+		if strings.HasPrefix(slice[1], TimeOptionPrefix) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefix))
+			if err != nil { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
+			}
+			if s.MinBreakTimeMin <= num && num <= s.MaxBreakTimeMin { // TODO
+				breakTimeMin = num
+			} else { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+			}
+		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefix) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefix))
+			if err != nil { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
+			}
+			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+				breakTimeMin = num
+			} else { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+			}
+		} else if strings.HasPrefix(slice[1], TimeOptionPrefixLegacy) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefixLegacy))
+			if err != nil { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
+			}
+			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+				breakTimeMin = num
+			} else { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+			}
+		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefixLegacy) {
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefixLegacy))
+			if err != nil { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
+			}
+			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+				breakTimeMin = num
+			} else { // 無効な値
+				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+			}
+		}
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("休憩時間（分）を「" + TimeOptionPrefix + "」で指定してください")
+	}
+	
+	if breakTimeMin == 0 {
+		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください")
+	}
+	
+	return CommandDetails{
+		CommandType:  Break,
+		BreakMinutes: breakTimeMin,
 	}, customerror.NewNil()
 }
 

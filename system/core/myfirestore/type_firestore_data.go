@@ -6,7 +6,9 @@ import (
 
 type ConstantsConfigDoc struct {
 	MaxWorkTimeMin     int `firestore:"max-work-time-min"`     // 設定可能な最大入室時間（分）
-	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // // 設定可能な最小入室時間（分）
+	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // 設定可能な最小入室時間（分）
+	MaxBreakTimeMin    int `firestore:"max-break-time-min"`    // 設定可能な最大休憩時間（分）
+	MinBreakTimeMin    int `firestore:"min-break-time-min"`    // 設定可能な最小休憩時間（分）
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"` // デフォルト入室時間（分）
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"`  // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 	
@@ -70,13 +72,17 @@ func NewRoomDoc() RoomDoc {
 }
 
 type Seat struct {
-	SeatId          int       `json:"seat_id" firestore:"seat-id"`                     // 席番号
-	UserId          string    `json:"user_id" firestore:"user-id"`                     // ユーザーID
-	UserDisplayName string    `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
-	WorkName        string    `json:"work_name" firestore:"work-name"`                 // 作業名
-	EnteredAt       time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
-	Until           time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
-	ColorCode       string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード
+	SeatId                int       `json:"seat_id" firestore:"seat-id"`                     // 席番号
+	UserId                string    `json:"user_id" firestore:"user-id"`                     // ユーザーID
+	UserDisplayName       string    `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
+	WorkName              string    `json:"work_name" firestore:"work-name"`                 // 作業名
+	EnteredAt             time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
+	Until                 time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
+	ColorCode             string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード
+	State                 string    `json:"state" firestore:"state"`
+	CurrentStateStartedAt time.Time `json:"current_state_started_at" firestore:"current-state-started-at"`
+	CurrentStateUntil     time.Time `json:"current_state_until" firestore:"current-state-until"`
+	CumulativeWorkSec     int       `json:"cumulative_work_sec" firestore:"cumulative-work-sec"`
 }
 
 type UserDoc struct {
