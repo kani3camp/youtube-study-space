@@ -9,8 +9,8 @@ import (
 )
 
 type OrganizeDatabaseResponseStruct struct {
-	Result  string       `json:"result"`
-	Message string       `json:"message"`
+	Result  string `json:"result"`
+	Message string `json:"message"`
 }
 
 func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
@@ -29,7 +29,7 @@ func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
 	
 	err = _system.OrganizeDatabase(ctx)
 	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed to organize database", err)
+		_ = _system.MessageToLineBotWithError("failed to organize database", err)
 		return OrganizeDatabaseResponseStruct{}, nil
 	}
 	
