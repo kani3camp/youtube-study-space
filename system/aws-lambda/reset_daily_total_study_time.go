@@ -9,8 +9,8 @@ import (
 )
 
 type ResetDailyTotalStudyTimeResponseStruct struct {
-	Result  string       `json:"result"`
-	Message string       `json:"message"`
+	Result  string `json:"result"`
+	Message string `json:"message"`
 }
 
 func ResetDailyTotalStudyTime() (ResetDailyTotalStudyTimeResponseStruct, error) {
@@ -29,7 +29,7 @@ func ResetDailyTotalStudyTime() (ResetDailyTotalStudyTimeResponseStruct, error) 
 	
 	err = _system.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
-		_ = _system.LineBot.SendMessageWithError("failed to reset daily total time", err)
+		_ = _system.MessageToLineBotWithError("failed to reset daily total time", err)
 		return ResetDailyTotalStudyTimeResponseStruct{}, err
 	}
 	

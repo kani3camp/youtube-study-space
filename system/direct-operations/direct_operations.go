@@ -26,13 +26,13 @@ func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 		return
 	}
 	
-	_system.SendLiveChatMessage(ctx, "全ユーザーを退室させます。")
+	_system.MessageToLiveChat(ctx, "全ユーザーを退室させます。")
 	err = _system.ExitAllUserInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
 	}
-	_system.SendLiveChatMessage(ctx, "全ユーザーを退室させました。")
+	_system.MessageToLiveChat(ctx, "全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
