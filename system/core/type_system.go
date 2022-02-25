@@ -8,17 +8,22 @@ import (
 )
 
 type System struct {
+	Constants                       *SystemConstants
+	ProcessedUserId                 string
+	ProcessedUserDisplayName        string
+	ProcessedUserIsModeratorOrOwner bool
+}
+
+// SystemConstants System生成時に初期化すべきフィールド値
+type SystemConstants struct {
 	FirestoreController             *myfirestore.FirestoreController
-	LiveChatBot                     *youtubebot.YoutubeLiveChatBot
-	LineBot                         *mylinebot.LineBot
-	DiscordBot                      *discordbot.DiscordBot
+	liveChatBot                     *youtubebot.YoutubeLiveChatBot
+	lineBot                         *mylinebot.LineBot
+	discordBot                      *discordbot.DiscordBot
 	LiveChatBotChannelId            string
 	MinWorkTimeMin                  int
 	MaxWorkTimeMin                  int
 	DefaultWorkTimeMin              int
-	ProcessedUserId                 string
-	ProcessedUserDisplayName        string
-	ProcessedUserIsModeratorOrOwner bool
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
 }
