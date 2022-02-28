@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
+	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -69,6 +70,11 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
+		MinBreakTimeMin:                 constantsConfig.MinBreakTimeMin,
+		MaxBreakTimeMin:                 constantsConfig.MaxBreakTimeMin,
+		MinBreakIntervalMin:             constantsConfig.MinBreakIntervalMin,
+		MaxBreakDurationMin:             constantsConfig.MaxBreakDurationMin,
+		DefaultBreakTimeMin:             constantsConfig.DefaultBreakTimMin,
 		DefaultSleepIntervalMilli:       constantsConfig.SleepIntervalMilli,
 		CheckDesiredMaxSeatsIntervalSec: constantsConfig.CheckDesiredMaxSeatsIntervalSec,
 	}
@@ -243,7 +249,13 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 	case More:
 		err := s.More(commandDetails, ctx)
 		if err != nil {
-			return customerror.AddProcessFailed.New(err.Error())
+			return customerror.MoreProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
+	case Break:
+		err := s.Break(ctx, commandDetails)
+		if err != nil {
+			return customerror.BreakProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
 	case Rank:
@@ -321,6 +333,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			return commandDetails, customerror.NewNil()
 		case LegacyAddCommand:
 			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
+		
 		case OkawariCommand:
 			fallthrough
 		case MoreCommand:
@@ -329,6 +342,18 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 				return CommandDetails{}, err
 			}
 			return commandDetails, customerror.NewNil()
+		
+		case RestCommand:
+			fallthrough
+		case ChillCommand:
+			fallthrough
+		case BreakCommand:
+			commandDetails, err := s.ParseBreak(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
+		
 		case RankCommand:
 			return CommandDetails{
 				CommandType: Rank,
@@ -755,51 +780,64 @@ func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.C
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 指定時間
-	var breakTimeMin int
+	breakTimeMin := s.Constants.DefaultBreakTimeMin
 	if len(slice) >= 2 {
 		if strings.HasPrefix(slice[1], TimeOptionPrefix) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" +
+					TimeOptionPrefix + "」の後の値を確認してください")
 			}
-			if s.MinBreakTimeMin <= num && num <= s.MaxBreakTimeMin { // TODO
+			if s.Constants.MinBreakTimeMin <= num && num <= s.Constants.MaxBreakTimeMin {
 				breakTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+				return CommandDetails{}, customerror.InvalidCommand.New(
+					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
+						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefix) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefix))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" +
+					TimeOptionShortPrefix + "」の後の値を確認してください")
 			}
-			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
 				breakTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+				return CommandDetails{}, customerror.InvalidCommand.New(
+					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
+						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], TimeOptionPrefixLegacy) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" +
+					TimeOptionPrefixLegacy + "」の後の値を確認してください")
 			}
-			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
 				breakTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+				return CommandDetails{}, customerror.InvalidCommand.New(
+					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
+						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
 			}
 		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefixLegacy) {
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefixLegacy))
 			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
+				return CommandDetails{}, customerror.InvalidCommand.New("「" +
+					TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
 			}
-			if s.MinWorkTimeMin <= num && num <= s.MaxWorkTimeMin {
+			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
 				breakTimeMin = num
 			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.MinWorkTimeMin) + "～" + strconv.Itoa(s.MaxWorkTimeMin) + "の値にしてください")
+				return CommandDetails{}, customerror.InvalidCommand.New(
+					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
+						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
 			}
 		}
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("休憩時間（分）を「" + TimeOptionPrefix + "」で指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New(
+			"休憩時間（分）を「" + TimeOptionPrefix + "」で指定してください")
 	}
 	
 	if breakTimeMin == 0 {
@@ -939,7 +977,9 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				}
 				
 				// 入室処理
-				err = s.enterRoom(ctx, tx, command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin, userRank.ColorCode)
+				err = s.enterRoom(tx, seats, s.ProcessedUserId, s.ProcessedUserDisplayName,
+					command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
+					userRank.ColorCode, myfirestore.WorkState)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to enter room", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -954,7 +994,9 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				return nil
 			}
 		} else { // 入室のみ
-			err = s.enterRoom(ctx, tx, command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin, userRank.ColorCode)
+			err = s.enterRoom(tx, seats, s.ProcessedUserId, s.ProcessedUserDisplayName,
+				command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
+				userRank.ColorCode, myfirestore.WorkState)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to enter room", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -1497,6 +1539,74 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 	})
 }
 
+func (s *System) Break(ctx context.Context, command CommandDetails) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 入室しているか？
+		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if !isUserInRoom {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			return nil
+		}
+		
+		// stateを確認
+		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		if cerr.IsNotNil() {
+			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			return cerr.Body
+		}
+		if currentSeat.State != myfirestore.WorkState {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業中のみ使えるコマンドです。")
+			return nil
+		}
+		
+		// 前回の入室または再開から、最低休憩間隔経っているか？
+		currentWorkedSec := int(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt).Seconds())
+		if currentWorkedSec < s.Constants.MinBreakIntervalMin {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Constants.
+				MinBreakIntervalMin)+"秒は休憩できません。現在"+strconv.Itoa(currentWorkedSec)+"秒作業中")
+		}
+		
+		// 休憩処理
+		roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		seats := roomDoc.Seats
+		jstNow := utils.JstNow()
+		breakUntil := jstNow.Add(time.Duration(command.BreakMinutes) * time.Minute)
+		workedSec := int(math.Max(0, jstNow.Sub(currentSeat.CurrentStateStartedAt).Seconds()))
+		cumulativeWorkSec := currentSeat.CumulativeWorkSec + workedSec
+		// もし日付を跨いで作業してたら、daily-cumulative-work-secは日付変更からの時間にする
+		var dailyCumulativeWorkSec int
+		if workedSec > utils.InSeconds(jstNow) {
+			dailyCumulativeWorkSec = utils.InSeconds(jstNow)
+		} else {
+			dailyCumulativeWorkSec = workedSec
+		}
+		seats = CreateUpdatedSeatsSeatState(seats, s.ProcessedUserId, myfirestore.BreakState, jstNow, breakUntil,
+			cumulativeWorkSec, dailyCumulativeWorkSec)
+		
+		err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+
+			strconv.Itoa(command.BreakMinutes)+"分）")
+		
+		return nil
+	})
+}
+
 func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 	// 初回の利用の場合はユーザーデータを初期化
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -1724,23 +1834,51 @@ func (s *System) RandomAvailableSeatId(ctx context.Context, tx *firestore.Transa
 	}
 }
 
-// enterRoom 入室させる。事前チェックはされている前提。
-func (s *System) enterRoom(ctx context.Context, tx *firestore.Transaction, seatId int, workName string, workTimeMin int, seatColorCode string) error {
+// enterRoom ユーザーを入室させる。
+func (s *System) enterRoom(
+	tx *firestore.Transaction,
+	previousSeats []myfirestore.Seat,
+	userId string,
+	userDisplayName string,
+	seatId int,
+	workName string,
+	workMin int,
+	seatColorCode string,
+	state myfirestore.SeatState,
+) error {
 	enterDate := utils.JstNow()
-	exitDate := enterDate.Add(time.Duration(workTimeMin) * time.Minute)
-	seat, err := s.Constants.FirestoreController.SetSeat(ctx, tx, seatId, workName, enterDate, exitDate, seatColorCode, s.ProcessedUserId, s.ProcessedUserDisplayName)
+	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
+	
+	newSeat := myfirestore.Seat{
+		SeatId:                 seatId,
+		UserId:                 userId,
+		UserDisplayName:        userDisplayName,
+		WorkName:               workName,
+		EnteredAt:              enterDate,
+		Until:                  exitDate,
+		ColorCode:              seatColorCode,
+		State:                  state,
+		CurrentStateStartedAt:  enterDate,
+		CurrentStateUntil:      exitDate,
+		CumulativeWorkSec:      0,
+		DailyCumulativeWorkSec: 0,
+	}
+	newSeats := append(previousSeats, newSeat)
+	err := s.Constants.FirestoreController.UpdateSeats(tx, newSeats)
 	if err != nil {
 		return err
 	}
+	
 	// 入室時刻を記録
-	err = s.Constants.FirestoreController.SetLastEnteredDate(ctx, tx, s.ProcessedUserId, enterDate)
+	err = s.Constants.FirestoreController.SetLastEnteredDate(tx, userId, enterDate)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to set last entered date", err)
 		return err
 	}
 	// ログ記録
-	err = s.Constants.FirestoreController.AddUserHistory(tx, s.ProcessedUserId, EnterAction, seat)
+	err = s.Constants.FirestoreController.AddUserHistory(tx, userId, EnterAction, newSeat)
 	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to add user history", err)
 		return err
 	}
 	return nil
@@ -1750,13 +1888,27 @@ func (s *System) enterRoom(ctx context.Context, tx *firestore.Transaction, seatI
 func (s *System) exitRoom(tx *firestore.Transaction, seat myfirestore.Seat, previousUserDoc *myfirestore.UserDoc) (int, error) {
 	// 作業時間を計算
 	exitDate := utils.JstNow()
-	workedTimeSec := int(exitDate.Sub(seat.EnteredAt).Seconds())
-	var dailyWorkedTimeSec int
-	// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
-	if workedTimeSec > utils.InSeconds(exitDate) {
-		dailyWorkedTimeSec = utils.InSeconds(exitDate)
-	} else {
-		dailyWorkedTimeSec = workedTimeSec
+	var addedWorkedTimeSec int
+	var addedDailyWorkedTimeSec int
+	switch seat.State {
+	case myfirestore.BreakState:
+		addedWorkedTimeSec = seat.CumulativeWorkSec
+		// もし直前の休憩で日付を跨いでたら
+		justBreakTimeSec := int(math.Max(0, exitDate.Sub(seat.CurrentStateStartedAt).Seconds()))
+		if justBreakTimeSec > utils.InSeconds(exitDate) {
+			addedDailyWorkedTimeSec = 0
+		} else {
+			addedDailyWorkedTimeSec = seat.DailyCumulativeWorkSec
+		}
+	case myfirestore.WorkState:
+		justWorkedTimeSec := int(math.Max(0, exitDate.Sub(seat.CurrentStateStartedAt).Seconds()))
+		addedWorkedTimeSec = seat.CumulativeWorkSec + justWorkedTimeSec
+		// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
+		if justWorkedTimeSec > utils.InSeconds(exitDate) {
+			addedDailyWorkedTimeSec = utils.InSeconds(exitDate)
+		} else {
+			addedDailyWorkedTimeSec = seat.DailyCumulativeWorkSec
+		}
 	}
 	
 	err := s.Constants.FirestoreController.UnSetSeatInRoom(tx, seat)
@@ -1775,14 +1927,14 @@ func (s *System) exitRoom(tx *firestore.Transaction, seat myfirestore.Seat, prev
 		return 0, err
 	}
 	// 累計学習時間を更新
-	err = s.UpdateTotalWorkTime(tx, seat.UserId, previousUserDoc, workedTimeSec, dailyWorkedTimeSec)
+	err = s.UpdateTotalWorkTime(tx, seat.UserId, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to update total study time", err)
 		return 0, err
 	}
 	
-	log.Println(seat.UserId + " exited the room. seat id: " + strconv.Itoa(seat.SeatId) + " (+ " + strconv.Itoa(workedTimeSec) + "秒)")
-	return workedTimeSec, nil
+	log.Println(seat.UserId + " exited the room. seat id: " + strconv.Itoa(seat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
+	return addedWorkedTimeSec, nil
 }
 
 func (s *System) CurrentSeatId(ctx context.Context, tx *firestore.Transaction) (int, customerror.CustomError) {
@@ -2086,6 +2238,22 @@ func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, u
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].WorkName = workName
+			break
+		}
+	}
+	return seats
+}
+
+func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state myfirestore.SeatState,
+	currentStateStartedAt time.Time, currentStateUntil time.Time, cumulativeWorkSec int, dailyCumulativeWorkSec int,
+) []myfirestore.Seat {
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].State = state
+			seats[i].CurrentStateStartedAt = currentStateStartedAt
+			seats[i].CurrentStateUntil = currentStateUntil
+			seats[i].CumulativeWorkSec = cumulativeWorkSec
+			seats[i].DailyCumulativeWorkSec = dailyCumulativeWorkSec
 			break
 		}
 	}

@@ -141,7 +141,7 @@ func (controller *FirestoreController) SetSeat(
 	return seat, nil
 }
 
-func (controller *FirestoreController) SetLastEnteredDate(_ context.Context, tx *firestore.Transaction, userId string, enteredDate time.Time) error {
+func (controller *FirestoreController) SetLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
 	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
 		LastEnteredFirestore: enteredDate,
 	}, firestore.MergeAll)

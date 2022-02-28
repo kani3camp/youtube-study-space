@@ -28,7 +28,8 @@ const (
 	ReportProcessFailed
 	KickProcessFailed
 	CheckProcessFailed
-	AddProcessFailed
+	MoreProcessFailed
+	BreakProcessFailed
 	RankProcessFailed
 )
 

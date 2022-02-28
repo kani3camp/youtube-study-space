@@ -25,6 +25,7 @@ const (
 	BreakCommand   = "!break"
 	RestCommand    = "!rest"
 	ChillCommand   = "!chill"
+	ResumeCommand  = "!resume"
 	
 	KickCommand  = "!kick"
 	CheckCommand = "!check"

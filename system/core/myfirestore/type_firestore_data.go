@@ -7,10 +7,15 @@ import (
 type ConstantsConfigDoc struct {
 	MaxWorkTimeMin     int `firestore:"max-work-time-min"`     // 設定可能な最大入室時間（分）
 	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // 設定可能な最小入室時間（分）
-	MaxBreakTimeMin    int `firestore:"max-break-time-min"`    // 設定可能な最大休憩時間（分）
-	MinBreakTimeMin    int `firestore:"min-break-time-min"`    // 設定可能な最小休憩時間（分）
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"` // デフォルト入室時間（分）
-	SleepIntervalMilli int `firestore:"sleep-interval-milli"`  // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
+	
+	MaxBreakTimeMin     int `firestore:"max-break-time-min"`     // 設定可能な最大休憩時間（分）
+	MinBreakTimeMin     int `firestore:"min-break-time-min"`     // 設定可能な最小休憩時間（分）
+	MinBreakIntervalMin int `firestore:"min-break-interval-min"` // 休憩できる最短間隔（分）
+	MaxBreakDurationMin int `firestore:"max-break-duration-min"` // 休憩できる最大時間（分）
+	DefaultBreakTimMin  int `firestore:"default-break-time-min"` // デフォルト休憩時間（分）
+	
+	SleepIntervalMilli int `firestore:"sleep-interval-milli"` // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 	
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
@@ -71,18 +76,26 @@ func NewRoomDoc() RoomDoc {
 	}
 }
 
+type SeatState string
+
+const (
+	WorkState  SeatState = "work"
+	BreakState           = "break"
+)
+
 type Seat struct {
-	SeatId                int       `json:"seat_id" firestore:"seat-id"`                     // 席番号
-	UserId                string    `json:"user_id" firestore:"user-id"`                     // ユーザーID
-	UserDisplayName       string    `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
-	WorkName              string    `json:"work_name" firestore:"work-name"`                 // 作業名
-	EnteredAt             time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
-	Until                 time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
-	ColorCode             string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード
-	State                 string    `json:"state" firestore:"state"`
-	CurrentStateStartedAt time.Time `json:"current_state_started_at" firestore:"current-state-started-at"`
-	CurrentStateUntil     time.Time `json:"current_state_until" firestore:"current-state-until"`
-	CumulativeWorkSec     int       `json:"cumulative_work_sec" firestore:"cumulative-work-sec"`
+	SeatId                 int       `json:"seat_id" firestore:"seat-id"`                     // 席番号
+	UserId                 string    `json:"user_id" firestore:"user-id"`                     // ユーザーID
+	UserDisplayName        string    `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
+	WorkName               string    `json:"work_name" firestore:"work-name"`                 // 作業名
+	EnteredAt              time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
+	Until                  time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
+	ColorCode              string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード
+	State                  SeatState `json:"state" firestore:"state"`
+	CurrentStateStartedAt  time.Time `json:"current_state_started_at" firestore:"current-state-started-at"`
+	CurrentStateUntil      time.Time `json:"current_state_until" firestore:"current-state-until"`
+	CumulativeWorkSec      int       `json:"cumulative_work_sec" firestore:"cumulative-work-sec"`
+	DailyCumulativeWorkSec int       `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
 }
 
 type UserDoc struct {

@@ -16,16 +16,22 @@ type System struct {
 
 // SystemConstants System生成時に初期化すべきフィールド値
 type SystemConstants struct {
-	FirestoreController             *myfirestore.FirestoreController
-	liveChatBot                     *youtubebot.YoutubeLiveChatBot
-	lineBot                         *mylinebot.LineBot
-	discordBot                      *discordbot.DiscordBot
-	LiveChatBotChannelId            string
-	MinWorkTimeMin                  int
-	MaxWorkTimeMin                  int
-	MinBreakTimeMin                 int
-	MaxBreakTimeMin                 int
-	DefaultWorkTimeMin              int
+	FirestoreController *myfirestore.FirestoreController
+	liveChatBot         *youtubebot.YoutubeLiveChatBot
+	lineBot             *mylinebot.LineBot
+	discordBot          *discordbot.DiscordBot
+	
+	LiveChatBotChannelId string
+	MinWorkTimeMin       int
+	MaxWorkTimeMin       int
+	DefaultWorkTimeMin   int
+	
+	MinBreakTimeMin     int
+	MaxBreakTimeMin     int
+	MinBreakIntervalMin int
+	MaxBreakDurationMin int
+	DefaultBreakTimeMin int
+	
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
 }
@@ -61,6 +67,7 @@ const (
 	More   // !more
 	Rank   // !rank
 	Break  // !break
+	Resume // !resume
 )
 
 type InfoOption struct {
