@@ -26,27 +26,27 @@ type SystemConstants struct {
 	MaxWorkTimeMin       int
 	DefaultWorkTimeMin   int
 	
-	MinBreakTimeMin     int
-	MaxBreakTimeMin     int
-	MinBreakIntervalMin int
-	MaxBreakDurationMin int
-	DefaultBreakTimeMin int
+	MinBreakDurationMin     int
+	MaxBreakDurationMin     int
+	MinBreakIntervalMin     int
+	DefaultBreakDurationMin int
 	
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
 }
 
 type CommandDetails struct {
-	CommandType   CommandType
-	InOptions     InOptions
-	InfoOption    InfoOption
-	MyOptions     []MyOption
-	ChangeOptions []ChangeOption
-	ReportMessage string
-	KickSeatId    int
-	CheckSeatId   int
-	MoreMinutes   int
-	BreakMinutes  int
+	CommandType    CommandType
+	InOptions      InOptions
+	InfoOption     InfoOption
+	MyOptions      []MyOption
+	ChangeOptions  []ChangeOption
+	MinWorkOptions MinWorkOption
+	ReportMessage  string
+	KickSeatId     int
+	CheckSeatId    int
+	MoreMinutes    int
+	WorkName       string
 }
 
 type CommandType uint
@@ -105,6 +105,11 @@ type ChangeOption struct {
 	Type        ChangeOptionType
 	StringValue string
 	IntValue    int
+}
+
+type MinWorkOption struct {
+	WorkName    string
+	DurationMin int
 }
 
 type UserIdTotalStudySecSet struct {

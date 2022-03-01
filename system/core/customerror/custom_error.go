@@ -30,6 +30,7 @@ const (
 	CheckProcessFailed
 	MoreProcessFailed
 	BreakProcessFailed
+	ResumeProcessFailed
 	RankProcessFailed
 )
 

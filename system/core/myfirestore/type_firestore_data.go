@@ -88,6 +88,7 @@ type Seat struct {
 	UserId                 string    `json:"user_id" firestore:"user-id"`                     // ユーザーID
 	UserDisplayName        string    `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
 	WorkName               string    `json:"work_name" firestore:"work-name"`                 // 作業名
+	BreakWorkName          string    `json:"break_work_name" firestore:"break-work-name"`     // 休憩中の作業名
 	EnteredAt              time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
 	Until                  time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
 	ColorCode              string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード

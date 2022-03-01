@@ -70,11 +70,10 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
 		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
 		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
-		MinBreakTimeMin:                 constantsConfig.MinBreakTimeMin,
-		MaxBreakTimeMin:                 constantsConfig.MaxBreakTimeMin,
-		MinBreakIntervalMin:             constantsConfig.MinBreakIntervalMin,
+		MinBreakDurationMin:             constantsConfig.MinBreakTimeMin,
 		MaxBreakDurationMin:             constantsConfig.MaxBreakDurationMin,
-		DefaultBreakTimeMin:             constantsConfig.DefaultBreakTimMin,
+		MinBreakIntervalMin:             constantsConfig.MinBreakIntervalMin,
+		DefaultBreakDurationMin:         constantsConfig.DefaultBreakTimMin,
 		DefaultSleepIntervalMilli:       constantsConfig.SleepIntervalMilli,
 		CheckDesiredMaxSeatsIntervalSec: constantsConfig.CheckDesiredMaxSeatsIntervalSec,
 	}
@@ -258,6 +257,12 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 			return customerror.BreakProcessFailed.New(err.Error())
 		}
 		return customerror.NewNil()
+	case Resume:
+		err := s.Resume(ctx, commandDetails)
+		if err != nil {
+			return customerror.ResumeProcessFailed.New(err.Error())
+		}
+		return customerror.NewNil()
 	case Rank:
 		err := s.Rank(commandDetails, ctx)
 		if err != nil {
@@ -354,6 +359,12 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			}
 			return commandDetails, customerror.NewNil()
 		
+		case ResumeCommand:
+			commandDetails, err := s.ParseResume(commandString)
+			if err.IsNotNil() {
+				return CommandDetails{}, err
+			}
+			return commandDetails, customerror.NewNil()
 		case RankCommand:
 			return CommandDetails{
 				CommandType: Rank,
@@ -619,6 +630,7 @@ func (s *System) ParseChange(commandString string) (CommandDetails, customerror.
 	}, customerror.NewNil()
 }
 
+// ParseChangeOptions TODO: ParseMinWorkOptionsに置き換える
 func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, customerror.CustomError) {
 	isWorkNameSet := false
 	isWorkTimeMinSet := false
@@ -715,6 +727,7 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 	return options, customerror.NewNil()
 }
 
+// ParseMore TODO: ParseMinOptionにする
 func (s *System) ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
@@ -779,75 +792,81 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
-	// 指定時間
-	breakTimeMin := s.Constants.DefaultBreakTimeMin
-	if len(slice) >= 2 {
-		if strings.HasPrefix(slice[1], TimeOptionPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefix))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" +
-					TimeOptionPrefix + "」の後の値を確認してください")
-			}
-			if s.Constants.MinBreakTimeMin <= num && num <= s.Constants.MaxBreakTimeMin {
-				breakTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New(
-					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
-						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefix))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" +
-					TimeOptionShortPrefix + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				breakTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New(
-					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
-						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefixLegacy))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" +
-					TimeOptionPrefixLegacy + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				breakTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New(
-					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
-						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefixLegacy))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" +
-					TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				breakTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New(
-					"休憩時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" +
-						strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		}
-	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New(
-			"休憩時間（分）を「" + TimeOptionPrefix + "」で指定してください")
+	// 追加オプションチェック
+	options, err := s.ParseMinWorkOptions(slice[1:], s.Constants.MinBreakDurationMin, s.Constants.MaxBreakDurationMin)
+	if err.IsNotNil() {
+		return CommandDetails{}, err
 	}
 	
-	if breakTimeMin == 0 {
-		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください")
+	// 休憩時間の指定がない場合はデフォルト値を設定
+	if reflect.ValueOf(options.DurationMin).IsZero() {
+		options.DurationMin = s.Constants.DefaultBreakDurationMin
 	}
 	
 	return CommandDetails{
-		CommandType:  Break,
-		BreakMinutes: breakTimeMin,
+		CommandType:    Break,
+		MinWorkOptions: options,
 	}, customerror.NewNil()
+}
+
+func (s *System) ParseResume(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	// 追加オプションチェック
+	workName := s.ParseWorkNameOption(slice[1:])
+	
+	return CommandDetails{
+		CommandType: Resume,
+		WorkName:    workName,
+	}, customerror.NewNil()
+}
+
+func (s *System) ParseWorkNameOption(commandSlice []string) string {
+	for _, str := range commandSlice {
+		if strings.HasPrefix(str, WorkNameOptionPrefix) ||
+			strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
+			strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
+			strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
+			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
+			return workName
+		}
+	}
+	return ""
+}
+
+func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDuration int) (MinWorkOption,
+	customerror.CustomError) {
+	isWorkNameSet := false
+	isDurationMinSet := false
+	
+	var options MinWorkOption
+	
+	for _, str := range commandSlice {
+		if (strings.HasPrefix(str, WorkNameOptionPrefix) ||
+			strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
+			strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
+			strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)) && !isWorkNameSet {
+			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
+			options.WorkName = workName
+			isWorkNameSet = true
+		} else if (strings.HasPrefix(str, TimeOptionPrefix) ||
+			strings.HasPrefix(str, TimeOptionShortPrefix) ||
+			strings.HasPrefix(str, TimeOptionPrefixLegacy) ||
+			strings.HasPrefix(str, TimeOptionShortPrefixLegacy)) && !isDurationMinSet {
+			num, err := strconv.Atoi(strings.TrimPrefix(str, TimeOptionPrefix))
+			if err != nil { // 無効な値
+				return MinWorkOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+			}
+			if MinDuration <= num && num <= MaxDuration {
+				options.DurationMin = num
+				isDurationMinSet = true
+			} else { // 無効な値
+				return MinWorkOption{}, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
+					MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")
+			}
+		}
+	}
+	return options, customerror.NewNil()
 }
 
 func (s *System) In(ctx context.Context, command CommandDetails) error {
@@ -1580,7 +1599,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		}
 		seats := roomDoc.Seats
 		jstNow := utils.JstNow()
-		breakUntil := jstNow.Add(time.Duration(command.BreakMinutes) * time.Minute)
+		breakUntil := jstNow.Add(time.Duration(command.MinWorkOptions.DurationMin) * time.Minute)
 		workedSec := int(math.Max(0, jstNow.Sub(currentSeat.CurrentStateStartedAt).Seconds()))
 		cumulativeWorkSec := currentSeat.CumulativeWorkSec + workedSec
 		// もし日付を跨いで作業してたら、daily-cumulative-work-secは日付変更からの時間にする
@@ -1591,7 +1610,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			dailyCumulativeWorkSec = workedSec
 		}
 		seats = CreateUpdatedSeatsSeatState(seats, s.ProcessedUserId, myfirestore.BreakState, jstNow, breakUntil,
-			cumulativeWorkSec, dailyCumulativeWorkSec)
+			cumulativeWorkSec, dailyCumulativeWorkSec, command.MinWorkOptions.WorkName)
 		
 		err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
@@ -1601,7 +1620,72 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			return err
 		}
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+
-			strconv.Itoa(command.BreakMinutes)+"分）")
+			strconv.Itoa(command.MinWorkOptions.DurationMin)+"分）")
+		
+		return nil
+	})
+}
+
+func (s *System) Resume(ctx context.Context, command CommandDetails) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 入室しているか？
+		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if !isUserInRoom {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			return nil
+		}
+		
+		// stateを確認
+		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		if cerr.IsNotNil() {
+			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			return cerr.Body
+		}
+		if currentSeat.State != myfirestore.BreakState {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、座席で休憩中のみ使えるコマンドです。")
+			return nil
+		}
+		
+		// 再開処理
+		roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		seats := roomDoc.Seats
+		
+		jstNow := utils.JstNow()
+		until := currentSeat.Until
+		breakSec := int(math.Max(0, jstNow.Sub(currentSeat.CurrentStateStartedAt).Seconds()))
+		// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
+		var dailyCumulativeWorkSec = currentSeat.DailyCumulativeWorkSec
+		if breakSec > utils.InSeconds(jstNow) {
+			dailyCumulativeWorkSec = 0
+		}
+		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
+		var workName = command.WorkName
+		if command.WorkName == "" {
+			workName = currentSeat.WorkName
+		}
+		
+		seats = CreateUpdatedSeatsSeatState(seats, s.ProcessedUserId, myfirestore.BreakState, jstNow, until,
+			currentSeat.CumulativeWorkSec, dailyCumulativeWorkSec, workName)
+		
+		err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
+			strconv.Itoa(int(until.Sub(jstNow).Minutes()))+"分）")
 		
 		return nil
 	})
@@ -2246,6 +2330,7 @@ func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, u
 
 func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state myfirestore.SeatState,
 	currentStateStartedAt time.Time, currentStateUntil time.Time, cumulativeWorkSec int, dailyCumulativeWorkSec int,
+	workName string,
 ) []myfirestore.Seat {
 	for i, seat := range seats {
 		if seat.UserId == userId {
@@ -2254,6 +2339,12 @@ func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state 
 			seats[i].CurrentStateUntil = currentStateUntil
 			seats[i].CumulativeWorkSec = cumulativeWorkSec
 			seats[i].DailyCumulativeWorkSec = dailyCumulativeWorkSec
+			switch state {
+			case myfirestore.BreakState:
+				seats[i].BreakWorkName = workName
+			case myfirestore.WorkState:
+				seats[i].WorkName = workName
+			}
 			break
 		}
 	}
