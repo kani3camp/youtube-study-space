@@ -27,7 +27,7 @@ const config = {
       ({
         docs: {
           sidebarPath: require.resolve("./sidebars.js"),
-          editUrl: "https://github.com/doanryo/studywithocemeco/tree/main/packages/docs",
+          editUrl: "https://github.com/doanryo/studywithocemeco/tree/dev/packages/docs",
           routeBasePath: "/",
         },
         theme: {
