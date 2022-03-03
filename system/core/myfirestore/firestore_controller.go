@@ -162,17 +162,6 @@ func (controller *FirestoreController) SetLastExitedDate(tx *firestore.Transacti
 	return nil
 }
 
-func (controller *FirestoreController) UnSetSeatInRoom(tx *firestore.Transaction, seat Seat) error {
-	ref := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName)
-	err := tx.Set(ref, map[string]interface{}{
-		SeatsFirestore: firestore.ArrayRemove(seat),
-	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (controller *FirestoreController) SetMyRankVisible(_ context.Context, tx *firestore.Transaction, userId string, rankVisible bool) error {
 	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
 		RankVisibleFirestore: rankVisible,

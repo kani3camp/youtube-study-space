@@ -9,11 +9,10 @@ type ConstantsConfigDoc struct {
 	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // 設定可能な最小入室時間（分）
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"` // デフォルト入室時間（分）
 	
-	MaxBreakTimeMin     int `firestore:"max-break-time-min"`     // 設定可能な最大休憩時間（分）
-	MinBreakTimeMin     int `firestore:"min-break-time-min"`     // 設定可能な最小休憩時間（分）
-	MinBreakIntervalMin int `firestore:"min-break-interval-min"` // 休憩できる最短間隔（分）
-	MaxBreakDurationMin int `firestore:"max-break-duration-min"` // 休憩できる最大時間（分）
-	DefaultBreakTimMin  int `firestore:"default-break-time-min"` // デフォルト休憩時間（分）
+	MinBreakDurationMin     int `firestore:"min-break-duration-min"`     // 設定可能な最小休憩時間（分）
+	MinBreakIntervalMin     int `firestore:"min-break-interval-min"`     // 休憩できる最短間隔（分）
+	MaxBreakDurationMin     int `firestore:"max-break-duration-min"`     // 休憩できる最大時間（分）
+	DefaultBreakDurationMin int `firestore:"default-break-duration-min"` // デフォルト休憩時間（分）
 	
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"` // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 	
