@@ -1,6 +1,5 @@
 import React from "react";
-import * as styles from "./Clock.styles";
-
+import * as styles from "../styles/Clock.styles";
 
 class Clock extends React.Component<{}, any> {
   private intervalId: NodeJS.Timeout | undefined;
@@ -12,7 +11,7 @@ class Clock extends React.Component<{}, any> {
     };
   }
 
-  componentDidMount () {
+  componentDidMount() {
     this.intervalId = setInterval(() => {
       this.setState({
         now: new Date(),
@@ -20,13 +19,13 @@ class Clock extends React.Component<{}, any> {
     }, 1000);
   }
 
-  componentWillUnmount () {
+  componentWillUnmount() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
   }
 
-  render () {
+  render() {
     return (
       <div css={styles.clockStyle}>
         <div css={styles.dateStringStyle}>

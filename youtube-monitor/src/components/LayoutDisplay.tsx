@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useReducer, FC } from "react";
-import * as styles from "./LayoutDisplay.styles";
+import * as styles from "../styles/LayoutDisplay.styles";
 import { RoomLayout } from "../types/room-layout";
 import { Seat } from "../types/api";
 import { Constants } from "../lib/constants";

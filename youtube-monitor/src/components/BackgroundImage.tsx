@@ -1,5 +1,5 @@
 import React from "react";
-import * as styles from "./BackgroundImage.styles";
+import * as styles from "../styles/BackgroundImage.styles";
 import next from "next";
 import { getCurrentSection } from "../lib/time_table";
 

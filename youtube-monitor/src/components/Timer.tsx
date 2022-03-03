@@ -1,5 +1,5 @@
 import React from "react";
-import * as styles from "./Timer.styles";
+import * as styles from "../styles/Timer.styles";
 import {
   TimeSection,
   SectionType,

@@ -1,5 +1,5 @@
 import React, { FC, useEffect, useState } from "react";
-import * as styles from "./BgmPlayer.styles";
+import * as styles from "../styles/BgmPlayer.styles";
 import next from "next";
 import { getCurrentSection, SectionType } from "../lib/time_table";
 import { Bgm, getCurrentRandomBgm } from "../lib/bgm";

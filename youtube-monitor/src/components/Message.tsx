@@ -1,5 +1,5 @@
 import React, { FC } from "react";
-import * as styles from "./Message.styles";
+import * as styles from "../styles/Message.styles";
 import { SeatsState } from "../types/api";
 
 type Props = {
