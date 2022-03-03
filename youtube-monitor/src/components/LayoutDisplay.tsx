@@ -12,6 +12,11 @@ type Props = {
   maxSeats: number;
 };
 
+const SeatState = {
+  Work: "work",
+  Break: "break",
+};
+
 const LayoutDisplay: FC<Props> = (props) => {
   const seatWithSeatId = (seatId: number, seats: Seat[]) => {
     let targetSeat: Seat = seats[0];
@@ -92,12 +97,19 @@ const LayoutDisplay: FC<Props> = (props) => {
       const workName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).work_name
         : "";
+      const breakWorkName = isUsed
+        ? seatWithSeatId(global_seat_id, props.seats).break_work_name
+        : "";
+
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
         : "";
       const seat_color = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).color_code
         : emptySeatColor;
+      const isBreak =
+        isUsed &&
+        seatWithSeatId(global_seat_id, props.seats).state === SeatState.Break;
 
       // 文字幅に応じて作業名のフォントサイズを調整
       let workNameFontSizePx = seatFontSizePx;
@@ -142,7 +154,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                 fontSize: workNameFontSizePx + "px",
               }}
             >
-              {workName}
+              {isBreak ? breakWorkName : workName}
             </div>
           )}
           <div css={styles.userDisplayName}>{displayName}</div>

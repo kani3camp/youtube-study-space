@@ -842,11 +842,8 @@ func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDura
 	var options MinWorkOption
 	
 	for _, str := range commandSlice {
-		if (strings.HasPrefix(str, WorkNameOptionPrefix) ||
-			strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
-			strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
-			strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)) && !isWorkNameSet {
-			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
+		if (HasWorkNameOptionPrefix(str)) && !isWorkNameSet {
+			workName := TrimWorkNameOptionPrefix(str)
 			options.WorkName = workName
 			isWorkNameSet = true
 		} else if (HasTimeOptionPrefix(str)) && !isDurationMinSet {
@@ -864,6 +861,26 @@ func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDura
 		}
 	}
 	return options, customerror.NewNil()
+}
+
+func HasWorkNameOptionPrefix(str string) bool {
+	return strings.HasPrefix(str, WorkNameOptionPrefix) ||
+		strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
+		strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
+		strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)
+}
+
+func TrimWorkNameOptionPrefix(str string) string {
+	if strings.HasPrefix(str, WorkNameOptionPrefix) {
+		return strings.TrimPrefix(str, WorkNameOptionPrefix)
+	} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) {
+		return strings.TrimPrefix(str, WorkNameOptionShortPrefix)
+	} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) {
+		return strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
+	} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
+		return strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
+	}
+	return str
 }
 
 func HasTimeOptionPrefix(str string) bool {

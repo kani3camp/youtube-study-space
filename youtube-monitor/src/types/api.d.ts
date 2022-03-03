@@ -1,4 +1,3 @@
-
 export type SeatsState = {
   seats: Seat[];
 };
@@ -8,9 +7,15 @@ export type Seat = {
   user_id: string;
   user_display_name: string;
   work_name: string;
+  break_work_name: string;
   entered_at: Date;
   until: Date;
   color_code: string;
+  state: SeatState;
+  current_state_started_at: Date;
+  current_state_until: Date;
+  cumulative_work_sec: number;
+  daily_cumulative_work_sec: number;
 };
 
 export type RoomsStateResponse = {
@@ -20,9 +25,6 @@ export type RoomsStateResponse = {
   max_seats: number;
   min_vacancy_rate: number;
 };
-
-
-
 
 export type SetDesiredMaxSeatsResponse = {
   result: string;
