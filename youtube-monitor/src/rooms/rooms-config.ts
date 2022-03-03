@@ -10,24 +10,31 @@ import { SimpleRoomLayout } from "./layouts/simple_room";
 import { ver2RoomLayout } from "./layouts/ver2";
 
 type RoomsConfig = {
-    roomLayouts: RoomLayout[];
-
-}
+  roomLayouts: RoomLayout[];
+};
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [circleRoomLayout, mazeRoomLayout, HimajinRoomLayout, SeaOfSeatRoomLayout]
-}
+  roomLayouts: [
+    circleRoomLayout,
+    mazeRoomLayout,
+    HimajinRoomLayout,
+    SeaOfSeatRoomLayout,
+  ],
+};
 
 export const temporaryRooms: RoomsConfig = {
-    roomLayouts: [classRoomLayout, SimpleRoomLayout, mazeRoomLayout, HimajinRoomLayout]
-}
-
+  roomLayouts: [
+    classRoomLayout,
+    SimpleRoomLayout,
+    mazeRoomLayout,
+    HimajinRoomLayout,
+  ],
+};
 
 export const numSeatsInAllBasicRooms = (): number => {
-    let numSeatsBasicRooms = 0
-    for (const r of basicRooms.roomLayouts) {
-        numSeatsBasicRooms += r.seats.length
-    }
-    return numSeatsBasicRooms
-}
-
+  let numSeatsBasicRooms = 0;
+  for (const r of basicRooms.roomLayouts) {
+    numSeatsBasicRooms += r.seats.length;
+  }
+  return numSeatsBasicRooms;
+};

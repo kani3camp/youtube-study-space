@@ -6,7 +6,6 @@ import Timer from "../components/Timer";
 import BackgroundImage from "../components/BackgroundImage";
 import BgmPlayer from "../components/BgmPlayer";
 
-
 const Home: FC = () => {
   return (
     <div
@@ -25,7 +24,7 @@ const Home: FC = () => {
       <StandingRoom />
       <Timer />
     </div>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;

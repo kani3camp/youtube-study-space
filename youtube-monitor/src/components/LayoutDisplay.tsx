@@ -10,7 +10,7 @@ type Props = {
   seats: Seat[];
   firstSeatId: number;
   maxSeats: number;
-}
+};
 
 const LayoutDisplay: FC<Props> = (props) => {
   const seatWithSeatId = (seatId: number, seats: Seat[]) => {
@@ -21,25 +21,27 @@ const LayoutDisplay: FC<Props> = (props) => {
       }
     });
     return targetSeat;
-  }
+  };
 
   const globalSeatId = (layout_seat_id: number, first_seat_id: number) => {
-    return first_seat_id + layout_seat_id
-  }
+    return first_seat_id + layout_seat_id;
+  };
 
-  if (props.roomLayouts && props.roomLayouts.length > 0 && props.roomIndex < props.roomLayouts.length) {
-    const usedSeatIds = props.seats.map(
-      (seat) => seat.seat_id
-    );
+  if (
+    props.roomLayouts &&
+    props.roomLayouts.length > 0 &&
+    props.roomIndex < props.roomLayouts.length
+  ) {
+    const usedSeatIds = props.seats.map((seat) => seat.seat_id);
 
     const emptySeatColor = "#F3E8DC";
 
-    let roomLayout: RoomLayout
+    let roomLayout: RoomLayout;
     // ルームが減った瞬間などは、インデックスがlengthを超える場合がある
     if (props.roomIndex >= props.roomLayouts.length) {
-      roomLayout = props.roomLayouts[0]
+      roomLayout = props.roomLayouts[0];
     } else {
-      roomLayout = props.roomLayouts[props.roomIndex]
+      roomLayout = props.roomLayouts[props.roomIndex];
     }
     const roomShape = {
       widthPx:
@@ -50,8 +52,7 @@ const LayoutDisplay: FC<Props> = (props) => {
     const seatFontSizePx = roomShape.widthPx * roomLayout.font_size_ratio;
 
     const seatShape = {
-      width:
-        (100 * roomLayout.seat_shape.width) / roomLayout.room_shape.width,
+      width: (100 * roomLayout.seat_shape.width) / roomLayout.room_shape.width,
       height:
         (100 * roomLayout.seat_shape.height) / roomLayout.room_shape.height,
     };
@@ -86,7 +87,7 @@ const LayoutDisplay: FC<Props> = (props) => {
     }));
 
     const seatList = roomLayout.seats.map((seat, index) => {
-      const global_seat_id = globalSeatId(seat.id, props.firstSeatId)
+      const global_seat_id = globalSeatId(seat.id, props.firstSeatId);
       const isUsed = usedSeatIds.includes(global_seat_id);
       const workName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).work_name
@@ -94,25 +95,28 @@ const LayoutDisplay: FC<Props> = (props) => {
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
         : "";
-      const seat_color = isUsed ? seatWithSeatId(global_seat_id, props.seats).color_code : emptySeatColor
-      
+      const seat_color = isUsed
+        ? seatWithSeatId(global_seat_id, props.seats).color_code
+        : emptySeatColor;
+
       // 文字幅に応じて作業名のフォントサイズを調整
-      let workNameFontSizePx = seatFontSizePx
+      let workNameFontSizePx = seatFontSizePx;
       if (isUsed) {
-        const canvas: HTMLCanvasElement = document.createElement('canvas')
-        const context = canvas.getContext('2d')
-        context!.font = workNameFontSizePx.toString() + 'px ' + Constants.fontFamily
-        const metrics = context!.measureText(workName)
-        const actualSeatWidth = roomShape.widthPx * seatShape.width / 100
+        const canvas: HTMLCanvasElement = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        context!.font =
+          workNameFontSizePx.toString() + "px " + Constants.fontFamily;
+        const metrics = context!.measureText(workName);
+        const actualSeatWidth = (roomShape.widthPx * seatShape.width) / 100;
         if (metrics.width > actualSeatWidth) {
-          workNameFontSizePx *= actualSeatWidth / metrics.width
-          workNameFontSizePx *= 0.95  // ほんの少し縮めないと，入りきらない
+          workNameFontSizePx *= actualSeatWidth / metrics.width;
+          workNameFontSizePx *= 0.95; // ほんの少し縮めないと，入りきらない
           if (workNameFontSizePx < seatFontSizePx * 0.7) {
-            workNameFontSizePx = seatFontSizePx * 0.7   // 最小でもデフォルトの0.7倍のフォントサイズ
+            workNameFontSizePx = seatFontSizePx * 0.7; // 最小でもデフォルトの0.7倍のフォントサイズ
           }
         }
       }
-      
+
       return (
         <div
           key={global_seat_id}
@@ -123,31 +127,28 @@ const LayoutDisplay: FC<Props> = (props) => {
             top: seatPositions[index].y + "%",
             width: seatShape.width + "%",
             height: seatShape.height + "%",
-            fontSize: isUsed ? seatFontSizePx + "px" : seatFontSizePx * 2 + 'px',
+            fontSize: isUsed
+              ? seatFontSizePx + "px"
+              : seatFontSizePx * 2 + "px",
           }}
         >
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
             {global_seat_id}
           </div>
-          {workName !== '' && (
-          <div 
-          css={styles.workName} 
-          style={{
-            fontSize: workNameFontSizePx + 'px'
-          }}
-          >
-            {workName}
+          {workName !== "" && (
+            <div
+              css={styles.workName}
+              style={{
+                fontSize: workNameFontSizePx + "px",
+              }}
+            >
+              {workName}
             </div>
           )}
-          <div
-            css={styles.userDisplayName}
-          >
-            {displayName}
-          </div>
+          <div css={styles.userDisplayName}>{displayName}</div>
         </div>
       );
     });
-
 
     const partitionList = roomLayout.partitions.map((partition, index) => (
       <div
@@ -176,11 +177,8 @@ const LayoutDisplay: FC<Props> = (props) => {
       </div>
     );
   } else {
-    return <div>
-      Loading
-    </div>;
+    return <div>Loading</div>;
   }
-
-}
+};
 
 export default LayoutDisplay;
