@@ -1,17 +1,18 @@
 package main
 
 import (
-	"app.modules/core"
-	"app.modules/core/utils"
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"app.modules/core"
+	"app.modules/core/utils"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 )
 
 func Init() (option.ClientOption, context.Context, error) {
@@ -26,15 +27,15 @@ func Init() (option.ClientOption, context.Context, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if creds.ProjectID == "youtube-study-space" {
+	if creds.ProjectID == "studywithocemeco" {
 		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
 		var s string
 		_, _ = fmt.Scanf("%s", &s)
 		if s != "yes" {
 			return nil, nil, errors.New("")
 		}
-	} else if creds.ProjectID == "test-youtube-study-space" {
-		log.Println("credential of test-youtube-study-space")
+	} else if creds.ProjectID == "test-studywithocemeco" {
+		log.Println("credential of test-studywithocemeco")
 	} else {
 		return nil, nil, errors.New("unknown project id on the credential.")
 	}

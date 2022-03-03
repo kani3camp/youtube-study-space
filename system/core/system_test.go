@@ -3,15 +3,16 @@ package core
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"reflect"
+	"testing"
+
 	"github.com/kr/pretty"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
-	"log"
-	"os"
-	"reflect"
-	"testing"
 )
 
 func InitTest() (option.ClientOption, context.Context, error) {
@@ -23,15 +24,15 @@ func InitTest() (option.ClientOption, context.Context, error) {
 	
 	// 本番GCPプロジェクトの場合はCLI上で確認
 	creds, _ := transport.Creds(ctx, clientOption)
-	if creds.ProjectID == "youtube-study-space" {
+	if creds.ProjectID == "studywithocemeco" {
 		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
 		var s string
 		_, _ = fmt.Scanf("%s", &s)
 		if s != "yes" {
 			return nil, nil, errors.New("")
 		}
-	} else if creds.ProjectID == "test-youtube-study-space" {
-		log.Println("credential of test-youtube-study-space")
+	} else if creds.ProjectID == "test-studywithocemeco" {
+		log.Println("credential of test-studywithocemeco")
 	} else {
 		return nil, nil, errors.New("unknown project id on the credential.")
 	}
