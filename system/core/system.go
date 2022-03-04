@@ -823,11 +823,8 @@ func (s *System) ParseResume(commandString string) (CommandDetails, customerror.
 
 func (s *System) ParseWorkNameOption(commandSlice []string) string {
 	for _, str := range commandSlice {
-		if strings.HasPrefix(str, WorkNameOptionPrefix) ||
-			strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
-			strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
-			strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
-			workName := strings.TrimPrefix(str, WorkNameOptionPrefix)
+		if HasWorkNameOptionPrefix(str) {
+			workName := TrimWorkNameOptionPrefix(str)
 			return workName
 		}
 	}

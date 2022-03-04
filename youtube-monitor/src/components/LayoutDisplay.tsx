@@ -100,6 +100,7 @@ const LayoutDisplay: FC<Props> = (props) => {
       const breakWorkName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).break_work_name
         : "";
+      console.log(isUsed);
 
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
