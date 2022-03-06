@@ -1642,7 +1642,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		currentWorkedMin := int(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt).Minutes())
 		if currentWorkedMin < s.Constants.MinBreakIntervalMin {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Constants.
-				MinBreakIntervalMin)+"分間は休憩できません。現在"+strconv.Itoa(currentWorkedMin)+"秒作業中")
+				MinBreakIntervalMin)+"分間は休憩できません。現在"+strconv.Itoa(currentWorkedMin)+"分作業中")
 		}
 		
 		// 休憩処理

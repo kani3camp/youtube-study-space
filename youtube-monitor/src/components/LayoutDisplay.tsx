@@ -100,7 +100,6 @@ const LayoutDisplay: FC<Props> = (props) => {
       const breakWorkName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).break_work_name
         : "";
-      console.log(isUsed);
 
       const displayName = isUsed
         ? seatWithSeatId(global_seat_id, props.seats).user_display_name
@@ -111,6 +110,8 @@ const LayoutDisplay: FC<Props> = (props) => {
       const isBreak =
         isUsed &&
         seatWithSeatId(global_seat_id, props.seats).state === SeatState.Break;
+      console.log(isBreak);
+      if (isBreak) console.log(breakWorkName);
 
       // 文字幅に応じて作業名のフォントサイズを調整
       let workNameFontSizePx = seatFontSizePx;
@@ -148,14 +149,14 @@ const LayoutDisplay: FC<Props> = (props) => {
           <div css={styles.seatId} style={{ fontWeight: "bold" }}>
             {global_seat_id}
           </div>
-          {workName !== "" && (
+          {(workName !== "" || breakWorkName !== "") && (
             <div
               css={styles.workName}
               style={{
                 fontSize: workNameFontSizePx + "px",
               }}
             >
-              {isBreak ? breakWorkName : workName}
+              {breakWorkName}
             </div>
           )}
           <div css={styles.userDisplayName}>{displayName}</div>
