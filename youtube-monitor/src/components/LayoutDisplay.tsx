@@ -156,7 +156,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                 fontSize: workNameFontSizePx + "px",
               }}
             >
-              {breakWorkName}
+              {isBreak ? breakWorkName : workName}
             </div>
           )}
           <div css={styles.userDisplayName}>{displayName}</div>
