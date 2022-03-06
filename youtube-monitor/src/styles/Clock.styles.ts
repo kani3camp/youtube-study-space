@@ -1,5 +1,4 @@
-import { css } from "@emotion/react"
-
+import { css } from '@emotion/react'
 
 export const clockStyle = css`
   height: 200px;

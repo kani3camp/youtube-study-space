@@ -1,8 +1,8 @@
 {
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-  },
-  "eslint.format.enable": false,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "editor.codeActionsOnSave": ["source.fixAll.eslint"],
+  "eslint.format.enable": false,
+  "files.eol": "\n"
 }

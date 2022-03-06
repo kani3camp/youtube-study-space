@@ -1,4 +1,4 @@
-import { RoomLayout } from "../../types/room-layout";
+import { RoomLayout } from '../../types/room-layout'
 
 export const LayoutName: RoomLayout = {
   version: 1,
@@ -13,7 +13,7 @@ export const LayoutName: RoomLayout = {
   },
   partition_shapes: [
     {
-      name: "partition1",
+      name: 'partition1',
       width: 999,
       height: 999,
     },
@@ -30,7 +30,7 @@ export const LayoutName: RoomLayout = {
       id: 999,
       x: 999,
       y: 999,
-      shape_type: "partition1",
+      shape_type: 'partition1',
     },
   ],
-};
+}

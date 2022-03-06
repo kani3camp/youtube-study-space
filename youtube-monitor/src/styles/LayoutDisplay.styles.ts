@@ -59,9 +59,9 @@ export const userDisplayName = css`
 `;
 
 export const breakBadge = css`
-  background-color: #23e463;
   color: black;
   z-index: ${Constants.breakBadgeZIndex};
   position: absolute;
   font-weight: bold;
+  border: solid;
 `;

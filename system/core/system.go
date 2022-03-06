@@ -1523,8 +1523,13 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		// これ以降は書き込みのみ可。
 		for _, changeOption := range command.ChangeOptions {
 			if changeOption.Type == WorkName {
-				// 作業名を書きかえ
-				seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				// 作業名もしくは休憩作業名を書きかえ
+				switch currentSeat.State {
+				case myfirestore.WorkState:
+					seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				case myfirestore.BreakState:
+					seats = CreateUpdatedSeatsSeatBreakWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				}
 				err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
@@ -1536,6 +1541,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			}
 			if changeOption.Type == WorkTime {
 				// 作業時間（入室時間から自動退室までの時間）を変更
+				// TODO: 休憩中であれば休憩時間の変更
 				realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 				
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.IntValue) * time.Minute)
@@ -2476,6 +2482,16 @@ func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, u
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].WorkName = workName
+			break
+		}
+	}
+	return seats
+}
+
+func CreateUpdatedSeatsSeatBreakWorkName(seats []myfirestore.Seat, breakWorkName string, userId string) []myfirestore.Seat {
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].BreakWorkName = breakWorkName
 			break
 		}
 	}

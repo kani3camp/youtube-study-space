@@ -1,81 +1,81 @@
-import React from "react";
-import * as styles from "../styles/Timer.styles";
+import React from 'react'
+import * as styles from '../styles/Timer.styles'
 import {
   TimeSection,
   SectionType,
   remainingTime,
   getCurrentSection,
   getNextSection,
-} from "../lib/time_table";
-import next from "next";
-import { serializeStyles } from "@emotion/serialize";
+} from '../lib/time_table'
+import next from 'next'
+import { serializeStyles } from '@emotion/serialize'
 
-class Timer extends React.Component<{}, any> {
-  private intervalId: NodeJS.Timeout | undefined;
+class Timer extends React.Component<Record<string, unknown>, any> {
+  private intervalId: NodeJS.Timeout | undefined
 
   updateState() {
-    const now: Date = new Date();
-    const currentSection = getCurrentSection();
+    const now: Date = new Date()
+    const currentSection = getCurrentSection()
     if (currentSection !== null) {
       let remaining_min: number = remainingTime(
         now.getHours(),
         now.getMinutes(),
         currentSection.ends.h,
         currentSection.ends.m
-      );
-      const remaining_sec: number = (60 - now.getSeconds()) % 60;
-      if (remaining_sec !== 0) remaining_min -= 1;
+      )
+      const remaining_sec: number = (60 - now.getSeconds()) % 60
+      if (remaining_sec !== 0) remaining_min -= 1
       const nextSectionType: string =
-        currentSection.sectionType === SectionType.Study ? "休憩" : "作業";
-      const nextSection = getNextSection();
+        currentSection.sectionType === SectionType.Study ? '休憩' : '作業'
+      const nextSection = getNextSection()
       if (nextSection !== null) {
         const nextSectionDuration: number = remainingTime(
           nextSection.starts.h,
           nextSection.starts.m,
           nextSection.ends.h,
           nextSection.ends.m
-        );
-        let sectionMessage = "";
+        )
+        let sectionMessage = ''
         if (currentSection.sectionType === SectionType.Study)
-          sectionMessage = "✏️作業✏️";
-        else sectionMessage = "☕️休憩☕️";
+          sectionMessage = '✏️作業✏️'
+        else sectionMessage = '☕️休憩☕️'
         this.setState({
-          remaining_min: remaining_min,
-          remaining_sec: remaining_sec,
+          remaining_min,
+          remaining_sec,
           currentPartName: currentSection.partType,
           currentSectionId: currentSection.sectionId,
-          nextSectionDuration: nextSectionDuration,
+          nextSectionDuration,
           nextSection: nextSectionType,
           sectionType: currentSection.sectionType,
-          sectionMessage: sectionMessage,
-        });
+          sectionMessage,
+        })
       }
     }
   }
 
-  constructor(props: {}) {
-    super(props);
+  constructor(props: Record<string, unknown>) {
+    super(props)
     this.state = {
       remaining_min: 0,
       remaining_sec: 0,
-      currentPartName: "",
+      currentPartName: '',
       currentSectionId: 0,
       nextSectionDuration: 0,
       nextSection: null,
       sectionType: SectionType.Break,
-      sectionMessage: "☕️休憩☕️",
-    };
+      sectionMessage: '☕️休憩☕️',
+    }
   }
 
   componentDidMount() {
     this.intervalId = setInterval(() => {
-      this.updateState();
-    }, 100);
+      this.updateState()
+    }, 100)
   }
 
   componentWillUnmount() {
     if (this.intervalId) {
-      clearInterval(this.intervalId);
+      clearInterval(this.intervalId)
     }
   }
 
@@ -93,14 +93,14 @@ class Timer extends React.Component<{}, any> {
         <div css={styles.remaining}>
           {this.state.remaining_min}：
           {this.state.remaining_sec < 10
-            ? "0" + this.state.remaining_sec
+            ? `0${this.state.remaining_sec}`
             : this.state.remaining_sec}
         </div>
-        <span>{this.state.currentPartName}　</span>
+        <span>{`${this.state.currentPartName}` + ' '}</span>
         <span>
           {this.state.currentSectionId !== 0
-            ? "セクション" + this.state.currentSectionId
-            : ""}
+            ? `セクション${this.state.currentSectionId}`
+            : ''}
         </span>
         <div css={styles.spacer} />
         <div css={styles.nextDescription}>
@@ -110,8 +110,8 @@ class Timer extends React.Component<{}, any> {
           <span>{this.state.nextSection}</span>
         </div>
       </div>
-    );
+    )
   }
 }
 
-export default Timer;
+export default Timer

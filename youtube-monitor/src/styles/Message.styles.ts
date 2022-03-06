@@ -23,4 +23,3 @@ export const numStudyingPeople = css`
   display: inline-block;
   background-color: rgba(253, 255, 226, 0.711);
 `
-
