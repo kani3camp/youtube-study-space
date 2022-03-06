@@ -1305,10 +1305,12 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				}
 				seats := roomDoc.Seats
 				
-				_, _, err = s.exitRoom(tx, seats, seat, &userDoc)
-				if err != nil {
-					return err
+				_, workedTimeSec, exitErr := s.exitRoom(tx, seats, seat, &userDoc)
+				if exitErr != nil {
+					return exitErr
 				}
+				s.MessageToLiveChat(ctx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
 			} else {
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
