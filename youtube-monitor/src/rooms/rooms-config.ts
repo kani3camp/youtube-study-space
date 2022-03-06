@@ -9,21 +9,19 @@ import { SeaOfSeatRoomLayout } from "./layouts/sea_of_seat_room";
 import { SimpleRoomLayout } from "./layouts/simple_room";
 import { ver2RoomLayout } from "./layouts/ver2";
 
-type RoomsConfig = {
-  roomLayouts: RoomLayout[];
+type AllRoomsConfig = {
+  basicRooms: RoomLayout[];
+  temporaryRooms: RoomLayout[];
 };
 
-export const basicRooms: RoomsConfig = {
-  roomLayouts: [
+const prodAllRooms: AllRoomsConfig = {
+  basicRooms: [
     circleRoomLayout,
     mazeRoomLayout,
     HimajinRoomLayout,
     SeaOfSeatRoomLayout,
   ],
-};
-
-export const temporaryRooms: RoomsConfig = {
-  roomLayouts: [
+  temporaryRooms: [
     classRoomLayout,
     SimpleRoomLayout,
     mazeRoomLayout,
@@ -31,9 +29,16 @@ export const temporaryRooms: RoomsConfig = {
   ],
 };
 
+const testAllRooms: AllRoomsConfig = {
+  basicRooms: [circleRoomLayout],
+  temporaryRooms: [SimpleRoomLayout],
+};
+
+export const allRooms: AllRoomsConfig = testAllRooms;
+
 export const numSeatsInAllBasicRooms = (): number => {
   let numSeatsBasicRooms = 0;
-  for (const r of basicRooms.roomLayouts) {
+  for (const r of allRooms.basicRooms) {
     numSeatsBasicRooms += r.seats.length;
   }
   return numSeatsBasicRooms;
