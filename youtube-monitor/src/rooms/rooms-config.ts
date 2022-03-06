@@ -30,7 +30,7 @@ const prodAllRooms: AllRoomsConfig = {
 };
 
 const testAllRooms: AllRoomsConfig = {
-  basicRooms: [circleRoomLayout],
+  basicRooms: [circleRoomLayout, SimpleRoomLayout],
   temporaryRooms: [SimpleRoomLayout],
 };
 

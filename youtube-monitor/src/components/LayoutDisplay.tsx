@@ -110,8 +110,6 @@ const LayoutDisplay: FC<Props> = (props) => {
       const isBreak =
         isUsed &&
         seatWithSeatId(global_seat_id, props.seats).state === SeatState.Break;
-      console.log(isBreak);
-      if (isBreak) console.log(breakWorkName);
 
       // 文字幅に応じて作業名のフォントサイズを調整
       let workNameFontSizePx = seatFontSizePx;
@@ -160,6 +158,21 @@ const LayoutDisplay: FC<Props> = (props) => {
             </div>
           )}
           <div css={styles.userDisplayName}>{displayName}</div>
+
+          {isBreak && (
+            <div
+              css={styles.breakBadge}
+              style={{
+                fontSize: seatFontSizePx * 0.5 + "px",
+                borderRadius: seatFontSizePx / 3 + "px",
+                padding: seatFontSizePx / 10 + "px",
+                left: seatFontSizePx * 0.1 + "px",
+                top: seatFontSizePx * 0.3 + "px",
+              }}
+            >
+              休み中
+            </div>
+          )}
         </div>
       );
     });
