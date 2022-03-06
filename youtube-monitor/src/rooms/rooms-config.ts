@@ -7,7 +7,6 @@ import { mazeRoomLayout } from './layouts/maze_room'
 import { oneSeatRoomLayout } from './layouts/one_seat_room'
 import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
-import { ver2RoomLayout } from './layouts/ver2'
 
 type AllRoomsConfig = {
   basicRooms: RoomLayout[]

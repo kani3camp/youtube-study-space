@@ -895,7 +895,7 @@ func TrimTimeOptionPrefix(str string) string {
 	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
 		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
 	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
+		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
 	}
 	return str
 }
@@ -1223,15 +1223,18 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 			remainingMinutes := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
 			var stateStr string
+			var breakUntilStr string
 			switch currentSeat.State {
 			case myfirestore.WorkState:
 				stateStr = "作業中"
+				breakUntilStr = ""
 			case myfirestore.BreakState:
 				stateStr = "休憩中"
+				breakUntilStr = "作業再開まで" + strconv.Itoa(int(currentSeat.CurrentStateUntil.Sub(utils.JstNow()).Minutes())) + "分です"
 			}
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+
 				"番の席で"+stateStr+"です。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+
-				strconv.Itoa(remainingMinutes)+"分です")
+				strconv.Itoa(remainingMinutes)+"分です。"+breakUntilStr)
 		} else {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 				"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！")
@@ -1649,6 +1652,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		if currentWorkedMin < s.Constants.MinBreakIntervalMin {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Constants.
 				MinBreakIntervalMin)+"分間は休憩できません。現在"+strconv.Itoa(currentWorkedMin)+"分作業中")
+			return nil
 		}
 		
 		// 休憩処理
@@ -2064,7 +2068,7 @@ func (s *System) exitRoom(
 	
 	newSeats := previousSeats[:0]
 	for _, seat := range previousSeats {
-		if seat.UserId != seat.UserId {
+		if seat.UserId != previousSeat.UserId {
 			newSeats = append(newSeats, seat)
 		}
 	}
