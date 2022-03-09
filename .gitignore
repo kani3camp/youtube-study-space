@@ -19,3 +19,5 @@ system/aws-lambda/main.zip
 
 
 
+system/.serverless/youtubeStudySpace.zip
+youtube-monitor/.env
