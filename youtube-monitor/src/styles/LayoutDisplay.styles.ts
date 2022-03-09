@@ -1,4 +1,5 @@
-import { css } from '@emotion/react'
+import { css } from "@emotion/react";
+import { Constants } from "../lib/constants";
 
 export const roomLayout = css`
   position: relative;
@@ -9,7 +10,7 @@ export const roomLayout = css`
   box-sizing: border-box;
   margin: auto;
   border: solid 6px #303030;
-`
+`;
 
 export const seat = css`
   position: absolute;
@@ -17,12 +18,12 @@ export const seat = css`
   flex-direction: column;
   justify-content: center;
   align-items: center;
-`
+`;
 
 export const partition = css`
   position: absolute;
   background-color: #2d2b41;
-`
+`;
 
 export const seatId = css`
   margin: 0;
@@ -30,15 +31,13 @@ export const seatId = css`
   top: 0;
   left: 0;
   color: #414141;
-`
+`;
 
 export const emptySeatNum = css`
   margin: 0;
   color: #414141;
-`
-export const usedSeatNum = css`
-
-`
+`;
+export const usedSeatNum = css``;
 
 export const workName = css`
   margin: 0;
@@ -48,7 +47,7 @@ export const workName = css`
   overflow: hidden;
   white-space: nowrap;
   font-weight: bolder;
-`
+`;
 
 export const userDisplayName = css`
   margin: 0;
@@ -57,4 +56,12 @@ export const userDisplayName = css`
   overflow: hidden;
   white-space: nowrap;
   color: #202020;
-`
+`;
+
+export const breakBadge = css`
+  color: black;
+  z-index: ${Constants.breakBadgeZIndex};
+  position: absolute;
+  font-weight: bold;
+  border: solid;
+`;

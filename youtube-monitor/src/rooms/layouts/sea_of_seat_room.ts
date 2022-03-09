@@ -1,4 +1,4 @@
-import { RoomLayout } from "../../types/room-layout";
+import { RoomLayout } from '../../types/room-layout'
 
 export const SeaOfSeatRoomLayout: RoomLayout = {
   version: 1,
@@ -13,7 +13,7 @@ export const SeaOfSeatRoomLayout: RoomLayout = {
   },
   partition_shapes: [
     {
-      name: "l-v",
+      name: 'l-v',
       width: 5,
       height: 240,
     },
@@ -265,43 +265,43 @@ export const SeaOfSeatRoomLayout: RoomLayout = {
       id: 1,
       x: 40,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 2,
       x: 85,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 3,
       x: 130,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 4,
       x: 175,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 5,
       x: 220,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 6,
       x: 265,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
     {
       id: 7,
       x: 310,
       y: 0,
-      shape_type: "l-v",
+      shape_type: 'l-v',
     },
   ],
-};
+}

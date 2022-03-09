@@ -1,5 +1,5 @@
-import { css } from "@emotion/react";
-import { Constants } from "../lib/constants";
+import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const globalStyle = css`
   html {
@@ -10,4 +10,4 @@ export const globalStyle = css`
   body {
     margin: 0;
   }
-`;
+`

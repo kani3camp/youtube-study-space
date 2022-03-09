@@ -9,11 +9,7 @@ import fetcher from "../lib/fetcher";
 import { RoomsStateResponse } from "../types/api";
 import { bindActionCreators } from "redux";
 import Message from "./Message";
-import {
-  basicRooms,
-  numSeatsInAllBasicRooms,
-  temporaryRooms,
-} from "../rooms/rooms-config";
+import { allRooms, numSeatsInAllBasicRooms } from "../rooms/rooms-config";
 import LayoutDisplay from "./LayoutDisplay";
 import { roomLayout } from "../styles/LayoutDisplay.styles";
 
@@ -76,11 +72,11 @@ const Room = () => {
             let current_adding_temporary_room_index = 0;
             while (current_num_seats < min_seats_by_vacancy_rate) {
               current_num_seats +=
-                temporaryRooms.roomLayouts[current_adding_temporary_room_index]
+                allRooms.temporaryRooms[current_adding_temporary_room_index]
                   .seats.length;
               current_adding_temporary_room_index =
                 (current_adding_temporary_room_index + 1) %
-                temporaryRooms.roomLayouts.length;
+                allRooms.temporaryRooms.length;
             }
             final_desired_max_seats = current_num_seats;
           } else {
@@ -108,7 +104,7 @@ const Room = () => {
 
           // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
           let next_display_room_layouts: RoomLayout[] = [
-            ...basicRooms.roomLayouts,
+            ...allRooms.basicRooms,
           ]; // まずは基本ルームを設定
           // 必要なぶんだけ臨時レイアウトを追加
           if (max_seats > numSeatsInAllBasicRooms()) {
@@ -117,11 +113,11 @@ const Room = () => {
               numSeatsOfRoomLayouts(next_display_room_layouts) < max_seats
             ) {
               next_display_room_layouts.push(
-                temporaryRooms.roomLayouts[current_adding_temporary_room_index]
+                allRooms.temporaryRooms[current_adding_temporary_room_index]
               );
               current_adding_temporary_room_index =
                 (current_adding_temporary_room_index + 1) %
-                temporaryRooms.roomLayouts.length;
+                allRooms.temporaryRooms.length;
             }
           }
 

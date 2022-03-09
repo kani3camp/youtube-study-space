@@ -1,6 +1,5 @@
 import { css } from '@emotion/react'
 
-
 export const standingRoom = css`
   height: 350px;
   width: 400px;

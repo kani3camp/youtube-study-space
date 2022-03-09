@@ -1,4 +1,4 @@
-import { RoomLayout } from "../../types/room-layout";
+import { RoomLayout } from '../../types/room-layout'
 
 export const oneSeatRoomLayout: RoomLayout = {
   version: 1,
@@ -20,4 +20,4 @@ export const oneSeatRoomLayout: RoomLayout = {
     },
   ],
   partitions: [],
-};
+}

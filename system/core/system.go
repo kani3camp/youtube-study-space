@@ -895,7 +895,7 @@ func TrimTimeOptionPrefix(str string) string {
 	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
 		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
 	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
+		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
 	}
 	return str
 }
@@ -1223,15 +1223,18 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 			remainingMinutes := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
 			var stateStr string
+			var breakUntilStr string
 			switch currentSeat.State {
 			case myfirestore.WorkState:
 				stateStr = "作業中"
+				breakUntilStr = ""
 			case myfirestore.BreakState:
 				stateStr = "休憩中"
+				breakUntilStr = "作業再開まで" + strconv.Itoa(int(currentSeat.CurrentStateUntil.Sub(utils.JstNow()).Minutes())) + "分です"
 			}
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+
 				"番の席で"+stateStr+"です。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+
-				strconv.Itoa(remainingMinutes)+"分です")
+				strconv.Itoa(remainingMinutes)+"分です。"+breakUntilStr)
 		} else {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 				"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！")
@@ -1302,10 +1305,12 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				}
 				seats := roomDoc.Seats
 				
-				_, _, err = s.exitRoom(tx, seats, seat, &userDoc)
-				if err != nil {
-					return err
+				_, workedTimeSec, exitErr := s.exitRoom(tx, seats, seat, &userDoc)
+				if exitErr != nil {
+					return exitErr
 				}
+				s.MessageToLiveChat(ctx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
 			} else {
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
@@ -1523,8 +1528,13 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		// これ以降は書き込みのみ可。
 		for _, changeOption := range command.ChangeOptions {
 			if changeOption.Type == WorkName {
-				// 作業名を書きかえ
-				seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				// 作業名もしくは休憩作業名を書きかえ
+				switch currentSeat.State {
+				case myfirestore.WorkState:
+					seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				case myfirestore.BreakState:
+					seats = CreateUpdatedSeatsSeatBreakWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
+				}
 				err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
@@ -1536,6 +1546,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			}
 			if changeOption.Type == WorkTime {
 				// 作業時間（入室時間から自動退室までの時間）を変更
+				// TODO: 休憩中であれば休憩時間の変更
 				realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 				
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.IntValue) * time.Minute)
@@ -1642,7 +1653,8 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		currentWorkedMin := int(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt).Minutes())
 		if currentWorkedMin < s.Constants.MinBreakIntervalMin {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Constants.
-				MinBreakIntervalMin)+"分間は休憩できません。現在"+strconv.Itoa(currentWorkedMin)+"秒作業中")
+				MinBreakIntervalMin)+"分間は休憩できません。現在"+strconv.Itoa(currentWorkedMin)+"分作業中")
+			return nil
 		}
 		
 		// 休憩処理
@@ -2058,7 +2070,7 @@ func (s *System) exitRoom(
 	
 	newSeats := previousSeats[:0]
 	for _, seat := range previousSeats {
-		if seat.UserId != seat.UserId {
+		if seat.UserId != previousSeat.UserId {
 			newSeats = append(newSeats, seat)
 		}
 	}
@@ -2476,6 +2488,16 @@ func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, u
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].WorkName = workName
+			break
+		}
+	}
+	return seats
+}
+
+func CreateUpdatedSeatsSeatBreakWorkName(seats []myfirestore.Seat, breakWorkName string, userId string) []myfirestore.Seat {
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].BreakWorkName = breakWorkName
 			break
 		}
 	}

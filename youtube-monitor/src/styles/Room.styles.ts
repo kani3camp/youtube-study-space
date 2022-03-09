@@ -8,4 +8,3 @@ export const defaultRoom = css`
   top: 0;
   left: 0;
 `
-

@@ -1,40 +1,44 @@
-import { RoomLayout } from "../types/room-layout";
-import { circleRoomLayout } from "./layouts/circle_room";
-import { classRoomLayout } from "./layouts/classroom";
-import { HimajinRoomLayout } from "./layouts/himajin_room";
-import { iLineRoomLayout } from "./layouts/iline_room";
-import { mazeRoomLayout } from "./layouts/maze_room";
-import { oneSeatRoomLayout } from "./layouts/one_seat_room";
-import { SeaOfSeatRoomLayout } from "./layouts/sea_of_seat_room";
-import { SimpleRoomLayout } from "./layouts/simple_room";
-import { ver2RoomLayout } from "./layouts/ver2";
+import { RoomLayout } from '../types/room-layout'
+import { circleRoomLayout } from './layouts/circle_room'
+import { classRoomLayout } from './layouts/classroom'
+import { HimajinRoomLayout } from './layouts/himajin_room'
+import { iLineRoomLayout } from './layouts/iline_room'
+import { mazeRoomLayout } from './layouts/maze_room'
+import { oneSeatRoomLayout } from './layouts/one_seat_room'
+import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
+import { SimpleRoomLayout } from './layouts/simple_room'
 
-type RoomsConfig = {
-  roomLayouts: RoomLayout[];
-};
+type AllRoomsConfig = {
+  basicRooms: RoomLayout[]
+  temporaryRooms: RoomLayout[]
+}
 
-export const basicRooms: RoomsConfig = {
-  roomLayouts: [
+const prodAllRooms: AllRoomsConfig = {
+  basicRooms: [
     circleRoomLayout,
     mazeRoomLayout,
     HimajinRoomLayout,
     SeaOfSeatRoomLayout,
   ],
-};
-
-export const temporaryRooms: RoomsConfig = {
-  roomLayouts: [
+  temporaryRooms: [
     classRoomLayout,
     SimpleRoomLayout,
     mazeRoomLayout,
     HimajinRoomLayout,
   ],
-};
+}
+
+const testAllRooms: AllRoomsConfig = {
+  basicRooms: [circleRoomLayout],
+  temporaryRooms: [SimpleRoomLayout],
+}
+
+export const allRooms: AllRoomsConfig = testAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
-  let numSeatsBasicRooms = 0;
-  for (const r of basicRooms.roomLayouts) {
-    numSeatsBasicRooms += r.seats.length;
+  let numSeatsBasicRooms = 0
+  for (const r of allRooms.basicRooms) {
+    numSeatsBasicRooms += r.seats.length
   }
-  return numSeatsBasicRooms;
-};
+  return numSeatsBasicRooms
+}
