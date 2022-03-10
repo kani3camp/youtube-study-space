@@ -3,46 +3,36 @@ package direct_operations
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
+	"cloud.google.com/go/firestore"
 	"context"
 	"encoding/json"
+	"fmt"
 	"google.golang.org/api/option"
 	"log"
 	"os"
 )
 
-func UpdateRoomLayout(roomLayoutFilePath string, clientOption option.ClientOption, ctx context.Context) {
-	_system, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
+func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
+	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
+	var s string
+	_, _ = fmt.Scanf("%s", &s)
+	if s != "yes" {
 		return
 	}
 	
-	err = _system.UpdateRoomLayout(roomLayoutFilePath, ctx)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-}
-
-func ExitAllUsersAllRoom(clientOption option.ClientOption, ctx context.Context) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
 		return
 	}
 	
-	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
-	err = _system.ExitAllUserDefaultRoom(ctx)
+	_system.MessageToLiveChat(ctx, "全ユーザーを退室させます。")
+	err = _system.ExitAllUserInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
 	}
-	err = _system.ExitAllUserNoSeatRoom(ctx)
-	if err != nil {
-		panic(err)
-		return
-	}
-	_system.SendLiveChatMessage("全ユーザーを退室させました。", ctx)
+	_system.MessageToLiveChat(ctx, "全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
@@ -52,10 +42,10 @@ func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx conte
 		return
 	}
 	
-	_system.SetProcessedUser(userId, "**")
+	_system.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
-		CommandType:   core.Out,
-		InOptions: core.InOptions{},
+		CommandType: core.Out,
+		InOptions:   core.InOptions{},
 	}
 	
 	err = _system.Out(outCommandDetails, ctx)
@@ -72,11 +62,15 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 		return
 	}
 	
-	allUsersTotalStudySecList, err := _system.RetrieveAllUsersTotalStudySecList(ctx)
-	if err != nil {
-		panic(err)
-		return
-	}
+	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
+	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		var err error
+		allUsersTotalStudySecList, err = _system.RetrieveAllUsersTotalStudySecList(ctx, tx)
+		if err != nil {
+			panic(err)
+		}
+		return nil
+	})
 	
 	now := utils.JstNow()
 	dateString := now.Format("2006-01-02_15-04-05")
@@ -85,10 +79,10 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 		panic(err)
 		return
 	}
-	defer func() {_ = f.Close()}()
+	defer func() { _ = f.Close() }()
 	
 	jsonEnc := json.NewEncoder(f)
-	jsonEnc.SetIndent("", "\t")
+	//jsonEnc.SetIndent("", "\t")
 	err = jsonEnc.Encode(allUsersTotalStudySecList)
 	if err != nil {
 		panic(err)

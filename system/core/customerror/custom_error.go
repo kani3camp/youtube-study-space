@@ -3,6 +3,7 @@ package customerror
 import "github.com/pkg/errors"
 
 type ErrorType uint
+
 const (
 	Unknown ErrorType = iota
 	
@@ -14,6 +15,7 @@ const (
 	InvalidRoomLayout
 	YoutubeLiveChatBotFailed
 	SeatNotFound
+	NoSeatAvailable
 	
 	InvalidCommand
 	
@@ -22,6 +24,14 @@ const (
 	InfoProcessFailed
 	MyProcessFailed
 	ChangeProcessFailed
+	SeatProcessFailed
+	ReportProcessFailed
+	KickProcessFailed
+	CheckProcessFailed
+	MoreProcessFailed
+	BreakProcessFailed
+	ResumeProcessFailed
+	RankProcessFailed
 )
 
 type CustomError struct {

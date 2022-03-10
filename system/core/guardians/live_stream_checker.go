@@ -12,54 +12,52 @@ import (
 )
 
 type LiveStreamsListResponse struct {
-	Kind string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	TokenType   string `json:"token_type"`
+	Kind      string `json:"access_token"`
+	ExpiresIn int    `json:"expires_in"`
+	Scope     string `json:"scope"`
+	TokenType string `json:"token_type"`
 }
 
 type LiveStreamChecker struct {
-	YoutubeLiveChatBot *youtubebot.YoutubeLiveChatBot
-	LineBot *mylinebot.LineBot
+	YoutubeLiveChatBot  *youtubebot.YoutubeLiveChatBot
+	LineBot             *mylinebot.LineBot
 	FirestoreController *myfirestore.FirestoreController
 }
-
 
 func NewLiveStreamChecker(
 	controller *myfirestore.FirestoreController,
 	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
 	lineBot *mylinebot.LineBot,
-	) *LiveStreamChecker {
+) *LiveStreamChecker {
 	
 	return &LiveStreamChecker{
-		YoutubeLiveChatBot: youtubeLiveChatBot,
-		LineBot: lineBot,
+		YoutubeLiveChatBot:  youtubeLiveChatBot,
+		LineBot:             lineBot,
 		FirestoreController: controller,
 	}
 }
 
-
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
-	channelCredential, err := checker.FirestoreController.RetrieveYoutubeChannelCredentialConfig(ctx)
+	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
 	if err != nil {
 		return err
 	}
 	config := &oauth2.Config{
-		ClientID: channelCredential.ClientId,
-		ClientSecret: channelCredential.ClientSecret,
-		Endpoint:     oauth2.Endpoint{
+		ClientID:     credentials.YoutubeChannelClientId,
+		ClientSecret: credentials.YoutubeChannelClientSecret,
+		Endpoint: oauth2.Endpoint{
 			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
 			TokenURL:  "https://accounts.google.com/o/oauth2/token",
 			AuthStyle: 0,
 		},
-		RedirectURL:  "https://youtube.com/",
-		Scopes:       nil,
+		RedirectURL: "https://youtube.com/",
+		Scopes:      nil,
 	}
 	channelOauthToken := &oauth2.Token{
-		AccessToken: channelCredential.AccessToken,
+		AccessToken:  credentials.YoutubeChannelAccessToken,
 		TokenType:    "Bearer",
-		RefreshToken: channelCredential.RefreshToken,
-		Expiry:       channelCredential.ExpirationDate,
+		RefreshToken: credentials.YoutubeChannelRefreshToken,
+		Expiry:       credentials.YoutubeChannelExpirationDate,
 	}
 	channelClientOption := option.WithTokenSource(config.TokenSource(ctx, channelOauthToken))
 	service, err := youtube.NewService(ctx, channelClientOption)
@@ -77,7 +75,6 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	fmt.Println(streamStatus)
 	fmt.Println(healthStatus)
 	
-	// TODO: 結果処理
 	if streamStatus != "active" {
 		_ = checker.LineBot.SendMessage("stream status is now : " + streamStatus)
 	}
@@ -87,5 +84,3 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	
 	return nil
 }
-
-
