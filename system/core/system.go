@@ -2485,47 +2485,57 @@ func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, u
 }
 
 func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
-	// publishedAtの値の例: "2021-11-13T07:21:30.486982+00:00"
-	publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
-	if err != nil {
-		return err
-	}
-	publishedAt = publishedAt.In(utils.JapanLocation())
-	
-	liveChatHistoryDoc := myfirestore.LiveChatHistoryDoc{
-		AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
-		AuthorDisplayName:     chatMessage.AuthorDetails.DisplayName,
-		AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
-		AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
-		Id:                    chatMessage.Id,
-		LiveChatId:            chatMessage.Snippet.LiveChatId,
-		MessageText:           chatMessage.Snippet.TextMessageDetails.MessageText,
-		PublishedAt:           publishedAt,
-		Type:                  chatMessage.Snippet.Type,
-	}
-	err = s.FirestoreController.AddLiveChatHistoryDoc(liveChatHistoryDoc, ctx)
-	if err != nil {
-		return err
-	}
-	
-	return nil
-}
-
-func (s *System) DeleteLiveChatHistoryBeforeDate(date time.Time, ctx context.Context) error {
-	// date以前の全てのlive chat history docsをクエリで取得
-	docIds, err := s.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(date, ctx)
-	if err != nil {
-		return err
-	}
-	
-	// forで各docをdeleteしていく
-	for _, docId := range docIds {
-		err := s.FirestoreController.DeleteLiveChatHistoryDoc(docId, ctx)
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// publishedAtの値の例: "2021-11-13T07:21:30.486982+00:00"
+		publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
 		if err != nil {
 			return err
 		}
-	}
-	return nil
+		publishedAt = publishedAt.In(utils.JapanLocation())
+		
+		liveChatHistoryDoc := myfirestore.LiveChatHistoryDoc{
+			AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
+			AuthorDisplayName:     chatMessage.AuthorDetails.DisplayName,
+			AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
+			AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
+			Id:                    chatMessage.Id,
+			LiveChatId:            chatMessage.Snippet.LiveChatId,
+			MessageText:           chatMessage.Snippet.TextMessageDetails.MessageText,
+			PublishedAt:           publishedAt,
+			Type:                  chatMessage.Snippet.Type,
+		}
+		err = s.Constants.FirestoreController.AddLiveChatHistoryDoc(ctx, tx, liveChatHistoryDoc)
+		if err != nil {
+			return err
+		}
+		
+		return nil
+	})
+}
+
+func (s *System) DeleteLiveChatHistoryBeforeDate(ctx context.Context, date time.Time) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// date以前の全てのlive chat history docsをクエリで取得
+		iter := s.Constants.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx, date)
+		
+		// forで各docをdeleteしていく
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			err = s.Constants.FirestoreController.DeleteLiveChatHistoryDoc(tx, doc.Ref.ID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, userId string) []myfirestore.Seat {
 	for i, seat := range seats {
 		if seat.UserId == userId {

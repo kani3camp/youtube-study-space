@@ -132,7 +132,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		for _, chatMessage := range chatMessages {
 			err = _system.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
-				_ = _system.LineBot.SendMessageWithError("failed to add live chat history", err)
+				_ = _system.MessageToLineBotWithError("failed to add live chat history", err)
 				return
 			}
 		}
@@ -171,7 +171,12 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	defer bigqueryClient.Close()
+	defer func() {
+		err := bigqueryClient.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	
 	gcsRef := bigquery.NewGCSReference("gs://firestore-collection-export-test-youtube-study-space/live-chat-history-collection/all_namespaces/kind_live-chat-history/all_namespaces_kind_live-chat-history.export_metadata")
 	gcsRef.AllowJaggedRows = true

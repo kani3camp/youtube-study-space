@@ -4,7 +4,6 @@ import (
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"strconv"
 	"time"
@@ -320,43 +319,22 @@ func (controller *FirestoreController) UpdateSeats(tx *firestore.Transaction, se
 	return tx.Update(ref, []firestore.Update{
 		{Path: SeatsFirestore, Value: seats},
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (controller *FirestoreController) AddLiveChatHistoryDoc(liveChatHistoryDoc LiveChatHistoryDoc, ctx context.Context) error {
+func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
+	liveChatHistoryDoc LiveChatHistoryDoc) error {
 	docId := "live-chat_" + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.PublishedAt.Nanosecond())
-	_, err := controller.FirestoreClient.Collection(LIVE_CHAT_HISTORY).Doc(docId).Set(ctx, liveChatHistoryDoc)
-	if err != nil {
-		return err
-	}
-	return nil
+	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
+	return controller.set(ctx, tx, ref, liveChatHistoryDoc)
 }
 
-func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDate(date time.Time, ctx context.Context) ([]string, error) {
-	iter := controller.FirestoreClient.Collection(LIVE_CHAT_HISTORY).Where(PublishedAtDocName, "<", date).Documents(ctx)
-	var docIds []string
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return []string{}, err
-		}
-		docIds = append(docIds, doc.Ref.ID)
-	}
-	return docIds, nil
+func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx context.Context,
+	date time.Time,
+) *firestore.DocumentIterator {
+	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocName, "<", date).Documents(ctx)
 }
 
-func (controller *FirestoreController) DeleteLiveChatHistoryDoc(docId string, ctx context.Context) error {
-	_, err := controller.FirestoreClient.Collection(LIVE_CHAT_HISTORY).Doc(docId).Delete(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+func (controller *FirestoreController) DeleteLiveChatHistoryDoc(tx *firestore.Transaction, docId string) error {
+	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
+	return tx.Delete(ref)
 }
-
-
