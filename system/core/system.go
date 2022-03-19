@@ -4,8 +4,10 @@ import (
 	"app.modules/core/customerror"
 	"app.modules/core/discordbot"
 	"app.modules/core/guardians"
+	"app.modules/core/mybigquery"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
+	"app.modules/core/mystorage"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
@@ -62,20 +64,24 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	}
 	
 	constants := SystemConstants{
-		FirestoreController:             fsController,
-		liveChatBot:                     liveChatBot,
-		lineBot:                         lineBot,
-		discordBot:                      discordBot,
-		LiveChatBotChannelId:            credentialsDoc.YoutubeBotChannelId,
-		MaxWorkTimeMin:                  constantsConfig.MaxWorkTimeMin,
-		MinWorkTimeMin:                  constantsConfig.MinWorkTimeMin,
-		DefaultWorkTimeMin:              constantsConfig.DefaultWorkTimeMin,
-		MinBreakDurationMin:             constantsConfig.MinBreakDurationMin,
-		MaxBreakDurationMin:             constantsConfig.MaxBreakDurationMin,
-		MinBreakIntervalMin:             constantsConfig.MinBreakIntervalMin,
-		DefaultBreakDurationMin:         constantsConfig.DefaultBreakDurationMin,
-		DefaultSleepIntervalMilli:       constantsConfig.SleepIntervalMilli,
-		CheckDesiredMaxSeatsIntervalSec: constantsConfig.CheckDesiredMaxSeatsIntervalSec,
+		FirestoreController:                 fsController,
+		liveChatBot:                         liveChatBot,
+		lineBot:                             lineBot,
+		discordBot:                          discordBot,
+		LiveChatBotChannelId:                credentialsDoc.YoutubeBotChannelId,
+		MaxWorkTimeMin:                      constantsConfig.MaxWorkTimeMin,
+		MinWorkTimeMin:                      constantsConfig.MinWorkTimeMin,
+		DefaultWorkTimeMin:                  constantsConfig.DefaultWorkTimeMin,
+		MinBreakDurationMin:                 constantsConfig.MinBreakDurationMin,
+		MaxBreakDurationMin:                 constantsConfig.MaxBreakDurationMin,
+		MinBreakIntervalMin:                 constantsConfig.MinBreakIntervalMin,
+		DefaultBreakDurationMin:             constantsConfig.DefaultBreakDurationMin,
+		DefaultSleepIntervalMilli:           constantsConfig.SleepIntervalMilli,
+		CheckDesiredMaxSeatsIntervalSec:     constantsConfig.CheckDesiredMaxSeatsIntervalSec,
+		LastResetDailyTotalStudySec:         constantsConfig.LastResetDailyTotalStudySec,
+		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferLiveChatHistoryBigquery,
+		GcpRegion:                           constantsConfig.GcpRegion,
+		GcsFirestoreExportBucketName:        constantsConfig.GcsFirestoreExportBucketName,
 	}
 	
 	// 全ての項目が初期化できているか確認
@@ -2370,44 +2376,36 @@ func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	log.Println("ResetDailyTotalStudyTime()")
-	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		constantsConfig, err := s.Constants.FirestoreController.RetrieveSystemConstantsConfig(ctx, tx)
+	// 時間がかかる処理なのでトランザクションはなし
+	previousDate := s.Constants.LastResetDailyTotalStudySec.In(utils.JapanLocation())
+	now := utils.JstNow()
+	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
+	if isDifferentDay && now.After(previousDate) {
+		userIter := s.Constants.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
+		count := 0
+		for {
+			doc, err := userIter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			err = s.Constants.FirestoreController.ResetDailyTotalStudyTime(ctx, doc.Ref)
+			if err != nil {
+				return err
+			}
+			count += 1
+		}
+		_ = s.Constants.lineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
+		err := s.Constants.FirestoreController.SetLastResetDailyTotalStudyTime(ctx, now)
 		if err != nil {
 			return err
 		}
-		previousDate := constantsConfig.LastResetDailyTotalStudySec.In(utils.JapanLocation())
-		now := utils.JstNow()
-		isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
-		if isDifferentDay && now.After(previousDate) {
-			userIter := s.Constants.FirestoreController.RetrieveAllNonDailyZeroUserDocs(ctx)
-			if err != nil {
-				return err
-			}
-			count := 0
-			for {
-				doc, err := userIter.Next()
-				if err == iterator.Done {
-					break
-				}
-				if err != nil {
-					return err
-				}
-				err = s.Constants.FirestoreController.ResetDailyTotalStudyTime(tx, doc.Ref)
-				if err != nil {
-					return err
-				}
-				count += 1
-			}
-			_ = s.Constants.lineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
-			err = s.Constants.FirestoreController.SetLastResetDailyTotalStudyTime(tx, now)
-			if err != nil {
-				return err
-			}
-		} else {
-			_ = s.Constants.lineBot.SendMessage("all user's daily total study times are already reset today.")
-		}
-		return nil
-	})
+	} else {
+		_ = s.Constants.lineBot.SendMessage("all user's daily total study times are already reset today.")
+	}
+	return nil
 }
 
 func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context, tx *firestore.Transaction) ([]UserIdTotalStudySecSet, error) {
@@ -2484,45 +2482,98 @@ func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, u
 	return seats
 }
 
-func CreateUpdatedSeatsSeatWorkName(seats []myfirestore.Seat, workName string, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].WorkName = workName
-			break
+func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// publishedAtの値の例: "2021-11-13T07:21:30.486982+00:00"
+		publishedAt, err := time.Parse(time.RFC3339Nano, chatMessage.Snippet.PublishedAt)
+		if err != nil {
+			return err
 		}
-	}
-	return seats
+		publishedAt = publishedAt.In(utils.JapanLocation())
+		
+		liveChatHistoryDoc := myfirestore.LiveChatHistoryDoc{
+			AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
+			AuthorDisplayName:     chatMessage.AuthorDetails.DisplayName,
+			AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
+			AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
+			Id:                    chatMessage.Id,
+			LiveChatId:            chatMessage.Snippet.LiveChatId,
+			MessageText:           chatMessage.Snippet.TextMessageDetails.MessageText,
+			PublishedAt:           publishedAt,
+			Type:                  chatMessage.Snippet.Type,
+		}
+		err = s.Constants.FirestoreController.AddLiveChatHistoryDoc(ctx, tx, liveChatHistoryDoc)
+		if err != nil {
+			return err
+		}
+		
+		return nil
+	})
 }
 
-func CreateUpdatedSeatsSeatBreakWorkName(seats []myfirestore.Seat, breakWorkName string, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].BreakWorkName = breakWorkName
-			break
-		}
-	}
-	return seats
-}
-
-func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state myfirestore.SeatState,
-	currentStateStartedAt time.Time, currentStateUntil time.Time, cumulativeWorkSec int, dailyCumulativeWorkSec int,
-	workName string,
-) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].State = state
-			seats[i].CurrentStateStartedAt = currentStateStartedAt
-			seats[i].CurrentStateUntil = currentStateUntil
-			seats[i].CumulativeWorkSec = cumulativeWorkSec
-			seats[i].DailyCumulativeWorkSec = dailyCumulativeWorkSec
-			switch state {
-			case myfirestore.BreakState:
-				seats[i].BreakWorkName = workName
-			case myfirestore.WorkState:
-				seats[i].WorkName = workName
+func (s *System) DeleteLiveChatHistoryBeforeDate(ctx context.Context, date time.Time) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// date以前の全てのlive chat history docsをクエリで取得
+		iter := s.Constants.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx, date)
+		
+		// forで各docをdeleteしていく
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
 			}
-			break
+			if err != nil {
+				return err
+			}
+			err = s.Constants.FirestoreController.DeleteLiveChatHistoryDoc(tx, doc.Ref.ID)
+			if err != nil {
+				return err
+			}
 		}
+		return nil
+	})
+}
+
+func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
+	log.Println("BackupLiveChatHistoryFromGcsToBigquery()")
+	// 時間がかかる処理なのでトランザクションはなし
+	previousDate := s.Constants.LastTransferLiveChatHistoryBigquery.In(utils.JapanLocation())
+	now := utils.JstNow()
+	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
+	if isDifferentDay && now.After(previousDate) {
+		gcsClient, err := mystorage.NewStorageClient(ctx, clientOption, s.Constants.GcpRegion)
+		if err != nil {
+			return err
+		}
+		defer gcsClient.CloseClient()
+		
+		projectId, err := GetGcpProjectId(ctx, clientOption)
+		if err != nil {
+			return err
+		}
+		bqClient, err := mybigquery.NewBigqueryClient(ctx, projectId, clientOption, s.Constants.GcpRegion)
+		if err != nil {
+			return err
+		}
+		defer bqClient.CloseClient()
+		
+		gcsTargetFolderName, err := gcsClient.GetGcsYesterdayExportFolderName(ctx, s.Constants.GcsFirestoreExportBucketName)
+		if err != nil {
+			return err
+		}
+		
+		err = bqClient.ReadCollectionsFromGcs(ctx, gcsTargetFolderName, s.Constants.GcsFirestoreExportBucketName,
+			[]string{myfirestore.LiveChatHistory})
+		if err != nil {
+			return err
+		}
+		_ = s.Constants.lineBot.SendMessage("successfully transfer yesterday's live chat history to bigquery.")
+		err = s.Constants.FirestoreController.SetLastTransferLiveChatHistoryBigquery(ctx, now)
+		if err != nil {
+			return err
+		}
+	} else {
+		_ = s.Constants.lineBot.SendMessage("yesterday's live chat histories are already reset today.")
 	}
-	return seats
+	return nil
 }

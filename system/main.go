@@ -15,7 +15,7 @@ import (
 )
 
 func Init() (option.ClientOption, context.Context, error) {
-	core.LoadEnv()
+	utils.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
@@ -41,8 +41,17 @@ func Init() (option.ClientOption, context.Context, error) {
 	return clientOption, ctx, nil
 }
 
+func GetCurrentProjectId() string {
+	utils.LoadEnv()
+	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	ctx := context.Background()
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+	creds, _ := transport.Creds(ctx, clientOption)
+	return creds.ProjectID
+}
+
 // LocalMain ローカル運用
-func LocalMain(clientOption option.ClientOption, ctx context.Context) {
+func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
@@ -52,6 +61,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_ = _system.MessageToLineBot("Botが起動しました")
 	defer func() {
+		_system.CloseFirestoreClient()
 		_system.MessageToLiveChat(ctx, "エラーが起きたため終了します")
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
@@ -118,6 +128,15 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 			return
 		}
 		
+		// chatMessagesを保存
+		for _, chatMessage := range chatMessages {
+			err = _system.AddLiveChatHistoryDoc(ctx, chatMessage)
+			if err != nil {
+				_ = _system.MessageToLineBotWithError("failed to add live chat history", err)
+				return
+			}
+		}
+		
 		// コマンドを抜き出して各々処理
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
@@ -139,16 +158,20 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	}
 }
 
-func Test(clientOption option.ClientOption, ctx context.Context) {
+func Test(ctx context.Context, clientOption option.ClientOption) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 	defer _system.CloseFirestoreClient()
+	// === ここまでおまじない ===
 	
-	message := ""
-	_system.MessageToLiveChat(ctx, message)
+	err = _system.BackupLiveChatHistoryFromGcsToBigquery(ctx, clientOption)
+	if err != nil {
+		_ = _system.MessageToLineBotWithError("failed to transfer live chat history to bigquery", err)
+		panic(err)
+	}
 }
 
 func main() {
@@ -159,8 +182,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	LocalMain(ctx, clientOption)
+	//Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

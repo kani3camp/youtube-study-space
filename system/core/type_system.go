@@ -5,6 +5,7 @@ import (
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
 	"app.modules/core/youtubebot"
+	"time"
 )
 
 type System struct {
@@ -33,6 +34,12 @@ type SystemConstants struct {
 	
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
+	
+	LastResetDailyTotalStudySec         time.Time
+	LastTransferLiveChatHistoryBigquery time.Time
+	
+	GcpRegion                    string
+	GcsFirestoreExportBucketName string
 }
 
 type CommandDetails struct {
