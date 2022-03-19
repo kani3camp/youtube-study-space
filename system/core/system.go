@@ -866,46 +866,6 @@ func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDura
 	return options, customerror.NewNil()
 }
 
-func HasWorkNameOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, WorkNameOptionPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)
-}
-
-func TrimWorkNameOptionPrefix(str string) string {
-	if strings.HasPrefix(str, WorkNameOptionPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
-	}
-	return str
-}
-
-func HasTimeOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, TimeOptionPrefix) ||
-		strings.HasPrefix(str, TimeOptionShortPrefix) ||
-		strings.HasPrefix(str, TimeOptionPrefixLegacy) ||
-		strings.HasPrefix(str, TimeOptionShortPrefixLegacy)
-}
-
-func TrimTimeOptionPrefix(str string) string {
-	if strings.HasPrefix(str, TimeOptionPrefix) {
-		return strings.TrimPrefix(str, TimeOptionPrefix)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefix) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefix)
-	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
-	}
-	return str
-}
-
 func (s *System) In(ctx context.Context, command CommandDetails) error {
 	// 初回の利用の場合はユーザーデータを初期化
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -1589,7 +1549,8 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if isUserInRoom {
-			// 時間を指定分延長
+			// 時間を指定分延長する
+			replyMessage := s.ProcessedUserDisplayName + "さん、"
 			currentSeat, cerr := s.CurrentSeat(ctx, tx)
 			if cerr.IsNotNil() {
 				return cerr.Body
@@ -1598,8 +1559,8 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
 			if int(newUntil.Sub(utils.JstNow()).Minutes()) > s.Constants.MaxWorkTimeMin {
 				newUntil = utils.JstNow().Add(time.Duration(s.Constants.MaxWorkTimeMin) * time.Minute)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、現在時刻から"+
-					strconv.Itoa(s.Constants.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。延長できる最大の時間で設定します")
+				replyMessage += "現在時刻から" + strconv.Itoa(s.Constants.
+					MaxWorkTimeMin) + "分後までのみ作業時間を延長可能です。延長できる最大の時間で設定します。"
 			}
 			
 			roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
@@ -1622,7 +1583,8 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			addedMin := int(newUntil.Sub(currentSeat.Until).Minutes())
 			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 			remainingWorkMin := int(newUntil.Sub(utils.JstNow()).Minutes())
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(addedMin)+"分延長しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
+			replyMessage += "自動退室までの時間を" + strconv.Itoa(addedMin) + "分延長しました。現在" + strconv.Itoa(realtimeWorkedTimeMin) + "分入室中。自動退室まで残り" + strconv.Itoa(remainingWorkMin) + "分です"
+			s.MessageToLiveChat(ctx, replyMessage)
 		} else {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
 		}
@@ -2460,26 +2422,6 @@ func (s *System) MinAvailableSeatId(ctx context.Context, tx *firestore.Transacti
 	} else { // 誰も入室していない場合
 		return 1, nil
 	}
-}
-
-func CreateUpdatedSeatsSeatColorCode(seats []myfirestore.Seat, colorCode string, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].ColorCode = colorCode
-			break
-		}
-	}
-	return seats
-}
-
-func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].Until = newUntil
-			break
-		}
-	}
-	return seats
 }
 
 func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
