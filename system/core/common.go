@@ -91,6 +91,17 @@ func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, u
 	return seats
 }
 
+func CreateUpdatedSeatsSeatCurrentStateUntil(seats []myfirestore.Seat, newUntil time.Time,
+	userId string) []myfirestore.Seat {
+	for i, seat := range seats {
+		if seat.UserId == userId {
+			seats[i].CurrentStateUntil = newUntil
+			break
+		}
+	}
+	return seats
+}
+
 func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state myfirestore.SeatState,
 	currentStateStartedAt time.Time, currentStateUntil time.Time, cumulativeWorkSec int, dailyCumulativeWorkSec int,
 	workName string,
