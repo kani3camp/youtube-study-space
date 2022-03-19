@@ -3,7 +3,6 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	"cloud.google.com/go/bigquery"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -52,7 +51,7 @@ func GetCurrentProjectId() string {
 }
 
 // LocalMain ローカル運用
-func LocalMain(clientOption option.ClientOption, ctx context.Context) {
+func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
@@ -62,6 +61,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_ = _system.MessageToLineBot("Botが起動しました")
 	defer func() {
+		_system.CloseFirestoreClient()
 		_system.MessageToLiveChat(ctx, "エラーが起きたため終了します")
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
@@ -158,7 +158,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	}
 }
 
-func Test(clientOption option.ClientOption, ctx context.Context) {
+func Test(ctx context.Context, clientOption option.ClientOption) {
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
@@ -167,59 +167,11 @@ func Test(clientOption option.ClientOption, ctx context.Context) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	bigqueryClient, err := bigquery.NewClient(ctx, GetCurrentProjectId(), clientOption)
+	err = _system.BackupLiveChatHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
+		_ = _system.MessageToLineBotWithError("failed to transfer live chat history to bigquery", err)
 		panic(err)
 	}
-	defer func() {
-		err := bigqueryClient.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
-	
-	gcsRef := bigquery.NewGCSReference("gs://firestore-collection-export-test-youtube-study-space/live-chat-history-collection/all_namespaces/kind_live-chat-history/all_namespaces_kind_live-chat-history.export_metadata")
-	gcsRef.AllowJaggedRows = true
-	gcsRef.SourceFormat = bigquery.DatastoreBackup
-	
-	myDataset := bigqueryClient.Dataset("firestore_export_asia_southeast2")
-	loader := myDataset.Table("tmp").LoaderFrom(gcsRef)
-	//loader := myDataset.Table("test-live-chat-history").LoaderFrom(gcsRef)
-	loader.WriteDisposition = bigquery.WriteTruncate
-	loader.Location = "asia-southeast2"
-	job, err := loader.Run(ctx)
-	if err != nil {
-		panic(err)
-	}
-	status, err := job.Wait(ctx)
-	if err != nil {
-		panic(err)
-	}
-	if err := status.Err(); err != nil {
-		panic(err)
-	}
-	if status.State == bigquery.Done {
-		log.Println("Done")
-	} else {
-		log.Println("Doneじゃない")
-	}
-	
-	q := bigqueryClient.Query("SELECT * FROM `test-youtube-study-space.firestore_export_asia_southeast2.tmp`")
-	q.Location = "asia-southeast2"
-	q.WriteDisposition = bigquery.WriteAppend
-	q.QueryConfig.Dst = myDataset.Table("test-live-chat-history")
-	job, err = q.Run(ctx)
-	if err != nil {
-		panic(err)
-	}
-	status, err = job.Wait(ctx)
-	if err != nil {
-		panic(err)
-	}
-	if err := status.Err(); err != nil {
-		panic(err)
-	}
-	
 }
 
 func main() {
@@ -230,8 +182,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(clientOption, ctx)
-	//Test(clientOption, ctx)
+	LocalMain(ctx, clientOption)
+	//Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

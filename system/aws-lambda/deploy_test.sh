@@ -1,17 +1,17 @@
 ################### これはテスト環境用です ###################
 
 
-# set_desired_max_seats, rooms_state, youtube_organize_database, reset_daily_total_study_time, check_live_stream_status, lambda_sandbox
+# set_desired_max_seats, rooms_state, youtube_organize_database, reset_daily_total_study_time, check_live_stream_status
+# lambda_sandbox, transfer_live_chat_history_bigquery
 
 
 # Windows (PowerShell)
 cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region us-east-1
-go build -o main    youtube_organize_database.go
+go build -o main    transfer_live_chat_history_bigquery.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
-aws lambda create-function --function-name     rooms_state     --runtime go1.x --zip-file fileb://main.zip --handler \\
-main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20 --profile soraride
-aws lambda update-function-code --function-name     youtube_organize_database     --zip-file fileb://main.zip --profile soraride
+aws lambda create-function --function-name     transfer_live_chat_history_bigquery     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20 --profile soraride
+aws lambda update-function-code --function-name     transfer_live_chat_history_bigquery     --zip-file fileb://main.zip --profile soraride
 
 
 # Mac OS

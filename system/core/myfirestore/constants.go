@@ -17,6 +17,7 @@ const (
 	CheckDesiredMaxSeatsIntervalSecFirestore = "check-desired-max-seats-interval-sec"
 	MinVacancyRateFirestore                  = "min-vacancy-rate"
 	LastResetDailyTotalStudySecFirestore     = "last-reset-daily-total-study-sec"
+	LastTransferLiveChatHistoryBigquery      = "last-transfer-live-chat-history-bigquery"
 	
 	NextPageTokenFirestore             = "youtube-live-chat-next-page-token"
 	SeatsFirestore                     = "seats"

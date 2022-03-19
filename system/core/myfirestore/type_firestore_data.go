@@ -19,6 +19,9 @@ type ConstantsConfigDoc struct {
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 	
+	// 前回のチャットログをbigqueryに保存した日時
+	LastTransferLiveChatHistoryBigquery time.Time `firestore:"last-transfer-live-chat-history-bigquery" json:"last_transfer_live_chat_history_bigquery"`
+	
 	// 席数（最大席番号）はfirestoreで管理される。各ルームの座席数の情報はfirestoreやbotプログラムでは保持せず、monitorでのみ参照できるため、
 	// monitorが定期的に最大席数がmin-vacancy-rateを満たしつつ妥当な値であるかを判断し、最大席数を変更すべきと判断したらfirestoreの
 	// desired-max-seatsを更新し、botプログラムが参照できるようにする。
@@ -31,6 +34,10 @@ type ConstantsConfigDoc struct {
 	
 	// 最小空席率。これを満たすようにmax-seatsが調整される。
 	MinVacancyRate float32 `firestore:"min-vacancy-rate" json:"min_vacancy_rate"`
+	
+	// bigqueryへのデータバックアップ関連
+	GcpRegion                    string `firestore:"gcp-region"`
+	GcsFirestoreExportBucketName string `firestore:"gcs-firestore-export-bucket-name"`
 }
 
 type CredentialsConfigDoc struct {
@@ -131,15 +138,13 @@ type UserHistoryDoc struct {
 }
 
 type LiveChatHistoryDoc struct {
-	AuthorChannelId string `json:"author_channel_id" firestore:"author-channel-id"`
-	AuthorDisplayName string `json:"author_display_name" firestore:"author-display-name"`
-	AuthorProfileImageUrl string `json:"author_profile_image_url" firestore:"author-profile-image-url"`
-	AuthorIsChatModerator bool `json:"author_is_chat_moderator" firestore:"author-is-chat-moderator"`
-	Id string `json:"id" firestore:"id"`	// メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
-	LiveChatId string `json:"live_chat_id" firestore:"live-chat-id"`	// ライブ配信ごとのid。ずっと続く配信だと不変。
-	MessageText string    `json:"message_text" firestore:"message-text"`
-	PublishedAt time.Time `json:"published_at" firestore:"published-at"`
-	Type string `json:"type" firestore:"type"`
+	AuthorChannelId       string    `json:"author_channel_id" firestore:"author-channel-id"`
+	AuthorDisplayName     string    `json:"author_display_name" firestore:"author-display-name"`
+	AuthorProfileImageUrl string    `json:"author_profile_image_url" firestore:"author-profile-image-url"`
+	AuthorIsChatModerator bool      `json:"author_is_chat_moderator" firestore:"author-is-chat-moderator"`
+	Id                    string    `json:"id" firestore:"id"`                     // メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
+	LiveChatId            string    `json:"live_chat_id" firestore:"live-chat-id"` // ライブ配信ごとのid。ずっと続く配信だと不変。
+	MessageText           string    `json:"message_text" firestore:"message-text"`
+	PublishedAt           time.Time `json:"published_at" firestore:"published-at"`
+	Type                  string    `json:"type" firestore:"type"`
 }
-
-

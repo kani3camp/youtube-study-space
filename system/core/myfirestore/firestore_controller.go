@@ -14,9 +14,7 @@ type FirestoreController struct {
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreController, error) {
-	var client *firestore.Client
-	var err error
-	client, err = firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
+	client, err := firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
 	if err != nil {
 		return nil, err
 	}
@@ -251,24 +249,39 @@ func (controller *FirestoreController) RetrieveAllNonDailyZeroUserDocs(ctx conte
 	return controller.FirestoreClient.Collection(USERS).Where(DailyTotalStudySecFirestore, "!=", 0).Documents(ctx)
 }
 
-func (controller *FirestoreController) ResetDailyTotalStudyTime(tx *firestore.Transaction, userRef *firestore.DocumentRef) error {
-	err := tx.Set(userRef, map[string]interface{}{
+func (controller *FirestoreController) ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error {
+	//return tx.Set(userRef, map[string]interface{}{
+	//	DailyTotalStudySecFirestore: 0,
+	//}, firestore.MergeAll)
+	_, err := userRef.Set(ctx, map[string]interface{}{
 		DailyTotalStudySecFirestore: 0,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
-func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(tx *firestore.Transaction, date time.Time) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName), map[string]interface{}{
-		LastResetDailyTotalStudySecFirestore: date,
-	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
+func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(ctx context.Context, timestamp time.Time) error {
+	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
+	//	map[string]interface{}{
+	//	LastResetDailyTotalStudySecFirestore: timestamp,
+	//}, firestore.MergeAll)
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
+		map[string]interface{}{
+			LastResetDailyTotalStudySecFirestore: timestamp,
+		}, firestore.MergeAll)
+	return err
+}
+
+func (controller *FirestoreController) SetLastTransferLiveChatHistoryBigquery(ctx context.Context,
+	timestamp time.Time) error {
+	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
+	//	map[string]interface{}{
+	//	LastTransferLiveChatHistoryBigquery: timestamp,
+	//}, firestore.MergeAll)
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
+		map[string]interface{}{
+			LastTransferLiveChatHistoryBigquery: timestamp,
+		}, firestore.MergeAll)
+	return err
 }
 
 func (controller *FirestoreController) SetDesiredMaxSeats(tx *firestore.Transaction, desiredMaxSeats int) error {
