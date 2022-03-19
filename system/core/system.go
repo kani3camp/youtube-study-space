@@ -733,65 +733,19 @@ func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, cust
 	return options, customerror.NewNil()
 }
 
-// ParseMore TODO: ParseMinOptionにする
 func (s *System) ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
-	// 指定時間
-	var workTimeMin int
-	if len(slice) >= 2 {
-		if strings.HasPrefix(slice[1], TimeOptionPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefix))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefix + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				workTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefix) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefix))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefix + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				workTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionPrefixLegacy))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionPrefixLegacy + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				workTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		} else if strings.HasPrefix(slice[1], TimeOptionShortPrefixLegacy) {
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[1], TimeOptionShortPrefixLegacy))
-			if err != nil { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("「" + TimeOptionShortPrefixLegacy + "」の後の値を確認してください")
-			}
-			if s.Constants.MinWorkTimeMin <= num && num <= s.Constants.MaxWorkTimeMin {
-				workTimeMin = num
-			} else { // 無効な値
-				return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください")
-			}
-		}
-	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("延長時間（分）を「" + TimeOptionPrefix + "」で指定してください")
-	}
-	
-	if workTimeMin == 0 {
-		return CommandDetails{}, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください")
+	// 時間オプションチェック
+	durationMin, err := s.ParseDurationMinOption(slice[1:], s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
+	if err.IsNotNil() {
+		_ = s.MessageToLineBotWithError("failed to ParseDurationMinOption()", err.Body)
+		return CommandDetails{}, err
 	}
 	
 	return CommandDetails{
 		CommandType: More,
-		MoreMinutes: workTimeMin,
+		MoreMinutes: durationMin,
 	}, customerror.NewNil()
 }
 
@@ -837,6 +791,24 @@ func (s *System) ParseWorkNameOption(commandSlice []string) string {
 	return ""
 }
 
+func (s *System) ParseDurationMinOption(commandSlice []string, MinDuration, MaxDuration int) (int, customerror.CustomError) {
+	for _, str := range commandSlice {
+		if HasTimeOptionPrefix(str) {
+			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
+			if err != nil { // 無効な値
+				return 0, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+			}
+			if MinDuration <= num && num <= MaxDuration {
+				return num, customerror.NewNil()
+			} else { // 無効な値
+				return 0, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
+					MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")
+			}
+		}
+	}
+	return 0, customerror.InvalidCommand.New("オプションが正しく設定されているか確認してください")
+}
+
 func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDuration int) (MinWorkOption,
 	customerror.CustomError) {
 	isWorkNameSet := false
@@ -864,46 +836,6 @@ func (s *System) ParseMinWorkOptions(commandSlice []string, MinDuration, MaxDura
 		}
 	}
 	return options, customerror.NewNil()
-}
-
-func HasWorkNameOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, WorkNameOptionPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)
-}
-
-func TrimWorkNameOptionPrefix(str string) string {
-	if strings.HasPrefix(str, WorkNameOptionPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
-	}
-	return str
-}
-
-func HasTimeOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, TimeOptionPrefix) ||
-		strings.HasPrefix(str, TimeOptionShortPrefix) ||
-		strings.HasPrefix(str, TimeOptionPrefixLegacy) ||
-		strings.HasPrefix(str, TimeOptionShortPrefixLegacy)
-}
-
-func TrimTimeOptionPrefix(str string) string {
-	if strings.HasPrefix(str, TimeOptionPrefix) {
-		return strings.TrimPrefix(str, TimeOptionPrefix)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefix) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefix)
-	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
-	}
-	return str
 }
 
 func (s *System) In(ctx context.Context, command CommandDetails) error {
@@ -1586,46 +1518,89 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		// 入室しているか？
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 			return err
 		}
-		if isUserInRoom {
-			// 時間を指定分延長
-			currentSeat, cerr := s.CurrentSeat(ctx, tx)
-			if cerr.IsNotNil() {
-				return cerr.Body
-			}
+		if !isUserInRoom {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			return nil
+		}
+		
+		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		if cerr.IsNotNil() {
+			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return cerr.Body
+		}
+		roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		seats := roomDoc.Seats
+		
+		replyMessage := s.ProcessedUserDisplayName + "さん、"
+		var addedMin int
+		var remainingUntilExitMin int
+		
+		switch currentSeat.State {
+		case myfirestore.WorkState:
+			// 作業時間を指定分延長する
 			newUntil := currentSeat.Until.Add(time.Duration(command.MoreMinutes) * time.Minute)
 			// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
 			if int(newUntil.Sub(utils.JstNow()).Minutes()) > s.Constants.MaxWorkTimeMin {
 				newUntil = utils.JstNow().Add(time.Duration(s.Constants.MaxWorkTimeMin) * time.Minute)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、現在時刻から"+
-					strconv.Itoa(s.Constants.MaxWorkTimeMin)+"分後までのみ作業時間を延長することができます。延長できる最大の時間で設定します")
+				replyMessage += "現在時刻から" + strconv.Itoa(s.Constants.
+					MaxWorkTimeMin) + "分後までのみ作業時間を延長可能です。延長できる最大の時間で設定します。"
 			}
-			
-			roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください")
-				return err
-			}
-			seats := roomDoc.Seats
+			addedMin = int(newUntil.Sub(currentSeat.Until).Minutes())
 			seats = CreateUpdatedSeatsSeatUntil(seats, newUntil, s.ProcessedUserId)
-			
-			err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください")
-				return err
+			remainingUntilExitMin = int(newUntil.Sub(utils.JstNow()).Minutes())
+		case myfirestore.BreakState:
+			// 休憩時間を指定分延長する
+			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(command.MoreMinutes) * time.Minute)
+			// もし延長後の休憩時間が最大休憩時間を超えていたら、最大休憩時間まで延長
+			if int(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt).Minutes()) > s.Constants.MaxBreakDurationMin {
+				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(s.Constants.MaxBreakDurationMin) * time.Minute)
+				replyMessage += "休憩は最大" + strconv.Itoa(s.Constants.
+					MaxBreakDurationMin) + "分まで可能です。延長できる最大の時間で設定します。"
 			}
-			addedMin := int(newUntil.Sub(currentSeat.Until).Minutes())
-			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
-			remainingWorkMin := int(newUntil.Sub(utils.JstNow()).Minutes())
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、自動退室までの時間を"+strconv.Itoa(addedMin)+"分延長しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
-		} else {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			addedMin = int(newBreakUntil.Sub(currentSeat.CurrentStateUntil).Minutes())
+			seats = CreateUpdatedSeatsSeatCurrentStateUntil(seats, newBreakUntil, s.ProcessedUserId)
+			// もし延長後の休憩時間がUntilを超えていたらUntilもそれに合わせる
+			if newBreakUntil.After(currentSeat.Until) {
+				newUntil := newBreakUntil
+				seats = CreateUpdatedSeatsSeatUntil(seats, newUntil, s.ProcessedUserId)
+				remainingUntilExitMin = int(newUntil.Sub(utils.JstNow()).Minutes())
+			} else {
+				remainingUntilExitMin = int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
+			}
 		}
+		
+		err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		
+		switch currentSeat.State {
+		case myfirestore.WorkState:
+			replyMessage += "自動退室までの時間を" + strconv.Itoa(addedMin) + "分延長しました。"
+		case myfirestore.BreakState:
+			replyMessage += "休憩時間を" + strconv.Itoa(addedMin) + "分延長しました。"
+			remainingBreakMin := int(currentSeat.CurrentStateUntil.Add(time.Duration(addedMin) * time.Minute).Sub(
+				utils.JstNow()).Minutes())
+			replyMessage += "作業再開まで残り" + strconv.Itoa(remainingBreakMin) + "分。"
+		}
+		realtimeEnteredTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
+		replyMessage += "現在" + strconv.Itoa(realtimeEnteredTimeMin) + "分入室中。自動退室まで残り" + strconv.Itoa(remainingUntilExitMin) + "分です"
+		s.MessageToLiveChat(ctx, replyMessage)
 		
 		return nil
 	})
@@ -2460,26 +2435,6 @@ func (s *System) MinAvailableSeatId(ctx context.Context, tx *firestore.Transacti
 	} else { // 誰も入室していない場合
 		return 1, nil
 	}
-}
-
-func CreateUpdatedSeatsSeatColorCode(seats []myfirestore.Seat, colorCode string, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].ColorCode = colorCode
-			break
-		}
-	}
-	return seats
-}
-
-func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, userId string) []myfirestore.Seat {
-	for i, seat := range seats {
-		if seat.UserId == userId {
-			seats[i].Until = newUntil
-			break
-		}
-	}
-	return seats
 }
 
 func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
