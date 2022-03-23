@@ -1231,7 +1231,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-						"さん、残念ながらエラーが発生しました。もう一度試してみてください")
+						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
@@ -1249,6 +1249,17 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				}
 				s.MessageToLiveChat(ctx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+				
+				err = s.MessageToDiscordBot(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.
+					SeatId) + "番席のユーザーをkickしました。\n" +
+					"チャンネル名: " + seat.UserDisplayName + "\n" +
+					"作業名: " + seat.WorkName + "\n休憩中の作業名: " + seat.BreakWorkName + "\n" +
+					"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
+					"チャンネルURL: https://youtube.com/channel/" + seat.UserId)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed MessageToDiscordBot()", err)
+					return err
+				}
 			} else {
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
@@ -1276,10 +1287,17 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 				}
 				sinceMinutes := utils.JstNow().Sub(seat.EnteredAt).Minutes()
 				untilMinutes := seat.Until.Sub(utils.JstNow()).Minutes()
-				message := s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.SeatId) + "番席には" +
-					seat.UserDisplayName + "さんが" + strconv.Itoa(int(sinceMinutes)) + "分間着席しており、" +
-					"作業名は\"" + seat.WorkName + "\"です。" + strconv.Itoa(int(untilMinutes)) + "分後に自動退室予定です。"
-				s.MessageToLiveChat(ctx, message)
+				message := s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.SeatId) + "番席のユーザー情報です。\n" +
+					"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(int(
+					sinceMinutes)) + "分\n" +
+					"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
+					"自動退室まで" + strconv.Itoa(int(untilMinutes)) + "分\n" +
+					"チャンネルURL: https://youtube.com/channel/" + seat.UserId
+				err = s.MessageToDiscordBot(message)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed MessageToDiscordBot()", err)
+					return err
+				}
 			} else {
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
