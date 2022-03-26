@@ -1217,7 +1217,7 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		_ = s.MessageToLineBotWithError("discordへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
 	}
 	
-	s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました")
+	s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました⚠")
 	return nil
 }
 
