@@ -111,7 +111,7 @@ const LayoutDisplay: FC<Props> = (props) => {
         isUsed &&
         seatWithSeatId(global_seat_id, props.seats).state === SeatState.Break
 
-      // 文字幅に応じて作業名のフォントサイズを調整
+      // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
       let workNameFontSizePx = seatFontSizePx
       if (isUsed) {
         const canvas: HTMLCanvasElement = document.createElement('canvas')
@@ -119,7 +119,7 @@ const LayoutDisplay: FC<Props> = (props) => {
         context!.font = `${workNameFontSizePx.toString()}px ${
           Constants.fontFamily
         }`
-        const metrics = context!.measureText(workName)
+        const metrics = context!.measureText(isBreak ? breakWorkName : workName)
         const actualSeatWidth = (roomShape.widthPx * seatShape.width) / 100
         if (metrics.width > actualSeatWidth) {
           workNameFontSizePx *= actualSeatWidth / metrics.width
