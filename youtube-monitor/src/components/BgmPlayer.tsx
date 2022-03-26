@@ -1,9 +1,8 @@
-import React, { FC, useEffect, useState } from 'react'
-import * as styles from '../styles/BgmPlayer.styles'
-import next from 'next'
-import { getCurrentSection, SectionType } from '../lib/time_table'
-import { Bgm, getCurrentRandomBgm } from '../lib/bgm'
 import Wave from '@foobar404/wave'
+import React, { FC, useEffect, useState } from 'react'
+import { getCurrentRandomBgm } from '../lib/bgm'
+import { getCurrentSection, SectionType } from '../lib/time_table'
+import * as styles from '../styles/BgmPlayer.styles'
 
 const BgmPlayer: FC = () => {
   const [lastSectionType, setLastSectionType] = useState('')
