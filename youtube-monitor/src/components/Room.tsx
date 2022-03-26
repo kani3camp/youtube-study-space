@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useReducer } from 'react'
+import React, { useState, useEffect } from 'react'
 
 import * as styles from '../styles/Room.styles'
 
 import { RoomLayout } from '../types/room-layout'
-import { SeatsState, Seat, SetDesiredMaxSeatsResponse } from '../types/api'
+import {
+  SeatsState,
+  SetDesiredMaxSeatsResponse,
+  RoomsStateResponse,
+} from '../types/api'
 import api from '../lib/api_config'
 import fetcher from '../lib/fetcher'
-import { RoomsStateResponse } from '../types/api'
-import { bindActionCreators } from 'redux'
 import Message from './Message'
 import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
 import LayoutDisplay from './LayoutDisplay'
-import { roomLayout } from '../styles/LayoutDisplay.styles'
+import CenterLoading from './CenterLoading'
 
 const Room = () => {
   const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
@@ -47,16 +49,14 @@ const Room = () => {
   }
 
   const checkAndUpdateRoomLayouts = async () => {
-    let seats_state: SeatsState = { seats: [] }
     let max_seats = 0
 
     // seats取得
-    await new Promise<void>(async (resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       fetcher<RoomsStateResponse>(api.roomsState)
         .then(async (r) => {
           console.log('fetchした')
           setSeatsState(r.default_room)
-          seats_state = r.default_room
           setMaxSeats(r.max_seats)
           max_seats = r.max_seats
 
@@ -155,7 +155,6 @@ const Room = () => {
         setDisplayRoomIndex(nextDisplayRoomIndex)
         setLastUpdated(new Date())
       }
-    } else {
     }
   }
 
@@ -185,7 +184,7 @@ const Room = () => {
       </div>
     )
   } else {
-    return <div>Loading</div>
+    return <CenterLoading></CenterLoading>
   }
 }
 

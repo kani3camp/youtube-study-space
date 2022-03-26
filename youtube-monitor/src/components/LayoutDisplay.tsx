@@ -3,6 +3,7 @@ import * as styles from '../styles/LayoutDisplay.styles'
 import { RoomLayout } from '../types/room-layout'
 import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
+import CenterLoading from './CenterLoading'
 
 type Props = {
   roomLayouts: RoomLayout[]
@@ -205,7 +206,7 @@ const LayoutDisplay: FC<Props> = (props) => {
       </div>
     )
   } else {
-    return <div>Loading</div>
+    return <CenterLoading></CenterLoading>
   }
 }
 
