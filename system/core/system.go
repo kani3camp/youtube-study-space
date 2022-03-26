@@ -82,6 +82,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferLiveChatHistoryBigquery,
 		GcpRegion:                           constantsConfig.GcpRegion,
 		GcsFirestoreExportBucketName:        constantsConfig.GcsFirestoreExportBucketName,
+		LiveChatHistoryRetentionDays:        constantsConfig.LiveChatHistoryRetentionDays,
 	}
 	
 	// 全ての項目が初期化できているか確認
@@ -276,7 +277,7 @@ func (s *System) Command(commandString string, userId string, userDisplayName st
 		}
 		return customerror.NewNil()
 	default:
-		_ = s.Constants.lineBot.SendMessage("Unknown command: " + commandString)
+		_ = s.MessageToLineBot("Unknown command: " + commandString)
 	}
 	return customerror.NewNil()
 }
@@ -1191,7 +1192,7 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		"チャンネルID: " + s.ProcessedUserId + "\n" +
 		"チャンネル名: " + s.ProcessedUserDisplayName + "\n\n" +
 		command.ReportMessage
-	err := s.Constants.lineBot.SendMessage(lineMessage)
+	err := s.MessageToLineBot(lineMessage)
 	if err != nil {
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 		log.Println(err)
@@ -1502,7 +1503,6 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			}
 			if changeOption.Type == WorkTime {
 				// 作業時間（入室時間から自動退室までの時間）を変更
-				// TODO: 休憩中であれば休憩時間の変更
 				realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
 				
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.IntValue) * time.Minute)
@@ -2192,7 +2192,7 @@ func (s *System) UpdateTotalWorkTime(tx *firestore.Transaction, userId string, p
 	// 累計作業時間が減るなんてことがないか確認
 	if newTotalSec < previousTotalSec {
 		message := "newTotalSec < previousTotalSec ??!! 処理を中断します。"
-		_ = s.Constants.lineBot.SendMessage(userId + ": " + message)
+		_ = s.MessageToLineBot(userId + ": " + message)
 		return errors.New(message)
 	}
 	
@@ -2291,11 +2291,11 @@ func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 }
 
 func (s *System) MessageToLineBot(message string) error {
-	return s.Constants.lineBot.SendMessage(message)
+	return s.MessageToLineBot(message)
 }
 
 func (s *System) MessageToLineBotWithError(message string, err error) error {
-	return s.Constants.lineBot.SendMessageWithError(message, err)
+	return s.MessageToLineBotWithError(message, err)
 }
 
 func (s *System) MessageToDiscordBot(message string) error {
@@ -2358,6 +2358,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					strconv.Itoa(int(until.Sub(jstNow).Minutes()))+"分）")
 			}
 		}
+		
 		return nil
 	})
 }
@@ -2390,13 +2391,13 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 			}
 			count += 1
 		}
-		_ = s.Constants.lineBot.SendMessage("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
+		_ = s.MessageToLineBot("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
 		err := s.Constants.FirestoreController.SetLastResetDailyTotalStudyTime(ctx, now)
 		if err != nil {
 			return err
 		}
 	} else {
-		_ = s.Constants.lineBot.SendMessage("all user's daily total study times are already reset today.")
+		_ = s.MessageToLineBot("all user's daily total study times are already reset today.")
 	}
 	return nil
 }
@@ -2540,13 +2541,33 @@ func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, cli
 		if err != nil {
 			return err
 		}
-		_ = s.Constants.lineBot.SendMessage("successfully transfer yesterday's live chat history to bigquery.")
+		_ = s.MessageToLineBot("successfully transfer yesterday's live chat history to bigquery.")
+		
+		// 一定期間前のlive-chat-historyを削除
+		// 何日以降分を保持するか求める
+		retentionFromDate := utils.JstNow().Add(-time.Duration(s.Constants.LiveChatHistoryRetentionDays*24) * time.
+			Hour)
+		retentionFromDate = time.Date(
+			retentionFromDate.Year(),
+			retentionFromDate.Month(),
+			retentionFromDate.Day(),
+			0, 0, 0, 0, retentionFromDate.Location(),
+		)
+		
+		// 削除
+		err = s.DeleteLiveChatHistoryBeforeDate(ctx, retentionFromDate)
+		if err != nil {
+			return err
+		}
+		_ = s.MessageToLineBot(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(int(retentionFromDate.
+			Day())) + "日より前の日付のライブチャット履歴をFirestoreから削除しました。")
+		
 		err = s.Constants.FirestoreController.SetLastTransferLiveChatHistoryBigquery(ctx, now)
 		if err != nil {
 			return err
 		}
 	} else {
-		_ = s.Constants.lineBot.SendMessage("yesterday's live chat histories are already reset today.")
+		_ = s.MessageToLineBot("yesterday's live chat histories are already reset today.")
 	}
 	return nil
 }

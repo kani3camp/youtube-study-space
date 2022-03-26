@@ -40,6 +40,7 @@ type SystemConstants struct {
 	
 	GcpRegion                    string
 	GcsFirestoreExportBucketName string
+	LiveChatHistoryRetentionDays int
 }
 
 type CommandDetails struct {

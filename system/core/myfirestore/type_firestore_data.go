@@ -35,9 +35,10 @@ type ConstantsConfigDoc struct {
 	// 最小空席率。これを満たすようにmax-seatsが調整される。
 	MinVacancyRate float32 `firestore:"min-vacancy-rate" json:"min_vacancy_rate"`
 	
-	// bigqueryへのデータバックアップ関連
+	// bigqueryへのデータバックアップ関連。bigqueryのテーブル名などはmybigqueryで定数定義。
 	GcpRegion                    string `firestore:"gcp-region"`
 	GcsFirestoreExportBucketName string `firestore:"gcs-firestore-export-bucket-name"`
+	LiveChatHistoryRetentionDays int    `firestore:"live-chat-history-retention-days"` // 何日間live chat historyを保持するか
 }
 
 type CredentialsConfigDoc struct {
