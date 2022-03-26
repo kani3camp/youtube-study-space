@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useReducer, FC } from 'react'
-import * as styles from '../styles/LayoutDisplay.styles'
-import { RoomLayout } from '../types/room-layout'
-import { Seat } from '../types/api'
+import React, { FC } from 'react'
 import { Constants } from '../lib/constants'
+import * as styles from '../styles/LayoutDisplay.styles'
+import { Seat } from '../types/api'
+import { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
 
 type Props = {

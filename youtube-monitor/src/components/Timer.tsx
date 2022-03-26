@@ -1,14 +1,11 @@
 import React from 'react'
-import * as styles from '../styles/Timer.styles'
 import {
-  TimeSection,
-  SectionType,
-  remainingTime,
   getCurrentSection,
   getNextSection,
+  remainingTime,
+  SectionType,
 } from '../lib/time_table'
-import next from 'next'
-import { serializeStyles } from '@emotion/serialize'
+import * as styles from '../styles/Timer.styles'
 
 class Timer extends React.Component<Record<string, unknown>, any> {
   private intervalId: NodeJS.Timeout | undefined
