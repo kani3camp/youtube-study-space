@@ -2358,6 +2358,9 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					strconv.Itoa(int(until.Sub(jstNow).Minutes()))+"分）")
 			}
 		}
+		
+		// TODO: 一定期間前のlive-chat-historyを削除
+		
 		return nil
 	})
 }
