@@ -348,6 +348,7 @@ func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDat
 }
 
 func (controller *FirestoreController) DeleteLiveChatHistoryDoc(tx *firestore.Transaction, docId string) error {
+	// TODO: 時間かかりそう。txじゃないほうがいい？
 	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
 	return tx.Delete(ref)
 }
