@@ -57,7 +57,7 @@ const BgmPlayer: FC = () => {
     audio.src = bgm.file
     setAudioTitle(bgm.title)
     setAudioArtist(bgm.artist)
-    audio.volume = 0.5
+    audio.volume = 0.3
     audio.play()
   }
 
