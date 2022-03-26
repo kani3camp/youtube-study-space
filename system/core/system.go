@@ -879,16 +879,27 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		
 		// 席が指定されているか？
 		if command.CommandType == SeatIn {
-			// その席が空いているか？
-			isOk, err := s.IfSeatAvailable(ctx, tx, command.InOptions.SeatId)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed s.IfSeatAvailable()", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
-				return err
-			}
-			if !isOk {
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
-				return nil
+			// 0番席だったら最小番号の空席に決定
+			if command.InOptions.SeatId == 0 {
+				seatId, err := s.MinAvailableSeatId(ctx, tx)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed s.MinAvailableSeatId()", err)
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					return err
+				}
+				command.InOptions.SeatId = seatId
+			} else {
+				// その席が空いているか？
+				isOk, err := s.IfSeatAvailable(ctx, tx, command.InOptions.SeatId)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed s.IfSeatAvailable()", err)
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					return err
+				}
+				if !isOk {
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
+					return nil
+				}
 			}
 		} else { // 席の指定なし
 			seatId, cerr := s.RandomAvailableSeatId(ctx, tx)
@@ -2291,11 +2302,11 @@ func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 }
 
 func (s *System) MessageToLineBot(message string) error {
-	return s.MessageToLineBot(message)
+	return s.Constants.lineBot.SendMessage(message)
 }
 
 func (s *System) MessageToLineBotWithError(message string, err error) error {
-	return s.MessageToLineBotWithError(message, err)
+	return s.Constants.lineBot.SendMessageWithError(message, err)
 }
 
 func (s *System) MessageToDiscordBot(message string) error {
