@@ -16,13 +16,11 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    // roomLayouts: [circleRoomLayout, mazeRoomLayout, HimajinRoomLayout, SeaOfSeatRoomLayout]
-    roomLayouts: [takochanRoomLayout]
+    roomLayouts: [circleRoomLayout, mazeRoomLayout, HimajinRoomLayout, takochanRoomLayout, SeaOfSeatRoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
-    // roomLayouts: [classRoomLayout, SimpleRoomLayout, mazeRoomLayout, HimajinRoomLayout]
-    roomLayouts: [takochanRoomLayout]
+    roomLayouts: [classRoomLayout, SimpleRoomLayout, mazeRoomLayout, HimajinRoomLayout]
 }
 
 
