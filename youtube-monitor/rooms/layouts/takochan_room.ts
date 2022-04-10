@@ -1,6 +1,6 @@
 import { RoomLayout } from "../../types/room-layout";
 
-export const LayoutName: RoomLayout = {
+export const takochanRoomLayout: RoomLayout = {
     version: 1,
     font_size_ratio: 0.018,
     room_shape: {
@@ -132,7 +132,7 @@ export const LayoutName: RoomLayout = {
         {
             id: 23,
             x: 50,
-            y: 250
+            y: 245
         },
         {
             id: 24,
@@ -207,7 +207,7 @@ export const LayoutName: RoomLayout = {
         },
         {
             id: 5,
-            x: 280,
+            x: 260,
             y: 130,
             shape_type: "partition1"
         },
