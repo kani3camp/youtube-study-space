@@ -104,5 +104,6 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 			return errors.New("failed transfer data from bigquery temporary table to main table.")
 		}
 	}
+	log.Println("finished all collection's processes.")
 	return nil
 }
