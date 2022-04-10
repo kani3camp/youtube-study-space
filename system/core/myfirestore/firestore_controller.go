@@ -1,7 +1,6 @@
 package myfirestore
 
 import (
-	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
@@ -161,6 +160,13 @@ func (controller *FirestoreController) SetLastExitedDate(tx *firestore.Transacti
 	return nil
 }
 
+func (controller *FirestoreController) AddUserActivityLog(tx *firestore.Transaction, activity UserActivityDoc) error {
+	docId := UserActivityDocPrefix + activity.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(activity.
+		Timestamp.Nanosecond())
+	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
+	return controller.set(nil, tx, ref, activity)
+}
+
 func (controller *FirestoreController) SetMyRankVisible(_ context.Context, tx *firestore.Transaction, userId string, rankVisible bool) error {
 	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
 		RankVisibleFirestore: rankVisible,
@@ -175,20 +181,6 @@ func (controller *FirestoreController) SetMyDefaultStudyMin(tx *firestore.Transa
 	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
 		DefaultStudyMinFirestore: defaultStudyMin,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (controller *FirestoreController) AddUserHistory(tx *firestore.Transaction, userId string, action string, details interface{}) error {
-	history := UserHistoryDoc{
-		Action:  action,
-		Date:    utils.JstNow(),
-		Details: details,
-	}
-	newDocRef := controller.FirestoreClient.Collection(USERS).Doc(userId).Collection(HISTORY).NewDoc()
-	err := tx.Set(newDocRef, history)
 	if err != nil {
 		return err
 	}
@@ -336,7 +328,8 @@ func (controller *FirestoreController) UpdateSeats(tx *firestore.Transaction, se
 
 func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
 	liveChatHistoryDoc LiveChatHistoryDoc) error {
-	docId := "live-chat_" + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.PublishedAt.Nanosecond())
+	docId := LiveChatHistoryDocPrefix + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.
+		PublishedAt.Nanosecond())
 	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
 	return controller.set(ctx, tx, ref, liveChatHistoryDoc)
 }
@@ -350,5 +343,29 @@ func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDat
 func (controller *FirestoreController) DeleteLiveChatHistoryDoc(tx *firestore.Transaction, docId string) error {
 	// TODO: 時間かかりそう。txじゃないほうがいい？
 	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
+	return tx.Delete(ref)
+}
+
+func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
+	userActivityDoc UserActivityDoc) error {
+	docId := "user-activity_" + userActivityDoc.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(userActivityDoc.Timestamp.Nanosecond())
+	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
+	return controller.set(ctx, tx, ref, userActivityDoc)
+}
+
+func (controller *FirestoreController) RetrieveAllUserActivityDocIdsBeforeDate(ctx context.Context,
+	date time.Time,
+) *firestore.DocumentIterator {
+	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, "<", date).Documents(ctx)
+}
+
+func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ctx context.Context,
+	date time.Time,
+) *firestore.DocumentIterator {
+	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=", date).Documents(ctx)
+}
+
+func (controller *FirestoreController) DeleteUserActivityDoc(tx *firestore.Transaction, docId string) error {
+	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
 	return tx.Delete(ref)
 }

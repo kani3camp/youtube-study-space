@@ -2038,9 +2038,15 @@ func (s *System) enterRoom(
 		return err
 	}
 	// ログ記録
-	err = s.Constants.FirestoreController.AddUserHistory(tx, userId, EnterAction, newSeat)
+	enterActivity := myfirestore.UserActivityDoc{
+		UserId:       userId,
+		ActivityType: myfirestore.EnterRoomActivity,
+		SeatId:       seatId,
+		Timestamp:    enterDate,
+	}
+	err = s.Constants.FirestoreController.AddUserActivityLog(tx, enterActivity)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to add user history", err)
+		_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 		return err
 	}
 	return nil
@@ -2090,9 +2096,15 @@ func (s *System) exitRoom(
 		return nil, 0, err
 	}
 	// ログ記録
-	err = s.Constants.FirestoreController.AddUserHistory(tx, previousSeat.UserId, ExitAction, previousSeat)
+	exitActivity := myfirestore.UserActivityDoc{
+		UserId:       previousSeat.UserId,
+		ActivityType: myfirestore.ExitRoomActivity,
+		SeatId:       previousSeat.SeatId,
+		Timestamp:    exitDate,
+	}
+	err = s.Constants.FirestoreController.AddUserActivityLog(tx, exitActivity)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to add an user history", err)
+		_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 	}
 	// 退室時刻を記録
 	err = s.Constants.FirestoreController.SetLastExitedDate(tx, previousSeat.UserId, exitDate)
@@ -2162,9 +2174,15 @@ func (s *System) moveSeat(
 		return err
 	}
 	// ログ記録
-	err = s.Constants.FirestoreController.AddUserHistory(tx, userId, EnterAction, newSeat)
+	enterActivity := myfirestore.UserActivityDoc{
+		UserId:       newSeat.UserId,
+		ActivityType: myfirestore.EnterRoomActivity,
+		SeatId:       newSeat.SeatId,
+		Timestamp:    enterDate,
+	}
+	err = s.Constants.FirestoreController.AddUserActivityLog(tx, enterActivity)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to add user history", err)
+		_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 		return err
 	}
 	return nil

@@ -6,11 +6,16 @@ const (
 	USERS           = "users"
 	HISTORY         = "history"
 	LiveChatHistory = "live-chat-history"
+	UserActivities  = "user-activities"
+	
+	LiveChatHistoryDocPrefix = "live-chat_"
+	UserActivityDocPrefix    = "user-activity_"
 	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName           = "default"
 	PublishedAtDocName           = "published-at"
+	TimestampDocName             = "timestamp"
 	
 	DesiredMaxSeatsFirestore                 = "desired-max-seats"
 	MaxSeatsFirestore                        = "max-seats"
@@ -34,3 +39,9 @@ const (
 	RankVisibleFirestore        = "rank-visible"
 	DefaultStudyMinFirestore    = "default-study-min"
 )
+
+func NewRoomDoc() RoomDoc {
+	return RoomDoc{
+		Seats: []Seat{}, // 席情報の配列
+	}
+}

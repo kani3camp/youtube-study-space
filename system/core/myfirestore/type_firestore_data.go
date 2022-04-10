@@ -77,12 +77,6 @@ type RoomDoc struct {
 	Seats []Seat `json:"seats" firestore:"seats"`
 }
 
-func NewRoomDoc() RoomDoc {
-	return RoomDoc{
-		Seats: []Seat{}, // 席情報の配列
-	}
-}
-
 type SeatState string
 
 const (
@@ -148,4 +142,20 @@ type LiveChatHistoryDoc struct {
 	MessageText           string    `json:"message_text" firestore:"message-text"`
 	PublishedAt           time.Time `json:"published_at" firestore:"published-at"`
 	Type                  string    `json:"type" firestore:"type"`
+}
+
+type UserActivityType string
+
+const (
+	EnterRoomActivity  UserActivityType = "enter-room"
+	ExitRoomActivity                    = "exit-room"
+	StartBreakActivity                  = "start-break"
+	EndBreakActivity                    = "end-break"
+)
+
+type UserActivityDoc struct {
+	UserId       string           `json:"user_id" firestore:"user-id"`
+	ActivityType UserActivityType `json:"activity_type" firestore:"activity-type"`
+	SeatId       int              `json:"seat_id" firestore:"seat-id"`
+	Timestamp    time.Time        `json:"timestamp" firestore:"timestamp"`
 }
