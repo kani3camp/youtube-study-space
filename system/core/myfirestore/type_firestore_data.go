@@ -93,6 +93,7 @@ type Seat struct {
 	EnteredAt              time.Time `json:"entered_at" firestore:"entered-at"`               // 入室日時
 	Until                  time.Time `json:"until" firestore:"until"`                         // 自動退室予定時刻
 	ColorCode              string    `json:"color_code" firestore:"color-code"`               // 席の背景色のカラーコード
+	GlowAnimation          bool      `json:"glow_animation" firestore:"glow-animation"`       // 席の背景色をアニメーションするかどうか
 	State                  SeatState `json:"state" firestore:"state"`
 	CurrentStateStartedAt  time.Time `json:"current_state_started_at" firestore:"current-state-started-at"`
 	CurrentStateUntil      time.Time `json:"current_state_until" firestore:"current-state-until"`

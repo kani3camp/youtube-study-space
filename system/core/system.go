@@ -979,7 +979,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				// 入室処理
 				err = s.enterRoom(tx, exitedSeats, s.ProcessedUserId, s.ProcessedUserDisplayName,
 					command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
-					userRank.ColorCode, myfirestore.WorkState)
+					userRank.ColorCode, userRank.GlowAnimation, myfirestore.WorkState)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to enter room", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -996,7 +996,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		} else { // 入室のみ
 			err = s.enterRoom(tx, seats, s.ProcessedUserId, s.ProcessedUserDisplayName,
 				command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
-				userRank.ColorCode, myfirestore.WorkState)
+				userRank.ColorCode, userRank.GlowAnimation, myfirestore.WorkState)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to enter room", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -1431,7 +1431,8 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 							rank = utils.GetInvisibleRank()
 						}
 						// 席の色を更新
-						seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, s.ProcessedUserId)
+						seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation,
+							s.ProcessedUserId)
 						err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 						if err != nil {
 							_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)
@@ -1859,7 +1860,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 				rank = utils.GetInvisibleRank()
 			}
 			// 席の色を更新
-			seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, s.ProcessedUserId)
+			seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation, s.ProcessedUserId)
 			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)
@@ -2006,6 +2007,7 @@ func (s *System) enterRoom(
 	workName string,
 	workMin int,
 	seatColorCode string,
+	seatGlowAnimation bool,
 	state myfirestore.SeatState,
 ) error {
 	enterDate := utils.JstNow()
@@ -2019,6 +2021,7 @@ func (s *System) enterRoom(
 		EnteredAt:              enterDate,
 		Until:                  exitDate,
 		ColorCode:              seatColorCode,
+		GlowAnimation:          seatGlowAnimation,
 		State:                  state,
 		CurrentStateStartedAt:  enterDate,
 		CurrentStateUntil:      exitDate,

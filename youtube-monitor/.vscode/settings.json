@@ -1,8 +1,10 @@
 {
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnPaste": true,
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": ["source.fixAll.eslint"],
-  "eslint.format.enable": false,
-  "files.eol": "\n"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": ["source.fixAll.eslint"],
+    "eslint.format.enable": false,
+    "files.eol": "\n",
+    "editor.tabSize": 4,
+    "typescript.suggest.autoImports": false
 }

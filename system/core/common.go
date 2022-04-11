@@ -71,10 +71,12 @@ func CreateUpdatedSeatsSeatBreakWorkName(seats []myfirestore.Seat, breakWorkName
 	return seats
 }
 
-func CreateUpdatedSeatsSeatColorCode(seats []myfirestore.Seat, colorCode string, userId string) []myfirestore.Seat {
+func CreateUpdatedSeatsSeatColorCode(seats []myfirestore.Seat, colorCode string,
+	glowAnimation bool, userId string) []myfirestore.Seat {
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].ColorCode = colorCode
+			seats[i].GlowAnimation = glowAnimation
 			break
 		}
 	}

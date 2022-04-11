@@ -2,43 +2,43 @@ import { RoomLayout } from '../types/room-layout'
 import { circleRoomLayout } from './layouts/circle_room'
 import { classRoomLayout } from './layouts/classroom'
 import { HimajinRoomLayout } from './layouts/himajin_room'
-import { iLineRoomLayout } from './layouts/iline_room'
 import { mazeRoomLayout } from './layouts/maze_room'
-import { oneSeatRoomLayout } from './layouts/one_seat_room'
 import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
+import { takochanRoomLayout } from './layouts/takochan_room'
 
 type AllRoomsConfig = {
-  basicRooms: RoomLayout[]
-  temporaryRooms: RoomLayout[]
+    basicRooms: RoomLayout[]
+    temporaryRooms: RoomLayout[]
 }
 
 const prodAllRooms: AllRoomsConfig = {
-  basicRooms: [
-    circleRoomLayout,
-    mazeRoomLayout,
-    HimajinRoomLayout,
-    SeaOfSeatRoomLayout,
-  ],
-  temporaryRooms: [
-    classRoomLayout,
-    SimpleRoomLayout,
-    mazeRoomLayout,
-    HimajinRoomLayout,
-  ],
+    basicRooms: [
+        circleRoomLayout,
+        mazeRoomLayout,
+        HimajinRoomLayout,
+        takochanRoomLayout,
+        SeaOfSeatRoomLayout,
+    ],
+    temporaryRooms: [
+        classRoomLayout,
+        SimpleRoomLayout,
+        mazeRoomLayout,
+        HimajinRoomLayout,
+    ],
 }
 
 const testAllRooms: AllRoomsConfig = {
-  basicRooms: [circleRoomLayout],
-  temporaryRooms: [SimpleRoomLayout],
+    basicRooms: [circleRoomLayout],
+    temporaryRooms: [SimpleRoomLayout],
 }
 
 export const allRooms: AllRoomsConfig = testAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
-  let numSeatsBasicRooms = 0
-  for (const r of allRooms.basicRooms) {
-    numSeatsBasicRooms += r.seats.length
-  }
-  return numSeatsBasicRooms
+    let numSeatsBasicRooms = 0
+    for (const r of allRooms.basicRooms) {
+        numSeatsBasicRooms += r.seats.length
+    }
+    return numSeatsBasicRooms
 }

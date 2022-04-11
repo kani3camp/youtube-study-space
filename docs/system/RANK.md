@@ -21,7 +21,21 @@
 - ![#809EFF](https://via.placeholder.com/15/809EFF/000000?text=+) 400 ~ 500
 - ![#947FFF](https://via.placeholder.com/15/947FFF/000000?text=+) 500 ~ 700
 - ![#C880FF](https://via.placeholder.com/15/C880FF/000000?text=+) 700 ~ 1000
-- ![#FF7FFF](https://via.placeholder.com/15/FF7FFF/000000?text=+) 1000~
+- ![#FF7FFF](https://via.placeholder.com/15/FF7FFF/000000?text=+) 1000 ~
+
+1000時間以上では座席の色が画面上で時間変化します。
+- ![#FFC880](https://via.placeholder.com/15/FFC880/000000?text=+) 1000 ~ 1500
+- ![#FFFB7F](https://via.placeholder.com/15/FFFB7F/000000?text=+) 1500 ~ 2000
+- ![#D0FF80](https://via.placeholder.com/15/D0FF80/000000?text=+) 2000 ~ 2500
+- ![#9DFF7F](https://via.placeholder.com/15/9DFF7F/000000?text=+) 2500 ~ 3000
+- ![#80FF95](https://via.placeholder.com/15/80FF95/000000?text=+) 3000 ~ 4000
+- ![#80FFC8](https://via.placeholder.com/15/80FFC8/000000?text=+) 4000 ~ 5000
+- ![#80FFFB](https://via.placeholder.com/15/80FFFB/000000?text=+) 5000 ~ 6000
+- ![#80D0FF](https://via.placeholder.com/15/80D0FF/000000?text=+) 6000 ~ 7000
+- ![#809EFF](https://via.placeholder.com/15/809EFF/000000?text=+) 7000 ~ 8000
+- ![#947FFF](https://via.placeholder.com/15/947FFF/000000?text=+) 8000 ~ 9000
+- ![#C880FF](https://via.placeholder.com/15/C880FF/000000?text=+) 9000 ~ 10000
+- ![#FF7FFF](https://via.placeholder.com/15/FF7FFF/000000?text=+) 10000 ~
 
 
 ## ランク表示モードを切り替え
