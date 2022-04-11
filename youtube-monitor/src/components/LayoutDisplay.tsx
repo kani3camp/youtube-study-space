@@ -1,4 +1,5 @@
 import { css, keyframes } from '@emotion/react'
+import chroma from 'chroma-js'
 import React, { FC } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
@@ -142,15 +143,14 @@ const LayoutDisplay: FC<Props> = (props) => {
                     }
                 }
             }
-
-            // const gColorLighten = LightenDarkenColor(seat_color, 30)
-            const gColorLighten = seat_color
+            const gColorLighten = chroma(seat_color).brighten(0.6).hex()
+            // const gColorLighten = seat_color
             const glowKeyframes = keyframes`
             0% {
                 background-color: ${seat_color};
             }
             50% {
-                background-color: lighten(${gColorLighten}, 50);
+                background-color: ${gColorLighten};
             }
             100% {
                 background-color: ${seat_color};
