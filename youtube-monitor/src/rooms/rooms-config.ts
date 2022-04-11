@@ -33,7 +33,7 @@ const testAllRooms: AllRoomsConfig = {
     temporaryRooms: [SimpleRoomLayout],
 }
 
-export const allRooms: AllRoomsConfig = prodAllRooms
+export const allRooms: AllRoomsConfig = testAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0
