@@ -119,17 +119,96 @@ func GetRank(totalStudySec int) (Rank, error) {
 			ColorCode:                 "#C880FF",
 			GlowAnimation:             false,
 		}, nil
-	} else {
+	} else if totalHours < 1500 {
 		return Rank{
 			GreaterThanOrEqualToHours: 1000,
+			LessThanHours:             1500,
+			ColorCode:                 "#FFC880",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 2000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 1500,
+			LessThanHours:             2000,
+			ColorCode:                 "#FFFB7F",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 2500 {
+		return Rank{
+			GreaterThanOrEqualToHours: 2000,
+			LessThanHours:             2500,
+			ColorCode:                 "#D0FF80",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 3000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 2500,
+			LessThanHours:             3000,
+			ColorCode:                 "#9DFF7F",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 4000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 3000,
+			LessThanHours:             4000,
+			ColorCode:                 "#80FF95",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 5000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 4000,
+			LessThanHours:             5000,
+			ColorCode:                 "#80FFC8",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 6000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 5000,
+			LessThanHours:             6000,
+			ColorCode:                 "#80FFFB",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 7000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 6000,
+			LessThanHours:             7000,
+			ColorCode:                 "#80D0FF",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 8000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 7000,
+			LessThanHours:             8000,
+			ColorCode:                 "#809EFF",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 9000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 8000,
+			LessThanHours:             9000,
+			ColorCode:                 "#947FFF",
+			GlowAnimation:             true,
+		}, nil
+	} else if totalHours < 10000 {
+		return Rank{
+			GreaterThanOrEqualToHours: 9000,
+			LessThanHours:             10000,
+			ColorCode:                 "#C880FF",
+			GlowAnimation:             true,
+		}, nil
+	} else {
+		return Rank{
+			GreaterThanOrEqualToHours: 10000,
 			LessThanHours:             math.MaxInt64,
 			ColorCode:                 "#FF7FFF",
+			GlowAnimation:             true,
 		}, nil
 	}
 }
 
 func GetInvisibleRank() Rank {
 	return Rank{
-		ColorCode: "#BBBBBB",
+		ColorCode:     "#BBBBBB",
+		GlowAnimation: false,
 	}
 }
