@@ -1431,7 +1431,8 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 							rank = utils.GetInvisibleRank()
 						}
 						// 席の色を更新
-						seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, s.ProcessedUserId)
+						seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation,
+							s.ProcessedUserId)
 						err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 						if err != nil {
 							_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)
@@ -1859,7 +1860,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 				rank = utils.GetInvisibleRank()
 			}
 			// 席の色を更新
-			seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, s.ProcessedUserId)
+			seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation, s.ProcessedUserId)
 			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)

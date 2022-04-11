@@ -168,6 +168,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                   `
                 : css`
                       animation: none;
+                      box-shadow: none;
                   `
 
             return (
