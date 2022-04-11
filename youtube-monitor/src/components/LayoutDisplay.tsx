@@ -119,6 +119,9 @@ const LayoutDisplay: FC<Props> = (props) => {
                 isUsed &&
                 seatWithSeatId(global_seat_id, props.seats).state ===
                     SeatState.Break
+            const glowAnimationEnabled =
+                isUsed &&
+                seatWithSeatId(global_seat_id, props.seats).glow_animation
 
             // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
             let workNameFontSizePx = seatFontSizePx
@@ -143,7 +146,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                     }
                 }
             }
-            const gColorLighten = chroma(seat_color).brighten(0.6).hex()
+            const gColorLighten = chroma(seat_color).brighten(1.5).hex()
             // const gColorLighten = seat_color
             const glowKeyframes = keyframes`
             0% {
@@ -157,10 +160,13 @@ const LayoutDisplay: FC<Props> = (props) => {
             }
             `
 
-            const glowStyle = css`
-                animation: ${glowKeyframes} 4s linear infinite;
-                opacity: 1;
-            `
+            const glowStyle = glowAnimationEnabled
+                ? css`
+                      animation: ${glowKeyframes} 5s linear infinite;
+                  `
+                : css`
+                      animation: none;
+                  `
 
             return (
                 <div
