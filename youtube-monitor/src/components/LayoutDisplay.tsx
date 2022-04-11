@@ -146,8 +146,8 @@ const LayoutDisplay: FC<Props> = (props) => {
                     }
                 }
             }
-            const gColorLighten = chroma(seat_color).brighten(1.5).hex()
-            // const gColorLighten = seat_color
+            const gColorLighten = chroma(seat_color).brighten(1).hex()
+            const gColorDarken = chroma(seat_color).darken(2).hex()
             const glowKeyframes = keyframes`
             0% {
                 background-color: ${seat_color};
@@ -163,6 +163,8 @@ const LayoutDisplay: FC<Props> = (props) => {
             const glowStyle = glowAnimationEnabled
                 ? css`
                       animation: ${glowKeyframes} 5s linear infinite;
+                      box-shadow: inset 0 0 ${seatFontSizePx}px 0
+                          ${gColorDarken};
                   `
                 : css`
                       animation: none;
