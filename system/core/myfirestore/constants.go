@@ -16,6 +16,8 @@ const (
 	DefaultRoomDocName           = "default"
 	PublishedAtDocName           = "published-at"
 	TimestampDocName             = "timestamp"
+	UserIdDocName                = "user-id"
+	SeatIdDocName                = "seat-id"
 	
 	DesiredMaxSeatsFirestore                 = "desired-max-seats"
 	MaxSeatsFirestore                        = "max-seats"

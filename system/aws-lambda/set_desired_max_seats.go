@@ -38,7 +38,7 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, e
 	}
 	
 	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		err := _system.Constants.FirestoreController.SetDesiredMaxSeats(tx, request.DesiredMaxSeats)
+		err := _system.Constants.FirestoreController.SetDesiredMaxSeats(ctx, tx, request.DesiredMaxSeats)
 		if err != nil {
 			return err
 		}

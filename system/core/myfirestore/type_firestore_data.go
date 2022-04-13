@@ -39,6 +39,10 @@ type ConstantsConfigDoc struct {
 	GcpRegion                    string `firestore:"gcp-region"`
 	GcsFirestoreExportBucketName string `firestore:"gcs-firestore-export-bucket-name"`
 	LiveChatHistoryRetentionDays int    `firestore:"live-chat-history-retention-days"` // 何日間live chat historyを保持するか
+	
+	// 同座席入室制限関連
+	RecentRangeMin     int `firestore:"recent-range-min"`
+	RecentThresholdMin int `firestore:"recent-threshold-min"`
 }
 
 type CredentialsConfigDoc struct {
