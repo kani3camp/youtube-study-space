@@ -911,7 +911,8 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 					return err
 				}
 				if !isAvailable {
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
+					s.MessageToLiveChat(ctx,
+						s.ProcessedUserDisplayName+"さん、その番号の席は"+"長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
 					return nil
 				}
 			}

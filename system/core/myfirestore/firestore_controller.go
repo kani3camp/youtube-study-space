@@ -349,7 +349,7 @@ func (controller *FirestoreController) DeleteUserActivityDoc(tx *firestore.Trans
 
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
 	date time.Time, userId string, seatId int) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, "<=",
+	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=",
 		date).Where(UserIdDocName, "==", userId).Where(SeatIdDocName, "==", seatId).OrderBy(TimestampDocName,
 		firestore.Asc).Documents(ctx)
 }
@@ -367,4 +367,3 @@ func (controller *FirestoreController) RetrieveUserActivity(ctx context.Context,
 	}
 	return userActivity, nil
 }
-
