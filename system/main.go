@@ -11,6 +11,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -68,13 +69,16 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
 	
-	sleepIntervalMilli := _system.Constants.DefaultSleepIntervalMilli
 	checkDesiredMaxSeatsIntervalSec := _system.Constants.CheckDesiredMaxSeatsIntervalSec
 	
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 	
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
+	var lastChatFetched time.Time
+	var waitAtLeastMilliSec1 float64
+	var waitAtLeastDuration2 float64
+	var sleepInterval time.Duration
 	
 	for {
 		// max_seatsを変えるか確認
@@ -122,6 +126,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
+		lastChatFetched = utils.JstNow()
 		
 		// nextPageTokenを保存
 		err = _system.SaveNextPageToken(ctx, nextPageToken)
@@ -149,14 +154,13 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 			}
 		}
 		
-		if pollingIntervalMillis > _system.Constants.DefaultSleepIntervalMilli {
-			sleepIntervalMilli = pollingIntervalMillis + 1000
-		} else {
-			sleepIntervalMilli = _system.Constants.DefaultSleepIntervalMilli
-		}
-		fmt.Println()
-		log.Printf("waiting for %.1f seconds...\n", float32(sleepIntervalMilli)/1000.0)
-		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
+		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
+			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
+		waitAtLeastDuration2 = math.Max(float64((time.Duration(_system.Constants.
+			DefaultSleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
+		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastDuration2)) * time.Millisecond
+		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
+		time.Sleep(sleepInterval)
 	}
 }
 
