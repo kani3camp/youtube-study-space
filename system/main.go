@@ -77,7 +77,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	numContinuousListMessagesFailed := 0
 	var lastChatFetched time.Time
 	var waitAtLeastMilliSec1 float64
-	var waitAtLeastDuration2 float64
+	var waitAtLeastMilliSec2 float64
 	var sleepInterval time.Duration
 	
 	for {
@@ -156,9 +156,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		
 		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		waitAtLeastDuration2 = math.Max(float64((time.Duration(_system.Constants.
+		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(_system.Constants.
 			DefaultSleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastDuration2)) * time.Millisecond
+		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
 		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
 		time.Sleep(sleepInterval)
 	}

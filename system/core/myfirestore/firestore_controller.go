@@ -349,17 +349,3 @@ func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateFor
 		date).Where(UserIdDocName, "==", userId).Where(SeatIdDocName, "==", seatId).OrderBy(TimestampDocName,
 		firestore.Asc).Documents(ctx)
 }
-
-func (controller *FirestoreController) RetrieveUserActivity(ctx context.Context, tx *firestore.Transaction,
-	docRef *firestore.DocumentRef) (UserActivityDoc, error) {
-	doc, err := controller.get(ctx, tx, docRef)
-	if err != nil {
-		return UserActivityDoc{}, err
-	}
-	userActivity := UserActivityDoc{}
-	err = doc.DataTo(&userActivity)
-	if err != nil {
-		return UserActivityDoc{}, err
-	}
-	return userActivity, nil
-}
