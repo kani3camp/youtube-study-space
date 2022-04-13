@@ -1709,10 +1709,23 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		err = s.Constants.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
+		// activityログ記録
+		startBreakActivity := myfirestore.UserActivityDoc{
+			UserId:       s.ProcessedUserId,
+			ActivityType: myfirestore.StartBreakActivity,
+			SeatId:       currentSeat.SeatId,
+			Timestamp:    utils.JstNow(),
+		}
+		err = s.Constants.FirestoreController.AddUserActivityLog(tx, startBreakActivity)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+
 			strconv.Itoa(command.MinWorkOptions.DurationMin)+"分）")
 		
@@ -1778,6 +1791,20 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
+		// activityログ記録
+		endBreakActivity := myfirestore.UserActivityDoc{
+			UserId:       s.ProcessedUserId,
+			ActivityType: myfirestore.EndBreakActivity,
+			SeatId:       currentSeat.SeatId,
+			Timestamp:    utils.JstNow(),
+		}
+		err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 			strconv.Itoa(int(until.Sub(jstNow).Minutes()))+"分）")
 		
@@ -2065,7 +2092,7 @@ func (s *System) enterRoom(
 		_ = s.MessageToLineBotWithError("failed to set last entered date", err)
 		return err
 	}
-	// ログ記録
+	// activityログ記録
 	enterActivity := myfirestore.UserActivityDoc{
 		UserId:       userId,
 		ActivityType: myfirestore.EnterRoomActivity,
@@ -2346,6 +2373,20 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
 					return err
 				}
+				// activityログ記録
+				endBreakActivity := myfirestore.UserActivityDoc{
+					UserId:       s.ProcessedUserId,
+					ActivityType: myfirestore.EndBreakActivity,
+					SeatId:       seat.SeatId,
+					Timestamp:    utils.JstNow(),
+				}
+				err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed to add an user activity", err)
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					return err
+				}
+				
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 					strconv.Itoa(int(until.Sub(jstNow).Minutes()))+"分）")
 			}
