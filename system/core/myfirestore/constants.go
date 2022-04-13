@@ -8,9 +8,6 @@ const (
 	LiveChatHistory = "live-chat-history"
 	UserActivities  = "user-activities"
 	
-	LiveChatHistoryDocPrefix = "live-chat_"
-	UserActivityDocPrefix    = "user-activity_"
-	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName           = "default"

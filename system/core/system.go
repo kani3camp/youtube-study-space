@@ -892,23 +892,27 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				}
 				command.InOptions.SeatId = seatId
 			} else {
+				// 以下のように前もってerr2を宣言しておき、このあとのIfSeatVacantとCheckSeatAvailabilityForUserで明示的に同じerr2
+				//を使用するようにしておかないとCheckSeatAvailabilityForUserのほうでなぜか上のスコープのerrが使われてしまう（すべてerrとした場合）
+				var isVacant, isAvailable bool
+				var err2 error
 				// その席が空いているか？
-				isVacant, err := s.IfSeatVacant(ctx, tx, command.InOptions.SeatId)
-				if err != nil {
+				isVacant, err2 = s.IfSeatVacant(ctx, tx, command.InOptions.SeatId)
+				if err2 != nil {
 					_ = s.MessageToLineBotWithError("failed s.IfSeatVacant()", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
-					return err
+					return err2
 				}
 				if !isVacant {
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
 					return nil
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
-				isAvailable, err := s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, command.InOptions.SeatId)
-				if err != nil {
+				isAvailable, err2 = s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, command.InOptions.SeatId)
+				if err2 != nil {
 					_ = s.MessageToLineBotWithError("failed s.CheckSeatAvailabilityForUser()", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
-					return err
+					return err2
 				}
 				if !isAvailable {
 					s.MessageToLiveChat(ctx,
@@ -2462,6 +2466,11 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 		return -1, err
 	}
 	
+	constants, err := s.Constants.FirestoreController.RetrieveSystemConstantsConfig(ctx, tx)
+	if err != nil {
+		return -1, err
+	}
+	
 	// 使用されている座席番号リストを取得
 	var usedSeatIds []int
 	for _, seat := range roomDoc.Seats {
@@ -2470,7 +2479,7 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 	
 	// 使用されていない最小の席番号を求める。1から順に探索
 	searchingSeatId := 1
-	for {
+	for searchingSeatId <= constants.MaxSeats {
 		// searchingSeatIdがusedSeatIdsに含まれているか
 		isUsed := false
 		for _, usedSeatId := range usedSeatIds {
@@ -2491,6 +2500,7 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 		}
 		searchingSeatId += 1
 	}
+	return -1, errors.New("no available seat")
 }
 
 func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube.LiveChatMessage) error {
@@ -2611,6 +2621,7 @@ func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, cli
 
 func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore.Transaction, userId string,
 	seatId int) (bool, error) {
+	//log.Println("CheckSeatAvailabilityForUser()")
 	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Constants.RecentRangeMin) * time.Minute)
 	
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
@@ -2618,6 +2629,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		checkDurationFrom,
 		userId, seatId)
 	var activityList []myfirestore.UserActivityDoc
+	//log.Println("p1")
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -2626,12 +2638,15 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		if err != nil {
 			return false, err
 		}
-		activity, err := s.Constants.FirestoreController.RetrieveUserActivity(ctx, tx, doc.Ref)
+		//log.Println("p2")
+		var activity myfirestore.UserActivityDoc
+		err = doc.DataTo(&activity)
 		if err != nil {
 			return false, err
 		}
 		activityList = append(activityList, activity)
 	}
+	//log.Println("p4")
 	// activityListは長さ0の可能性もあることに注意
 	
 	// 入室と退室が交互に並んでいるか確認
@@ -2646,6 +2661,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		}
 		lastActivityType = activity.ActivityType
 	}
+	//log.Println("p5")
 	
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
@@ -2663,6 +2679,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 			totalEntryDuration += activity.Timestamp.Sub(lastEnteredTimestamp)
 		}
 	}
+	//log.Println("CheckSeatAvailabilityForUserおわり")
 	
 	// 制限値と比較し、結果を返す
 	return int(totalEntryDuration.Minutes()) < s.Constants.RecentThresholdMin, nil

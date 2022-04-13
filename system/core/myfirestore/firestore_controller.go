@@ -154,9 +154,7 @@ func (controller *FirestoreController) SetLastExitedDate(tx *firestore.Transacti
 }
 
 func (controller *FirestoreController) AddUserActivityLog(tx *firestore.Transaction, activity UserActivityDoc) error {
-	docId := UserActivityDocPrefix + activity.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(activity.
-		Timestamp.Nanosecond())
-	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
+	ref := controller.FirestoreClient.Collection(UserActivities).NewDoc()
 	return controller.set(nil, tx, ref, activity)
 }
 
@@ -305,9 +303,7 @@ func (controller *FirestoreController) UpdateSeats(tx *firestore.Transaction, se
 
 func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
 	liveChatHistoryDoc LiveChatHistoryDoc) error {
-	docId := LiveChatHistoryDocPrefix + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.
-		PublishedAt.Nanosecond())
-	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
+	ref := controller.FirestoreClient.Collection(LiveChatHistory).NewDoc()
 	return controller.set(ctx, tx, ref, liveChatHistoryDoc)
 }
 
