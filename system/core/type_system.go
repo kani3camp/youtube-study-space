@@ -37,6 +37,7 @@ type SystemConstants struct {
 	
 	LastResetDailyTotalStudySec         time.Time
 	LastTransferLiveChatHistoryBigquery time.Time
+	LastLongTimeSittingChecked          time.Time
 	
 	GcpRegion                    string
 	GcsFirestoreExportBucketName string
@@ -44,6 +45,8 @@ type SystemConstants struct {
 	
 	RecentRangeMin     int
 	RecentThresholdMin int
+	
+	CheckLongTimeSittingIntervalMinutes int
 }
 
 type CommandDetails struct {

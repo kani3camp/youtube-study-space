@@ -80,11 +80,13 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		CheckDesiredMaxSeatsIntervalSec:     constantsConfig.CheckDesiredMaxSeatsIntervalSec,
 		LastResetDailyTotalStudySec:         constantsConfig.LastResetDailyTotalStudySec,
 		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferLiveChatHistoryBigquery,
+		LastLongTimeSittingChecked:          constantsConfig.LastLongTimeSittingChecked,
 		GcpRegion:                           constantsConfig.GcpRegion,
 		GcsFirestoreExportBucketName:        constantsConfig.GcsFirestoreExportBucketName,
 		LiveChatHistoryRetentionDays:        constantsConfig.LiveChatHistoryRetentionDays,
 		RecentRangeMin:                      constantsConfig.RecentRangeMin,
 		RecentThresholdMin:                  constantsConfig.RecentThresholdMin,
+		CheckLongTimeSittingIntervalMinutes: constantsConfig.CheckLongTimeSittingIntervalMinutes,
 	}
 	
 	// 全ての項目が初期化できているか確認
@@ -153,16 +155,11 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			for _, seat := range room.Seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
-					// 移動先の席を探索
-					targetSeatId, err := s.MinAvailableSeatIdForUser(ctx, nil, s.ProcessedUserId)
-					if err != nil {
-						return err
-					}
 					// 移動させる
 					inCommandDetails := CommandDetails{
 						CommandType: SeatIn,
 						InOptions: InOptions{
-							SeatId:   targetSeatId,
+							SeatId:   0,
 							WorkName: seat.WorkName,
 							WorkMin:  int(seat.Until.Sub(utils.JstNow()).Minutes()),
 						},
@@ -2325,9 +2322,13 @@ func (s *System) MessageToDiscordBot(message string) error {
 	return s.Constants.discordBot.SendMessage(message)
 }
 
-// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。
+// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。長時間入室しているユーザーを退室させる。
 func (s *System) OrganizeDatabase(ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 長時間入室制限のチェックを行うかどうか
+		ifCheckLongTimeSitting := int(utils.JstNow().Sub(s.Constants.LastLongTimeSittingChecked).Minutes()) > s.
+			Constants.CheckLongTimeSittingIntervalMinutes
+		
 		room, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			return err
@@ -2348,6 +2349,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		for i, seat := range room.Seats {
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			
+			// 自動退室時刻を過ぎていたら自動退室
 			if seat.Until.Before(utils.JstNow()) {
 				exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
 				if err != nil {
@@ -2357,7 +2359,31 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				currentSeats = exitedSeats
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
-			} else if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
+				continue
+			}
+			
+			if ifCheckLongTimeSitting {
+				// 長時間入室制限に引っかかっていたら強制退室
+				ifSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, seat.SeatId)
+				if err != nil {
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+					return err
+				}
+				if ifSittingTooMuch {
+					exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+					if err != nil {
+						_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+						return err
+					}
+					currentSeats = exitedSeats
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
+						"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+					continue
+				}
+			}
+			
+			// 自動作業再開時刻を過ぎていたら自動で作業再開する
+			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
 				// 再開処理
 				jstNow := utils.JstNow()
 				until := seat.Until

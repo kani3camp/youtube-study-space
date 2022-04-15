@@ -22,6 +22,9 @@ type ConstantsConfigDoc struct {
 	// 前回のチャットログをbigqueryに保存した日時
 	LastTransferLiveChatHistoryBigquery time.Time `firestore:"last-transfer-live-chat-history-bigquery" json:"last_transfer_live_chat_history_bigquery"`
 	
+	// 前回の長時間入室チェックをした日時
+	LastLongTimeSittingChecked time.Time `firestore:"last-long-time-sitting-checked" json:"last_long_time_sitting_checked"`
+	
 	// 席数（最大席番号）はfirestoreで管理される。各ルームの座席数の情報はfirestoreやbotプログラムでは保持せず、monitorでのみ参照できるため、
 	// monitorが定期的に最大席数がmin-vacancy-rateを満たしつつ妥当な値であるかを判断し、最大席数を変更すべきと判断したらfirestoreの
 	// desired-max-seatsを更新し、botプログラムが参照できるようにする。
@@ -41,8 +44,11 @@ type ConstantsConfigDoc struct {
 	LiveChatHistoryRetentionDays int    `firestore:"live-chat-history-retention-days"` // 何日間live chat historyを保持するか
 	
 	// 同座席入室制限関連
-	RecentRangeMin     int `firestore:"recent-range-min"`
-	RecentThresholdMin int `firestore:"recent-threshold-min"`
+	RecentRangeMin     int `firestore:"recent-range-min"`     // 過去何分以内に。
+	RecentThresholdMin int `firestore:"recent-threshold-min"` // 何分間以上該当座席に座っていたらアウト
+	
+	// 長時間入室制限関連
+	CheckLongTimeSittingIntervalMinutes int `firestore:"check-long-time-sitting-interval-minutes" json:"check_long_time_sitting_interval_minutes"` // 何分おきにチェックを行うか
 }
 
 type CredentialsConfigDoc struct {
