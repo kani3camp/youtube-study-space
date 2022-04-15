@@ -2345,7 +2345,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			userDocs = append(userDocs, &userDoc)
 		}
 		
-		currentSeats := room.Seats
+		currentSeats := append([]myfirestore.Seat{}, room.Seats...)
 		var autoExitSeatIds []int   // 自動退室時刻による自動退室
 		var forcedExitSeatIds []int // 長時間入室制限による強制退室
 		var resumeSeatIds []int     // 作業再開
@@ -2378,8 +2378,10 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			}
 		}
 		
-		// TODO: 以下書き込みのみ
+		// 以下書き込みのみ
 		for i, seat := range room.Seats {
+			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+			
 			// 自動退室時刻による退室処理
 			if contains(autoExitSeatIds, seat.SeatId) {
 				exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
@@ -2387,7 +2389,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
 				}
-				currentSeats = exitedSeats
+				currentSeats = append([]myfirestore.Seat{}, exitedSeats...)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
 				continue
