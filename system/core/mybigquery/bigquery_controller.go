@@ -81,10 +81,10 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 		query := controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
 			TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', published_at, '+09:00') " +
 			"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
-			yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
+			yesterdayEnd.Format("2006-01-02 15:04:05") + "'") // TODO: switch
 		query.Location = controller.WorkingRegion
-		query.WriteDisposition = bigquery.WriteAppend // 追加
-		query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName)
+		query.WriteDisposition = bigquery.WriteAppend                       // 追加
+		query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName) // TODO: switch
 		job, err = query.Run(ctx)
 		if err != nil {
 			return err
