@@ -79,11 +79,11 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		DefaultSleepIntervalMilli:           constantsConfig.SleepIntervalMilli,
 		CheckDesiredMaxSeatsIntervalSec:     constantsConfig.CheckDesiredMaxSeatsIntervalSec,
 		LastResetDailyTotalStudySec:         constantsConfig.LastResetDailyTotalStudySec,
-		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferLiveChatHistoryBigquery,
+		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferCollectionHistoryBigquery,
 		LastLongTimeSittingChecked:          constantsConfig.LastLongTimeSittingChecked,
 		GcpRegion:                           constantsConfig.GcpRegion,
 		GcsFirestoreExportBucketName:        constantsConfig.GcsFirestoreExportBucketName,
-		LiveChatHistoryRetentionDays:        constantsConfig.LiveChatHistoryRetentionDays,
+		LiveChatHistoryRetentionDays:        constantsConfig.CollectionHistoryRetentionDays,
 		RecentRangeMin:                      constantsConfig.RecentRangeMin,
 		RecentThresholdMin:                  constantsConfig.RecentThresholdMin,
 		CheckLongTimeSittingIntervalMinutes: constantsConfig.CheckLongTimeSittingIntervalMinutes,
@@ -2558,7 +2558,7 @@ func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube
 	})
 }
 
-func (s *System) DeleteLiveChatHistoryBeforeDate(ctx context.Context, date time.Time) error {
+func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// date以前の全てのlive chat history docsをクエリで取得
 		iter := s.Constants.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx, date)
@@ -2572,17 +2572,38 @@ func (s *System) DeleteLiveChatHistoryBeforeDate(ctx context.Context, date time.
 			if err != nil {
 				return err
 			}
-			err = s.Constants.FirestoreController.DeleteLiveChatHistoryDoc(tx, doc.Ref.ID)
+			err = s.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
 			if err != nil {
+				log.Println("ライブチャットログ削除においてDeleteDocRef()失敗")
 				return err
 			}
 		}
+		
+		// date以前の全てのuser activity docをクエリで取得
+		iter = s.Constants.FirestoreController.RetrieveAllUserActivityDocIdsBeforeDate(ctx, date)
+		
+		// forで各docをdeleteしていく
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			err = s.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
+			if err != nil {
+				log.Println("ユーザー行動ログ削除においてDeleteDocRef()失敗")
+				return err
+			}
+		}
+		
 		return nil
 	})
 }
 
-func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
-	log.Println("BackupLiveChatHistoryFromGcsToBigquery()")
+func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
+	log.Println("BackupCollectionHistoryFromGcsToBigquery()")
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Constants.LastTransferLiveChatHistoryBigquery.In(utils.JapanLocation())
 	now := utils.JstNow()
@@ -2610,13 +2631,13 @@ func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, cli
 		}
 		
 		err = bqClient.ReadCollectionsFromGcs(ctx, gcsTargetFolderName, s.Constants.GcsFirestoreExportBucketName,
-			[]string{myfirestore.LiveChatHistory})
+			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities})
 		if err != nil {
 			return err
 		}
 		_ = s.MessageToLineBot("successfully transfer yesterday's live chat history to bigquery.")
 		
-		// 一定期間前のlive-chat-historyを削除
+		// 一定期間前のライブチャットおよびユーザー行動ログを削除
 		// 何日以降分を保持するか求める
 		retentionFromDate := utils.JstNow().Add(-time.Duration(s.Constants.LiveChatHistoryRetentionDays*24) * time.
 			Hour)
@@ -2627,15 +2648,15 @@ func (s *System) BackupLiveChatHistoryFromGcsToBigquery(ctx context.Context, cli
 			0, 0, 0, 0, retentionFromDate.Location(),
 		)
 		
-		// 削除
-		err = s.DeleteLiveChatHistoryBeforeDate(ctx, retentionFromDate)
+		// ライブチャット削除・ユーザー行動ログ削除
+		err = s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
 		if err != nil {
 			return err
 		}
 		_ = s.MessageToLineBot(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(int(retentionFromDate.
-			Day())) + "日より前の日付のライブチャット履歴をFirestoreから削除しました。")
+			Day())) + "日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。")
 		
-		err = s.Constants.FirestoreController.SetLastTransferLiveChatHistoryBigquery(ctx, now)
+		err = s.Constants.FirestoreController.SetLastTransferCollectionHistoryBigquery(ctx, now)
 		if err != nil {
 			return err
 		}

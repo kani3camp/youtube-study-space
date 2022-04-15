@@ -19,8 +19,9 @@ type ConstantsConfigDoc struct {
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 	
-	// 前回のチャットログをbigqueryに保存した日時
-	LastTransferLiveChatHistoryBigquery time.Time `firestore:"last-transfer-live-chat-history-bigquery" json:"last_transfer_live_chat_history_bigquery"`
+	// 前回のチャットログや入退室ログをbigqueryに保存した日時
+	LastTransferCollectionHistoryBigquery time.
+	Time `firestore:"last-transfer-collection-history-bigquery" json:"last_transfer_collection_history_bigquery"`
 	
 	// 前回の長時間入室チェックをした日時
 	LastLongTimeSittingChecked time.Time `firestore:"last-long-time-sitting-checked" json:"last_long_time_sitting_checked"`
@@ -39,9 +40,9 @@ type ConstantsConfigDoc struct {
 	MinVacancyRate float32 `firestore:"min-vacancy-rate" json:"min_vacancy_rate"`
 	
 	// bigqueryへのデータバックアップ関連。bigqueryのテーブル名などはmybigqueryで定数定義。
-	GcpRegion                    string `firestore:"gcp-region"`
-	GcsFirestoreExportBucketName string `firestore:"gcs-firestore-export-bucket-name"`
-	LiveChatHistoryRetentionDays int    `firestore:"live-chat-history-retention-days"` // 何日間live chat historyを保持するか
+	GcpRegion                      string `firestore:"gcp-region"`
+	GcsFirestoreExportBucketName   string `firestore:"gcs-firestore-export-bucket-name"`
+	CollectionHistoryRetentionDays int    `firestore:"collection-history-retention-days"` // 何日間live chat historyおよびuser activityを保持するか
 	
 	// 同座席入室制限関連
 	RecentRangeMin     int `firestore:"recent-range-min"`     // 過去何分以内に。

@@ -1,6 +1,7 @@
 package mybigquery
 
 import (
+	"app.modules/core/myfirestore"
 	"app.modules/core/utils"
 	"cloud.google.com/go/bigquery"
 	"context"
@@ -78,13 +79,27 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 		yesterdayEnd := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day(), 0, 0, 0, 0, jstNow.Location())
 		
 		// bigqueryにおいて一時テーブルから日時を指定してメインテーブルにデータを読込
-		query := controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
-			TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', published_at, '+09:00') " +
-			"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
-			yesterdayEnd.Format("2006-01-02 15:04:05") + "'") // TODO: switch
+		var query *bigquery.Query
+		switch collectionName {
+		case myfirestore.LiveChatHistory:
+			query = controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
+				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', published_at, '+09:00') " +
+				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
+				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
+		case myfirestore.UserActivities:
+			query = controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
+				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', timestamp, '+09:00') " +
+				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
+				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
+		}
 		query.Location = controller.WorkingRegion
-		query.WriteDisposition = bigquery.WriteAppend                       // 追加
-		query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName) // TODO: switch
+		query.WriteDisposition = bigquery.WriteAppend // 追加
+		switch collectionName {
+		case myfirestore.LiveChatHistory:
+			query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName)
+		case myfirestore.UserActivities:
+			query.QueryConfig.Dst = dataset.Table(UserActivityHistoryMainTableName)
+		}
 		job, err = query.Run(ctx)
 		if err != nil {
 			return err

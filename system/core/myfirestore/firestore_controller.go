@@ -40,6 +40,16 @@ func (controller *FirestoreController) set(ctx context.Context, tx *firestore.Tr
 	}
 }
 
+func (controller *FirestoreController) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
+	ref *firestore.DocumentRef) error {
+	if tx != nil {
+		return tx.Delete(ref)
+	} else {
+		_, err := ref.Delete(ctx)
+		return err
+	}
+}
+
 func (controller *FirestoreController) RetrieveCredentialsConfig(ctx context.Context, tx *firestore.Transaction) (CredentialsConfigDoc, error) {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	doc, err := controller.get(ctx, tx, ref)
@@ -246,15 +256,15 @@ func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(ctx conte
 	return err
 }
 
-func (controller *FirestoreController) SetLastTransferLiveChatHistoryBigquery(ctx context.Context,
+func (controller *FirestoreController) SetLastTransferCollectionHistoryBigquery(ctx context.Context,
 	timestamp time.Time) error {
 	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
 	//	map[string]interface{}{
-	//	LastTransferLiveChatHistoryBigquery: timestamp,
+	//	LastTransferCollectionHistoryBigquery: timestamp,
 	//}, firestore.MergeAll)
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
 		map[string]interface{}{
-			LastTransferLiveChatHistoryBigquery: timestamp,
+			LastTransferCollectionHistoryBigquery: timestamp,
 		}, firestore.MergeAll)
 	return err
 }
@@ -313,12 +323,6 @@ func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDat
 	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocName, "<", date).Documents(ctx)
 }
 
-func (controller *FirestoreController) DeleteLiveChatHistoryDoc(tx *firestore.Transaction, docId string) error {
-	// TODO: 時間かかりそう。txじゃないほうがいい？
-	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
-	return tx.Delete(ref)
-}
-
 func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
 	userActivityDoc UserActivityDoc) error {
 	docId := "user-activity_" + userActivityDoc.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(userActivityDoc.Timestamp.Nanosecond())
@@ -336,11 +340,6 @@ func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ct
 	date time.Time,
 ) *firestore.DocumentIterator {
 	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=", date).Documents(ctx)
-}
-
-func (controller *FirestoreController) DeleteUserActivityDoc(tx *firestore.Transaction, docId string) error {
-	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
-	return tx.Delete(ref)
 }
 
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,

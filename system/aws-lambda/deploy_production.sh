@@ -1,7 +1,8 @@
 # TODO: ################## これは本番環境用です!!!!!!!!!!! ###################
 
 
-# set_desired_max_seats, rooms_state, youtube_organize_database, reset_daily_total_study_time, check_live_stream_status, lambda_sandbox
+# set_desired_max_seats, rooms_state, youtube_organize_database, reset_daily_total_study_time, check_live_stream_status
+# lambda_sandbox, transfer_collection_history_bigquery
 
 
 # Windows (PowerShell)

@@ -20,7 +20,7 @@ const (
 	MaxSeatsDocProperty                    = "max-seats"
 	MinVacancyRateDocProperty              = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty = "last-reset-daily-total-study-sec"
-	LastTransferLiveChatHistoryBigquery    = "last-transfer-live-chat-history-bigquery"
+	LastTransferCollectionHistoryBigquery  = "last-transfer-collection-history-bigquery"
 	
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
 	SeatsDocProperty                     = "seats"
