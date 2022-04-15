@@ -2346,19 +2346,16 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		}
 		
 		currentSeats := room.Seats
-		for i, seat := range room.Seats {
+		var autoExitSeatIds []int   // 自動退室時刻による自動退室
+		var forcedExitSeatIds []int // 長時間入室制限による強制退室
+		var resumeSeatIds []int     // 作業再開
+		
+		for _, seat := range room.Seats {
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			
 			// 自動退室時刻を過ぎていたら自動退室
 			if seat.Until.Before(utils.JstNow()) {
-				exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
-				if err != nil {
-					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
-					return err
-				}
-				currentSeats = exitedSeats
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+				autoExitSeatIds = append(autoExitSeatIds, seat.SeatId)
 				continue
 			}
 			
@@ -2370,24 +2367,47 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					return err
 				}
 				if !ifNotSittingTooMuch {
-					exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
-					if err != nil {
-						_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
-						return err
-					}
-					currentSeats = exitedSeats
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
-						"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+					forcedExitSeatIds = append(forcedExitSeatIds, seat.SeatId)
 					continue
-				}
-				err = s.Constants.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
-				if err != nil {
-					return err
 				}
 			}
 			
 			// 自動作業再開時刻を過ぎていたら自動で作業再開する
 			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
+				resumeSeatIds = append(resumeSeatIds, seat.SeatId)
+			}
+		}
+		
+		// TODO: 以下書き込みのみ
+		for i, seat := range room.Seats {
+			// 自動退室時刻による退室処理
+			if contains(autoExitSeatIds, seat.SeatId) {
+				exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				if err != nil {
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+					return err
+				}
+				currentSeats = exitedSeats
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+				continue
+			}
+			
+			// 長時間入室制限による強制退室
+			if contains(forcedExitSeatIds, seat.SeatId) {
+				exitedSeats, workedTimeSec, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				if err != nil {
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+					return err
+				}
+				currentSeats = exitedSeats
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+				continue
+			}
+			
+			// 作業再開処理
+			if contains(resumeSeatIds, seat.SeatId) {
 				// 再開処理
 				jstNow := utils.JstNow()
 				until := seat.Until
@@ -2426,6 +2446,12 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			}
 		}
 		
+		if ifCheckLongTimeSitting {
+			err = s.Constants.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 }

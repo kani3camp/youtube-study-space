@@ -146,3 +146,12 @@ func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (str
 	}
 	return creds.ProjectID, nil
 }
+
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}

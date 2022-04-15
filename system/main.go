@@ -3,11 +3,9 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
@@ -173,21 +171,9 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		iter := _system.Constants.FirestoreController.RetrieveAllUserActivityDocIdsBeforeDate(ctx, utils.JstNow())
-		for {
-			doc, err := iter.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				panic(err)
-			}
-			err = _system.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
-		}
-		return nil
-	})
+	err = _system.OrganizeDatabase(ctx)
 	if err != nil {
+		_ = _system.MessageToLineBotWithError("failed to organize database", err)
 		panic(err)
 	}
 }
@@ -200,8 +186,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
