@@ -64,29 +64,29 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	}
 	
 	constants := SystemConstants{
-		FirestoreController:                 fsController,
-		liveChatBot:                         liveChatBot,
-		lineBot:                             lineBot,
-		discordBot:                          discordBot,
-		LiveChatBotChannelId:                credentialsDoc.YoutubeBotChannelId,
-		MaxWorkTimeMin:                      constantsConfig.MaxWorkTimeMin,
-		MinWorkTimeMin:                      constantsConfig.MinWorkTimeMin,
-		DefaultWorkTimeMin:                  constantsConfig.DefaultWorkTimeMin,
-		MinBreakDurationMin:                 constantsConfig.MinBreakDurationMin,
-		MaxBreakDurationMin:                 constantsConfig.MaxBreakDurationMin,
-		MinBreakIntervalMin:                 constantsConfig.MinBreakIntervalMin,
-		DefaultBreakDurationMin:             constantsConfig.DefaultBreakDurationMin,
-		DefaultSleepIntervalMilli:           constantsConfig.SleepIntervalMilli,
-		CheckDesiredMaxSeatsIntervalSec:     constantsConfig.CheckDesiredMaxSeatsIntervalSec,
-		LastResetDailyTotalStudySec:         constantsConfig.LastResetDailyTotalStudySec,
-		LastTransferLiveChatHistoryBigquery: constantsConfig.LastTransferCollectionHistoryBigquery,
-		LastLongTimeSittingChecked:          constantsConfig.LastLongTimeSittingChecked,
-		GcpRegion:                           constantsConfig.GcpRegion,
-		GcsFirestoreExportBucketName:        constantsConfig.GcsFirestoreExportBucketName,
-		LiveChatHistoryRetentionDays:        constantsConfig.CollectionHistoryRetentionDays,
-		RecentRangeMin:                      constantsConfig.RecentRangeMin,
-		RecentThresholdMin:                  constantsConfig.RecentThresholdMin,
-		CheckLongTimeSittingIntervalMinutes: constantsConfig.CheckLongTimeSittingIntervalMinutes,
+		FirestoreController:                   fsController,
+		liveChatBot:                           liveChatBot,
+		lineBot:                               lineBot,
+		discordBot:                            discordBot,
+		LiveChatBotChannelId:                  credentialsDoc.YoutubeBotChannelId,
+		MaxWorkTimeMin:                        constantsConfig.MaxWorkTimeMin,
+		MinWorkTimeMin:                        constantsConfig.MinWorkTimeMin,
+		DefaultWorkTimeMin:                    constantsConfig.DefaultWorkTimeMin,
+		MinBreakDurationMin:                   constantsConfig.MinBreakDurationMin,
+		MaxBreakDurationMin:                   constantsConfig.MaxBreakDurationMin,
+		MinBreakIntervalMin:                   constantsConfig.MinBreakIntervalMin,
+		DefaultBreakDurationMin:               constantsConfig.DefaultBreakDurationMin,
+		DefaultSleepIntervalMilli:             constantsConfig.SleepIntervalMilli,
+		CheckDesiredMaxSeatsIntervalSec:       constantsConfig.CheckDesiredMaxSeatsIntervalSec,
+		LastResetDailyTotalStudySec:           constantsConfig.LastResetDailyTotalStudySec,
+		LastTransferCollectionHistoryBigquery: constantsConfig.LastTransferCollectionHistoryBigquery,
+		LastLongTimeSittingChecked:            constantsConfig.LastLongTimeSittingChecked,
+		GcpRegion:                             constantsConfig.GcpRegion,
+		GcsFirestoreExportBucketName:          constantsConfig.GcsFirestoreExportBucketName,
+		CollectionHistoryRetentionDays:        constantsConfig.CollectionHistoryRetentionDays,
+		RecentRangeMin:                        constantsConfig.RecentRangeMin,
+		RecentThresholdMin:                    constantsConfig.RecentThresholdMin,
+		CheckLongTimeSittingIntervalMinutes:   constantsConfig.CheckLongTimeSittingIntervalMinutes,
 	}
 	
 	// 全ての項目が初期化できているか確認
@@ -2605,7 +2605,7 @@ func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date tim
 func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
 	log.Println("BackupCollectionHistoryFromGcsToBigquery()")
 	// 時間がかかる処理なのでトランザクションはなし
-	previousDate := s.Constants.LastTransferLiveChatHistoryBigquery.In(utils.JapanLocation())
+	previousDate := s.Constants.LastTransferCollectionHistoryBigquery.In(utils.JapanLocation())
 	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
@@ -2639,7 +2639,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		
 		// 一定期間前のライブチャットおよびユーザー行動ログを削除
 		// 何日以降分を保持するか求める
-		retentionFromDate := utils.JstNow().Add(-time.Duration(s.Constants.LiveChatHistoryRetentionDays*24) * time.
+		retentionFromDate := utils.JstNow().Add(-time.Duration(s.Constants.CollectionHistoryRetentionDays*24) * time.
 			Hour)
 		retentionFromDate = time.Date(
 			retentionFromDate.Year(),
@@ -2668,7 +2668,6 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 
 func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore.Transaction, userId string,
 	seatId int) (bool, error) {
-	//log.Println("CheckSeatAvailabilityForUser()")
 	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Constants.RecentRangeMin) * time.Minute)
 	
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
@@ -2685,7 +2684,6 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		if err != nil {
 			return false, err
 		}
-		//log.Println("p2")
 		var activity myfirestore.UserActivityDoc
 		err = doc.DataTo(&activity)
 		if err != nil {
@@ -2693,7 +2691,6 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		}
 		activityList = append(activityList, activity)
 	}
-	//log.Println("p4")
 	// activityListは長さ0の可能性もあることに注意
 	
 	// 入室と退室が交互に並んでいるか確認
@@ -2708,7 +2705,6 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		}
 		lastActivityType = activity.ActivityType
 	}
-	//log.Println("p5")
 	
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
@@ -2726,7 +2722,6 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 			totalEntryDuration += activity.Timestamp.Sub(lastEnteredTimestamp)
 		}
 	}
-	//log.Println("CheckSeatAvailabilityForUserおわり")
 	
 	// 制限値と比較し、結果を返す
 	return int(totalEntryDuration.Minutes()) < s.Constants.RecentThresholdMin, nil
