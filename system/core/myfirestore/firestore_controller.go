@@ -40,6 +40,16 @@ func (controller *FirestoreController) set(ctx context.Context, tx *firestore.Tr
 	}
 }
 
+func (controller *FirestoreController) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
+	ref *firestore.DocumentRef) error {
+	if tx != nil {
+		return tx.Delete(ref)
+	} else {
+		_, err := ref.Delete(ctx)
+		return err
+	}
+}
+
 func (controller *FirestoreController) RetrieveCredentialsConfig(ctx context.Context, tx *firestore.Transaction) (CredentialsConfigDoc, error) {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	doc, err := controller.get(ctx, tx, ref)
@@ -87,7 +97,7 @@ func (controller *FirestoreController) RetrieveNextPageToken(ctx context.Context
 func (controller *FirestoreController) SaveNextPageToken(ctx context.Context, nextPageToken string) error {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	_, err := ref.Set(ctx, map[string]interface{}{
-		NextPageTokenFirestore: nextPageToken,
+		NextPageTokenDocProperty: nextPageToken,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -110,7 +120,6 @@ func (controller *FirestoreController) RetrieveRoom(ctx context.Context, tx *fir
 }
 
 func (controller *FirestoreController) SetSeat(
-	_ context.Context,
 	tx *firestore.Transaction,
 	seatId int,
 	workName string,
@@ -130,8 +139,9 @@ func (controller *FirestoreController) SetSeat(
 		Until:           exitDate,
 		ColorCode:       seatColorCode,
 	}
-	err := tx.Set(controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName), map[string]interface{}{
-		SeatsFirestore: firestore.ArrayUnion(seat),
+	ref := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName)
+	err := controller.set(nil, tx, ref, map[string]interface{}{
+		SeatsDocProperty: firestore.ArrayUnion(seat),
 	}, firestore.MergeAll)
 	if err != nil {
 		return Seat{}, err
@@ -140,51 +150,37 @@ func (controller *FirestoreController) SetSeat(
 }
 
 func (controller *FirestoreController) SetLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
-	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
-		LastEnteredFirestore: enteredDate,
+	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		LastEnteredDocProperty: enteredDate,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) SetLastExitedDate(tx *firestore.Transaction, userId string, exitedDate time.Time) error {
 	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
-	err := tx.Set(ref, map[string]interface{}{
-		LastExitedFirestore: exitedDate,
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		LastExitedDocProperty: exitedDate,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) AddUserActivityLog(tx *firestore.Transaction, activity UserActivityDoc) error {
-	docId := UserActivityDocPrefix + activity.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(activity.
-		Timestamp.Nanosecond())
-	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
+	ref := controller.FirestoreClient.Collection(UserActivities).NewDoc()
 	return controller.set(nil, tx, ref, activity)
 }
 
-func (controller *FirestoreController) SetMyRankVisible(_ context.Context, tx *firestore.Transaction, userId string, rankVisible bool) error {
-	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
-		RankVisibleFirestore: rankVisible,
+func (controller *FirestoreController) SetMyRankVisible(tx *firestore.Transaction, userId string,
+	rankVisible bool) error {
+	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		RankVisibleDocProperty: rankVisible,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) SetMyDefaultStudyMin(tx *firestore.Transaction, userId string, defaultStudyMin int) error {
-	err := tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), map[string]interface{}{
-		DefaultStudyMinFirestore: defaultStudyMin,
+	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		DefaultStudyMinDocProperty: defaultStudyMin,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) RetrieveUser(ctx context.Context, tx *firestore.Transaction, userId string) (UserDoc, error) {
@@ -208,20 +204,16 @@ func (controller *FirestoreController) UpdateTotalTime(
 	newDailyTotalTimeSec int,
 ) error {
 	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
-	err := tx.Set(ref, map[string]interface{}{
-		DailyTotalStudySecFirestore: newDailyTotalTimeSec,
-		TotalStudySecFirestore:      newTotalTimeSec,
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		DailyTotalStudySecDocProperty: newDailyTotalTimeSec,
+		TotalStudySecDocProperty:      newTotalTimeSec,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) SaveLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	err := controller.set(ctx, tx, ref, map[string]interface{}{
-		LiveChatIdFirestore: liveChatId,
+		LiveChatIdDocProperty: liveChatId,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -230,7 +222,8 @@ func (controller *FirestoreController) SaveLiveChatId(ctx context.Context, tx *f
 }
 
 func (controller *FirestoreController) InitializeUser(tx *firestore.Transaction, userId string, userData UserDoc) error {
-	return tx.Set(controller.FirestoreClient.Collection(USERS).Doc(userId), userData)
+	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
+	return controller.set(nil, tx, ref, userData)
 }
 
 func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
@@ -238,80 +231,73 @@ func (controller *FirestoreController) RetrieveAllUserDocRefs(ctx context.Contex
 }
 
 func (controller *FirestoreController) RetrieveAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(USERS).Where(DailyTotalStudySecFirestore, "!=", 0).Documents(ctx)
+	return controller.FirestoreClient.Collection(USERS).Where(DailyTotalStudySecDocProperty, "!=", 0).Documents(ctx)
 }
 
 func (controller *FirestoreController) ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error {
-	//return tx.Set(userRef, map[string]interface{}{
-	//	DailyTotalStudySecFirestore: 0,
-	//}, firestore.MergeAll)
 	_, err := userRef.Set(ctx, map[string]interface{}{
-		DailyTotalStudySecFirestore: 0,
+		DailyTotalStudySecDocProperty: 0,
 	}, firestore.MergeAll)
 	return err
 }
 
 func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(ctx context.Context, timestamp time.Time) error {
-	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
-	//	map[string]interface{}{
-	//	LastResetDailyTotalStudySecFirestore: timestamp,
-	//}, firestore.MergeAll)
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
 		map[string]interface{}{
-			LastResetDailyTotalStudySecFirestore: timestamp,
+			LastResetDailyTotalStudySecDocProperty: timestamp,
 		}, firestore.MergeAll)
 	return err
 }
 
-func (controller *FirestoreController) SetLastTransferLiveChatHistoryBigquery(ctx context.Context,
+func (controller *FirestoreController) SetLastLongTimeSittingChecked(ctx context.Context, timestamp time.Time) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
+		map[string]interface{}{
+			LastLongTimeSittingCheckedDocProperty: timestamp,
+		}, firestore.MergeAll)
+	return err
+}
+
+func (controller *FirestoreController) SetLastTransferCollectionHistoryBigquery(ctx context.Context,
 	timestamp time.Time) error {
 	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
 	//	map[string]interface{}{
-	//	LastTransferLiveChatHistoryBigquery: timestamp,
+	//	LastTransferCollectionHistoryBigqueryDocProperty: timestamp,
 	//}, firestore.MergeAll)
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
 		map[string]interface{}{
-			LastTransferLiveChatHistoryBigquery: timestamp,
+			LastTransferCollectionHistoryBigqueryDocProperty: timestamp,
 		}, firestore.MergeAll)
 	return err
 }
 
-func (controller *FirestoreController) SetDesiredMaxSeats(tx *firestore.Transaction, desiredMaxSeats int) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName), map[string]interface{}{
-		DesiredMaxSeatsFirestore: desiredMaxSeats,
+func (controller *FirestoreController) SetDesiredMaxSeats(ctx context.Context, tx *firestore.Transaction,
+	desiredMaxSeats int) error {
+	ref := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName)
+	return controller.set(ctx, tx, ref, map[string]interface{}{
+		DesiredMaxSeatsDocProperty: desiredMaxSeats,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (controller *FirestoreController) SetMaxSeats(tx *firestore.Transaction, maxSeats int) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName), map[string]interface{}{
-		MaxSeatsFirestore: maxSeats,
+func (controller *FirestoreController) SetMaxSeats(ctx context.Context, tx *firestore.Transaction, maxSeats int) error {
+	ref := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName)
+	return controller.set(ctx, tx, ref, map[string]interface{}{
+		MaxSeatsDocProperty: maxSeats,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) SetAccessTokenOfChannelCredential(tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
-	err := tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName), map[string]interface{}{
-		YoutubeChannelAccessTokenFirestore: accessToken,
-		YoutubeChannelExpirationDate:       expireDate,
+	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
+	return controller.set(nil, tx, ref, map[string]interface{}{
+		YoutubeChannelAccessTokenDocProperty: accessToken,
+		YoutubeChannelExpirationDate:         expireDate,
 	}, firestore.MergeAll)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (controller *FirestoreController) SetAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	err := controller.set(ctx, tx, ref, map[string]interface{}{
-		YoutubeBotAccessTokenFirestore:    accessToken,
-		YoutubeBotExpirationDateFirestore: expireDate,
+		YoutubeBotAccessTokenDocProperty:    accessToken,
+		YoutubeBotExpirationDateDocProperty: expireDate,
 	}, firestore.MergeAll)
 	if err != nil {
 		return err
@@ -322,15 +308,13 @@ func (controller *FirestoreController) SetAccessTokenOfBotCredential(ctx context
 func (controller *FirestoreController) UpdateSeats(tx *firestore.Transaction, seats []Seat) error {
 	ref := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName)
 	return tx.Update(ref, []firestore.Update{
-		{Path: SeatsFirestore, Value: seats},
+		{Path: SeatsDocProperty, Value: seats},
 	})
 }
 
 func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
 	liveChatHistoryDoc LiveChatHistoryDoc) error {
-	docId := LiveChatHistoryDocPrefix + liveChatHistoryDoc.PublishedAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(liveChatHistoryDoc.
-		PublishedAt.Nanosecond())
-	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
+	ref := controller.FirestoreClient.Collection(LiveChatHistory).NewDoc()
 	return controller.set(ctx, tx, ref, liveChatHistoryDoc)
 }
 
@@ -338,12 +322,6 @@ func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDat
 	date time.Time,
 ) *firestore.DocumentIterator {
 	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocName, "<", date).Documents(ctx)
-}
-
-func (controller *FirestoreController) DeleteLiveChatHistoryDoc(tx *firestore.Transaction, docId string) error {
-	// TODO: 時間かかりそう。txじゃないほうがいい？
-	ref := controller.FirestoreClient.Collection(LiveChatHistory).Doc(docId)
-	return tx.Delete(ref)
 }
 
 func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
@@ -365,7 +343,9 @@ func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ct
 	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=", date).Documents(ctx)
 }
 
-func (controller *FirestoreController) DeleteUserActivityDoc(tx *firestore.Transaction, docId string) error {
-	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
-	return tx.Delete(ref)
+func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
+	date time.Time, userId string, seatId int) *firestore.DocumentIterator {
+	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=",
+		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).OrderBy(TimestampDocName,
+		firestore.Asc).Documents(ctx)
 }

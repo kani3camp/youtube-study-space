@@ -35,12 +35,18 @@ type SystemConstants struct {
 	DefaultSleepIntervalMilli       int
 	CheckDesiredMaxSeatsIntervalSec int
 	
-	LastResetDailyTotalStudySec         time.Time
-	LastTransferLiveChatHistoryBigquery time.Time
+	LastResetDailyTotalStudySec           time.Time
+	LastTransferCollectionHistoryBigquery time.Time
+	LastLongTimeSittingChecked            time.Time
 	
-	GcpRegion                    string
-	GcsFirestoreExportBucketName string
-	LiveChatHistoryRetentionDays int
+	GcpRegion                      string
+	GcsFirestoreExportBucketName   string
+	CollectionHistoryRetentionDays int
+	
+	RecentRangeMin     int
+	RecentThresholdMin int
+	
+	CheckLongTimeSittingIntervalMinutes int
 }
 
 type CommandDetails struct {
