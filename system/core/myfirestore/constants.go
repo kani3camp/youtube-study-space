@@ -16,11 +16,12 @@ const (
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
 	
-	DesiredMaxSeatsDocProperty             = "desired-max-seats"
-	MaxSeatsDocProperty                    = "max-seats"
-	MinVacancyRateDocProperty              = "min-vacancy-rate"
-	LastResetDailyTotalStudySecDocProperty = "last-reset-daily-total-study-sec"
-	LastTransferCollectionHistoryBigquery  = "last-transfer-collection-history-bigquery"
+	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
+	MaxSeatsDocProperty                              = "max-seats"
+	MinVacancyRateDocProperty                        = "min-vacancy-rate"
+	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
+	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
+	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 	
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
 	SeatsDocProperty                     = "seats"

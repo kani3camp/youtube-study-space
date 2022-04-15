@@ -30,7 +30,12 @@ const prodAllRooms: AllRoomsConfig = {
 
 const testAllRooms: AllRoomsConfig = {
     basicRooms: [circleRoomLayout],
-    temporaryRooms: [SimpleRoomLayout],
+    temporaryRooms: [
+        classRoomLayout,
+        SimpleRoomLayout,
+        mazeRoomLayout,
+        HimajinRoomLayout,
+    ],
 }
 
 export const allRooms: AllRoomsConfig = testAllRooms

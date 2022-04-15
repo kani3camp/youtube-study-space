@@ -235,9 +235,6 @@ func (controller *FirestoreController) RetrieveAllNonDailyZeroUserDocs(ctx conte
 }
 
 func (controller *FirestoreController) ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error {
-	//return tx.Set(userRef, map[string]interface{}{
-	//	DailyTotalStudySecDocProperty: 0,
-	//}, firestore.MergeAll)
 	_, err := userRef.Set(ctx, map[string]interface{}{
 		DailyTotalStudySecDocProperty: 0,
 	}, firestore.MergeAll)
@@ -245,13 +242,17 @@ func (controller *FirestoreController) ResetDailyTotalStudyTime(ctx context.Cont
 }
 
 func (controller *FirestoreController) SetLastResetDailyTotalStudyTime(ctx context.Context, timestamp time.Time) error {
-	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
-	//	map[string]interface{}{
-	//	LastResetDailyTotalStudySecDocProperty: timestamp,
-	//}, firestore.MergeAll)
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
 		map[string]interface{}{
 			LastResetDailyTotalStudySecDocProperty: timestamp,
+		}, firestore.MergeAll)
+	return err
+}
+
+func (controller *FirestoreController) SetLastLongTimeSittingChecked(ctx context.Context, timestamp time.Time) error {
+	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
+		map[string]interface{}{
+			LastLongTimeSittingCheckedDocProperty: timestamp,
 		}, firestore.MergeAll)
 	return err
 }
@@ -260,11 +261,11 @@ func (controller *FirestoreController) SetLastTransferCollectionHistoryBigquery(
 	timestamp time.Time) error {
 	//return tx.Set(controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName),
 	//	map[string]interface{}{
-	//	LastTransferCollectionHistoryBigquery: timestamp,
+	//	LastTransferCollectionHistoryBigqueryDocProperty: timestamp,
 	//}, firestore.MergeAll)
 	_, err := controller.FirestoreClient.Collection(CONFIG).Doc(SystemConstantsConfigDocName).Set(ctx,
 		map[string]interface{}{
-			LastTransferCollectionHistoryBigquery: timestamp,
+			LastTransferCollectionHistoryBigqueryDocProperty: timestamp,
 		}, firestore.MergeAll)
 	return err
 }
