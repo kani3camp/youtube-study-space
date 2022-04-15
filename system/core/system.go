@@ -2704,8 +2704,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 	iter := s.Constants.FirestoreController.RetrieveAllUserActivityDocIdsAfterDateForUserAndSeat(ctx,
 		checkDurationFrom,
 		userId, seatId)
-	var activityList []myfirestore.UserActivityDoc
-	//log.Println("p1")
+	var activityAllTypeList []myfirestore.UserActivityDoc
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -2719,13 +2718,21 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 		if err != nil {
 			return false, err
 		}
-		activityList = append(activityList, activity)
+		activityAllTypeList = append(activityAllTypeList, activity)
 	}
 	// activityListは長さ0の可能性もあることに注意
 	
+	// 入退室以外のactivityは除外
+	var activityOnlyEnterExitList []myfirestore.UserActivityDoc
+	for _, a := range activityAllTypeList {
+		if a.ActivityType == myfirestore.EnterRoomActivity || a.ActivityType == myfirestore.ExitRoomActivity {
+			activityOnlyEnterExitList = append(activityOnlyEnterExitList, a)
+		}
+	}
+	
 	// 入室と退室が交互に並んでいるか確認
 	var lastActivityType myfirestore.UserActivityType
-	for i, activity := range activityList {
+	for i, activity := range activityOnlyEnterExitList {
 		if i == 0 {
 			lastActivityType = activity.ActivityType
 			continue
@@ -2740,10 +2747,11 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 	totalEntryDuration := time.Duration(0)
 	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
 	lastEnteredTimestamp := checkDurationFrom
-	for i, activity := range activityList {
+	for i, activity := range activityOnlyEnterExitList {
 		if activity.ActivityType == myfirestore.EnterRoomActivity {
 			lastEnteredTimestamp = activity.Timestamp
-			if i+1 == len(activityList) { // 最後のactivityであった場合、現在時刻までの時間を加算
+			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
+				entryCount += 1
 				totalEntryDuration += utils.JstNow().Sub(activity.Timestamp)
 			}
 			continue
