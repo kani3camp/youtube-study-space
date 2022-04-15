@@ -183,7 +183,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 			if err != nil {
 				panic(err)
 			}
-			err = _system.Constants.FirestoreController.DeleteUserActivityDoc(tx, doc.Ref.ID)
+			err = _system.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
 		}
 		return nil
 	})
