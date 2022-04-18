@@ -7,6 +7,7 @@ import { mazeRoomLayout } from "./layouts/maze_room";
 import { oneSeatRoomLayout } from "./layouts/one_seat_room";
 import { SeaOfSeatRoomLayout } from "./layouts/sea_of_seat_room";
 import { SimpleRoomLayout } from "./layouts/simple_room";
+import { takochanRoomLayout } from "./layouts/takochan_room";
 import { ver2RoomLayout } from "./layouts/ver2";
 
 type RoomsConfig = {
@@ -15,7 +16,7 @@ type RoomsConfig = {
 }
 
 export const basicRooms: RoomsConfig = {
-    roomLayouts: [circleRoomLayout, mazeRoomLayout, HimajinRoomLayout, SeaOfSeatRoomLayout]
+    roomLayouts: [circleRoomLayout, mazeRoomLayout, HimajinRoomLayout, takochanRoomLayout, SeaOfSeatRoomLayout]
 }
 
 export const temporaryRooms: RoomsConfig = {
