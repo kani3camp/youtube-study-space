@@ -2693,7 +2693,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			return err
 		}
 	} else {
-		_ = s.MessageToLineBot("yesterday's live chat histories are already reset today.")
+		_ = s.MessageToLineBot("yesterday's collection histories are already reset today.")
 	}
 	return nil
 }

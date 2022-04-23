@@ -10,7 +10,8 @@ cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region us-east-1
 go build -o main    transfer_collection_history_bigquery.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
-aws lambda create-function --function-name     transfer_collection_history_bigquery     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20 --profile soraride
+aws lambda create-function --function-name     transfer_collection_history_bigquery     --runtime go1.x --zip-file
+fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 120 --profile soraride
 aws lambda update-function-code --function-name     transfer_collection_history_bigquery     --zip-file fileb://main.zip --profile soraride
 
 
@@ -21,6 +22,6 @@ go build -o main    reset_daily_total_study_time.go
 zip main.zip main
 
 aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler
-main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 20 --profile soraride
+main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 120 --profile soraride
 
 aws lambda update-function-code --function-name   reset_daily_total_study_time   --zip-file fileb://main.zip --profile soraride
