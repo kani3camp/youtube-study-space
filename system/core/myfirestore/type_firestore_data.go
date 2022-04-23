@@ -169,5 +169,5 @@ type UserActivityDoc struct {
 	UserId       string           `json:"user_id" firestore:"user-id"`
 	ActivityType UserActivityType `json:"activity_type" firestore:"activity-type"`
 	SeatId       int              `json:"seat_id" firestore:"seat-id"`
-	Timestamp    time.Time        `json:"timestamp" firestore:"timestamp"`
+	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
 }

@@ -326,7 +326,7 @@ func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDat
 
 func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
 	userActivityDoc UserActivityDoc) error {
-	docId := "user-activity_" + userActivityDoc.Timestamp.Format("2006-01-02_15-04-05_") + strconv.Itoa(userActivityDoc.Timestamp.Nanosecond())
+	docId := "user-activity_" + userActivityDoc.TakenAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(userActivityDoc.TakenAt.Nanosecond())
 	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
 	return controller.set(ctx, tx, ref, userActivityDoc)
 }

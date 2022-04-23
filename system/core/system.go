@@ -1718,7 +1718,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			UserId:       s.ProcessedUserId,
 			ActivityType: myfirestore.StartBreakActivity,
 			SeatId:       currentSeat.SeatId,
-			Timestamp:    utils.JstNow(),
+			TakenAt:      utils.JstNow(),
 		}
 		err = s.Constants.FirestoreController.AddUserActivityLog(tx, startBreakActivity)
 		if err != nil {
@@ -1797,7 +1797,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 			UserId:       s.ProcessedUserId,
 			ActivityType: myfirestore.EndBreakActivity,
 			SeatId:       currentSeat.SeatId,
-			Timestamp:    utils.JstNow(),
+			TakenAt:      utils.JstNow(),
 		}
 		err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
 		if err != nil {
@@ -2098,7 +2098,7 @@ func (s *System) enterRoom(
 		UserId:       userId,
 		ActivityType: myfirestore.EnterRoomActivity,
 		SeatId:       seatId,
-		Timestamp:    enterDate,
+		TakenAt:      enterDate,
 	}
 	err = s.Constants.FirestoreController.AddUserActivityLog(tx, enterActivity)
 	if err != nil {
@@ -2156,7 +2156,7 @@ func (s *System) exitRoom(
 		UserId:       previousSeat.UserId,
 		ActivityType: myfirestore.ExitRoomActivity,
 		SeatId:       previousSeat.SeatId,
-		Timestamp:    exitDate,
+		TakenAt:      exitDate,
 	}
 	err = s.Constants.FirestoreController.AddUserActivityLog(tx, exitActivity)
 	if err != nil {
@@ -2434,7 +2434,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					UserId:       s.ProcessedUserId,
 					ActivityType: myfirestore.EndBreakActivity,
 					SeatId:       seat.SeatId,
-					Timestamp:    utils.JstNow(),
+					TakenAt:      utils.JstNow(),
 				}
 				err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
 				if err != nil {
@@ -2680,7 +2680,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			0, 0, 0, 0, retentionFromDate.Location(),
 		)
 		
-		// ライブチャット削除・ユーザー行動ログ削除
+		// ライブチャット・ユーザー行動ログ削除
 		err = s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
 		if err != nil {
 			return err
@@ -2751,15 +2751,15 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore
 	lastEnteredTimestamp := checkDurationFrom
 	for i, activity := range activityOnlyEnterExitList {
 		if activity.ActivityType == myfirestore.EnterRoomActivity {
-			lastEnteredTimestamp = activity.Timestamp
+			lastEnteredTimestamp = activity.TakenAt
 			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
 				entryCount += 1
-				totalEntryDuration += utils.JstNow().Sub(activity.Timestamp)
+				totalEntryDuration += utils.JstNow().Sub(activity.TakenAt)
 			}
 			continue
 		} else if activity.ActivityType == myfirestore.ExitRoomActivity {
 			entryCount += 1
-			totalEntryDuration += activity.Timestamp.Sub(lastEnteredTimestamp)
+			totalEntryDuration += activity.TakenAt.Sub(lastEnteredTimestamp)
 		}
 	}
 	

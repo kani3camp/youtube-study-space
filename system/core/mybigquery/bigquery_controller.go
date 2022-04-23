@@ -88,7 +88,7 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
 		case myfirestore.UserActivities:
 			query = controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
-				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', timestamp, '+09:00') " +
+				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', taken_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
 		}
