@@ -11,8 +11,8 @@ const (
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
 	DefaultRoomDocName           = "default"
-	PublishedAtDocName           = "published-at"
-	TimestampDocName             = "timestamp"
+	PublishedAtDocProperty       = "published-at"
+	TakenAtDocProperty           = "taken-at"
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
 	

@@ -321,7 +321,7 @@ func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context
 func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx context.Context,
 	date time.Time,
 ) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocName, "<", date).Documents(ctx)
+	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocProperty, "<", date).Documents(ctx)
 }
 
 func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
@@ -334,18 +334,18 @@ func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, t
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsBeforeDate(ctx context.Context,
 	date time.Time,
 ) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, "<", date).Documents(ctx)
+	return controller.FirestoreClient.Collection(UserActivities).Where(TakenAtDocProperty, "<", date).Documents(ctx)
 }
 
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ctx context.Context,
 	date time.Time,
 ) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=", date).Documents(ctx)
+	return controller.FirestoreClient.Collection(UserActivities).Where(TakenAtDocProperty, ">=", date).Documents(ctx)
 }
 
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
 	date time.Time, userId string, seatId int) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(UserActivities).Where(TimestampDocName, ">=",
-		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).OrderBy(TimestampDocName,
+	return controller.FirestoreClient.Collection(UserActivities).Where(TakenAtDocProperty, ">=",
+		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).OrderBy(TakenAtDocProperty,
 		firestore.Asc).Documents(ctx)
 }
