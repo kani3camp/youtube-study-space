@@ -3,10 +3,8 @@ package core
 import (
 	"app.modules/core/myfirestore"
 	"context"
-	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
-	"log"
 	"strings"
 	"time"
 )
@@ -125,18 +123,6 @@ func CreateUpdatedSeatsSeatState(seats []myfirestore.Seat, userId string, state 
 		}
 	}
 	return seats
-}
-
-func LoadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println(err)
-		err = godotenv.Load("../.env")
-		if err != nil {
-			log.Println(err.Error())
-			log.Fatal("Error loading .env file")
-		}
-	}
 }
 
 func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (string, error) {

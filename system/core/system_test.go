@@ -1,6 +1,7 @@
 package core
 
 import (
+	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/kr/pretty"
@@ -15,7 +16,7 @@ import (
 )
 
 func InitTest() (option.ClientOption, context.Context, error) {
-	LoadEnv()
+	utils.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
