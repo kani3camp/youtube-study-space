@@ -2,6 +2,12 @@ export type SeatsState = {
     seats: Seat[]
 }
 
+export type SeatAppearance = {
+    color_code: string
+    num_stars: number
+    glow_animation: boolean
+}
+
 export type Seat = {
     seat_id: number
     user_id: string
@@ -10,8 +16,7 @@ export type Seat = {
     break_work_name: string
     entered_at: Date
     until: Date
-    color_code: string
-    glow_animation: boolean
+    appearance: SeatAppearance
     state: SeatState
     current_state_started_at: Date
     current_state_until: Date

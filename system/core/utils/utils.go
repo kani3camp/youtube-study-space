@@ -16,7 +16,7 @@ func JstNow() time.Time {
 }
 
 func InSeconds(t time.Time) int {
-	return t.Second() + int(time.Minute.Seconds()) * t.Minute() + int(time.Hour.Seconds()) * t.Hour()
+	return t.Second() + int(time.Minute.Seconds())*t.Minute() + int(time.Hour.Seconds())*t.Hour()
 }
 
 func Get7daysBeforeJust0AM(date time.Time) time.Time {
@@ -43,4 +43,10 @@ func LoadEnv() {
 			log.Fatal("Error loading .env file")
 		}
 	}
+}
+
+// SecondsToHours 秒を時間に換算。切り捨て。
+func SecondsToHours(seconds int) int {
+	duration := time.Duration(seconds) * time.Second
+	return int(duration.Hours())
 }

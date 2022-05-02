@@ -10,12 +10,12 @@ import (
 func TestGetRank(t *testing.T) {
 	type TestCase struct {
 		TotalSec int
-		Expected Rank
+		Expected LegacyRank
 	}
 	testCases := []TestCase{
 		{
 			TotalSec: 0,
-			Expected: Rank{
+			Expected: LegacyRank{
 				GreaterThanOrEqualToHours: 0,
 				LessThanHours:             5,
 				ColorCode:                 "#fff",
@@ -23,15 +23,15 @@ func TestGetRank(t *testing.T) {
 		},
 		{
 			TotalSec: 36000,
-			Expected: Rank{
+			Expected: LegacyRank{
 				GreaterThanOrEqualToHours: 10,
 				LessThanHours:             20,
 				ColorCode:                 "#FF9580",
 			},
 		},
 		{
-			TotalSec: 500000,	// = 138.888889 hours
-			Expected: Rank{
+			TotalSec: 500000, // = 138.888889 hours
+			Expected: LegacyRank{
 				GreaterThanOrEqualToHours: 100,
 				LessThanHours:             150,
 				ColorCode:                 "#80FF95",

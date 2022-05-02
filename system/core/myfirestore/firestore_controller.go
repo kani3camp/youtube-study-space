@@ -118,36 +118,6 @@ func (controller *FirestoreController) RetrieveRoom(ctx context.Context, tx *fir
 	return roomData, nil
 }
 
-func (controller *FirestoreController) SetSeat(
-	tx *firestore.Transaction,
-	seatId int,
-	workName string,
-	enterDate time.Time,
-	exitDate time.Time,
-	seatColorCode string,
-	userId string,
-	userDisplayName string,
-) (Seat, error) {
-	// TODO {Path: , Val: }形式に書き直せないかな？
-	seat := Seat{
-		SeatId:          seatId,
-		UserId:          userId,
-		UserDisplayName: userDisplayName,
-		WorkName:        workName,
-		EnteredAt:       enterDate,
-		Until:           exitDate,
-		ColorCode:       seatColorCode,
-	}
-	ref := controller.FirestoreClient.Collection(ROOMS).Doc(DefaultRoomDocName)
-	err := controller.set(nil, tx, ref, map[string]interface{}{
-		SeatsDocProperty: firestore.ArrayUnion(seat),
-	}, firestore.MergeAll)
-	if err != nil {
-		return Seat{}, err
-	}
-	return seat, nil
-}
-
 func (controller *FirestoreController) SetLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
 	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
 	return controller.set(nil, tx, ref, map[string]interface{}{

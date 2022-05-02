@@ -930,9 +930,9 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			command.InOptions.SeatId = seatId
 		}
 		// ランクから席の色を決定
-		userRank, err := s.RetrieveCurrentRank(ctx, tx)
+		seatAppearance, err := s.RetrieveCurrentUserRank(ctx, tx, s.ProcessedUserId)
 		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveCurrentRank", err)
+			_ = s.MessageToLineBotWithError("failed to RetrieveCurrentUserRank", err)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -995,7 +995,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				// 入室処理
 				err = s.enterRoom(tx, exitedSeats, s.ProcessedUserId, s.ProcessedUserDisplayName,
 					command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
-					userRank.ColorCode, userRank.GlowAnimation, myfirestore.WorkState)
+					seatAppearance, myfirestore.WorkState)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to enter room", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -1012,7 +1012,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		} else { // 入室のみ
 			err = s.enterRoom(tx, seats, s.ProcessedUserId, s.ProcessedUserDisplayName,
 				command.InOptions.SeatId, command.InOptions.WorkName, command.InOptions.WorkMin,
-				userRank.ColorCode, userRank.GlowAnimation, myfirestore.WorkState)
+				seatAppearance, myfirestore.WorkState)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to enter room", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -1028,30 +1028,19 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 	})
 }
 
-// RetrieveCurrentRank リアルタイムの現在のランクを求める
-func (s *System) RetrieveCurrentRank(ctx context.Context, tx *firestore.Transaction) (utils.Rank, error) {
-	userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+// RetrieveCurrentUserRank リアルタイムの現在のランクを求める
+func (s *System) RetrieveCurrentUserRank(ctx context.Context, tx *firestore.Transaction, userId string) (myfirestore.SeatAppearance, error) {
+	userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, userId)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-		return utils.Rank{}, err
+		return myfirestore.SeatAppearance{}, err
 	}
-	if userDoc.RankVisible {
-		// 入室中であれば、リアルタイムの作業時間も含める
-		totalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
-		if err != nil {
-			return utils.Rank{}, err
-		}
-		
-		rank, err := utils.GetRank(int(totalStudyDuration.Seconds()))
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to GetRank", err)
-			return utils.Rank{}, err
-		}
-		return rank, nil
-	} else {
-		rank := utils.GetInvisibleRank()
-		return rank, nil
+	totalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+	if err != nil {
+		return myfirestore.SeatAppearance{}, err
 	}
+	seatAppearance := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint)
+	return seatAppearance, nil
 }
 
 func (s *System) RetrieveRealtimeTotalStudyDuration(ctx context.Context, tx *firestore.Transaction) (time.Duration, error) {
@@ -1383,7 +1372,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		var seats []myfirestore.Seat
-		var totalStudySec int
+		var realTimeTotalStudySec int
 		if isUserInRoom {
 			roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
@@ -1394,14 +1383,14 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			}
 			seats = roomDoc.Seats
 			
-			totalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+			realTimeTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
-			totalStudySec = int(totalStudyDuration.Seconds())
+			realTimeTotalStudySec = int(realTimeTotalStudyDuration.Seconds())
 		}
 		
 		for _, myOption := range command.MyOptions {
@@ -1434,21 +1423,9 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					
 					// 入室中であれば、座席の色も変える
 					if isUserInRoom {
-						var rank utils.Rank
-						if newRankVisible { // ランクから席の色を取得
-							rank, err = utils.GetRank(totalStudySec)
-							if err != nil {
-								_ = s.MessageToLineBotWithError("failed to GetRank", err)
-								s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-									"さん、エラーが発生しました。もう一度試してみてください")
-								return err
-							}
-						} else { // ランク表示オフの色を取得
-							rank = utils.GetInvisibleRank()
-						}
+						seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint)
 						// 席の色を更新
-						seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation,
-							s.ProcessedUserId)
+						seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
 						err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 						if err != nil {
 							_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)
@@ -1850,7 +1827,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			return err
 		}
 		var seats []myfirestore.Seat
-		var totalStudySec int
+		var realTimeTotalStudySec int
 		if isUserInRoom {
 			roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
@@ -1861,14 +1838,14 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			}
 			seats = roomDoc.Seats
 			
-			totalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+			realTimeTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
-			totalStudySec = int(totalStudyDuration.Seconds())
+			realTimeTotalStudySec = int(realTimeTotalStudyDuration.Seconds())
 		}
 		
 		// ランク表示設定のON/OFFを切り替える
@@ -1890,20 +1867,9 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		
 		// 入室中であれば、座席の色も変える
 		if isUserInRoom {
-			var rank utils.Rank
-			if newRankVisible { // ランクから席の色を取得
-				rank, err = utils.GetRank(totalStudySec)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to GetRank", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください")
-					return err
-				}
-			} else { // ランク表示オフの色を取得
-				rank = utils.GetInvisibleRank()
-			}
+			seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint)
 			// 席の色を更新
-			seats = CreateUpdatedSeatsSeatColorCode(seats, rank.ColorCode, rank.GlowAnimation, s.ProcessedUserId)
+			seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
 			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats()", err)
@@ -2059,8 +2025,7 @@ func (s *System) enterRoom(
 	seatId int,
 	workName string,
 	workMin int,
-	seatColorCode string,
-	seatGlowAnimation bool,
+	seatAppearance myfirestore.SeatAppearance,
 	state myfirestore.SeatState,
 ) error {
 	enterDate := utils.JstNow()
@@ -2073,8 +2038,7 @@ func (s *System) enterRoom(
 		WorkName:               workName,
 		EnteredAt:              enterDate,
 		Until:                  exitDate,
-		ColorCode:              seatColorCode,
-		GlowAnimation:          seatGlowAnimation,
+		Appearance:             seatAppearance,
 		State:                  state,
 		CurrentStateStartedAt:  enterDate,
 		CurrentStateUntil:      exitDate,
