@@ -115,6 +115,3 @@ func rankPointToColorCode(rp int) string {
 		return ColorRank10
 	}
 }
-!my color=
-func
-
