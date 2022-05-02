@@ -1720,7 +1720,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			SeatId:       currentSeat.SeatId,
 			TakenAt:      utils.JstNow(),
 		}
-		err = s.Constants.FirestoreController.AddUserActivityLog(tx, startBreakActivity)
+		err = s.Constants.FirestoreController.AddUserActivityDoc(tx, startBreakActivity)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1799,7 +1799,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 			SeatId:       currentSeat.SeatId,
 			TakenAt:      utils.JstNow(),
 		}
-		err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
+		err = s.Constants.FirestoreController.AddUserActivityDoc(tx, endBreakActivity)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -2100,7 +2100,7 @@ func (s *System) enterRoom(
 		SeatId:       seatId,
 		TakenAt:      enterDate,
 	}
-	err = s.Constants.FirestoreController.AddUserActivityLog(tx, enterActivity)
+	err = s.Constants.FirestoreController.AddUserActivityDoc(tx, enterActivity)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 		return err
@@ -2158,7 +2158,7 @@ func (s *System) exitRoom(
 		SeatId:       previousSeat.SeatId,
 		TakenAt:      exitDate,
 	}
-	err = s.Constants.FirestoreController.AddUserActivityLog(tx, exitActivity)
+	err = s.Constants.FirestoreController.AddUserActivityDoc(tx, exitActivity)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 	}
@@ -2436,7 +2436,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					SeatId:       seat.SeatId,
 					TakenAt:      utils.JstNow(),
 				}
-				err = s.Constants.FirestoreController.AddUserActivityLog(tx, endBreakActivity)
+				err = s.Constants.FirestoreController.AddUserActivityDoc(tx, endBreakActivity)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to add an user activity", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")

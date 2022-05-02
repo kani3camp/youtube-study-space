@@ -4,7 +4,6 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"google.golang.org/api/option"
-	"strconv"
 	"time"
 )
 
@@ -161,11 +160,6 @@ func (controller *FirestoreController) SetLastExitedDate(tx *firestore.Transacti
 	return controller.set(nil, tx, ref, map[string]interface{}{
 		LastExitedDocProperty: exitedDate,
 	}, firestore.MergeAll)
-}
-
-func (controller *FirestoreController) AddUserActivityLog(tx *firestore.Transaction, activity UserActivityDoc) error {
-	ref := controller.FirestoreClient.Collection(UserActivities).NewDoc()
-	return controller.set(nil, tx, ref, activity)
 }
 
 func (controller *FirestoreController) SetMyRankVisible(tx *firestore.Transaction, userId string,
@@ -325,11 +319,9 @@ func (controller *FirestoreController) Retrieve500LiveChatHistoryDocIdsBeforeDat
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
-func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
-	userActivityDoc UserActivityDoc) error {
-	docId := "user-activity_" + userActivityDoc.TakenAt.Format("2006-01-02_15-04-05_") + strconv.Itoa(userActivityDoc.TakenAt.Nanosecond())
-	ref := controller.FirestoreClient.Collection(UserActivities).Doc(docId)
-	return controller.set(ctx, tx, ref, userActivityDoc)
+func (controller *FirestoreController) AddUserActivityDoc(tx *firestore.Transaction, activity UserActivityDoc) error {
+	ref := controller.FirestoreClient.Collection(UserActivities).NewDoc()
+	return controller.set(nil, tx, ref, activity)
 }
 
 func (controller *FirestoreController) Retrieve500UserActivityDocIdsBeforeDate(ctx context.Context,
