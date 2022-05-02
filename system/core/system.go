@@ -542,6 +542,7 @@ func (s *System) ParseMy(commandString string) (CommandDetails, customerror.Cust
 
 func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError) {
 	isRankVisibleSet := false
+	isFavoriteColorSet := false
 	
 	var options []MyOption
 	
@@ -561,6 +562,32 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 				BoolValue: rankVisible,
 			})
 			isRankVisibleSet = true
+		}
+		if strings.HasPrefix(str, FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
+			var paramStr = strings.TrimPrefix(str, FavoriteColorMyOptionPrefix)
+			if paramStr == "" {
+				// 空文字列であればリセット
+				options = append(options, MyOption{
+					Type:        FavoriteColor,
+					StringValue: "",
+				})
+				isFavoriteColorSet = true
+			} else {
+				// 整数に変換できるか
+				num, err := strconv.Atoi(paramStr)
+				if err != nil {
+					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は半角数字にしてください")
+				}
+				if num < 0 {
+					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は0以上にしてください")
+				}
+				colorCode := utils.TotalStudyHoursToColorCode(num)
+				options = append(options, MyOption{
+					Type:        FavoriteColor,
+					StringValue: colorCode,
+				})
+				isFavoriteColorSet = true
+			}
 		}
 	}
 	return options, customerror.NewNil()
@@ -1039,7 +1066,7 @@ func (s *System) RetrieveCurrentUserRank(ctx context.Context, tx *firestore.Tran
 	if err != nil {
 		return myfirestore.SeatAppearance{}, err
 	}
-	seatAppearance := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint)
+	seatAppearance := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 	return seatAppearance, nil
 }
 
@@ -1126,13 +1153,13 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			return err
 		}
 		if isUserRegistered {
-			liveChatMessage := ""
+			reply := ""
 			totalTimeStr, dailyTotalTimeStr, err := s.TotalStudyTimeStrings(ctx, tx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed s.TotalStudyTimeStrings()", err)
 				return err
 			}
-			liveChatMessage += s.ProcessedUserDisplayName +
+			reply += s.ProcessedUserDisplayName +
 				"さん　［本日の作業時間：" + dailyTotalTimeStr + "］" +
 				" ［累計作業時間：" + totalTimeStr + "］"
 			
@@ -1145,14 +1172,20 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 				
 				switch userDoc.RankVisible {
 				case true:
-					liveChatMessage += "［ランク表示：オン］"
+					reply += "［ランク表示：オン］"
 				case false:
-					liveChatMessage += "［ランク表示：オフ］"
+					reply += "［ランク表示：オフ］"
 				}
 				
-				liveChatMessage += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
+				if reflect.ValueOf(userDoc.FavoriteColor).IsZero() {
+					reply += "［お気に入りカラー：なし］"
+				} else {
+					reply += "［お気に入りカラー：" + userDoc.FavoriteColor + "］"
+				}
+				
+				reply += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
 			}
-			s.MessageToLiveChat(ctx, liveChatMessage)
+			s.MessageToLiveChat(ctx, reply)
 		} else {
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 				"さんはまだ作業データがありません。「"+InCommand+"」コマンドで作業を始めましょう！")
@@ -1393,6 +1426,9 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			realTimeTotalStudySec = int(realTimeTotalStudyDuration.Seconds())
 		}
 		
+		// これ以降は書き込みのみ
+		
+		reply := s.ProcessedUserDisplayName + "さん、"
 		for _, myOption := range command.MyOptions {
 			if myOption.Type == RankVisible {
 				newRankVisible := myOption.BoolValue
@@ -1404,7 +1440,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					} else {
 						rankVisibleString = "オフ"
 					}
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんのランク表示モードはすでに"+rankVisibleString+"です")
+					reply += "ランク表示モードはすでに" + rankVisibleString + "です。"
 				} else { // 違うなら、切替
 					err := s.Constants.FirestoreController.SetMyRankVisible(tx, s.ProcessedUserId, newRankVisible)
 					if err != nil {
@@ -1419,11 +1455,11 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					} else {
 						newValueString = "オフ"
 					}
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんのランク表示を"+newValueString+"にしました")
+					reply += "ランク表示を" + newValueString + "にしました。"
 					
 					// 入室中であれば、座席の色も変える
 					if isUserInRoom {
-						seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint)
+						seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 						// 席の色を更新
 						seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
 						err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
@@ -1434,8 +1470,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						}
 					}
 				}
-			}
-			if myOption.Type == DefaultStudyMin {
+			} else if myOption.Type == DefaultStudyMin {
 				err := s.Constants.FirestoreController.SetMyDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to SetMyDefaultStudyMin", err)
@@ -1443,9 +1478,18 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんのデフォルトの作業時間を"+strconv.Itoa(myOption.IntValue)+"分に設定しました")
+				reply += "デフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。"
+			} else if myOption.Type == FavoriteColor {
+				err := s.Constants.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, myOption.StringValue)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
+					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					return err
+				}
+				reply += "お気に入りカラーを更新しました。"
 			}
 		}
+		s.MessageToLiveChat(ctx, reply)
 		return nil
 	})
 }
@@ -1867,7 +1911,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		
 		// 入室中であれば、座席の色も変える
 		if isUserInRoom {
-			seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint)
+			seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 			// 席の色を更新
 			seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
 			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)

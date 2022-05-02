@@ -2,9 +2,12 @@ package utils
 
 import (
 	"app.modules/core/myfirestore"
+	"reflect"
 )
 
 const (
+	FavoriteColorAvailableThresholdHours = 1000
+	
 	ColorHours0To5      = "#fff"
 	ColorHours5To10     = "#FFD4CC"
 	ColorHours10To20    = "#FF9580"
@@ -33,32 +36,41 @@ const (
 	ColorRank10 = "#FF00FF"
 )
 
-func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int) myfirestore.SeatAppearance {
+func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) myfirestore.SeatAppearance {
 	var colorCode string
 	if rankVisible {
-		colorCode = rankPointToColorCode(rp)
+		colorCode = RankPointToColorCode(rp)
 	} else {
-		colorCode = totalStudySecToColorCode(totalStudySec)
+		if CanUseFavoriteColor(totalStudySec) && !reflect.ValueOf(favoriteColor).IsZero() {
+			colorCode = favoriteColor
+		} else {
+			colorCode = TotalStudySecToColorCode(totalStudySec)
+		}
 	}
 	
 	return myfirestore.SeatAppearance{
 		ColorCode:     colorCode,
-		NumStars:      totalStudySecToNumStars(totalStudySec),
+		NumStars:      TotalStudySecToNumStars(totalStudySec),
 		GlowAnimation: rankVisible,
 	}
 }
 
-func totalStudySecToNumStars(totalStudySec int) int {
+func CanUseFavoriteColor(totalStudySec int) bool {
+	hours := SecondsToHours(totalStudySec)
+	return hours >= FavoriteColorAvailableThresholdHours
+}
+
+func TotalStudySecToNumStars(totalStudySec int) int {
 	hours := SecondsToHours(totalStudySec)
 	return hours / 1e3
 }
 
-func totalStudySecToColorCode(totalStudySec int) string {
+func TotalStudySecToColorCode(totalStudySec int) string {
 	totalHours := SecondsToHours(totalStudySec)
-	return totalStudyHoursToColorCode(totalHours)
+	return TotalStudyHoursToColorCode(totalHours)
 }
 
-func totalStudyHoursToColorCode(totalHours int) string {
+func TotalStudyHoursToColorCode(totalHours int) string {
 	if totalHours < 5 {
 		return ColorHours0To5
 	} else if totalHours < 10 {
@@ -92,7 +104,7 @@ func totalStudyHoursToColorCode(totalHours int) string {
 	}
 }
 
-func rankPointToColorCode(rp int) string {
+func RankPointToColorCode(rp int) string {
 	if rp < 1e4 {
 		return ColorRank1
 	} else if rp < 2e4 {

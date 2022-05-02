@@ -93,6 +93,7 @@ type MyOptionType uint
 const (
 	RankVisible MyOptionType = iota
 	DefaultStudyMin
+	FavoriteColor
 )
 
 type ChangeOptionType uint

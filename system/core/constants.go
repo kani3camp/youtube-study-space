@@ -1,9 +1,6 @@
 package core
 
 const (
-	EnterAction = "enter"
-	ExitAction  = "exit"
-	
 	CommandPrefix      = "!"
 	WrongCommandPrefix = "！"
 	
@@ -43,8 +40,7 @@ const (
 	RankVisibleMyOptionOn     = "on"
 	RankVisibleMyOptionOff    = "off"
 	
-	DefaultMinMyOptionPrefix     = "min="
-	DefaultMinMyOptionShorPrefix = "m="
+	FavoriteColorMyOptionPrefix = "color="
 	
 	FullWidthSpace = "　"
 	HalfWidthSpace = " "

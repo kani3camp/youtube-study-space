@@ -144,6 +144,9 @@ type UserDoc struct {
 	
 	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
 	RankPoint int `json:"rank_point" firestore:"rank-point"`
+	
+	// お気に入りの色のカラーコード
+	FavoriteColor string `json:"favorite_color" firestore:"favorite-color"`
 }
 
 type UserHistoryDoc struct {
