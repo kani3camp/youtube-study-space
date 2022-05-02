@@ -42,15 +42,6 @@ func Init() (option.ClientOption, context.Context, error) {
 	return clientOption, ctx, nil
 }
 
-func GetCurrentProjectId() string {
-	utils.LoadEnv()
-	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-	creds, _ := transport.Creds(ctx, clientOption)
-	return creds.ProjectID
-}
-
 // LocalMain ローカル運用
 func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	
@@ -171,9 +162,8 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.OrganizeDatabase(ctx)
+	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to organize database", err)
 		panic(err)
 	}
 }

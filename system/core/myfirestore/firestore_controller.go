@@ -318,10 +318,11 @@ func (controller *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context
 	return controller.set(ctx, tx, ref, liveChatHistoryDoc)
 }
 
-func (controller *FirestoreController) RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx context.Context,
+func (controller *FirestoreController) Retrieve500LiveChatHistoryDocIdsBeforeDate(ctx context.Context,
 	date time.Time,
 ) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocProperty, "<", date).Documents(ctx)
+	return controller.FirestoreClient.Collection(LiveChatHistory).Where(PublishedAtDocProperty, "<",
+		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
 func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, tx *firestore.Transaction,
@@ -331,10 +332,11 @@ func (controller *FirestoreController) AddUserActivityDoc(ctx context.Context, t
 	return controller.set(ctx, tx, ref, userActivityDoc)
 }
 
-func (controller *FirestoreController) RetrieveAllUserActivityDocIdsBeforeDate(ctx context.Context,
+func (controller *FirestoreController) Retrieve500UserActivityDocIdsBeforeDate(ctx context.Context,
 	date time.Time,
 ) *firestore.DocumentIterator {
-	return controller.FirestoreClient.Collection(UserActivities).Where(TakenAtDocProperty, "<", date).Documents(ctx)
+	return controller.FirestoreClient.Collection(UserActivities).Where(TakenAtDocProperty, "<",
+		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
 func (controller *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ctx context.Context,

@@ -37,6 +37,8 @@ const (
 	TotalStudySecDocProperty      = "total-study-sec"
 	RankVisibleDocProperty        = "rank-visible"
 	DefaultStudyMinDocProperty    = "default-study-min"
+	
+	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )
 
 func NewRoomDoc() RoomDoc {
