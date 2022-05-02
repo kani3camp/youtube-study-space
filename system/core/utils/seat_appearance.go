@@ -54,9 +54,11 @@ func totalStudySecToNumStars(totalStudySec int) int {
 }
 
 func totalStudySecToColorCode(totalStudySec int) string {
-	// 時間に換算
 	totalHours := SecondsToHours(totalStudySec)
-	
+	return totalStudyHoursToColorCode(totalHours)
+}
+
+func totalStudyHoursToColorCode(totalHours int) string {
 	if totalHours < 5 {
 		return ColorHours0To5
 	} else if totalHours < 10 {
@@ -113,3 +115,6 @@ func rankPointToColorCode(rp int) string {
 		return ColorRank10
 	}
 }
+!my color=
+func
+
