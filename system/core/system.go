@@ -1487,6 +1487,9 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 				reply += "お気に入りカラーを更新しました。"
+				if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
+					reply += "（累計作業時間が" + strconv.Itoa(utils.FavoriteColorAvailableThresholdHours) + "時間を超えるまでお気に入りカラーは使えません）"
+				}
 			}
 		}
 		s.MessageToLiveChat(ctx, reply)
