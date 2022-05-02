@@ -2591,10 +2591,38 @@ func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube
 }
 
 func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) error {
-	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// date以前の全てのlive chat history docsをクエリで取得
-		iter := s.Constants.FirestoreController.RetrieveAllLiveChatHistoryDocIdsBeforeDate(ctx, date)
-		
+	// Firestoreでは1回のトランザクションで500件までしか削除できないため、500件ずつ回す
+	
+	// date以前の全てのlive chat history docsをクエリで取得
+	for {
+		iter := s.Constants.FirestoreController.Retrieve500LiveChatHistoryDocIdsBeforeDate(ctx, date)
+		count, err := s.DeleteIteratorDocs(ctx, iter)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			break
+		}
+	}
+	
+	// date以前の全てのuser activity docをクエリで取得
+	for {
+		iter := s.Constants.FirestoreController.Retrieve500UserActivityDocIdsBeforeDate(ctx, date)
+		count, err := s.DeleteIteratorDocs(ctx, iter)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			break
+		}
+	}
+	return nil
+}
+
+// DeleteIteratorDocs iterは最大500件とすること。
+func (s *System) DeleteIteratorDocs(ctx context.Context, iter *firestore.DocumentIterator) (int, error) {
+	count := 0 // iterのアイテムの件数
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// forで各docをdeleteしていく
 		for {
 			doc, err := iter.Next()
@@ -2604,34 +2632,16 @@ func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date tim
 			if err != nil {
 				return err
 			}
+			count++
 			err = s.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
 			if err != nil {
-				log.Println("ライブチャットログ削除においてDeleteDocRef()失敗")
+				log.Println("failed to DeleteDocRef()")
 				return err
 			}
 		}
-		
-		// date以前の全てのuser activity docをクエリで取得
-		iter = s.Constants.FirestoreController.RetrieveAllUserActivityDocIdsBeforeDate(ctx, date)
-		
-		// forで各docをdeleteしていく
-		for {
-			doc, err := iter.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			err = s.Constants.FirestoreController.DeleteDocRef(ctx, tx, doc.Ref)
-			if err != nil {
-				log.Println("ユーザー行動ログ削除においてDeleteDocRef()失敗")
-				return err
-			}
-		}
-		
 		return nil
 	})
+	return count, err
 }
 
 func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
