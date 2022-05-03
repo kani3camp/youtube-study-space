@@ -440,7 +440,7 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.CustomError) {
 	workName := ""
 	isWorkNameSet := false
-	workTimeMin := s.Constants.DefaultWorkTimeMin
+	workTimeMin := 0
 	isWorkTimeMinSet := false
 	for _, str := range commandSlice {
 		if HasWorkNameOptionPrefix(str) && !isWorkNameSet {
@@ -496,8 +496,8 @@ func (s *System) ParseMy(commandString string) (CommandDetails, customerror.Cust
 
 func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError) {
 	isRankVisibleSet := false
-	isFavoriteColorSet := false
 	isDefaultStudyMinSet := false
+	isFavoriteColorSet := false
 	
 	var options []MyOption
 	
@@ -518,6 +518,8 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 			})
 			isRankVisibleSet = true
 		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
+			// TODO: 0だったらリセット。
+			
 			durationMin, cerr := s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
 			if cerr.IsNotNil() {
 				return []MyOption{}, cerr
@@ -691,7 +693,7 @@ func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.C
 	}
 	
 	// 休憩時間の指定がない場合はデフォルト値を設定
-	if reflect.ValueOf(options.DurationMin).IsZero() {
+	if options.DurationMin == 0 {
 		options.DurationMin = s.Constants.DefaultBreakDurationMin
 	}
 	
@@ -856,6 +858,24 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			}
 			command.InOptions.SeatId = seatId
 		}
+		
+		userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				"さん、エラーが発生しました。もう一度試してみてください")
+			return err
+		}
+		
+		// 作業時間が指定されているか？
+		if command.InOptions.WorkMin == 0 {
+			if userDoc.DefaultStudyMin == 0 {
+				command.InOptions.WorkMin = s.Constants.DefaultWorkTimeMin
+			} else {
+				command.InOptions.WorkMin = userDoc.DefaultStudyMin
+			}
+		}
+		
 		// ランクから席の色を決定
 		seatAppearance, err := s.RetrieveCurrentUserRank(ctx, tx, s.ProcessedUserId)
 		if err != nil {
@@ -875,14 +895,6 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			return err
 		}
 		seats := roomDoc.Seats
-		
-		userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
 		
 		// =========== 以降は書き込み処理のみ ===========
 		
@@ -1077,7 +1089,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 					reply += "［ランク表示：オフ］"
 				}
 				
-				if reflect.ValueOf(userDoc.FavoriteColor).IsZero() {
+				if userDoc.FavoriteColor == "" {
 					reply += "［お気に入りカラー：なし］"
 				} else {
 					reply += "［お気に入りカラー：" + userDoc.FavoriteColor + "］"
