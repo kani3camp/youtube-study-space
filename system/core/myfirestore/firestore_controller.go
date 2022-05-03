@@ -192,7 +192,7 @@ func (controller *FirestoreController) UpdateTotalTime(
 
 func (controller *FirestoreController) SaveLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
-	return tx.Update(ref, []firestore.Update{
+	return controller.update(ctx, tx, ref, []firestore.Update{
 		{Path: LiveChatIdDocProperty, Value: liveChatId},
 	})
 }

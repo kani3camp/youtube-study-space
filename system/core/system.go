@@ -1089,6 +1089,12 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 					reply += "［ランク表示：オフ］"
 				}
 				
+				if userDoc.DefaultStudyMin == 0 {
+					reply += "［デフォルト作業時間：なし］"
+				} else {
+					reply += "［デフォルト作業時間：" + strconv.Itoa(userDoc.DefaultStudyMin) + "分］"
+				}
+				
 				if userDoc.FavoriteColor == "" {
 					reply += "［お気に入りカラー：なし］"
 				} else {
