@@ -11,7 +11,7 @@ func (s *System) ValidateIn(command CommandDetails) (bool, customerror.CustomErr
 	}
 	
 	// 作業時間の値
-	inputWorkMin := command.InOptions.WorkMin
+	inputWorkMin := command.InOption.WorkMin
 	if inputWorkMin != 0 {
 		expect := s.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Constants.MaxWorkTimeMin
 		if !expect {
@@ -32,7 +32,7 @@ func (s *System) ValidateSeatIn(command CommandDetails) (bool, customerror.Custo
 	}
 	
 	// 作業時間の値
-	inputWorkMin := command.InOptions.WorkMin
+	inputWorkMin := command.InOption.WorkMin
 	if inputWorkMin != 0 {
 		expect := s.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Constants.MaxWorkTimeMin
 		if !expect {
@@ -41,7 +41,7 @@ func (s *System) ValidateSeatIn(command CommandDetails) (bool, customerror.Custo
 	}
 	
 	// 席番号
-	if command.InOptions.SeatId < 0 {
+	if command.InOption.SeatId < 0 {
 		return false, customerror.InvalidCommand.New("座席番号は0以上の値にしてください。")
 	}
 	
@@ -109,7 +109,7 @@ func (s *System) ValidateKick(command CommandDetails) (bool, customerror.CustomE
 	}
 	
 	// 指定座席番号
-	if command.KickSeatId <= 0 {
+	if command.KickOption.SeatId <= 0 {
 		return false, customerror.InvalidCommand.New("席番号は1以上にしてください。")
 	}
 	
@@ -122,7 +122,7 @@ func (s *System) ValidateCheck(command CommandDetails) (bool, customerror.Custom
 	}
 	
 	// 指定座席番号
-	if command.CheckSeatId <= 0 {
+	if command.CheckOption.SeatId <= 0 {
 		return false, customerror.InvalidCommand.New("席番号は1以上にしてください。")
 	}
 	
@@ -135,7 +135,7 @@ func (s *System) ValidateReport(command CommandDetails) (bool, customerror.Custo
 	}
 	
 	// 空欄でないか
-	if command.ReportMessage == "" {
+	if command.ReportOption.Message == "" {
 		return false, customerror.InvalidCommand.New(ReportCommand + "の右にスペースを空けてメッセージを書いてください。")
 	}
 	
@@ -179,7 +179,7 @@ func (s *System) ValidateMore(command CommandDetails) (bool, customerror.CustomE
 	}
 	
 	// 時間オプション
-	if command.MoreMinutes <= 0 {
+	if command.MoreOption.DurationMin <= 0 {
 		return false, customerror.InvalidCommand.New("延長時間（分）は1以上の値にしてください。")
 	}
 	
@@ -195,7 +195,7 @@ func (s *System) ValidateBreak(command CommandDetails) (bool, customerror.Custom
 	// 特になし
 	
 	// 休憩時間
-	inputDurationMin := command.MinutesAndWorkNameOptions.DurationMin
+	inputDurationMin := command.BreakOption.DurationMin
 	if inputDurationMin != 0 {
 		expect := s.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Constants.MaxBreakDurationMin
 		if !expect {

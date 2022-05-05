@@ -50,17 +50,17 @@ type SystemConstants struct {
 }
 
 type CommandDetails struct {
-	CommandType               CommandType
-	InOptions                 InOptions
-	InfoOption                InfoOption
-	MyOptions                 []MyOption
-	ChangeOptions             []ChangeOption
-	MinutesAndWorkNameOptions MinWorkOption
-	ReportMessage             string
-	KickSeatId                int
-	CheckSeatId               int
-	MoreMinutes               int
-	WorkName                  string
+	CommandType   CommandType
+	InOption      InOptions
+	InfoOption    InfoOption
+	MyOptions     []MyOption
+	KickOption    KickOption
+	CheckOption   CheckOption
+	ReportOption  ReportOption
+	ChangeOptions []ChangeOption
+	MoreOption    MoreOption
+	BreakOption   MinutesAndWorkNameOption
+	ResumeOption  ResumeOption
 }
 
 type CommandType uint
@@ -116,13 +116,33 @@ type MyOption struct {
 	StringValue string
 }
 
+type KickOption struct {
+	SeatId int
+}
+
+type CheckOption struct {
+	SeatId int
+}
+
+type ReportOption struct {
+	Message string
+}
+
 type ChangeOption struct {
 	Type        ChangeOptionType
 	StringValue string
 	IntValue    int
 }
 
-type MinWorkOption struct {
+type MoreOption struct {
+	DurationMin int
+}
+
+type ResumeOption struct {
+	WorkName string
+}
+
+type MinutesAndWorkNameOption struct {
 	WorkName    string
 	DurationMin int
 }

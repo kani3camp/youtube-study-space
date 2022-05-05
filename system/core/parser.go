@@ -19,7 +19,7 @@ func (s *System) ParseIn(commandString string) (CommandDetails, customerror.Cust
 	
 	return CommandDetails{
 		CommandType: In,
-		InOptions:   options,
+		InOption:    options,
 	}, customerror.NewNil()
 }
 
@@ -37,7 +37,7 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 	
 	return CommandDetails{
 		CommandType: SeatIn,
-		InOptions:   options,
+		InOption:    options,
 	}, customerror.NewNil()
 }
 
@@ -179,7 +179,9 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	
 	return CommandDetails{
 		CommandType: Kick,
-		KickSeatId:  kickSeatId,
+		KickOption: KickOption{
+			SeatId: kickSeatId,
+		},
 	}, customerror.NewNil()
 }
 
@@ -199,7 +201,9 @@ func (s *System) ParseCheck(commandString string) (CommandDetails, customerror.C
 	
 	return CommandDetails{
 		CommandType: Check,
-		CheckSeatId: targetSeatId,
+		CheckOption: CheckOption{
+			SeatId: targetSeatId,
+		},
 	}, customerror.NewNil()
 }
 
@@ -214,8 +218,8 @@ func (s *System) ParseReport(commandString string) (CommandDetails, customerror.
 	}
 	
 	return CommandDetails{
-		CommandType:   Report,
-		ReportMessage: reportMessage,
+		CommandType:  Report,
+		ReportOption: ReportOption{Message: reportMessage},
 	}, customerror.NewNil()
 }
 
@@ -283,7 +287,9 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 	
 	return CommandDetails{
 		CommandType: More,
-		MoreMinutes: durationMin,
+		MoreOption: MoreOption{
+			DurationMin: durationMin,
+		},
 	}, customerror.NewNil()
 }
 
@@ -302,8 +308,8 @@ func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.C
 	}
 	
 	return CommandDetails{
-		CommandType:               Break,
-		MinutesAndWorkNameOptions: options,
+		CommandType: Break,
+		BreakOption: options,
 	}, customerror.NewNil()
 }
 
@@ -316,7 +322,9 @@ func (s *System) ParseResume(commandString string) (CommandDetails, customerror.
 	
 	return CommandDetails{
 		CommandType: Resume,
-		WorkName:    workName,
+		ResumeOption: ResumeOption{
+			WorkName: workName,
+		},
 	}, customerror.NewNil()
 }
 
@@ -343,12 +351,12 @@ func (s *System) ParseDurationMinOption(str string, MinDuration, MaxDuration int
 	}
 }
 
-func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDuration, MaxDuration int) (MinWorkOption,
+func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDuration, MaxDuration int) (MinutesAndWorkNameOption,
 	customerror.CustomError) {
 	isWorkNameSet := false
 	isDurationMinSet := false
 	
-	var options MinWorkOption
+	var options MinutesAndWorkNameOption
 	
 	for _, str := range commandSlice {
 		if (HasWorkNameOptionPrefix(str)) && !isWorkNameSet {
@@ -358,13 +366,13 @@ func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDurati
 		} else if (HasTimeOptionPrefix(str)) && !isDurationMinSet {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
-				return MinWorkOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
 			}
 			if MinDuration <= num && num <= MaxDuration {
 				options.DurationMin = num
 				isDurationMinSet = true
 			} else { // 無効な値
-				return MinWorkOption{}, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
+				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
 					MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")
 			}
 		}
