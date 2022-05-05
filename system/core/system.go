@@ -535,13 +535,17 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 				"さん　［本日の作業時間：" + dailyTotalTimeStr + "］" +
 				" ［累計作業時間：" + totalTimeStr + "］"
 			
+			userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed s.Constants.FirestoreController.RetrieveUser", err)
+				return err
+			}
+			
+			if userDoc.RankVisible {
+				reply += "［ランクポイント：" + strconv.Itoa(userDoc.RankPoint) + " RP］"
+			}
+			
 			if command.InfoOption.ShowDetails {
-				userDoc, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed s.Constants.FirestoreController.RetrieveUser", err)
-					return err
-				}
-				
 				switch userDoc.RankVisible {
 				case true:
 					reply += "［ランク表示：オン］"
@@ -1568,15 +1572,15 @@ func (s *System) exitRoom(
 		return nil, 0, 0, err
 	}
 	// RP更新
-	rp := utils.CalcRankPoint(time.Duration(addedWorkedTimeSec)*time.Second, previousSeat.WorkName != "", previousUserDoc.ContinuousEntryDays, previousUserDoc.RankPoint)
-	err = s.Constants.FirestoreController.UpdateUserRankPoint(tx, previousSeat.UserId, rp)
+	newRP := utils.CalcNewRankPoint(time.Duration(addedWorkedTimeSec)*time.Second, previousSeat.WorkName != "", previousUserDoc.ContinuousEntryDays, previousUserDoc.RankPoint)
+	err = s.Constants.FirestoreController.UpdateUserRankPoint(tx, previousSeat.UserId, newRP)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
 		return nil, 0, 0, err
 	}
 	
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
-	return newSeats, addedWorkedTimeSec, rp, nil
+	return newSeats, addedWorkedTimeSec, newRP, nil
 }
 
 func (s *System) CurrentSeatId(ctx context.Context, tx *firestore.Transaction) (int, customerror.CustomError) {

@@ -2,7 +2,12 @@ package utils
 
 import "time"
 
-func CalcRankPoint(netStudyDuration time.Duration, isWorkNameSet bool, continuousEntryDays int,
+const (
+	RankPointLowerLimit = 0
+	RankPointUpperLimit = 10e4 - 1 // = 99,999
+)
+
+func CalcNewRankPoint(netStudyDuration time.Duration, isWorkNameSet bool, continuousEntryDays int,
 	previousRankPoint int) int {
 	basePoint := int(netStudyDuration.Minutes())
 	var workNameSetMagnification float64         // 作業内容設定倍率
@@ -22,7 +27,18 @@ func CalcRankPoint(netStudyDuration time.Duration, isWorkNameSet bool, continuou
 	
 	rankMagnification = MagnificationByRankPoint(previousRankPoint)
 	
-	return int(float64(basePoint) * workNameSetMagnification * continuousEntryDaysMagnification * rankMagnification)
+	addedRP := int(float64(basePoint) * workNameSetMagnification * continuousEntryDaysMagnification * rankMagnification)
+	
+	return ApplyRPRange(previousRankPoint + addedRP)
+}
+
+func ApplyRPRange(rp int) int {
+	if rp < RankPointLowerLimit {
+		return RankPointLowerLimit
+	} else if rp > RankPointUpperLimit {
+		return RankPointUpperLimit
+	}
+	return rp
 }
 
 func MagnificationByRankPoint(rp int) float64 {

@@ -51,7 +51,7 @@ func TestCalcRankPoint(t *testing.T) {
 	
 	for _, testCase := range testCases {
 		in := testCase.Input
-		rp := CalcRankPoint(in.NetStudyDuration, in.IsWorkNameSet, in.ContinuousEntryDays, in.PreviousRankPoint)
+		rp := CalcNewRankPoint(in.NetStudyDuration, in.IsWorkNameSet, in.ContinuousEntryDays, in.PreviousRankPoint)
 		if rp != testCase.Output {
 			t.Errorf("input: %# v\n", pretty.Formatter(in))
 			t.Errorf("result: %d\n", rp)
