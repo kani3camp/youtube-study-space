@@ -12,14 +12,17 @@ func (s *System) ParseIn(commandString string) (CommandDetails, customerror.Cust
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseInOptions(slice[1:])
+	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
 	
 	return CommandDetails{
 		CommandType: In,
-		InOption:    options,
+		InOption: InOption{
+			IsSeatIdSet:        false,
+			MinutesAndWorkName: options,
+		},
 	}, customerror.NewNil()
 }
 
@@ -27,42 +30,18 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseInOptions(slice[1:])
+	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
 	
-	// 追加オプションに席番号を追加
-	options.SeatId = seatNum
-	
 	return CommandDetails{
 		CommandType: SeatIn,
-		InOption:    options,
-	}, customerror.NewNil()
-}
-
-func (s *System) ParseInOptions(commandSlice []string) (InOption, customerror.CustomError) {
-	workName := ""
-	isWorkNameSet := false
-	workTimeMin := 0
-	isWorkTimeMinSet := false
-	for _, str := range commandSlice {
-		if HasWorkNameOptionPrefix(str) && !isWorkNameSet {
-			workName = TrimWorkNameOptionPrefix(str)
-			isWorkNameSet = true
-		} else if HasTimeOptionPrefix(str) && !isWorkTimeMinSet {
-			durationMin, cerr := s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
-			if cerr.IsNotNil() {
-				return InOption{}, cerr
-			}
-			workTimeMin = durationMin
-			isWorkTimeMinSet = true
-		}
-	}
-	return InOption{
-		SeatId:   -1,
-		WorkName: workName,
-		WorkMin:  workTimeMin,
+		InOption: InOption{
+			IsSeatIdSet:        true,
+			SeatId:             seatNum,
+			MinutesAndWorkName: options,
+		},
 	}, customerror.NewNil()
 }
 

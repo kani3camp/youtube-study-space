@@ -11,38 +11,18 @@ func (s *System) ValidateIn(command CommandDetails) (bool, customerror.CustomErr
 	}
 	
 	// 作業時間の値
-	inputWorkMin := command.InOption.WorkMin
+	inputWorkMin := command.InOption.MinutesAndWorkName.DurationMin
 	if inputWorkMin != 0 {
 		expect := s.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Constants.MaxWorkTimeMin
 		if !expect {
 			return false, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
 		}
 	}
-	
-	// 作業名は特に制限はない
-	
-	return true, customerror.NewNil()
-}
-
-// ValidateSeatIn 返却のcerrはTypeがInvalidCommandの場合のみユーザー向けにメッセージを流すこと。
-// Unknownだったらエラーメッセージをチャットに流さないように。
-func (s *System) ValidateSeatIn(command CommandDetails) (bool, customerror.CustomError) {
-	if command.CommandType != SeatIn {
-		return false, customerror.InvalidParsedCommand.New("this is not a SeatIn command.")
-	}
-	
-	// 作業時間の値
-	inputWorkMin := command.InOption.WorkMin
-	if inputWorkMin != 0 {
-		expect := s.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Constants.MaxWorkTimeMin
-		if !expect {
-			return false, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
-		}
-	}
-	
 	// 席番号
-	if command.InOption.SeatId < 0 {
-		return false, customerror.InvalidCommand.New("座席番号は0以上の値にしてください。")
+	if command.InOption.IsSeatIdSet {
+		if command.InOption.SeatId < 0 {
+			return false, customerror.InvalidCommand.New("座席番号は0以上の値にしてください。")
+		}
 	}
 	
 	// 作業名は特に制限はない

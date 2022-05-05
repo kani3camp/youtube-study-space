@@ -98,9 +98,9 @@ const (
 )
 
 type InOption struct {
-	SeatId   int
-	WorkName string
-	WorkMin  int
+	IsSeatIdSet        bool
+	SeatId             int
+	MinutesAndWorkName MinutesAndWorkNameOption
 }
 
 type MyOption struct {
