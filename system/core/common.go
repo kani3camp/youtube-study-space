@@ -2,7 +2,9 @@ package core
 
 import (
 	"app.modules/core/myfirestore"
+	"app.modules/core/utils"
 	"context"
+	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"strings"
@@ -145,4 +147,42 @@ func contains(s []int, e int) bool {
 		}
 	}
 	return false
+}
+
+func RealTimeTotalStudyDurationOfSeat(seat myfirestore.Seat) (time.Duration, error) {
+	jstNow := utils.JstNow()
+	var duration time.Duration
+	switch seat.State {
+	case myfirestore.WorkState:
+		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + jstNow.Sub(seat.CurrentStateStartedAt)
+	case myfirestore.BreakState:
+		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
+	default:
+		return 0, errors.New("unknown seat.State: " + string(seat.State))
+	}
+	return duration, nil
+}
+
+func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.Seat) (time.Duration, error) {
+	jstNow := utils.JstNow()
+	var duration time.Duration
+	// 今のstateになってから日付が変っている可能性
+	if utils.DateEqual(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
+		switch seat.State {
+		case myfirestore.WorkState:
+			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + jstNow.Sub(seat.CurrentStateStartedAt)
+		case myfirestore.BreakState:
+			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
+		default:
+			return 0, errors.New("unknown seat.State: " + string(seat.State))
+		}
+	} else { // 日付変わってる
+		switch seat.State {
+		case myfirestore.WorkState:
+			duration = time.Duration(utils.SecondsOfDay(jstNow)) * time.Second
+		case myfirestore.BreakState:
+			duration = time.Duration(0)
+		}
+	}
+	return duration, nil
 }

@@ -113,7 +113,7 @@ type Seat struct {
 	State                  SeatState      `json:"state" firestore:"state"`
 	CurrentStateStartedAt  time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
 	CurrentStateUntil      time.Time      `json:"current_state_until" firestore:"current-state-until"`
-	CumulativeWorkSec      int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"`
+	CumulativeWorkSec      int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
 	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
 }
 

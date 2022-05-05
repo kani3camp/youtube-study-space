@@ -268,7 +268,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		var customErr customerror.CustomError
 		if isInRoom {
 			// 現在座っている席を取得
-			currentSeat, customErr = s.CurrentSeat(ctx, tx)
+			currentSeat, customErr = s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 			if customErr.IsNotNil() {
 				_ = s.MessageToLineBotWithError("failed CurrentSeat", customErr.Body)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
@@ -446,7 +446,7 @@ func (s *System) RetrieveCurrentUserRank(ctx context.Context, tx *firestore.Tran
 		_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
 		return myfirestore.SeatAppearance{}, err
 	}
-	totalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+	totalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, userId)
 	if err != nil {
 		return myfirestore.SeatAppearance{}, err
 	}
@@ -454,36 +454,12 @@ func (s *System) RetrieveCurrentUserRank(ctx context.Context, tx *firestore.Tran
 	return seatAppearance, nil
 }
 
-func (s *System) RetrieveRealtimeTotalStudyDuration(ctx context.Context, tx *firestore.Transaction) (time.Duration, error) {
-	// 入室中ならばリアルタイムの作業時間も加算する
-	realtimeDuration := time.Duration(0)
-	if isInRoom, _ := s.IsUserInRoom(ctx, tx); isInRoom {
-		// 作業時間を計算
-		jstNow := utils.JstNow()
-		currentSeat, err := s.CurrentSeat(ctx, tx)
-		if err.IsNotNil() {
-			return 0, err.Body
-		}
-		workedTimeSec := int(jstNow.Sub(currentSeat.EnteredAt).Seconds())
-		realtimeDuration = time.Duration(workedTimeSec) * time.Second
-	}
-	
-	userData, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
-	if err != nil {
-		return 0, err
-	}
-	
-	// 累計
-	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec)*time.Second
-	return totalDuration, nil
-}
-
 func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 今勉強中か？
 		isInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
-			_ = s.MessageToLineBotWithError("failed IsUserInRoom()", err)
+			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -492,9 +468,9 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		// 現在座っている席を特定
-		seat, customErr := s.CurrentSeat(ctx, tx)
+		seat, customErr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if customErr.Body != nil {
-			_ = s.MessageToLineBotWithError("failed in s.CurrentSeatId(ctx)", customErr.Body)
+			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat", customErr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return customErr.Body
@@ -538,11 +514,13 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 		}
 		if isUserRegistered {
 			reply := ""
-			totalTimeStr, dailyTotalTimeStr, err := s.TotalStudyTimeStrings(ctx, tx)
+			totalStudyDuration, dailyTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
-				_ = s.MessageToLineBotWithError("failed s.TotalStudyTimeStrings()", err)
+				_ = s.MessageToLineBotWithError("failed s.RetrieveRealtimeTotalStudyDurations()", err)
 				return err
 			}
+			totalTimeStr := utils.DurationToString(totalStudyDuration)
+			dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
 			reply += s.ProcessedUserDisplayName +
 				"さん　［本日の作業時間：" + dailyTotalTimeStr + "］" +
 				" ［累計作業時間：" + totalTimeStr + "］"
@@ -592,7 +570,7 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if isUserInRoom {
-			currentSeat, err := s.CurrentSeat(ctx, tx)
+			currentSeat, err := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 			if err.IsNotNil() {
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 				_ = s.MessageToLineBotWithError("failed s.CurrentSeat()", err.Body)
@@ -806,7 +784,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			}
 			seats = roomDoc.Seats
 			
-			realTimeTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+			realTimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -908,7 +886,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		
-		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -987,7 +965,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		
-		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
@@ -1079,7 +1057,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// stateを確認
-		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1113,8 +1091,8 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		cumulativeWorkSec := currentSeat.CumulativeWorkSec + workedSec
 		// もし日付を跨いで作業してたら、daily-cumulative-work-secは日付変更からの時間にする
 		var dailyCumulativeWorkSec int
-		if workedSec > utils.InSeconds(jstNow) {
-			dailyCumulativeWorkSec = utils.InSeconds(jstNow)
+		if workedSec > utils.SecondsOfDay(jstNow) {
+			dailyCumulativeWorkSec = utils.SecondsOfDay(jstNow)
 		} else {
 			dailyCumulativeWorkSec = workedSec
 		}
@@ -1161,7 +1139,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// stateを確認
-		currentSeat, cerr := s.CurrentSeat(ctx, tx)
+		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1187,7 +1165,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		breakSec := int(math.Max(0, jstNow.Sub(currentSeat.CurrentStateStartedAt).Seconds()))
 		// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
 		var dailyCumulativeWorkSec = currentSeat.DailyCumulativeWorkSec
-		if breakSec > utils.InSeconds(jstNow) {
+		if breakSec > utils.SecondsOfDay(jstNow) {
 			dailyCumulativeWorkSec = 0
 		}
 		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
@@ -1264,7 +1242,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			return err
 		}
 		var seats []myfirestore.Seat
-		var realTimeTotalStudySec int
+		var realtimeTotalStudySec int
 		if isUserInRoom {
 			roomDoc, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
@@ -1275,14 +1253,14 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			}
 			seats = roomDoc.Seats
 			
-			realTimeTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDuration(ctx, tx)
+			realtimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
-			realTimeTotalStudySec = int(realTimeTotalStudyDuration.Seconds())
+			realtimeTotalStudySec = int(realtimeTotalStudyDuration.Seconds())
 		}
 		
 		// ランク表示設定のON/OFFを切り替える
@@ -1304,7 +1282,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		
 		// 入室中であれば、座席の色も変える
 		if isUserInRoom {
-			seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+			seatAppearance := utils.GetSeatAppearance(realtimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 			// 席の色を更新
 			seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
 			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
@@ -1525,7 +1503,7 @@ func (s *System) exitRoom(
 		addedWorkedTimeSec = previousSeat.CumulativeWorkSec
 		// もし直前の休憩で日付を跨いでたら
 		justBreakTimeSec := int(math.Max(0, exitDate.Sub(previousSeat.CurrentStateStartedAt).Seconds()))
-		if justBreakTimeSec > utils.InSeconds(exitDate) {
+		if justBreakTimeSec > utils.SecondsOfDay(exitDate) {
 			addedDailyWorkedTimeSec = 0
 		} else {
 			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec
@@ -1534,8 +1512,8 @@ func (s *System) exitRoom(
 		justWorkedTimeSec := int(math.Max(0, exitDate.Sub(previousSeat.CurrentStateStartedAt).Seconds()))
 		addedWorkedTimeSec = previousSeat.CumulativeWorkSec + justWorkedTimeSec
 		// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
-		if justWorkedTimeSec > utils.InSeconds(exitDate) {
-			addedDailyWorkedTimeSec = utils.InSeconds(exitDate)
+		if justWorkedTimeSec > utils.SecondsOfDay(exitDate) {
+			addedDailyWorkedTimeSec = utils.SecondsOfDay(exitDate)
 		} else {
 			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec
 		}
@@ -1581,20 +1559,20 @@ func (s *System) exitRoom(
 }
 
 func (s *System) CurrentSeatId(ctx context.Context, tx *firestore.Transaction) (int, customerror.CustomError) {
-	currentSeat, err := s.CurrentSeat(ctx, tx)
+	currentSeat, err := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 	if err.IsNotNil() {
 		return -1, err
 	}
 	return currentSeat.SeatId, customerror.NewNil()
 }
 
-func (s *System) CurrentSeat(ctx context.Context, tx *firestore.Transaction) (myfirestore.Seat, customerror.CustomError) {
+func (s *System) CurrentSeat(ctx context.Context, tx *firestore.Transaction, userId string) (myfirestore.Seat, customerror.CustomError) {
 	roomData, err := s.Constants.FirestoreController.RetrieveRoom(ctx, tx)
 	if err != nil {
 		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
 	}
 	for _, seat := range roomData.Seats {
-		if seat.UserId == s.ProcessedUserId {
+		if seat.UserId == userId {
 			return seat, customerror.NewNil()
 		}
 	}
@@ -1624,55 +1602,45 @@ func (s *System) UpdateTotalWorkTime(tx *firestore.Transaction, userId string, p
 	return nil
 }
 
-// TotalStudyTimeStrings リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
-func (s *System) TotalStudyTimeStrings(ctx context.Context, tx *firestore.Transaction) (string, string, error) {
-	// TODO: RetrieveRealtimeTotalStudyDuration()を使用する
+// RetrieveRealtimeTotalStudyDurations リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
+func (s *System) RetrieveRealtimeTotalStudyDurations(ctx context.Context, tx *firestore.Transaction, userId string) (time.Duration, time.Duration, error) {
 	// 入室中ならばリアルタイムの作業時間も加算する
 	realtimeDuration := time.Duration(0)
 	realtimeDailyDuration := time.Duration(0)
 	if isInRoom, _ := s.IsUserInRoom(ctx, tx); isInRoom {
 		// 作業時間を計算
-		jstNow := utils.JstNow()
-		currentSeat, err := s.CurrentSeat(ctx, tx)
-		if err.IsNotNil() {
-			return "", "", err.Body
+		currentSeat, cerr := s.CurrentSeat(ctx, tx, userId)
+		if cerr.IsNotNil() {
+			_ = s.MessageToLineBotWithError("failed to CurrentSeat", cerr.Body)
+			return 0, 0, cerr.Body
 		}
-		workedTimeSec := int(jstNow.Sub(currentSeat.EnteredAt).Seconds())
-		realtimeDuration = time.Duration(workedTimeSec) * time.Second
 		
-		var dailyWorkedTimeSec int
-		if workedTimeSec > utils.InSeconds(jstNow) {
-			dailyWorkedTimeSec = utils.InSeconds(jstNow)
-		} else {
-			dailyWorkedTimeSec = workedTimeSec
+		var err error
+		realtimeDuration, err = RealTimeTotalStudyDurationOfSeat(currentSeat)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
+			return 0, 0, err
 		}
-		realtimeDailyDuration = time.Duration(dailyWorkedTimeSec) * time.Second
+		realtimeDailyDuration, err = RealTimeDailyTotalStudyDurationOfSeat(currentSeat)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RealTimeDailyTotalStudyDurationOfSeat", err)
+			return 0, 0, err
+		}
 	}
 	
-	userData, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+	userData, err := s.Constants.FirestoreController.RetrieveUser(ctx, tx, userId)
 	if err != nil {
-		return "", "", err
+		_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
+		return 0, 0, err
 	}
 	
 	// 累計
-	var totalStr string
 	totalDuration := realtimeDuration + time.Duration(userData.TotalStudySec)*time.Second
-	if totalDuration < time.Hour {
-		totalStr = strconv.Itoa(int(totalDuration.Minutes())) + "分"
-	} else {
-		totalStr = strconv.Itoa(int(totalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(totalDuration.Minutes())%60) + "分"
-	}
+	
 	// 当日の累計
-	var dailyTotalStr string
 	dailyTotalDuration := realtimeDailyDuration + time.Duration(userData.DailyTotalStudySec)*time.Second
-	if dailyTotalDuration < time.Hour {
-		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Minutes())) + "分"
-	} else {
-		dailyTotalStr = strconv.Itoa(int(dailyTotalDuration.Hours())) + "時間" +
-			strconv.Itoa(int(dailyTotalDuration.Minutes())%60) + "分"
-	}
-	return totalStr, dailyTotalStr, nil
+	
+	return totalDuration, dailyTotalDuration, nil
 }
 
 // ExitAllUserInRoom roomの全てのユーザーを退室させる。
@@ -1817,7 +1785,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				breakSec := int(math.Max(0, jstNow.Sub(seat.CurrentStateStartedAt).Seconds()))
 				// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
 				var dailyCumulativeWorkSec = seat.DailyCumulativeWorkSec
-				if breakSec > utils.InSeconds(jstNow) {
+				if breakSec > utils.SecondsOfDay(jstNow) {
 					dailyCumulativeWorkSec = 0
 				}
 				

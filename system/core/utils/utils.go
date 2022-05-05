@@ -5,6 +5,7 @@ import (
 	"github.com/joho/godotenv"
 	"image/color"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -17,7 +18,8 @@ func JstNow() time.Time {
 	return time.Now().UTC().In(JapanLocation())
 }
 
-func InSeconds(t time.Time) int {
+// SecondsOfDay tの0時0分からの経過時間（秒）
+func SecondsOfDay(t time.Time) int {
 	return t.Second() + int(time.Minute.Seconds())*t.Minute() + int(time.Hour.Seconds())*t.Hour()
 }
 
@@ -85,4 +87,19 @@ func NumTrue(b ...bool) int {
 		}
 	}
 	return n
+}
+
+// DateEqual from https://stackoverflow.com/questions/21053427/check-if-two-time-objects-are-on-the-same-date-in-go
+func DateEqual(date1, date2 time.Time) bool {
+	y1, m1, d1 := date1.Date()
+	y2, m2, d2 := date2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+func DurationToString(duration time.Duration) string {
+	if duration < time.Hour {
+		return strconv.Itoa(int(duration.Minutes())) + "分"
+	} else {
+		return strconv.Itoa(int(duration.Hours())) + "時間" + strconv.Itoa(int(duration.Minutes())) + "分"
+	}
 }
