@@ -20,20 +20,6 @@ const (
 	InvalidCommand
 	ParseFailed
 	InvalidParsedCommand
-	
-	InProcessFailed
-	OutProcessFailed
-	InfoProcessFailed
-	MyProcessFailed
-	ChangeProcessFailed
-	SeatProcessFailed
-	ReportProcessFailed
-	KickProcessFailed
-	CheckProcessFailed
-	MoreProcessFailed
-	BreakProcessFailed
-	ResumeProcessFailed
-	RankProcessFailed
 )
 
 type CustomError struct {

@@ -5,12 +5,10 @@ import (
 	"log"
 )
 
-
 type LineBot struct {
-	DestinationLineId	string
-	Bot 	*linebot.Client
+	DestinationLineId string
+	Bot               *linebot.Client
 }
-
 
 func NewLineBot(channelSecret string, channelToken string, destinationLineId string) (*LineBot, error) {
 	bot, err := linebot.New(channelSecret, channelToken)
@@ -19,13 +17,13 @@ func NewLineBot(channelSecret string, channelToken string, destinationLineId str
 	}
 	return &LineBot{
 		DestinationLineId: destinationLineId,
-		Bot: bot,
+		Bot:               bot,
 	}, nil
 }
 
 // SendMessage LINEにメッセージを送信する。ログも残す。
 func (bot *LineBot) SendMessage(message string) error {
-	log.Println("sending a message to LINE \"", message + "\"")
+	log.Println("sending a message to LINE \"", message+"\"")
 	if _, err := bot.Bot.PushMessage(bot.DestinationLineId, linebot.NewTextMessage(message)).Do(); err != nil {
 		log.Println("failed to send message to the LINE.")
 		return err
@@ -37,9 +35,5 @@ func (bot *LineBot) SendMessage(message string) error {
 func (bot *LineBot) SendMessageWithError(message string, err error) error {
 	log.Println("sending an error to LINE: \n" + err.Error())
 	message += ":\n" + err.Error()
-	err = bot.SendMessage(message)
-	if err != nil {
-		return err
-	}
-	return nil
+	return bot.SendMessage(message)
 }

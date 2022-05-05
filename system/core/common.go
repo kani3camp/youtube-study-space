@@ -36,6 +36,13 @@ func HasTimeOptionPrefix(str string) bool {
 		strings.HasPrefix(str, TimeOptionShortPrefixLegacy)
 }
 
+func IsEmptyTimeOption(str string) bool {
+	return str == TimeOptionPrefix ||
+		str == TimeOptionShortPrefix ||
+		str == TimeOptionPrefixLegacy ||
+		str == TimeOptionShortPrefixLegacy
+}
+
 func TrimTimeOptionPrefix(str string) string {
 	if strings.HasPrefix(str, TimeOptionPrefix) {
 		return strings.TrimPrefix(str, TimeOptionPrefix)

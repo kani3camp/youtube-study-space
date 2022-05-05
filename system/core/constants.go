@@ -42,6 +42,8 @@ const (
 	
 	FavoriteColorMyOptionPrefix = "color="
 	
-	FullWidthSpace = "　"
-	HalfWidthSpace = " "
+	FullWidthSpace     = "　"
+	HalfWidthSpace     = " "
+	FullWidthEqualSign = "＝"
+	HalfWidthEqualSign = "="
 )

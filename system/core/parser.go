@@ -2,17 +2,89 @@ package core
 
 import (
 	"app.modules/core/customerror"
-	"app.modules/core/utils"
-	"math"
 	"strconv"
 	"strings"
 )
 
-func (s *System) ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
+// ParseCommand コマンドを解析
+func ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
+	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
+	commandString = strings.Replace(commandString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	
+	if strings.HasPrefix(commandString, CommandPrefix) {
+		slice := strings.Split(commandString, HalfWidthSpace)
+		switch slice[0] {
+		case InCommand:
+			return ParseIn(commandString)
+		case OutCommand:
+			return CommandDetails{
+				CommandType: Out,
+			}, customerror.NewNil()
+		case InfoCommand:
+			return ParseInfo(commandString)
+		case MyCommand:
+			return ParseMy(commandString)
+		case ChangeCommand:
+			return ParseChange(commandString)
+		case SeatCommand:
+			return CommandDetails{
+				CommandType: Seat,
+			}, customerror.NewNil()
+		case ReportCommand:
+			return ParseReport(commandString)
+		case KickCommand:
+			return ParseKick(commandString)
+		case CheckCommand:
+			return ParseCheck(commandString)
+		
+		case LegacyAddCommand:
+			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
+		
+		case OkawariCommand:
+			fallthrough
+		case MoreCommand:
+			return ParseMore(commandString)
+		
+		case RestCommand:
+			fallthrough
+		case ChillCommand:
+			fallthrough
+		case BreakCommand:
+			return ParseBreak(commandString)
+		
+		case ResumeCommand:
+			return ParseResume(commandString)
+		case RankCommand:
+			return CommandDetails{
+				CommandType: Rank,
+			}, customerror.NewNil()
+		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
+			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください")
+		default: // !席番号 or 間違いコマンド
+			// !席番号かどうか
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
+			if err == nil {
+				return ParseSeatIn(num, commandString)
+			}
+			
+			// 間違いコマンド
+			return CommandDetails{
+				CommandType: InvalidCommand,
+			}, customerror.NewNil()
+		}
+	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
+		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください")
+	}
+	return CommandDetails{
+		CommandType: NotCommand,
+	}, customerror.NewNil()
+}
+
+func ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
+	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
@@ -26,11 +98,11 @@ func (s *System) ParseIn(commandString string) (CommandDetails, customerror.Cust
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror.CustomError) {
+func ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
+	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
@@ -45,28 +117,28 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
+	showDetails := false
 	if len(slice) >= 2 {
 		if slice[1] == InfoDetailsOption {
-			return CommandDetails{
-				CommandType: Info,
-				InfoOption: InfoOption{
-					ShowDetails: true,
-				},
-			}, customerror.NewNil()
+			showDetails = true
 		}
 	}
+	
 	return CommandDetails{
 		CommandType: Info,
+		InfoOption: InfoOption{
+			ShowDetails: showDetails,
+		},
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseMy(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseMy(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
-	options, err := s.ParseMyOptions(slice[1:])
+	options, err := ParseMyOptions(slice[1:])
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
@@ -77,7 +149,7 @@ func (s *System) ParseMy(commandString string) (CommandDetails, customerror.Cust
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError) {
+func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError) {
 	isRankVisibleSet := false
 	isDefaultStudyMinSet := false
 	isFavoriteColorSet := false
@@ -101,11 +173,16 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 			})
 			isRankVisibleSet = true
 		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
-			// TODO: 0だったらリセット。
-			
-			durationMin, cerr := s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
-			if cerr.IsNotNil() {
-				return []MyOption{}, cerr
+			var durationMin int
+			// 0もしくは空欄ならリセットなので、空欄も許可
+			if IsEmptyTimeOption(str) {
+				durationMin = 0
+			} else {
+				var cerr customerror.CustomError
+				durationMin, cerr = ParseDurationMinOption([]string{str}, false)
+				if cerr.IsNotNil() {
+					return []MyOption{}, cerr
+				}
 			}
 			options = append(options, MyOption{
 				Type:     DefaultStudyMin,
@@ -127,13 +204,9 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 				if err != nil {
 					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は半角数字にしてください")
 				}
-				if num < 0 {
-					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は0以上にしてください")
-				}
-				colorCode := utils.TotalStudyHoursToColorCode(num)
 				options = append(options, MyOption{
-					Type:        FavoriteColor,
-					StringValue: colorCode,
+					Type:     FavoriteColor,
+					IntValue: num,
 				})
 				isFavoriteColorSet = true
 			}
@@ -142,7 +215,7 @@ func (s *System) ParseMyOptions(commandSlice []string) ([]MyOption, customerror.
 	return options, customerror.NewNil()
 }
 
-func (s *System) ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var kickSeatId int
@@ -164,7 +237,7 @@ func (s *System) ParseKick(commandString string) (CommandDetails, customerror.Cu
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseCheck(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -186,7 +259,7 @@ func (s *System) ParseCheck(commandString string) (CommandDetails, customerror.C
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var reportMessage string
@@ -197,16 +270,18 @@ func (s *System) ParseReport(commandString string) (CommandDetails, customerror.
 	}
 	
 	return CommandDetails{
-		CommandType:  Report,
-		ReportOption: ReportOption{Message: reportMessage},
+		CommandType: Report,
+		ReportOption: ReportOption{
+			Message: reportMessage,
+		},
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, math.MaxInt)
+	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
@@ -217,21 +292,19 @@ func (s *System) ParseChange(commandString string) (CommandDetails, customerror.
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-	isTimeOptionSet := false
 	
-	// 時間オプションチェック
+	// 延長時間
 	var durationMin int
-	for _, str := range slice {
-		if HasTimeOptionPrefix(str) && !isTimeOptionSet {
-			var cerr customerror.CustomError
-			durationMin, cerr = s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
-			if cerr.IsNotNil() {
-				return CommandDetails{}, cerr
-			}
-			isTimeOptionSet = true
+	if len(slice) >= 2 {
+		var cerr customerror.CustomError
+		durationMin, cerr = ParseDurationMinOption(slice[1:], true)
+		if cerr.IsNotNil() {
+			return CommandDetails{}, cerr
 		}
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("オプションに延長時間（分）を指定してください")
 	}
 	
 	return CommandDetails{
@@ -242,18 +315,13 @@ func (s *System) ParseMore(commandString string) (CommandDetails, customerror.Cu
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseBreak(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinBreakDurationMin, s.Constants.MaxBreakDurationMin)
-	if err.IsNotNil() {
-		return CommandDetails{}, err
-	}
-	
-	// 休憩時間の指定がない場合はデフォルト値を設定
-	if !options.IsDurationMinSet {
-		options.DurationMin = s.Constants.DefaultBreakDurationMin
+	options, cerr := ParseMinutesAndWorkNameOptions(slice[1:])
+	if cerr.IsNotNil() {
+		return CommandDetails{}, cerr
 	}
 	
 	return CommandDetails{
@@ -262,45 +330,52 @@ func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.C
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseResume(commandString string) (CommandDetails, customerror.CustomError) {
+func ParseResume(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
-	// 追加オプションチェック
-	// 作業名オプション
-	workName := s.ParseWorkNameOption(slice[1:])
+	// 作業名
+	option := ParseWorkNameOption(slice[1:])
 	
 	return CommandDetails{
-		CommandType: Resume,
-		ResumeOption: ResumeOption{
-			WorkName: workName,
-		},
+		CommandType:  Resume,
+		ResumeOption: option,
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseWorkNameOption(commandSlice []string) string {
-	for _, str := range commandSlice {
+func ParseWorkNameOption(strSlice []string) WorkNameOption {
+	for _, str := range strSlice {
 		if HasWorkNameOptionPrefix(str) {
 			workName := TrimWorkNameOptionPrefix(str)
-			return workName
+			return WorkNameOption{
+				IsWorkNameSet: true,
+				WorkName:      workName,
+			}
 		}
 	}
-	return ""
-}
-
-func (s *System) ParseDurationMinOption(str string, MinDuration, MaxDuration int) (int, customerror.CustomError) {
-	num, err := strconv.Atoi(str)
-	if err != nil { // 無効な値
-		return 0, customerror.InvalidCommand.New("時間（分）の値を確認してください")
-	}
-	if MinDuration <= num && num <= MaxDuration {
-		return num, customerror.NewNil()
-	} else { // 無効な値
-		return 0, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
-			MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")
+	return WorkNameOption{
+		IsWorkNameSet: false,
 	}
 }
 
-func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDuration, MaxDuration int) (MinutesAndWorkNameOption,
+func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, customerror.CustomError) {
+	for _, str := range strSlice {
+		if HasTimeOptionPrefix(str) {
+			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
+			if err != nil {
+				return 0, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+			}
+			return num, customerror.NewNil()
+		} else if allowNonPrefix {
+			num, err := strconv.Atoi(str)
+			if err == nil {
+				return num, customerror.NewNil()
+			}
+		}
+	}
+	return 0, customerror.InvalidCommand.New("時間（分）のオプションをつけてください")
+}
+
+func ParseMinutesAndWorkNameOptions(commandSlice []string) (MinutesAndWorkNameOption,
 	customerror.CustomError) {
 	var options MinutesAndWorkNameOption
 	
@@ -314,13 +389,8 @@ func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDurati
 			if err != nil { // 無効な値
 				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
 			}
-			if MinDuration <= num && num <= MaxDuration {
-				options.DurationMin = num
-				options.IsDurationMinSet = true
-			} else { // 無効な値
-				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
-					MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")
-			}
+			options.DurationMin = num
+			options.IsDurationMinSet = true
 		}
 	}
 	return options, customerror.NewNil()

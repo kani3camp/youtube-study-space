@@ -61,7 +61,7 @@ type CommandDetails struct {
 	ChangeOption MinutesAndWorkNameOption
 	MoreOption   MoreOption
 	BreakOption  MinutesAndWorkNameOption
-	ResumeOption ResumeOption
+	ResumeOption WorkNameOption
 }
 
 type CommandType uint
@@ -126,8 +126,9 @@ type MoreOption struct {
 	DurationMin int
 }
 
-type ResumeOption struct {
-	WorkName string
+type WorkNameOption struct {
+	IsWorkNameSet bool
+	WorkName      string
 }
 
 type MinutesAndWorkNameOption struct {

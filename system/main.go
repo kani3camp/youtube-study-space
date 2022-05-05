@@ -137,9 +137,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner, ctx)
-			if err.IsNotNil() {
-				_ = _system.MessageToLineBotWithError("error in core.Command()", err.Body)
+			err := _system.Command(ctx, message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner)
+			if err != nil {
+				_ = _system.MessageToLineBotWithError("error in core.Command()", err)
 			}
 		}
 		

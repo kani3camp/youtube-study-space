@@ -23,7 +23,6 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -182,231 +181,61 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 }
 
 // Command 入力コマンドを解析して実行
-func (s *System) Command(commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, ctx context.Context) customerror.CustomError {
+func (s *System) Command(ctx context.Context, commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool) error {
 	if userId == s.Constants.LiveChatBotChannelId {
-		return customerror.NewNil()
+		return nil
 	}
 	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 	
-	commandDetails, err := s.ParseCommand(commandString)
-	if err.IsNotNil() { // これはシステム内部のエラーではなく、コマンドが悪いということなので、return nil
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+err.Body.Error())
-		return customerror.NewNil()
+	commandDetails, cerr := ParseCommand(commandString)
+	if cerr.IsNotNil() { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
+		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+		return nil
 	}
 	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
+	
+	if cerr := s.ValidateCommand(commandDetails); cerr.IsNotNil() {
+		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+	}
 	
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.CommandType {
 	case NotCommand:
-		return customerror.NewNil()
+		return nil
 	case InvalidCommand:
-		// 暫定で何も反応しない
-		return customerror.NewNil()
+		return nil
 	case In:
 		fallthrough
 	case SeatIn:
-		err := s.In(ctx, commandDetails)
-		if err != nil {
-			return customerror.InProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.In(ctx, commandDetails)
 	case Out:
-		err := s.Out(commandDetails, ctx)
-		if err != nil {
-			return customerror.OutProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Out(commandDetails, ctx)
 	case Info:
-		err := s.ShowUserInfo(commandDetails, ctx)
-		if err != nil {
-			return customerror.InfoProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.ShowUserInfo(commandDetails, ctx)
 	case My:
-		err := s.My(commandDetails, ctx)
-		if err != nil {
-			return customerror.MyProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.My(commandDetails, ctx)
 	case Change:
-		err := s.Change(commandDetails, ctx)
-		if err != nil {
-			return customerror.ChangeProcessFailed.New(err.Error())
-		}
+		return s.Change(commandDetails, ctx)
 	case Seat:
-		err := s.ShowSeatInfo(commandDetails, ctx)
-		if err != nil {
-			return customerror.SeatProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.ShowSeatInfo(commandDetails, ctx)
 	case Report:
-		err := s.Report(commandDetails, ctx)
-		if err != nil {
-			return customerror.ReportProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Report(commandDetails, ctx)
 	case Kick:
-		err := s.Kick(commandDetails, ctx)
-		if err != nil {
-			return customerror.KickProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Kick(commandDetails, ctx)
 	case Check:
-		err := s.Check(commandDetails, ctx)
-		if err != nil {
-			return customerror.CheckProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Check(commandDetails, ctx)
 	case More:
-		err := s.More(commandDetails, ctx)
-		if err != nil {
-			return customerror.MoreProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.More(commandDetails, ctx)
 	case Break:
-		err := s.Break(ctx, commandDetails)
-		if err != nil {
-			return customerror.BreakProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Break(ctx, commandDetails)
 	case Resume:
-		err := s.Resume(ctx, commandDetails)
-		if err != nil {
-			return customerror.ResumeProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Resume(ctx, commandDetails)
 	case Rank:
-		err := s.Rank(commandDetails, ctx)
-		if err != nil {
-			return customerror.RankProcessFailed.New(err.Error())
-		}
-		return customerror.NewNil()
+		return s.Rank(commandDetails, ctx)
 	default:
 		_ = s.MessageToLineBot("Unknown command: " + commandString)
 	}
-	return customerror.NewNil()
-}
-
-// ParseCommand コマンドを解析
-func (s *System) ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
-	// 全角スペースを半角に変換
-	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
-	// 全角イコールを半角に変換
-	commandString = strings.Replace(commandString, "＝", "=", -1)
-	
-	if strings.HasPrefix(commandString, CommandPrefix) {
-		slice := strings.Split(commandString, HalfWidthSpace)
-		switch slice[0] {
-		case InCommand:
-			commandDetails, err := s.ParseIn(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case OutCommand:
-			return CommandDetails{
-				CommandType: Out,
-				InOption:    InOption{},
-			}, customerror.NewNil()
-		case InfoCommand:
-			commandDetails, err := s.ParseInfo(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case MyCommand:
-			commandDetails, err := s.ParseMy(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case ChangeCommand:
-			commandDetails, err := s.ParseChange(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case SeatCommand:
-			return CommandDetails{
-				CommandType: Seat,
-			}, customerror.NewNil()
-		case ReportCommand:
-			commandDetails, err := s.ParseReport(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case KickCommand:
-			commandDetails, err := s.ParseKick(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case CheckCommand:
-			commandDetails, err := s.ParseCheck(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case LegacyAddCommand:
-			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
-		
-		case OkawariCommand:
-			fallthrough
-		case MoreCommand:
-			commandDetails, err := s.ParseMore(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		
-		case RestCommand:
-			fallthrough
-		case ChillCommand:
-			fallthrough
-		case BreakCommand:
-			commandDetails, err := s.ParseBreak(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		
-		case ResumeCommand:
-			commandDetails, err := s.ParseResume(commandString)
-			if err.IsNotNil() {
-				return CommandDetails{}, err
-			}
-			return commandDetails, customerror.NewNil()
-		case RankCommand:
-			return CommandDetails{
-				CommandType: Rank,
-			}, customerror.NewNil()
-		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
-			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください")
-		default: // !席番号 or 間違いコマンド
-			// !席番号かどうか
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
-			if err == nil {
-				commandDetails, err := s.ParseSeatIn(num, commandString)
-				if err.IsNotNil() {
-					return CommandDetails{}, err
-				}
-				return commandDetails, customerror.NewNil()
-			}
-			
-			// 間違いコマンド
-			return CommandDetails{
-				CommandType: InvalidCommand,
-				InOption:    InOption{},
-			}, customerror.NewNil()
-		}
-	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
-		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください")
-	}
-	return CommandDetails{
-		CommandType: NotCommand,
-		InOption:    InOption{},
-	}, customerror.NewNil()
+	return nil
 }
 
 func (s *System) In(ctx context.Context, command CommandDetails) error {
@@ -414,11 +243,13 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		isRegistered, err := s.IfUserRegistered(ctx, tx)
 		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to IfUserRegistered", err)
 			return err
 		}
 		if !isRegistered {
 			err := s.InitializeUser(tx)
 			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to InitializeUser", err)
 				return err
 			}
 		}
