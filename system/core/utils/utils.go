@@ -100,6 +100,6 @@ func DurationToString(duration time.Duration) string {
 	if duration < time.Hour {
 		return strconv.Itoa(int(duration.Minutes())) + "分"
 	} else {
-		return strconv.Itoa(int(duration.Hours())) + "時間" + strconv.Itoa(int(duration.Minutes())) + "分"
+		return strconv.Itoa(int(duration.Hours())) + "時間" + strconv.Itoa(int(duration.Minutes())%60) + "分"
 	}
 }

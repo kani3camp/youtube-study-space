@@ -905,6 +905,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		
 		// これ以降は書き込みのみ可。
 		
+		reply := s.ProcessedUserDisplayName + "さん、"
 		if changeOption.IsWorkNameSet {
 			// 作業名もしくは休憩作業名を書きかえ
 			switch currentSeat.State {
@@ -920,7 +921,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeat.SeatId)+"番席）")
+			reply += "作業名を更新しました（" + strconv.Itoa(currentSeat.SeatId) + "番席）。"
 		}
 		if changeOption.IsDurationMinSet {
 			// 作業時間（入室時間から自動退室までの時間）を変更
@@ -944,9 +945,10 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 				remainingWorkMin := int(requestedUntil.Sub(utils.JstNow()).Minutes())
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.DurationMin)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
+				reply += "入室時間を" + strconv.Itoa(changeOption.DurationMin) + "分に変更しました。現在" + strconv.Itoa(realtimeWorkedTimeMin) + "分入室中。自動退室まで残り" + strconv.Itoa(remainingWorkMin) + "分です。"
 			}
 		}
+		s.MessageToLiveChat(ctx, reply)
 		return nil
 	})
 }
