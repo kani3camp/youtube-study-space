@@ -2,7 +2,6 @@ package core
 
 import (
 	"app.modules/core/customerror"
-	"context"
 	"strconv"
 )
 
@@ -27,7 +26,7 @@ func (s *System) ValidateIn(command CommandDetails) (bool, customerror.CustomErr
 
 // ValidateSeatIn 返却のcerrはTypeがInvalidCommandの場合のみユーザー向けにメッセージを流すこと。
 // Unknownだったらエラーメッセージをチャットに流さないように。
-func (s *System) ValidateSeatIn(ctx context.Context, command CommandDetails) (bool, customerror.CustomError) {
+func (s *System) ValidateSeatIn(command CommandDetails) (bool, customerror.CustomError) {
 	if command.CommandType != SeatIn {
 		return false, customerror.InvalidParsedCommand.New("this is not a SeatIn command.")
 	}
@@ -42,16 +41,8 @@ func (s *System) ValidateSeatIn(ctx context.Context, command CommandDetails) (bo
 	}
 	
 	// 席番号
-	// TODO max-seatsは確認しなくていいんじゃない？それはInにやらせて、ここでは0以上かどうかだけ？
-	inputSeatId := command.InOptions.SeatId
-	currentConfig, err := s.Constants.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
-	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to RetrieveSystemConstantsConfig", err)
-		return false, customerror.Unknown.Wrap(err)
-	}
-	expect := 0 <= inputSeatId && inputSeatId <= currentConfig.MaxSeats
-	if !expect {
-		return false, customerror.InvalidCommand.New("座席番号は1～" + strconv.Itoa(currentConfig.MaxSeats) + "の値にしてください。")
+	if command.InOptions.SeatId < 0 {
+		return false, customerror.InvalidCommand.New("座席番号は0以上の値にしてください。")
 	}
 	
 	// 作業名は特に制限はない
