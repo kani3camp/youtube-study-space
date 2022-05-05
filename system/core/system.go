@@ -156,7 +156,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 					// 移動させる
 					inCommandDetails := CommandDetails{
-						CommandType: SeatIn,
+						CommandType: In,
 						InOption: InOption{
 							IsSeatIdSet: true,
 							SeatId:      0,
@@ -205,8 +205,6 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 	case InvalidCommand:
 		return nil
 	case In:
-		fallthrough
-	case SeatIn:
 		return s.In(ctx, commandDetails)
 	case Out:
 		return s.Out(commandDetails, ctx)
@@ -281,7 +279,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		inOption := &command.InOption
 		
 		// 席が指定されているか？
-		if command.CommandType == SeatIn {
+		if inOption.IsSeatIdSet {
 			// 0番席だったら最小番号の空席に決定
 			if inOption.SeatId == 0 {
 				seatId, err := s.MinAvailableSeatIdForUser(ctx, tx, s.ProcessedUserId)

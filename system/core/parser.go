@@ -108,7 +108,7 @@ func ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror
 	}
 	
 	return CommandDetails{
-		CommandType: SeatIn,
+		CommandType: In,
 		InOption: InOption{
 			IsSeatIdSet:        true,
 			SeatId:             seatNum,

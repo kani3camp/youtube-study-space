@@ -8,8 +8,6 @@ import (
 func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError {
 	switch command.CommandType {
 	case In:
-		fallthrough
-	case SeatIn:
 		return s.ValidateIn(command)
 	case Out:
 		return customerror.NewNil()
