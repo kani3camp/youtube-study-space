@@ -147,29 +147,18 @@ func (s *System) ValidateChange(command CommandDetails) (bool, customerror.Custo
 		return false, customerror.InvalidParsedCommand.New("this is not a Change command.")
 	}
 	
-	var isWorkNameSet, isWorkTimeMinSet bool
+	// 休憩内容
+	// 特になし
 	
-	for _, option := range command.ChangeOptions {
-		switch option.Type {
-		case WorkName:
-			if isWorkNameSet {
-				return false, customerror.InvalidParsedCommand.New("more than 2 WorkName options.")
-			}
-			isWorkNameSet = true
-		case WorkTime:
-			if isWorkTimeMinSet {
-				return false, customerror.InvalidParsedCommand.New("more than 2 WorkTime options.")
-			}
-			inputWorkTimeMin := option.IntValue
-			expect := s.Constants.MinWorkTimeMin <= inputWorkTimeMin && inputWorkTimeMin <= s.Constants.MaxWorkTimeMin
-			if !expect {
-				return false, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
-			}
-			isWorkTimeMinSet = true
-		default:
-			return false, customerror.InvalidParsedCommand.New("there is an unknown option in command.ChangeOptions")
+	// 休憩時間
+	inputDurationMin := command.ChangeOption.DurationMin
+	if inputDurationMin != 0 {
+		expect := s.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Constants.MaxWorkTimeMin
+		if !expect {
+			return false, customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
 		}
 	}
+	
 	return true, customerror.NewNil()
 }
 

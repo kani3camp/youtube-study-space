@@ -67,14 +67,14 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "in",
 			ExpectedOutput: CommandDetails{
 				CommandType: NotCommand,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!in",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				InOption: InOptions{
+				InOption: InOption{
 					WorkName: "",
 					WorkMin:  s.Constants.DefaultWorkTimeMin,
 				},
@@ -84,7 +84,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!in work-てすと min-50",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				InOption: InOptions{
+				InOption: InOption{
 					WorkName: "てすと",
 					WorkMin:  50,
 				},
@@ -94,7 +94,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!in min-60 work-わーく",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				InOption: InOptions{
+				InOption: InOption{
 					WorkName: "わーく",
 					WorkMin:  60,
 				},
@@ -104,7 +104,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "!in min-60 work-w",
 			ExpectedOutput: CommandDetails{
 				CommandType: In,
-				InOption: InOptions{
+				InOption: InOption{
 					WorkName: "w",
 					WorkMin:  60,
 				},
@@ -115,21 +115,21 @@ func TestSystem_ParseCommand(t *testing.T) {
 			Input: "out",
 			ExpectedOutput: CommandDetails{
 				CommandType: NotCommand,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!out",
 			ExpectedOutput: CommandDetails{
 				CommandType: Out,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!info",
 			ExpectedOutput: CommandDetails{
 				CommandType: Info,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{

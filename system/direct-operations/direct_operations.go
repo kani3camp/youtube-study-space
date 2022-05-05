@@ -45,7 +45,7 @@ func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx conte
 	_system.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
 		CommandType: core.Out,
-		InOption:    core.InOptions{},
+		InOption:    core.InOption{},
 	}
 	
 	err = _system.Out(outCommandDetails, ctx)

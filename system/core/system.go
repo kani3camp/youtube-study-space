@@ -158,7 +158,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 					// 移動させる
 					inCommandDetails := CommandDetails{
 						CommandType: SeatIn,
-						InOption: InOptions{
+						InOption: InOption{
 							SeatId:   0,
 							WorkName: seat.WorkName,
 							WorkMin:  int(seat.Until.Sub(utils.JstNow()).Minutes()),
@@ -301,7 +301,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 		case OutCommand:
 			return CommandDetails{
 				CommandType: Out,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			}, customerror.NewNil()
 		case InfoCommand:
 			commandDetails, err := s.ParseInfo(commandString)
@@ -392,7 +392,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 			// 間違いコマンド
 			return CommandDetails{
 				CommandType: InvalidCommand,
-				InOption:    InOptions{},
+				InOption:    InOption{},
 			}, customerror.NewNil()
 		}
 	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
@@ -400,7 +400,7 @@ func (s *System) ParseCommand(commandString string) (CommandDetails, customerror
 	}
 	return CommandDetails{
 		CommandType: NotCommand,
-		InOption:    InOptions{},
+		InOption:    InOption{},
 	}, customerror.NewNil()
 }
 
@@ -1052,6 +1052,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 }
 
 func (s *System) Change(command CommandDetails, ctx context.Context) error {
+	changeOption := command.ChangeOption
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室中か？
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
@@ -1066,8 +1067,8 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		}
 		
 		// オプションが1つ以上指定されているか？
-		if len(command.ChangeOptions) == 0 {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください")
+		if changeOption.NumOptionsSet() == 0 {
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、オプションを指定してください")
 			return nil
 		}
 		
@@ -1089,48 +1090,47 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		seats := roomDoc.Seats
 		
 		// これ以降は書き込みのみ可。
-		for _, changeOption := range command.ChangeOptions {
-			if changeOption.Type == WorkName {
-				// 作業名もしくは休憩作業名を書きかえ
-				switch currentSeat.State {
-				case myfirestore.WorkState:
-					seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
-				case myfirestore.BreakState:
-					seats = CreateUpdatedSeatsSeatBreakWorkName(seats, changeOption.StringValue, s.ProcessedUserId)
-				}
+		
+		if changeOption.IsWorkNameSet {
+			// 作業名もしくは休憩作業名を書きかえ
+			switch currentSeat.State {
+			case myfirestore.WorkState:
+				seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.WorkName, s.ProcessedUserId)
+			case myfirestore.BreakState:
+				seats = CreateUpdatedSeatsSeatBreakWorkName(seats, changeOption.WorkName, s.ProcessedUserId)
+			}
+			err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					"さん、エラーが発生しました。もう一度試してみてください")
+				return err
+			}
+			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeat.SeatId)+"番席）")
+		}
+		if changeOption.IsDurationMinSet {
+			// 作業時間（入室時間から自動退室までの時間）を変更
+			realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
+			
+			requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.DurationMin) * time.Minute)
+			
+			if requestedUntil.Before(utils.JstNow()) { // もし現在時刻で指定時間よりも経過していたら却下
+				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.DurationMin)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
+			} else if requestedUntil.After(utils.JstNow().Add(time.Duration(s.Constants.MaxWorkTimeMin) * time.Minute)) { // もし現在時刻より最大延長可能時間以上後なら却下
+				remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.Constants.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
+			} else { // それ以外なら延長
+				seats = CreateUpdatedSeatsSeatUntil(seats, requestedUntil, s.ProcessedUserId)
 				err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
 				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
+					_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんの作業名を更新しました（"+strconv.Itoa(currentSeat.SeatId)+"番席）")
-			}
-			if changeOption.Type == WorkTime {
-				// 作業時間（入室時間から自動退室までの時間）を変更
-				realtimeWorkedTimeMin := int(utils.JstNow().Sub(currentSeat.EnteredAt).Minutes())
-				
-				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.IntValue) * time.Minute)
-				
-				if requestedUntil.Before(utils.JstNow()) { // もし現在時刻で指定時間よりも経過していたら却下
-					remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、すでに"+strconv.Itoa(changeOption.IntValue)+"分以上入室しています。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
-				} else if requestedUntil.After(utils.JstNow().Add(time.Duration(s.Constants.MaxWorkTimeMin) * time.Minute)) { // もし現在時刻より最大延長可能時間以上後なら却下
-					remainingWorkMin := int(currentSeat.Until.Sub(utils.JstNow()).Minutes())
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、自動退室までの時間は現在時刻から"+strconv.Itoa(s.Constants.MaxWorkTimeMin)+"分後まで設定できます。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
-				} else { // それ以外なら延長
-					seats = CreateUpdatedSeatsSeatUntil(seats, requestedUntil, s.ProcessedUserId)
-					err := s.Constants.FirestoreController.UpdateSeats(tx, seats)
-					if err != nil {
-						_ = s.MessageToLineBotWithError("failed to s.Constants.FirestoreController.UpdateSeats", err)
-						s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
-							"さん、エラーが発生しました。もう一度試してみてください")
-						return err
-					}
-					remainingWorkMin := int(requestedUntil.Sub(utils.JstNow()).Minutes())
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.IntValue)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
-				}
+				remainingWorkMin := int(requestedUntil.Sub(utils.JstNow()).Minutes())
+				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室時間を"+strconv.Itoa(changeOption.DurationMin)+"分に変更しました。現在"+strconv.Itoa(realtimeWorkedTimeMin)+"分入室中。自動退室まで残り"+strconv.Itoa(remainingWorkMin)+"分です")
 			}
 		}
 		return nil

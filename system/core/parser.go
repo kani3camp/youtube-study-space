@@ -41,7 +41,7 @@ func (s *System) ParseSeatIn(seatNum int, commandString string) (CommandDetails,
 	}, customerror.NewNil()
 }
 
-func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.CustomError) {
+func (s *System) ParseInOptions(commandSlice []string) (InOption, customerror.CustomError) {
 	workName := ""
 	isWorkNameSet := false
 	workTimeMin := 0
@@ -53,13 +53,13 @@ func (s *System) ParseInOptions(commandSlice []string) (InOptions, customerror.C
 		} else if HasTimeOptionPrefix(str) && !isWorkTimeMinSet {
 			durationMin, cerr := s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, s.Constants.MaxWorkTimeMin)
 			if cerr.IsNotNil() {
-				return InOptions{}, cerr
+				return InOption{}, cerr
 			}
 			workTimeMin = durationMin
 			isWorkTimeMinSet = true
 		}
 	}
-	return InOptions{
+	return InOption{
 		SeatId:   -1,
 		WorkName: workName,
 		WorkMin:  workTimeMin,
@@ -227,45 +227,15 @@ func (s *System) ParseChange(commandString string) (CommandDetails, customerror.
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
-	options, err := s.ParseChangeOptions(slice[1:])
+	options, err := s.ParseMinutesAndWorkNameOptions(slice[1:], s.Constants.MinWorkTimeMin, math.MaxInt)
 	if err.IsNotNil() {
 		return CommandDetails{}, err
 	}
 	
 	return CommandDetails{
-		CommandType:   Change,
-		ChangeOptions: options,
+		CommandType:  Change,
+		ChangeOption: options,
 	}, customerror.NewNil()
-}
-
-func (s *System) ParseChangeOptions(commandSlice []string) ([]ChangeOption, customerror.CustomError) {
-	isWorkNameSet := false
-	isWorkTimeMinSet := false
-	
-	var options []ChangeOption
-	
-	for _, str := range commandSlice {
-		if HasWorkNameOptionPrefix(str) && !isWorkNameSet {
-			workName := TrimWorkNameOptionPrefix(str)
-			options = append(options, ChangeOption{
-				Type:        WorkName,
-				StringValue: workName,
-			})
-			isWorkNameSet = true
-		} else if HasTimeOptionPrefix(str) && !isWorkTimeMinSet {
-			// 延長できるシステムなので、上限はなし
-			durationMin, cerr := s.ParseDurationMinOption(TrimTimeOptionPrefix(str), s.Constants.MinWorkTimeMin, math.MaxInt)
-			if cerr.IsNotNil() {
-				return []ChangeOption{}, cerr
-			}
-			options = append(options, ChangeOption{
-				Type:     WorkTime,
-				IntValue: durationMin,
-			})
-			isWorkTimeMinSet = true
-		}
-	}
-	return options, customerror.NewNil()
 }
 
 func (s *System) ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
@@ -303,7 +273,7 @@ func (s *System) ParseBreak(commandString string) (CommandDetails, customerror.C
 	}
 	
 	// 休憩時間の指定がない場合はデフォルト値を設定
-	if options.DurationMin == 0 {
+	if !options.IsDurationMinSet {
 		options.DurationMin = s.Constants.DefaultBreakDurationMin
 	}
 	
@@ -353,24 +323,21 @@ func (s *System) ParseDurationMinOption(str string, MinDuration, MaxDuration int
 
 func (s *System) ParseMinutesAndWorkNameOptions(commandSlice []string, MinDuration, MaxDuration int) (MinutesAndWorkNameOption,
 	customerror.CustomError) {
-	isWorkNameSet := false
-	isDurationMinSet := false
-	
 	var options MinutesAndWorkNameOption
 	
 	for _, str := range commandSlice {
-		if (HasWorkNameOptionPrefix(str)) && !isWorkNameSet {
+		if (HasWorkNameOptionPrefix(str)) && !options.IsWorkNameSet {
 			workName := TrimWorkNameOptionPrefix(str)
 			options.WorkName = workName
-			isWorkNameSet = true
-		} else if (HasTimeOptionPrefix(str)) && !isDurationMinSet {
+			options.IsWorkNameSet = true
+		} else if (HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
 				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
 			}
 			if MinDuration <= num && num <= MaxDuration {
 				options.DurationMin = num
-				isDurationMinSet = true
+				options.IsDurationMinSet = true
 			} else { // 無効な値
 				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）は" + strconv.Itoa(
 					MinDuration) + "～" + strconv.Itoa(MaxDuration) + "の値にしてください")

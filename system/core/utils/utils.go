@@ -75,3 +75,14 @@ func ParseHexColor(s string) (c color.RGBA, err error) {
 	}
 	return
 }
+
+// NumTrue from https://stackoverflow.com/questions/57983764/how-to-get-sum-of-true-bools
+func NumTrue(b ...bool) int {
+	n := 0
+	for _, v := range b {
+		if v {
+			n++
+		}
+	}
+	return n
+}

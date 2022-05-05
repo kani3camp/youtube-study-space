@@ -4,6 +4,7 @@ import (
 	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
+	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 	"time"
 )
@@ -50,17 +51,17 @@ type SystemConstants struct {
 }
 
 type CommandDetails struct {
-	CommandType   CommandType
-	InOption      InOptions
-	InfoOption    InfoOption
-	MyOptions     []MyOption
-	KickOption    KickOption
-	CheckOption   CheckOption
-	ReportOption  ReportOption
-	ChangeOptions []ChangeOption
-	MoreOption    MoreOption
-	BreakOption   MinutesAndWorkNameOption
-	ResumeOption  ResumeOption
+	CommandType  CommandType
+	InOption     InOption
+	InfoOption   InfoOption
+	MyOptions    []MyOption
+	KickOption   KickOption
+	CheckOption  CheckOption
+	ReportOption ReportOption
+	ChangeOption MinutesAndWorkNameOption
+	MoreOption   MoreOption
+	BreakOption  MinutesAndWorkNameOption
+	ResumeOption ResumeOption
 }
 
 type CommandType uint
@@ -96,14 +97,7 @@ const (
 	FavoriteColor
 )
 
-type ChangeOptionType uint
-
-const (
-	WorkName ChangeOptionType = iota
-	WorkTime
-)
-
-type InOptions struct {
+type InOption struct {
 	SeatId   int
 	WorkName string
 	WorkMin  int
@@ -128,12 +122,6 @@ type ReportOption struct {
 	Message string
 }
 
-type ChangeOption struct {
-	Type        ChangeOptionType
-	StringValue string
-	IntValue    int
-}
-
 type MoreOption struct {
 	DurationMin int
 }
@@ -143,8 +131,14 @@ type ResumeOption struct {
 }
 
 type MinutesAndWorkNameOption struct {
-	WorkName    string
-	DurationMin int
+	IsWorkNameSet    bool
+	IsDurationMinSet bool
+	WorkName         string
+	DurationMin      int
+}
+
+func (o *MinutesAndWorkNameOption) NumOptionsSet() int {
+	return utils.NumTrue(o.IsWorkNameSet, o.IsDurationMinSet)
 }
 
 type UserIdTotalStudySecSet struct {
