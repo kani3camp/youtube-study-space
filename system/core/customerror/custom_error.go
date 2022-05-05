@@ -18,6 +18,8 @@ const (
 	NoSeatAvailable
 	
 	InvalidCommand
+	ParseFailed
+	InvalidParsedCommand
 	
 	InProcessFailed
 	OutProcessFailed
