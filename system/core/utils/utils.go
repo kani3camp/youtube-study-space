@@ -103,3 +103,15 @@ func DurationToString(duration time.Duration) string {
 		return strconv.Itoa(int(duration.Hours())) + "時間" + strconv.Itoa(int(duration.Minutes())%60) + "分"
 	}
 }
+
+// NoNegativeDuration 負の値であれば0に修正する。
+func NoNegativeDuration(duration time.Duration) time.Duration {
+	if duration < 0 {
+		return time.Duration(0)
+	}
+	return duration
+}
+
+func Ftoa(f float64) string {
+	return strconv.Itoa(int(f))
+}

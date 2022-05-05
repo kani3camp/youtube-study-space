@@ -38,6 +38,7 @@ const (
 	RankVisibleDocProperty        = "rank-visible"
 	DefaultStudyMinDocProperty    = "default-study-min"
 	FavoriteColorDocProperty      = "favorite-color"
+	RankPointDocProperty          = "rank-point"
 	
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

@@ -190,6 +190,13 @@ func (controller *FirestoreController) UpdateTotalTime(
 	})
 }
 
+func (controller *FirestoreController) UpdateUserRankPoint(tx *firestore.Transaction, userId string, rp int) error {
+	ref := controller.FirestoreClient.Collection(USERS).Doc(userId)
+	return tx.Update(ref, []firestore.Update{
+		{Path: RankPointDocProperty, Value: rp},
+	})
+}
+
 func (controller *FirestoreController) SaveLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
 	ref := controller.FirestoreClient.Collection(CONFIG).Doc(CredentialsConfigDocName)
 	return controller.update(ctx, tx, ref, []firestore.Update{

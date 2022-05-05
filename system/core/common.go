@@ -154,7 +154,7 @@ func RealTimeTotalStudyDurationOfSeat(seat myfirestore.Seat) (time.Duration, err
 	var duration time.Duration
 	switch seat.State {
 	case myfirestore.WorkState:
-		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + jstNow.Sub(seat.CurrentStateStartedAt)
+		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
 	case myfirestore.BreakState:
 		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
 	default:
@@ -170,7 +170,7 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.Seat) (time.Duration
 	if utils.DateEqual(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
 		switch seat.State {
 		case myfirestore.WorkState:
-			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + jstNow.Sub(seat.CurrentStateStartedAt)
+			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
 		case myfirestore.BreakState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
 		default:
