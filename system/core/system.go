@@ -380,7 +380,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				reply := ""
 				
 				// 退室処理
-				exitedSeats, workedTimeSec, rpResult, err := s.exitRoom(tx, seats, currentSeat, &userDoc)
+				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, currentSeat, &userDoc)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to exitRoom for "+s.ProcessedUserId, err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -400,7 +400,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				
 				var rpEarned string
 				if userDoc.RankVisible {
-					rpEarned = "（+ " + strconv.Itoa(rpResult) + " RP）"
+					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
 				reply += s.ProcessedUserDisplayName + "さんが席を移動しました🚶（" +
 					strconv.Itoa(currentSeat.SeatId) + "→" + strconv.Itoa(inOption.SeatId) + "番席）" +
@@ -482,7 +482,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		seats := roomDoc.Seats
 		
 		// 退室処理
-		_, workedTimeSec, rpResult, err := s.exitRoom(tx, seats, seat, &userDoc)
+		_, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, seat, &userDoc)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed in s.exitRoom(seatId, ctx)", customErr.Body)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -490,7 +490,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
-			rpEarned = "（+ " + strconv.Itoa(rpResult) + " RP）"
+			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 		}
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 			"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
@@ -1566,9 +1566,10 @@ func (s *System) exitRoom(
 		_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
 		return nil, 0, 0, err
 	}
+	addedRP := newRP - previousUserDoc.RankPoint
 	
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
-	return newSeats, addedWorkedTimeSec, newRP, nil
+	return newSeats, addedWorkedTimeSec, addedRP, nil
 }
 
 func (s *System) CurrentSeatId(ctx context.Context, tx *firestore.Transaction) (int, customerror.CustomError) {
@@ -1766,7 +1767,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			// 自動退室時刻による退室処理
 			if contains(autoExitSeatIds, seat.SeatId) {
-				exitedSeats, workedTimeSec, rpResult, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
@@ -1774,7 +1775,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				currentSeats = append([]myfirestore.Seat{}, exitedSeats...)
 				var rpEarned string
 				if userDocs[i].RankVisible {
-					rpEarned = "（+ " + strconv.Itoa(rpResult) + " RP）"
+					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
@@ -1783,7 +1784,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			// 長時間入室制限による強制退室
 			if contains(forcedExitSeatIds, seat.SeatId) {
-				exitedSeats, workedTimeSec, rpResult, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
@@ -1791,7 +1792,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				currentSeats = append([]myfirestore.Seat{}, exitedSeats...)
 				var rpEarned string
 				if userDocs[i].RankVisible {
-					rpEarned = "（+ " + strconv.Itoa(rpResult) + " RP）"
+					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
 				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
