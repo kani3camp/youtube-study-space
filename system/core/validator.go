@@ -45,9 +45,9 @@ func (s *System) ValidateIn(command CommandDetails) customerror.CustomError {
 	// 作業時間の値
 	inputWorkMin := command.InOption.MinutesAndWorkName.DurationMin
 	if inputWorkMin != 0 {
-		expect := s.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Constants.MaxWorkTimeMin
+		expect := s.Configs.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Configs.Constants.MaxWorkTimeMin
 		if !expect {
-			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
+			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
 		}
 	}
 	// 席番号
@@ -58,6 +58,7 @@ func (s *System) ValidateIn(command CommandDetails) customerror.CustomError {
 	}
 	
 	// 作業名は特に制限はない
+	// pass
 	
 	return customerror.NewNil()
 }
@@ -67,7 +68,7 @@ func (s *System) ValidateInfo(command CommandDetails) customerror.CustomError {
 		return customerror.InvalidParsedCommand.New("this is not a Info command.")
 	}
 	
-	// 特になし
+	// pass
 	
 	return customerror.NewNil()
 }
@@ -92,9 +93,9 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			}
 			inputDefaultStudyMin := option.IntValue
 			if inputDefaultStudyMin != 0 {
-				expect := s.Constants.MinWorkTimeMin <= inputDefaultStudyMin && inputDefaultStudyMin <= s.Constants.MaxWorkTimeMin
+				expect := s.Configs.Constants.MinWorkTimeMin <= inputDefaultStudyMin && inputDefaultStudyMin <= s.Configs.Constants.MaxWorkTimeMin
 				if !expect {
-					return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
+					return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
 				}
 			}
 			isDefaultStudyMinSet = true
@@ -160,14 +161,14 @@ func (s *System) ValidateChange(command CommandDetails) customerror.CustomError 
 	}
 	
 	// 休憩内容
-	// 特になし
+	// pass
 	
 	// 休憩時間
 	inputDurationMin := command.ChangeOption.DurationMin
 	if inputDurationMin != 0 {
-		expect := s.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Constants.MaxWorkTimeMin
+		expect := s.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxWorkTimeMin
 		if !expect {
-			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Constants.MaxWorkTimeMin) + "の値にしてください。")
+			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
 		}
 	}
 	
@@ -193,14 +194,14 @@ func (s *System) ValidateBreak(command CommandDetails) customerror.CustomError {
 	}
 	
 	// 休憩内容
-	// 特になし
+	// pass
 	
 	// 休憩時間
 	inputDurationMin := command.BreakOption.DurationMin
 	if inputDurationMin != 0 {
-		expect := s.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Constants.MaxBreakDurationMin
+		expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
 		if !expect {
-			return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Constants.MaxBreakDurationMin) + "の値にしてください。")
+			return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Configs.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin) + "の値にしてください。")
 		}
 	}
 	
@@ -213,7 +214,7 @@ func (s *System) ValidateResume(command CommandDetails) customerror.CustomError 
 	}
 	
 	// 作業名
-	// 特になし
+	// pass
 	
 	return customerror.NewNil()
 }

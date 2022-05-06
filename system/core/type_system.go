@@ -6,48 +6,25 @@ import (
 	"app.modules/core/mylinebot"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
-	"time"
 )
 
 type System struct {
-	Constants                       *SystemConstants
-	ProcessedUserId                 string
-	ProcessedUserDisplayName        string
-	ProcessedUserIsModeratorOrOwner bool
-}
-
-// SystemConstants System生成時に初期化すべきフィールド値
-type SystemConstants struct {
+	Configs             *SystemConfigs
 	FirestoreController *myfirestore.FirestoreController
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
 	lineBot             *mylinebot.LineBot
 	discordBot          *discordbot.DiscordBot
 	
+	ProcessedUserId                 string
+	ProcessedUserDisplayName        string
+	ProcessedUserIsModeratorOrOwner bool
+}
+
+// SystemConfigs System生成時に初期化すべきフィールド値
+type SystemConfigs struct {
+	Constants myfirestore.ConstantsConfigDoc
+	
 	LiveChatBotChannelId string
-	MinWorkTimeMin       int
-	MaxWorkTimeMin       int
-	DefaultWorkTimeMin   int
-	
-	MinBreakDurationMin     int
-	MaxBreakDurationMin     int
-	MinBreakIntervalMin     int
-	DefaultBreakDurationMin int
-	
-	DefaultSleepIntervalMilli       int
-	CheckDesiredMaxSeatsIntervalSec int
-	
-	LastResetDailyTotalStudySec           time.Time
-	LastTransferCollectionHistoryBigquery time.Time
-	LastLongTimeSittingChecked            time.Time
-	
-	GcpRegion                      string
-	GcsFirestoreExportBucketName   string
-	CollectionHistoryRetentionDays int
-	
-	RecentRangeMin     int
-	RecentThresholdMin int
-	
-	CheckLongTimeSittingIntervalMinutes int
 }
 
 type CommandDetails struct {

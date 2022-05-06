@@ -145,8 +145,14 @@ type UserDoc struct {
 	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
 	RankPoint int `json:"rank_point" firestore:"rank-point"`
 	
-	// 連続入室利用日数。当日は数えない。2日連続で入室利用しているなら1。完全に3日間利用していないなら-3。
-	ContinuousEntryDays int `json:"continuous_entry_days" firestore:"continuous-entry-days"`
+	// 前回の連続非アクティブ日数によるRPペナルティ処理が行われたときの、該当非アクティブ連続日数
+	LastPenaltyImposedDays int `json:"last_penalty_imposed_days" firestore:"last-penalty-imposed-days"`
+	
+	// 昨日までで、連続日数でアクティブか
+	IsContinuousActive bool `json:"is_continuous_active" firestore:"is-continuous-active"`
+	
+	// 昨日までの状態（アクティブor非アクティブ）が始まった日付
+	CurrentActivityStateStarted time.Time `json:"current_activity_state_started" firestore:"current-activity-state-started"`
 	
 	// お気に入りの色のカラーコード
 	FavoriteColor string `json:"favorite_color" firestore:"favorite-color"`

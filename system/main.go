@@ -58,7 +58,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
 	
-	checkDesiredMaxSeatsIntervalSec := _system.Constants.CheckDesiredMaxSeatsIntervalSec
+	checkDesiredMaxSeatsIntervalSec := _system.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 	
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 	
@@ -73,9 +73,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			log.Println("checking desired max seats")
-			constants, err := _system.Constants.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
+			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
 			if err != nil {
-				_ = _system.MessageToLineBotWithError("_system.FirestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
+				_ = _system.MessageToLineBotWithError("_system.firestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
 			} else {
 				if constants.DesiredMaxSeats != constants.MaxSeats {
 					err := _system.AdjustMaxSeats(ctx)
@@ -145,8 +145,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		
 		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(_system.Constants.
-			DefaultSleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
+		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(_system.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
 		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
 		time.Sleep(sleepInterval)
@@ -162,7 +161,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
+	err = _system.DailyOrganizeDatabase(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -176,8 +175,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
