@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/myfirestore"
 	"strconv"
 )
 
@@ -16,7 +17,8 @@ func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError
 	case My:
 		return s.ValidateMy(command)
 	case Change:
-		return s.ValidateChange(command)
+		// seatStateに依存するためChange()の中で行う。
+		return customerror.NewNil()
 	case Seat:
 		return customerror.NewNil()
 	case Report:
@@ -155,20 +157,40 @@ func (s *System) ValidateReport(command CommandDetails) customerror.CustomError 
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateChange(command CommandDetails) customerror.CustomError {
+func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.SeatState) customerror.CustomError {
 	if command.CommandType != Change {
 		return customerror.InvalidParsedCommand.New("this is not a Change command.")
 	}
 	
-	// 休憩内容
-	// pass
+	// オプションが1つ以上指定されているか
+	if command.ChangeOption.NumOptionsSet() == 0 {
+		return customerror.InvalidCommand.New(s.ProcessedUserDisplayName + "さん、オプションを指定してください")
+	}
 	
-	// 休憩時間
-	inputDurationMin := command.ChangeOption.DurationMin
-	if inputDurationMin != 0 {
-		expect := s.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxWorkTimeMin
-		if !expect {
-			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
+	switch seatState {
+	case myfirestore.WorkState:
+		// 作業内容
+		// pass
+		
+		// 入室時間
+		if command.ChangeOption.IsDurationMinSet {
+			inputDurationMin := command.ChangeOption.DurationMin
+			expect := s.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxWorkTimeMin
+			if !expect {
+				return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
+			}
+		}
+	case myfirestore.BreakState:
+		// 休憩内容
+		// pass
+		
+		// 休憩時間
+		if command.ChangeOption.IsDurationMinSet {
+			inputDurationMin := command.ChangeOption.DurationMin
+			expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
+			if !expect {
+				return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Configs.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin) + "の値にしてください。")
+			}
 		}
 	}
 	
@@ -197,8 +219,8 @@ func (s *System) ValidateBreak(command CommandDetails) customerror.CustomError {
 	// pass
 	
 	// 休憩時間
-	inputDurationMin := command.BreakOption.DurationMin
-	if inputDurationMin != 0 {
+	if command.BreakOption.IsDurationMinSet {
+		inputDurationMin := command.BreakOption.DurationMin
 		expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
 		if !expect {
 			return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Configs.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin) + "の値にしてください。")

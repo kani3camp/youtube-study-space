@@ -92,17 +92,22 @@ func CreateUpdatedSeatsSeatUntil(seats []myfirestore.Seat, newUntil time.Time, u
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].Until = newUntil
+			if seat.State == myfirestore.WorkState {
+				seats[i].CurrentStateUntil = newUntil
+			}
 			break
 		}
 	}
 	return seats
 }
 
-func CreateUpdatedSeatsSeatCurrentStateUntil(seats []myfirestore.Seat, newUntil time.Time,
-	userId string) []myfirestore.Seat {
+func CreateUpdatedSeatsSeatCurrentStateUntil(seats []myfirestore.Seat, newUntil time.Time, userId string) []myfirestore.Seat {
 	for i, seat := range seats {
 		if seat.UserId == userId {
 			seats[i].CurrentStateUntil = newUntil
+			if seat.State == myfirestore.WorkState {
+				seats[i].Until = newUntil
+			}
 			break
 		}
 	}
