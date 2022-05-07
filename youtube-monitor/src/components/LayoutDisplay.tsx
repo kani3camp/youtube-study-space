@@ -102,42 +102,25 @@ const LayoutDisplay: FC<Props> = (props) => {
         const seatList = roomLayout.seats.map((seat, index) => {
             const global_seat_id = globalSeatId(seat.id, props.firstSeatId)
             const isUsed = usedSeatIds.includes(global_seat_id)
-            const workName = isUsed
-                ? seatWithSeatId(global_seat_id, props.seats).work_name
-                : ''
-            const breakWorkName = isUsed
-                ? seatWithSeatId(global_seat_id, props.seats).break_work_name
-                : ''
-
-            const displayName = isUsed
-                ? seatWithSeatId(global_seat_id, props.seats).user_display_name
-                : ''
-            const seat_color = isUsed
-                ? seatWithSeatId(global_seat_id, props.seats).color_code
-                : emptySeatColor
-            const isBreak =
-                isUsed &&
-                seatWithSeatId(global_seat_id, props.seats).state ===
-                    SeatState.Break
-            const glowAnimationEnabled =
-                isUsed &&
-                seatWithSeatId(global_seat_id, props.seats).glow_animation
+            const processingSeat = seatWithSeatId(global_seat_id, props.seats)
+            const workName = isUsed ? processingSeat.work_name : ''
+            const breakWorkName = isUsed ? processingSeat.break_work_name : ''
+            const displayName = isUsed ? processingSeat.user_display_name : ''
+            const seat_color = isUsed ? processingSeat.appearance.color_code : emptySeatColor
+            const isBreak = isUsed && processingSeat.state === SeatState.Break
+            const glowAnimationEnabled = isUsed && processingSeat.appearance.glow_animation
+            const numStars = isUsed ? processingSeat.appearance.num_stars : 0
 
             // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
             let workNameFontSizePx = seatFontSizePx
             if (isUsed) {
-                const canvas: HTMLCanvasElement = document.createElement(
-                    'canvas'
-                )
+                const canvas: HTMLCanvasElement = document.createElement('canvas')
                 const context = canvas.getContext('2d')
                 context!.font = `${workNameFontSizePx.toString()}px ${
                     Constants.fontFamily
                 }`
-                const metrics = context!.measureText(
-                    isBreak ? breakWorkName : workName
-                )
-                const actualSeatWidth =
-                    (roomShape.widthPx * seatShape.width) / 100
+                const metrics = context!.measureText(isBreak ? breakWorkName : workName)
+                const actualSeatWidth = (roomShape.widthPx * seatShape.width) / 100
                 if (metrics.width > actualSeatWidth) {
                     workNameFontSizePx *= actualSeatWidth / metrics.width
                     workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
@@ -172,6 +155,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                   `
 
             return (
+                // 1つの座席
                 <div
                     key={global_seat_id}
                     css={css`
@@ -189,9 +173,12 @@ const LayoutDisplay: FC<Props> = (props) => {
                             : `${seatFontSizePx * 2}px`,
                     }}
                 >
+                    {/* 席番号 */}
                     <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
                         {global_seat_id}
                     </div>
+                    
+                    {/* 作業名 */}
                     {(workName !== '' || breakWorkName !== '') && (
                         <div
                             css={styles.workName}
@@ -202,21 +189,38 @@ const LayoutDisplay: FC<Props> = (props) => {
                             {isBreak ? breakWorkName : workName}
                         </div>
                     )}
+                    
+                    {/* 名前 */}
                     <div css={styles.userDisplayName}>{displayName}</div>
 
+                    {/* 休み中 */}
                     {isBreak && (
                         <div
                             css={styles.breakBadge}
                             style={{
                                 fontSize: `${seatFontSizePx * 0.5}px`,
-                                borderRadius: `${seatFontSizePx / 3}px`,
-                                padding: `${seatFontSizePx / 10}px`,
-                                left: `${seatFontSizePx * 0.1}px`,
+                                borderRadius: `${seatFontSizePx / 2}px`,
+                                padding: `${seatFontSizePx / 18}px`,
+                                left: `${seatFontSizePx * 0.08}px`,
                                 top: `${seatFontSizePx * 0.2}px`,
-                                borderWidth: `${seatFontSizePx * 0.15}px`,
+                                borderWidth: `${seatFontSizePx * 0.05}px`,
                             }}
                         >
                             休み中
+                        </div>
+                    )}
+                    
+                    {/* ★マーク */}
+                    {numStars > 0 && (
+                        <div
+                            css={styles.starsBadge}
+                            style={{
+                                fontSize: `${seatFontSizePx * 0.6}px`,
+                                width: `${seatFontSizePx * 1.8}px`,
+                                paddingTop: `${seatFontSizePx / 8}px`
+                            }}
+                        >
+                            {'★×' + numStars}
                         </div>
                     )}
                 </div>

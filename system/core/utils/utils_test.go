@@ -19,13 +19,13 @@ func TestTodaySeconds(t *testing.T) {
 				time.Duration(4)*time.Second).Seconds()),
 		},
 		{
-			T: time.Date(2021, 10, 1, 0, 0, 0, 0, JapanLocation()),
+			T:               time.Date(2021, 10, 1, 0, 0, 0, 0, JapanLocation()),
 			ExpectedSeconds: 0,
 		},
 	}
-
+	
 	for _, testCase := range testCases {
-		seconds := InSeconds(testCase.T)
+		seconds := SecondsOfDay(testCase.T)
 		assert.Equal(t, testCase.ExpectedSeconds, seconds)
 	}
 }

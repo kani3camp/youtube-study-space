@@ -52,96 +52,42 @@ func NewTestSystem() (System, error) {
 }
 
 func TestSystem_ParseCommand(t *testing.T) {
-	s, err := NewTestSystem()
-	if err != nil {
-		t.Error("failed NewSystem()", err)
-		return
-	}
-	
 	type TestCase struct {
-		Input          string
-		ExpectedOutput CommandDetails
+		Input  string
+		Output CommandDetails
 	}
 	testCases := [...]TestCase{
 		{
-			Input: "in",
-			ExpectedOutput: CommandDetails{
-				CommandType: NotCommand,
-				InOptions:   InOptions{},
-			},
-		},
-		{
-			Input: "!in",
-			ExpectedOutput: CommandDetails{
-				CommandType: In,
-				InOptions: InOptions{
-					WorkName: "",
-					WorkMin:  s.Constants.DefaultWorkTimeMin,
-				},
-			},
-		},
-		{
-			Input: "!in work-てすと min-50",
-			ExpectedOutput: CommandDetails{
-				CommandType: In,
-				InOptions: InOptions{
-					WorkName: "てすと",
-					WorkMin:  50,
-				},
-			},
-		},
-		{
-			Input: "!in min-60 work-わーく",
-			ExpectedOutput: CommandDetails{
-				CommandType: In,
-				InOptions: InOptions{
-					WorkName: "わーく",
-					WorkMin:  60,
-				},
-			},
-		},
-		{
-			Input: "!in min-60 work-w",
-			ExpectedOutput: CommandDetails{
-				CommandType: In,
-				InOptions: InOptions{
-					WorkName: "w",
-					WorkMin:  60,
-				},
-			},
-		},
-		// TODO: w-やm-のテスト追加
-		{
 			Input: "out",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: NotCommand,
-				InOptions:   InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!out",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: Out,
-				InOptions:   InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!info",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: Info,
-				InOptions:   InOptions{},
+				InOption:    InOption{},
 			},
 		},
 		{
 			Input: "!my",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: My,
 				MyOptions:   nil,
 			},
 		},
 		{
 			Input: "!my rank=on",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
@@ -153,7 +99,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 		},
 		{
 			Input: "!my rank=off",
-			ExpectedOutput: CommandDetails{
+			Output: CommandDetails{
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
@@ -166,16 +112,16 @@ func TestSystem_ParseCommand(t *testing.T) {
 	}
 	
 	for _, testCase := range testCases {
-		commandDetails, err := s.ParseCommand(testCase.Input)
+		commandDetails, err := ParseCommand(testCase.Input)
 		if err.IsNotNil() {
 			t.Error(err)
 		}
-		if !reflect.DeepEqual(commandDetails, testCase.ExpectedOutput) {
+		if !reflect.DeepEqual(commandDetails, testCase.Output) {
 			fmt.Printf("result:\n%# v\n", pretty.Formatter(commandDetails))
-			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.ExpectedOutput))
+			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.Output))
 			t.Error("command details do not match.")
 		}
-		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.ExpectedOutput))
+		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.Output))
 	}
 }
 

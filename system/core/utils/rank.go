@@ -2,213 +2,151 @@ package utils
 
 import (
 	"github.com/pkg/errors"
-	"math"
 	"time"
 )
 
-type Rank struct {
-	GreaterThanOrEqualToHours int
-	LessThanHours             int
-	ColorCode                 string
-	GlowAnimation             bool
-}
+const (
+	RankPointLowerLimit = 0
+	RankPointUpperLimit = 10e4 - 1 // = 99,999
+)
 
-func GetRank(totalStudySec int) (Rank, error) {
-	if totalStudySec < 0 { // 値チェック
-		return Rank{}, errors.New("invalid value")
-	}
-	// 時間に換算
-	totalDuration := time.Duration(totalStudySec) * time.Second
-	totalHours := totalDuration.Hours()
+func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yesterdayContinuedActive bool,
+	currentStateStarted time.Time, lastActiveAt time.Time, previousRankPoint int) (int, error) {
+	basePoint := int(netStudyDuration.Minutes())
+	var workNameSetMagnification float64          // 作業内容設定倍率
+	var continuousActiveDaysMagnification float64 // 連続入室日数倍率
+	var rankMagnification float64                 // ランクによる倍率
 	
-	if totalHours < 5 {
-		return Rank{
-			GreaterThanOrEqualToHours: 0,
-			LessThanHours:             5,
-			ColorCode:                 "#fff",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 10 {
-		return Rank{
-			GreaterThanOrEqualToHours: 5,
-			LessThanHours:             10,
-			ColorCode:                 "#FFD4CC",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 20 {
-		return Rank{
-			GreaterThanOrEqualToHours: 10,
-			LessThanHours:             20,
-			ColorCode:                 "#FF9580",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 30 {
-		return Rank{
-			GreaterThanOrEqualToHours: 20,
-			LessThanHours:             30,
-			ColorCode:                 "#FFC880",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 50 {
-		return Rank{
-			GreaterThanOrEqualToHours: 30,
-			LessThanHours:             50,
-			ColorCode:                 "#FFFB7F",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 70 {
-		return Rank{
-			GreaterThanOrEqualToHours: 50,
-			LessThanHours:             70,
-			ColorCode:                 "#D0FF80",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 100 {
-		return Rank{
-			GreaterThanOrEqualToHours: 70,
-			LessThanHours:             100,
-			ColorCode:                 "#9DFF7F",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 150 {
-		return Rank{
-			GreaterThanOrEqualToHours: 100,
-			LessThanHours:             150,
-			ColorCode:                 "#80FF95",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 200 {
-		return Rank{
-			GreaterThanOrEqualToHours: 150,
-			LessThanHours:             200,
-			ColorCode:                 "#80FFC8",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 300 {
-		return Rank{
-			GreaterThanOrEqualToHours: 200,
-			LessThanHours:             300,
-			ColorCode:                 "#80FFFB",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 400 {
-		return Rank{
-			GreaterThanOrEqualToHours: 300,
-			LessThanHours:             400,
-			ColorCode:                 "#80D0FF",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 500 {
-		return Rank{
-			GreaterThanOrEqualToHours: 400,
-			LessThanHours:             500,
-			ColorCode:                 "#809EFF",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 700 {
-		return Rank{
-			GreaterThanOrEqualToHours: 500,
-			LessThanHours:             700,
-			ColorCode:                 "#947FFF",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 1000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 700,
-			LessThanHours:             1000,
-			ColorCode:                 "#C880FF",
-			GlowAnimation:             false,
-		}, nil
-	} else if totalHours < 1500 {
-		return Rank{
-			GreaterThanOrEqualToHours: 1000,
-			LessThanHours:             1500,
-			ColorCode:                 "#FFC880",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 2000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 1500,
-			LessThanHours:             2000,
-			ColorCode:                 "#FFFB7F",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 2500 {
-		return Rank{
-			GreaterThanOrEqualToHours: 2000,
-			LessThanHours:             2500,
-			ColorCode:                 "#D0FF80",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 3000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 2500,
-			LessThanHours:             3000,
-			ColorCode:                 "#9DFF7F",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 4000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 3000,
-			LessThanHours:             4000,
-			ColorCode:                 "#80FF95",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 5000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 4000,
-			LessThanHours:             5000,
-			ColorCode:                 "#80FFC8",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 6000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 5000,
-			LessThanHours:             6000,
-			ColorCode:                 "#80FFFB",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 7000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 6000,
-			LessThanHours:             7000,
-			ColorCode:                 "#80D0FF",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 8000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 7000,
-			LessThanHours:             8000,
-			ColorCode:                 "#809EFF",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 9000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 8000,
-			LessThanHours:             9000,
-			ColorCode:                 "#947FFF",
-			GlowAnimation:             true,
-		}, nil
-	} else if totalHours < 10000 {
-		return Rank{
-			GreaterThanOrEqualToHours: 9000,
-			LessThanHours:             10000,
-			ColorCode:                 "#C880FF",
-			GlowAnimation:             true,
-		}, nil
+	if isWorkNameSet {
+		workNameSetMagnification = 1.1
 	} else {
-		return Rank{
-			GreaterThanOrEqualToHours: 10000,
-			LessThanHours:             math.MaxInt64,
-			ColorCode:                 "#FF7FFF",
-			GlowAnimation:             true,
-		}, nil
+		workNameSetMagnification = 1
+	}
+	
+	continuousActiveDays, err := CalcContinuousActiveDays(yesterdayContinuedActive, currentStateStarted, lastActiveAt)
+	if err != nil {
+		return 0, err
+	}
+	continuousActiveDaysMagnification = 1 + 0.01*float64(continuousActiveDays)
+	if continuousActiveDaysMagnification > 2 {
+		continuousActiveDaysMagnification = 2
+	}
+	
+	rankMagnification = MagnificationByRP(previousRankPoint)
+	
+	addedRP := int(float64(basePoint) * workNameSetMagnification * continuousActiveDaysMagnification * rankMagnification)
+	
+	return ApplyRPRange(previousRankPoint + addedRP), nil
+}
+
+// CalcNewRPContinuousInactivity 連続で利用しない日が続くとRP減らす。
+func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastPenaltyImposedDays int) (int, int, error) {
+	inactiveDays, err := CalcContinuousInactiveDays(lastActiveAt)
+	if err != nil {
+		return 0, 0, err
+	}
+	if lastPenaltyImposedDays > inactiveDays {
+		return 0, 0, errors.New("lastPenaltyImposedDays > inactiveDays")
+	} else if lastPenaltyImposedDays == inactiveDays {
+		// 今日すでにペナルティ処理が完了しているためRPをそのまま返す
+		return previousRP, inactiveDays, nil
+	}
+	magnification := PenaltyMagnificationByInactiveDays(inactiveDays)
+	
+	return ApplyRPRange(int(float64(previousRP) * magnification)), inactiveDays, nil
+}
+
+// CalcContinuousInactiveDays 連続非アクティブn日目のとき、n-1を返す。
+func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
+	jstNow := JstNow()
+	if lastActiveAt.After(jstNow) {
+		return 0, errors.New("lastActiveAt.After(jstNow) is true.")
+	}
+	if DateEqual(lastActiveAt, jstNow) {
+		return 0, nil
+	}
+	lastActiveDate0AM := time.Date(lastActiveAt.Year(), lastActiveAt.Month(), lastActiveAt.Day(), 0, 0, 0, 0, JapanLocation())
+	n := int(jstNow.Sub(lastActiveDate0AM).Hours() / 24)
+	return n - 1, nil
+}
+
+// CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。
+func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted time.Time, lastActiveAt time.Time) (int, error) {
+	jstNow := JstNow()
+	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
+		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true.")
+	}
+	if yesterdayContinuedActive {
+		startDate0AM := time.Date(currentStateStarted.Year(), currentStateStarted.Month(), currentStateStarted.Day(),
+			0, 0, 0, 0, JapanLocation())
+		if DateEqual(lastActiveAt, jstNow) {
+			return int(jstNow.Sub(startDate0AM).Hours() / 24), nil
+		} else { // 今日はまだ入室してないが、今日非アクティブとは断定できない。昨日までの連続日数を返す。
+			yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day(), 0, 0, 0, 0, JapanLocation())
+			return int(yesterday.Sub(startDate0AM).Hours() / 24), nil
+		}
+	} else { // 昨日非アクティブだった時点で現在の連続アクティブ日数は0。
+		return 0, nil
 	}
 }
 
-func GetInvisibleRank() Rank {
-	return Rank{
-		ColorCode:     "#BBBBBB",
-		GlowAnimation: false,
+func ApplyRPRange(rp int) int {
+	if rp < RankPointLowerLimit {
+		return RankPointLowerLimit
+	} else if rp > RankPointUpperLimit {
+		return RankPointUpperLimit
+	}
+	return rp
+}
+
+// MagnificationByRP RPから倍率を求める。
+func MagnificationByRP(rp int) float64 {
+	if rp < 1e4 {
+		return 1
+	} else if rp < 2e4 {
+		return 1
+	} else if rp < 3e4 {
+		return 0.95
+	} else if rp < 4e4 {
+		return 0.9
+	} else if rp < 5e4 {
+		return 0.8
+	} else if rp < 6e4 {
+		return 0.7
+	} else if rp < 7e4 {
+		return 0.6
+	} else if rp < 8e4 {
+		return 0.5
+	} else if rp < 9e4 {
+		return 0.4
+	} else {
+		return 0.3
+	}
+}
+
+// PenaltyMagnificationByInactiveDays 連続非アクティブ日数によるペナルティRP調整倍率
+func PenaltyMagnificationByInactiveDays(inactiveDays int) float64 {
+	if inactiveDays >= 30 {
+		return 0
+	} else if inactiveDays >= 7 {
+		return 0.5
+	} else if inactiveDays >= 3 {
+		return 0.8
+	} else {
+		return 1
+	}
+}
+
+func WasUserActiveYesterday(lastEntered, lastExited, now time.Time) bool {
+	yesterday := now.AddDate(0, 0, -1)
+	lastActiveAt := LastActiveAt(lastEntered, lastExited, now)
+	return DateEqual(lastActiveAt, yesterday)
+}
+
+func LastActiveAt(lastEntered, lastExited, now time.Time) time.Time {
+	if lastEntered.Before(lastExited) {
+		return lastExited
+	} else {
+		return now
 	}
 }

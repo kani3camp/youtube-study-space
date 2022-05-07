@@ -1,53 +1,61 @@
 package utils
 
 import (
-	"fmt"
 	"github.com/kr/pretty"
-	"reflect"
 	"testing"
+	"time"
 )
 
-func TestGetRank(t *testing.T) {
-	type TestCase struct {
-		TotalSec int
-		Expected Rank
-	}
+type Input struct {
+	NetStudyDuration    time.Duration
+	IsWorkNameSet       bool
+	ContinuousEntryDays int
+	PreviousRankPoint   int
+}
+
+type TestCase struct {
+	Input  Input
+	Output int
+}
+
+func TestCalcRankPoint(t *testing.T) {
 	testCases := []TestCase{
 		{
-			TotalSec: 0,
-			Expected: Rank{
-				GreaterThanOrEqualToHours: 0,
-				LessThanHours:             5,
-				ColorCode:                 "#fff",
+			Input: Input{
+				NetStudyDuration:    time.Duration(5) * time.Minute,
+				IsWorkNameSet:       false,
+				ContinuousEntryDays: 0,
+				PreviousRankPoint:   0,
 			},
+			Output: 5,
 		},
 		{
-			TotalSec: 36000,
-			Expected: Rank{
-				GreaterThanOrEqualToHours: 10,
-				LessThanHours:             20,
-				ColorCode:                 "#FF9580",
+			Input: Input{
+				NetStudyDuration:    time.Duration(57) * time.Minute,
+				IsWorkNameSet:       true,
+				ContinuousEntryDays: 0,
+				PreviousRankPoint:   0,
 			},
+			Output: 62,
 		},
 		{
-			TotalSec: 500000,	// = 138.888889 hours
-			Expected: Rank{
-				GreaterThanOrEqualToHours: 100,
-				LessThanHours:             150,
-				ColorCode:                 "#80FF95",
+			Input: Input{
+				NetStudyDuration:    time.Duration(57) * time.Minute,
+				IsWorkNameSet:       false,
+				ContinuousEntryDays: 30,
+				PreviousRankPoint:   0,
 			},
+			Output: 74,
 		},
 	}
 	
 	for _, testCase := range testCases {
-		rank, err := GetRank(testCase.TotalSec)
-		if err != nil {
-			t.Error(err)
-		}
-		if !reflect.DeepEqual(rank, testCase.Expected) {
-			fmt.Printf("%# v\n", pretty.Formatter(rank))
-			fmt.Printf("%# v\n", pretty.Formatter(testCase.Expected))
-			t.Error("rank do not match.")
+		in := testCase.Input
+		rp := CalcNewRPExitRoom(in.NetStudyDuration, in.IsWorkNameSet, in.ContinuousEntryDays, in.PreviousRankPoint)
+		if rp != testCase.Output {
+			t.Errorf("input: %# v\n", pretty.Formatter(in))
+			t.Errorf("result: %d\n", rp)
+			t.Errorf("expected: %d\n", testCase.Output)
 		}
 	}
 }

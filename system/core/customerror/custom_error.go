@@ -18,20 +18,8 @@ const (
 	NoSeatAvailable
 	
 	InvalidCommand
-	
-	InProcessFailed
-	OutProcessFailed
-	InfoProcessFailed
-	MyProcessFailed
-	ChangeProcessFailed
-	SeatProcessFailed
-	ReportProcessFailed
-	KickProcessFailed
-	CheckProcessFailed
-	MoreProcessFailed
-	BreakProcessFailed
-	ResumeProcessFailed
-	RankProcessFailed
+	ParseFailed
+	InvalidParsedCommand
 )
 
 type CustomError struct {

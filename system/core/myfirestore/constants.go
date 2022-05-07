@@ -4,7 +4,6 @@ const (
 	CONFIG          = "config"
 	ROOMS           = "rooms"
 	USERS           = "users"
-	HISTORY         = "history"
 	LiveChatHistory = "live-chat-history"
 	UserActivities  = "user-activities"
 	
@@ -31,12 +30,17 @@ const (
 	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"
 	YoutubeChannelExpirationDate         = "youtube-channel-expiration-date"
 	
-	LastEnteredDocProperty        = "last-entered"
-	LastExitedDocProperty         = "last-exited"
-	DailyTotalStudySecDocProperty = "daily-total-study-sec"
-	TotalStudySecDocProperty      = "total-study-sec"
-	RankVisibleDocProperty        = "rank-visible"
-	DefaultStudyMinDocProperty    = "default-study-min"
+	LastEnteredDocProperty                 = "last-entered"
+	LastExitedDocProperty                  = "last-exited"
+	DailyTotalStudySecDocProperty          = "daily-total-study-sec"
+	TotalStudySecDocProperty               = "total-study-sec"
+	RankVisibleDocProperty                 = "rank-visible"
+	DefaultStudyMinDocProperty             = "default-study-min"
+	FavoriteColorDocProperty               = "favorite-color"
+	RankPointDocProperty                   = "rank-point"
+	IsContinuousActiveDocProperty          = "is-continuous-active"
+	CurrentActivityStateStartedDocProperty = "current-activity-state-started"
+	LastPenaltyImposedDaysDocProperty      = "last-penalty-imposed-days"
 	
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

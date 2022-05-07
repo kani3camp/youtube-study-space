@@ -60,8 +60,17 @@ export const userDisplayName = css`
 
 export const breakBadge = css`
   color: black;
+  background-color: lightgreen;
   z-index: ${Constants.breakBadgeZIndex};
   position: absolute;
   font-weight: bold;
   border: solid;
+`
+
+export const starsBadge = css`
+  color: black;
+  position: absolute;
+  top: 0;
+  right: 0;
+  overflow-wrap: anywhere;
 `

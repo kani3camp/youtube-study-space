@@ -9,9 +9,11 @@ class BackgroundImage extends React.Component<Record<string, unknown>, any> {
   private args: string =
     '/?' +
     'work,cafe,study,nature,chill,coffee,tea,sea,lake,outdoor,land,spring,summer,fall,winter,hotel' +
-    // + ',green,purple,pink,blue,dark,azure,yellow,orange,gray,brown,red,black,pastel'
+    ',green,purple,pink,blue,dark,azure,yellow,orange,gray,brown,red,black,pastel' +
     ',blossom,flower,corridor,door,background,wood,resort,travel,vacation,beach,grass' +
-    ',pencil,pen,eraser,stationary,classic,jazz,lo-fi,fruit,vegetable'
+    ',pencil,pen,eraser,stationary,classic,jazz,lo-fi,fruit,vegetable,sky,instrument,cup' + 
+    ',star,moon,night,cloud,rain,mountain,river,calm,sun,sunny,water,building,drink,keyboard' + 
+    ',morning,evening'
   private unsplash_url = this.base_url + this.args
 
   updateState() {
