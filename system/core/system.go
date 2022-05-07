@@ -844,7 +844,12 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
-				reply += "デフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。"
+				// 値が0はリセットのこと。
+				if myOption.IntValue == 0 {
+					reply += "デフォルトの作業時間をリセットしました。"
+				} else {
+					reply += "デフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。"
+				}
 			} else if myOption.Type == FavoriteColor {
 				err := s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, myOption.StringValue)
 				if err != nil {
