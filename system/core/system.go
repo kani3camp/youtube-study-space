@@ -332,9 +332,9 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// ランクから席の色を決定
-		seatAppearance, err := s.RetrieveCurrentUserRank(ctx, tx, s.ProcessedUserId)
+		seatAppearance, err := s.RetrieveCurrentUserSeatAppearance(ctx, tx, s.ProcessedUserId)
 		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveCurrentUserRank", err)
+			_ = s.MessageToLineBotWithError("failed to RetrieveCurrentUserSeatAppearance", err)
 			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -430,8 +430,8 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 	})
 }
 
-// RetrieveCurrentUserRank リアルタイムの現在のランクを求める
-func (s *System) RetrieveCurrentUserRank(ctx context.Context, tx *firestore.Transaction, userId string) (myfirestore.SeatAppearance, error) {
+// RetrieveCurrentUserSeatAppearance リアルタイムの現在のランクを求める
+func (s *System) RetrieveCurrentUserSeatAppearance(ctx context.Context, tx *firestore.Transaction, userId string) (myfirestore.SeatAppearance, error) {
 	userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userId)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
@@ -796,6 +796,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 		// これ以降は書き込みのみ
 		
 		reply := s.ProcessedUserDisplayName + "さん、"
+		currenRankVisible := userDoc.RankVisible
 		for _, myOption := range command.MyOptions {
 			if myOption.Type == RankVisible {
 				newRankVisible := myOption.BoolValue
@@ -837,6 +838,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						}
 					}
 				}
+				currenRankVisible = newRankVisible
 			} else if myOption.Type == DefaultStudyMin {
 				err := s.FirestoreController.SetMyDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue)
 				if err != nil {
@@ -852,7 +854,8 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					reply += "デフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。"
 				}
 			} else if myOption.Type == FavoriteColor {
-				err := s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, myOption.StringValue)
+				colorCode := utils.TotalStudyHoursToColorCode(myOption.IntValue)
+				err := s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, colorCode)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
 					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -861,6 +864,19 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				reply += "お気に入りカラーを更新しました。"
 				if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
 					reply += "（累計作業時間が" + strconv.Itoa(utils.FavoriteColorAvailableThresholdHours) + "時間を超えるまでお気に入りカラーは使えません）"
+				}
+				
+				// 入室中であれば、座席の色も変える
+				if isUserInRoom {
+					seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
+					// 席の色を更新
+					seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
+					err := s.FirestoreController.UpdateSeats(tx, seats)
+					if err != nil {
+						_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
+						s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
+						return err
+					}
 				}
 			}
 		}
