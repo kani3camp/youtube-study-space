@@ -6,6 +6,7 @@ import { mazeRoomLayout } from './layouts/maze_room'
 import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
 import { takochanRoomLayout } from './layouts/takochan_room'
+import { Freepick1RoomLayout } from './layouts/freepick1_room'
 
 type AllRoomsConfig = {
     basicRooms: RoomLayout[]
@@ -14,11 +15,7 @@ type AllRoomsConfig = {
 
 const prodAllRooms: AllRoomsConfig = {
     basicRooms: [
-        circleRoomLayout,
-        mazeRoomLayout,
-        HimajinRoomLayout,
-        takochanRoomLayout,
-        SeaOfSeatRoomLayout,
+        Freepick1RoomLayout,
     ],
     temporaryRooms: [
         classRoomLayout,
@@ -29,7 +26,7 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [circleRoomLayout],
+    basicRooms: [Freepick1RoomLayout],
     temporaryRooms: [
         classRoomLayout,
         SimpleRoomLayout,
