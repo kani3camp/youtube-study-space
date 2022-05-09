@@ -10,7 +10,7 @@ youtube-monitor/.env
 youtube-monitor/node_modules/
 youtube-monitor/out/
 youtube-monitor/public/audio/lofigirl/*
-youtube-monitor/public/audio/chime/*
+youtube-monitor/public/chime/*
 app-engine/.DS_Store
 app-engine/.gcloudignore
 system/app.modules.exe
