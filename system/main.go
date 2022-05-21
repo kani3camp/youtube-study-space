@@ -161,7 +161,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.DailyOrganizeDatabase(ctx)
+	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
 		panic(err)
 	}
@@ -175,8 +175,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

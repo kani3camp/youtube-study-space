@@ -6,6 +6,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"context"
 	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
 	"time"
@@ -30,8 +31,8 @@ func NewBigqueryClient(ctx context.Context, projectId string, clientOption optio
 	}, nil
 }
 
-func (controller *BigqueryController) CloseClient() {
-	err := controller.Client.Close()
+func (c *BigqueryController) CloseClient() {
+	err := c.Client.Close()
 	if err != nil {
 		log.Println("failed to close bigquery client.")
 	} else {
@@ -39,7 +40,7 @@ func (controller *BigqueryController) CloseClient() {
 	}
 }
 
-func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
+func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 	gcsFolderName string, bucketName string,
 	collections []string) error {
 	for _, collectionName := range collections {
@@ -49,10 +50,10 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 		gcsRef.AllowJaggedRows = true
 		gcsRef.SourceFormat = bigquery.DatastoreBackup
 		
-		dataset := controller.Client.Dataset(DatasetName)
+		dataset := c.Client.Dataset(DatasetName)
 		loader := dataset.Table(TemporaryTableName).LoaderFrom(gcsRef)
 		loader.WriteDisposition = bigquery.WriteTruncate // 上書き
-		loader.Location = controller.WorkingRegion
+		loader.Location = c.WorkingRegion
 		job, err := loader.Run(ctx)
 		if err != nil {
 			return err
@@ -80,19 +81,35 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 		
 		// bigqueryにおいて一時テーブルから日時を指定してメインテーブルにデータを読込
 		var query *bigquery.Query
+		
+		// 一時テーブルにロードされたデータが0件ならばここで終了。1件も読み込まれないと一時テーブルのスキーマが定義されないため、後続のクエリでエラーになる。
+		query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." + TemporaryTableName + "` LIMIT 10")
+		it, err := query.Read(ctx)
+		if err != nil {
+			return err
+		}
+		numRows, err := iteratorSize(it)
+		if err != nil {
+			return err
+		}
+		if numRows == 0 {
+			log.Println("number of loaded rows is zero.")
+			continue
+		}
+		
 		switch collectionName {
 		case myfirestore.LiveChatHistory:
-			query = controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
+			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', published_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
 		case myfirestore.UserActivities:
-			query = controller.Client.Query("SELECT * FROM `" + controller.Client.Project() + "." + DatasetName + "." +
+			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', taken_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
 		}
-		query.Location = controller.WorkingRegion
+		query.Location = c.WorkingRegion
 		query.WriteDisposition = bigquery.WriteAppend // 追加
 		switch collectionName {
 		case myfirestore.LiveChatHistory:
@@ -121,4 +138,20 @@ func (controller *BigqueryController) ReadCollectionsFromGcs(ctx context.Context
 	}
 	log.Println("finished all collection's processes.")
 	return nil
+}
+
+func iteratorSize(it *bigquery.RowIterator) (int, error) {
+	i := 0
+	for {
+		var row []bigquery.Value
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return -1, err
+		}
+		i++
+	}
+	return i, nil
 }
