@@ -1,12 +1,10 @@
 import { RoomLayout } from '../types/room-layout'
-import { circleRoomLayout } from './layouts/circle_room'
 import { classRoomLayout } from './layouts/classroom'
+import { Freepick1RoomLayout } from './layouts/freepick1_room'
+import { Freepick2RoomLayout } from './layouts/freepick2_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
-import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
-import { takochanRoomLayout } from './layouts/takochan_room'
-import { Freepick1RoomLayout } from './layouts/freepick1_room'
 
 type AllRoomsConfig = {
     basicRooms: RoomLayout[]
@@ -14,9 +12,7 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    basicRooms: [
-        Freepick1RoomLayout,
-    ],
+    basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
     temporaryRooms: [
         classRoomLayout,
         SimpleRoomLayout,
@@ -26,13 +22,8 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepick1RoomLayout],
-    temporaryRooms: [
-        classRoomLayout,
-        SimpleRoomLayout,
-        mazeRoomLayout,
-        HimajinRoomLayout,
-    ],
+    basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
+    temporaryRooms: [mazeRoomLayout, Freepick1RoomLayout, Freepick2RoomLayout],
 }
 
 export const allRooms: AllRoomsConfig = testAllRooms
