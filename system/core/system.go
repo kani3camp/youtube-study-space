@@ -115,7 +115,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	if constants.DesiredMaxSeats == constants.MaxSeats {
 		return nil
 	} else if constants.DesiredMaxSeats > constants.MaxSeats { // 席を増やす
-		s.MessageToLiveChat(ctx, "ルームを増やします⬆")
+		s.MessageToLiveChat(ctx, nil, "ルームを増やします⬆")
 		return s.FirestoreController.SetMaxSeats(ctx, nil, constants.DesiredMaxSeats)
 	} else { // 席を減らす
 		// max_seatsを減らしても、空席率が設定値以上か確認
@@ -132,7 +132,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return s.FirestoreController.SetDesiredMaxSeats(ctx, nil, constants.MaxSeats)
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, "人数が減ったためルームを減らします⬇　必要な場合は席を移動してもらうことがあります。")
+			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします⬇　必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range room.Seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
@@ -171,13 +171,13 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 	
 	commandDetails, cerr := ParseCommand(commandString)
 	if cerr.IsNotNil() { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+		s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
 		return nil
 	}
 	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 	
 	if cerr := s.ValidateCommand(commandDetails); cerr.IsNotNil() {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+		s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
 		return nil
 	}
 	
@@ -254,7 +254,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			currentSeat, customErr = s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 			if customErr.IsNotNil() {
 				_ = s.MessageToLineBotWithError("failed CurrentSeat", customErr.Body)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 				return customErr.Body
 			}
 		}
@@ -268,7 +268,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				seatId, err := s.MinAvailableSeatIdForUser(ctx, tx, s.ProcessedUserId)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed s.MinAvailableSeatIdForUser()", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				inOption.SeatId = seatId
@@ -281,22 +281,22 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				isVacant, err2 = s.IfSeatVacant(ctx, tx, inOption.SeatId)
 				if err2 != nil {
 					_ = s.MessageToLineBotWithError("failed s.IfSeatVacant()", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err2
 				}
 				if !isVacant {
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、その番号の席は"+"今は使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
 					return nil
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
 				isAvailable, err2 = s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, inOption.SeatId)
 				if err2 != nil {
 					_ = s.MessageToLineBotWithError("failed s.CheckSeatAvailabilityForUser()", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err2
 				}
 				if !isAvailable {
-					s.MessageToLiveChat(ctx,
+					s.MessageToLiveChat(ctx, tx,
 						s.ProcessedUserDisplayName+"さん、その番号の席は"+"長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「"+InCommand+"」で席を指定せずに入室してください")
 					return nil
 				}
@@ -304,7 +304,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		} else { // 席の指定なし
 			seatId, cerr := s.RandomAvailableSeatIdForUser(ctx, tx, s.ProcessedUserId)
 			if cerr.IsNotNil() {
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				if cerr.ErrorType == customerror.NoSeatAvailable {
 					_ = s.MessageToLineBotWithError("席数がmax seatに達していて、ユーザーが入室できない事象が発生。", cerr.Body)
@@ -317,7 +317,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -335,7 +335,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		seatAppearance, err := s.RetrieveCurrentUserSeatAppearance(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveCurrentUserSeatAppearance", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		
@@ -345,7 +345,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -364,13 +364,13 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				err = s.FirestoreController.UpdateSeats(tx, seats)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				
 				// 更新しましたのメッセージ
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんはすでに"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。作業名と入室時間を更新しました")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんはすでに"+strconv.Itoa(currentSeat.SeatId)+"番の席に座っています。作業名と入室時間を更新しました")
 				return nil
 			} else { // 今と別の席番号の場合: 退室させてから、入室させる。
 				// 作業名は指定がない場合引き継ぐ。
@@ -384,7 +384,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, currentSeat, &userDoc)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to exitRoom for "+s.ProcessedUserId, err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				
@@ -394,7 +394,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 					seatAppearance, myfirestore.WorkState)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to enter room", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
@@ -408,7 +408,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 					"（+ " + strconv.Itoa(workedTimeSec/60) + "分）" + rpEarned + "（" + strconv.Itoa(inOption.MinutesAndWorkName.DurationMin) + "分後に自動退室）"
 				
 				// 移動しましたのメッセージ
-				s.MessageToLiveChat(ctx, reply)
+				s.MessageToLiveChat(ctx, tx, reply)
 				return nil
 			}
 		} else { // 入室のみ
@@ -417,13 +417,13 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				seatAppearance, myfirestore.WorkState)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to enter room", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
 			
 			// 入室しましたのメッセージ
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さんが作業を始めました🔥（最大"+strconv.Itoa(inOption.MinutesAndWorkName.DurationMin)+"分、"+strconv.Itoa(inOption.SeatId)+"番席）")
 			return nil
 		}
@@ -451,32 +451,32 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		isInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		if !isInRoom {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、すでに退室しています")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、すでに退室しています")
 			return nil
 		}
 		// 現在座っている席を特定
 		seat, customErr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if customErr.Body != nil {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat", customErr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return customErr.Body
 		}
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -486,14 +486,14 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		_, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, seat, &userDoc)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed in s.exitRoom(seatId, ctx)", customErr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
 			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 		}
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 			"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
 		return nil
 	})
@@ -551,9 +551,9 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 				
 				reply += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
 			}
-			s.MessageToLiveChat(ctx, reply)
+			s.MessageToLiveChat(ctx, tx, reply)
 		} else {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さんはまだ作業データがありません。「"+InCommand+"」コマンドで作業を始めましょう！")
 		}
 		return nil
@@ -570,7 +570,7 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 		if isUserInRoom {
 			currentSeat, err := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 			if err.IsNotNil() {
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 				_ = s.MessageToLineBotWithError("failed s.CurrentSeat()", err.Body)
 			}
 			
@@ -587,11 +587,11 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
 				breakUntilStr = "作業再開まで" + strconv.Itoa(int(breakUntilDuration.Minutes())) + "分です"
 			}
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんは"+strconv.Itoa(currentSeat.SeatId)+
 				"番の席で"+stateStr+"です。現在"+strconv.Itoa(realtimeSittingDurationMin)+"分入室中。自動退室まで残り"+
 				strconv.Itoa(remainingMinutes)+"分です。"+breakUntilStr)
 		} else {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さんは入室していません。「"+InCommand+"」コマンドで入室しましょう！")
 		}
 		return nil
@@ -600,7 +600,7 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 
 func (s *System) Report(command CommandDetails, ctx context.Context) error {
 	if command.ReportOption.Message == "" { // !reportのみは不可
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、スペースを空けてメッセージを書いてください。")
+		s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、スペースを空けてメッセージを書いてください。")
 		return nil
 	}
 	
@@ -610,7 +610,7 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		command.ReportOption.Message
 	err := s.MessageToLineBot(lineMessage)
 	if err != nil {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+		s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 		log.Println(err)
 	}
 	
@@ -622,7 +622,7 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		_ = s.MessageToLineBotWithError("discordへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
 	}
 	
-	s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました⚠")
+	s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、管理者へメッセージを送信しました⚠")
 	return nil
 }
 
@@ -641,20 +641,20 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				if cerr.IsNotNil() {
 					return cerr.Body
 				}
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席の"+seat.UserDisplayName+"さんを退室させます")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席の"+seat.UserDisplayName+"さんを退室させます")
 				
 				// s.ProcessedUserが処理の対象ではないことに注意。
 				userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, seat.UserId)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
@@ -664,7 +664,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 				if exitErr != nil {
 					return exitErr
 				}
-				s.MessageToLiveChat(ctx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
+				s.MessageToLiveChat(ctx, tx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
 				
 				err = s.MessageToDiscordBot(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.
@@ -678,10 +678,10 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 			} else {
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
 		} else {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんは「"+KickCommand+"」コマンドを使用できません")
 		}
 		return nil
 	})
@@ -716,10 +716,10 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 			} else {
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、その番号の座席は誰も使用していません")
 			}
 		} else {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんは「"+CheckCommand+"」コマンドを使用できません")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんは「"+CheckCommand+"」コマンドを使用できません")
 		}
 		return nil
 	})
@@ -750,7 +750,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください")
+		s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください")
 		return nil
 	}
 	
@@ -759,7 +759,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -767,7 +767,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -777,7 +777,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to CurrentSeat", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
@@ -786,7 +786,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			realTimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
@@ -813,7 +813,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					err := s.FirestoreController.SetMyRankVisible(tx, s.ProcessedUserId, newRankVisible)
 					if err != nil {
 						_ = s.MessageToLineBotWithError("failed to SetMyRankVisible", err)
-						s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+						s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 							"さん、エラーが発生しました。もう一度試してみてください")
 						return err
 					}
@@ -833,7 +833,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						err := s.FirestoreController.UpdateSeats(tx, seats)
 						if err != nil {
 							_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
-							s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
+							s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
 							return err
 						}
 					}
@@ -843,7 +843,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				err := s.FirestoreController.SetMyDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to SetMyDefaultStudyMin", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
@@ -858,7 +858,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				err := s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, colorCode)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				reply += "お気に入りカラーを更新しました。"
@@ -874,13 +874,13 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					err := s.FirestoreController.UpdateSeats(tx, seats)
 					if err != nil {
 						_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
-						s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
+						s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
 						return err
 					}
 				}
 			}
 		}
-		s.MessageToLiveChat(ctx, reply)
+		s.MessageToLiveChat(ctx, tx, reply)
 		return nil
 	})
 }
@@ -893,18 +893,18 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 			return err
 		}
 		if !isUserInRoom {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
 			return nil
 		}
 		
 		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return cerr.Body
 		}
@@ -912,14 +912,14 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		// validation
 		cerr = s.ValidateChange(command, currentSeat.State)
 		if cerr.IsNotNil() {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
 			return nil
 		}
 		
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -983,11 +983,11 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 		err = s.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		
-		s.MessageToLiveChat(ctx, reply)
+		s.MessageToLiveChat(ctx, tx, reply)
 		return nil
 	})
 }
@@ -998,25 +998,25 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
 			return err
 		}
 		if !isUserInRoom {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
 			return nil
 		}
 		
 		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return cerr.Body
 		}
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1063,7 +1063,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		err = s.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1079,7 +1079,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		}
 		realtimeEnteredTimeMin := utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes()
 		replyMessage += "現在" + utils.Ftoa(realtimeEnteredTimeMin) + "分入室中。自動退室まで残り" + strconv.Itoa(remainingUntilExitMin) + "分です"
-		s.MessageToLiveChat(ctx, replyMessage)
+		s.MessageToLiveChat(ctx, tx, replyMessage)
 		
 		return nil
 	})
@@ -1094,7 +1094,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			return err
 		}
 		if !isUserInRoom {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
 			return nil
 		}
 		
@@ -1102,18 +1102,18 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return cerr.Body
 		}
 		if currentSeat.State != myfirestore.WorkState {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業中のみ使えるコマンドです。")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、作業中のみ使えるコマンドです。")
 			return nil
 		}
 		
 		// 前回の入室または再開から、最低休憩間隔経っているか？
 		currentWorkedMin := utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes()
 		if int(currentWorkedMin) < s.Configs.Constants.MinBreakIntervalMin {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Configs.Constants.
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、作業を始めてから"+strconv.Itoa(s.Configs.Constants.
 				MinBreakIntervalMin)+"分間は休憩できません。現在"+utils.Ftoa(currentWorkedMin)+"分作業中")
 			return nil
 		}
@@ -1127,7 +1127,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1149,7 +1149,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		err = s.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		// activityログ記録
@@ -1162,11 +1162,11 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		err = s.FirestoreController.AddUserActivityDoc(tx, startBreakActivity)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+strconv.Itoa(breakOption.DurationMin)+"分）")
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+strconv.Itoa(breakOption.DurationMin)+"分）")
 		
 		return nil
 	})
@@ -1180,7 +1180,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 			return err
 		}
 		if !isUserInRoom {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、入室中のみ使えるコマンドです")
 			return nil
 		}
 		
@@ -1188,11 +1188,11 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return cerr.Body
 		}
 		if currentSeat.State != myfirestore.BreakState {
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、座席で休憩中のみ使えるコマンドです。")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、座席で休憩中のみ使えるコマンドです。")
 			return nil
 		}
 		
@@ -1200,7 +1200,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1226,7 +1226,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		err = s.FirestoreController.UpdateSeats(tx, seats)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1240,12 +1240,12 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		err = s.FirestoreController.AddUserActivityDoc(tx, endBreakActivity)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to add an user activity", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
 		
 		untilExitDuration := utils.NoNegativeDuration(until.Sub(jstNow))
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 			utils.Ftoa(untilExitDuration.Minutes())+"分）")
 		
 		return nil
@@ -1276,7 +1276,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1284,7 +1284,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1294,7 +1294,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to CurrentSeat", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
@@ -1303,7 +1303,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			realtimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
@@ -1315,7 +1315,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		err = s.FirestoreController.SetMyRankVisible(tx, s.ProcessedUserId, newRankVisible)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to SetMyRankVisible", err)
-			s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+
+			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
@@ -1325,7 +1325,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		} else {
 			newValueString = "オフ"
 		}
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんのランク表示を"+newValueString+"にしました")
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんのランク表示を"+newValueString+"にしました")
 		
 		// 入室中であれば、座席の色も変える
 		if isUserInRoom {
@@ -1335,7 +1335,7 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			err := s.FirestoreController.UpdateSeats(tx, seats)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
 				return err
 			}
 		}
@@ -1731,8 +1731,8 @@ func (s *System) ListLiveChatMessages(ctx context.Context, pageToken string) ([]
 	return s.liveChatBot.ListMessages(ctx, pageToken)
 }
 
-func (s *System) MessageToLiveChat(ctx context.Context, message string) {
-	err := s.liveChatBot.PostMessage(ctx, message)
+func (s *System) MessageToLiveChat(ctx context.Context, tx *firestore.Transaction, message string) {
+	err := s.liveChatBot.PostMessage(ctx, tx, message)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to send live chat message", err)
 	}
@@ -1823,7 +1823,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				if userDocs[i].RankVisible {
 					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
 				continue
 			}
@@ -1840,7 +1840,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				if userDocs[i].RankVisible {
 					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
 				continue
 			}
@@ -1876,11 +1876,11 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				err = s.FirestoreController.AddUserActivityDoc(tx, endBreakActivity)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to add an user activity", err)
-					s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
+					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
 				
-				s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 					utils.Ftoa(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes())+"分）")
 			}
 		}
