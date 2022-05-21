@@ -3,7 +3,7 @@ import { RoomLayout } from '../../types/room-layout'
 export const Freepick2RoomLayout: RoomLayout = {
     floor_image: '/image/freepick2-room.png',
     version: 1,
-    font_size_ratio: 0.018,
+    font_size_ratio: 0.015,
     room_shape: {
         width: 1520,
         height: 1000,

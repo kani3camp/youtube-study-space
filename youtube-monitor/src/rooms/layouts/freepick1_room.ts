@@ -3,7 +3,7 @@ import { RoomLayout } from '../../types/room-layout'
 export const Freepick1RoomLayout: RoomLayout = {
     floor_image: '/image/freepick1-room.png',
     version: 1,
-    font_size_ratio: 0.018,
+    font_size_ratio: 0.015,
     room_shape: {
         width: 1520,
         height: 1000,
@@ -12,8 +12,7 @@ export const Freepick1RoomLayout: RoomLayout = {
         width: 140,
         height: 100,
     },
-    partition_shapes: [
-    ],
+    partition_shapes: [],
     seats: [
         {
             id: 1,
@@ -148,6 +147,5 @@ export const Freepick1RoomLayout: RoomLayout = {
             rotate: 0,
         },
     ],
-    partitions: [
-    ],
+    partitions: [],
 }
