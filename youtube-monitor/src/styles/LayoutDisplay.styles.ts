@@ -9,7 +9,8 @@ export const roomLayout = css`
   height: calc(1080px - 80px);
   box-sizing: border-box;
   margin: auto;
-  border: solid 6px #303030;
+  /* border: solid 6px #303030; */
+  background-size: contain;
 `
 
 export const seat = css`
@@ -18,6 +19,7 @@ export const seat = css`
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  transform-origin: top left;
 `
 
 export const partition = css`

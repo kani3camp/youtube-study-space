@@ -6,5 +6,6 @@
     "eslint.format.enable": false,
     "files.eol": "\n",
     "editor.tabSize": 4,
-    "typescript.suggest.autoImports": false
+    "typescript.suggest.autoImports": false,
+    "cSpell.words": ["freepick", "parens", "reduxjs", "soundcloud", "stylelint"]
 }

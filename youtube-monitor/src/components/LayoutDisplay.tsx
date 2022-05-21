@@ -71,6 +71,7 @@ const LayoutDisplay: FC<Props> = (props) => {
         const seatPositions = roomLayout.seats.map((seat) => ({
             x: (100 * seat.x) / roomLayout.room_shape.width,
             y: (100 * seat.y) / roomLayout.room_shape.height,
+            rotate: seat.rotate,
         }))
 
         const partitionShapes = roomLayout.partitions.map((partition) => {
@@ -166,6 +167,7 @@ const LayoutDisplay: FC<Props> = (props) => {
                         backgroundColor: seat_color,
                         left: `${seatPositions[index].x}%`,
                         top: `${seatPositions[index].y}%`,
+                        transform: `rotate(${seatPositions[index].rotate}deg)`,
                         width: `${seatShape.width}%`,
                         height: `${seatShape.height}%`,
                         fontSize: isUsed
@@ -246,6 +248,8 @@ const LayoutDisplay: FC<Props> = (props) => {
                 style={{
                     width: `${roomShape.widthPx}px`,
                     height: `${roomShape.heightPx}px`,
+                    backgroundImage: `url("${roomLayout.floor_image}")`,
+                    // backgroundImage: `url("https://via.placeholder.com/500")`,
                 }}
             >
                 {seatList}

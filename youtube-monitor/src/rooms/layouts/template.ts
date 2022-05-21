@@ -1,6 +1,7 @@
 import { RoomLayout } from '../../types/room-layout'
 
 export const LayoutName: RoomLayout = {
+  floor_image: '',
   version: 1,
   font_size_ratio: 0.018,
   room_shape: {
@@ -23,6 +24,7 @@ export const LayoutName: RoomLayout = {
       id: 999,
       x: 999,
       y: 999,
+      rotate: 0
     },
   ],
   partitions: [
@@ -31,6 +33,7 @@ export const LayoutName: RoomLayout = {
       x: 999,
       y: 999,
       shape_type: 'partition1',
-    },
+      rotate: 0,
+    },  
   ],
 }
