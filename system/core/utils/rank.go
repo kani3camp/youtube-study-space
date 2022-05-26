@@ -51,8 +51,8 @@ func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastP
 		// 今日すでにペナルティ処理が完了しているためRPをそのまま返す
 		return previousRP, inactiveDays, nil
 	}
-	magnification := PenaltyMagnificationByInactiveDays(inactiveDays)
-	return ApplyRPRange(int(float64(previousRP) * magnification)), inactiveDays, nil
+	magnification, newPenaltyImposedDays := PenaltyMagnificationByInactiveDays(inactiveDays)
+	return ApplyRPRange(int(float64(previousRP) * magnification)), newPenaltyImposedDays, nil
 }
 
 // CalcContinuousInactiveDays 連続非アクティブn日目のとき、n-1を返す。
@@ -124,15 +124,15 @@ func MagnificationByRP(rp int) float64 {
 }
 
 // PenaltyMagnificationByInactiveDays 連続非アクティブ日数によるペナルティRP調整倍率
-func PenaltyMagnificationByInactiveDays(inactiveDays int) float64 {
+func PenaltyMagnificationByInactiveDays(inactiveDays int) (float64, int) {
 	if inactiveDays >= 30 {
-		return 0
+		return 0, 30
 	} else if inactiveDays >= 7 {
-		return 0.5
+		return 0.5, 7
 	} else if inactiveDays >= 3 {
-		return 0.8
+		return 0.8, 3
 	} else {
-		return 1
+		return 1, 0
 	}
 }
 

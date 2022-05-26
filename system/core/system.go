@@ -2018,13 +2018,13 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 			
 			// lastExitedが一定日数以上前のユーザーはRPペナルティ処理
 			lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, jstNow)
-			newRP, newInactiveDays, err := utils.CalcNewRPContinuousInactivity(userDoc.RankPoint, lastActiveAt, userDoc.LastPenaltyImposedDays)
+			newRP, newPenaltyImposedDays, err := utils.CalcNewRPContinuousInactivity(userDoc.RankPoint, lastActiveAt, userDoc.LastPenaltyImposedDays)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to CalcNewRPContinuousInactivity", err)
 				return err
 			}
 			if newRP != userDoc.RankPoint {
-				err := s.FirestoreController.UpdateUserRPAndLastPenaltyImposedDays(tx, userId, newRP, newInactiveDays)
+				err := s.FirestoreController.UpdateUserRPAndLastPenaltyImposedDays(tx, userId, newRP, newPenaltyImposedDays)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateUserRPAndLastPenaltyImposedDays", err)
 					return err
