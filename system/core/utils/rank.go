@@ -52,7 +52,6 @@ func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastP
 		return previousRP, inactiveDays, nil
 	}
 	magnification := PenaltyMagnificationByInactiveDays(inactiveDays)
-	
 	return ApplyRPRange(int(float64(previousRP) * magnification)), inactiveDays, nil
 }
 

@@ -54,7 +54,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	_ = _system.MessageToLineBot("Botが起動しました")
 	defer func() {
 		_system.CloseFirestoreClient()
-		_system.MessageToLiveChat(ctx, "エラーが起きたため終了します")
+		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します")
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
 	
@@ -161,7 +161,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
+	err = _system.DailyOrganizeDatabase(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -175,8 +175,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
