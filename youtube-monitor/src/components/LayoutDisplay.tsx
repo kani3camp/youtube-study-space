@@ -1,5 +1,6 @@
 import { css, keyframes } from '@emotion/react'
 import chroma from 'chroma-js'
+import Image from 'next/image'
 import React, { FC } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
@@ -250,15 +251,13 @@ const LayoutDisplay: FC<Props> = (props) => {
         ))
 
         return (
-            <div
-                css={styles.roomLayout}
-                style={{
-                    width: `${roomShape.widthPx}px`,
-                    height: `${roomShape.heightPx}px`,
-                    backgroundImage: `url("${roomLayout.floor_image}")`,
-                    // backgroundImage: `url("https://via.placeholder.com/500")`,
-                }}
-            >
+            <div css={styles.roomLayout}>
+                <Image
+                    src={roomLayout.floor_image}
+                    width={roomShape.widthPx}
+                    height={roomShape.heightPx}
+                />
+
                 {seatList}
 
                 {partitionList}
