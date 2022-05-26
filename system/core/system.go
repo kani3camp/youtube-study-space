@@ -1166,7 +1166,8 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			return err
 		}
 		
-		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+strconv.Itoa(breakOption.DurationMin)+"分）")
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが休憩します（最大"+strconv.Itoa(breakOption.DurationMin)+"分、"+
+			strconv.Itoa(currentSeat.SeatId)+"番席）")
 		
 		return nil
 	})
@@ -1245,7 +1246,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		}
 		
 		untilExitDuration := utils.NoNegativeDuration(until.Sub(jstNow))
-		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
+		s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（"+strconv.Itoa(currentSeat.SeatId)+"番席、自動退室まで"+
 			utils.Ftoa(untilExitDuration.Minutes())+"分）")
 		
 		return nil

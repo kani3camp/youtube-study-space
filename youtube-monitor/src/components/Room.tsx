@@ -15,12 +15,11 @@ import Message from './Message'
 
 const Room: React.FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
-    const PAGING_INTERVAL_MSEC = 3 * 1000
+    const PAGING_INTERVAL_MSEC = 8 * 1000
 
     const [seatsState, setSeatsState] = useState<SeatsState | undefined>(
         undefined
     )
-    // const [displayRoomLayout, setDisplayRoomLayout] = useState<RoomLayout>()
     const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
     const [firstDisplaySeatId, setFirstDisplaySeatId] = useState<number>(0)
     const [maxSeats, setMaxSeats] = useState<number>(0)
