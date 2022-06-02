@@ -23,7 +23,7 @@ const prodAllRooms: AllRoomsConfig = {
 
 const testAllRooms: AllRoomsConfig = {
     basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
-    temporaryRooms: [mazeRoomLayout, Freepick1RoomLayout, Freepick2RoomLayout],
+    temporaryRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
 }
 
 export const allRooms: AllRoomsConfig = testAllRooms

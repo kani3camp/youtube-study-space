@@ -1706,26 +1706,34 @@ func (s *System) RetrieveRealtimeTotalStudyDurations(ctx context.Context, tx *fi
 
 // ExitAllUserInRoom roomの全てのユーザーを退室させる。
 func (s *System) ExitAllUserInRoom(ctx context.Context) error {
-	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		room, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		currentSeats := room.Seats
-		if err != nil {
-			return err
+	finished := false
+	for {
+		if finished {
+			break
 		}
-		for _, seat := range room.Seats {
-			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
-			previousUserDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			room, err := s.FirestoreController.RetrieveRoom(ctx, tx)
 			if err != nil {
 				return err
 			}
-			exitedSeats, _, _, err := s.exitRoom(tx, currentSeats, seat, &previousUserDoc)
-			if err != nil {
-				return err
+			if len(room.Seats) > 0 {
+				seat := room.Seats[0]
+				s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+				userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+				if err != nil {
+					return err
+				}
+				_, _, _, err = s.exitRoom(tx, room.Seats, seat, &userDoc)
+				if err != nil {
+					return err
+				}
+			} else if len(room.Seats) == 0 {
+				finished = true
 			}
-			currentSeats = exitedSeats
-		}
-		return nil
-	})
+			return nil
+		})
+	}
+	return nil
 }
 
 func (s *System) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {

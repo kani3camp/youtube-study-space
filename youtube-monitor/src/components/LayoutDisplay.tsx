@@ -252,11 +252,13 @@ const LayoutDisplay: FC<Props> = (props) => {
 
         return (
             <div css={styles.roomLayout}>
-                <Image
-                    src={roomLayout.floor_image}
-                    width={roomShape.widthPx}
-                    height={roomShape.heightPx}
-                />
+                {roomLayout.floor_image && (
+                    <Image
+                        src={roomLayout.floor_image}
+                        width={roomShape.widthPx}
+                        height={roomShape.heightPx}
+                    />
+                )}
 
                 {seatList}
 
