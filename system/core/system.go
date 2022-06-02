@@ -289,7 +289,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 					return nil
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
-				isAvailable, err2 = s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, inOption.SeatId)
+				isAvailable, err2 = s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, inOption.SeatId)
 				if err2 != nil {
 					_ = s.MessageToLineBotWithError("failed s.CheckSeatAvailabilityForUser()", err)
 					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1467,7 +1467,7 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 		for range vacantSeatIdList {
 			rand.Seed(utils.JstNow().UnixNano())
 			selectedSeatId := vacantSeatIdList[rand.Intn(len(vacantSeatIdList))]
-			ifSeatAvailableForUser, err := s.CheckSeatAvailabilityForUser(ctx, tx, userId, selectedSeatId)
+			ifSeatAvailableForUser, err := s.CheckSeatAvailabilityForUser(ctx, userId, selectedSeatId)
 			if err != nil {
 				return -1, customerror.Unknown.Wrap(err)
 			}
@@ -1743,7 +1743,7 @@ func (s *System) ListLiveChatMessages(ctx context.Context, pageToken string) ([]
 func (s *System) MessageToLiveChat(ctx context.Context, tx *firestore.Transaction, message string) {
 	err := s.liveChatBot.PostMessage(ctx, tx, message)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to send live chat message", err)
+		_ = s.MessageToLineBotWithError("failed to send live chat message \""+message+"\"\n", err)
 	}
 	return
 }
@@ -1799,7 +1799,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			if ifCheckLongTimeSitting {
 				// 長時間入室制限に引っかかっていたら強制退室
-				ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, tx, s.ProcessedUserId, seat.SeatId)
+				ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
@@ -2100,8 +2100,7 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 		}
 		if !isUsed { // 使われていない
 			// 且つ、該当ユーザーが入室制限にかからなければその席番号を返す
-			isAvailable, err := s.CheckSeatAvailabilityForUser(ctx, tx, userId,
-				searchingSeatId)
+			isAvailable, err := s.CheckSeatAvailabilityForUser(ctx, userId, searchingSeatId)
 			if err != nil {
 				return -1, err
 			}
@@ -2257,8 +2256,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 	return nil
 }
 
-func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, tx *firestore.Transaction, userId string,
-	seatId int) (bool, error) {
+func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string, seatId int) (bool, error) {
 	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Configs.Constants.RecentRangeMin) * time.Minute)
 	
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
