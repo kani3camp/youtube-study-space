@@ -3,7 +3,6 @@ package main
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
@@ -162,7 +161,10 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer _system.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	direct_operations.ExitAllUsersInRoom(clientOption, ctx)
+	err = _system.DailyOrganizeDatabase(ctx)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -173,8 +175,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

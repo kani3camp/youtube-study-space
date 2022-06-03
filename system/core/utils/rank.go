@@ -136,10 +136,10 @@ func PenaltyMagnificationByInactiveDays(inactiveDays int) (float64, int) {
 	}
 }
 
-func WasUserActiveYesterday(lastEntered, lastExited, now time.Time) bool {
+func WasUserActiveFromYesterday(lastEntered, lastExited, now time.Time) bool {
 	yesterday := now.AddDate(0, 0, -1)
 	lastActiveAt := LastActiveAt(lastEntered, lastExited, now)
-	return DateEqual(lastActiveAt, yesterday)
+	return DateEqual(lastActiveAt, yesterday) || DateEqual(lastActiveAt, now)
 }
 
 func LastActiveAt(lastEntered, lastExited, now time.Time) time.Time {

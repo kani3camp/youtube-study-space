@@ -1908,35 +1908,27 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 				return err
 			}
 			
+			// 変更する可能性のある項目
+			lastPenaltyImposedDays := userDoc.LastPenaltyImposedDays
+			isContinuousActive := userDoc.IsContinuousActive
+			currentActivityStateStarted := userDoc.CurrentActivityStateStarted
+			rankPoint := userDoc.RankPoint
+			
 			// アクティブ・非アクティブ状態の更新
-			wasUserActiveYesterday := utils.WasUserActiveYesterday(userDoc.LastEntered, userDoc.LastExited, jstNow)
+			wasUserActiveYesterday := utils.WasUserActiveFromYesterday(userDoc.LastEntered, userDoc.LastExited, jstNow)
 			if wasUserActiveYesterday {
 				if userDoc.IsContinuousActive {
 					// pass
 				} else {
-					newCurrentActivityStateStarted := jstNow
-					err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx,
-						userId, true, newCurrentActivityStateStarted)
-					if err != nil {
-						_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
-						return err
-					}
+					isContinuousActive = true
+					currentActivityStateStarted = jstNow
 					// 連続非アクティブが終わったのでlastPenaltyImposedDaysは0にリセット
-					err = s.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
-					if err != nil {
-						_ = s.MessageToLineBotWithError("failed to UpdateUserLastPenaltyImposedDays", err)
-						return err
-					}
+					lastPenaltyImposedDays = 0
 				}
 			} else {
 				if userDoc.IsContinuousActive {
-					newCurrentActivityStateStarted := jstNow.AddDate(0, 0, -1)
-					err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx,
-						userId, false, newCurrentActivityStateStarted)
-					if err != nil {
-						_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
-						return err
-					}
+					isContinuousActive = false
+					currentActivityStateStarted = jstNow.AddDate(0, 0, -1)
 				} else {
 					// pass
 				}
@@ -1944,18 +1936,35 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 			
 			// lastExitedが一定日数以上前のユーザーはRPペナルティ処理
 			lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, jstNow)
-			newRP, newPenaltyImposedDays, err := utils.CalcNewRPContinuousInactivity(userDoc.RankPoint, lastActiveAt, userDoc.LastPenaltyImposedDays)
+			rankPoint, lastPenaltyImposedDays, err = utils.CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, lastPenaltyImposedDays)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to CalcNewRPContinuousInactivity", err)
 				return err
 			}
-			if newRP != userDoc.RankPoint {
-				err := s.FirestoreController.UpdateUserRPAndLastPenaltyImposedDays(tx, userId, newRP, newPenaltyImposedDays)
+			
+			// 変更項目がある場合のみ変更
+			if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
+				err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, lastPenaltyImposedDays)
 				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to UpdateUserRPAndLastPenaltyImposedDays", err)
+					_ = s.MessageToLineBotWithError("failed to UpdateUserLastPenaltyImposedDays", err)
 					return err
 				}
 			}
+			if isContinuousActive != userDoc.IsContinuousActive || currentActivityStateStarted != userDoc.CurrentActivityStateStarted {
+				err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, isContinuousActive, currentActivityStateStarted)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
+					return err
+				}
+			}
+			if rankPoint != userDoc.RankPoint {
+				err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
+					return err
+				}
+			}
+			
 			return nil
 		})
 		if err != nil {
