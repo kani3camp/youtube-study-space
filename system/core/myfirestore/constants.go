@@ -2,7 +2,7 @@ package myfirestore
 
 const (
 	CONFIG          = "config"
-	ROOMS           = "rooms"
+	SEATS           = "seats"
 	USERS           = "users"
 	LiveChatHistory = "live-chat-history"
 	UserActivities  = "user-activities"
@@ -44,9 +44,3 @@ const (
 	
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )
-
-func NewRoomDoc() RoomDoc {
-	return RoomDoc{
-		Seats: []Seat{}, // 席情報の配列
-	}
-}

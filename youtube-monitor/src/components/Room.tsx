@@ -5,7 +5,7 @@ import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
 import * as styles from '../styles/Room.styles'
 import {
     RoomsStateResponse,
-    SeatsState,
+    Seat,
     SetDesiredMaxSeatsResponse,
 } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
@@ -17,9 +17,7 @@ const Room: React.FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
     const PAGING_INTERVAL_MSEC = 8 * 1000
 
-    const [seatsState, setSeatsState] = useState<SeatsState | undefined>(
-        undefined
-    )
+    const [seats, setSeats] = useState<Seat[] | undefined>(undefined)
     const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
     const [firstDisplaySeatId, setFirstDisplaySeatId] = useState<number>(0)
     const [maxSeats, setMaxSeats] = useState<number>(0)
@@ -33,14 +31,9 @@ const Room: React.FC = () => {
             setInitialized(true)
             init()
         } else {
-            updateDisplay(
-                lastUpdated,
-                roomLayouts,
-                displayRoomIndex,
-                seatsState
-            )
+            updateDisplay(lastUpdated, roomLayouts, displayRoomIndex, seats)
         }
-    }, [initialized, seatsState, roomLayouts, displayRoomIndex, lastUpdated])
+    }, [initialized, seats, roomLayouts, displayRoomIndex, lastUpdated])
 
     const init = async () => {
         console.log(init.name)
@@ -58,14 +51,14 @@ const Room: React.FC = () => {
             fetcher<RoomsStateResponse>(api.roomsState)
                 .then(async (r) => {
                     console.log('fetchした')
-                    setSeatsState(r.default_room)
+                    setSeats(r.seats)
                     setMaxSeats(r.max_seats)
                     max_seats = r.max_seats
 
                     // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
                     let final_desired_max_seats: number
                     const min_seats_by_vacancy_rate = Math.ceil(
-                        r.default_room.seats.length / (1 - r.min_vacancy_rate)
+                        r.seats.length / (1 - r.min_vacancy_rate)
                     )
                     console.log(
                         '少なくとも',
@@ -151,7 +144,7 @@ const Room: React.FC = () => {
         last_updated: Date,
         room_layouts: RoomLayout[],
         room_index: number,
-        seats_state: SeatsState | undefined
+        seats_state: Seat[] | undefined
     ) => {
         if (room_layouts && seats_state) {
             const diffMilliSecond =
@@ -182,20 +175,20 @@ const Room: React.FC = () => {
         return count
     }
 
-    if (seatsState) {
+    if (seats) {
         return (
             <div css={styles.defaultRoom}>
                 <LayoutDisplay
                     roomLayouts={roomLayouts}
                     roomIndex={displayRoomIndex}
-                    seats={seatsState.seats}
+                    seats={seats}
                     firstSeatId={firstDisplaySeatId}
                     maxSeats={maxSeats}
                 ></LayoutDisplay>
                 <Message
                     current_room_index={displayRoomIndex}
                     current_rooms_length={roomLayouts.length}
-                    seats_state={seatsState}
+                    seats={seats}
                 ></Message>
             </div>
         )

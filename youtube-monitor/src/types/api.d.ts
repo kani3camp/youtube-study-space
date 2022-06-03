@@ -1,7 +1,3 @@
-export type SeatsState = {
-    seats: Seat[]
-}
-
 export type SeatAppearance = {
     color_code: string
     num_stars: number
@@ -27,7 +23,7 @@ export type Seat = {
 export type RoomsStateResponse = {
     result: string
     message: string
-    default_room: SeatsState
+    seats: Seat[]
     max_seats: number
     min_vacancy_rate: number
 }

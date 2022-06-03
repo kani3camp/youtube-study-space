@@ -83,11 +83,6 @@ type CredentialsConfigDoc struct {
 	OAuthRefreshTokenUrl         string `firestore:"o-auth-refresh-token-url"`
 }
 
-// RoomDoc ルームの入室状況
-type RoomDoc struct {
-	Seats []Seat `json:"seats" firestore:"seats"`
-}
-
 type SeatState string
 
 const (
@@ -101,7 +96,7 @@ type SeatAppearance struct {
 	GlowAnimation bool   `json:"glow_animation" firestore:"glow-animation"`
 }
 
-type Seat struct {
+type SeatDoc struct {
 	SeatId                 int            `json:"seat_id" firestore:"seat-id"`                     // 席番号
 	UserId                 string         `json:"user_id" firestore:"user-id"`                     // ユーザーID
 	UserDisplayName        string         `json:"user_display_name" firestore:"user-display-name"` // 表示ユーザー名
