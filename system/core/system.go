@@ -119,21 +119,21 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 		return s.FirestoreController.SetMaxSeats(ctx, nil, constants.DesiredMaxSeats)
 	} else { // 席を減らす
 		// max_seatsを減らしても、空席率が設定値以上か確認
-		room, err := s.FirestoreController.RetrieveRoom(ctx, nil)
+		seats, err := s.FirestoreController.RetrieveSeats(ctx)
 		if err != nil {
 			return err
 		}
-		if int(float32(constants.DesiredMaxSeats)*(1.0-constants.MinVacancyRate)) < len(room.Seats) {
+		if int(float32(constants.DesiredMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
 			message := "減らそうとしすぎ。desiredは却下し、desired max seats <= current max seatsとします。" +
 				"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
 				"current max seats: " + strconv.Itoa(constants.MaxSeats) + ", " +
-				"current seats: " + strconv.Itoa(len(room.Seats))
+				"current seats: " + strconv.Itoa(len(seats))
 			log.Println(message)
 			return s.FirestoreController.SetDesiredMaxSeats(ctx, nil, constants.MaxSeats)
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
 			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします⬇　必要な場合は席を移動してもらうことがあります。")
-			for _, seat := range room.Seats {
+			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 					// 移動させる
@@ -242,16 +242,16 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 	
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isInRoom, err := s.IsUserInRoom(ctx, tx)
+		isInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed s.IsUserInRoom()", err)
 			return err
 		}
-		var currentSeat myfirestore.Seat
+		var currentSeat myfirestore.SeatDoc
 		var customErr customerror.CustomError
 		if isInRoom {
 			// 現在座っている席を取得
-			currentSeat, customErr = s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+			currentSeat, customErr = s.CurrentSeat(ctx, s.ProcessedUserId)
 			if customErr.IsNotNil() {
 				_ = s.MessageToLineBotWithError("failed CurrentSeat", customErr.Body)
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
@@ -341,27 +341,17 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		
 		// 動作が決定
 		
-		// もしも今の同じ席番号の場合、作業名と自動退室予定時刻を更新するため、newSeatsを作成しておく
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
-		
 		// =========== 以降は書き込み処理のみ ===========
 		
 		if isInRoom {
 			if inOption.SeatId == currentSeat.SeatId { // 今と同じ席番号の場合、作業名と自動退室予定時刻を更新
+				newSeat := &currentSeat // deep copyは手間がかかるのでポインタ。
 				// 作業名を更新
-				seats = CreateUpdatedSeatsSeatWorkName(seats, inOption.MinutesAndWorkName.WorkName, s.ProcessedUserId)
+				newSeat.WorkName = inOption.MinutesAndWorkName.WorkName
 				// 自動退室予定時刻を更新
-				newUntil := utils.JstNow().Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
-				seats = CreateUpdatedSeatsSeatUntil(seats, newUntil, s.ProcessedUserId)
+				newSeat.Until = utils.JstNow().Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
 				// 更新したseatsを保存
-				err = s.FirestoreController.UpdateSeats(tx, seats)
+				err = s.FirestoreController.UpdateSeat(tx, *newSeat)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
 					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -381,7 +371,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				reply := ""
 				
 				// 退室処理
-				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, currentSeat, &userDoc)
+				workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeat, &userDoc)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to exitRoom for "+s.ProcessedUserId, err)
 					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -389,7 +379,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				}
 				
 				// 入室処理
-				err = s.enterRoom(tx, exitedSeats, s.ProcessedUserId, s.ProcessedUserDisplayName,
+				err = s.enterRoom(tx, s.ProcessedUserId, s.ProcessedUserDisplayName,
 					inOption.SeatId, inOption.MinutesAndWorkName.WorkName, inOption.MinutesAndWorkName.DurationMin,
 					seatAppearance, myfirestore.WorkState)
 				if err != nil {
@@ -412,7 +402,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				return nil
 			}
 		} else { // 入室のみ
-			err = s.enterRoom(tx, seats, s.ProcessedUserId, s.ProcessedUserDisplayName,
+			err = s.enterRoom(tx, s.ProcessedUserId, s.ProcessedUserDisplayName,
 				inOption.SeatId, inOption.MinutesAndWorkName.WorkName, inOption.MinutesAndWorkName.DurationMin,
 				seatAppearance, myfirestore.WorkState)
 			if err != nil {
@@ -448,7 +438,7 @@ func (s *System) RetrieveCurrentUserSeatAppearance(ctx context.Context, tx *fire
 func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 今勉強中か？
-		isInRoom, err := s.IsUserInRoom(ctx, tx)
+		isInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -459,7 +449,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		// 現在座っている席を特定
-		seat, customErr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+		seat, customErr := s.CurrentSeat(ctx, s.ProcessedUserId)
 		if customErr.Body != nil {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat", customErr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -473,17 +463,9 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
 		
 		// 退室処理
-		_, workedTimeSec, addedRP, err := s.exitRoom(tx, seats, seat, &userDoc)
+		workedTimeSec, addedRP, err := s.exitRoom(tx, seat, &userDoc)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed in s.exitRoom(seatId, ctx)", customErr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -563,12 +545,12 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室しているか？
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			return err
 		}
 		if isUserInRoom {
-			currentSeat, err := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+			currentSeat, err := s.CurrentSeat(ctx, s.ProcessedUserId)
 			if err.IsNotNil() {
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 				_ = s.MessageToLineBotWithError("failed s.CurrentSeat()", err.Body)
@@ -637,9 +619,9 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 			}
 			if !isSeatAvailable {
 				// ユーザーを強制退室させる
-				seat, cerr := s.RetrieveSeatBySeatId(ctx, tx, command.KickOption.SeatId)
-				if cerr.IsNotNil() {
-					return cerr.Body
+				seat, err := s.FirestoreController.RetrieveSeat(ctx, tx, command.KickOption.SeatId)
+				if err != nil {
+					return err
 				}
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(seat.SeatId)+"番席の"+seat.UserDisplayName+"さんを退室させます")
 				
@@ -651,16 +633,8 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 						"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
-				roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to RetrieveRoom", err)
-					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-						"さん、エラーが発生しました。もう一度試してみてください")
-					return err
-				}
-				seats := roomDoc.Seats
 				
-				_, workedTimeSec, _, exitErr := s.exitRoom(tx, seats, seat, &userDoc)
+				workedTimeSec, _, exitErr := s.exitRoom(tx, seat, &userDoc)
 				if exitErr != nil {
 					return exitErr
 				}
@@ -698,9 +672,9 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 			}
 			if !isSeatAvailable {
 				// 座席情報を表示する
-				seat, cerr := s.RetrieveSeatBySeatId(ctx, tx, command.CheckOption.SeatId)
-				if cerr.IsNotNil() {
-					return cerr.Body
+				seat, err := s.FirestoreController.RetrieveSeat(ctx, tx, command.CheckOption.SeatId)
+				if err != nil {
+					return err
 				}
 				sinceMinutes := utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes()
 				untilMinutes := utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()
@@ -764,24 +738,23 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
-		var seats []myfirestore.Seat
+		var seats []myfirestore.SeatDoc
 		var realTimeTotalStudySec int
 		if isUserInRoom {
-			roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+			seats, err = s.FirestoreController.RetrieveSeats(ctx)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to CurrentSeat", err)
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 					"さん、エラーが発生しました。もう一度試してみてください")
 				return err
 			}
-			seats = roomDoc.Seats
 			
 			realTimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
@@ -829,8 +802,12 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					if isUserInRoom {
 						seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 						// 席の色を更新
-						seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
-						err := s.FirestoreController.UpdateSeats(tx, seats)
+						newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
+						if err != nil {
+							return err
+						}
+						newSeat.Appearance = seatAppearance
+						err = s.FirestoreController.UpdateSeat(tx, newSeat)
 						if err != nil {
 							_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
 							s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
@@ -868,10 +845,14 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				
 				// 入室中であれば、座席の色も変える
 				if isUserInRoom {
+					newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
+					if err != nil {
+						return err
+					}
 					seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
 					// 席の色を更新
-					seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
-					err := s.FirestoreController.UpdateSeats(tx, seats)
+					newSeat.Appearance = seatAppearance
+					err = s.FirestoreController.UpdateSeat(tx, newSeat)
 					if err != nil {
 						_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
 						s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
@@ -890,7 +871,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 	jstNow := utils.JstNow()
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室中か？
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
@@ -901,7 +882,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		
-		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+		currentSeat, cerr := s.CurrentSeat(ctx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -916,26 +897,18 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
-		
 		// これ以降は書き込みのみ可。
+		newSeat := &currentSeat
 		
 		reply := s.ProcessedUserDisplayName + "さん、"
 		if changeOption.IsWorkNameSet {
 			// 作業名もしくは休憩作業名を書きかえ
 			switch currentSeat.State {
 			case myfirestore.WorkState:
-				seats = CreateUpdatedSeatsSeatWorkName(seats, changeOption.WorkName, s.ProcessedUserId)
+				newSeat.WorkName = changeOption.WorkName
 				reply += "作業内容を更新しました（" + strconv.Itoa(currentSeat.SeatId) + "番席）。"
 			case myfirestore.BreakState:
-				seats = CreateUpdatedSeatsSeatBreakWorkName(seats, changeOption.WorkName, s.ProcessedUserId)
+				newSeat.BreakWorkName = changeOption.WorkName
 				reply += "休憩内容を更新しました（" + strconv.Itoa(currentSeat.SeatId) + "番席）。"
 			}
 		}
@@ -957,7 +930,8 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 					reply += "自動退室までの時間は現在時刻から" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "分後まで設定できます。現在" +
 						utils.Ftoa(realtimeEntryDurationMin) + "分入室中。自動退室まで残り" + utils.Ftoa(remainingWorkMin) + "分です"
 				} else { // それ以外なら延長
-					seats = CreateUpdatedSeatsSeatUntil(seats, requestedUntil, s.ProcessedUserId)
+					newSeat.Until = requestedUntil
+					newSeat.CurrentStateUntil = requestedUntil
 					remainingWorkMin := utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes()
 					reply += "入室時間を" + strconv.Itoa(changeOption.DurationMin) + "分に変更しました。現在" + utils.Ftoa(realtimeEntryDurationMin) +
 						"分入室中。自動退室まで残り" + utils.Ftoa(remainingWorkMin) + "分です。"
@@ -973,14 +947,14 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 					reply += "すでに" + strconv.Itoa(changeOption.DurationMin) + "分以上休憩しています。現在" + utils.Ftoa(realtimeBreakDuration.Minutes()) +
 						"分休憩中。作業再開まで残り" + utils.Ftoa(remainingBreakDuration.Minutes()) + "分です"
 				} else { // それ以外ならuntilを変更
-					seats = CreateUpdatedSeatsSeatCurrentStateUntil(seats, requestedUntil, s.ProcessedUserId)
+					newSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
 					reply += "休憩時間を" + strconv.Itoa(changeOption.DurationMin) + "分に変更しました。現在" + utils.Ftoa(realtimeBreakDuration.Minutes()) +
 						"分休憩中。作業再開まで残り" + utils.Ftoa(remainingBreakDuration.Minutes()) + "分です。"
 				}
 			}
 		}
-		err = s.FirestoreController.UpdateSeats(tx, seats)
+		err = s.FirestoreController.UpdateSeat(tx, *newSeat)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to UpdateSeats", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -995,7 +969,7 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 func (s *System) More(command CommandDetails, ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom()", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
@@ -1006,21 +980,16 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			return nil
 		}
 		
-		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+		currentSeat, cerr := s.CurrentSeat(ctx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to s.CurrentSeat(ctx)", cerr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return cerr.Body
 		}
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoomJ()", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
+		
+		// 以降書き込みのみ
+		newSeat := &currentSeat
 		
 		replyMessage := s.ProcessedUserDisplayName + "さん、"
 		var addedMin int
@@ -1037,7 +1006,8 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 					MaxWorkTimeMin) + "分後までのみ作業時間を延長可能です。延長できる最大の時間で設定します。"
 			}
 			addedMin = int(utils.NoNegativeDuration(newUntil.Sub(currentSeat.Until)).Minutes())
-			seats = CreateUpdatedSeatsSeatUntil(seats, newUntil, s.ProcessedUserId)
+			newSeat.Until = newUntil
+			newSeat.CurrentStateUntil = newUntil
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(utils.JstNow())).Minutes())
 		case myfirestore.BreakState:
 			// 休憩時間を指定分延長する
@@ -1049,18 +1019,18 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 					MaxBreakDurationMin) + "分まで可能です。延長できる最大の時間で設定します。"
 			}
 			addedMin = int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateUntil)).Minutes())
-			seats = CreateUpdatedSeatsSeatCurrentStateUntil(seats, newBreakUntil, s.ProcessedUserId)
+			newSeat.CurrentStateUntil = newBreakUntil
 			// もし延長後の休憩時間がUntilを超えていたらUntilもそれに合わせる
 			if newBreakUntil.After(currentSeat.Until) {
 				newUntil := newBreakUntil
-				seats = CreateUpdatedSeatsSeatUntil(seats, newUntil, s.ProcessedUserId)
+				newSeat.Until = newUntil
 				remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(utils.JstNow())).Minutes())
 			} else {
 				remainingUntilExitMin = int(utils.NoNegativeDuration(currentSeat.Until.Sub(utils.JstNow())).Minutes())
 			}
 		}
 		
-		err = s.FirestoreController.UpdateSeats(tx, seats)
+		err = s.FirestoreController.UpdateSeat(tx, *newSeat)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -1089,7 +1059,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 	breakOption := &command.BreakOption
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			return err
 		}
@@ -1099,7 +1069,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// stateを確認
-		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+		currentSeat, cerr := s.CurrentSeat(ctx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1124,14 +1094,6 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// 休憩処理
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
 		jstNow := utils.JstNow()
 		breakUntil := jstNow.Add(time.Duration(breakOption.DurationMin) * time.Minute)
 		workedSec := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt)).Seconds())
@@ -1143,10 +1105,14 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		} else {
 			dailyCumulativeWorkSec = workedSec
 		}
-		seats = CreateUpdatedSeatsSeatState(seats, s.ProcessedUserId, myfirestore.BreakState, jstNow, breakUntil,
-			cumulativeWorkSec, dailyCumulativeWorkSec, breakOption.WorkName)
+		currentSeat.State = myfirestore.BreakState
+		currentSeat.CurrentStateStartedAt = jstNow
+		currentSeat.CurrentStateUntil = breakUntil
+		currentSeat.CumulativeWorkSec = cumulativeWorkSec
+		currentSeat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
+		currentSeat.BreakWorkName = breakOption.WorkName
 		
-		err = s.FirestoreController.UpdateSeats(tx, seats)
+		err = s.FirestoreController.UpdateSeat(tx, currentSeat)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1176,7 +1142,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			return err
 		}
@@ -1186,7 +1152,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// stateを確認
-		currentSeat, cerr := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
+		currentSeat, cerr := s.CurrentSeat(ctx, s.ProcessedUserId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat()", cerr.Body)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
@@ -1198,15 +1164,6 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// 再開処理
-		roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to RetrieveRoom()", err)
-			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-				"さん、エラーが発生しました。もう一度試してみてください")
-			return err
-		}
-		seats := roomDoc.Seats
-		
 		jstNow := utils.JstNow()
 		until := currentSeat.Until
 		breakSec := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt)).Seconds())
@@ -1221,10 +1178,13 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 			workName = currentSeat.WorkName
 		}
 		
-		seats = CreateUpdatedSeatsSeatState(seats, s.ProcessedUserId, myfirestore.WorkState, jstNow, until,
-			currentSeat.CumulativeWorkSec, dailyCumulativeWorkSec, workName)
+		currentSeat.State = myfirestore.WorkState
+		currentSeat.CurrentStateStartedAt = jstNow
+		currentSeat.CurrentStateUntil = until
+		currentSeat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
+		currentSeat.WorkName = workName
 		
-		err = s.FirestoreController.UpdateSeats(tx, seats)
+		err = s.FirestoreController.UpdateSeat(tx, currentSeat)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -1282,24 +1242,21 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			return err
 		}
 		
-		isUserInRoom, err := s.IsUserInRoom(ctx, tx)
+		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to IsUserInRoom", err)
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さん、エラーが発生しました。もう一度試してみてください")
 			return err
 		}
-		var seats []myfirestore.Seat
+		var currentSeat myfirestore.SeatDoc
 		var realtimeTotalStudySec int
 		if isUserInRoom {
-			roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to CurrentSeat", err)
-				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
-					"さん、エラーが発生しました。もう一度試してみてください")
-				return err
+			var cerr customerror.CustomError
+			currentSeat, cerr = s.CurrentSeat(ctx, s.ProcessedUserId)
+			if cerr.IsNotNil() {
+				return cerr.Body
 			}
-			seats = roomDoc.Seats
 			
 			realtimeTotalStudyDuration, _, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 			if err != nil {
@@ -1310,6 +1267,8 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 			}
 			realtimeTotalStudySec = int(realtimeTotalStudyDuration.Seconds())
 		}
+		
+		// 以降書き込みのみ
 		
 		// ランク表示設定のON/OFFを切り替える
 		newRankVisible := !userDoc.RankVisible
@@ -1332,8 +1291,8 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		if isUserInRoom {
 			seatAppearance := utils.GetSeatAppearance(realtimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
 			// 席の色を更新
-			seats = CreateUpdatedSeatsSeatAppearance(seats, seatAppearance, s.ProcessedUserId)
-			err := s.FirestoreController.UpdateSeats(tx, seats)
+			currentSeat.Appearance = seatAppearance
+			err := s.FirestoreController.UpdateSeat(tx, currentSeat)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してください")
@@ -1356,39 +1315,20 @@ func (s *System) IsSeatExist(ctx context.Context, seatId int) (bool, error) {
 
 // IfSeatVacant 席番号がseatIdの席が空いているかどうか。
 func (s *System) IfSeatVacant(ctx context.Context, tx *firestore.Transaction, seatId int) (bool, error) {
-	// 使われているかどうか
-	roomData, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+	_, err := s.FirestoreController.RetrieveSeat(ctx, tx, seatId)
 	if err != nil {
+		if status.Code(err) == codes.NotFound { // その座席のドキュメントは存在しない
+			// maxSeats以内かどうか
+			isExist, err := s.IsSeatExist(ctx, seatId)
+			if err != nil {
+				return false, err
+			}
+			return isExist, nil
+		}
 		return false, err
 	}
-	for _, seat := range roomData.Seats {
-		if seat.SeatId == seatId {
-			return false, nil
-		}
-	}
-	// ここまで来ると指定された番号の席が使われていないということ
-	
-	// 存在するかどうか
-	isExist, err := s.IsSeatExist(ctx, seatId)
-	if err != nil {
-		return false, err
-	}
-	
-	return isExist, nil
-}
-
-func (s *System) RetrieveSeatBySeatId(ctx context.Context, tx *firestore.Transaction, seatId int) (myfirestore.Seat, customerror.CustomError) {
-	roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
-	if err != nil {
-		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
-	}
-	for _, seat := range roomDoc.Seats {
-		if seat.SeatId == seatId {
-			return seat, customerror.NewNil()
-		}
-	}
-	// ここまで来ると指定された番号の席が使われていないということ
-	return myfirestore.Seat{}, customerror.SeatNotFound.New("that seat is not used.")
+	// ここまで来ると指定された番号の席が使われてるということ
+	return false, nil
 }
 
 func (s *System) IfUserRegistered(ctx context.Context, tx *firestore.Transaction) (bool, error) {
@@ -1404,17 +1344,15 @@ func (s *System) IfUserRegistered(ctx context.Context, tx *firestore.Transaction
 }
 
 // IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
-func (s *System) IsUserInRoom(ctx context.Context, tx *firestore.Transaction) (bool, error) {
-	roomData, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+func (s *System) IsUserInRoom(ctx context.Context, userId string) (bool, error) {
+	_, err := s.FirestoreController.RetrieveSeatWithUserId(ctx, userId)
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return false, nil
+		}
 		return false, err
 	}
-	for _, seat := range roomData.Seats {
-		if seat.UserId == s.ProcessedUserId {
-			return true, nil
-		}
-	}
-	return false, nil
+	return true, nil
 }
 
 func (s *System) InitializeUser(tx *firestore.Transaction) error {
@@ -1435,10 +1373,11 @@ func (s *System) SaveNextPageToken(ctx context.Context, nextPageToken string) er
 	return s.FirestoreController.SaveNextPageToken(ctx, nextPageToken)
 }
 
-// RandomAvailableSeatIdForUser roomの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、空いていないならmax-seatsを増やし、最小の空席番号を返す。
+// RandomAvailableSeatIdForUser roomの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
+// 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int,
 	customerror.CustomError) {
-	room, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+	seats, err := s.FirestoreController.RetrieveSeats(ctx)
 	if err != nil {
 		return 0, customerror.Unknown.Wrap(err)
 	}
@@ -1451,7 +1390,7 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 	var vacantSeatIdList []int
 	for id := 1; id <= constants.MaxSeats; id++ {
 		isUsed := false
-		for _, seatInUse := range room.Seats {
+		for _, seatInUse := range seats {
 			if id == seatInUse.SeatId {
 				isUsed = true
 				break
@@ -1482,7 +1421,6 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 // enterRoom ユーザーを入室させる。
 func (s *System) enterRoom(
 	tx *firestore.Transaction,
-	previousSeats []myfirestore.Seat,
 	userId string,
 	userDisplayName string,
 	seatId int,
@@ -1494,7 +1432,7 @@ func (s *System) enterRoom(
 	enterDate := utils.JstNow()
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
 	
-	newSeat := myfirestore.Seat{
+	newSeat := myfirestore.SeatDoc{
 		SeatId:                 seatId,
 		UserId:                 userId,
 		UserDisplayName:        userDisplayName,
@@ -1508,8 +1446,7 @@ func (s *System) enterRoom(
 		CumulativeWorkSec:      0,
 		DailyCumulativeWorkSec: 0,
 	}
-	newSeats := append(previousSeats, newSeat)
-	err := s.FirestoreController.UpdateSeats(tx, newSeats)
+	err := s.FirestoreController.AddSeat(tx, newSeat)
 	if err != nil {
 		return err
 	}
@@ -1538,10 +1475,9 @@ func (s *System) enterRoom(
 // exitRoom ユーザーを退室させる。
 func (s *System) exitRoom(
 	tx *firestore.Transaction,
-	previousSeats []myfirestore.Seat,
-	previousSeat myfirestore.Seat,
+	previousSeat myfirestore.SeatDoc,
 	previousUserDoc *myfirestore.UserDoc,
-) ([]myfirestore.Seat, int, int, error) {
+) (int, int, error) {
 	// 作業時間を計算
 	exitDate := utils.JstNow()
 	var addedWorkedTimeSec int
@@ -1567,17 +1503,12 @@ func (s *System) exitRoom(
 		}
 	}
 	
-	newSeats := previousSeats[:0]
-	for _, seat := range previousSeats {
-		if seat.UserId != previousSeat.UserId {
-			newSeats = append(newSeats, seat)
-		}
+	// 退室処理
+	err := s.FirestoreController.RemoveSeat(tx, previousSeat.SeatId)
+	if err != nil {
+		return 0, 0, err
 	}
 	
-	err := s.FirestoreController.UpdateSeats(tx, newSeats)
-	if err != nil {
-		return nil, 0, 0, err
-	}
 	// ログ記録
 	exitActivity := myfirestore.UserActivityDoc{
 		UserId:       previousSeat.UserId,
@@ -1593,52 +1524,41 @@ func (s *System) exitRoom(
 	err = s.FirestoreController.SetLastExitedDate(tx, previousSeat.UserId, exitDate)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to update last-exited-date", err)
-		return nil, 0, 0, err
+		return 0, 0, err
 	}
 	// 累計作業時間を更新
 	err = s.UpdateTotalWorkTime(tx, previousSeat.UserId, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to update total study time", err)
-		return nil, 0, 0, err
+		return 0, 0, err
 	}
 	// RP更新
 	netStudyDuration := time.Duration(addedWorkedTimeSec) * time.Second
 	newRP, err := utils.CalcNewRPExitRoom(netStudyDuration, previousSeat.WorkName != "", previousUserDoc.IsContinuousActive, previousUserDoc.CurrentActivityStateStarted, exitDate, previousUserDoc.RankPoint)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to CalcNewRPExitRoom", err)
-		return nil, 0, 0, err
+		return 0, 0, err
 	}
 	err = s.FirestoreController.UpdateUserRankPoint(tx, previousSeat.UserId, newRP)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
-		return nil, 0, 0, err
+		return 0, 0, err
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
 	
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
-	return newSeats, addedWorkedTimeSec, addedRP, nil
+	return addedWorkedTimeSec, addedRP, nil
 }
 
-func (s *System) CurrentSeatId(ctx context.Context, tx *firestore.Transaction) (int, customerror.CustomError) {
-	currentSeat, err := s.CurrentSeat(ctx, tx, s.ProcessedUserId)
-	if err.IsNotNil() {
-		return -1, err
-	}
-	return currentSeat.SeatId, customerror.NewNil()
-}
-
-func (s *System) CurrentSeat(ctx context.Context, tx *firestore.Transaction, userId string) (myfirestore.Seat, customerror.CustomError) {
-	roomData, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+func (s *System) CurrentSeat(ctx context.Context, userId string) (myfirestore.SeatDoc, customerror.CustomError) {
+	seat, err := s.FirestoreController.RetrieveSeatWithUserId(ctx, userId)
 	if err != nil {
-		return myfirestore.Seat{}, customerror.Unknown.Wrap(err)
-	}
-	for _, seat := range roomData.Seats {
-		if seat.UserId == userId {
-			return seat, customerror.NewNil()
+		if status.Code(err) == codes.NotFound {
+			return myfirestore.SeatDoc{}, customerror.UserNotInTheRoom.New("the user is not in the room.")
 		}
+		return myfirestore.SeatDoc{}, customerror.Unknown.Wrap(err)
 	}
-	// 入室していない
-	return myfirestore.Seat{}, customerror.UserNotInAnyRoom.New("the user is not in any room.")
+	return seat, customerror.NewNil()
 }
 
 func (s *System) UpdateTotalWorkTime(tx *firestore.Transaction, userId string, previousUserDoc *myfirestore.UserDoc, newWorkedTimeSec int, newDailyWorkedTimeSec int) error {
@@ -1668,9 +1588,9 @@ func (s *System) RetrieveRealtimeTotalStudyDurations(ctx context.Context, tx *fi
 	// 入室中ならばリアルタイムの作業時間も加算する
 	realtimeDuration := time.Duration(0)
 	realtimeDailyDuration := time.Duration(0)
-	if isInRoom, _ := s.IsUserInRoom(ctx, tx); isInRoom {
+	if isInRoom, _ := s.IsUserInRoom(ctx, userId); isInRoom {
 		// 作業時間を計算
-		currentSeat, cerr := s.CurrentSeat(ctx, tx, userId)
+		currentSeat, cerr := s.CurrentSeat(ctx, userId)
 		if cerr.IsNotNil() {
 			_ = s.MessageToLineBotWithError("failed to CurrentSeat", cerr.Body)
 			return 0, 0, cerr.Body
@@ -1712,22 +1632,22 @@ func (s *System) ExitAllUserInRoom(ctx context.Context) error {
 			break
 		}
 		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			room, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+			seats, err := s.FirestoreController.RetrieveSeats(ctx)
 			if err != nil {
 				return err
 			}
-			if len(room.Seats) > 0 {
-				seat := room.Seats[0]
+			if len(seats) > 0 {
+				seat := seats[0]
 				s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 				userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 				if err != nil {
 					return err
 				}
-				_, _, _, err = s.exitRoom(tx, room.Seats, seat, &userDoc)
+				_, _, err = s.exitRoom(tx, seat, &userDoc)
 				if err != nil {
 					return err
 				}
-			} else if len(room.Seats) == 0 {
+			} else if len(seats) == 0 {
 				finished = true
 			}
 			return nil
@@ -1767,13 +1687,13 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		ifCheckLongTimeSitting := int(utils.NoNegativeDuration(utils.JstNow().Sub(s.Configs.Constants.LastLongTimeSittingChecked)).Minutes()) > s.
 			Configs.Constants.CheckLongTimeSittingIntervalMinutes
 		
-		room, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+		seats, err := s.FirestoreController.RetrieveSeats(ctx)
 		if err != nil {
 			return err
 		}
 		
 		var userDocs []*myfirestore.UserDoc
-		for _, seat := range room.Seats {
+		for _, seat := range seats {
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 			if err != nil {
@@ -1783,12 +1703,11 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			userDocs = append(userDocs, &userDoc)
 		}
 		
-		currentSeats := append([]myfirestore.Seat{}, room.Seats...)
 		var autoExitSeatIds []int   // 自動退室時刻による自動退室
 		var forcedExitSeatIds []int // 長時間入室制限による強制退室
 		var resumeSeatIds []int     // 作業再開
 		
-		for _, seat := range room.Seats {
+		for _, seat := range seats {
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			
 			// 自動退室時刻を過ぎていたら自動退室
@@ -1817,17 +1736,16 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		}
 		
 		// 以下書き込みのみ
-		for i, seat := range room.Seats {
+		for i, seat := range seats {
 			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			
 			// 自動退室時刻による退室処理
 			if contains(autoExitSeatIds, seat.SeatId) {
-				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, userDocs[i])
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
 				}
-				currentSeats = append([]myfirestore.Seat{}, exitedSeats...)
 				var rpEarned string
 				if userDocs[i].RankVisible {
 					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
@@ -1839,12 +1757,11 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			// 長時間入室制限による強制退室
 			if contains(forcedExitSeatIds, seat.SeatId) {
-				exitedSeats, workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeats, seat, userDocs[i])
+				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, userDocs[i])
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
 				}
-				currentSeats = append([]myfirestore.Seat{}, exitedSeats...)
 				var rpEarned string
 				if userDocs[i].RankVisible {
 					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
@@ -1866,13 +1783,13 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					dailyCumulativeWorkSec = 0
 				}
 				
-				currentSeats = CreateUpdatedSeatsSeatState(currentSeats, s.ProcessedUserId, myfirestore.WorkState, jstNow,
-					until,
-					seat.CumulativeWorkSec, dailyCumulativeWorkSec, seat.WorkName)
-				
-				err = s.FirestoreController.UpdateSeats(tx, currentSeats)
+				seat.State = myfirestore.WorkState
+				seat.CurrentStateStartedAt = jstNow
+				seat.CurrentStateUntil = until
+				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
+				err = s.FirestoreController.UpdateSeat(tx, seat)
 				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats", err)
+					_ = s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeat", err)
 					return err
 				}
 				// activityログ記録
@@ -2050,7 +1967,7 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 	return nil
 }
 
-func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context, tx *firestore.Transaction) ([]UserIdTotalStudySecSet, error) {
+func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserIdTotalStudySecSet, error) {
 	var set []UserIdTotalStudySecSet
 	
 	userDocRefs, err := s.FirestoreController.RetrieveAllUserDocRefs(ctx)
@@ -2058,7 +1975,7 @@ func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context, tx *fire
 		return set, err
 	}
 	for _, userDocRef := range userDocRefs {
-		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userDocRef.ID)
+		userDoc, err := s.FirestoreController.RetrieveUser(ctx, nil, userDocRef.ID)
 		if err != nil {
 			return set, err
 		}
@@ -2072,7 +1989,7 @@ func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context, tx *fire
 
 // MinAvailableSeatIdForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
 func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int, error) {
-	roomDoc, err := s.FirestoreController.RetrieveRoom(ctx, tx)
+	seats, err := s.FirestoreController.RetrieveSeats(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -2084,7 +2001,7 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 	
 	// 使用されている座席番号リストを取得
 	var usedSeatIds []int
-	for _, seat := range roomDoc.Seats {
+	for _, seat := range seats {
 		usedSeatIds = append(usedSeatIds, seat.SeatId)
 	}
 	

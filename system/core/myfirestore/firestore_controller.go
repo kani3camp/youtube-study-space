@@ -3,7 +3,12 @@ package myfirestore
 import (
 	"cloud.google.com/go/firestore"
 	"context"
+	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strconv"
 	"time"
 )
 
@@ -48,6 +53,15 @@ func (c *FirestoreController) update(ctx context.Context, tx *firestore.Transact
 	}
 }
 
+func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, opts ...firestore.Precondition) error {
+	if tx != nil {
+		return tx.Delete(ref, opts...)
+	} else {
+		_, err := ref.Delete(ctx, opts...)
+		return err
+	}
+}
+
 func (c *FirestoreController) configCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(CONFIG)
 }
@@ -56,8 +70,8 @@ func (c *FirestoreController) usersCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(USERS)
 }
 
-func (c *FirestoreController) roomsCollection() *firestore.CollectionRef {
-	return c.FirestoreClient.Collection(ROOMS)
+func (c *FirestoreController) seatsCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(SEATS)
 }
 
 func (c *FirestoreController) liveChatHistoryCollection() *firestore.CollectionRef {
@@ -133,18 +147,58 @@ func (c *FirestoreController) SaveNextPageToken(ctx context.Context, nextPageTok
 	return nil
 }
 
-func (c *FirestoreController) RetrieveRoom(ctx context.Context, tx *firestore.Transaction) (RoomDoc, error) {
-	roomData := NewRoomDoc()
-	ref := c.roomsCollection().Doc(DefaultRoomDocName)
+func (c *FirestoreController) RetrieveSeats(ctx context.Context) ([]SeatDoc, error) {
+	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
+	iter := c.seatsCollection().Documents(ctx)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return []SeatDoc{}, err
+		}
+		var seatDoc SeatDoc
+		err = doc.DataTo(&seatDoc)
+		if err != nil {
+			return []SeatDoc{}, err
+		}
+		seats = append(seats, seatDoc)
+	}
+	return seats, nil
+}
+
+func (c *FirestoreController) RetrieveSeat(ctx context.Context, tx *firestore.Transaction, seatId int) (SeatDoc, error) {
+	ref := c.seatsCollection().Doc(strconv.Itoa(seatId))
 	doc, err := c.get(ctx, tx, ref)
 	if err != nil {
-		return RoomDoc{}, err
+		return SeatDoc{}, err // NotFoundの場合もerrに含まれる
 	}
-	err = doc.DataTo(&roomData)
+	var seatDoc SeatDoc
+	err = doc.DataTo(&seatDoc)
 	if err != nil {
-		return RoomDoc{}, err
+		return SeatDoc{}, err
 	}
-	return roomData, nil
+	return seatDoc, nil
+}
+
+func (c *FirestoreController) RetrieveSeatWithUserId(ctx context.Context, userId string) (SeatDoc, error) {
+	docs, err := c.seatsCollection().Where(UserIdDocProperty, "==", userId).Documents(ctx).GetAll()
+	if err != nil {
+		return SeatDoc{}, err
+	}
+	if len(docs) >= 2 {
+		return SeatDoc{}, errors.New("There are more than two seats with the user id = " + userId + " !!")
+	}
+	if len(docs) == 1 {
+		var seatDoc SeatDoc
+		err := docs[0].DataTo(&seatDoc)
+		if err != nil {
+			return SeatDoc{}, err
+		}
+		return seatDoc, nil
+	}
+	return SeatDoc{}, status.Errorf(codes.NotFound, "%s not found", "the document with user id = "+userId)
 }
 
 func (c *FirestoreController) SetLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
@@ -300,11 +354,19 @@ func (c *FirestoreController) SetAccessTokenOfBotCredential(ctx context.Context,
 	})
 }
 
-func (c *FirestoreController) UpdateSeats(tx *firestore.Transaction, seats []Seat) error {
-	ref := c.roomsCollection().Doc(DefaultRoomDocName)
-	return tx.Update(ref, []firestore.Update{
-		{Path: SeatsDocProperty, Value: seats},
-	})
+func (c *FirestoreController) AddSeat(tx *firestore.Transaction, seat SeatDoc) error {
+	ref := c.seatsCollection().Doc(strconv.Itoa(seat.SeatId))
+	return tx.Create(ref, seat)
+}
+
+func (c *FirestoreController) UpdateSeat(tx *firestore.Transaction, seat SeatDoc) error {
+	ref := c.seatsCollection().Doc(strconv.Itoa(seat.SeatId))
+	return c.set(nil, tx, ref, seat)
+}
+
+func (c *FirestoreController) RemoveSeat(tx *firestore.Transaction, seatId int) error {
+	ref := c.seatsCollection().Doc(strconv.Itoa(seatId))
+	return c.delete(nil, tx, ref)
 }
 
 func (c *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
@@ -332,8 +394,7 @@ func (c *FirestoreController) Retrieve500UserActivityDocIdsBeforeDate(ctx contex
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
-func (c *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ctx context.Context,
-	date time.Time,
+func (c *FirestoreController) RetrieveAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time,
 ) *firestore.DocumentIterator {
 	return c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Documents(ctx)
 }

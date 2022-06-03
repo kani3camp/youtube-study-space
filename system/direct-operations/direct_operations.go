@@ -64,7 +64,7 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
 	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
-		allUsersTotalStudySecList, err = _system.RetrieveAllUsersTotalStudySecList(ctx, tx)
+		allUsersTotalStudySecList, err = _system.RetrieveAllUsersTotalStudySecList(ctx)
 		if err != nil {
 			panic(err)
 		}

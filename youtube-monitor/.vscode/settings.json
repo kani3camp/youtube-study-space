@@ -7,5 +7,12 @@
     "files.eol": "\n",
     "editor.tabSize": 4,
     "typescript.suggest.autoImports": false,
-    "cSpell.words": ["freepick", "parens", "reduxjs", "soundcloud", "stylelint"]
+    "cSpell.words": [
+        "freepick",
+        "parens",
+        "reduxjs",
+        "soundcloud",
+        "stylelint",
+        "takochan"
+    ]
 }
