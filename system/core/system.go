@@ -634,12 +634,17 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 					return err
 				}
 				
-				workedTimeSec, _, exitErr := s.exitRoom(tx, seat, &userDoc)
+				workedTimeSec, addedRP, exitErr := s.exitRoom(tx, seat, &userDoc)
 				if exitErr != nil {
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さんのkick退室処理中にエラーが発生しました", exitErr)
 					return exitErr
 				}
+				var rpEarned string
+				if userDoc.RankVisible {
+					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
+				}
 				s.MessageToLiveChat(ctx, tx, seat.UserDisplayName+"さんが退室しました🚶🚪"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）")
+					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
 				
 				err = s.MessageToDiscordBot(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.
 					SeatId) + "番席のユーザーをkickしました。\n" +
@@ -1547,6 +1552,7 @@ func (s *System) exitRoom(
 	addedRP := newRP - previousUserDoc.RankPoint
 	
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
+	log.Println("addedRP: " + strconv.Itoa(addedRP) + ", newRP: " + strconv.Itoa(newRP) + ", previous RP: " + strconv.Itoa(previousUserDoc.RankPoint))
 	return addedWorkedTimeSec, addedRP, nil
 }
 

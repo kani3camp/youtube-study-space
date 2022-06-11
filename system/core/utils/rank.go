@@ -22,6 +22,7 @@ func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yeste
 	log.Println("lastActiveAt: ", lastActiveAt)
 	log.Println("previousRankPoint: ", previousRankPoint)
 	log.Println("now: ", JstNow())
+	log.Println("basePoint: ", basePoint)
 	
 	var workNameSetMagnification float64          // 作業内容設定倍率
 	var continuousActiveDaysMagnification float64 // 連続入室日数倍率
@@ -45,6 +46,11 @@ func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yeste
 	rankMagnification = MagnificationByRP(previousRankPoint)
 	
 	addedRP := int(float64(basePoint) * workNameSetMagnification * continuousActiveDaysMagnification * rankMagnification)
+	
+	log.Println("continuousActiveDays: ", continuousActiveDays)
+	log.Println("continuousActiveDaysMagnification: ", continuousActiveDaysMagnification)
+	log.Println("rankMagnification: ", rankMagnification)
+	log.Println("addedRP: ", addedRP)
 	
 	return ApplyRPRange(previousRankPoint + addedRP), nil
 }
