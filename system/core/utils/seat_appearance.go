@@ -24,16 +24,16 @@ const (
 	ColorHours700To1000 = "#C880FF"
 	ColorHoursFrom1000  = "#FF7FFF"
 	
-	ColorRank1  = "#C0C0C0"
+	ColorRank1  = "#D8D8D8"
 	ColorRank2  = "#FFFAFA"
-	ColorRank3  = "#FFFF00"
-	ColorRank4  = "#FFA500"
-	ColorRank5  = "#FF0000"
+	ColorRank3  = "#FFFF66"
+	ColorRank4  = "#FFC666"
+	ColorRank5  = "#FF6666"
 	ColorRank6  = "#00FFFF"
-	ColorRank7  = "#4169E1"
-	ColorRank8  = "#8470FF"
-	ColorRank9  = "#9932CC"
-	ColorRank10 = "#FF00FF"
+	ColorRank7  = "#95ABED"
+	ColorRank8  = "#D7D1FF"
+	ColorRank9  = "#BF80DF"
+	ColorRank10 = "#FF66FF"
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) myfirestore.SeatAppearance {
