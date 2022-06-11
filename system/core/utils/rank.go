@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/pkg/errors"
+	"log"
 	"time"
 )
 
@@ -13,6 +14,15 @@ const (
 func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yesterdayContinuedActive bool,
 	currentStateStarted time.Time, lastActiveAt time.Time, previousRankPoint int) (int, error) {
 	basePoint := int(netStudyDuration.Minutes())
+	
+	log.Println("netStudyDuration: ", netStudyDuration)
+	log.Println("isWorkNameSet: ", isWorkNameSet)
+	log.Println("yesterdayContinuedActive: ", yesterdayContinuedActive)
+	log.Println("currentStateStarted: ", currentStateStarted)
+	log.Println("lastActiveAt: ", lastActiveAt)
+	log.Println("previousRankPoint: ", previousRankPoint)
+	log.Println("now: ", JstNow())
+	
 	var workNameSetMagnification float64          // 作業内容設定倍率
 	var continuousActiveDaysMagnification float64 // 連続入室日数倍率
 	var rankMagnification float64                 // ランクによる倍率
