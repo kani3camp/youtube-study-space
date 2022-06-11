@@ -38,7 +38,7 @@ const Room: React.FC = () => {
     const init = async () => {
         console.log(init.name)
         await checkAndUpdateRoomLayouts()
-        const fetchIntervalId = setInterval(async () => {
+        setInterval(async () => {
             await checkAndUpdateRoomLayouts()
         }, DATA_FETCHING_INTERVAL_MSEC)
     }
