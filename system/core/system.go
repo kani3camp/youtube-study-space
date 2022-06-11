@@ -1048,8 +1048,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			replyMessage += "自動退室までの時間を" + strconv.Itoa(addedMin) + "分延長しました。"
 		case myfirestore.BreakState:
 			replyMessage += "休憩時間を" + strconv.Itoa(addedMin) + "分延長しました。"
-			addedDuration := time.Duration(addedMin) * time.Minute
-			remainingBreakDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Add(addedDuration).Sub(utils.JstNow()))
+			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(utils.JstNow()))
 			replyMessage += "作業再開まで残り" + utils.Ftoa(remainingBreakDuration.Minutes()) + "分。"
 		}
 		realtimeEnteredTimeMin := utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes()
