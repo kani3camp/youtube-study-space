@@ -15,7 +15,7 @@ import Message from './Message'
 
 const Room: React.FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
-    const PAGING_INTERVAL_MSEC = 8 * 1000
+    const PAGING_INTERVAL_MSEC = 5 * 1000
 
     const [seats, setSeats] = useState<Seat[] | undefined>(undefined)
     const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
