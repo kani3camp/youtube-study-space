@@ -6,7 +6,6 @@ youtube-monitor/.env
 system/.DS_Store
 system/.gcloudignore
 youtube-monitor/.next/
-youtube-monitor/.env
 youtube-monitor/node_modules/
 youtube-monitor/out/
 youtube-monitor/public/audio/lofigirl/*
@@ -23,4 +22,3 @@ system/aws-lambda/main.zip
 
 
 system/.serverless/youtubeStudySpace.zip
-youtube-monitor/.env
