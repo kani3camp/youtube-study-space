@@ -31,7 +31,7 @@ const (
 	ColorRank5  = "#FF6666"
 	ColorRank6  = "#00FFFF"
 	ColorRank7  = "#95ABED"
-	ColorRank8  = "#D7D1FF"
+	ColorRank8  = "#bdb7e5"
 	ColorRank9  = "#BF80DF"
 	ColorRank10 = "#FF66FF"
 )
