@@ -24,7 +24,7 @@ class MyDocument extends Document {
                     ></link>
 
                     <link
-                        href='https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300&display=swap'
+                        href='https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic&display=swap'
                         rel='stylesheet'
                     ></link>
                 </Head>
