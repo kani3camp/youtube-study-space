@@ -15,7 +15,7 @@ import Message from './Message'
 
 const Room: React.FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
-    const PAGING_INTERVAL_MSEC = 5 * 1000
+    const PAGING_INTERVAL_MSEC = 8 * 1000
 
     const [seats, setSeats] = useState<Seat[] | undefined>(undefined)
     const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
@@ -60,11 +60,11 @@ const Room: React.FC = () => {
                     const min_seats_by_vacancy_rate = Math.ceil(
                         r.seats.length / (1 - r.min_vacancy_rate)
                     )
-                    console.log(
-                        '少なくとも',
-                        min_seats_by_vacancy_rate,
-                        'は確定'
-                    )
+                    // console.log(
+                    //     '少なくとも',
+                    //     min_seats_by_vacancy_rate,
+                    //     'は確定'
+                    // )
                     // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
                     if (min_seats_by_vacancy_rate > numSeatsInAllBasicRooms()) {
                         let current_num_seats: number =
