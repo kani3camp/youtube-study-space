@@ -1,4 +1,4 @@
-import React, { FC } from 'react'
+import { FC } from 'react'
 import * as styles from '../styles/Message.styles'
 import { Seat } from '../types/api'
 
@@ -15,7 +15,7 @@ const Message: FC<Props> = (props) => {
             <div css={styles.message}>
                 <div css={styles.roomName}>
                     ページ{props.current_room_index + 1} /{' '}
-                    {props.current_rooms_length} ☝
+                    {props.current_rooms_length}
                 </div>
                 <div css={styles.numStudyingPeople}>
                     {numWorkers}人が作業中☔

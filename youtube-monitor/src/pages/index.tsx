@@ -3,8 +3,8 @@ import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
 import Room from '../components/Room'
-import StandingRoom from '../components/StandingRoom'
 import Timer from '../components/Timer'
+import StandingRoom from '../components/Usage'
 
 const Home: FC = () => (
     <div

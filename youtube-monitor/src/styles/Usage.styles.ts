@@ -1,17 +1,23 @@
 import { css } from '@emotion/react'
 
-export const standingRoom = css`
-    height: 370px;
+export const background = css`
+    height: 390px;
     width: 400px;
-    padding: 0.4rem;
+    background-color: rgba(250, 246, 240, 1);
+    padding: 0.5rem;
     box-sizing: border-box;
-    background-color: rgba(239, 255, 248, 0.829);
     position: absolute;
-    top: 180px;
+    top: 160px;
     right: 0;
     font-size: 1rem;
     text-align: center;
     color: #383838;
+`
+
+export const usage = css`
+    padding: 0.4rem;
+    border-radius: 1rem;
+    background-color: rgba(199, 230, 233, 0.95);
 `
 
 export const seatId = css`
@@ -62,9 +68,8 @@ export const userDisplayName = css`
 export const commandString = css`
     font-weight: bold;
     display: inline-block;
-    background-color: #e7e7e7;
-    border: solid #6464645d 0.05rem;
-    border-radius: 0.2rem;
+    background-color: #fff;
+    border-radius: 0.15rem;
     padding: 0 0.4rem;
     margin: 0.1rem;
 `
