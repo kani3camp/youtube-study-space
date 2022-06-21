@@ -3,7 +3,7 @@ import { css } from '@emotion/react'
 export const clockStyle = css`
     height: 160px;
     width: 400px;
-    background-color: rgba(250, 246, 240, 1);
+    background-color: rgba(255, 241, 221, 1);
     backdrop-filter: blur(3px);
     position: absolute;
     top: 0;

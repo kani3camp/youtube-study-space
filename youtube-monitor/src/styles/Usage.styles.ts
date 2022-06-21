@@ -3,8 +3,8 @@ import { css } from '@emotion/react'
 export const background = css`
     height: 390px;
     width: 400px;
-    background-color: rgba(250, 246, 240, 1);
-    padding: 0.5rem;
+    background-color: rgba(255, 241, 221, 1);
+    padding: 0.5rem 1rem;
     box-sizing: border-box;
     position: absolute;
     top: 160px;
