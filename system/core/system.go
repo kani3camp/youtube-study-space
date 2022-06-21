@@ -488,56 +488,56 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 		if err != nil {
 			return err
 		}
-		if isUserRegistered {
-			reply := ""
-			totalStudyDuration, dailyTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed s.RetrieveRealtimeTotalStudyDurations()", err)
-				return err
-			}
-			totalTimeStr := utils.DurationToString(totalStudyDuration)
-			dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
-			reply += s.ProcessedUserDisplayName +
-				"さん　［本日の作業時間：" + dailyTotalTimeStr + "］" +
-				" ［累計作業時間：" + totalTimeStr + "］"
-			
-			userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed s.FirestoreController.RetrieveUser", err)
-				return err
-			}
-			
-			if userDoc.RankVisible {
-				reply += "［ランクポイント：" + strconv.Itoa(userDoc.RankPoint) + " RP］"
-			}
-			
-			if command.InfoOption.ShowDetails {
-				switch userDoc.RankVisible {
-				case true:
-					reply += "［ランク表示：オン］"
-				case false:
-					reply += "［ランク表示：オフ］"
-				}
-				
-				if userDoc.DefaultStudyMin == 0 {
-					reply += "［デフォルト作業時間：なし］"
-				} else {
-					reply += "［デフォルト作業時間：" + strconv.Itoa(userDoc.DefaultStudyMin) + "分］"
-				}
-				
-				if userDoc.FavoriteColor == "" {
-					reply += "［お気に入りカラー：なし］"
-				} else {
-					reply += "［お気に入りカラー：" + userDoc.FavoriteColor + "］"
-				}
-				
-				reply += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
-			}
-			s.MessageToLiveChat(ctx, tx, reply)
-		} else {
+		if !isUserRegistered {
 			s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
 				"さんはまだ作業データがありません。「"+InCommand+"」コマンドで作業を始めましょう！")
+			return nil
 		}
+		reply := ""
+		totalStudyDuration, dailyTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed s.RetrieveRealtimeTotalStudyDurations()", err)
+			return err
+		}
+		totalTimeStr := utils.DurationToString(totalStudyDuration)
+		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
+		reply += s.ProcessedUserDisplayName +
+			"さん ［本日の作業時間：" + dailyTotalTimeStr + "］" +
+			" ［累計作業時間：" + totalTimeStr + "］"
+		
+		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed s.FirestoreController.RetrieveUser", err)
+			return err
+		}
+		
+		if userDoc.RankVisible {
+			reply += "［ランクポイント：" + strconv.Itoa(userDoc.RankPoint) + " RP］"
+		}
+		
+		if command.InfoOption.ShowDetails {
+			switch userDoc.RankVisible {
+			case true:
+				reply += "［ランク表示：オン］"
+			case false:
+				reply += "［ランク表示：オフ］"
+			}
+			
+			if userDoc.DefaultStudyMin == 0 {
+				reply += "［デフォルト作業時間：なし］"
+			} else {
+				reply += "［デフォルト作業時間：" + strconv.Itoa(userDoc.DefaultStudyMin) + "分］"
+			}
+			
+			if userDoc.FavoriteColor == "" {
+				reply += "［お気に入りカラー：なし］"
+			} else {
+				reply += "［お気に入りカラー：" + userDoc.FavoriteColor + "］"
+			}
+			
+			reply += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
+		}
+		s.MessageToLiveChat(ctx, tx, reply)
 		return nil
 	})
 }
@@ -1588,12 +1588,17 @@ func (s *System) UpdateTotalWorkTime(tx *firestore.Transaction, userId string, p
 	return nil
 }
 
-// RetrieveRealtimeTotalStudyDurations リアルタイムの累積作業時間・当日累積作業時間を文字列で返す。
+// RetrieveRealtimeTotalStudyDurations リアルタイムの累積作業時間・当日累積作業時間を返す。
 func (s *System) RetrieveRealtimeTotalStudyDurations(ctx context.Context, tx *firestore.Transaction, userId string) (time.Duration, time.Duration, error) {
 	// 入室中ならばリアルタイムの作業時間も加算する
 	realtimeDuration := time.Duration(0)
 	realtimeDailyDuration := time.Duration(0)
-	if isInRoom, _ := s.IsUserInRoom(ctx, userId); isInRoom {
+	isInRoom, err := s.IsUserInRoom(ctx, userId)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to IsUserInRoom", err)
+		return 0, 0, err
+	}
+	if isInRoom {
 		// 作業時間を計算
 		currentSeat, cerr := s.CurrentSeat(ctx, userId)
 		if cerr.IsNotNil() {

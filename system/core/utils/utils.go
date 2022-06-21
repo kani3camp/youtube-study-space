@@ -96,6 +96,7 @@ func DateEqual(date1, date2 time.Time) bool {
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
+// DurationToString for Japanese.
 func DurationToString(duration time.Duration) string {
 	if duration < time.Hour {
 		return strconv.Itoa(int(duration.Minutes())) + "分"
