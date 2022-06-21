@@ -62,7 +62,7 @@ export const userDisplayName = css`
 
 export const breakBadge = css`
     color: black;
-    background-color: lightgreen;
+    background-color: #5af87fe7;
     z-index: ${Constants.breakBadgeZIndex};
     position: absolute;
     font-weight: bold;

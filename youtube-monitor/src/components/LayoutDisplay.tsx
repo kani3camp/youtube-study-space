@@ -208,15 +208,15 @@ const LayoutDisplay: FC<Props> = (props) => {
                         <div
                             css={styles.breakBadge}
                             style={{
-                                fontSize: `${seatFontSizePx * 0.5}px`,
+                                fontSize: `${seatFontSizePx * 0.6}px`,
                                 borderRadius: `${seatFontSizePx / 2}px`,
-                                padding: `${seatFontSizePx / 18}px`,
-                                left: `${seatFontSizePx * 0.08}px`,
+                                padding: `${seatFontSizePx / 15}px`,
+                                left: `${seatFontSizePx * 0.14}px`,
                                 top: `${seatFontSizePx * 0.2}px`,
                                 borderWidth: `${seatFontSizePx * 0.05}px`,
                             }}
                         >
-                            休み中
+                            休み
                         </div>
                     )}
 
