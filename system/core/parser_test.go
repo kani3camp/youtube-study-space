@@ -48,6 +48,21 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Input: "!in　work-全角すぺーす　min-50",
+			Output: CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "全角すぺーす",
+						DurationMin:      50,
+					},
+				},
+			},
+		},
+		{
 			Input: "!in min-60 work-わーく",
 			Output: CommandDetails{
 				CommandType: In,
@@ -122,6 +137,22 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+		{
+			Input: "!300 w＝全角イコール m＝165",
+			Output: CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      300,
+					MinutesAndWorkName: MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "全角イコール",
+						DurationMin:      165,
+					},
+				},
+			},
+		},
 		
 		{
 			Input: "!out",
@@ -170,6 +201,195 @@ func TestParseCommand(t *testing.T) {
 						Type:      RankVisible,
 						BoolValue: false,
 					},
+				},
+			},
+		},
+		{
+			Input: "!my",
+			Output: CommandDetails{
+				CommandType: My,
+				MyOptions:   []MyOption{},
+			},
+		},
+		{
+			Input: "!my min=500",
+			Output: CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 500,
+					},
+				},
+			},
+		},
+		{
+			Input: "!my min=", // リセットの意味
+			Output: CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 0,
+					},
+				},
+			},
+		},
+		{
+			Input: "!my color=", // リセットの意味
+			Output: CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     FavoriteColor,
+						IntValue: -1,
+					},
+				},
+			},
+		},
+		
+		{
+			Input: "!change m=140 w=新",
+			Output: CommandDetails{
+				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    true,
+					IsDurationMinSet: true,
+					WorkName:         "新",
+					DurationMin:      140,
+				},
+			},
+		},
+		
+		{
+			Input: "!rank",
+			Output: CommandDetails{
+				CommandType: Rank,
+			},
+		},
+		
+		{
+			Input: "!more 123",
+			Output: CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					DurationMin: 123,
+				},
+			},
+		},
+		{
+			Input: "!more m=123",
+			Output: CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					DurationMin: 123,
+				},
+			},
+		},
+		{
+			Input: "!more m＝123",
+			Output: CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					DurationMin: 123,
+				},
+			},
+		},
+		{
+			Input: "!more min=123",
+			Output: CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					DurationMin: 123,
+				},
+			},
+		},
+		
+		{
+			Input: "!break",
+			Output: CommandDetails{
+				CommandType: Break,
+				BreakOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    false,
+					IsDurationMinSet: false,
+				},
+			},
+		},
+		{
+			Input: "!break min=23 work=休憩",
+			Output: CommandDetails{
+				CommandType: Break,
+				BreakOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    true,
+					IsDurationMinSet: true,
+					WorkName:         "休憩",
+					DurationMin:      23,
+				},
+			},
+		},
+		
+		{
+			Input: "!resume",
+			Output: CommandDetails{
+				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: false,
+				},
+			},
+		},
+		{
+			Input: "!resume work=再開！",
+			Output: CommandDetails{
+				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      "再開！",
+				},
+			},
+		},
+		
+		{
+			Input: "!seat",
+			Output: CommandDetails{
+				CommandType: Seat,
+			},
+		},
+		
+		{
+			Input: "!kick 12",
+			Output: CommandDetails{
+				CommandType: Kick,
+				KickOption: KickOption{
+					SeatId: 12,
+				},
+			},
+		},
+		
+		{
+			Input: "!check 14",
+			Output: CommandDetails{
+				CommandType: Check,
+				CheckOption: CheckOption{
+					SeatId: 14,
+				},
+			},
+		},
+		
+		{
+			Input: "!report めっせーじ",
+			Output: CommandDetails{
+				CommandType: Report,
+				ReportOption: ReportOption{
+					Message: "!report めっせーじ",
+				},
+			},
+		},
+		{
+			Input: "!report　全角すぺーすめっせーじ",
+			Output: CommandDetails{
+				CommandType: Report,
+				ReportOption: ReportOption{
+					Message: "!report 全角すぺーすめっせーじ",
 				},
 			},
 		},

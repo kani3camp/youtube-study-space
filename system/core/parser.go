@@ -154,7 +154,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 	isDefaultStudyMinSet := false
 	isFavoriteColorSet := false
 	
-	var options []MyOption
+	options := make([]MyOption, 0)
 	
 	for _, str := range commandSlice {
 		if strings.HasPrefix(str, RankVisibleMyOptionPrefix) && !isRankVisibleSet {
@@ -174,7 +174,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 			isRankVisibleSet = true
 		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
 			var durationMin int
-			// 0もしくは空欄ならリセットなので、空欄も許可
+			// 0もしくは空欄ならリセットなので、空欄も許可。リセットは内部的には0で扱う。
 			if IsEmptyTimeOption(str) {
 				durationMin = 0
 			} else {
@@ -192,10 +192,10 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 		} else if strings.HasPrefix(str, FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
 			var paramStr = strings.TrimPrefix(str, FavoriteColorMyOptionPrefix)
 			if paramStr == "" {
-				// 空文字列であればリセット
+				// 「color=」、つまり空欄の場合はリセット。システム内部では-1として扱う。
 				options = append(options, MyOption{
-					Type:        FavoriteColor,
-					StringValue: "",
+					Type:     FavoriteColor,
+					IntValue: -1,
 				})
 				isFavoriteColorSet = true
 			} else {
