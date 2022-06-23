@@ -33,7 +33,6 @@ func (bot *LineBot) SendMessage(message string) error {
 
 // SendMessageWithError LINEにエラーを送信する。ログも残す。
 func (bot *LineBot) SendMessageWithError(message string, err error) error {
-	log.Println("sending an error to LINE: \n" + err.Error())
 	message += ":\n" + err.Error()
 	return bot.SendMessage(message)
 }
