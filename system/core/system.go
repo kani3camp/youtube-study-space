@@ -1704,7 +1704,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	
 	// スナップショットの各座席についてトランザクション処理
 	for _, seatSnapshot := range seatsSnapshot {
-		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
 			
 			// 現在も存在しているか
@@ -1714,7 +1714,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				return err
 			}
 			if !reflect.DeepEqual(seat, seatSnapshot) {
-				// その座席が存在しなかったら、すぐ前に退室したということなのでスルー
+				log.Println("その座席が存在しなかったら、すぐ前に退室したということなのでスルー")
 				return nil
 			}
 			
@@ -1739,7 +1739,8 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				if !ifNotSittingTooMuch {
 					forcedMoveSeat = true
 				}
-			} else if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
+			}
+			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
 				resumeSeat = true
 			}
 			
@@ -1815,6 +1816,9 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	if ifCheckLongTimeSitting {
 		err = s.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
