@@ -1723,6 +1723,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	
 	// スナップショットの各座席についてトランザクション処理
 	for _, seatSnapshot := range seatsSnapshot {
+		log.Println("seat " + strconv.Itoa(seatSnapshot.SeatId))
 		var forcedMove bool // 長時間入室制限による強制席移動
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
