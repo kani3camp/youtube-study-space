@@ -1704,6 +1704,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	
 	// スナップショットの各座席についてトランザクション処理
 	for _, seatSnapshot := range seatsSnapshot {
+		var forcedMove bool // 長時間入室制限による強制席移動
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
 			
@@ -1724,12 +1725,11 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				return err
 			}
 			
-			var autoExitSeat bool   // 自動退室時刻による自動退室
-			var forcedMoveSeat bool // 長時間入室制限による強制席移動
-			var resumeSeat bool     // 作業再開
+			var autoExit bool // 自動退室時刻による自動退室
+			var resume bool   // 作業再開
 			
 			if seat.Until.Before(utils.JstNow()) { // 自動退室時刻を過ぎていたら自動退室
-				autoExitSeat = true
+				autoExit = true
 			} else if ifCheckLongTimeSitting { // 長時間入室制限に引っかかっていたら強制席移動
 				ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
 				if err != nil {
@@ -1737,17 +1737,17 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 					return err
 				}
 				if !ifNotSittingTooMuch {
-					forcedMoveSeat = true
+					forcedMove = true
 				}
 			}
 			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
-				resumeSeat = true
+				resume = true
 			}
 			
 			// 以下書き込みのみ
 			
 			// 自動退室時刻による退室処理
-			if autoExitSeat {
+			if autoExit {
 				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, &userDoc)
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
@@ -1759,27 +1759,10 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				}
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
-			} else if forcedMoveSeat { // 長時間入室制限による強制席移動
+			} else if forcedMove { // 長時間入室制限による強制席移動
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため席移動します💨")
-				inCommandDetails := CommandDetails{
-					CommandType: In,
-					InOption: InOption{
-						IsSeatIdSet: true,
-						SeatId:      0,
-						MinutesAndWorkName: MinutesAndWorkNameOption{
-							IsWorkNameSet:    true,
-							IsDurationMinSet: true,
-							WorkName:         seat.WorkName,
-							DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
-						},
-					},
-				}
-				err = s.In(ctx, inCommandDetails)
-				if err != nil {
-					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の自動席移動処理中にエラーが発生しました", err)
-					return err
-				}
-			} else if resumeSeat { // 作業再開処理
+				// nested transactionとならないよう、RunTransactionの外側で実行
+			} else if resume { // 作業再開処理
 				jstNow := utils.JstNow()
 				until := seat.Until
 				breakSec := int(utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
@@ -1818,6 +1801,26 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 		})
 		if err != nil {
 			return err
+		}
+		if forcedMove {
+			inCommandDetails := CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      0,
+					MinutesAndWorkName: MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         seatSnapshot.WorkName,
+						DurationMin:      int(utils.NoNegativeDuration(seatSnapshot.Until.Sub(utils.JstNow())).Minutes()),
+					},
+				},
+			}
+			err = s.In(ctx, inCommandDetails)
+			if err != nil {
+				_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の自動席移動処理中にエラーが発生しました", err)
+				return err
+			}
 		}
 	}
 	if ifCheckLongTimeSitting {
