@@ -18,7 +18,7 @@ const Message: FC<Props> = (props) => {
                     {props.current_rooms_length}
                 </div>
                 <div css={styles.numStudyingPeople}>
-                    {numWorkers}人が作業中☔
+                    {numWorkers}人が作業中☘
                 </div>
             </div>
         )

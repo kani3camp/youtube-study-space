@@ -115,7 +115,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	if constants.DesiredMaxSeats == constants.MaxSeats {
 		return nil
 	} else if constants.DesiredMaxSeats > constants.MaxSeats { // 席を増やす
-		s.MessageToLiveChat(ctx, nil, "ルームを増やします⬆")
+		s.MessageToLiveChat(ctx, nil, "ルームを増やします↗")
 		return s.FirestoreController.SetMaxSeats(ctx, nil, constants.DesiredMaxSeats)
 	} else { // 席を減らす
 		// max_seatsを減らしても、空席率が設定値以上か確認
@@ -132,7 +132,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return s.FirestoreController.SetDesiredMaxSeats(ctx, nil, constants.MaxSeats)
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします⬇　必要な場合は席を移動してもらうことがあります。")
+			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします↘　必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
@@ -1690,100 +1690,95 @@ func (s *System) MessageToDiscordBot(message string) error {
 	return s.discordBot.SendMessage(message)
 }
 
-// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。長時間入室しているユーザーを退室させる。
+// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。長時間入室しているユーザーを席移動させる。
 func (s *System) OrganizeDatabase(ctx context.Context) error {
-	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// 長時間入室制限のチェックを行うかどうか
-		ifCheckLongTimeSitting := int(utils.NoNegativeDuration(utils.JstNow().Sub(s.Configs.Constants.LastLongTimeSittingChecked)).Minutes()) > s.
-			Configs.Constants.CheckLongTimeSittingIntervalMinutes
-		
-		seats, err := s.FirestoreController.RetrieveSeats(ctx)
-		if err != nil {
-			return err
-		}
-		
-		var userDocs []*myfirestore.UserDoc
-		for _, seat := range seats {
-			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+	// 長時間入室制限のチェックを行うかどうか
+	ifCheckLongTimeSitting := int(utils.NoNegativeDuration(utils.JstNow().Sub(s.Configs.Constants.LastLongTimeSittingChecked)).Minutes()) > s.
+		Configs.Constants.CheckLongTimeSittingIntervalMinutes
+	
+	// 一旦全座席のスナップショットをとる（トランザクションなし）
+	seatsSnapshot, err := s.FirestoreController.RetrieveSeats(ctx)
+	if err != nil {
+		return err
+	}
+	
+	// スナップショットの各座席についてトランザクション処理
+	for _, seatSnapshot := range seatsSnapshot {
+		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
+			
+			// 現在も存在しているか
+			seat, err := s.FirestoreController.RetrieveSeat(ctx, tx, seatSnapshot.SeatId)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to RetrieveSeat", err)
+				return err
+			}
+			if !reflect.DeepEqual(seat, seatSnapshot) {
+				// その座席が存在しなかったら、すぐ前に退室したということなのでスルー
+				return nil
+			}
+			
 			userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
 				return err
 			}
-			userDocs = append(userDocs, &userDoc)
-		}
-		
-		var autoExitSeatIds []int   // 自動退室時刻による自動退室
-		var forcedExitSeatIds []int // 長時間入室制限による強制退室
-		var resumeSeatIds []int     // 作業再開
-		
-		for _, seat := range seats {
-			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 			
-			// 自動退室時刻を過ぎていたら自動退室
-			if seat.Until.Before(utils.JstNow()) {
-				autoExitSeatIds = append(autoExitSeatIds, seat.SeatId)
-				continue
-			}
+			var autoExitSeat bool   // 自動退室時刻による自動退室
+			var forcedMoveSeat bool // 長時間入室制限による強制席移動
+			var resumeSeat bool     // 作業再開
 			
-			if ifCheckLongTimeSitting {
-				// 長時間入室制限に引っかかっていたら強制退室
+			if seat.Until.Before(utils.JstNow()) { // 自動退室時刻を過ぎていたら自動退室
+				autoExitSeat = true
+			} else if ifCheckLongTimeSitting { // 長時間入室制限に引っかかっていたら強制席移動
 				ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
 				if err != nil {
-					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の席移動処理中にエラーが発生しました", err)
 					return err
 				}
 				if !ifNotSittingTooMuch {
-					forcedExitSeatIds = append(forcedExitSeatIds, seat.SeatId)
-					continue
+					forcedMoveSeat = true
 				}
+			} else if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
+				resumeSeat = true
 			}
 			
-			// 自動作業再開時刻を過ぎていたら自動で作業再開する
-			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
-				resumeSeatIds = append(resumeSeatIds, seat.SeatId)
-			}
-		}
-		
-		// 以下書き込みのみ
-		for i, seat := range seats {
-			s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
+			// 以下書き込みのみ
 			
 			// 自動退室時刻による退室処理
-			if contains(autoExitSeatIds, seat.SeatId) {
-				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, userDocs[i])
+			if autoExitSeat {
+				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, &userDoc)
 				if err != nil {
 					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
 					return err
 				}
 				var rpEarned string
-				if userDocs[i].RankVisible {
+				if userDoc.RankVisible {
 					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 				}
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
-				continue
-			}
-			
-			// 長時間入室制限による強制退室
-			if contains(forcedExitSeatIds, seat.SeatId) {
-				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, userDocs[i])
+			} else if forcedMoveSeat { // 長時間入室制限による強制席移動
+				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため席移動します💨")
+				inCommandDetails := CommandDetails{
+					CommandType: In,
+					InOption: InOption{
+						IsSeatIdSet: true,
+						SeatId:      0,
+						MinutesAndWorkName: MinutesAndWorkNameOption{
+							IsWorkNameSet:    true,
+							IsDurationMinSet: true,
+							WorkName:         seat.WorkName,
+							DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+						},
+					},
+				}
+				err = s.In(ctx, inCommandDetails)
 				if err != nil {
-					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の退室処理中にエラーが発生しました", err)
+					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の自動席移動処理中にエラーが発生しました", err)
 					return err
 				}
-				var rpEarned string
-				if userDocs[i].RankVisible {
-					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
-				}
-				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため退室しました🚶🚪"+
-					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
-				continue
-			}
-			
-			// 作業再開処理
-			if contains(resumeSeatIds, seat.SeatId) {
-				// 再開処理
+			} else if resumeSeat { // 作業再開処理
 				jstNow := utils.JstNow()
 				until := seat.Until
 				breakSec := int(utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
@@ -1812,23 +1807,22 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				err = s.FirestoreController.AddUserActivityDoc(tx, endBreakActivity)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to add an user activity", err)
-					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
 					return err
 				}
-				
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 					utils.Ftoa(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes())+"分）")
 			}
+			
+			return nil
+		})
+	}
+	if ifCheckLongTimeSitting {
+		err = s.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
+		if err != nil {
+			return err
 		}
-		
-		if ifCheckLongTimeSitting {
-			err = s.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
