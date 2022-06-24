@@ -1422,6 +1422,7 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 	
 	if len(vacantSeatIdList) > 0 {
 		// 入室制限にかからない席を選ぶ
+		// TODO このfor range意味不明
 		for range vacantSeatIdList {
 			rand.Seed(utils.JstNow().UnixNano())
 			selectedSeatId := vacantSeatIdList[rand.Intn(len(vacantSeatIdList))]
