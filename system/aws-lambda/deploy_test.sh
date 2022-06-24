@@ -8,10 +8,10 @@
 # Windows (PowerShell)
 cd system; cd aws-lambda  # ディレクトリを移動
 $env:CGO_ENABLED = "0"; $env:GOOS = "linux"; $env:GOARCH = "amd64"; aws configure set region us-east-1
-go build -o main    youtube_organize_database.go
+go build -o main    transfer_collection_history_bigquery.go
 C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
 aws lambda create-function --function-name     daily_organize_database     --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 120 --profile soraride
-aws lambda update-function-code --function-name     youtube_organize_database     --zip-file fileb://main.zip --profile soraride
+aws lambda update-function-code --function-name     transfer_collection_history_bigquery     --zip-file fileb://main.zip --profile soraride
 
 
 # Mac OS
