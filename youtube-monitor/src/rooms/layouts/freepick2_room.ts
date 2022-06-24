@@ -82,9 +82,9 @@ export const Freepick2RoomLayout: RoomLayout = {
         },
         {
             id: 12,
-            x: 500,
-            y: 700,
-            rotate: 0,
+            x: 570,
+            y: 650,
+            rotate: 40,
         },
         {
             id: 13,

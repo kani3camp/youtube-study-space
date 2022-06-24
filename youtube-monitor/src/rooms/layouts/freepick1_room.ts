@@ -34,9 +34,9 @@ export const Freepick1RoomLayout: RoomLayout = {
         },
         {
             id: 4,
-            x: 240,
-            y: 340,
-            rotate: 0,
+            x: 210,
+            y: 410,
+            rotate: -30,
         },
         {
             id: 5,
