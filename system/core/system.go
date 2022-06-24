@@ -1921,7 +1921,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 func (s *System) UpdateRankProcess(ctx context.Context) error {
 	log.Println("UpdateRankProcess()")
 	jstNow := utils.JstNow()
-	// 過去31日以内に入室したことのあるユーザーをクエリ
+	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
 	iter := s.FirestoreController.RetrieveUsersActiveAfterDate(ctx, _31daysAgo)
 	
@@ -1950,31 +1950,41 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 			rankPoint := userDoc.RankPoint
 			
 			// アクティブ・非アクティブ状態の更新
-			wasUserActiveYesterday := utils.WasUserActiveFromYesterday(userDoc.LastEntered, userDoc.LastExited, jstNow)
-			if wasUserActiveYesterday {
+			wasUserActiveFromYesterday := utils.WasUserActiveFromYesterday(userDoc.LastEntered, userDoc.LastExited, jstNow)
+			if wasUserActiveFromYesterday {
 				if userDoc.IsContinuousActive {
 					// pass
-				} else {
+					if userDoc.LastPenaltyImposedDays != 0 {
+						_ = s.MessageToLineBot("userId: " + userId + " はisContinuousActiveがすでにtrueなのにlastPenaltyImposedDaysが" +
+							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
+					}
+				} else { // inactive => active
 					isContinuousActive = true
 					currentActivityStateStarted = jstNow
-					// 連続非アクティブが終わったのでlastPenaltyImposedDaysは0にリセット
-					lastPenaltyImposedDays = 0
+					lastPenaltyImposedDays = 0 // 連続非アクティブが終わったのでlastPenaltyImposedDaysは0にリセット
 				}
 			} else {
-				if userDoc.IsContinuousActive {
+				if userDoc.IsContinuousActive { // active => inactive
 					isContinuousActive = false
 					currentActivityStateStarted = jstNow.AddDate(0, 0, -1)
+					
+					if userDoc.LastPenaltyImposedDays != 0 {
+						_ = s.MessageToLineBot("userId: " + userId + " はこれまでisContinuousActive = trueだったのにlastPenaltyImposedDaysが" +
+							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
+					}
 				} else {
 					// pass
 				}
 			}
 			
-			// lastExitedが一定日数以上前のユーザーはRPペナルティ処理
-			lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, jstNow)
-			rankPoint, lastPenaltyImposedDays, err = utils.CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, lastPenaltyImposedDays)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to CalcNewRPContinuousInactivity", err)
-				return err
+			// 最終active日時が一定日数以上前のユーザーはRPペナルティ処理
+			if !wasUserActiveFromYesterday {
+				lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, jstNow)
+				rankPoint, lastPenaltyImposedDays, err = utils.CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, userDoc.LastPenaltyImposedDays)
+				if err != nil {
+					_ = s.MessageToLineBotWithError("failed to CalcNewRPContinuousInactivity", err)
+					return err
+				}
 			}
 			
 			// 変更項目がある場合のみ変更
@@ -1985,7 +1995,7 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 					return err
 				}
 			}
-			if isContinuousActive != userDoc.IsContinuousActive || currentActivityStateStarted != userDoc.CurrentActivityStateStarted {
+			if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
 				err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, isContinuousActive, currentActivityStateStarted)
 				if err != nil {
 					_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
@@ -2279,6 +2289,8 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 		}
 	}
 	
+	log.Println("過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
+		"分入室")
 	// 制限値と比較し、結果を返す
 	return int(totalEntryDuration.Minutes()) < s.Configs.Constants.RecentThresholdMin, nil
 }

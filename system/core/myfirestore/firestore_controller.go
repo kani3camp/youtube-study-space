@@ -406,8 +406,9 @@ func (c *FirestoreController) RetrieveAllUserActivityDocIdsAfterDateForUserAndSe
 		firestore.Asc).Documents(ctx)
 }
 
+// RetrieveUsersActiveAfterDate date以後に入室したことのあるuserを全て取得
 func (c *FirestoreController) RetrieveUsersActiveAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
-	return c.usersCollection().Where(LastExitedDocProperty, ">=", date).Documents(ctx)
+	return c.usersCollection().Where(LastEnteredDocProperty, ">=", date).Documents(ctx)
 }
 
 func (c *FirestoreController) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(

@@ -153,15 +153,15 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func Test(ctx context.Context, clientOption option.ClientOption) {
-	_system, err := core.NewSystem(ctx, clientOption)
+	s, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	defer _system.CloseFirestoreClient()
+	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = _system.DailyOrganizeDatabase(ctx)
+	err = s.DailyOrganizeDatabase(ctx)
 	if err != nil {
 		panic(err)
 	}
