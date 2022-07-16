@@ -21,7 +21,8 @@
     "moduleResolution": "node",
     "types": [
       "@emotion/react/types/css-prop"
-    ]
+    ],
+    "incremental": true
   },
   "include": [
     "./**/*"
