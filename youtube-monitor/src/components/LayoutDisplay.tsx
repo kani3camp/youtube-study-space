@@ -1,7 +1,6 @@
 import { css, keyframes } from '@emotion/react'
 import chroma from 'chroma-js'
-import Image from 'next/image'
-import React, { FC } from 'react'
+import { FC } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
 import { Seat } from '../types/api'
@@ -121,11 +120,11 @@ const LayoutDisplay: FC<Props> = (props) => {
             if (isUsed) {
                 const canvas: HTMLCanvasElement =
                     document.createElement('canvas')
-                const context = canvas.getContext('2d')
-                context!.font = `${workNameFontSizePx.toString()}px ${
+                const context = canvas.getContext('2d')!
+                context.font = `${workNameFontSizePx.toString()}px ${
                     Constants.fontFamily
                 }`
-                const metrics = context!.measureText(
+                const metrics = context.measureText(
                     isBreak ? breakWorkName : workName
                 )
                 const actualSeatWidth =
@@ -253,7 +252,7 @@ const LayoutDisplay: FC<Props> = (props) => {
         return (
             <div css={styles.roomLayout}>
                 {roomLayout.floor_image && (
-                    <Image
+                    <img
                         src={roomLayout.floor_image}
                         width={roomShape.widthPx}
                         height={roomShape.heightPx}
