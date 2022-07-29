@@ -61,13 +61,13 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 	
-	constants := SystemConfigs{
+	configs := SystemConfigs{
 		Constants:            constantsConfig,
 		LiveChatBotChannelId: credentialsDoc.YoutubeBotChannelId,
 	}
 	
 	// 全ての項目が初期化できているか確認
-	v := reflect.ValueOf(constants)
+	v := reflect.ValueOf(configs.Constants)
 	for i := 0; i < v.NumField(); i++ {
 		if v.Field(i).IsZero() {
 			panic("The field " + v.Type().Field(i).Name + " has not initialized. " +
@@ -76,7 +76,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	}
 	
 	return System{
-		Configs:             &constants,
+		Configs:             &configs,
 		FirestoreController: fsController,
 		liveChatBot:         liveChatBot,
 		lineBot:             lineBot,
@@ -1709,23 +1709,47 @@ func (s *System) MessageToDiscordBot(message string) error {
 	return s.discordBot.SendMessage(message)
 }
 
-// OrganizeDatabase untilを過ぎているルーム内のユーザーを退室させる。長時間入室しているユーザーを席移動させる。
+// OrganizeDatabase 1分ごとに処理を行う。
+// - untilを過ぎているルーム内のユーザーを退室させる。
+// - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
 func (s *System) OrganizeDatabase(ctx context.Context) error {
-	// 長時間入室制限のチェックを行うかどうか
-	ifCheckLongTimeSitting := int(utils.NoNegativeDuration(utils.JstNow().Sub(s.Configs.Constants.LastLongTimeSittingChecked)).Minutes()) > s.
-		Configs.Constants.CheckLongTimeSittingIntervalMinutes
+	var seatsSnapshot []myfirestore.SeatDoc
+	var err error
 	
-	// 一旦全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err := s.FirestoreController.RetrieveSeats(ctx)
+	// 自動退室
+	log.Println("自動退室")
+	// 全座席のスナップショットをとる（トランザクションなし）
+	seatsSnapshot, err = s.FirestoreController.RetrieveSeats(ctx)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to RetrieveSeats", err)
 		return err
 	}
+	err = s.OrganizeDBAutoExit(ctx, seatsSnapshot)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to OrganizeDBAutoExit", err)
+		return err
+	}
 	
-	// スナップショットの各座席についてトランザクション処理
+	// 作業再開
+	log.Println("作業再開")
+	// 全座席のスナップショットをとる（トランザクションなし）
+	seatsSnapshot, err = s.FirestoreController.RetrieveSeats(ctx)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to RetrieveSeats", err)
+		return err
+	}
+	err = s.OrganizeDBResume(ctx, seatsSnapshot)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to OrganizeDBResume", err)
+		return err
+	}
+	
+	return nil
+}
+
+func (s *System) OrganizeDBAutoExit(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc) error {
+	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
 	for _, seatSnapshot := range seatsSnapshot {
-		log.Println("seat " + strconv.Itoa(seatSnapshot.SeatId))
-		var forcedMove bool // 長時間入室制限による強制席移動
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
 			
@@ -1750,24 +1774,7 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				return err
 			}
 			
-			var autoExit bool // 自動退室時刻による自動退室
-			var resume bool   // 作業再開
-			
-			if seat.Until.Before(utils.JstNow()) { // 自動退室時刻を過ぎていたら自動退室
-				autoExit = true
-			} else if ifCheckLongTimeSitting { // 長時間入室制限に引っかかっていたら強制席移動
-				ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
-				if err != nil {
-					_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の席移動処理中にエラーが発生しました", err)
-					return err
-				}
-				if !ifNotSittingTooMuch {
-					forcedMove = true
-				}
-			}
-			if seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow()) {
-				resume = true
-			}
+			autoExit := seat.Until.Before(utils.JstNow()) // 自動退室時刻を過ぎていたら自動退室
 			
 			// 以下書き込みのみ
 			
@@ -1784,10 +1791,43 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				}
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが退室しました🚶🚪"+
 					"（+ "+strconv.Itoa(workedTimeSec/60)+"分、"+strconv.Itoa(seat.SeatId)+"番席）"+rpEarned)
-			} else if forcedMove { // 長時間入室制限による強制席移動
-				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seat.SeatId)+"番席の入室時間の一時上限に達したため席移動します💨")
-				// nested transactionとならないよう、RunTransactionの外側で実行
-			} else if resume { // 作業再開処理
+			}
+			
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *System) OrganizeDBResume(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc) error {
+	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
+	for _, seatSnapshot := range seatsSnapshot {
+		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
+			
+			// 現在も存在しているか
+			seat, err := s.FirestoreController.RetrieveSeat(ctx, tx, seatSnapshot.SeatId)
+			if err != nil {
+				if status.Code(err) == codes.NotFound {
+					log.Println("すぐ前に退室したということなのでスルー")
+					return nil
+				}
+				_ = s.MessageToLineBotWithError("failed to RetrieveSeat", err)
+				return err
+			}
+			if !reflect.DeepEqual(seat, seatSnapshot) {
+				log.Println("その座席に少しでも変更が加えられているのでスルー")
+				return nil
+			}
+			
+			resume := seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow())
+			
+			// 以下書き込みのみ
+			
+			if resume { // 作業再開処理
 				jstNow := utils.JstNow()
 				until := seat.Until
 				breakSec := int(utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
@@ -1821,6 +1861,67 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+"さんが作業を再開します（自動退室まで"+
 					utils.Ftoa(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes())+"分）")
 			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
+func (s *System) CheckLongTimeSitting(ctx context.Context) error {
+	// 全座席のスナップショットをとる（トランザクションなし）
+	seatsSnapshot, err := s.FirestoreController.RetrieveSeats(ctx)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to RetrieveSeats", err)
+		return err
+	}
+	err = s.OrganizeDBForceMove(ctx, seatsSnapshot)
+	if err != nil {
+		_ = s.MessageToLineBotWithError("failed to OrganizeDBForceMove", err)
+		return err
+	}
+	return nil
+}
+
+func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc) error {
+	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
+	for _, seatSnapshot := range seatsSnapshot {
+		var forcedMove bool // 長時間入室制限による強制席移動
+		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
+			
+			// 現在も存在しているか
+			seat, err := s.FirestoreController.RetrieveSeat(ctx, tx, seatSnapshot.SeatId)
+			if err != nil {
+				if status.Code(err) == codes.NotFound {
+					log.Println("すぐ前に退室したということなのでスルー")
+					return nil
+				}
+				_ = s.MessageToLineBotWithError("failed to RetrieveSeat", err)
+				return err
+			}
+			if !reflect.DeepEqual(seat, seatSnapshot) {
+				log.Println("その座席に少しでも変更が加えられているのでスルー")
+				return nil
+			}
+			
+			ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
+			if err != nil {
+				_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の席移動処理中にエラーが発生しました", err)
+				return err
+			}
+			if !ifNotSittingTooMuch {
+				forcedMove = true
+			}
+			
+			// 以下書き込みのみ
+			
+			if forcedMove { // 長時間入室制限による強制席移動
+				// nested transactionとならないよう、RunTransactionの外側で実行
+			}
 			
 			return nil
 		})
@@ -1828,6 +1929,8 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 			return err
 		}
 		if forcedMove {
+			s.MessageToLiveChat(ctx, nil, s.ProcessedUserDisplayName+"さんが"+strconv.Itoa(seatSnapshot.SeatId)+"番席の入室時間の一時上限に達したため席移動します💨")
+			
 			inCommandDetails := CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -1846,12 +1949,6 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 				_ = s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の自動席移動処理中にエラーが発生しました", err)
 				return err
 			}
-		}
-	}
-	if ifCheckLongTimeSitting {
-		err = s.FirestoreController.SetLastLongTimeSittingChecked(ctx, utils.JstNow())
-		if err != nil {
-			return err
 		}
 	}
 	return nil
@@ -2290,7 +2387,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 		}
 	}
 	
-	log.Println("過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
+	log.Println("[userId: " + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
 		"分入室")
 	// 制限値と比較し、結果を返す
 	return int(totalEntryDuration.Minutes()) < s.Configs.Constants.RecentThresholdMin, nil

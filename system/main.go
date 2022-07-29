@@ -58,6 +58,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
 	
+	// 居座り防止処理を並行実行
+	go _system.GoroutineCheckLongTimeSitting(ctx)
+	
 	checkDesiredMaxSeatsIntervalSec := _system.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 	
 	lastCheckedDesiredMaxSeats := utils.JstNow()
@@ -161,7 +164,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = s.DailyOrganizeDatabase(ctx)
+	err = s.OrganizeDatabase(ctx)
 	if err != nil {
 		panic(err)
 	}

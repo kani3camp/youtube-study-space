@@ -49,7 +49,7 @@ type ConstantsConfigDoc struct {
 	RecentThresholdMin int `firestore:"recent-threshold-min"` // 何分間以上該当座席に座っていたらアウト
 	
 	// 長時間入室制限関連
-	CheckLongTimeSittingIntervalMinutes int `firestore:"check-long-time-sitting-interval-minutes" json:"check_long_time_sitting_interval_minutes"` // 何分おきにチェックを行うか
+	MinimumCheckLongTimeSittingIntervalMinutes int `firestore:"minimum-check-long-time-sitting-interval-minutes" json:"minimum_check_long_time_sitting_interval_minutes"` // 最低何分おきにチェックを行うか
 }
 
 type CredentialsConfigDoc struct {
