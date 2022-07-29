@@ -3,6 +3,7 @@ package direct_operations
 import (
 	"app.modules/core"
 	"app.modules/core/utils"
+	"cloud.google.com/go/firestore"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"log"
 	"os"
 )
-
 
 func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
@@ -26,13 +26,13 @@ func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 		return
 	}
 	
-	_system.SendLiveChatMessage("全ユーザーを退室させます。", ctx)
+	_system.MessageToLiveChat(ctx, nil, "全ユーザーを退室させます。")
 	err = _system.ExitAllUserInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
 	}
-	_system.SendLiveChatMessage("全ユーザーを退室させました。", ctx)
+	_system.MessageToLiveChat(ctx, nil, "全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
@@ -44,8 +44,7 @@ func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx conte
 	
 	_system.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
-		CommandType:   core.Out,
-		InOptions: core.InOptions{},
+		CommandType: core.Out,
 	}
 	
 	err = _system.Out(outCommandDetails, ctx)
@@ -62,11 +61,15 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 		return
 	}
 	
-	allUsersTotalStudySecList, err := _system.RetrieveAllUsersTotalStudySecList(ctx)
-	if err != nil {
-		panic(err)
-		return
-	}
+	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
+	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		var err error
+		allUsersTotalStudySecList, err = _system.RetrieveAllUsersTotalStudySecList(ctx)
+		if err != nil {
+			panic(err)
+		}
+		return nil
+	})
 	
 	now := utils.JstNow()
 	dateString := now.Format("2006-01-02_15-04-05")
@@ -75,7 +78,7 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 		panic(err)
 		return
 	}
-	defer func() {_ = f.Close()}()
+	defer func() { _ = f.Close() }()
 	
 	jsonEnc := json.NewEncoder(f)
 	//jsonEnc.SetIndent("", "\t")

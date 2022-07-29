@@ -4,35 +4,41 @@ import (
 	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
+	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 )
 
 type System struct {
-	FirestoreController             *myfirestore.FirestoreController
-	LiveChatBot                     *youtubebot.YoutubeLiveChatBot
-	LineBot                         *mylinebot.LineBot
-	DiscordBot                      *discordbot.DiscordBot
-	LiveChatBotChannelId            string
-	MinWorkTimeMin                  int
-	MaxWorkTimeMin                  int
-	DefaultWorkTimeMin              int
+	Configs             *SystemConfigs
+	FirestoreController *myfirestore.FirestoreController
+	liveChatBot         *youtubebot.YoutubeLiveChatBot
+	lineBot             *mylinebot.LineBot
+	discordBot          *discordbot.DiscordBot
+	
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserIsModeratorOrOwner bool
-	DefaultSleepIntervalMilli       int
-	CheckDesiredMaxSeatsIntervalSec int
+}
+
+// SystemConfigs System生成時に初期化すべきフィールド値
+type SystemConfigs struct {
+	Constants myfirestore.ConstantsConfigDoc
+	
+	LiveChatBotChannelId string
 }
 
 type CommandDetails struct {
-	CommandType   CommandType
-	InOptions     InOptions
-	InfoOption    InfoOption
-	MyOptions     []MyOption
-	ChangeOptions []ChangeOption
-	ReportMessage string
-	KickSeatId    int
-	CheckSeatId   int
-	MoreMinutes   int
+	CommandType  CommandType
+	InOption     InOption
+	InfoOption   InfoOption
+	MyOptions    []MyOption
+	KickOption   KickOption
+	CheckOption  CheckOption
+	ReportOption ReportOption
+	ChangeOption MinutesAndWorkNameOption
+	MoreOption   MoreOption
+	BreakOption  MinutesAndWorkNameOption
+	ResumeOption WorkNameOption
 }
 
 type CommandType uint
@@ -40,8 +46,7 @@ type CommandType uint
 const (
 	NotCommand CommandType = iota
 	InvalidCommand
-	In     // !in
-	SeatIn // !席番号
+	In     // !in もしくは !席番号
 	Out    // !out
 	Info   // !info
 	My     // !my
@@ -52,6 +57,8 @@ const (
 	Check  // !check
 	More   // !more
 	Rank   // !rank
+	Break  // !break
+	Resume // !resume
 )
 
 type InfoOption struct {
@@ -63,19 +70,13 @@ type MyOptionType uint
 const (
 	RankVisible MyOptionType = iota
 	DefaultStudyMin
+	FavoriteColor
 )
 
-type ChangeOptionType uint
-
-const (
-	WorkName ChangeOptionType = iota
-	WorkTime
-)
-
-type InOptions struct {
-	SeatId   int
-	WorkName string
-	WorkMin  int
+type InOption struct {
+	IsSeatIdSet        bool
+	SeatId             int
+	MinutesAndWorkName MinutesAndWorkNameOption
 }
 
 type MyOption struct {
@@ -85,10 +86,36 @@ type MyOption struct {
 	StringValue string
 }
 
-type ChangeOption struct {
-	Type        ChangeOptionType
-	StringValue string
-	IntValue    int
+type KickOption struct {
+	SeatId int
+}
+
+type CheckOption struct {
+	SeatId int
+}
+
+type ReportOption struct {
+	Message string
+}
+
+type MoreOption struct {
+	DurationMin int
+}
+
+type WorkNameOption struct {
+	IsWorkNameSet bool
+	WorkName      string
+}
+
+type MinutesAndWorkNameOption struct {
+	IsWorkNameSet    bool
+	IsDurationMinSet bool
+	WorkName         string
+	DurationMin      int
+}
+
+func (o *MinutesAndWorkNameOption) NumOptionsSet() int {
+	return utils.NumTrue(o.IsWorkNameSet, o.IsDurationMinSet)
 }
 
 type UserIdTotalStudySecSet struct {

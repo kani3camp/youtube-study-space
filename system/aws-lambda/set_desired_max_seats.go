@@ -3,6 +3,7 @@ package main
 import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
+	"cloud.google.com/go/firestore"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
@@ -35,7 +36,14 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, e
 	if request.DesiredMaxSeats <= 0 {
 		return SetMaxSeatsResponseStruct{}, errors.New("invalid parameter")
 	}
-	err = _system.FirestoreController.SetDesiredMaxSeats(request.DesiredMaxSeats, ctx)
+	
+	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		err := _system.FirestoreController.SetDesiredMaxSeats(ctx, tx, request.DesiredMaxSeats)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return SetMaxSeatsResponseStruct{}, err
 	}
