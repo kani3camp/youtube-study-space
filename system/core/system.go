@@ -1963,17 +1963,17 @@ func (s *System) DailyOrganizeDatabase(ctx context.Context) error {
 	log.Println("DailyOrganizeDatabase()")
 	// 時間がかかる処理なのでトランザクションはなし
 	
-	// 一時的累計作業時間をリセット
+	log.Println("一時的累計作業時間をリセット")
 	err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to ResetDailyTotalStudyTime", err)
 		return err
 	}
 	
-	// RP関連の情報更新・ペナルティ処理
-	err = s.UpdateRankProcess(ctx)
+	log.Println("RP関連の情報更新・ペナルティ処理")
+	err = s.UpdateAllUsersRankProcess(ctx)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to UpdateRankProcess", err)
+		_ = s.MessageToLineBotWithError("failed to UpdateAllUsersRankProcess", err)
 		return err
 	}
 	
@@ -2016,8 +2016,8 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	return nil
 }
 
-func (s *System) UpdateRankProcess(ctx context.Context) error {
-	log.Println("UpdateRankProcess()")
+func (s *System) UpdateAllUsersRankProcess(ctx context.Context) error {
+	log.Println("UpdateAllUsersRankProcess()")
 	jstNow := utils.JstNow()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
@@ -2034,11 +2034,17 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 		}
 		count++
 		userId := doc.Ref.ID
+		log.Println("[userId: " + userId + "] rank processing.")
 		err = s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userId)
 			if err != nil {
 				_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
 				return err
+			}
+			
+			// チェック
+			if userDoc.CurrentActivityStateStarted.Before(userDoc.LastEntered) {
+				return errors.New("CurrentActivityStateStarted < LastEntered はおかしい。")
 			}
 			
 			// 変更する可能性のある項目
@@ -2053,7 +2059,7 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 				if userDoc.IsContinuousActive {
 					// pass
 					if userDoc.LastPenaltyImposedDays != 0 {
-						_ = s.MessageToLineBot("userId: " + userId + " はisContinuousActiveがすでにtrueなのにlastPenaltyImposedDaysが" +
+						return errors.New("userId: " + userId + " はisContinuousActiveがすでにtrueなのにlastPenaltyImposedDaysが" +
 							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
 					}
 				} else { // inactive => active
@@ -2067,7 +2073,7 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 					currentActivityStateStarted = jstNow.AddDate(0, 0, -1)
 					
 					if userDoc.LastPenaltyImposedDays != 0 {
-						_ = s.MessageToLineBot("userId: " + userId + " はこれまでisContinuousActive = trueだったのにlastPenaltyImposedDaysが" +
+						return errors.New("userId: " + userId + " はこれまでisContinuousActive = trueだったのにlastPenaltyImposedDaysが" +
 							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
 					}
 				} else {
@@ -2111,11 +2117,12 @@ func (s *System) UpdateRankProcess(ctx context.Context) error {
 			return nil
 		})
 		if err != nil {
-			return err
+			_ = s.MessageToLineBotWithError("failed in rank processing: ", err)
+			continue
 		}
 	}
 	_ = s.MessageToLineBot("過去31日以内に入室した人数: " + strconv.Itoa(count))
-	log.Println("finished UpdateRankProcess()")
+	log.Println("finished UpdateAllUsersRankProcess()")
 	return nil
 }
 
