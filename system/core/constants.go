@@ -1,6 +1,14 @@
 package core
 
+import (
+	"github.com/joho/godotenv"
+	"log"
+)
+
 const (
+	EnterAction = "enter"
+	ExitAction  = "exit"
+	
 	CommandPrefix      = "!"
 	WrongCommandPrefix = "！"
 	
@@ -14,10 +22,6 @@ const (
 	MoreCommand    = "!more"
 	OkawariCommand = "!okawari"
 	RankCommand    = "!rank"
-	BreakCommand   = "!break"
-	RestCommand    = "!rest"
-	ChillCommand   = "!chill"
-	ResumeCommand  = "!resume"
 	
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
@@ -29,10 +33,10 @@ const (
 	WorkNameOptionPrefixLegacy      = "work-"
 	WorkNameOptionShortPrefixLegacy = "w-"
 	
-	TimeOptionPrefix            = "min="
-	TimeOptionShortPrefix       = "m="
-	TimeOptionPrefixLegacy      = "min-"
-	TimeOptionShortPrefixLegacy = "m-"
+	WorkTimeOptionPrefix            = "min="
+	WorkTimeOptionShortPrefix       = "m="
+	WorkTimeOptionPrefixLegacy      = "min-"
+	WorkTimeOptionShortPrefixLegacy = "m-"
 	
 	InfoDetailsOption = "d"
 	
@@ -40,10 +44,21 @@ const (
 	RankVisibleMyOptionOn     = "on"
 	RankVisibleMyOptionOff    = "off"
 	
-	FavoriteColorMyOptionPrefix = "color="
+	DefaultMinMyOptionPrefix     = "min="
+	DefaultMinMyOptionShorPrefix = "m="
 	
-	FullWidthSpace     = "　"
-	HalfWidthSpace     = " "
-	FullWidthEqualSign = "＝"
-	HalfWidthEqualSign = "="
+	FullWidthSpace = "　"
+	HalfWidthSpace = " "
 )
+
+func LoadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println(err)
+		err = godotenv.Load("../.env")
+		if err != nil {
+			log.Println(err.Error())
+			log.Fatal("Error loading .env file")
+		}
+	}
+}

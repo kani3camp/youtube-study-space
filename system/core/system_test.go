@@ -1,7 +1,6 @@
 package core
 
 import (
-	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"github.com/kr/pretty"
@@ -16,7 +15,7 @@ import (
 )
 
 func InitTest() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv()
+	LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
@@ -52,42 +51,96 @@ func NewTestSystem() (System, error) {
 }
 
 func TestSystem_ParseCommand(t *testing.T) {
+	s, err := NewTestSystem()
+	if err != nil {
+		t.Error("failed NewSystem()", err)
+		return
+	}
+	
 	type TestCase struct {
-		Input  string
-		Output CommandDetails
+		Input string
+		ExpectedOutput CommandDetails
 	}
 	testCases := [...]TestCase{
 		{
-			Input: "out",
-			Output: CommandDetails{
+			Input:          "in",
+			ExpectedOutput: CommandDetails{
 				CommandType: NotCommand,
-				InOption:    InOption{},
+				InOptions:   InOptions{},
+			},
+		},
+		{
+			Input: "!in",
+			ExpectedOutput: CommandDetails{
+				CommandType: In,
+				InOptions: InOptions{
+					WorkName: "",
+					WorkMin:  s.DefaultWorkTimeMin,
+				},
+			},
+		},
+		{
+			Input: "!in work-てすと min-50",
+			ExpectedOutput: CommandDetails{
+				CommandType: In,
+				InOptions:     InOptions{
+					WorkName: "てすと",
+					WorkMin: 50,
+				},
+			},
+		},
+		{
+			Input: "!in min-60 work-わーく",
+			ExpectedOutput: CommandDetails{
+				CommandType: In,
+				InOptions:     InOptions{
+					WorkName: "わーく",
+					WorkMin: 60,
+				},
+			},
+		},
+		{
+			Input: "!in min-60 work-w",
+			ExpectedOutput: CommandDetails{
+				CommandType: In,
+				InOptions:     InOptions{
+					WorkName: "w",
+					WorkMin: 60,
+				},
+			},
+		},
+		// TODO: w-やm-のテスト追加
+		{
+			Input: "out",
+			ExpectedOutput: CommandDetails{
+				CommandType: NotCommand,
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!out",
-			Output: CommandDetails{
+			ExpectedOutput: CommandDetails{
 				CommandType: Out,
-				InOption:    InOption{},
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!info",
-			Output: CommandDetails{
+			ExpectedOutput: CommandDetails{
 				CommandType: Info,
-				InOption:    InOption{},
+				InOptions:   InOptions{},
 			},
 		},
 		{
 			Input: "!my",
-			Output: CommandDetails{
+			ExpectedOutput: CommandDetails{
 				CommandType: My,
-				MyOptions:   nil,
+				MyOptions: nil,
 			},
 		},
 		{
 			Input: "!my rank=on",
-			Output: CommandDetails{
+			ExpectedOutput: CommandDetails{
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
@@ -99,7 +152,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 		},
 		{
 			Input: "!my rank=off",
-			Output: CommandDetails{
+			ExpectedOutput: CommandDetails{
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
@@ -112,16 +165,16 @@ func TestSystem_ParseCommand(t *testing.T) {
 	}
 	
 	for _, testCase := range testCases {
-		commandDetails, err := ParseCommand(testCase.Input)
+		commandDetails, err := s.ParseCommand(testCase.Input)
 		if err.IsNotNil() {
 			t.Error(err)
 		}
-		if !reflect.DeepEqual(commandDetails, testCase.Output) {
+		if !reflect.DeepEqual(commandDetails, testCase.ExpectedOutput) {
 			fmt.Printf("result:\n%# v\n", pretty.Formatter(commandDetails))
-			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.Output))
+			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.ExpectedOutput))
 			t.Error("command details do not match.")
 		}
-		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.Output))
+		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.ExpectedOutput))
 	}
 }
 
@@ -147,3 +200,6 @@ func TestSystem_SetProcessedUser(t *testing.T) {
 	assert.Equal(t, s.ProcessedUserDisplayName, userDisplayName)
 	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, isChatModerator || isChatOwner)
 }
+
+
+

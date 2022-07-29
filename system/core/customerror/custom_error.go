@@ -15,11 +15,20 @@ const (
 	InvalidRoomLayout
 	YoutubeLiveChatBotFailed
 	SeatNotFound
-	NoSeatAvailable
 	
 	InvalidCommand
-	ParseFailed
-	InvalidParsedCommand
+	
+	InProcessFailed
+	OutProcessFailed
+	InfoProcessFailed
+	MyProcessFailed
+	ChangeProcessFailed
+	SeatProcessFailed
+	ReportProcessFailed
+	KickProcessFailed
+	CheckProcessFailed
+	AddProcessFailed
+	RankProcessFailed
 )
 
 type CustomError struct {

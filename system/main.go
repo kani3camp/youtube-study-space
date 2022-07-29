@@ -9,14 +9,13 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"time"
 )
 
 func Init() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv()
+	core.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
@@ -43,44 +42,40 @@ func Init() (option.ClientOption, context.Context, error) {
 }
 
 // LocalMain ローカル運用
-func LocalMain(ctx context.Context, clientOption option.ClientOption) {
+func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed core.NewSystem()", err)
+		_ = _system.LineBot.SendMessageWithError("failed core.NewSystem()", err)
 		return
 	}
 	
-	_ = _system.MessageToLineBot("Botが起動しました")
+	_ = _system.LineBot.SendMessage("Botが起動しました")
 	defer func() {
-		_system.CloseFirestoreClient()
-		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します")
-		_ = _system.MessageToLineBot("app stopped!!")
+		_system.SendLiveChatMessage("エラーが起きたため終了します", ctx)
+		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	
-	checkDesiredMaxSeatsIntervalSec := _system.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
+	sleepIntervalMilli := _system.DefaultSleepIntervalMilli
+	checkDesiredMaxSeatsIntervalSec := _system.CheckDesiredMaxSeatsIntervalSec
 	
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 	
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
-	var lastChatFetched time.Time
-	var waitAtLeastMilliSec1 float64
-	var waitAtLeastMilliSec2 float64
-	var sleepInterval time.Duration
 	
 	for {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			log.Println("checking desired max seats")
-			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
+			constants, err := _system.FirestoreController.RetrieveSystemConstantsConfig(ctx)
 			if err != nil {
-				_ = _system.MessageToLineBotWithError("_system.firestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
+				_ = _system.LineBot.SendMessageWithError("_system.FirestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
 			} else {
 				if constants.DesiredMaxSeats != constants.MaxSeats {
 					err := _system.AdjustMaxSeats(ctx)
 					if err != nil {
-						_ = _system.MessageToLineBotWithError("failed _system.AdjustMaxSeats()", err)
+						_ = _system.LineBot.SendMessageWithError("failed _system.AdjustMaxSeats()", err)
 					}
 				}
 			}
@@ -88,9 +83,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		}
 		
 		// page token取得
-		pageToken, err := _system.RetrieveNextPageToken(ctx, nil)
+		pageToken, err := _system.RetrieveNextPageToken(ctx)
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
+			_ = _system.LineBot.SendMessageWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
 			if numContinuousRetrieveNextPageTokenFailed > 5 {
 				break
@@ -102,9 +97,9 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		}
 		
 		// チャット取得
-		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.ListLiveChatMessages(ctx, pageToken)
+		chatMessages, nextPageToken, pollingIntervalMillis, err := _system.LiveChatBot.ListMessages(pageToken, ctx)
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
+			_ = _system.LineBot.SendMessageWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
 				"回目） failed to retrieve chat messages", err)
 			numContinuousListMessagesFailed += 1
 			if numContinuousListMessagesFailed > 5 {
@@ -115,56 +110,45 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
-		lastChatFetched = utils.JstNow()
 		
 		// nextPageTokenを保存
-		err = _system.SaveNextPageToken(ctx, nextPageToken)
+		err = _system.SaveNextPageToken(nextPageToken, ctx)
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("failed to save next page token", err)
+			_ = _system.LineBot.SendMessageWithError("failed to save next page token", err)
 			return
-		}
-		
-		// chatMessagesを保存
-		for _, chatMessage := range chatMessages {
-			err = _system.AddLiveChatHistoryDoc(ctx, chatMessage)
-			if err != nil {
-				_ = _system.MessageToLineBotWithError("failed to add live chat history", err)
-				return
-			}
 		}
 		
 		// コマンドを抜き出して各々処理
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := _system.Command(ctx, message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner)
-			if err != nil {
-				_ = _system.MessageToLineBotWithError("error in core.Command()", err)
+			err := _system.Command(message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner, ctx)
+			if err.IsNotNil() {
+				_ = _system.LineBot.SendMessageWithError("error in core.Command()", err.Body)
 			}
 		}
 		
-		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
-			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(_system.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
-		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
-		time.Sleep(sleepInterval)
+		if pollingIntervalMillis > _system.DefaultSleepIntervalMilli {
+			sleepIntervalMilli = pollingIntervalMillis + 1000
+		} else {
+			sleepIntervalMilli = _system.DefaultSleepIntervalMilli
+		}
+		fmt.Println()
+		log.Printf("waiting for %.1f seconds...\n", float32(sleepIntervalMilli)/1000.0)
+		time.Sleep(time.Duration(sleepIntervalMilli) * time.Millisecond)
 	}
 }
 
-func Test(ctx context.Context, clientOption option.ClientOption) {
-	s, err := core.NewSystem(ctx, clientOption)
+func Test(clientOption option.ClientOption, ctx context.Context) {
+	_system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	defer s.CloseFirestoreClient()
-	// === ここまでおまじない ===
+	defer _system.CloseFirestoreClient()
 	
-	err = s.DailyOrganizeDatabase(ctx)
-	if err != nil {
-		panic(err)
-	}
+	message := ""
+	_system.SendLiveChatMessage(message, ctx)
 }
 
 func main() {
@@ -175,10 +159,10 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	LocalMain(clientOption, ctx)
+	//Test(clientOption, ctx)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
-	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
+	//direct_operations.ExitSpecificUser("UCN61FE7NtU0URA_u9vWWdjw", clientOption, ctx)
 }

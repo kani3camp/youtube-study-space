@@ -15,7 +15,7 @@ type CheckLiveStreamResponseStruct struct {
 
 func CheckLiveStream() (CheckLiveStreamResponseStruct, error) {
 	log.Println("CheckLiveStream()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
@@ -26,13 +26,13 @@ func CheckLiveStream() (CheckLiveStreamResponseStruct, error) {
 		return CheckLiveStreamResponseStruct{}, err
 	}
 	defer _system.CloseFirestoreClient()
-	
+
 	err = _system.CheckLiveStreamStatus(ctx)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to check live stream", err)
+		_ = _system.LineBot.SendMessageWithError("failed to check live stream", err)
 		return CheckLiveStreamResponseStruct{}, err
 	}
-	
+
 	return CheckLiveStreamResponse(), nil
 }
 
