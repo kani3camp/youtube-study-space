@@ -132,7 +132,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return s.FirestoreController.SetDesiredMaxSeats(ctx, nil, constants.MaxSeats)
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします↘　必要な場合は席を移動してもらうことがあります。")
+			s.MessageToLiveChat(ctx, nil, "人数が減ったためルームを減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
@@ -1971,9 +1971,9 @@ func (s *System) DailyOrganizeDatabase(ctx context.Context) error {
 	}
 	
 	log.Println("RP関連の情報更新・ペナルティ処理")
-	err = s.UpdateAllUsersRankProcess(ctx)
+	err = s.UpdateAllUsersRankPoint(ctx)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to UpdateAllUsersRankProcess", err)
+		_ = s.MessageToLineBotWithError("failed to UpdateAllUsersRankPoint", err)
 		return err
 	}
 	
@@ -2016,8 +2016,8 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	return nil
 }
 
-func (s *System) UpdateAllUsersRankProcess(ctx context.Context) error {
-	log.Println("UpdateAllUsersRankProcess()")
+func (s *System) UpdateAllUsersRankPoint(ctx context.Context) error {
+	log.Println("UpdateAllUsersRankPoint()")
 	jstNow := utils.JstNow()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
@@ -2034,96 +2034,64 @@ func (s *System) UpdateAllUsersRankProcess(ctx context.Context) error {
 		}
 		count++
 		userId := doc.Ref.ID
-		log.Println("[userId: " + userId + "] rank processing.")
-		err = s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userId)
-			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
-				return err
-			}
-			
-			// チェック
-			if userDoc.CurrentActivityStateStarted.Before(userDoc.LastEntered) {
-				return errors.New("CurrentActivityStateStarted < LastEntered はおかしい。")
-			}
-			
-			// 変更する可能性のある項目
-			lastPenaltyImposedDays := userDoc.LastPenaltyImposedDays
-			isContinuousActive := userDoc.IsContinuousActive
-			currentActivityStateStarted := userDoc.CurrentActivityStateStarted
-			rankPoint := userDoc.RankPoint
-			
-			// アクティブ・非アクティブ状態の更新
-			wasUserActiveFromYesterday := utils.WasUserActiveFromYesterday(userDoc.LastEntered, userDoc.LastExited, jstNow)
-			if wasUserActiveFromYesterday {
-				if userDoc.IsContinuousActive {
-					// pass
-					if userDoc.LastPenaltyImposedDays != 0 {
-						return errors.New("userId: " + userId + " はisContinuousActiveがすでにtrueなのにlastPenaltyImposedDaysが" +
-							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
-					}
-				} else { // inactive => active
-					isContinuousActive = true
-					currentActivityStateStarted = jstNow
-					lastPenaltyImposedDays = 0 // 連続非アクティブが終わったのでlastPenaltyImposedDaysは0にリセット
-				}
-			} else {
-				if userDoc.IsContinuousActive { // active => inactive
-					isContinuousActive = false
-					currentActivityStateStarted = jstNow.AddDate(0, 0, -1)
-					
-					if userDoc.LastPenaltyImposedDays != 0 {
-						return errors.New("userId: " + userId + " はこれまでisContinuousActive = trueだったのにlastPenaltyImposedDaysが" +
-							strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
-					}
-				} else {
-					// pass
-				}
-			}
-			
-			// 最終active日時が一定日数以上前のユーザーはRPペナルティ処理
-			if !wasUserActiveFromYesterday {
-				lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, jstNow)
-				rankPoint, lastPenaltyImposedDays, err = utils.CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, userDoc.LastPenaltyImposedDays)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to CalcNewRPContinuousInactivity", err)
-					return err
-				}
-			}
-			
-			// 変更項目がある場合のみ変更
-			if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
-				err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, lastPenaltyImposedDays)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to UpdateUserLastPenaltyImposedDays", err)
-					return err
-				}
-			}
-			if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
-				err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, isContinuousActive, currentActivityStateStarted)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
-					return err
-				}
-			}
-			if rankPoint != userDoc.RankPoint {
-				err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
-				if err != nil {
-					_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
-					return err
-				}
-			}
-			
-			return nil
-		})
+		log.Println("[userId: " + userId + "] processing RP.")
+		err = s.UpdateUserRankPoint(ctx, userId, jstNow)
 		if err != nil {
-			_ = s.MessageToLineBotWithError("failed in rank processing: ", err)
+			_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
 			continue
 		}
 	}
 	_ = s.MessageToLineBot("過去31日以内に入室した人数: " + strconv.Itoa(count))
-	log.Println("finished UpdateAllUsersRankProcess()")
+	log.Println("finished UpdateAllUsersRankPoint()")
 	return nil
+}
+
+func (s *System) UpdateUserRankPoint(ctx context.Context, userId string, jstNow time.Time) error {
+	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userId)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
+			return err
+		}
+		
+		// チェック
+		if userDoc.CurrentActivityStateStarted.Before(userDoc.LastEntered) {
+			return errors.New("CurrentActivityStateStarted < LastEntered はおかしい。")
+		}
+		
+		lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, err := utils.DailyUpdateRankPoint(
+			userDoc.LastPenaltyImposedDays, userDoc.IsContinuousActive, userDoc.CurrentActivityStateStarted,
+			userDoc.RankPoint, userDoc.LastEntered, userDoc.LastExited, jstNow)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to DailyUpdateRankPoint", err)
+			return err
+		}
+		
+		// 変更項目がある場合のみ変更
+		if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
+			err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, lastPenaltyImposedDays)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to UpdateUserLastPenaltyImposedDays", err)
+				return err
+			}
+		}
+		if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
+			err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, isContinuousActive, currentActivityStateStarted)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
+				return err
+			}
+		}
+		if rankPoint != userDoc.RankPoint {
+			err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
+			if err != nil {
+				_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
+				return err
+			}
+		}
+		
+		return nil
+	})
 }
 
 func (s *System) RetrieveAllUsersTotalStudySecList(ctx context.Context) ([]UserIdTotalStudySecSet, error) {

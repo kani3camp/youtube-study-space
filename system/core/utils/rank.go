@@ -3,6 +3,7 @@ package utils
 import (
 	"github.com/pkg/errors"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -53,6 +54,54 @@ func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yeste
 	log.Println("addedRP: ", addedRP)
 	
 	return ApplyRPRange(previousRankPoint + addedRP), nil
+}
+
+func DailyUpdateRankPoint(
+	lastPenaltyImposedDays int,
+	isContinuousActive bool,
+	currentActivityStateStarted time.Time,
+	rankPoint int,
+	lastEntered, lastExited, jstNow time.Time,
+) (int, bool, time.Time, int, error) {
+	// アクティブ・非アクティブ状態の更新
+	wasUserActiveFromYesterday := WasUserActiveFromYesterday(lastEntered, lastExited, jstNow)
+	if wasUserActiveFromYesterday {
+		if isContinuousActive {
+			// pass
+			if lastPenaltyImposedDays != 0 {
+				return 0, false, time.Time{}, 0, errors.New("isContinuousActiveがすでにtrueなのにlastPenaltyImposedDaysが" +
+					strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
+			}
+		} else { // inactive => active つまり昨日入室したことでアクティブになった
+			isContinuousActive = true
+			currentActivityStateStarted = lastEntered // 厳密ではないが、前回の入室時刻を設定
+			lastPenaltyImposedDays = 0                // 連続非アクティブが終わったのでlastPenaltyImposedDaysは0にリセット
+		}
+	} else {
+		if isContinuousActive { // active => inactive
+			isContinuousActive = false
+			currentActivityStateStarted = jstNow.AddDate(0, 0, -1) // 厳密ではないが、ちょうど1日前を設定
+			
+			if lastPenaltyImposedDays != 0 {
+				return 0, false, time.Time{}, 0, errors.New("これまでisContinuousActive = trueだったのにlastPenaltyImposedDaysが" +
+					strconv.Itoa(lastPenaltyImposedDays) + "なのはおかしい（0のはず）")
+			}
+		} else {
+			// pass
+		}
+	}
+	
+	// 最終active日時が一定日数以上前のユーザーはRPペナルティ処理
+	if !wasUserActiveFromYesterday {
+		var err error
+		lastActiveAt := LastActiveAt(lastEntered, lastExited, jstNow)
+		rankPoint, lastPenaltyImposedDays, err = CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, lastPenaltyImposedDays)
+		if err != nil {
+			return 0, false, time.Time{}, 0, err
+		}
+	}
+	
+	return lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, nil
 }
 
 // CalcNewRPContinuousInactivity 連続で利用しない日が続くとRP減らす。
