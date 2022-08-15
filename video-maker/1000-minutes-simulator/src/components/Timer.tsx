@@ -3,6 +3,8 @@ import {
     buildStyles,
     CircularProgressbarWithChildren,
 } from 'react-circular-progressbar'
+import { AiFillFire } from 'react-icons/ai'
+import { MdFreeBreakfast } from 'react-icons/md'
 import { RiTimerFill } from 'react-icons/ri'
 import {
     calcNumberOfPomodoroRounds,
@@ -25,6 +27,24 @@ const Timer: FC<Props> = (props) => {
     const numberOfPomodoroRounds = calcNumberOfPomodoroRounds(
         props.elapsedSeconds
     )
+
+    const state = isStudying ? (
+        <>
+            <AiFillFire
+                size={styles.stateIconSize}
+                css={styles.studyIcon}
+            ></AiFillFire>
+            集中
+        </>
+    ) : (
+        <>
+            <MdFreeBreakfast
+                size={styles.stateIconSize}
+                css={styles.breakIcon}
+            ></MdFreeBreakfast>
+            休憩
+        </>
+    )
     return (
         <div css={styles.timer}>
             <div css={styles.innerCell}>
@@ -41,14 +61,14 @@ const Timer: FC<Props> = (props) => {
                         styles={buildStyles({
                             strokeLinecap: 'butt',
                             pathTransitionDuration: 0,
-                            pathColor: isStudying ? 'red' : 'limegreen',
+                            pathColor: isStudying ? 'orangered' : 'lime',
                         })}
                     >
-                        <div css={styles.roundString}>
+                        <div css={styles.numberOfRoundsString}>
                             {numberOfPomodoroRounds}周目
                         </div>
-                        <div>{isStudying ? '集中' : '休憩'}</div>
-                        <div>
+                        <div css={styles.isStudying}>{state}</div>
+                        <div css={styles.remaining}>
                             {String(
                                 Math.floor(Number(remainingSeconds) / 60)
                             ).padStart(2, '0')}
@@ -62,9 +82,9 @@ const Timer: FC<Props> = (props) => {
                 <div>
                     次は
                     {isStudying ? (
-                        <span>5分 休憩</span>
+                        <span> 5分 休憩</span>
                     ) : (
-                        <span>25分 作業</span>
+                        <span> 25分 作業</span>
                     )}
                 </div>
             </div>

@@ -28,14 +28,16 @@ const Elapsed: FC<Props> = (props) => {
                     <span css={styles.elapsedTimeSubscript}>秒</span>
                 </div>
                 <div css={styles.elapsedTime2}>
-                    (<span>{elapsedHoursInteger}</span>
+                    {'( '}
+                    <span>{elapsedHoursInteger}</span>
                     <span css={styles.elapsedTimeSubscript}>時間</span>
                     <span>{elapsedMinutesInteger % 60}</span>
                     <span css={styles.elapsedTimeSubscript}>分</span>
                     <span>
                         {String(elapsedSecondsInteger).padStart(2, '0')}
                     </span>
-                    <span css={styles.elapsedTimeSubscript}>秒</span>)
+                    <span css={styles.elapsedTimeSubscript}>秒</span>
+                    {')'}
                 </div>
             </div>
         </div>

@@ -99,6 +99,7 @@ const Gauge: FC<Props> = (props) => {
                         )
                     })}
                 </div>
+                <div css={styles.unit}>[単位：時間]</div>
             </div>
         </div>
     )
