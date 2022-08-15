@@ -26,3 +26,7 @@ export const calcPomodoroRemaining = (elapsedSeconds: number) => {
         : (remainingSeconds / (5 * 60)) * 100
     return [remainingSeconds, remainingPercentage, isStudying]
 }
+
+export const calcNumberOfPomodoroRounds = (elapsedSeconds: number) => {
+    return Math.ceil(elapsedSeconds / 60 / 30)
+}

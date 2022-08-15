@@ -81,3 +81,17 @@ export const ranks: Rank[] = [
         ColorCode: '#FF7FFF',
     },
 ]
+
+export const hoursToRank = (hours: number): Rank => {
+    ranks.forEach((rank) => {
+        if (rank.FromHours <= hours && hours < rank.ToHours) {
+            return rank
+        }
+    })
+    console.error('invalid hours')
+    return ranks[0]
+}
+
+export const hoursToColorCode = (hours: number): string => {
+    return hoursToRank(hours).ColorCode
+}

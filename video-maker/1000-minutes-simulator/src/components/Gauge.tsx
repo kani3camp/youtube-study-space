@@ -1,10 +1,12 @@
 import { css } from '@emotion/react'
 import { FC } from 'react'
+import { AiFillTrophy } from 'react-icons/ai'
 import { Rank, ranks } from '../lib/ranks'
 import * as styles from '../styles/Gauge.styles'
+import * as common from '../styles/common.styles'
 
-const BarHeight = 950
-const BarWidth = 80
+const BarHeight = 900
+const BarWidth = 70
 const ArrowFontSize = 100
 
 type Props = {
@@ -50,7 +52,13 @@ const Gauge: FC<Props> = (props) => {
     return (
         <div css={styles.gauge}>
             <div css={styles.innerCell}>
-                <div>{props.elapsedMinutes}</div>
+                <div css={common.heading}>
+                    <AiFillTrophy
+                        size={common.IconSize}
+                        css={styles.icon}
+                    ></AiFillTrophy>
+                    擬似経過時間
+                </div>
                 <div
                     css={css`
                         display: flex;
@@ -58,7 +66,7 @@ const Gauge: FC<Props> = (props) => {
                         width: ${BarWidth}px;
                         position: absolute;
                         right: 2rem;
-                        border: solid #4d4d4d 0.08rem;
+                        border: solid black 0.08rem;
                     `}
                 >
                     {arrow}
@@ -81,6 +89,7 @@ const Gauge: FC<Props> = (props) => {
                                     css={css`
                                         position: absolute;
                                         bottom: -0.5rem;
+                                        line-height: 1rem;
                                         right: calc(${BarWidth}px + 0.3rem);
                                     `}
                                 >

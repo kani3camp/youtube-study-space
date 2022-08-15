@@ -1,28 +1,46 @@
 import { css } from '@emotion/react'
 import {
-    ElapsedHeight,
-    ElapsedWidth,
-    ElapsedLeft,
     basicCell,
     basicInnerCell,
+    InnerMargin,
+    OuterMargin,
+    iconBase,
 } from './common.styles'
 
 export const elapsed = css`
     ${basicCell};
-    height: ${ElapsedHeight}px;
-    width: ${ElapsedWidth}px;
-    position: absolute;
-    top: 0;
-    left: ${ElapsedLeft}px;
     text-align: center;
+    grid-column-start: 2;
+    grid-column-end: 3;
+    grid-row-start: 1;
+    grid-row-end: 2;
 `
 
 export const innerCell = css`
     ${basicInnerCell};
+    height: calc(100% - ${OuterMargin + InnerMargin}px);
+    width: calc(100% - ${2 * InnerMargin}px);
+    margin: ${OuterMargin}px ${InnerMargin}px ${InnerMargin}px ${InnerMargin}px;
 `
 
 export const elapsedTime = css`
-    span {
-        margin: 0 0.2rem;
-    }
+    align-items: center;
+    margin-top: 2rem;
+    font-size: 2rem;
+`
+
+export const elapsedTimeSubscript = css`
+    font-size: 1rem;
+    margin-left: 0.2rem;
+    margin-right: 0.5rem;
+`
+
+export const icon = css`
+    ${iconBase};
+    color: #2e7fef;
+`
+
+export const elapsedTime2 = css`
+    ${elapsedTime};
+    font-size: 1.5rem;
 `

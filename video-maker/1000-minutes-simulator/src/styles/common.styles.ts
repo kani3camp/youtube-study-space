@@ -1,5 +1,8 @@
 import { css } from '@emotion/react'
 
+export const OuterMargin = 20
+export const InnerMargin = OuterMargin / 2
+
 export const FontFamily = "'M PLUS Rounded 1c', sans-serif"
 
 export const ScreenHeight = 1080
@@ -26,23 +29,30 @@ export const CurrentColorHeight = TimerHeight
 export const CurrentColorWidth =
     ScreenWidth - TimerWidth - ElapsedWidth - GaugeWidth
 export const CurrentColorLeft = TimerWidth + ElapsedWidth
-export const ColorBoxHeight = 170
-export const ColorBoxWidth = 170
+export const ColorBoxHeight = 150
+export const ColorBoxWidth = 150
+
+export const IconSize = 30
 
 export const basicCell = css`
-    background-color: gray;
+    background-color: #131313;
 `
 
 export const basicInnerCell = css`
-    height: 100%;
-    width: 100%;
-    padding: 0.5rem;
-    margin: 0.5rem;
     border-radius: 0.5rem;
-    background-color: #111111;
+    padding: 20px;
+    background-color: #292a4b;
 `
 
 export const heading = css`
+    color: #c9c9c9;
     font-weight: bold;
-    font-size: 1.3rem;
+    font-size: ${IconSize}px;
+    text-align: left;
+    margin-bottom: 0.5rem;
+`
+
+export const iconBase = css`
+    vertical-align: middle;
+    margin-right: 0.5rem;
 `

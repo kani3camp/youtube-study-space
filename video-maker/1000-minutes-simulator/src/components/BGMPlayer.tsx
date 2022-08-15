@@ -1,4 +1,5 @@
 import { FC } from 'react'
+import { MdQueueMusic } from 'react-icons/md'
 import * as styles from '../styles/BGMPlayer.styles'
 import * as common from '../styles/common.styles'
 
@@ -6,7 +7,13 @@ const BGMPlayer: FC = () => {
     return (
         <div css={styles.bgmPlayer}>
             <div css={styles.innerCell}>
-                <div css={common.heading}>BGM</div>
+                <div css={common.heading}>
+                    <MdQueueMusic
+                        size={common.IconSize}
+                        css={styles.icon}
+                    ></MdQueueMusic>
+                    BGM
+                </div>
                 <div>title♬</div>
                 <div>artist</div>
             </div>
