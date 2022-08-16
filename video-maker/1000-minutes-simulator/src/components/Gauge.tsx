@@ -66,7 +66,7 @@ const Gauge: FC<Props> = (props) => {
                         width: ${BarWidth}px;
                         position: absolute;
                         right: 2rem;
-                        border: solid black 0.08rem;
+                        border: solid #292a4b 0.08rem;
                     `}
                 >
                     {arrow}

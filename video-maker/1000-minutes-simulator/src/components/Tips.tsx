@@ -15,7 +15,7 @@ const Tips: FC = () => {
                     Tips
                 </div>
                 <div css={styles.tipsMain}>名言・Tips (No. x)</div>
-                <div>さん</div>
+                <div>投稿者：さん</div>
                 <div>（補足）</div>
             </div>
         </div>
