@@ -53,7 +53,7 @@ const Timer: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></RiTimerFill>
-                    ポモドーロタイマー
+                    <span>ポモドーロタイマー</span>
                 </div>
                 <div css={styles.progressBarContainer}>
                     <CircularProgressbarWithChildren

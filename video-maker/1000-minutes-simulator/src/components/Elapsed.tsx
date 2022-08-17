@@ -17,7 +17,7 @@ const Elapsed: FC<Props> = (props) => {
             <div css={styles.innerCell}>
                 <div css={common.heading}>
                     <HiClock size={common.IconSize} css={styles.icon}></HiClock>
-                    経過時間
+                    <span>経過時間</span>
                 </div>
                 <div css={styles.elapsedTime}>
                     <span>{elapsedMinutesInteger}</span>

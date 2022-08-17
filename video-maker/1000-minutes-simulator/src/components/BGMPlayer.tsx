@@ -12,7 +12,7 @@ const BGMPlayer: FC = () => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></MdQueueMusic>
-                    BGM
+                    <span>BGM</span>
                 </div>
                 <div>title♬</div>
                 <div>artist</div>

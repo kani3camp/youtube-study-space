@@ -57,7 +57,7 @@ const Gauge: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></AiFillTrophy>
-                    擬似経過時間
+                    <span>擬似経過時間</span>
                 </div>
                 <div
                     css={css`

@@ -4,6 +4,7 @@ export const OuterMargin = 20
 export const InnerMargin = OuterMargin / 2
 
 export const FontFamily = "'M PLUS Rounded 1c', sans-serif"
+export const TipsTextFontFamily = "'Noto Serif JP', serif"
 
 export const ScreenHeight = 1080
 export const ScreenWidth = 1920
@@ -50,6 +51,9 @@ export const heading = css`
     font-size: ${IconSize}px;
     text-align: left;
     margin-bottom: 0.5rem;
+    span {
+        vertical-align: middle;
+    }
 `
 
 export const iconBase = css`

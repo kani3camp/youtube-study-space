@@ -28,7 +28,7 @@ const CurrentColor: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></MdInvertColors>
-                    達成カラー
+                    <span>達成カラー</span>
                 </div>
                 <div
                     css={css`

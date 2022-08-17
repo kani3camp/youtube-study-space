@@ -43,7 +43,7 @@ const Home: NextPage = () => {
     return (
         <div css={styles.indexStyle}>
             <BGMPlayer></BGMPlayer>
-            <Tips />
+            <Tips elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
             <Gauge elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
             <CurrentColor elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
             <Timer elapsedSeconds={elapsedSeconds} />
