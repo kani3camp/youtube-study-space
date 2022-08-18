@@ -9,10 +9,12 @@ import Tips from '../components/Tips'
 import * as styles from '../styles/index.styles'
 
 const TimeUpdateIntervalMilliSec = (1 / 30) * 1000
+export const OffsetSec = 5 // 画面のロード時間を考慮して、開始時間をずらす
 
 const Home: NextPage = () => {
     const [startTime, setStartTime] = useState(0)
     const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
+    const [elapsedMinutes, setElapsedMinutes] = useState<number>(0)
 
     useEffect(() => {
         setStartTime(Date.now())
@@ -37,15 +39,17 @@ const Home: NextPage = () => {
 
     useInterval(() => {
         const nowMilliSecs = Date.now()
-        setElapsedSeconds((nowMilliSecs - startTime) / 1000)
+        const seconds = (nowMilliSecs - startTime) / 1000 - OffsetSec
+        setElapsedSeconds(seconds)
+        setElapsedMinutes(Math.floor(seconds / 60))
     })
 
     return (
         <div css={styles.indexStyle}>
             <BGMPlayer></BGMPlayer>
-            <Tips elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
-            <Gauge elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
-            <CurrentColor elapsedMinutes={Math.floor(elapsedSeconds / 60)} />
+            <Tips elapsedSeconds={elapsedSeconds} />
+            <Gauge elapsedMinutes={elapsedMinutes} />
+            <CurrentColor elapsedMinutes={elapsedMinutes} />
             <Timer elapsedSeconds={elapsedSeconds} />
             <Elapsed elapsedSeconds={elapsedSeconds} />
         </div>

@@ -5,7 +5,7 @@ import * as styles from '../styles/Tips.styles'
 import * as common from '../styles/common.styles'
 
 type Props = {
-    elapsedMinutes: number
+    elapsedSeconds: number
 }
 
 type Tips = {
@@ -24,12 +24,23 @@ while (true) {
     tipsList.push(next.value as unknown as Tips)
 }
 
+const TipsIntervalSeconds = 30 * 60
+
 const Tips: FC<Props> = (props) => {
-    const tipsIndex = Math.floor(props.elapsedMinutes / 30)
+    const tipsIndex = Math.floor(props.elapsedSeconds / TipsIntervalSeconds)
     const tips = tipsList[tipsIndex]
-    const tipsText = tips.tips
-    const poster = tips.name
-    const note = tips.annotation
+    let tipsText: string
+    let poster: string
+    let note: string
+    if (tips !== undefined) {
+        tipsText = tips.tips
+        poster = tips.name
+        note = tips.annotation
+    } else {
+        tipsText = '名言・Tips'
+        poster = '投稿者'
+        note = 'コメント'
+    }
 
     return (
         <div css={styles.tips}>
@@ -43,9 +54,7 @@ const Tips: FC<Props> = (props) => {
                 </div>
 
                 <div css={styles.tipsTextContainer}>
-                    <div css={styles.tipsTextPrefix}>
-                        名言 No. {tipsIndex + 1}
-                    </div>
+                    <div css={styles.tipsTextPrefix}>No. {tipsIndex + 1}</div>
                     <div css={styles.tipsText}>{tipsText}</div>
                 </div>
                 <div css={styles.tipsPosterContainer}>

@@ -5,7 +5,7 @@ import { Rank, ranks } from '../lib/ranks'
 import * as styles from '../styles/Gauge.styles'
 import * as common from '../styles/common.styles'
 
-const BarHeight = 900
+const BarHeight = 860
 const BarWidth = 70
 const ArrowFontSize = 100
 
@@ -34,6 +34,7 @@ const Gauge: FC<Props> = (props) => {
                 <div
                     css={css`
                         position: absolute;
+                        font-weight: bold;
                         right: calc(${BarWidth}px + 2.3rem);
                         bottom: calc(
                             ${arrowPositionBottom}px - ${ArrowFontSize / 2}px

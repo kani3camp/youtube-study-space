@@ -27,12 +27,14 @@ export const elapsedTime = css`
     align-items: center;
     margin-top: 2rem;
     font-size: 2rem;
+    font-weight: bold;
 `
 
 export const elapsedTimeSubscript = css`
     font-size: 1rem;
     margin-left: 0.2rem;
     margin-right: 0.5rem;
+    font-weight: normal;
 `
 
 export const icon = css`

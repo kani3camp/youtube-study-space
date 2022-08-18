@@ -1,4 +1,5 @@
-import { FC } from 'react'
+import { css } from '@emotion/react'
+import { FC, useEffect, useState } from 'react'
 import {
     buildStyles,
     CircularProgressbarWithChildren,
@@ -20,21 +21,35 @@ type Props = {
 }
 
 const Timer: FC<Props> = (props) => {
+    const chime1DivId = 'chime1'
+    const chime2DivId = 'chime2'
+
+    const [isStudyingState, setIsStudyingState] = useState<boolean>(false)
+
     const [remainingSeconds, percentage, isStudying] = calcPomodoroRemaining(
         props.elapsedSeconds
     )
+    if (isStudying !== isStudyingState) {
+        setIsStudyingState(isStudying as boolean)
+    }
 
     const numberOfPomodoroRounds = calcNumberOfPomodoroRounds(
         props.elapsedSeconds
     )
 
-    const state = isStudying ? (
+    const stateHTML = isStudying ? (
         <>
             <AiFillFire
                 size={styles.stateIconSize}
                 css={styles.studyIcon}
             ></AiFillFire>
-            集中
+            <span
+                css={css`
+                    vertical-align: middle;
+                `}
+            >
+                集中
+            </span>
         </>
     ) : (
         <>
@@ -42,9 +57,36 @@ const Timer: FC<Props> = (props) => {
                 size={styles.stateIconSize}
                 css={styles.breakIcon}
             ></MdFreeBreakfast>
-            休憩
+            <span
+                css={css`
+                    vertical-align: middle;
+                `}
+            >
+                休憩
+            </span>
         </>
     )
+
+    useEffect(() => {
+        if (isStudyingState) {
+            chime1Play()
+        } else {
+            chime2Play()
+        }
+    }, [isStudyingState])
+
+    const chime1Play = () => {
+        const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
+        chime1.volume = 0.7
+        chime1.play()
+    }
+
+    const chime2Play = () => {
+        const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
+        chime2.volume = 0.7
+        chime2.play()
+    }
+
     return (
         <div css={styles.timer}>
             <div css={styles.innerCell}>
@@ -67,7 +109,7 @@ const Timer: FC<Props> = (props) => {
                         <div css={styles.numberOfRoundsString}>
                             {numberOfPomodoroRounds}周目
                         </div>
-                        <div css={styles.isStudying}>{state}</div>
+                        <div css={styles.isStudying}>{stateHTML}</div>
                         <div css={styles.remaining}>
                             {String(
                                 Math.floor(Number(remainingSeconds) / 60)
@@ -88,6 +130,9 @@ const Timer: FC<Props> = (props) => {
                     )}
                 </div>
             </div>
+
+            <audio id={chime1DivId} src='/audio/chime/chime1.mp3'></audio>
+            <audio id={chime2DivId} src='/audio/chime/chime2.mp3'></audio>
         </div>
     )
 }

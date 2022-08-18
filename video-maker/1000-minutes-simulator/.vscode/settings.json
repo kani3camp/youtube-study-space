@@ -6,5 +6,5 @@
         "source.fixAll.stylelint": true
     },
     "prettier.configPath": ".prettierrc.yaml",
-    "cSpell.words": ["Milli", "pomodoro", "stylelint"]
+    "cSpell.words": ["Lofi", "Milli", "pomodoro", "stylelint"]
 }

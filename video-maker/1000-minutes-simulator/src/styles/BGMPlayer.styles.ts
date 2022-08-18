@@ -30,3 +30,16 @@ export const icon = css`
     ${iconBase};
     color: #41e6e6;
 `
+
+export const item = css`
+    margin: 0.1rem 0.3rem;
+    svg {
+        color: #8fd2d2;
+        vertical-align: middle;
+    }
+
+    span {
+        vertical-align: middle;
+        margin-left: 0.5rem;
+    }
+`
