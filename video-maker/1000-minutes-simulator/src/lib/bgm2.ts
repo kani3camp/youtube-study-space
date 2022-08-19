@@ -3546,7 +3546,7 @@ export const LofiGirlBgmTable2: Bgm[] = [
     {
         title: 'A Quiet Place',
         artist: 'Prithvi x j’san',
-        file: '',
+        file: '/audio/lofigirl2/Prithvi - Timescapes.Longer Nights/3. A Quiet Place (feat. j_san).mp3',
         forPart: AllPartType,
     },
     {
@@ -4866,7 +4866,7 @@ export const LofiGirlBgmTable2: Bgm[] = [
     {
         title: 'Equipment',
         artist: 'noni x Rudy Raw',
-        file: '',
+        file: '/audio/lofigirl2/noni - momentary/03 noni - equipment feat. Rudy Raw (MSTRf) .mp3',
         forPart: AllPartType,
     },
     {
@@ -5014,7 +5014,7 @@ export const LofiGirlBgmTable2: Bgm[] = [
     {
         title: 'Everlasting',
         artist: 'Osaki x Theo Aabel x Tonion',
-        file: '',
+        file: '/audio/lofigirl2/Osaki - Evergarden/Track Four - Everlasting With Theo Aabel _ Tonion.mp3',
         forPart: AllPartType,
     },
     {

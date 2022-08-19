@@ -29,7 +29,7 @@ const BGMPlayer: FC<Props> = (props) => {
             audioNext()
         })
         audio.addEventListener('error', (event) => {
-            console.error('failed loading audio.', event)
+            console.error('failed loading audio: ', event)
             audioNext()
         })
 
