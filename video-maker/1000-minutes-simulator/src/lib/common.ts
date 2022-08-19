@@ -1,4 +1,4 @@
-import { Bgm, LofiGirlBgmTable1 } from './bgm1'
+import { Bgm } from './bgm1'
 import { LofiGirlBgmTable2 } from './bgm2'
 
 /**
@@ -34,8 +34,9 @@ export const calcNumberOfPomodoroRounds = (elapsedSeconds: number) => {
     return Math.ceil(elapsedSeconds / 60 / 30)
 }
 
+// const LofiGirlBgmTable = LofiGirlBgmTable1.concat(LofiGirlBgmTable2)
+const LofiGirlBgmTable = LofiGirlBgmTable2
+
 export function getRandomBgm(): Bgm {
-    return LofiGirlBgmTable1.concat(LofiGirlBgmTable2)[
-        Math.floor(Math.random() * LofiGirlBgmTable1.length)
-    ]
+    return LofiGirlBgmTable[Math.floor(Math.random() * LofiGirlBgmTable.length)]
 }
