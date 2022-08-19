@@ -35,7 +35,7 @@ export const icon = css`
 
 export const unit = css`
     position: absolute;
-    font-size: 25px;
+    font-size: 28px;
     bottom: 20px;
     right: 135px;
 `

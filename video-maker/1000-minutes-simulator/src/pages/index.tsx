@@ -17,6 +17,7 @@ const Home: NextPage = () => {
     const [startTime, setStartTime] = useState(0)
     const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
     const [elapsedMinutes, setElapsedMinutes] = useState<number>(0)
+    const [imagePath, setImagePath] = useState<string>('')
 
     useEffect(() => {
         setStartTime(Date.now())
@@ -44,15 +45,14 @@ const Home: NextPage = () => {
         const seconds = (nowMilliSecs - startTime) / 1000 - OffsetSec
         setElapsedSeconds(seconds)
         setElapsedMinutes(Math.floor(seconds / 60))
+        setImagePath(hoursToRank(elapsedMinutes).Image) // 分を時間として扱うのに注意
     })
-
-    const backgroundImage: string = hoursToRank(0).Image
 
     return (
         <div
             css={css`
                 ${styles.indexStyle};
-                background-image: url(${backgroundImage});
+                background-image: url(${imagePath});
             `}
         >
             <BGMPlayer elapsedMinutes={elapsedMinutes}></BGMPlayer>
