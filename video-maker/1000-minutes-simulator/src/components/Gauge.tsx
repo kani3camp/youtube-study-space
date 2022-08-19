@@ -7,7 +7,7 @@ import * as common from '../styles/common.styles'
 
 const BarHeight = 860
 const BarWidth = 70
-const ArrowFontSize = 100
+const ArrowFontSize = 60
 
 type Props = {
     elapsedMinutes: number
@@ -35,7 +35,7 @@ const Gauge: FC<Props> = (props) => {
                     css={css`
                         position: absolute;
                         font-weight: bold;
-                        right: calc(${BarWidth}px + 2.3rem);
+                        right: calc(${BarWidth}px + 3rem);
                         bottom: calc(
                             ${arrowPositionBottom}px - ${ArrowFontSize / 2}px
                         );
@@ -44,7 +44,7 @@ const Gauge: FC<Props> = (props) => {
                         line-height: ${ArrowFontSize}px;
                     `}
                 >
-                    {'→'}
+                    {'▶'}
                 </div>
             )
         }
