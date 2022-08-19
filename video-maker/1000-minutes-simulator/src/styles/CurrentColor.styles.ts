@@ -27,7 +27,7 @@ export const innerCell = css`
 
 export const annotation = css`
     font-size: 0.8rem;
-    color: #929292;
+    color: #bebebe;
 `
 
 export const colorBox = css`

@@ -2,12 +2,16 @@ import { FC, useEffect, useState } from 'react'
 import { BsFillPersonFill } from 'react-icons/bs'
 import { IoMdMusicalNotes } from 'react-icons/io'
 import { MdQueueMusic } from 'react-icons/md'
-import { getRandomBgm } from '../lib/bgm'
+import { getRandomBgm } from '../lib/common'
 import { OffsetSec } from '../pages'
 import * as styles from '../styles/BGMPlayer.styles'
 import * as common from '../styles/common.styles'
 
-const BGMPlayer: FC = () => {
+type Props = {
+    elapsedMinutes: number
+}
+
+const BGMPlayer: FC<Props> = (props) => {
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
 
@@ -42,7 +46,9 @@ const BGMPlayer: FC = () => {
         setAudioTitle(bgm.title)
         setAudioArtist(bgm.artist)
         audio.volume = 0.3
-        audio.play()
+        audio.addEventListener('loadeddata', () => {
+            audio.play()
+        })
     }
 
     return (

@@ -76,14 +76,16 @@ const Timer: FC<Props> = (props) => {
     }, [isStudyingState])
 
     const chime1Play = () => {
+        console.log(chime1Play.name)
         const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
-        chime1.volume = 0.7
+        chime1.volume = 0.8
         chime1.play()
     }
 
     const chime2Play = () => {
+        console.log(chime2Play.name)
         const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
-        chime2.volume = 0.7
+        chime2.volume = 0.8
         chime2.play()
     }
 

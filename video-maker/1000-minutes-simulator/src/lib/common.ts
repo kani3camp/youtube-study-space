@@ -1,3 +1,6 @@
+import { Bgm, LofiGirlBgmTable1 } from './bgm1'
+import { LofiGirlBgmTable2 } from './bgm2'
+
 /**
  * ポモドーロタイマー用計算関数
  * @param {number} elapsedSeconds 経過時間（秒）
@@ -29,4 +32,10 @@ export const calcPomodoroRemaining = (elapsedSeconds: number) => {
 
 export const calcNumberOfPomodoroRounds = (elapsedSeconds: number) => {
     return Math.ceil(elapsedSeconds / 60 / 30)
+}
+
+export function getRandomBgm(): Bgm {
+    return LofiGirlBgmTable1.concat(LofiGirlBgmTable2)[
+        Math.floor(Math.random() * LofiGirlBgmTable1.length)
+    ]
 }

@@ -9,7 +9,7 @@ export const globalStyle = css`
         font-family: ${FontFamily};
         font-size: 30px;
         color: #ffffff;
-        background-color: #1d152c;
+        background-color: black;
     }
 
     a {

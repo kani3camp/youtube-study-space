@@ -36,13 +36,13 @@ export const ColorBoxWidth = 150
 export const IconSize = 30
 
 export const basicCell = css`
-    background-color: #131313;
+    background-color: #1313133b;
 `
 
 export const basicInnerCell = css`
     border-radius: 0.5rem;
     padding: 20px;
-    background-color: #292a4b;
+    background-color: #292a4b8f;
 `
 
 export const heading = css`

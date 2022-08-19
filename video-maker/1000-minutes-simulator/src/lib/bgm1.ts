@@ -5,17 +5,9 @@ export type Bgm = {
     forPart: string[]
 }
 
-/**
- * 現在のパートタイプに応じて，ランダムにBGMを選ぶ．
- * @return {Bgm} 現在のBGM
- */
-export function getRandomBgm(): Bgm {
-    return LofiGirlBgmTable[Math.floor(Math.random() * LofiGirlBgmTable.length)]
-}
+export const AllPartType = ['AllPartType']
 
-const AllPartType = ['AllPartType']
-
-export const LofiGirlBgmTable: Bgm[] = [
+export const LofiGirlBgmTable1: Bgm[] = [
     // Ages Ago
     {
         title: 'channel 12',
