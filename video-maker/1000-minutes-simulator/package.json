@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 5000",
     "lint": "next lint",
     "stylelint": "stylelint --ignore-path .gitignore './src/**/*.{css,scss,ts,tsx}'",
     "typecheck": "tsc",
