@@ -54,7 +54,7 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	_ = _system.MessageToLineBot("Botが起動しました")
 	defer func() {
 		_system.CloseFirestoreClient()
-		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します")
+		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
 	

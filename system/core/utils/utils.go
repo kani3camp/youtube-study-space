@@ -89,10 +89,10 @@ func NumTrue(b ...bool) int {
 	return n
 }
 
-// DateEqual from https://stackoverflow.com/questions/21053427/check-if-two-time-objects-are-on-the-same-date-in-go
-func DateEqual(date1, date2 time.Time) bool {
-	y1, m1, d1 := date1.Date()
-	y2, m2, d2 := date2.Date()
+// DateEqualJST from https://stackoverflow.com/questions/21053427/check-if-two-time-objects-are-on-the-same-date-in-go
+func DateEqualJST(date1, date2 time.Time) bool {
+	y1, m1, d1 := date1.In(JapanLocation()).Date()
+	y2, m2, d2 := date2.In(JapanLocation()).Date()
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
@@ -115,4 +115,13 @@ func NoNegativeDuration(duration time.Duration) time.Duration {
 
 func Ftoa(f float64) string {
 	return strconv.Itoa(int(f))
+}
+
+func DivideStringEqually(batchSize int, values []string) [][]string {
+	batchList := make([][]string, batchSize)
+	for i, value := range values {
+		index := i % batchSize
+		batchList[index] = append(batchList[index], value)
+	}
+	return batchList
 }

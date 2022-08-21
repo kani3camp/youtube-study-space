@@ -38,6 +38,7 @@ const (
 	DefaultStudyMinDocProperty             = "default-study-min"
 	FavoriteColorDocProperty               = "favorite-color"
 	RankPointDocProperty                   = "rank-point"
+	LastRPProcessedDocProperty             = "last-rp-processed"
 	IsContinuousActiveDocProperty          = "is-continuous-active"
 	CurrentActivityStateStartedDocProperty = "current-activity-state-started"
 	LastPenaltyImposedDaysDocProperty      = "last-penalty-imposed-days"

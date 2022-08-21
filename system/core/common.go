@@ -75,7 +75,16 @@ func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (str
 	return creds.ProjectID, nil
 }
 
-func contains(s []int, e int) bool {
+func containsInt(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
 			return true
@@ -102,7 +111,7 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Durat
 	jstNow := utils.JstNow()
 	var duration time.Duration
 	// 今のstateになってから日付が変っている可能性
-	if utils.DateEqual(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
+	if utils.DateEqualJST(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
 		switch seat.State {
 		case myfirestore.WorkState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))

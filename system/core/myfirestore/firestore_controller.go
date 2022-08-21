@@ -271,6 +271,13 @@ func (c *FirestoreController) UpdateUserRankPoint(tx *firestore.Transaction, use
 	})
 }
 
+func (c *FirestoreController) UpdateUserLastRPProcessed(tx *firestore.Transaction, userId string, date time.Time) error {
+	ref := c.usersCollection().Doc(userId)
+	return tx.Update(ref, []firestore.Update{
+		{Path: LastRPProcessedDocProperty, Value: date},
+	})
+}
+
 func (c *FirestoreController) SaveLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
 	ref := c.configCollection().Doc(CredentialsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{

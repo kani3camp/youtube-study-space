@@ -126,7 +126,7 @@ func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 	if lastActiveAt.After(jstNow) {
 		return 0, errors.New("lastActiveAt.After(jstNow) is true.")
 	}
-	if DateEqual(lastActiveAt, jstNow) {
+	if DateEqualJST(lastActiveAt, jstNow) {
 		return 0, nil
 	}
 	lastActiveDate0AM := time.Date(lastActiveAt.Year(), lastActiveAt.Month(), lastActiveAt.Day(), 0, 0, 0, 0, JapanLocation())
@@ -143,7 +143,7 @@ func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted
 	if yesterdayContinuedActive {
 		startDate0AM := time.Date(currentStateStarted.Year(), currentStateStarted.Month(), currentStateStarted.Day(),
 			0, 0, 0, 0, JapanLocation())
-		if DateEqual(lastActiveAt, jstNow) {
+		if DateEqualJST(lastActiveAt, jstNow) {
 			return int(jstNow.Sub(startDate0AM).Hours() / 24), nil
 		} else { // 今日はまだ入室してないが、今日非アクティブとは断定できない。昨日までの連続日数を返す。
 			yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day(), 0, 0, 0, 0, JapanLocation())
@@ -205,7 +205,7 @@ func PenaltyMagnificationByInactiveDays(inactiveDays int) (float64, int) {
 func WasUserActiveFromYesterday(lastEntered, lastExited, now time.Time) bool {
 	yesterday := now.AddDate(0, 0, -1)
 	lastActiveAt := LastActiveAt(lastEntered, lastExited, now)
-	return DateEqual(lastActiveAt, yesterday) || DateEqual(lastActiveAt, now)
+	return DateEqualJST(lastActiveAt, yesterday) || DateEqualJST(lastActiveAt, now)
 }
 
 // LastActiveAt 最近activeだった日時。現在を含む。

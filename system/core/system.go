@@ -1561,7 +1561,7 @@ func (s *System) exitRoom(
 	}
 	err = s.FirestoreController.UpdateUserRankPoint(tx, previousSeat.UserId, newRP)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
+		_ = s.MessageToLineBotWithError("failed to UpdateUserRP", err)
 		return 0, 0, err
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
@@ -1959,7 +1959,7 @@ func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
 	return checker.Check(ctx)
 }
 
-func (s *System) DailyOrganizeDatabase(ctx context.Context) error {
+func (s *System) DailyOrganizeDatabase(ctx context.Context) (error, []string) {
 	log.Println("DailyOrganizeDatabase()")
 	// 時間がかかる処理なのでトランザクションはなし
 	
@@ -1967,19 +1967,19 @@ func (s *System) DailyOrganizeDatabase(ctx context.Context) error {
 	err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		_ = s.MessageToLineBotWithError("failed to ResetDailyTotalStudyTime", err)
-		return err
+		return err, []string{}
 	}
 	
 	log.Println("RP関連の情報更新・ペナルティ処理")
-	err = s.UpdateAllUsersRankPoint(ctx)
+	err, userIdsToProcessRP := s.RetrieveUserIdsToProcessRP(ctx)
 	if err != nil {
-		_ = s.MessageToLineBotWithError("failed to UpdateAllUsersRankPoint", err)
-		return err
+		_ = s.MessageToLineBotWithError("failed to RetrieveUserIdsToProcessRP", err)
+		return err, []string{}
 	}
 	
-	_ = s.MessageToLineBot("本日のDailyOrganizeDatabase()処理が完了しました。")
+	_ = s.MessageToLineBot("本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。")
 	log.Println("finished DailyOrganizeDatabase().")
-	return nil
+	return nil, userIdsToProcessRP
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
@@ -2016,42 +2016,73 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 	return nil
 }
 
-func (s *System) UpdateAllUsersRankPoint(ctx context.Context) error {
-	log.Println("UpdateAllUsersRankPoint()")
+func (s *System) RetrieveUserIdsToProcessRP(ctx context.Context) (error, []string) {
+	log.Println("RetrieveUserIdsToProcessRP()")
 	jstNow := utils.JstNow()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
 	iter := s.FirestoreController.RetrieveUsersActiveAfterDate(ctx, _31daysAgo)
 	
-	count := 0
+	var userIds []string
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return err
+			return err, []string{}
 		}
-		count++
 		userId := doc.Ref.ID
-		log.Println("[userId: " + userId + "] processing RP.")
-		err = s.UpdateUserRankPoint(ctx, userId, jstNow)
-		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
-			continue
-		}
+		userIds = append(userIds, userId)
 	}
-	_ = s.MessageToLineBot("過去31日以内に入室した人数: " + strconv.Itoa(count))
-	log.Println("finished UpdateAllUsersRankPoint()")
-	return nil
+	_ = s.MessageToLineBot("過去31日以内に入室した人数: " + strconv.Itoa(len(userIds)))
+	return nil, userIds
 }
 
-func (s *System) UpdateUserRankPoint(ctx context.Context, userId string, jstNow time.Time) error {
+func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) ([]string, error) {
+	jstNow := utils.JstNow()
+	startTime := jstNow
+	var doneUserIds []string
+	for _, userId := range userIds {
+		// 時間チェック
+		duration := utils.JstNow().Sub(startTime)
+		if int(duration.Seconds()) > timeLimitSeconds {
+			return userIds, nil
+		}
+		
+		// 処理
+		err := s.UpdateUserRP(ctx, userId, jstNow)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to UpdateUserRP, while processing "+userId, err)
+			continue // 次のuserから処理は継続
+		}
+		doneUserIds = append(doneUserIds, userId)
+	}
+	
+	var remainingUserIds []string
+	for _, userId := range userIds {
+		if containsString(doneUserIds, userId) {
+			continue
+		} else {
+			remainingUserIds = append(remainingUserIds, userId)
+		}
+	}
+	return remainingUserIds, nil
+}
+
+func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
+	log.Println("[userId: " + userId + "] processing RP.")
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, userId)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to RetrieveUser", err)
 			return err
+		}
+		
+		// 同日の重複処理防止チェック
+		if utils.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
+			log.Println("user " + userId + " is already RP processed today, skipping.")
+			return nil
 		}
 		
 		// チェック
@@ -2085,9 +2116,15 @@ func (s *System) UpdateUserRankPoint(ctx context.Context, userId string, jstNow 
 		if rankPoint != userDoc.RankPoint {
 			err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
 			if err != nil {
-				_ = s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
+				_ = s.MessageToLineBotWithError("failed to UpdateUserRP", err)
 				return err
 			}
+		}
+		
+		err = s.FirestoreController.UpdateUserLastRPProcessed(tx, userId, jstNow)
+		if err != nil {
+			_ = s.MessageToLineBotWithError("failed to UpdateUserLastRPProcessed", err)
+			return err
 		}
 		
 		return nil
