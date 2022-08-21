@@ -1,6 +1,12 @@
 package lambdautils
 
 const (
-	OK = "ok"
-	ERROR = "error"
+	OK                           = "ok"
+	ERROR                        = "error"
+	InterruptionTimeLimitSeconds = 13 * 60 // 13分経って終わってなかったら次のlambdaを呼び出す。
 )
+
+// ProcessUserRPParallelRequestStruct 複数のファイルで使用するため、build時にundefinedとならないようにここで宣言。
+type ProcessUserRPParallelRequestStruct struct {
+	UserIds []string `json:"user_ids"`
+}

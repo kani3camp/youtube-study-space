@@ -2,7 +2,7 @@
 
 
 # set_desired_max_seats, rooms_state, youtube_organize_database, daily_organize_database, check_live_stream_status
-# lambda_sandbox, transfer_collection_history_bigquery
+# lambda_sandbox, transfer_collection_history_bigquery, process_user_rp_parallel
 
 
 # Windows (PowerShell)

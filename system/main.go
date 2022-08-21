@@ -54,9 +54,12 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	_ = _system.MessageToLineBot("Botが起動しました")
 	defer func() {
 		_system.CloseFirestoreClient()
-		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します")
+		_system.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		_ = _system.MessageToLineBot("app stopped!!")
 	}()
+	
+	// 居座り防止処理を並行実行
+	go _system.GoroutineCheckLongTimeSitting(ctx)
 	
 	checkDesiredMaxSeatsIntervalSec := _system.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 	
@@ -175,8 +178,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

@@ -29,3 +29,32 @@ func TestTodaySeconds(t *testing.T) {
 		assert.Equal(t, testCase.ExpectedSeconds, seconds)
 	}
 }
+
+func TestDivideStringEqually(t *testing.T) {
+	type TestCase struct {
+		InSize     int
+		InStrings  []string
+		OutStrings [][]string
+	}
+	testCases := []TestCase{
+		{
+			InSize: 2,
+			InStrings: []string{
+				"1", "2", "3", "4", "5",
+			},
+			OutStrings: [][]string{
+				{
+					"1", "3", "5",
+				},
+				{
+					"2", "4",
+				},
+			},
+		},
+	}
+	
+	for _, testCase := range testCases {
+		strings := DivideStringEqually(testCase.InSize, testCase.InStrings)
+		assert.Equal(t, testCase.OutStrings, strings)
+	}
+}

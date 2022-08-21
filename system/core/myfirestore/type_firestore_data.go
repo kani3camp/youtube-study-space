@@ -49,7 +49,10 @@ type ConstantsConfigDoc struct {
 	RecentThresholdMin int `firestore:"recent-threshold-min"` // 何分間以上該当座席に座っていたらアウト
 	
 	// 長時間入室制限関連
-	CheckLongTimeSittingIntervalMinutes int `firestore:"check-long-time-sitting-interval-minutes" json:"check_long_time_sitting_interval_minutes"` // 何分おきにチェックを行うか
+	MinimumCheckLongTimeSittingIntervalMinutes int `firestore:"minimum-check-long-time-sitting-interval-minutes" json:"minimum_check_long_time_sitting_interval_minutes"` // 最低何分おきにチェックを行うか
+	
+	// 並行でRP処理を行うLambdaインスタンスの数
+	NumberOfParallelLambdaToProcessUserRP int `firestore:"number-of-parallel-lambda-to-process-user-rp"`
 }
 
 type CredentialsConfigDoc struct {
@@ -139,6 +142,9 @@ type UserDoc struct {
 	
 	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
 	RankPoint int `json:"rank_point" firestore:"rank-point"`
+	
+	// 前回RP更新をした日付（同日に処理が重複しないように）
+	LastRPProcessed time.Time `json:"last_rp_processed" firestore:"last-rp-processed"`
 	
 	// 前回の連続非アクティブ日数によるRPペナルティ処理が行われたときの、該当非アクティブ連続日数
 	LastPenaltyImposedDays int `json:"last_penalty_imposed_days" firestore:"last-penalty-imposed-days"`

@@ -78,7 +78,6 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 }
 
 func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
-	log.Println("ListMessages()")
 	liveChatMessageService := youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 	part := []string{
 		"snippet",
