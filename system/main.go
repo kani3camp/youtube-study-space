@@ -164,10 +164,6 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = s.DailyOrganizeDatabase(ctx)
-	if err != nil {
-		panic(err)
-	}
 }
 
 func main() {
