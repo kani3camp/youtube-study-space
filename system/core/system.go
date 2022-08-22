@@ -2055,7 +2055,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 		err := s.UpdateUserRP(ctx, userId, jstNow)
 		if err != nil {
 			_ = s.MessageToLineBotWithError("failed to UpdateUserRP, while processing "+userId, err)
-			continue // 次のuserから処理は継続
+			// 次のuserから処理は継続
 		}
 		doneUserIds = append(doneUserIds, userId)
 	}
