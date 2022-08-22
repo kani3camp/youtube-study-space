@@ -10,6 +10,8 @@ import (
 // GoroutineCheckLongTimeSitting 居座り検出ループ
 func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(s.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
+	log.Printf("居座りチェックの最小間隔: %v\n", minimumInterval)
+	
 	for {
 		log.Println("checking long time sitting")
 		start := utils.JstNow()

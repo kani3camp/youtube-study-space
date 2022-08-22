@@ -194,7 +194,7 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	Bot(ctx, clientOption)
+	LocalMain(ctx, clientOption)
 	//Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)

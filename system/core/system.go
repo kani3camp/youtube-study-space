@@ -12,6 +12,7 @@ import (
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"context"
+	"github.com/kr/pretty"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -2369,16 +2370,10 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 	}
 	
 	// 入室と退室が交互に並んでいるか確認
-	var lastActivityType myfirestore.UserActivityType
-	for i, activity := range activityOnlyEnterExitList {
-		if i == 0 {
-			lastActivityType = activity.ActivityType
-			continue
-		}
-		if activity.ActivityType == lastActivityType {
-			return false, errors.New("入室activityと退室activityが交互に並んでいない")
-		}
-		lastActivityType = activity.ActivityType
+	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
+	if !orderOK {
+		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
+		return false, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 	
 	// 入退室をセットで考え、合計入室時間を求める

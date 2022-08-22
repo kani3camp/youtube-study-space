@@ -130,3 +130,19 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Durat
 	}
 	return duration, nil
 }
+
+// CheckEnterExitActivityOrder 入室と退室が交互に並んでいるか確認する。
+func CheckEnterExitActivityOrder(activityDocs []myfirestore.UserActivityDoc) bool {
+	var lastActivityType myfirestore.UserActivityType
+	for i, activity := range activityDocs {
+		if i == 0 {
+			lastActivityType = activity.ActivityType
+			continue
+		}
+		if activity.ActivityType == lastActivityType {
+			return false
+		}
+		lastActivityType = activity.ActivityType
+	}
+	return true
+}
