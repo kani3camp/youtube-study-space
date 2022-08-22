@@ -25,7 +25,7 @@ const (
 	ColorHoursFrom1000  = "#FF7FFF"
 	
 	ColorRank1  = "#D8D8D8"
-	ColorRank2  = "#FFFAFA"
+	ColorRank2  = "#93FF66"
 	ColorRank3  = "#FFFF66"
 	ColorRank4  = "#FFC666"
 	ColorRank5  = "#FF6666"
