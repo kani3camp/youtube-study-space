@@ -16,14 +16,14 @@ func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yeste
 	currentStateStarted time.Time, lastActiveAt time.Time, previousRankPoint int) (int, error) {
 	basePoint := int(netStudyDuration.Minutes())
 	
-	log.Println("netStudyDuration: ", netStudyDuration)
-	log.Println("isWorkNameSet: ", isWorkNameSet)
-	log.Println("yesterdayContinuedActive: ", yesterdayContinuedActive)
-	log.Println("currentStateStarted: ", currentStateStarted)
-	log.Println("lastActiveAt: ", lastActiveAt)
-	log.Println("previousRankPoint: ", previousRankPoint)
-	log.Println("now: ", JstNow())
-	log.Println("basePoint: ", basePoint)
+	//log.Println("netStudyDuration: ", netStudyDuration)
+	//log.Println("isWorkNameSet: ", isWorkNameSet)
+	//log.Println("yesterdayContinuedActive: ", yesterdayContinuedActive)
+	//log.Println("currentStateStarted: ", currentStateStarted)
+	//log.Println("lastActiveAt: ", lastActiveAt)
+	//log.Println("previousRankPoint: ", previousRankPoint)
+	//log.Println("now: ", JstNow())
+	//log.Println("basePoint: ", basePoint)
 	
 	var workNameSetMagnification float64          // 作業内容設定倍率
 	var continuousActiveDaysMagnification float64 // 連続入室日数倍率
