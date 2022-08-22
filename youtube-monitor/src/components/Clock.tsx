@@ -1,49 +1,32 @@
-import React from 'react'
+import React, { FC, useState } from 'react'
+import { useInterval } from '../lib/common'
 import * as styles from '../styles/Clock.styles'
 
-class Clock extends React.Component<Record<string, unknown>, any> {
-    private intervalId: NodeJS.Timeout | undefined
+const Clock: FC = () => {
+    const updateIntervalMilliSec = 1000
 
-    constructor(props: Record<string, unknown>) {
-        super(props)
-        this.state = {
-            now: new Date(),
-        }
-    }
+    const [now, setNow] = useState<Date>(new Date())
 
-    componentDidMount() {
-        this.intervalId = setInterval(() => {
-            this.setState({
-                now: new Date(),
-            })
-        }, 1000)
-    }
+    useInterval(() => {
+        setNow(new Date())
+    }, updateIntervalMilliSec)
 
-    componentWillUnmount() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId)
-        }
-    }
-
-    render() {
-        return (
-            <div css={styles.clockStyle}>
-                <div css={styles.dateStringStyle}>
-                    {/*{this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}*/}
-                    {/*{this.state.now.getFullYear()}*/}
-                    {this.state.now.getFullYear()} 年{' '}
-                    {this.state.now.getMonth() + 1} 月{' '}
-                    {this.state.now.getDate()} 日
-                </div>
-                <div css={styles.timeStringStyle}>
-                    {this.state.now.getHours()}：
-                    {this.state.now.getMinutes() < 10
-                        ? `0${this.state.now.getMinutes().toString()}`
-                        : this.state.now.getMinutes()}
-                </div>
+    return (
+        <div css={styles.clockStyle}>
+            <div css={styles.dateStringStyle}>
+                {/*{this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}*/}
+                {/*{this.state.now.getFullYear()}*/}
+                {now.getFullYear()} 年 {now.getMonth() + 1} 月 {now.getDate()}{' '}
+                日
             </div>
-        )
-    }
+            <div css={styles.timeStringStyle}>
+                {now.getHours()}：
+                {now.getMinutes() < 10
+                    ? `0${now.getMinutes().toString()}`
+                    : now.getMinutes()}
+            </div>
+        </div>
+    )
 }
 
 export default Clock

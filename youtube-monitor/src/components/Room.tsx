@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { FC, useEffect, useState } from 'react'
 import api from '../lib/api_config'
 import fetcher from '../lib/fetcher'
 import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
@@ -13,7 +13,7 @@ import CenterLoading from './CenterLoading'
 import LayoutDisplay from './LayoutDisplay'
 import Message from './Message'
 
-const Room: React.FC = () => {
+const Room: FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
     const PAGING_INTERVAL_MSEC = 8 * 1000
 

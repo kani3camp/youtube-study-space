@@ -1,11 +1,12 @@
-import React from 'react'
+import React, { FC, useState } from 'react'
+import { useInterval } from '../lib/common'
 import { getCurrentSection } from '../lib/time_table'
 import * as styles from '../styles/BackgroundImage.styles'
 
-class BackgroundImage extends React.Component<Record<string, unknown>, any> {
-    private intervalId: NodeJS.Timeout | undefined
-    private base_url = 'https://source.unsplash.com/featured/1920x1080'
-    private args: string =
+const BackgroundImage: FC = () => {
+    const stateUpdateIntervalMilliSec = 1000
+    const baseUrl = 'https://source.unsplash.com/featured/1920x1080'
+    const args: string =
         '/?' +
         'work,cafe,study,nature,chill,coffee,tea,sea,lake,outdoor,land,spring,summer,fall,winter,hotel' +
         ',green,purple,pink,blue,dark,azure,yellow,orange,gray,brown,red,black,pastel' +
@@ -13,49 +14,26 @@ class BackgroundImage extends React.Component<Record<string, unknown>, any> {
         ',pencil,pen,eraser,stationary,classic,jazz,lo-fi,fruit,vegetable,sky,instrument,cup' +
         ',star,moon,night,cloud,rain,mountain,river,calm,sun,sunny,water,building,drink,keyboard' +
         ',morning,evening'
-    private unsplash_url = this.base_url + this.args
+    const unsplashUrl = baseUrl + args
 
-    updateState() {
+    const [srcUrl, setSrcUrl] = useState<string>(unsplashUrl)
+    const [lastPartName, setLastPartName] = useState<string>('')
+
+    useInterval(() => {
         const now = new Date()
         const currentSection = getCurrentSection()
 
-        if (currentSection?.partType !== this.state.lastPartName) {
-            this.setState({
-                srcUrl: `${this.unsplash_url},${now.getTime()}`,
-                lastFetchedDate: now.getDate(),
-                lastPartName: currentSection?.partType,
-            })
+        if (currentSection.partType !== lastPartName) {
+            setSrcUrl(`${unsplashUrl},${now.getTime()}`)
+            setLastPartName(currentSection.partType)
         }
-    }
+    }, stateUpdateIntervalMilliSec)
 
-    constructor(props: Record<string, unknown>) {
-        super(props)
-        this.state = {
-            srcUrl: this.unsplash_url,
-            lastFetchedDate: new Date().getDate(),
-            lastPartName: '',
-        }
-    }
-
-    componentDidMount() {
-        this.intervalId = setInterval(() => {
-            this.updateState()
-        }, 1000)
-    }
-
-    componentWillUnmount() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId)
-        }
-    }
-
-    render() {
-        return (
-            <div css={styles.backgroundImage}>
-                <img src={this.state.srcUrl} alt='背景画像' />
-            </div>
-        )
-    }
+    return (
+        <div css={styles.backgroundImage}>
+            <img src={srcUrl} alt='背景画像' />
+        </div>
+    )
 }
 
 export default BackgroundImage
