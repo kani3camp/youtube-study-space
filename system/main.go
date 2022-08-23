@@ -45,15 +45,15 @@ func Init() (option.ClientOption, context.Context, error) {
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		_ = sys.MessageToLineBotWithError("failed core.NewSystem()", err)
+		sys.MessageToLineBotWithError("failed core.NewSystem()", err)
 		return
 	}
 	
-	_ = sys.MessageToLineBot("居座り防止プログラムが起動しました。")
+	sys.MessageToLineBot("居座り防止プログラムが起動しました。")
 	defer func() {
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
-		_ = sys.MessageToLineBot("app stopped!!")
+		sys.MessageToLineBot("app stopped!!")
 	}()
 	
 	sys.GoroutineCheckLongTimeSitting(ctx)
@@ -63,15 +63,15 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 func Bot(ctx context.Context, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		_ = sys.MessageToLineBotWithError("failed core.NewSystem()", err)
+		sys.MessageToLineBotWithError("failed core.NewSystem()", err)
 		return
 	}
 	
-	_ = sys.MessageToLineBot("Botが起動しました。")
+	sys.MessageToLineBot("Botが起動しました。")
 	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
-		_ = sys.MessageToLineBot("app stopped!!")
+		sys.MessageToLineBot("app stopped!!")
 	}()
 	
 	checkDesiredMaxSeatsIntervalSec := sys.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
@@ -91,12 +91,12 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			log.Println("checking desired max seats")
 			constants, err := sys.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
 			if err != nil {
-				_ = sys.MessageToLineBotWithError("sys.firestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
+				sys.MessageToLineBotWithError("sys.firestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
 			} else {
 				if constants.DesiredMaxSeats != constants.MaxSeats {
 					err := sys.AdjustMaxSeats(ctx)
 					if err != nil {
-						_ = sys.MessageToLineBotWithError("failed sys.AdjustMaxSeats()", err)
+						sys.MessageToLineBotWithError("failed sys.AdjustMaxSeats()", err)
 					}
 				}
 			}
@@ -106,7 +106,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// page token取得
 		pageToken, err := sys.RetrieveNextPageToken(ctx, nil)
 		if err != nil {
-			_ = sys.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
+			sys.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
 			if numContinuousRetrieveNextPageTokenFailed > 5 {
 				break
@@ -120,7 +120,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// チャット取得
 		chatMessages, nextPageToken, pollingIntervalMillis, err := sys.ListLiveChatMessages(ctx, pageToken)
 		if err != nil {
-			_ = sys.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
+			sys.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
 				"回目） failed to retrieve chat messages", err)
 			numContinuousListMessagesFailed += 1
 			if numContinuousListMessagesFailed > 5 {
@@ -136,7 +136,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// nextPageTokenを保存
 		err = sys.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
-			_ = sys.MessageToLineBotWithError("failed to save next page token", err)
+			sys.MessageToLineBotWithError("failed to save next page token", err)
 			return
 		}
 		
@@ -144,7 +144,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		for _, chatMessage := range chatMessages {
 			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
-				_ = sys.MessageToLineBotWithError("failed to add live chat history", err)
+				sys.MessageToLineBotWithError("failed to add live chat history", err)
 				return
 			}
 		}
@@ -155,7 +155,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			err := sys.Command(ctx, message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner)
 			if err != nil {
-				_ = sys.MessageToLineBotWithError("error in core.Command()", err)
+				sys.MessageToLineBotWithError("error in core.Command()", err)
 			}
 		}
 		

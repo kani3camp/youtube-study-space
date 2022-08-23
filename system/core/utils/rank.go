@@ -12,8 +12,14 @@ const (
 	RankPointUpperLimit = 10e4 - 1 // = 99,999
 )
 
-func CalcNewRPExitRoom(netStudyDuration time.Duration, isWorkNameSet bool, yesterdayContinuedActive bool,
-	currentStateStarted time.Time, lastActiveAt time.Time, previousRankPoint int) (int, error) {
+func CalcNewRPExitRoom(
+	netStudyDuration time.Duration,
+	isWorkNameSet bool,
+	yesterdayContinuedActive bool,
+	currentStateStarted time.Time,
+	lastActiveAt time.Time,
+	previousRankPoint int,
+) (int, error) {
 	basePoint := int(netStudyDuration.Minutes())
 	
 	//log.Println("netStudyDuration: ", netStudyDuration)
