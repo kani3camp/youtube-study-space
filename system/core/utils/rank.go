@@ -143,7 +143,7 @@ func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 // CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。
 func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted time.Time, lastActiveAt time.Time) (int, error) {
 	jstNow := JstNow()
-	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
+	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) { // 未来の日時はおかしい
 		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true.")
 	}
 	if yesterdayContinuedActive {
