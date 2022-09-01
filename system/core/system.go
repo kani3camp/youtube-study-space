@@ -382,7 +382,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				// 入室処理
 				err = s.enterRoom(tx, s.ProcessedUserId, s.ProcessedUserDisplayName,
 					inOption.SeatId, inOption.MinutesAndWorkName.WorkName, inOption.MinutesAndWorkName.DurationMin,
-					seatAppearance, myfirestore.WorkState)
+					seatAppearance, myfirestore.WorkState, userDoc.IsContinuousActive)
 				if err != nil {
 					s.MessageToLineBotWithError("failed to enter room", err)
 					s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -405,7 +405,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 		} else { // 入室のみ
 			err = s.enterRoom(tx, s.ProcessedUserId, s.ProcessedUserDisplayName,
 				inOption.SeatId, inOption.MinutesAndWorkName.WorkName, inOption.MinutesAndWorkName.DurationMin,
-				seatAppearance, myfirestore.WorkState)
+				seatAppearance, myfirestore.WorkState, userDoc.IsContinuousActive)
 			if err != nil {
 				s.MessageToLineBotWithError("failed to enter room", err)
 				s.MessageToLiveChat(ctx, tx, s.ProcessedUserDisplayName+
@@ -1445,6 +1445,7 @@ func (s *System) enterRoom(
 	workMin int,
 	seatAppearance myfirestore.SeatAppearance,
 	state myfirestore.SeatState,
+	isContinuousActive bool,
 ) error {
 	enterDate := utils.JstNow()
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
@@ -1486,6 +1487,15 @@ func (s *System) enterRoom(
 		s.MessageToLineBotWithError("failed to add an user activity", err)
 		return err
 	}
+	// 久しぶりの入室であれば、isContinuousActiveをtrueに更新
+	if !isContinuousActive {
+		err = s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, true, enterDate)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
+			return err
+		}
+	}
+	
 	return nil
 }
 
@@ -2088,11 +2098,6 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 		if utils.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
 			log.Println("user " + userId + " is already RP processed today, skipping.")
 			return nil
-		}
-		
-		// チェック
-		if userDoc.CurrentActivityStateStarted.Before(userDoc.LastEntered) {
-			return errors.New("CurrentActivityStateStarted < LastEntered はおかしい。")
 		}
 		
 		lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, err := utils.DailyUpdateRankPoint(

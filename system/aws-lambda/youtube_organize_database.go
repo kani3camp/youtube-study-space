@@ -29,7 +29,7 @@ func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
 	
 	err = _system.OrganizeDatabase(ctx)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to organize database", err)
+		_system.MessageToLineBotWithError("failed to organize database", err)
 		return OrganizeDatabaseResponseStruct{}, nil
 	}
 	

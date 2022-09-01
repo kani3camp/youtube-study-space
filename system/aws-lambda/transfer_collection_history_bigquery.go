@@ -29,7 +29,7 @@ func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryRespo
 	
 	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to transfer each collection history to bigquery", err)
+		_system.MessageToLineBotWithError("failed to transfer each collection history to bigquery", err)
 		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
 	}
 	
