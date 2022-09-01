@@ -107,18 +107,15 @@ func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastP
 	return ApplyRPRange(int(float64(previousRP) * magnification)), newPenaltyImposedDays, nil
 }
 
-// CalcContinuousInactiveDays 連続非アクティブn日目のとき、n-1を返す。
+// CalcContinuousInactiveDays 連続非アクティブn日のとき、nを返す。
 func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 	jstNow := JstNow()
 	if lastActiveAt.After(jstNow) {
-		return 0, errors.New("lastActiveAt.After(jstNow) is true.")
+		return 0, errors.New("lastActiveAt is after jstNow.")
 	}
-	if DateEqualJST(lastActiveAt, jstNow) {
-		return 0, nil
-	}
-	lastActiveDate0AM := time.Date(lastActiveAt.Year(), lastActiveAt.Month(), lastActiveAt.Day(), 0, 0, 0, 0, JapanLocation())
-	n := int(jstNow.Sub(lastActiveDate0AM).Hours() / 24)
-	return n - 1, nil
+	inactiveDuration := jstNow.Sub(lastActiveAt)
+	inactiveDays := int(inactiveDuration.Hours() / 24)
+	return inactiveDays, nil
 }
 
 // CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
 	"context"
@@ -184,6 +185,21 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
+	err, userIdsToProcess := s.DailyOrganizeDatabase(ctx)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to DailyOrganizeDatabase", err)
+		panic(err)
+	}
+	
+	remainingUserIds, err := s.UpdateUserRPBatch(ctx, userIdsToProcess, lambdautils.InterruptionTimeLimitSeconds)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
+		panic(err)
+	}
+	
+	if len(remainingUserIds) > 0 {
+		log.Println("まだ終わってない: ", remainingUserIds)
+	}
 }
 
 func main() {
