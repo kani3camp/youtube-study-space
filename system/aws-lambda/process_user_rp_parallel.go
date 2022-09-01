@@ -34,7 +34,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 	
 	remainingUserIds, err := _system.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptionTimeLimitSeconds)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
+		_system.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
 	
@@ -44,7 +44,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 		
 		sess, err := session.NewSession()
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
+			_system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
@@ -62,7 +62,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			_system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		log.Println(resp)

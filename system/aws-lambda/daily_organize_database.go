@@ -35,13 +35,13 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 	
 	err, userIdsToProcess := _system.DailyOrganizeDatabase(ctx)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to DailyOrganizeDatabase", err)
+		_system.MessageToLineBotWithError("failed to DailyOrganizeDatabase", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	
 	sess, err := session.NewSession()
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
+		_system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	svc := lambda2.New(sess)
@@ -65,7 +65,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			_ = _system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			_system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponseStruct{}, err
 		}
 		log.Println(resp)
