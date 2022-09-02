@@ -29,7 +29,7 @@ func CheckLiveStream() (CheckLiveStreamResponseStruct, error) {
 	
 	err = _system.CheckLiveStreamStatus(ctx)
 	if err != nil {
-		_ = _system.MessageToLineBotWithError("failed to check live stream", err)
+		_system.MessageToLineBotWithError("failed to check live stream", err)
 		return CheckLiveStreamResponseStruct{}, err
 	}
 	

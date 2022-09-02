@@ -25,7 +25,6 @@ func NewLineBot(channelSecret string, channelToken string, destinationLineId str
 func (bot *LineBot) SendMessage(message string) error {
 	log.Println("sending a message to LINE \"", message+"\"")
 	if _, err := bot.Bot.PushMessage(bot.DestinationLineId, linebot.NewTextMessage(message)).Do(); err != nil {
-		log.Println("failed to send message to the LINE.")
 		return err
 	}
 	return nil

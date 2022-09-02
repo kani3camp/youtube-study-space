@@ -18,7 +18,7 @@ func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 		
 		err := s.CheckLongTimeSitting(ctx)
 		if err != nil {
-			_ = s.MessageToLineBotWithError("failed to CheckLongTimeSitting", err)
+			s.MessageToLineBotWithError("failed to CheckLongTimeSitting", err)
 			log.Println(err)
 		}
 		
