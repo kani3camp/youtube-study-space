@@ -189,7 +189,7 @@ const Seats: FC = () => {
         ) as RoomsStateResponse
 
         if (snapshotUsedLayouts.length < currentPageIndex + 1) {
-            // index out of rangeにならないように最初のページに。
+            // index out of rangeにならないように1ページ目に。
             setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
         }
 
