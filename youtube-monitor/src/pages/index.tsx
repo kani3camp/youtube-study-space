@@ -18,9 +18,9 @@ const Home: FC = () => (
         <BackgroundImage></BackgroundImage>
         <BgmPlayer></BgmPlayer>
         <Clock />
-        <Seats />
         <StandingRoom />
         <Timer />
+        <Seats />
     </div>
 )
 export default Home

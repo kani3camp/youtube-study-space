@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import api from '../lib/api_config'
 import { useInterval } from '../lib/common'
 import fetcher from '../lib/fetcher'
@@ -133,7 +133,7 @@ const Seats: FC = () => {
                                     desired_max_seats: final_desired_max_seats,
                                 }),
                             }
-                        ).then(async (r) => {
+                        ).then(async () => {
                             console.log('リクエストした')
                         })
                     }
