@@ -1,4 +1,4 @@
-import React, { FC, useState } from 'react'
+import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { getCurrentSection } from '../lib/time_table'
 import * as styles from '../styles/BackgroundImage.styles'
@@ -31,7 +31,14 @@ const BackgroundImage: FC = () => {
 
     return (
         <div css={styles.backgroundImage}>
-            <img src={srcUrl} alt='背景画像' />
+            <img
+                src={srcUrl}
+                alt='背景画像'
+                onError={({ currentTarget }) => {
+                    currentTarget.onerror = null // prevents looping
+                    currentTarget.src = `${unsplashUrl},${new Date().getTime()}`
+                }}
+            />
         </div>
     )
 }
