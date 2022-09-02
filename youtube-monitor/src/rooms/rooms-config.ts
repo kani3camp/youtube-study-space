@@ -30,8 +30,8 @@ export const allRooms: AllRoomsConfig = testAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0
-    for (const r of allRooms.basicRooms) {
-        numSeatsBasicRooms += r.seats.length
+    for (const room of allRooms.basicRooms) {
+        numSeatsBasicRooms += room.seats.length
     }
     return numSeatsBasicRooms
 }

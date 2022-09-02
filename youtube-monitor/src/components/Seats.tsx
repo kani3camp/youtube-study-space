@@ -1,5 +1,6 @@
 import React, { FC, useEffect, useState } from 'react'
 import api from '../lib/api_config'
+import { useInterval } from '../lib/common'
 import fetcher from '../lib/fetcher'
 import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
 import * as styles from '../styles/Room.styles'
@@ -10,61 +11,92 @@ import {
 } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
-import LayoutDisplay from './LayoutDisplay'
 import Message from './Message'
+import SeatsPage, { LayoutPageProps } from './SeatsPage'
 
-const Room: FC = () => {
+const Seats: FC = () => {
     const DATA_FETCHING_INTERVAL_MSEC = 5 * 1000
-    const PAGING_INTERVAL_MSEC = 8 * 1000
+    const PAGING_INTERVAL_MSEC = 4 * 1000
 
-    const [seats, setSeats] = useState<Seat[] | undefined>(undefined)
-    const [displayRoomIndex, setDisplayRoomIndex] = useState<number>(0)
-    const [firstDisplaySeatId, setFirstDisplaySeatId] = useState<number>(0)
-    const [maxSeats, setMaxSeats] = useState<number>(0)
+    const [latestRoomsState, setLatestRoomsState] =
+        useState<RoomsStateResponse>()
+    const [currentPageIndex, setCurrentPageIndex] = useState<number>(0)
     const [initialized, setInitialized] = useState<boolean>(false)
-    const [roomLayouts, setRoomLayouts] = useState<RoomLayout[]>([])
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+    const [usedLayouts, setUsedLayouts] = useState<RoomLayout[]>([])
+    const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 
     useEffect(() => {
-        // console.log('useEffect')
-        if (!initialized) {
-            setInitialized(true)
-            init()
-        } else {
-            updateDisplay(lastUpdated, roomLayouts, displayRoomIndex, seats)
-        }
-    }, [initialized, seats, roomLayouts, displayRoomIndex, lastUpdated])
+        setInitialized(true)
+        fetchAndUpdateRoomLayouts()
+    }, [])
 
-    const init = async () => {
-        console.log(init.name)
-        await checkAndUpdateRoomLayouts()
-        setInterval(async () => {
-            await checkAndUpdateRoomLayouts()
-        }, DATA_FETCHING_INTERVAL_MSEC)
+    useInterval(async () => {
+        await fetchAndUpdateRoomLayouts()
+    }, DATA_FETCHING_INTERVAL_MSEC)
+
+    useInterval(() => {
+        if (usedLayouts.length > 0) {
+            const newPageIndex = (currentPageIndex + 1) % usedLayouts.length
+            setCurrentPageIndex(newPageIndex)
+        }
+    }, PAGING_INTERVAL_MSEC)
+
+    useEffect(() => {
+        if (initialized) {
+            updatePageProps()
+        }
+    }, [initialized, latestRoomsState, usedLayouts])
+
+    useEffect(() => {
+        changePage(currentPageIndex)
+    }, [currentPageIndex])
+
+    /**
+     * 表示するページを変更する。
+     * @param pageIndex 次に表示したいページのインデックス番号（0始まり）
+     */
+    const changePage = (pageIndex: number) => {
+        const newPageProps: LayoutPageProps[] = pageProps.map((page, index) => {
+            if (index === pageIndex) {
+                page.display = true
+            } else {
+                page.display = false
+            }
+            return page
+        })
+        setPageProps(newPageProps)
     }
 
-    const checkAndUpdateRoomLayouts = async () => {
-        let max_seats = 0
+    const layoutPages = pageProps.map((pageProp, index) => (
+        <SeatsPage
+            key={index}
+            firstSeatId={pageProp.firstSeatId}
+            roomLayout={pageProp.roomLayout}
+            usedSeats={pageProp.usedSeats}
+            display={pageProp.display}
+        ></SeatsPage>
+    ))
+
+    const fetchAndUpdateRoomLayouts = async () => {
+        let maxSeats = 0
 
         // seats取得
         await new Promise<void>((resolve, reject) => {
             fetcher<RoomsStateResponse>(api.roomsState)
                 .then(async (r) => {
                     console.log('fetchした')
-                    setSeats(r.seats)
-                    setMaxSeats(r.max_seats)
-                    max_seats = r.max_seats
+                    if (r.result !== 'ok') {
+                        console.error(r)
+                        reject()
+                    }
+                    setLatestRoomsState(r)
+                    maxSeats = r.max_seats
 
                     // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
                     let final_desired_max_seats: number
                     const min_seats_by_vacancy_rate = Math.ceil(
                         r.seats.length / (1 - r.min_vacancy_rate)
                     )
-                    // console.log(
-                    //     '少なくとも',
-                    //     min_seats_by_vacancy_rate,
-                    //     'は確定'
-                    // )
                     // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
                     if (min_seats_by_vacancy_rate > numSeatsInAllBasicRooms()) {
                         let current_num_seats: number =
@@ -111,11 +143,11 @@ const Room: FC = () => {
                         ...allRooms.basicRooms,
                     ] // まずは基本ルームを設定
                     // 必要なぶんだけ臨時レイアウトを追加
-                    if (max_seats > numSeatsInAllBasicRooms()) {
+                    if (maxSeats > numSeatsInAllBasicRooms()) {
                         let current_adding_temporary_room_index = 0
                         while (
                             numSeatsOfRoomLayouts(next_display_room_layouts) <
-                            max_seats
+                            maxSeats
                         ) {
                             next_display_room_layouts.push(
                                 allRooms.temporaryRooms[
@@ -130,43 +162,60 @@ const Room: FC = () => {
 
                     // TODO: レイアウト的にmax_seatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
-                    setRoomLayouts(next_display_room_layouts)
+                    setUsedLayouts(next_display_room_layouts)
                     resolve()
                 })
                 .catch((err) => {
                     console.error(err)
-                    reject()
+                    reject(err)
                 })
         })
     }
 
-    const updateDisplay = (
-        last_updated: Date,
-        room_layouts: RoomLayout[],
-        room_index: number,
-        seats_state: Seat[] | undefined
-    ) => {
-        if (room_layouts && seats_state) {
-            const diffMilliSecond =
-                new Date().getTime() - last_updated.getTime()
-            if (diffMilliSecond >= PAGING_INTERVAL_MSEC) {
-                // 次に表示するルームのレイアウトのインデックスを求める
-                const nextDisplayRoomIndex =
-                    (room_index + 1) % room_layouts.length
-
-                // 次に表示するルームの最初の席の番号を求める
-                let firstSeatId = 0
-                for (let i = 0; i < nextDisplayRoomIndex; i++) {
-                    firstSeatId += room_layouts[i].seats.length
+    const updatePageProps = () => {
+        if (latestRoomsState === undefined) {
+            return
+        }
+        const currentPageProps = pageProps
+        let sumSeats = 0
+        const newPageProps: LayoutPageProps[] = usedLayouts.map(
+            (layout, index): LayoutPageProps => {
+                const numSeats = layout.seats.length
+                const firstSeatIdInLayout = sumSeats + 1 // インデックスではない
+                sumSeats += numSeats
+                const LastSeatIdInLayout = sumSeats // インデックスではない
+                const usedSeatsInLayout: Seat[] = latestRoomsState.seats.filter(
+                    (seat) =>
+                        firstSeatIdInLayout <= seat.seat_id &&
+                        seat.seat_id <= LastSeatIdInLayout
+                )
+                let displayThisPage = false
+                if (pageProps.length == 0 && index === 0) {
+                    // 初回のときは1ページ目を表示
+                    displayThisPage = true
+                } else if (index >= currentPageProps.length) {
+                    // 増えたページの場合は、表示はfalse
+                    displayThisPage = false
+                } else {
+                    displayThisPage = currentPageProps[index].display
                 }
 
-                setFirstDisplaySeatId(firstSeatId)
-                setDisplayRoomIndex(nextDisplayRoomIndex)
-                setLastUpdated(new Date())
+                return {
+                    roomLayout: layout,
+                    firstSeatId: firstSeatIdInLayout,
+                    usedSeats: usedSeatsInLayout,
+                    display: displayThisPage,
+                }
             }
-        }
+        )
+        setPageProps(newPageProps)
     }
 
+    /**
+     * 実際に必要な席数。
+     * @param layouts
+     * @returns
+     */
     const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
         let count = 0
         for (const layout of layouts) {
@@ -175,26 +224,26 @@ const Room: FC = () => {
         return count
     }
 
-    if (seats) {
+    if (pageProps.length > 0) {
         return (
-            <div css={styles.defaultRoom}>
-                <LayoutDisplay
-                    roomLayouts={roomLayouts}
-                    roomIndex={displayRoomIndex}
-                    seats={seats}
-                    firstSeatId={firstDisplaySeatId}
-                    maxSeats={maxSeats}
-                ></LayoutDisplay>
-                <Message
-                    current_room_index={displayRoomIndex}
-                    current_rooms_length={roomLayouts.length}
-                    seats={seats}
-                ></Message>
-            </div>
+            <>
+                <div css={styles.defaultRoom}>
+                    {layoutPages}
+                    <Message
+                        currentPageIndex={currentPageIndex}
+                        currentRoomsLength={usedLayouts.length}
+                        seats={
+                            latestRoomsState !== undefined
+                                ? latestRoomsState.seats
+                                : []
+                        }
+                    ></Message>
+                </div>
+            </>
         )
     } else {
         return <CenterLoading></CenterLoading>
     }
 }
 
-export default Room
+export default Seats
