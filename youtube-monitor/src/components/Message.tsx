@@ -3,8 +3,8 @@ import * as styles from '../styles/Message.styles'
 import { Seat } from '../types/api'
 
 type Props = {
-    current_room_index: number
-    current_rooms_length: number
+    currentPageIndex: number
+    currentRoomsLength: number
     seats: Seat[]
 }
 
@@ -14,8 +14,8 @@ const Message: FC<Props> = (props) => {
         return (
             <div css={styles.message}>
                 <div css={styles.roomName}>
-                    ページ{props.current_room_index + 1} /{' '}
-                    {props.current_rooms_length}
+                    ページ{props.currentPageIndex + 1} /{' '}
+                    {props.currentRoomsLength}
                 </div>
                 <div css={styles.numStudyingPeople}>
                     {numWorkers}人が作業中☘

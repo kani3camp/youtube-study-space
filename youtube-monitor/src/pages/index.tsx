@@ -2,7 +2,7 @@ import { FC } from 'react'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
-import Room from '../components/Room'
+import Seats from '../components/Seats'
 import Timer from '../components/Timer'
 import StandingRoom from '../components/Usage'
 
@@ -18,9 +18,9 @@ const Home: FC = () => (
         <BackgroundImage></BackgroundImage>
         <BgmPlayer></BgmPlayer>
         <Clock />
-        <Room />
         <StandingRoom />
         <Timer />
+        <Seats />
     </div>
 )
 export default Home

@@ -1,4 +1,5 @@
 import { RoomLayout } from '../types/room-layout'
+import { circleRoomLayout } from './layouts/circle_room'
 import { classRoomLayout } from './layouts/classroom'
 import { Freepick1RoomLayout } from './layouts/freepick1_room'
 import { Freepick2RoomLayout } from './layouts/freepick2_room'
@@ -22,7 +23,13 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
+    basicRooms: [
+        Freepick1RoomLayout,
+        Freepick2RoomLayout,
+        classRoomLayout,
+        SimpleRoomLayout,
+        circleRoomLayout,
+    ],
     temporaryRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
 }
 
@@ -30,8 +37,8 @@ export const allRooms: AllRoomsConfig = testAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0
-    for (const r of allRooms.basicRooms) {
-        numSeatsBasicRooms += r.seats.length
+    for (const room of allRooms.basicRooms) {
+        numSeatsBasicRooms += room.seats.length
     }
     return numSeatsBasicRooms
 }
