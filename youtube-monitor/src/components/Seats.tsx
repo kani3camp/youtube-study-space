@@ -52,15 +52,20 @@ const Seats: FC = () => {
      * @param pageIndex 次に表示したいページのインデックス番号（0始まり）
      */
     const changePage = (pageIndex: number) => {
-        const newPageProps: LayoutPageProps[] = pageProps.map((page, index) => {
-            if (index === pageIndex) {
-                page.display = true
-            } else {
-                page.display = false
+        const snapshotPageProps = [...pageProps]
+        if (pageIndex + 1 > snapshotPageProps.length) {
+            pageIndex = 0 // index out of range にならないように１ページ目に。
+        }
+        const newPageProps: LayoutPageProps[] = snapshotPageProps.map(
+            (page, index) => {
+                if (index === pageIndex) {
+                    page.display = true
+                } else {
+                    page.display = false
+                }
+                return page
             }
-            return page
-        })
-        console.log('changing page.')
+        )
         setPageProps(newPageProps)
     }
 
@@ -176,28 +181,40 @@ const Seats: FC = () => {
         if (latestRoomsState === undefined) {
             return
         }
-        const currentPageProps = pageProps
+        // 各項目のスナップショットをとる
+        const snapshotPageProps = [...pageProps]
+        const snapshotUsedLayouts = [...usedLayouts]
+        const snapshotLatestRoomsState = JSON.parse(
+            JSON.stringify(latestRoomsState)
+        ) as RoomsStateResponse
+
+        if (snapshotUsedLayouts.length < currentPageIndex + 1) {
+            // index out of rangeにならないように最初のページに。
+            setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
+        }
+
         let sumSeats = 0
-        const newPageProps: LayoutPageProps[] = usedLayouts.map(
+        const newPageProps: LayoutPageProps[] = snapshotUsedLayouts.map(
             (layout, index): LayoutPageProps => {
                 const numSeats = layout.seats.length
                 const firstSeatIdInLayout = sumSeats + 1 // インデックスではない
                 sumSeats += numSeats
                 const LastSeatIdInLayout = sumSeats // インデックスではない
-                const usedSeatsInLayout: Seat[] = latestRoomsState.seats.filter(
-                    (seat) =>
-                        firstSeatIdInLayout <= seat.seat_id &&
-                        seat.seat_id <= LastSeatIdInLayout
-                )
+                const usedSeatsInLayout: Seat[] =
+                    snapshotLatestRoomsState.seats.filter(
+                        (seat) =>
+                            firstSeatIdInLayout <= seat.seat_id &&
+                            seat.seat_id <= LastSeatIdInLayout
+                    )
                 let displayThisPage = false
                 if (pageProps.length == 0 && index === 0) {
-                    // 初回のときは1ページ目を表示
+                    // 初回構築のときは1ページ目を表示
                     displayThisPage = true
-                } else if (index >= currentPageProps.length) {
+                } else if (index >= snapshotPageProps.length) {
                     // 増えたページの場合は、表示はfalse
                     displayThisPage = false
                 } else {
-                    displayThisPage = currentPageProps[index].display
+                    displayThisPage = snapshotPageProps[index].display
                 }
 
                 return {
