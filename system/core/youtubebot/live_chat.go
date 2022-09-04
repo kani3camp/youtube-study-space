@@ -438,3 +438,60 @@ func (b *YoutubeLiveChatBot) refreshAccessToken(ctx context.Context, clientId st
 		return "", time.Time{}, err
 	}
 }
+
+// BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
+func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, tx *firestore.Transaction, liveChatId string, userId string) error {
+	err := b.banRequest(ctx, liveChatId, userId)
+	// first call
+	if err != nil {
+		log.Println("first post was failed", err)
+		
+		// b credentialのaccess tokenが期限切れの可能性
+		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if credentialConfig.YoutubeBotExpirationDate.Before(utils.JstNow()) {
+			// access tokenが期限切れのため、更新する
+			err := b.refreshBotAccessToken(ctx, tx)
+			if err != nil {
+				return err
+			}
+		} else {
+			// live chat idが変わっている可能性があるため、更新して再試行
+			err := b.refreshLiveChatId(ctx)
+			if err != nil {
+				return err
+			}
+		}
+		
+		// TODO: second call
+		liveChatMessage.Snippet.LiveChatId = b.LiveChatId
+		liveChatMessageService = youtube.NewLiveChatMessagesService(b.BotYoutubeService)
+		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
+		_, err = insertCall.Do()
+		if err != nil {
+			log.Println("second post was failed")
+			return err
+		}
+	}
+	
+}
+
+func (b *YoutubeLiveChatBot) banRequest(ctx context.Context, liveChatId string, userId string) error {
+	part := []string{"snippet"}
+	liveChatBan := youtube.LiveChatBan{
+		Snippet: &youtube.LiveChatBanSnippet{
+			LiveChatId: liveChatId,
+			Type:       "permanent",
+			BannedUserDetails: &youtube.ChannelProfileDetails{
+				ChannelId: userId,
+			},
+		},
+	}
+	liveChatBanService := youtube.NewLiveChatBansService(b.BotYoutubeService)
+	insertCall := liveChatBanService.Insert(part, &liveChatBan)
+	
+	_, err := insertCall.Do()
+	return err
+}
