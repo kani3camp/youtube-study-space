@@ -444,7 +444,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, tx *firestore.Transact
 	err := b.banRequest(ctx, liveChatId, userId)
 	// first call
 	if err != nil {
-		log.Println("first post was failed", err)
+		log.Println("first banRequest was failed", err)
 		
 		// b credentialのaccess tokenが期限切れの可能性
 		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
@@ -465,17 +465,14 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, tx *firestore.Transact
 			}
 		}
 		
-		// TODO: second call
-		liveChatMessage.Snippet.LiveChatId = b.LiveChatId
-		liveChatMessageService = youtube.NewLiveChatMessagesService(b.BotYoutubeService)
-		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
-		_, err = insertCall.Do()
+		// second call
+		err = b.banRequest(ctx, liveChatId, userId)
 		if err != nil {
-			log.Println("second post was failed")
+			log.Println("second banRequest was failed")
 			return err
 		}
 	}
-	
+	return nil
 }
 
 func (b *YoutubeLiveChatBot) banRequest(ctx context.Context, liveChatId string, userId string) error {
