@@ -1,11 +1,12 @@
 import { RoomLayout } from '../types/room-layout'
-import { circleRoomLayout } from './layouts/circle_room'
 import { classRoomLayout } from './layouts/classroom'
 import { Freepick1RoomLayout } from './layouts/freepick1_room'
 import { Freepick2RoomLayout } from './layouts/freepick2_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
+import { iLineRoomLayout } from './layouts/iline_room'
 import { mazeRoomLayout } from './layouts/maze_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
+import { ver2RoomLayout } from './layouts/ver2'
 
 type AllRoomsConfig = {
     basicRooms: RoomLayout[]
@@ -26,9 +27,8 @@ const testAllRooms: AllRoomsConfig = {
     basicRooms: [
         Freepick1RoomLayout,
         Freepick2RoomLayout,
-        classRoomLayout,
-        SimpleRoomLayout,
-        circleRoomLayout,
+        iLineRoomLayout,
+        ver2RoomLayout,
     ],
     temporaryRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
 }
