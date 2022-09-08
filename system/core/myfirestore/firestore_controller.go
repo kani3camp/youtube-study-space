@@ -353,9 +353,9 @@ func (c *FirestoreController) SetAccessTokenOfChannelCredential(tx *firestore.Tr
 	})
 }
 
-func (c *FirestoreController) SetAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
+func (c *FirestoreController) SetAccessTokenOfBotCredential(ctx context.Context, accessToken string, expireDate time.Time) error {
 	ref := c.configCollection().Doc(CredentialsConfigDocName)
-	return c.update(ctx, tx, ref, []firestore.Update{
+	return c.update(ctx, nil, ref, []firestore.Update{
 		{Path: YoutubeBotAccessTokenDocProperty, Value: accessToken},
 		{Path: YoutubeBotExpirationDateDocProperty, Value: expireDate},
 	})

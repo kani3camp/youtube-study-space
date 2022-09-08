@@ -52,7 +52,7 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 	sys.MessageToLineBot("居座り防止プログラムが起動しました。")
 	defer func() {
 		sys.CloseFirestoreClient()
-		sys.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
+		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToLineBot("app stopped!!")
 	}()
 	
@@ -70,7 +70,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	sys.MessageToLineBot("Botが起動しました。")
 	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
 		sys.CloseFirestoreClient()
-		sys.MessageToLiveChat(ctx, nil, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
+		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToLineBot("app stopped!!")
 	}()
 	

@@ -100,7 +100,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		}
 		if credentialConfig.YoutubeBotExpirationDate.Before(utils.JstNow()) {
 			// access tokenが期限切れのため、更新する
-			err := b.refreshBotAccessToken(ctx, nil)
+			err := b.refreshBotAccessToken(ctx)
 			if err != nil {
 				return nil, "", 0, err
 			}
@@ -126,11 +126,11 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 	return response.Items, response.NextPageToken, int(response.PollingIntervalMillis), nil
 }
 
-func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, tx *firestore.Transaction, message string) error {
+func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) error {
 	log.Println("sending a message to Youtube Live \"" + message + "\"")
 	
 	if utf8.RuneCountInString(message) <= MaxLiveChatMessageLength {
-		return b.postMessage(ctx, tx, message)
+		return b.postMessage(ctx, message)
 	}
 	var messages []string
 	for {
@@ -151,7 +151,7 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, tx *firestore.Tran
 		message = message[p:]
 	}
 	for _, m := range messages {
-		err := b.postMessage(ctx, tx, m)
+		err := b.postMessage(ctx, m)
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,11 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, tx *firestore.Tran
 	return nil
 }
 
-func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, tx *firestore.Transaction, message string) error {
+func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) error {
+	if len(message) == 0 {
+		return errors.New("message length is 0.")
+	}
+	
 	part := []string{"snippet"}
 	liveChatMessage := youtube.LiveChatMessage{
 		Snippet: &youtube.LiveChatMessageSnippet{
@@ -186,7 +190,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, tx *firestore.Tran
 		}
 		if credentialConfig.YoutubeBotExpirationDate.Before(utils.JstNow()) {
 			// access tokenが期限切れのため、更新する
-			err := b.refreshBotAccessToken(ctx, tx)
+			err := b.refreshBotAccessToken(ctx)
 			if err != nil {
 				return err
 			}
@@ -336,7 +340,7 @@ func (b *YoutubeLiveChatBot) refreshChannelAccessToken(ctx context.Context) erro
 	})
 }
 
-func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context, tx *firestore.Transaction) error {
+func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context) error {
 	log.Println("refreshBotAccessToken()")
 	credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
 	if err != nil {
@@ -377,7 +381,7 @@ func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context, tx *fire
 	b.ChannelYoutubeService = newService
 	
 	// Firestoreに保存
-	err = b.FirestoreController.SetAccessTokenOfBotCredential(ctx, tx, newAccessToken, newExpirationDate)
+	err = b.FirestoreController.SetAccessTokenOfBotCredential(ctx, newAccessToken, newExpirationDate)
 	if err != nil {
 		return err
 	}
@@ -440,7 +444,7 @@ func (b *YoutubeLiveChatBot) refreshAccessToken(ctx context.Context, clientId st
 }
 
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
-func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, tx *firestore.Transaction, liveChatId string, userId string) error {
+func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, liveChatId string, userId string) error {
 	err := b.banRequest(ctx, liveChatId, userId)
 	// first call
 	if err != nil {
@@ -453,7 +457,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, tx *firestore.Transact
 		}
 		if credentialConfig.YoutubeBotExpirationDate.Before(utils.JstNow()) {
 			// access tokenが期限切れのため、更新する
-			err := b.refreshBotAccessToken(ctx, tx)
+			err := b.refreshBotAccessToken(ctx)
 			if err != nil {
 				return err
 			}
