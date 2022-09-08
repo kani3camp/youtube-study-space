@@ -984,6 +984,8 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 
 func (s *System) More(command CommandDetails, ctx context.Context) error {
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		jstNow := utils.JstNow()
+		
 		// 入室しているか？
 		isUserInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
@@ -1008,23 +1010,29 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 		newSeat := &currentSeat
 		
 		replyMessage := s.ProcessedUserDisplayName + "さん、"
-		var addedMin int
-		var remainingUntilExitMin int
+		var addedMin int              // 最終的な延長時間（分）
+		var remainingUntilExitMin int // 最終的な自動退室予定時刻までの残り時間（分）
 		
 		switch currentSeat.State {
 		case myfirestore.WorkState:
+			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、少なくともアウトなので最大作業時間で上書き。
+			if command.MoreOption.DurationMin > s.Configs.Constants.MaxWorkTimeMin {
+				command.MoreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
+			}
+			
 			// 作業時間を指定分延長する
 			newUntil := currentSeat.Until.Add(time.Duration(command.MoreOption.DurationMin) * time.Minute)
 			// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
-			if int(utils.NoNegativeDuration(newUntil.Sub(utils.JstNow())).Minutes()) > s.Configs.Constants.MaxWorkTimeMin {
-				newUntil = utils.JstNow().Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)
+			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
+			if remainingUntilExitMin > s.Configs.Constants.MaxWorkTimeMin {
+				newUntil = jstNow.Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)
 				replyMessage += "現在時刻から" + strconv.Itoa(s.Configs.Constants.
 					MaxWorkTimeMin) + "分後までのみ作業時間を延長可能です。延長できる最大の時間で設定します。"
 			}
 			addedMin = int(utils.NoNegativeDuration(newUntil.Sub(currentSeat.Until)).Minutes())
 			newSeat.Until = newUntil
 			newSeat.CurrentStateUntil = newUntil
-			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(utils.JstNow())).Minutes())
+			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 		case myfirestore.BreakState:
 			// 休憩時間を指定分延長する
 			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(command.MoreOption.DurationMin) * time.Minute)
@@ -1040,9 +1048,9 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			if newBreakUntil.After(currentSeat.Until) {
 				newUntil := newBreakUntil
 				newSeat.Until = newUntil
-				remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(utils.JstNow())).Minutes())
+				remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 			} else {
-				remainingUntilExitMin = int(utils.NoNegativeDuration(currentSeat.Until.Sub(utils.JstNow())).Minutes())
+				remainingUntilExitMin = int(utils.NoNegativeDuration(currentSeat.Until.Sub(jstNow)).Minutes())
 			}
 		}
 		
@@ -1059,10 +1067,10 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			replyMessage += "自動退室までの時間を" + strconv.Itoa(addedMin) + "分延長しました。"
 		case myfirestore.BreakState:
 			replyMessage += "休憩時間を" + strconv.Itoa(addedMin) + "分延長しました。"
-			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(utils.JstNow()))
+			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
 			replyMessage += "作業再開まで残り" + utils.Ftoa(remainingBreakDuration.Minutes()) + "分。"
 		}
-		realtimeEnteredTimeMin := utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes()
+		realtimeEnteredTimeMin := utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes()
 		replyMessage += "現在" + utils.Ftoa(realtimeEnteredTimeMin) + "分入室中。自動退室まで残り" + strconv.Itoa(remainingUntilExitMin) + "分です"
 		s.MessageToLiveChat(ctx, tx, replyMessage)
 		

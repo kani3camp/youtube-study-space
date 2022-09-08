@@ -370,6 +370,7 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, custom
 			if err == nil {
 				return num, customerror.NewNil()
 			}
+			return num, customerror.NewNil()
 		}
 	}
 	return 0, customerror.InvalidCommand.New("時間（分）のオプションをつけてください")
