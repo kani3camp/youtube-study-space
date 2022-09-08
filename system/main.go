@@ -184,12 +184,6 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	jstNow := utils.JstNow()
-	fmt.Println(jstNow)
-	min1 := 24
-	sum := jstNow.Add(time.Minute * time.Duration(min1))
-	fmt.Println(sum)
-	
 }
 
 func main() {
@@ -200,8 +194,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)

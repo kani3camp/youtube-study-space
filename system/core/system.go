@@ -2412,6 +2412,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
 	lastEnteredTimestamp := checkDurationFrom
 	for i, activity := range activityOnlyEnterExitList {
+		//log.Println(activity.TakenAt.In(utils.JapanLocation()).String() + "に" + string(activity.ActivityType))
 		if activity.ActivityType == myfirestore.EnterRoomActivity {
 			lastEnteredTimestamp = activity.TakenAt
 			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
@@ -2425,7 +2426,7 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 		}
 	}
 	
-	log.Println("[userId: " + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
+	log.Println("[userId: " + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(seatId) + "番席に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
 		"分入室")
 	// 制限値と比較し、結果を返す
 	return int(totalEntryDuration.Minutes()) < s.Configs.Constants.RecentThresholdMin, nil
