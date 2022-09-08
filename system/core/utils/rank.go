@@ -2,7 +2,6 @@ package utils
 
 import (
 	"github.com/pkg/errors"
-	"log"
 	"time"
 )
 
@@ -52,11 +51,6 @@ func CalcNewRPExitRoom(
 	rankMagnification = MagnificationByRP(previousRankPoint)
 	
 	addedRP := int(float64(basePoint) * workNameSetMagnification * continuousActiveDaysMagnification * rankMagnification)
-	
-	log.Println("continuousActiveDays: ", continuousActiveDays)
-	log.Println("continuousActiveDaysMagnification: ", continuousActiveDaysMagnification)
-	log.Println("rankMagnification: ", rankMagnification)
-	log.Println("addedRP: ", addedRP)
 	
 	return ApplyRPRange(previousRankPoint + addedRP), nil
 }
