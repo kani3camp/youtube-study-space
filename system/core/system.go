@@ -258,7 +258,6 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			currentSeat, customErr = s.CurrentSeat(ctx, s.ProcessedUserId)
 			if customErr.IsNotNil() {
 				s.MessageToLineBotWithError("failed CurrentSeat", customErr.Body)
-				replyMessage = s.ProcessedUserDisplayName + "さん、エラーが発生しました"
 				return customErr.Body
 			}
 		}
