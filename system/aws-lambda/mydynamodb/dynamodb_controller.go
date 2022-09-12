@@ -9,13 +9,9 @@ import (
 	"os"
 )
 
-
-
-
-
 func RetrieveFirebaseCredentialInBytes() ([]byte, error) {
 	log.Println("RetrieveFirebaseCredentialInBytes()")
-	region := os.Getenv("AWS_REGION")	// Lambda関数と同じregionのDyanamoDBテーブル
+	region := os.Getenv("AWS_REGION") // Lambda関数と同じregionのDynamoDBテーブル
 	sess := session.Must(session.NewSession())
 	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
 	

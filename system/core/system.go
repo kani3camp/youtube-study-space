@@ -365,7 +365,6 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 				workedTimeSec, addedRP, err := s.exitRoom(tx, currentSeat, &userDoc)
 				if err != nil {
 					s.MessageToLineBotWithError("failed to exitRoom for "+s.ProcessedUserId, err)
-					replyMessage = s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください"
 					return err
 				}
 				
