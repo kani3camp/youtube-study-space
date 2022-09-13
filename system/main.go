@@ -52,7 +52,7 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 	
 	_ = _system.LineBot.SendMessage("Botが起動しました")
 	defer func() {
-		_system.SendLiveChatMessage("エラーが起きたため終了します", ctx)
+		_system.SendLiveChatMessage("エラーが起きたため終了します。お手数ですが管理者に連絡してください。", ctx)
 		_ = _system.LineBot.SendMessage("app stopped!!")
 	}()
 	
@@ -114,8 +114,14 @@ func LocalMain(clientOption option.ClientOption, ctx context.Context) {
 		// nextPageTokenを保存
 		err = _system.SaveNextPageToken(nextPageToken, ctx)
 		if err != nil {
-			_ = _system.LineBot.SendMessageWithError("failed to save next page token", err)
-			return
+			log.Println("1回目) failed to save next page token")
+			// 少し待ってから再試行
+			time.Sleep(3 * time.Second)
+			err2 := _system.SaveNextPageToken(nextPageToken, ctx)
+			if err2 != nil {
+				_ = _system.LineBot.SendMessageWithError("(2回目) failed to save next page token", err2)
+				// pass
+			}
 		}
 		
 		// コマンドを抜き出して各々処理
