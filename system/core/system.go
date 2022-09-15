@@ -511,7 +511,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 				replyMessage += "［お気に入りカラー：" + utils.ColorCodeToColorName(userDoc.FavoriteColor) + "］"
 			}
 			
-			replyMessage += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
+			replyMessage += "［登録日：" + userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日") + "］"
 		}
 		return nil
 	})
