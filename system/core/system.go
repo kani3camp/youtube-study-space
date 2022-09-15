@@ -542,13 +542,18 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if isUserInRoom {
-			currentSeat, err := s.CurrentSeat(ctx, s.ProcessedUserId)
-			if err.IsNotNil() {
-				s.MessageToLineBotWithError("failed s.CurrentSeat()", err.Body)
-				return err.Body
+			currentSeat, cerr := s.CurrentSeat(ctx, s.ProcessedUserId)
+			if cerr.IsNotNil() {
+				s.MessageToLineBotWithError("failed s.CurrentSeat()", cerr.Body)
+				return cerr.Body
 			}
 			
 			realtimeSittingDurationMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes())
+			realtimeTotalStudyDurationOfSeat, err := RealTimeTotalStudyDurationOfSeat(currentSeat)
+			if err != nil {
+				s.MessageToLineBotWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
+				return err
+			}
 			remainingMinutes := int(utils.NoNegativeDuration(currentSeat.Until.Sub(utils.JstNow())).Minutes())
 			var stateStr string
 			var breakUntilStr string
@@ -562,7 +567,7 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 				breakUntilStr = "作業再開まで" + strconv.Itoa(int(breakUntilDuration.Minutes())) + "分です"
 			}
 			replyMessage = s.ProcessedUserDisplayName + "さんは" + strconv.Itoa(currentSeat.SeatId) +
-				"番の席で" + stateStr + "です。現在" + strconv.Itoa(realtimeSittingDurationMin) + "分入室中。自動退室まで残り" +
+				"番の席で" + stateStr + "です。現在" + strconv.Itoa(realtimeSittingDurationMin) + "分入室中、作業時間は" + strconv.Itoa(int(realtimeTotalStudyDurationOfSeat.Minutes())) + "分、自動退室まで残り" +
 				strconv.Itoa(remainingMinutes) + "分です。" + breakUntilStr
 		} else {
 			replyMessage = s.ProcessedUserDisplayName +
