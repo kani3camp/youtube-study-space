@@ -164,7 +164,7 @@ func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.Se
 	
 	// オプションが1つ以上指定されているか
 	if command.ChangeOption.NumOptionsSet() == 0 {
-		return customerror.InvalidCommand.New(s.ProcessedUserDisplayName + "さん、オプションを指定してください")
+		return customerror.InvalidCommand.New("オプションを指定してください")
 	}
 	
 	switch seatState {
