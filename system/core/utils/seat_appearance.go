@@ -8,7 +8,7 @@ import (
 const (
 	FavoriteColorAvailableThresholdHours = 1000
 	
-	ColorHours0To5      = "#fff"
+	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
 	ColorHours10To20    = "#FF9580"
 	ColorHours20To30    = "#FFC880"
@@ -23,6 +23,22 @@ const (
 	ColorHours500To700  = "#947FFF"
 	ColorHours700To1000 = "#C880FF"
 	ColorHoursFrom1000  = "#FF7FFF"
+	
+	ColorName0To5      = "白"
+	ColorName5To10     = "うすい赤"
+	ColorName10To20    = "ライトサーモン"
+	ColorName20To30    = "トパーズ"
+	ColorName30To50    = "黄"
+	ColorName50To70    = "黄緑"
+	ColorName70To100   = "ミントグリーン"
+	ColorName100To150  = "ライトグリーン"
+	ColorName150To200  = "アクアマリン"
+	ColorName200To300  = "エレクトリックブルー"
+	ColorName300To400  = "ライトスカイブルー"
+	ColorName400To500  = "フレンチスカイブルー"
+	ColorName500To700  = "ブルーバイオレット"
+	ColorName700To1000 = "ペールバイオレット"
+	ColorNameFrom1000  = "ピンク"
 	
 	ColorRank1  = "#D8D8D8"
 	ColorRank2  = "#93FF66"
@@ -101,6 +117,44 @@ func TotalStudyHoursToColorCode(totalHours int) string {
 		return ColorHours700To1000
 	} else {
 		return ColorHoursFrom1000
+	}
+}
+
+// ColorCodeToColorName 累計時間の分け方で使用されている色のみ対応。
+func ColorCodeToColorName(colorCode string) string {
+	switch colorCode {
+	case ColorHours0To5:
+		return ColorName0To5
+	case ColorHours5To10:
+		return ColorName5To10
+	case ColorHours10To20:
+		return ColorName10To20
+	case ColorHours20To30:
+		return ColorName20To30
+	case ColorHours30To50:
+		return ColorName30To50
+	case ColorHours50To70:
+		return ColorName50To70
+	case ColorHours70To100:
+		return ColorName70To100
+	case ColorHours100To150:
+		return ColorName100To150
+	case ColorHours150To200:
+		return ColorName150To200
+	case ColorHours200To300:
+		return ColorName200To300
+	case ColorHours300To400:
+		return ColorName300To400
+	case ColorHours400To500:
+		return ColorName400To500
+	case ColorHours500To700:
+		return ColorName500To700
+	case ColorHours700To1000:
+		return ColorName700To1000
+	case ColorHoursFrom1000:
+		return ColorNameFrom1000
+	default:
+		return "不明"
 	}
 }
 

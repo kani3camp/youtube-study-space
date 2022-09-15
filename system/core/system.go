@@ -519,7 +519,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			if userDoc.FavoriteColor == "" {
 				replyMessage += "［お気に入りカラー：なし］"
 			} else {
-				replyMessage += "［お気に入りカラー：" + userDoc.FavoriteColor + "］"
+				replyMessage += "［お気に入りカラー：" + utils.ColorCodeToColorName(userDoc.FavoriteColor) + "］"
 			}
 			
 			replyMessage += "［登録日：" + userDoc.RegistrationDate.Format("2006年01月02日") + "］"
