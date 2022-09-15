@@ -170,6 +170,27 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 	}
 	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
 	
+	// 初回の利用の場合はユーザーデータを初期化
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		isRegistered, err := s.IfUserRegistered(ctx, tx)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to IfUserRegistered", err)
+			return err
+		}
+		if !isRegistered {
+			err := s.InitializeUser(tx)
+			if err != nil {
+				s.MessageToLineBotWithError("failed to InitializeUser", err)
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+		return err
+	}
+	
 	commandDetails, cerr := ParseCommand(commandString)
 	if cerr.IsNotNil() { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
@@ -222,29 +243,7 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 
 func (s *System) In(ctx context.Context, command CommandDetails) error {
 	var replyMessage string
-	
-	// 初回の利用の場合はユーザーデータを初期化
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		isRegistered, err := s.IfUserRegistered(ctx, tx)
-		if err != nil {
-			s.MessageToLineBotWithError("failed to IfUserRegistered", err)
-			return err
-		}
-		if !isRegistered {
-			err := s.InitializeUser(tx)
-			if err != nil {
-				s.MessageToLineBotWithError("failed to InitializeUser", err)
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
-		return err
-	}
-	
-	err = s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
@@ -471,16 +470,6 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error {
 	var replyMessage string
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// そのユーザーはドキュメントがあるか？
-		isUserRegistered, err := s.IfUserRegistered(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if !isUserRegistered {
-			replyMessage = s.ProcessedUserDisplayName +
-				"さんはまだ作業データがありません。「" + InCommand + "」コマンドで作業を始めましょう！"
-			return nil
-		}
 		totalStudyDuration, dailyTotalStudyDuration, err := s.RetrieveRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
 		if err != nil {
 			s.MessageToLineBotWithError("failed s.RetrieveRealtimeTotalStudyDurations()", err)
@@ -732,25 +721,6 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
 	
-	// 初回の利用の場合はユーザーデータを初期化
-	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		isRegistered, err := s.IfUserRegistered(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if !isRegistered {
-			err := s.InitializeUser(tx)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
-		return err
-	}
-	
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
 		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、オプションが正しく設定されているか確認してください")
@@ -758,7 +728,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	}
 	
 	replyMessage := ""
-	err = s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
@@ -1244,27 +1214,8 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 }
 
 func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
-	// 初回の利用の場合はユーザーデータを初期化
-	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		isRegistered, err := s.IfUserRegistered(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if !isRegistered {
-			err := s.InitializeUser(tx)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました。もう一度試してみてください")
-		return err
-	}
-	
 	replyMessage := ""
-	err = s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく
 		userDoc, err := s.FirestoreController.RetrieveUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
