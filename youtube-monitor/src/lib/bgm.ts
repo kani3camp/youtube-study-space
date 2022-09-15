@@ -2094,7 +2094,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         forPart: AllPartType,
     },
     {
-        title: '1. Ponds',
+        title: 'Ponds',
         artist: 'Elior',
         file: '/audio/lofigirl/Lazy Sunday/31 Elior - Ponds (Kupla Master) (1).mp3',
         forPart: AllPartType,
@@ -2271,19 +2271,19 @@ export const LofiGirlBgmTable: Bgm[] = [
         forPart: AllPartType,
     },
     {
-        title: '4. Sylvan',
+        title: 'Sylvan',
         artist: 'Kupla',
         file: '/audio/lofigirl/Life Forms/14 Kupla - Sylvan (master 2).mp3',
         forPart: AllPartType,
     },
     {
-        title: '5. Last Walk',
+        title: 'Last Walk',
         artist: 'Kupla',
         file: '/audio/lofigirl/Life Forms/15 Kupla - Last Walk (master 2).mp3',
         forPart: AllPartType,
     },
     {
-        title: '6. Safe Haven',
+        title: 'Safe Haven',
         artist: 'Kupla',
         file: '/audio/lofigirl/Life Forms/16 Kupla - Safe Haven (Master).mp3',
         forPart: AllPartType,
@@ -8670,7 +8670,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     },
     {
         title: 'True Colours',
-        artist: ' Loafy Building x ticofaces x Socrab',
+        artist: 'Loafy Building x ticofaces x Socrab',
         file: '/audio/lofigirl/MP3 - Loafy Building - Shelter/9. True Colours (feat. ticofaces & Socrab) (M).mp3',
         forPart: AllPartType,
     },
@@ -9440,19 +9440,19 @@ export const LofiGirlBgmTable: Bgm[] = [
         forPart: AllPartType,
     },
     {
-        title: '4. fireflies',
+        title: 'fireflies',
         artist: 'S N U G x Dimension 32',
         file: '/audio/lofigirl/MP3 - S N U G - Quietude/7. fireflies ft. Dimension 32.mp3',
         forPart: AllPartType,
     },
     {
-        title: '5. mahogany',
+        title: 'mahogany',
         artist: 'S N U G x Mondo Loops',
         file: '/audio/lofigirl/MP3 - S N U G - Quietude/8. mahogany ft. Mondo Loops.mp3',
         forPart: AllPartType,
     },
     {
-        title: '7. Lustre',
+        title: 'Lustre',
         artist: 'S N U G',
         file: '/audio/lofigirl/MP3 - S N U G - Quietude/5. lustre.mp3',
         forPart: AllPartType,
@@ -10015,7 +10015,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     },
     {
         title: 'Winter Gardens',
-        artist: ' Midnight Alpha x Nothingtosay',
+        artist: 'Midnight Alpha x Nothingtosay',
         file: '/audio/lofigirl/MP3 - Compilation 7 - Soothing Breeze/09 Midnight Alpha - Winter Gardens (w Nothingtosay) (Kupla Master).mp3',
         forPart: AllPartType,
     },
@@ -10210,7 +10210,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     },
     // "One Way Ticket",
     {
-        title: 'One Way Ticke',
+        title: 'One Way Ticket',
         artist: 'l’Outlander',
         file: "/audio/lofigirl/MP3 - l'outlander - One Way Ticket/1.One Way Ticket.mp3",
         forPart: AllPartType,
