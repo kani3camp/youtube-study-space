@@ -1409,6 +1409,7 @@ func (s *System) enterRoom(
 		UserId:                 userId,
 		UserDisplayName:        userDisplayName,
 		WorkName:               workName,
+		BreakWorkName:          breakWorkName,
 		EnteredAt:              enterDate,
 		Until:                  exitDate,
 		Appearance:             seatAppearance,

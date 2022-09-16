@@ -53,12 +53,8 @@ func (c *FirestoreController) update(ctx context.Context, tx *firestore.Transact
 	}
 }
 
-func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, refExists bool, opts ...firestore.Precondition) error {
-	// ドキュメントが元から存在しないときは明示的にエラーを返す
-	if !refExists {
-		return errors.New("ref have to exists before delete.")
-	}
-	
+func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, opts ...firestore.Precondition) error {
+	// TODO: ドキュメントが元から存在しないときは明示的にエラーを返したい
 	if tx != nil {
 		return tx.Delete(ref, opts...)
 	} else {
@@ -376,9 +372,9 @@ func (c *FirestoreController) UpdateSeat(tx *firestore.Transaction, seat SeatDoc
 	return c.set(nil, tx, ref, seat)
 }
 
-func (c *FirestoreController) RemoveSeat(tx *firestore.Transaction, seatId int, seatExists bool) error {
+func (c *FirestoreController) RemoveSeat(tx *firestore.Transaction, seatId int) error {
 	ref := c.seatsCollection().Doc(strconv.Itoa(seatId))
-	return c.delete(nil, tx, ref, seatExists)
+	return c.delete(nil, tx, ref)
 }
 
 func (c *FirestoreController) AddLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
