@@ -408,7 +408,10 @@ func (s *System) RetrieveCurrentUserSeatAppearance(ctx context.Context, tx *fire
 	if err != nil {
 		return myfirestore.SeatAppearance{}, err
 	}
-	seatAppearance := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+	seatAppearance, err := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to GetSeatAppearance", err)
+	}
 	return seatAppearance, nil
 }
 
@@ -787,7 +790,12 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					
 					// 入室中であれば、座席の色も変える
 					if isUserInRoom {
-						seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+						seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+						if err != nil {
+							s.MessageToLineBotWithError("failed to GetSeatAppearance", err)
+							return err
+						}
+						
 						// 席の色を更新
 						newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
 						if err != nil {
@@ -815,29 +823,51 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					replyMessage += "デフォルトの作業時間を" + strconv.Itoa(myOption.IntValue) + "分に設定しました。"
 				}
 			} else if myOption.Type == FavoriteColor {
-				colorCode := utils.TotalStudyHoursToColorCode(myOption.IntValue)
-				err := s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, colorCode)
-				if err != nil {
-					s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
-					return err
-				}
-				replyMessage += "お気に入りカラーを更新しました。"
-				if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
-					replyMessage += "（累計作業時間が" + strconv.Itoa(utils.FavoriteColorAvailableThresholdHours) + "時間を超えるまでお気に入りカラーは使えません）"
+				// 値が-1はリセットのこと。
+				var colorCode string
+				if myOption.IntValue == -1 {
+					colorCode = ""
+					err = s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, colorCode)
+					if err != nil {
+						s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
+						return err
+					}
+					replyMessage += "お気に入りカラーをリセットしました。"
+				} else {
+					colorCode, err = utils.TotalStudyHoursToColorCode(myOption.IntValue)
+					if err != nil {
+						s.MessageToLineBotWithError("failed to TotalStudyHoursToColorCode", err)
+						return err
+					}
+					err = s.FirestoreController.SetMyFavoriteColor(tx, s.ProcessedUserId, colorCode)
+					if err != nil {
+						s.MessageToLineBotWithError("failed to SetMyFavoriteColor", err)
+						return err
+					}
+					replyMessage += "お気に入りカラーを更新しました。"
+					if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
+						replyMessage += "（累計作業時間が" + strconv.Itoa(utils.FavoriteColorAvailableThresholdHours) + "時間を超えるまでお気に入りカラーは使えません）"
+					}
 				}
 				
 				// 入室中であれば、座席の色も変える
 				if isUserInRoom {
 					newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
 					if err != nil {
+						s.MessageToLineBotWithError("failed to GetSeatByUserId", err)
 						return err
 					}
-					seatAppearance := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
+					seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
+					if err != nil {
+						s.MessageToLineBotWithError("failed to GetSeatAppearance", err)
+						return err
+					}
+					
 					// 席の色を更新
 					newSeat.Appearance = seatAppearance
 					err = s.FirestoreController.UpdateSeat(tx, newSeat)
 					if err != nil {
-						s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
+						s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeat()", err)
 						return err
 					}
 				}
@@ -1264,12 +1294,17 @@ func (s *System) Rank(_ CommandDetails, ctx context.Context) error {
 		
 		// 入室中であれば、座席の色も変える
 		if isUserInRoom {
-			seatAppearance := utils.GetSeatAppearance(realtimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+			seatAppearance, err := utils.GetSeatAppearance(realtimeTotalStudySec, newRankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+			if err != nil {
+				s.MessageToLineBotWithError("failed to GetSeatAppearance()", err)
+				return err
+			}
+			
 			// 席の色を更新
 			currentSeat.Appearance = seatAppearance
-			err := s.FirestoreController.UpdateSeat(tx, currentSeat)
+			err = s.FirestoreController.UpdateSeat(tx, currentSeat)
 			if err != nil {
-				s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeats()", err)
+				s.MessageToLineBotWithError("failed to s.FirestoreController.UpdateSeat()", err)
 				return err
 			}
 		}
@@ -1587,7 +1622,11 @@ func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, option Mi
 	}
 	newTotalStudyDuration := time.Duration(previousUserDoc.TotalStudySec+workedTimeSec) * time.Second
 	newRP := previousUserDoc.RankPoint + addedRP
-	newSeatAppearance := utils.GetSeatAppearance(int(newTotalStudyDuration.Seconds()), previousUserDoc.RankVisible, newRP, previousUserDoc.FavoriteColor)
+	newSeatAppearance, err := utils.GetSeatAppearance(int(newTotalStudyDuration.Seconds()), previousUserDoc.RankVisible, newRP, previousUserDoc.FavoriteColor)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to GetSeatAppearance", err)
+		return 0, 0, time.Time{}, err
+	}
 	
 	// 入室
 	until, err := s.enterRoom(tx, previousSeat.UserId, previousSeat.UserDisplayName, targetSeatId, workName, previousSeat.BreakWorkName,

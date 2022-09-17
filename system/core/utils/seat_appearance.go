@@ -2,7 +2,9 @@ package utils
 
 import (
 	"app.modules/core/myfirestore"
+	"github.com/pkg/errors"
 	"reflect"
+	"strconv"
 )
 
 const (
@@ -52,7 +54,7 @@ const (
 	ColorRank10 = "#FF66FF"
 )
 
-func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) myfirestore.SeatAppearance {
+func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (myfirestore.SeatAppearance, error) {
 	var colorCode string
 	if rankVisible {
 		colorCode = RankPointToColorCode(rp)
@@ -60,7 +62,11 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 		if CanUseFavoriteColor(totalStudySec) && !reflect.ValueOf(favoriteColor).IsZero() {
 			colorCode = favoriteColor
 		} else {
-			colorCode = TotalStudySecToColorCode(totalStudySec)
+			var err error
+			colorCode, err = TotalStudySecToColorCode(totalStudySec)
+			if err != nil {
+				return myfirestore.SeatAppearance{}, err
+			}
 		}
 	}
 	
@@ -68,7 +74,7 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 		ColorCode:     colorCode,
 		NumStars:      TotalStudySecToNumStars(totalStudySec),
 		GlowAnimation: rankVisible,
-	}
+	}, nil
 }
 
 func CanUseFavoriteColor(totalStudySec int) bool {
@@ -81,42 +87,44 @@ func TotalStudySecToNumStars(totalStudySec int) int {
 	return hours / 1e3
 }
 
-func TotalStudySecToColorCode(totalStudySec int) string {
+func TotalStudySecToColorCode(totalStudySec int) (string, error) {
 	totalHours := SecondsToHours(totalStudySec)
 	return TotalStudyHoursToColorCode(totalHours)
 }
 
-func TotalStudyHoursToColorCode(totalHours int) string {
-	if totalHours < 5 {
-		return ColorHours0To5
+func TotalStudyHoursToColorCode(totalHours int) (string, error) {
+	if totalHours < 0 {
+		return "", errors.New("invalid total study hours: " + strconv.Itoa(totalHours))
+	} else if totalHours < 5 {
+		return ColorHours0To5, nil
 	} else if totalHours < 10 {
-		return ColorHours5To10
+		return ColorHours5To10, nil
 	} else if totalHours < 20 {
-		return ColorHours10To20
+		return ColorHours10To20, nil
 	} else if totalHours < 30 {
-		return ColorHours20To30
+		return ColorHours20To30, nil
 	} else if totalHours < 50 {
-		return ColorHours30To50
+		return ColorHours30To50, nil
 	} else if totalHours < 70 {
-		return ColorHours50To70
+		return ColorHours50To70, nil
 	} else if totalHours < 100 {
-		return ColorHours70To100
+		return ColorHours70To100, nil
 	} else if totalHours < 150 {
-		return ColorHours100To150
+		return ColorHours100To150, nil
 	} else if totalHours < 200 {
-		return ColorHours150To200
+		return ColorHours150To200, nil
 	} else if totalHours < 300 {
-		return ColorHours200To300
+		return ColorHours200To300, nil
 	} else if totalHours < 400 {
-		return ColorHours300To400
+		return ColorHours300To400, nil
 	} else if totalHours < 500 {
-		return ColorHours400To500
+		return ColorHours400To500, nil
 	} else if totalHours < 700 {
-		return ColorHours500To700
+		return ColorHours500To700, nil
 	} else if totalHours < 1000 {
-		return ColorHours700To1000
+		return ColorHours700To1000, nil
 	} else {
-		return ColorHoursFrom1000
+		return ColorHoursFrom1000, nil
 	}
 }
 
