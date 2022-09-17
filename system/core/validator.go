@@ -27,6 +27,8 @@ func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError
 		return s.ValidateKick(command)
 	case Check:
 		return s.ValidateCheck(command)
+	case Block:
+		return s.ValidateBlock(command)
 	case More:
 		return s.ValidateMore(command)
 	case Break:
@@ -138,6 +140,19 @@ func (s *System) ValidateCheck(command CommandDetails) customerror.CustomError {
 	
 	// 指定座席番号
 	if command.CheckOption.SeatId <= 0 {
+		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
+	}
+	
+	return customerror.NewNil()
+}
+
+func (s *System) ValidateBlock(command CommandDetails) customerror.CustomError {
+	if command.CommandType != Block {
+		return customerror.InvalidParsedCommand.New("this is not a Block command.")
+	}
+	
+	// 指定座席番号
+	if command.BlockOption.SeatId <= 0 {
 		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
 	}
 	

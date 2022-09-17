@@ -36,9 +36,8 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 			return ParseKick(commandString)
 		case CheckCommand:
 			return ParseCheck(commandString)
-		
-		case LegacyAddCommand:
-			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
+		case BlockCommand:
+			return ParseBlock(commandString)
 		
 		case OkawariCommand:
 			fallthrough
@@ -254,6 +253,28 @@ func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) 
 	return CommandDetails{
 		CommandType: Check,
 		CheckOption: CheckOption{
+			SeatId: targetSeatId,
+		},
+	}, customerror.NewNil()
+}
+
+func ParseBlock(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var targetSeatId int
+	if len(slice) >= 2 {
+		num, err := strconv.Atoi(slice[1])
+		if err != nil {
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+		}
+		targetSeatId = num
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+	}
+	
+	return CommandDetails{
+		CommandType: Block,
+		BlockOption: BlockOption{
 			SeatId: targetSeatId,
 		},
 	}, customerror.NewNil()

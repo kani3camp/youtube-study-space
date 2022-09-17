@@ -21,6 +21,7 @@ const (
 	
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
+	BlockCommand = "!block"
 	
 	LegacyAddCommand = "!add"
 	

@@ -34,6 +34,7 @@ type CommandDetails struct {
 	MyOptions    []MyOption
 	KickOption   KickOption
 	CheckOption  CheckOption
+	BlockOption  BlockOption
 	ReportOption ReportOption
 	ChangeOption MinutesAndWorkNameOption
 	MoreOption   MoreOption
@@ -55,6 +56,7 @@ const (
 	Report // !report
 	Kick   // !kick
 	Check  // !check
+	Block  // !block
 	More   // !more
 	Rank   // !rank
 	Break  // !break
@@ -91,6 +93,10 @@ type KickOption struct {
 }
 
 type CheckOption struct {
+	SeatId int
+}
+
+type BlockOption struct {
 	SeatId int
 }
 

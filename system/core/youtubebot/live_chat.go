@@ -444,8 +444,8 @@ func (b *YoutubeLiveChatBot) refreshAccessToken(ctx context.Context, clientId st
 }
 
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
-func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, liveChatId string, userId string) error {
-	err := b.banRequest(ctx, liveChatId, userId)
+func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
+	err := b.banRequest(ctx, b.LiveChatId, userId)
 	// first call
 	if err != nil {
 		log.Println("first banRequest was failed", err)
@@ -470,7 +470,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, liveChatId string, use
 		}
 		
 		// second call
-		err = b.banRequest(ctx, liveChatId, userId)
+		err = b.banRequest(ctx, b.LiveChatId, userId)
 		if err != nil {
 			log.Println("second banRequest was failed")
 			return err
