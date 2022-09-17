@@ -6,14 +6,17 @@ const (
 	USERS           = "users"
 	LiveChatHistory = "live-chat-history"
 	UserActivities  = "user-activities"
+	SeatLimits      = "seat-limits"
 	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
-	DefaultRoomDocName           = "default"
 	PublishedAtDocProperty       = "published-at"
 	TakenAtDocProperty           = "taken-at"
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
+	
+	CreatedAtDocProperty = "created-at"
+	UntilDocProperty     = "until"
 	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
@@ -23,7 +26,6 @@ const (
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 	
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	SeatsDocProperty                     = "seats"
 	LiveChatIdDocProperty                = "youtube-live-chat-id"
 	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
 	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"

@@ -83,6 +83,10 @@ func (c *FirestoreController) userActivitiesCollection() *firestore.CollectionRe
 	return c.FirestoreClient.Collection(UserActivities)
 }
 
+func (c *FirestoreController) seatLimitsCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(SeatLimits)
+}
+
 func (c *FirestoreController) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
 	ref *firestore.DocumentRef) error {
 	if tx != nil {

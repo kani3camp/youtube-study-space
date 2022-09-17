@@ -115,6 +115,13 @@ type SeatDoc struct {
 	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
 }
 
+type SeatLimitDoc struct {
+	SeatId    int       `firestore:"seat-id"`
+	UserId    string    `firestore:"user-id"`
+	CreatedAt time.Time `firestore:"created-at"`
+	Until     time.Time `firestore:"until"`
+}
+
 type UserDoc struct {
 	// 当日の累計作業時間
 	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec"`
