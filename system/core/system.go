@@ -486,6 +486,12 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			switch userDoc.RankVisible {
 			case true:
 				replyMessage += "［ランク表示：オン］"
+				if userDoc.IsContinuousActive {
+					continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
+					replyMessage += "［継続" + strconv.Itoa(continuousActiveDays+1) + "日目（連続日数：" + strconv.Itoa(continuousActiveDays) + "）］"
+				} else {
+					// 表示しない
+				}
 			case false:
 				replyMessage += "［ランク表示：オフ］"
 			}
