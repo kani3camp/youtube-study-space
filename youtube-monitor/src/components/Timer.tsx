@@ -1,4 +1,5 @@
-import React, { FC, useState } from 'react'
+import { useTranslation } from 'next-i18next'
+import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import {
     getCurrentSection,
@@ -11,6 +12,8 @@ import * as styles from '../styles/Timer.styles'
 const TimeUpdateIntervalMilliSec = (1 / 30) * 1000 // 30fps
 
 const Timer: FC = () => {
+    const { t } = useTranslation()
+
     const [sectionType, setSectionType] = useState<string>(SectionType.Break)
     const [sectionMessage, setSectionMessage] = useState<string>('')
     const [remainingMin, setRemainingMin] = useState<number>(0)
@@ -39,7 +42,7 @@ const Timer: FC = () => {
             if (nextSection !== null) {
                 setRemainingMin(remaining_min)
                 setRemainingSec(remaining_sec)
-                setCurrentPartName(currentSection.partType)
+                setCurrentPartName(t(currentSection.partType))
                 setCurrentSectionId(currentSection.sectionId)
                 setNextSectionDuration(
                     remainingTime(
@@ -51,14 +54,14 @@ const Timer: FC = () => {
                 )
                 setNextSection(
                     currentSection.sectionType === SectionType.Study
-                        ? '休憩'
-                        : '作業'
+                        ? t('break')
+                        : t('study')
                 )
                 setSectionType(currentSection.sectionType)
                 setSectionMessage(
                     currentSection.sectionType === SectionType.Study
-                        ? '✏️ 作業 ✏️'
-                        : '☕️ 休憩 ☕️'
+                        ? `✏️ ${t('study')} ✏️`
+                        : `☕️ ${t('break')} ☕️`
                 )
             }
         }
@@ -84,13 +87,15 @@ const Timer: FC = () => {
             </div>
             <span>{`${currentPartName}` + ' '}</span>
             <span>
-                {currentSectionId !== 0 ? `セクション${currentSectionId}` : ''}
+                {currentSectionId !== 0
+                    ? t('section', { value: currentSectionId })
+                    : ''}
             </span>
             <div css={styles.spacer} />
             <div css={styles.nextDescription}>
-                <span>次は </span>
+                <span>{`${t('next')} `}</span>
                 <span>{nextSectionDuration}</span>
-                <span>分 </span>
+                <span>{`${t('minutes')} `}</span>
                 <span>{nextSection}</span>
             </div>
         </div>

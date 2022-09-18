@@ -1,29 +1,36 @@
+import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import * as styles from '../styles/Usage.styles'
 
-const StandingRoom: FC = () => (
-    <div css={styles.background}>
-        <div css={styles.usage}>
-            <h3 css={styles.description}>座席の見方</h3>
+const StandingRoom: FC = () => {
+    const { t } = useTranslation()
 
-            <div css={styles.seat}>
-                <div css={styles.seatId}>座席 No.</div>
-                <div css={styles.workName}>作業内容</div>
-                <div css={styles.userDisplayName}>名前</div>
-            </div>
+    return (
+        <div css={styles.background}>
+            <div css={styles.usage}>
+                <h3 css={styles.description}>{t('usage.description')}</h3>
 
-            <div>
-                <div>
-                    <span>入室する：</span>
-                    <span css={styles.commandString}>!in</span>
+                <div css={styles.seat}>
+                    <div css={styles.seatId}>{t('usage.seat.id')}</div>
+                    <div css={styles.workName}>{t('usage.seat.work_name')}</div>
+                    <div css={styles.userDisplayName}>
+                        {t('usage.seat.user_display_name')}
+                    </div>
                 </div>
+
                 <div>
-                    <span>退室する：</span>
-                    <span css={styles.commandString}>!out</span>
+                    <div>
+                        <span>{t('usage.in')}</span>
+                        <span css={styles.commandString}>!in</span>
+                    </div>
+                    <div>
+                        <span>{t('usage.out')}</span>
+                        <span css={styles.commandString}>!out</span>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-)
+    )
+}
 
 export default StandingRoom

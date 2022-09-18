@@ -33,7 +33,7 @@ const BackgroundImage: FC = () => {
         <div css={styles.backgroundImage}>
             <img
                 src={srcUrl}
-                alt='背景画像'
+                alt='background image'
                 onError={({ currentTarget }) => {
                     currentTarget.onerror = null // prevents looping
                     currentTarget.src = `${unsplashUrl},${new Date().getTime()}`
