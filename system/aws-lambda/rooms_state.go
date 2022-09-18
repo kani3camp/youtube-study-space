@@ -36,12 +36,12 @@ func Rooms() (RoomsResponseStruct, error) {
 	var constants myfirestore.ConstantsConfigDoc
 	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
-		seats, err = _system.FirestoreController.RetrieveSeats(ctx)
+		seats, err = _system.FirestoreController.ReadSeats(ctx)
 		if err != nil {
 			return err
 		}
 		
-		constants, err = _system.FirestoreController.RetrieveSystemConstantsConfig(ctx, tx)
+		constants, err = _system.FirestoreController.ReadSystemConstantsConfig(ctx, tx)
 		if err != nil {
 			return err
 		}
