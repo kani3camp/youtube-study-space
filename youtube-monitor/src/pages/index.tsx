@@ -1,3 +1,5 @@
+import { GetStaticProps } from 'next'
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import { FC } from 'react'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
@@ -23,4 +25,11 @@ const Home: FC = () => (
         <Seats />
     </div>
 )
+
+export const getStaticProps: GetStaticProps = async ({ locale }) => ({
+    props: {
+        ...(await serverSideTranslations(locale ?? 'jp', ['common'])),
+    },
+})
+
 export default Home
