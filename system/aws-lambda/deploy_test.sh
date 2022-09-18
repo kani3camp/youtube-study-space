@@ -16,10 +16,10 @@ aws lambda update-function-code --function-name     youtube_organize_database   
 
 # Mac OS
 cd system; cd aws-lambda;  # ディレクトリを移動
-GOARCH=amd64 GOOS=linux && aws configure set region us-east-1
-go build -o main    rooms_state.go
+aws configure set region us-east-1
+GOARCH=amd64 GOOS=linux go build -o main    transfer_collection_history_bigquery.go
 zip main.zip main
 
 aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 120 --profile soraride
 
-aws lambda update-function-code --function-name   rooms_state   --zip-file fileb://main.zip --profile soraride
+aws lambda update-function-code --function-name   transfer_collection_history_bigquery   --zip-file fileb://main.zip --profile soraride

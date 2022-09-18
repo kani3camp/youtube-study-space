@@ -19,8 +19,8 @@ aws lambda update-function-code --function-name     reset_daily_total_study_time
 
 # Mac OS
 cd system; cd aws-lambda;  # ディレクトリを移動
-GOARCH=amd64 GOOS=linux && aws configure set region ap-northeast-1
-go build -o main    youtube_organize_database.go
+aws configure set region ap-northeast-1
+GOARCH=amd64 GOOS=linux go build -o main    youtube_organize_database.go
 zip main.zip main
 
 aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler
