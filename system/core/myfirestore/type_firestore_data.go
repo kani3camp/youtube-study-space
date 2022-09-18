@@ -115,7 +115,7 @@ type SeatDoc struct {
 	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
 }
 
-type SeatLimitDoc struct {
+type SeatLimitDoc struct { // used for both collections seat-limits-black-list and seat-limits-white-list
 	SeatId    int       `firestore:"seat-id"`
 	UserId    string    `firestore:"user-id"`
 	CreatedAt time.Time `firestore:"created-at"`

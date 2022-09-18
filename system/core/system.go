@@ -2542,6 +2542,8 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 		return false, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 	
+	log.Println("ドキュメント数：" + strconv.Itoa(len(activityAllTypeList)))
+	
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
 	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。

@@ -83,8 +83,12 @@ func (c *FirestoreController) userActivitiesCollection() *firestore.CollectionRe
 	return c.FirestoreClient.Collection(UserActivities)
 }
 
-func (c *FirestoreController) seatLimitsCollection() *firestore.CollectionRef {
-	return c.FirestoreClient.Collection(SeatLimits)
+func (c *FirestoreController) seatLimitsBlackListCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(SeatLimitsBlackList)
+}
+
+func (c *FirestoreController) seatLimitsWhiteListCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(SeatLimitsWhiteList)
 }
 
 func (c *FirestoreController) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
