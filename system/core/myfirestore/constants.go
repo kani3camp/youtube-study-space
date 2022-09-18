@@ -19,6 +19,9 @@ const (
 	CreatedAtDocProperty = "created-at"
 	UntilDocProperty     = "until"
 	
+	StateDocProperty             = "state"
+	CurrentStateUntilDocProperty = "current-state-until"
+	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MinVacancyRateDocProperty                        = "min-vacancy-rate"

@@ -165,9 +165,23 @@ func (c *FirestoreController) UpdateNextPageToken(ctx context.Context, nextPageT
 	return nil
 }
 
-func (c *FirestoreController) ReadSeats(ctx context.Context) ([]SeatDoc, error) {
-	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
+func (c *FirestoreController) ReadAllSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.seatsCollection().Documents(ctx)
+	return GetSeatsFromIterator(iter)
+}
+
+func (c *FirestoreController) ReadSeatsExpiredUntil(ctx context.Context, thresholdTime time.Time) ([]SeatDoc, error) {
+	iter := c.seatsCollection().Where(UntilDocProperty, "<", thresholdTime).Documents(ctx)
+	return GetSeatsFromIterator(iter)
+}
+
+func (c *FirestoreController) ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time) ([]SeatDoc, error) {
+	iter := c.seatsCollection().Where(StateDocProperty, "==", BreakState).Where(CurrentStateUntilDocProperty, "<", thresholdTime).Documents(ctx)
+	return GetSeatsFromIterator(iter)
+}
+
+func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
+	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {

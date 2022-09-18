@@ -120,7 +120,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
 	} else { // 席を減らす
 		// max_seatsを減らしても、空席率が設定値以上か確認
-		seats, err := s.FirestoreController.ReadSeats(ctx)
+		seats, err := s.FirestoreController.ReadAllSeats(ctx)
 		if err != nil {
 			return err
 		}
@@ -826,7 +826,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 		var seats []myfirestore.SeatDoc
 		var realTimeTotalStudySec int
 		if isUserInRoom {
-			seats, err = s.FirestoreController.ReadSeats(ctx)
+			seats, err = s.FirestoreController.ReadAllSeats(ctx)
 			if err != nil {
 				s.MessageToLineBotWithError("failed to CurrentSeat", err)
 				return err
@@ -1474,7 +1474,7 @@ func (s *System) SaveNextPageToken(ctx context.Context, nextPageToken string) er
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int,
 	customerror.CustomError) {
-	seats, err := s.FirestoreController.ReadSeats(ctx)
+	seats, err := s.FirestoreController.ReadAllSeats(ctx)
 	if err != nil {
 		return 0, customerror.Unknown.Wrap(err)
 	}
@@ -1811,9 +1811,9 @@ func (s *System) ExitAllUserInRoom(ctx context.Context) error {
 			break
 		}
 		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			seats, err := s.FirestoreController.ReadSeats(ctx)
+			seats, err := s.FirestoreController.ReadAllSeats(ctx)
 			if err != nil {
-				s.MessageToLineBotWithError("failed to ReadSeats", err)
+				s.MessageToLineBotWithError("failed to ReadAllSeats", err)
 				return err
 			}
 			if len(seats) > 0 {
@@ -1875,38 +1875,23 @@ func (s *System) MessageToDiscordBot(message string) error {
 // - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
 // - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
 func (s *System) OrganizeDB(ctx context.Context) error {
-	var seatsSnapshot []myfirestore.SeatDoc
 	var err error
 	
-	// 自動退室
 	log.Println("自動退室")
 	// 全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err = s.FirestoreController.ReadSeats(ctx)
-	if err != nil {
-		s.MessageToLineBotWithError("failed to ReadSeats", err)
-		return err
-	}
-	err = s.OrganizeDBAutoExit(ctx, seatsSnapshot)
+	err = s.OrganizeDBAutoExit(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to OrganizeDBAutoExit", err)
 		return err
 	}
 	
-	// 作業再開
 	log.Println("作業再開")
-	// 全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err = s.FirestoreController.ReadSeats(ctx)
-	if err != nil {
-		s.MessageToLineBotWithError("failed to ReadSeats", err)
-		return err
-	}
-	err = s.OrganizeDBResume(ctx, seatsSnapshot)
+	err = s.OrganizeDBResume(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to OrganizeDBResume", err)
 		return err
 	}
 	
-	// 一時着席制限ブラックリスト・ホワイトリストのクリーニング
 	log.Println("一時着席制限ブラックリスト・ホワイトリストのクリーニング")
 	err = s.OrganizeDBExpiredSeatLimits(ctx)
 	if err != nil {
@@ -1917,9 +1902,16 @@ func (s *System) OrganizeDB(ctx context.Context) error {
 	return nil
 }
 
-func (s *System) OrganizeDBAutoExit(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc) error {
-	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
-	for _, seatSnapshot := range seatsSnapshot {
+func (s *System) OrganizeDBAutoExit(ctx context.Context) error {
+	jstNow := utils.JstNow()
+	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredUntil(ctx, jstNow)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to ReadAllSeats", err)
+		return err
+	}
+	log.Println("自動退室候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
+	
+	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
@@ -1977,9 +1969,16 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, seatsSnapshot []myfires
 	return nil
 }
 
-func (s *System) OrganizeDBResume(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc) error {
-	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
-	for _, seatSnapshot := range seatsSnapshot {
+func (s *System) OrganizeDBResume(ctx context.Context) error {
+	jstNow := utils.JstNow()
+	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredBreakUntil(ctx, jstNow)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to ReadAllSeats", err)
+		return err
+	}
+	log.Println("作業再開候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
+	
+	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, false, false)
@@ -2083,9 +2082,9 @@ func (s *System) OrganizeDBExpiredSeatLimits(ctx context.Context) error {
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
 func (s *System) CheckLongTimeSitting(ctx context.Context) error {
 	// 全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err := s.FirestoreController.ReadSeats(ctx)
+	seatsSnapshot, err := s.FirestoreController.ReadAllSeats(ctx)
 	if err != nil {
-		s.MessageToLineBotWithError("failed to ReadSeats", err)
+		s.MessageToLineBotWithError("failed to ReadAllSeats", err)
 		return err
 	}
 	err = s.OrganizeDBForceMove(ctx, seatsSnapshot)
@@ -2359,7 +2358,7 @@ func (s *System) GetAllUsersTotalStudySecList(ctx context.Context) ([]UserIdTota
 
 // MinAvailableSeatIdForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
 func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int, error) {
-	seats, err := s.FirestoreController.ReadSeats(ctx)
+	seats, err := s.FirestoreController.ReadAllSeats(ctx)
 	if err != nil {
 		return -1, err
 	}
