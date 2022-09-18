@@ -1,3 +1,4 @@
+import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import { MdTipsAndUpdates } from 'react-icons/md'
 import tipsJson from '../lib/tips.json'
@@ -27,6 +28,8 @@ while (true) {
 const TipsIntervalSeconds = 30 * 60
 
 const Tips: FC<Props> = (props) => {
+    const { t } = useTranslation()
+
     const tipsIndex = Math.floor(props.elapsedSeconds / TipsIntervalSeconds)
     const tips = tipsList[tipsIndex]
     let tipsText: string
@@ -65,7 +68,7 @@ const Tips: FC<Props> = (props) => {
                     </div>
                 </div>
                 <div css={styles.tipsNoteContainer}>
-                    <div css={styles.tipsNotePrefix}>コメント</div>
+                    <div css={styles.tipsNotePrefix}>{t('tips.comment')}</div>
                     <div css={styles.tipsNote}>{note}</div>
                 </div>
             </div>
