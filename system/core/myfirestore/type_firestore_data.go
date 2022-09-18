@@ -50,6 +50,7 @@ type ConstantsConfigDoc struct {
 	
 	// 長時間入室制限関連
 	MinimumCheckLongTimeSittingIntervalMinutes int `firestore:"minimum-check-long-time-sitting-interval-minutes" json:"minimum_check_long_time_sitting_interval_minutes"` // 最低何分おきにチェックを行うか
+	LongTimeSittingPenaltyMinutes              int `firestore:"long-time-sitting-penalty-minutes" json:"long_time_sitting_penalty_minutes"`                               // チェックに引っかかった時に課される一定のペナルティ時間。この間はそのユーザーはその座席に座れない。ブラックリストの有効期限に使用される。
 	
 	// 並行でRP処理を行うLambdaインスタンスの数
 	NumberOfParallelLambdaToProcessUserRP int `firestore:"number-of-parallel-lambda-to-process-user-rp"`

@@ -278,7 +278,7 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 			} else {
 				// 以下のように前もってerr2を宣言しておき、このあとのIfSeatVacantとCheckSeatAvailabilityForUserで明示的に同じerr2
 				//を使用するようにしておかないとCheckSeatAvailabilityForUserのほうでなぜか上のスコープのerrが使われてしまう（すべてerrとした場合）
-				var isVacant, isAvailable bool
+				var isVacant, ifSittingTooMuch bool
 				var err2 error
 				// その席が空いているか？
 				isVacant, err2 = s.IfSeatVacant(ctx, tx, inOption.SeatId)
@@ -291,12 +291,12 @@ func (s *System) In(ctx context.Context, command CommandDetails) error {
 					return nil
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
-				isAvailable, err2 = s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, inOption.SeatId)
+				ifSittingTooMuch, err2 = s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, inOption.SeatId)
 				if err2 != nil {
-					s.MessageToLineBotWithError("failed s.CheckSeatAvailabilityForUser()", err)
+					s.MessageToLineBotWithError("failed s.CheckIfUserSittingTooMuchForSeat()", err)
 					return err2
 				}
-				if !isAvailable {
+				if ifSittingTooMuch {
 					replyMessage = s.ProcessedUserDisplayName + "さん、その番号の席は" + "長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「" + InCommand + "」で席を指定せずに入室してください"
 					return nil
 				}
@@ -1500,15 +1500,15 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 	
 	if len(vacantSeatIdList) > 0 {
 		// 入室制限にかからない席を選ぶ
-		// TODO このfor range意味不明
+		// TODO このfor range意味不明。vacantSeatIdListをシャッフルすれば？
 		for range vacantSeatIdList {
 			rand.Seed(utils.JstNow().UnixNano())
 			selectedSeatId := vacantSeatIdList[rand.Intn(len(vacantSeatIdList))]
-			ifSeatAvailableForUser, err := s.CheckSeatAvailabilityForUser(ctx, userId, selectedSeatId)
+			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, selectedSeatId)
 			if err != nil {
 				return -1, customerror.Unknown.Wrap(err)
 			}
-			if ifSeatAvailableForUser {
+			if !ifSittingTooMuch {
 				return selectedSeatId, customerror.NewNil()
 			}
 		}
@@ -1870,10 +1870,11 @@ func (s *System) MessageToDiscordBot(message string) error {
 	return s.discordBot.SendMessage(message)
 }
 
-// OrganizeDatabase 1分ごとに処理を行う。
-// - untilを過ぎているルーム内のユーザーを退室させる。
+// OrganizeDB 1分ごとに処理を行う。
+// - 自動退室予定時刻(until)を過ぎているルーム内のユーザーを退室させる。
 // - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
-func (s *System) OrganizeDatabase(ctx context.Context) error {
+// - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
+func (s *System) OrganizeDB(ctx context.Context) error {
 	var seatsSnapshot []myfirestore.SeatDoc
 	var err error
 	
@@ -1902,6 +1903,14 @@ func (s *System) OrganizeDatabase(ctx context.Context) error {
 	err = s.OrganizeDBResume(ctx, seatsSnapshot)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to OrganizeDBResume", err)
+		return err
+	}
+	
+	// 一時着席制限ブラックリスト・ホワイトリストのクリーニング
+	log.Println("一時着席制限ブラックリスト・ホワイトリストのクリーニング")
+	err = s.OrganizeDBExpiredSeatLimits(ctx)
+	if err != nil {
+		s.MessageToLineBotWithError("failed to OrganizeDBExpiredSeatLimits", err)
 		return err
 	}
 	
@@ -2041,6 +2050,36 @@ func (s *System) OrganizeDBResume(ctx context.Context, seatsSnapshot []myfiresto
 	return nil
 }
 
+func (s *System) OrganizeDBExpiredSeatLimits(ctx context.Context) error {
+	jstNow := utils.JstNow()
+	
+	// white list
+	for {
+		iter := s.FirestoreController.Get500SeatLimitsAfterUntilInWHITEList(ctx, jstNow)
+		count, err := s.DeleteIteratorDocs(ctx, iter)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			break
+		}
+	}
+	
+	// black list
+	for {
+		iter := s.FirestoreController.Get500SeatLimitsAfterUntilInBLACKList(ctx, jstNow)
+		count, err := s.DeleteIteratorDocs(ctx, iter)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			break
+		}
+	}
+	
+	return nil
+}
+
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
 func (s *System) CheckLongTimeSitting(ctx context.Context) error {
 	// 全座席のスナップショットをとる（トランザクションなし）
@@ -2079,12 +2118,12 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 				return nil
 			}
 			
-			ifNotSittingTooMuch, err := s.CheckSeatAvailabilityForUser(ctx, s.ProcessedUserId, seat.SeatId)
+			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, seat.SeatId)
 			if err != nil {
 				s.MessageToLineBotWithError(s.ProcessedUserDisplayName+"さん（"+s.ProcessedUserId+"）の席移動処理中にエラーが発生しました", err)
 				return err
 			}
-			if !ifNotSittingTooMuch {
+			if ifSittingTooMuch {
 				forcedMove = true
 			}
 			
@@ -2348,11 +2387,11 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 		}
 		if !isUsed { // 使われていない
 			// 且つ、該当ユーザーが入室制限にかからなければその席番号を返す
-			isAvailable, err := s.CheckSeatAvailabilityForUser(ctx, userId, searchingSeatId)
+			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, searchingSeatId)
 			if err != nil {
 				return -1, err
 			}
-			if isAvailable {
+			if !ifSittingTooMuch {
 				return searchingSeatId, nil
 			}
 		}
@@ -2504,8 +2543,44 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 	return nil
 }
 
-func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string, seatId int) (bool, error) {
+func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId string, seatId int) (bool, error) {
 	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Configs.Constants.RecentRangeMin) * time.Minute)
+	jstNow := utils.JstNow()
+	
+	// ホワイトリスト・ブラックリストを検索
+	whiteListForUserAndSeat, err := s.FirestoreController.ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx, seatId, userId)
+	if err != nil {
+		return false, err
+	}
+	blackListForUserAndSeat, err := s.FirestoreController.ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx, seatId, userId)
+	if err != nil {
+		return false, err
+	}
+	
+	// もし両方あったら矛盾なのでエラー
+	if len(whiteListForUserAndSeat) > 0 && len(blackListForUserAndSeat) > 0 {
+		return false, errors.New("len(whiteListForUserAndSeat) > 0 && len(blackListForUserAndSeat) > 0")
+	}
+	
+	// 片方しかなければチェックは不要
+	if len(whiteListForUserAndSeat) > 1 {
+		return false, errors.New("len(whiteListForUserAndSeat) > 1")
+	} else if len(whiteListForUserAndSeat) == 1 {
+		if whiteListForUserAndSeat[0].Until.After(jstNow) {
+			return false, nil
+		} else {
+			// ホワイトリストに入っているが、期限切れのためチェックを続行
+		}
+	}
+	if len(blackListForUserAndSeat) > 1 {
+		return false, errors.New("len(blackListForUserAndSeat) > 1")
+	} else if len(blackListForUserAndSeat) == 1 {
+		if blackListForUserAndSeat[0].Until.After(jstNow) {
+			return true, nil
+		} else {
+			// ホワイトリストに入っているが、期限切れのためチェックを続行
+		}
+	}
 	
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
 	iter := s.FirestoreController.GetAllUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
@@ -2565,8 +2640,31 @@ func (s *System) CheckSeatAvailabilityForUser(ctx context.Context, userId string
 	
 	log.Println("[userId: " + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(seatId) + "番席に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
 		"分入室")
-	// 制限値と比較し、結果を返す
-	return int(totalEntryDuration.Minutes()) < s.Configs.Constants.RecentThresholdMin, nil
+	
+	// 制限値と比較
+	ifSittingTooMuch := int(totalEntryDuration.Minutes()) > s.Configs.Constants.RecentThresholdMin
+	
+	if !ifSittingTooMuch {
+		until := jstNow.Add(time.Duration(s.Configs.Constants.RecentThresholdMin)*time.Minute - totalEntryDuration)
+		if until.Sub(jstNow) > time.Duration(s.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes)*time.Minute {
+			// ホワイトリストに登録
+			err := s.FirestoreController.CreateSeatLimitInWhiteList(ctx, seatId, userId, jstNow, until)
+			if err != nil {
+				return false, err
+			}
+		} else {
+			// pass
+		}
+	} else {
+		// ブラックリストに登録
+		until := jstNow.Add(time.Duration(s.Configs.Constants.LongTimeSittingPenaltyMinutes) * time.Minute)
+		err := s.FirestoreController.CreateSeatLimitInBlackList(ctx, seatId, userId, jstNow, until)
+		if err != nil {
+			return false, err
+		}
+	}
+	
+	return ifSittingTooMuch, nil
 }
 
 func (s *System) BanUser(ctx context.Context, userId string) error {

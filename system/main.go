@@ -184,7 +184,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = s.BanUser(ctx, "UCXuD2XmPTdpVy7zmwbFVZWg")
+	err = s.OrganizeDB(ctx)
 	if err != nil {
 		panic(err)
 	}

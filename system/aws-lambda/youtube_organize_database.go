@@ -14,7 +14,7 @@ type OrganizeDatabaseResponseStruct struct {
 }
 
 func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
-	log.Println("OrganizeDatabase()")
+	log.Println("OrganizeDB()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -27,7 +27,7 @@ func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
 	}
 	defer _system.CloseFirestoreClient()
 	
-	err = _system.OrganizeDatabase(ctx)
+	err = _system.OrganizeDB(ctx)
 	if err != nil {
 		_system.MessageToLineBotWithError("failed to organize database", err)
 		return OrganizeDatabaseResponseStruct{}, nil
