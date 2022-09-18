@@ -1,3 +1,4 @@
+import { useTranslation } from 'next-i18next'
 import { FC, useEffect, useState } from 'react'
 import { BsFillPersonFill } from 'react-icons/bs'
 import { IoMdMusicalNotes } from 'react-icons/io'
@@ -12,8 +13,10 @@ type Props = {
 }
 
 const BGMPlayer: FC<Props> = (props) => {
-    const [audioTitle, setAudioTitle] = useState('BGMタイトル')
-    const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
+    const { t } = useTranslation()
+
+    const [audioTitle, setAudioTitle] = useState('BGM Title')
+    const [audioArtist, setAudioArtist] = useState('BGM Artist')
 
     const audioDivId = 'music'
 
@@ -24,8 +27,8 @@ const BGMPlayer: FC<Props> = (props) => {
     const audioStart = () => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.addEventListener('ended', () => {
-            setAudioTitle('BGMタイトル')
-            setAudioArtist('BGMアーティスト')
+            setAudioTitle(t('bgm.title'))
+            setAudioArtist(t('bgm.title'))
             audioNext()
         })
         audio.addEventListener('error', (event) => {

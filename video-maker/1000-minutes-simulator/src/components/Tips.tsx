@@ -1,7 +1,9 @@
 import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import { MdTipsAndUpdates } from 'react-icons/md'
-import tipsJson from '../lib/tips.json'
+import tipsENJson from '../assets/tips.en.json'
+import tipsJPJson from '../assets/tips.jp.json'
+import tipsKOJson from '../assets/tips.ko.json'
 import * as styles from '../styles/Tips.styles'
 import * as common from '../styles/common.styles'
 
@@ -14,24 +16,19 @@ type Tips = {
     name: string
     annotation: string
 }
-const tipsIterator = tipsJson.values()
-const tipsList: Tips[] = []
-// eslint-disable-next-line no-constant-condition
-while (true) {
-    const next = tipsIterator.next()
-    if (next.done) {
-        break
-    }
-    tipsList.push(next.value as unknown as Tips)
+const tipsList: { [key: string]: Tips[] } = {
+    jp: tipsJPJson.map((value) => value),
+    ko: tipsKOJson.map((value) => value),
+    en: tipsENJson.map((value) => value),
 }
 
 const TipsIntervalSeconds = 30 * 60
 
 const Tips: FC<Props> = (props) => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
 
     const tipsIndex = Math.floor(props.elapsedSeconds / TipsIntervalSeconds)
-    const tips = tipsList[tipsIndex]
+    const tips = tipsList[i18n.language][tipsIndex]
     let tipsText: string
     let poster: string
     let note: string
@@ -40,9 +37,9 @@ const Tips: FC<Props> = (props) => {
         poster = tips.name
         note = tips.annotation
     } else {
-        tipsText = '名言・Tips'
-        poster = '投稿者'
-        note = 'コメント'
+        tipsText = t('tips.text')
+        poster = t('tips.poster')
+        note = t('tips.comment')
     }
 
     return (
@@ -61,10 +58,10 @@ const Tips: FC<Props> = (props) => {
                     <div css={styles.tipsText}>{tipsText}</div>
                 </div>
                 <div css={styles.tipsPosterContainer}>
-                    <div css={styles.tipsPosterPrefix}>投稿者</div>
+                    <div css={styles.tipsPosterPrefix}>{t('tips.poster')}</div>
                     <div css={styles.tipsPoster}>
                         {poster}
-                        <span>さん</span>
+                        <span>{t('tips.poster_footer')}</span>
                     </div>
                 </div>
                 <div css={styles.tipsNoteContainer}>

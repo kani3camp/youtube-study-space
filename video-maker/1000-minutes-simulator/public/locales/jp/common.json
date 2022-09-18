@@ -1,3 +1,25 @@
 {
-    "tips.comment": "コメント"
+    "tips.text": "名言・Tips",
+    "tips.poster": "投稿者",
+    "tips.poster_footer": "さん",
+    "tips.comment": "コメント",
+    "gauge.title": "擬似経過時間",
+    "gauge.unit": "[単位：時間]",
+    "elapsed.title": "経過時間",
+    "elapsed.time_subscript": "分",
+    "elapsed.hour": "時間",
+    "elapsed.minute": "分",
+    "elapsed.second": "秒",
+    "timer.title": "ポモドーロタイマー",
+    "timer.round": "{{value}} 周目",
+    "timer.next": "次は",
+    "timer.next_rest": "{{value}}分 休憩",
+    "timer.next_work": "{{value}}分 作業",
+    "timer.focus": "集中",
+    "timer.break": "休憩",
+    "color.title": "達成カラー",
+    "color.annotation_1": "実際に累計作業時間が{{value}}時間に達すると",
+    "color.annotation_2": "座席がこの色になります。",
+    "bgm.title": "BGMタイトル",
+    "bgm.artist": "BGMアーティスト"
 }

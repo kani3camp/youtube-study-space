@@ -1,4 +1,5 @@
 import { css } from '@emotion/react'
+import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import { MdInvertColors } from 'react-icons/md'
 import { Rank, ranks } from '../lib/ranks'
@@ -10,6 +11,8 @@ type Props = {
 }
 
 const CurrentColor: FC<Props> = (props) => {
+    const { t } = useTranslation()
+
     let currentColorCode = 'inherit'
     ranks.forEach((rank: Rank) => {
         if (
@@ -28,7 +31,7 @@ const CurrentColor: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></MdInvertColors>
-                    <span>達成カラー</span>
+                    <span>{t('color.title')}</span>
                 </div>
                 <div
                     css={css`
@@ -39,8 +42,9 @@ const CurrentColor: FC<Props> = (props) => {
                 ></div>
                 <div css={styles.annotation}>
                     {/* 値は時間ではなく分を使うことに注意 */}
-                    実際に累計作業時間が{props.elapsedMinutes}
-                    時間に達すると<br></br>座席がこの色になります。
+                    {t('color.annotation_1', { value: props.elapsedMinutes })}
+                    <br />
+                    {t('color.annotation_2')}
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 import { css } from '@emotion/react'
+import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import { AiFillTrophy } from 'react-icons/ai'
 import { Rank, ranks } from '../lib/ranks'
@@ -14,6 +15,8 @@ type Props = {
 }
 
 const Gauge: FC<Props> = (props) => {
+    const { t } = useTranslation()
+
     // ゲージ生成
     const oneRankHeight = BarHeight / ranks.length
 
@@ -58,7 +61,7 @@ const Gauge: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></AiFillTrophy>
-                    <span>擬似経過時間</span>
+                    <span>{t('gauge.title')}</span>
                 </div>
                 <div
                     css={css`
@@ -100,7 +103,7 @@ const Gauge: FC<Props> = (props) => {
                         )
                     })}
                 </div>
-                <div css={styles.unit}>[単位：時間]</div>
+                <div css={styles.unit}>{t('gauge.unit')}</div>
             </div>
         </div>
     )
