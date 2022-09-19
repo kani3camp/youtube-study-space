@@ -1,12 +1,13 @@
 package myfirestore
 
 const (
-	CONFIG          = "config"
-	SEATS           = "seats"
-	USERS           = "users"
-	LiveChatHistory = "live-chat-history"
-	UserActivities  = "user-activities"
-	SeatLimits      = "seat-limits"
+	CONFIG              = "config"
+	SEATS               = "seats"
+	USERS               = "users"
+	LiveChatHistory     = "live-chat-history"
+	UserActivities      = "user-activities"
+	SeatLimitsBlackList = "seat-limits-black-list"
+	SeatLimitsWhiteList = "seat-limits-white-list"
 	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
@@ -17,6 +18,11 @@ const (
 	
 	CreatedAtDocProperty = "created-at"
 	UntilDocProperty     = "until"
+	
+	StateDocProperty             = "state"
+	CurrentStateUntilDocProperty = "current-state-until"
+	
+	ActivityTypeDocProperty = "activity-type"
 	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"

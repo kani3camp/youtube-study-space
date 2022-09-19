@@ -38,7 +38,7 @@ func NewLiveStreamChecker(
 }
 
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
-	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+	credentials, err := checker.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return err
 	}

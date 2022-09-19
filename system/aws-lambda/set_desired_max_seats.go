@@ -20,7 +20,7 @@ type SetMaxSeatsResponseStruct struct {
 }
 
 func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
-	log.Println("SetDesiredMaxSeats()")
+	log.Println("UpdateDesiredMaxSeats()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -38,7 +38,7 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, e
 	}
 	
 	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		err := _system.FirestoreController.SetDesiredMaxSeats(ctx, tx, request.DesiredMaxSeats)
+		err := _system.FirestoreController.UpdateDesiredMaxSeats(ctx, tx, request.DesiredMaxSeats)
 		if err != nil {
 			return err
 		}
