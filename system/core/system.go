@@ -7,6 +7,7 @@ import (
 	"app.modules/core/mybigquery"
 	"app.modules/core/myfirestore"
 	"app.modules/core/mylinebot"
+	"app.modules/core/myspreadsheet"
 	"app.modules/core/mystorage"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
@@ -76,12 +77,29 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		}
 	}
 	
+	ssc, err := myspreadsheet.NewSpreadsheetController(ctx, clientOption, "1IOAs6CfXmkHAhtMQP_o8ATRcFUqCKmryq7cLoFRR3nQ", "01", "02")
+	if err != nil {
+		return System{}, nil
+	}
+	blockRegexListForChannelName, blockRegexListForChatMessage, err := ssc.GetRegexForBlock()
+	if err != nil {
+		return System{}, nil
+	}
+	notificationRegexListForChatMessage, notificationRegexListForChannelName, err := ssc.GetRegexForNotification()
+	if err != nil {
+		return System{}, nil
+	}
+	
 	return System{
-		Configs:             &configs,
-		FirestoreController: fsController,
-		liveChatBot:         liveChatBot,
-		lineBot:             lineBot,
-		discordBot:          discordBot,
+		Configs:                             &configs,
+		FirestoreController:                 fsController,
+		liveChatBot:                         liveChatBot,
+		lineBot:                             lineBot,
+		discordBot:                          discordBot,
+		blockRegexListForChannelName:        blockRegexListForChannelName,
+		blockRegexListForChatMessage:        blockRegexListForChatMessage,
+		notificationRegexListForChatMessage: notificationRegexListForChatMessage,
+		notificationRegexListForChannelName: notificationRegexListForChannelName,
 	}, nil
 }
 
@@ -102,6 +120,69 @@ func (s *System) CloseFirestoreClient() {
 	} else {
 		log.Println("successfully closed firestore client.")
 	}
+}
+
+func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) error {
+	// ブロック対象チェック
+	found, index, err := containsRegexWithFoundIndex(s.blockRegexListForChatMessage, message)
+	if err != nil {
+		return err
+	}
+	if found {
+		err := s.BanUser(ctx, userId)
+		if err != nil {
+			return err
+		}
+		return s.MessageToDiscordBot("発言から禁止ワードを検出、ユーザーをブロックしました。" +
+			"\n禁止ワード: `" + s.blockRegexListForChatMessage[index] + "`" +
+			"\nチャンネル名: `" + channelName + "`" +
+			"\nチャンネルURL: https://youtube.com/channel/" + userId +
+			"\nチャット内容: `" + message + "`" +
+			"\n日時: " + utils.JstNow().String())
+	}
+	found, index, err = containsRegexWithFoundIndex(s.blockRegexListForChannelName, channelName)
+	if err != nil {
+		return err
+	}
+	if found {
+		err := s.BanUser(ctx, userId)
+		if err != nil {
+			return err
+		}
+		return s.MessageToDiscordBot("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
+			"\n禁止ワード: `" + s.blockRegexListForChannelName[index] + "`" +
+			"\nチャンネル名: `" + channelName + "`" +
+			"\nチャンネルURL: https://youtube.com/channel/" + userId +
+			"\nチャット内容: `" + message + "`" +
+			"\n日時: " + utils.JstNow().String())
+	}
+	
+	// 通知対象チェック
+	found, index, err = containsRegexWithFoundIndex(s.notificationRegexListForChatMessage, message)
+	if err != nil {
+		return err
+	}
+	if found {
+		return s.MessageToDiscordBot("発言から禁止ワードを検出しました。（通知のみ）" +
+			"\n禁止ワード: `" + s.notificationRegexListForChatMessage[index] + "`" +
+			"\nチャンネル名: `" + channelName + "`" +
+			"\nチャンネルURL: https://youtube.com/channel/" + userId +
+			"\nチャット内容: `" + message + "`" +
+			"\n日時: " + utils.JstNow().String())
+	}
+	found, index, err = containsRegexWithFoundIndex(s.notificationRegexListForChannelName, channelName)
+	if err != nil {
+		return err
+	}
+	if found {
+		return s.MessageToDiscordBot("チャンネルから禁止ワードを検出しました。（通知のみ）" +
+			"\n禁止ワード: `" + s.notificationRegexListForChannelName[index] + "`" +
+			"\nチャンネル名: `" + channelName + "`" +
+			"\nチャンネルURL: https://youtube.com/channel/" + userId +
+			"\nチャット内容: `" + message + "`" +
+			"\n日時: " + utils.JstNow().String())
+	}
+	return nil
 }
 
 func (s *System) AdjustMaxSeats(ctx context.Context) error {
@@ -169,6 +250,15 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 		return nil
 	}
 	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner)
+	
+	// check if an unwanted word included
+	if !isChatModerator && !isChatOwner {
+		err := s.CheckIfUnwantedWordIncluded(ctx, userId, commandString, userDisplayName)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to CheckIfUnwantedWordIncluded", err)
+			// continue
+		}
+	}
 	
 	// 初回の利用の場合はユーザーデータを初期化
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -773,7 +863,7 @@ func (s *System) Block(command CommandDetails, ctx context.Context) error {
 			"（+ " + strconv.Itoa(workedTimeSec/60) + "分、" + strconv.Itoa(targetSeat.SeatId) + "番席）" + rpEarned
 		
 		// ブロック
-		err = s.liveChatBot.BanUser(ctx, targetSeat.UserId)
+		err = s.BanUser(ctx, targetSeat.UserId)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to BanUser", err)
 			return err
