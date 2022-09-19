@@ -18,6 +18,11 @@ type System struct {
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserIsModeratorOrOwner bool
+	
+	blockRegexListForChatMessage        []string
+	blockRegexListForChannelName        []string
+	notificationRegexListForChatMessage []string
+	notificationRegexListForChannelName []string
 }
 
 // SystemConfigs System生成時に初期化すべきフィールド値

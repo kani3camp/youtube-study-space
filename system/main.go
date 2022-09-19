@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -184,10 +185,8 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = s.OrganizeDB(ctx)
-	if err != nil {
-		panic(err)
-	}
+	r := regexp.MustCompile("オンライン作業部屋")
+	fmt.Println(r.MatchString("オンライン作業部屋"))
 }
 
 func main() {
