@@ -1182,7 +1182,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 			return cerr.Body
 		}
 		if currentSeat.State != myfirestore.WorkState {
-			replyMessage = s.ProcessedUserDisplayName + "さん、作業中のみ使えるコマンドです。"
+			replyMessage = s.ProcessedUserDisplayName + "さんはすでに休憩中です。"
 			return nil
 		}
 		
@@ -2169,16 +2169,17 @@ func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
 	return checker.Check(ctx)
 }
 
-func (s *System) DailyOrganizeDatabase(ctx context.Context) (error, []string) {
-	log.Println("DailyOrganizeDatabase()")
-	// 時間がかかる処理なのでトランザクションはなし
+func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
+	log.Println("DailyOrganizeDB()")
+	var lineMessage string
 	
 	log.Println("一時的累計作業時間をリセット")
-	err := s.ResetDailyTotalStudyTime(ctx)
+	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to ResetDailyTotalStudyTime", err)
 		return err, []string{}
 	}
+	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 	
 	log.Println("RP関連の情報更新・ペナルティ処理")
 	err, userIdsToProcessRP := s.GetUserIdsToProcessRP(ctx)
@@ -2187,12 +2188,13 @@ func (s *System) DailyOrganizeDatabase(ctx context.Context) (error, []string) {
 		return err, []string{}
 	}
 	
-	s.MessageToLineBot("本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。")
-	log.Println("finished DailyOrganizeDatabase().")
+	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
+	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
+	log.Println("finished DailyOrganizeDB().")
 	return nil, userIdsToProcessRP
 }
 
-func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
+func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	log.Println("ResetDailyTotalStudyTime()")
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Configs.Constants.LastResetDailyTotalStudySec.In(utils.JapanLocation())
@@ -2207,23 +2209,23 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) error {
 				break
 			}
 			if err != nil {
-				return err
+				return 0, err
 			}
 			err = s.FirestoreController.ResetDailyTotalStudyTime(ctx, doc.Ref)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			count += 1
 		}
-		s.MessageToLineBot("successfully reset all non-daily-zero user's daily total study time. (" + strconv.Itoa(count) + " users)")
 		err := s.FirestoreController.UpdateLastResetDailyTotalStudyTime(ctx, now)
 		if err != nil {
-			return err
+			return 0, err
 		}
+		return count, nil
 	} else {
 		s.MessageToLineBot("all user's daily total study times are already reset today.")
+		return 0, nil
 	}
-	return nil
 }
 
 func (s *System) GetUserIdsToProcessRP(ctx context.Context) (error, []string) {
@@ -2245,7 +2247,6 @@ func (s *System) GetUserIdsToProcessRP(ctx context.Context) (error, []string) {
 		userId := doc.Ref.ID
 		userIds = append(userIds, userId)
 	}
-	s.MessageToLineBot("過去31日以内に入室した人数: " + strconv.Itoa(len(userIds)))
 	return nil, userIds
 }
 
