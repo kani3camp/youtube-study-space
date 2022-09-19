@@ -22,6 +22,8 @@ const (
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"
 	
+	ActivityTypeDocProperty = "activity-type"
+	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MinVacancyRateDocProperty                        = "min-vacancy-rate"

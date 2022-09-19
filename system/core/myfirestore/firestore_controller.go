@@ -438,10 +438,47 @@ func (c *FirestoreController) GetAllUserActivityDocIdsAfterDate(ctx context.Cont
 }
 
 func (c *FirestoreController) GetAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userId string, seatId int) *firestore.DocumentIterator {
-	return c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
+	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
 		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).OrderBy(TakenAtDocProperty,
 		firestore.Asc).Documents(ctx)
+	return getUserActivitiesFromIterator(iter)
+}
+
+func (c *FirestoreController) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
+	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIdDocProperty, "==", userId).
+		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", EnterRoomActivity).
+		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
+	return getUserActivitiesFromIterator(iter)
+}
+
+func (c *FirestoreController) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
+	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIdDocProperty, "==", userId).
+		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", ExitRoomActivity).
+		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
+	return getUserActivitiesFromIterator(iter)
+}
+
+func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActivityDoc, error) {
+	var activityList []UserActivityDoc
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return []UserActivityDoc{}, err
+		}
+		var activity UserActivityDoc
+		err = doc.DataTo(&activity)
+		if err != nil {
+			return []UserActivityDoc{}, err
+		}
+		activityList = append(activityList, activity)
+	}
+	return activityList, nil
 }
 
 // GetUsersActiveAfterDate date以後に入室したことのあるuserを全て取得
@@ -476,15 +513,15 @@ func (c *FirestoreController) UpdateUserRPAndLastPenaltyImposedDays(tx *firestor
 
 func (c *FirestoreController) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string) ([]SeatLimitDoc, error) {
 	iter := c.seatLimitsWHITEListCollection().Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return GetSeatLimitsDocsFromIterator(iter)
+	return getSeatLimitsDocsFromIterator(iter)
 }
 
 func (c *FirestoreController) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string) ([]SeatLimitDoc, error) {
 	iter := c.seatLimitsBLACKListCollection().Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return GetSeatLimitsDocsFromIterator(iter)
+	return getSeatLimitsDocsFromIterator(iter)
 }
 
-func GetSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimitDoc, error) {
+func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimitDoc, error) {
 	var seatLimits []SeatLimitDoc
 	for {
 		doc, err := iter.Next()

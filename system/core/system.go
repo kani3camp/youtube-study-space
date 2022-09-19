@@ -2582,32 +2582,17 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 	}
 	
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
-	iter := s.FirestoreController.GetAllUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
-	var activityAllTypeList []myfirestore.UserActivityDoc
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return false, err
-		}
-		var activity myfirestore.UserActivityDoc
-		err = doc.DataTo(&activity)
-		if err != nil {
-			return false, err
-		}
-		activityAllTypeList = append(activityAllTypeList, activity)
+	enterRoomActivities, err := s.FirestoreController.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
+	if err != nil {
+		return false, err
 	}
-	// activityListは長さ0の可能性もあることに注意
+	exitRoomActivities, err := s.FirestoreController.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
+	if err != nil {
+		return false, err
+	}
+	activityOnlyEnterExitList := append(enterRoomActivities, exitRoomActivities...)
 	
-	// 入退室以外のactivityは除外
-	var activityOnlyEnterExitList []myfirestore.UserActivityDoc
-	for _, a := range activityAllTypeList {
-		if a.ActivityType == myfirestore.EnterRoomActivity || a.ActivityType == myfirestore.ExitRoomActivity {
-			activityOnlyEnterExitList = append(activityOnlyEnterExitList, a)
-		}
-	}
+	// activityListは長さ0の可能性もあることに注意
 	
 	// 入室と退室が交互に並んでいるか確認
 	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
@@ -2616,7 +2601,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 	
-	log.Println("ドキュメント数：" + strconv.Itoa(len(activityAllTypeList)))
+	log.Println("ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
 	
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
