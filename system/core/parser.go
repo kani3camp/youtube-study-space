@@ -388,8 +388,8 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, custom
 			return num, customerror.NewNil()
 		} else if allowNonPrefix {
 			num, err := strconv.Atoi(str)
-			if err == nil {
-				return num, customerror.NewNil()
+			if err != nil {
+				return num, customerror.ParseFailed.New("オプションが正しく設定されているか確認してください")
 			}
 			return num, customerror.NewNil()
 		}
