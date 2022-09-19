@@ -2,6 +2,7 @@ import { RoomLayout } from '../types/room-layout'
 import { classRoomLayout } from './layouts/classroom'
 import { Freepick1RoomLayout } from './layouts/freepick1_room'
 import { Freepick2RoomLayout } from './layouts/freepick2_room'
+import { Freepick3RoomLayout } from './layouts/freepick3_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
@@ -23,8 +24,17 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout, ver2RoomLayout],
-    temporaryRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
+    basicRooms: [
+        Freepick1RoomLayout,
+        Freepick2RoomLayout,
+        Freepick3RoomLayout,
+        ver2RoomLayout,
+    ],
+    temporaryRooms: [
+        Freepick1RoomLayout,
+        Freepick2RoomLayout,
+        Freepick3RoomLayout,
+    ],
 }
 
 export const allRooms: AllRoomsConfig = testAllRooms
