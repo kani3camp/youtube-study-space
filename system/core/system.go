@@ -175,10 +175,6 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		return err
 	}
 	if found {
-		err := s.BanUser(ctx, userId)
-		if err != nil {
-			return err
-		}
 		return s.MessageToDiscordBot("チャンネルから禁止ワードを検出しました。（通知のみ）" +
 			"\n禁止ワード: `" + s.notificationRegexListForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
