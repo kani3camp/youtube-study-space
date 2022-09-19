@@ -2566,6 +2566,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("len(whiteListForUserAndSeat) > 1")
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
+			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in white list. skipping.")
 			return false, nil
 		} else {
 			// ホワイトリストに入っているが、期限切れのためチェックを続行
@@ -2575,9 +2576,10 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("len(blackListForUserAndSeat) > 1")
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
+			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in black list. skipping.")
 			return true, nil
 		} else {
-			// ホワイトリストに入っているが、期限切れのためチェックを続行
+			// ブラックリストに入っているが、期限切れのためチェックを続行
 		}
 	}
 	
@@ -2601,7 +2603,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 	
-	log.Println("ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
+	log.Println("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
 	
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
@@ -2622,7 +2624,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		}
 	}
 	
-	log.Println("[userId: " + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(seatId) + "番席に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
+	log.Println("[" + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(seatId) + "番席に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
 		"分入室")
 	
 	// 制限値と比較
@@ -2636,6 +2638,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 			if err != nil {
 				return false, err
 			}
+			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to white list.")
 		} else {
 			// pass
 		}
@@ -2646,6 +2649,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		if err != nil {
 			return false, err
 		}
+		log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to black list.")
 	}
 	
 	return ifSittingTooMuch, nil
