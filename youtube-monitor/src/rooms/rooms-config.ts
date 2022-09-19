@@ -6,7 +6,6 @@ import { Freepick3RoomLayout } from './layouts/freepick3_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
-import { ver2RoomLayout } from './layouts/ver2'
 
 type AllRoomsConfig = {
     basicRooms: RoomLayout[]
@@ -24,12 +23,7 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [
-        Freepick1RoomLayout,
-        Freepick2RoomLayout,
-        Freepick3RoomLayout,
-        ver2RoomLayout,
-    ],
+    basicRooms: [Freepick3RoomLayout],
     temporaryRooms: [
         Freepick1RoomLayout,
         Freepick2RoomLayout,
