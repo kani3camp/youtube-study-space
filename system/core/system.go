@@ -123,6 +123,11 @@ func (s *System) CloseFirestoreClient() {
 	}
 }
 
+func (s *System) GetInfoString() string {
+	numAllFilteredRegex := len(s.blockRegexListForChatMessage) + len(s.blockRegexListForChannelName) + len(s.notificationRegexListForChatMessage) + len(s.notificationRegexListForChannelName)
+	return "規制ワード数（全カテゴリ）: " + strconv.Itoa(numAllFilteredRegex)
+}
+
 func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) error {
 	// ブロック対象チェック
 	found, index, err := containsRegexWithFoundIndex(s.blockRegexListForChatMessage, message)
