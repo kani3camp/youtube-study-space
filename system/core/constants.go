@@ -35,7 +35,7 @@ const (
 	TimeOptionPrefixLegacy      = "min-"
 	TimeOptionShortPrefixLegacy = "m-"
 	
-	InfoDetailsOption = "d"
+	ShowDetailsOption = "d"
 	
 	RankVisibleMyOptionPrefix = "rank="
 	RankVisibleMyOptionOn     = "on"

@@ -27,9 +27,7 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 		case ChangeCommand:
 			return ParseChange(commandString)
 		case SeatCommand:
-			return CommandDetails{
-				CommandType: Seat,
-			}, customerror.NewNil()
+			return ParseSeat(commandString)
 		case ReportCommand:
 			return ParseReport(commandString)
 		case KickCommand:
@@ -121,7 +119,7 @@ func ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
 	
 	showDetails := false
 	if len(slice) >= 2 {
-		if slice[1] == InfoDetailsOption {
+		if slice[1] == ShowDetailsOption {
 			showDetails = true
 		}
 	}
@@ -310,6 +308,24 @@ func ParseChange(commandString string) (CommandDetails, customerror.CustomError)
 	return CommandDetails{
 		CommandType:  Change,
 		ChangeOption: options,
+	}, customerror.NewNil()
+}
+
+func ParseSeat(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	showDetails := false
+	if len(slice) >= 2 {
+		if slice[1] == ShowDetailsOption {
+			showDetails = true
+		}
+	}
+	
+	return CommandDetails{
+		CommandType: Seat,
+		SeatOption: SeatOption{
+			ShowDetails: showDetails,
+		},
 	}, customerror.NewNil()
 }
 

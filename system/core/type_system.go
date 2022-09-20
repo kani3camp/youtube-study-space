@@ -37,6 +37,7 @@ type CommandDetails struct {
 	InOption     InOption
 	InfoOption   InfoOption
 	MyOptions    []MyOption
+	SeatOption   SeatOption
 	KickOption   KickOption
 	CheckOption  CheckOption
 	BlockOption  BlockOption
@@ -91,6 +92,10 @@ type MyOption struct {
 	IntValue    int
 	BoolValue   bool
 	StringValue string
+}
+
+type SeatOption struct {
+	ShowDetails bool
 }
 
 type KickOption struct {

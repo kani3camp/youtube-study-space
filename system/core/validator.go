@@ -20,7 +20,7 @@ func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError
 		// seatStateに依存するためChange()の中で行う。
 		return customerror.NewNil()
 	case Seat:
-		return customerror.NewNil()
+		return s.ValidateSeat(command)
 	case Report:
 		return s.ValidateReport(command)
 	case Kick:
@@ -117,6 +117,16 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			return customerror.InvalidParsedCommand.New("there is an unknown option in command.MyOptions")
 		}
 	}
+	return customerror.NewNil()
+}
+
+func (s *System) ValidateSeat(command CommandDetails) customerror.CustomError {
+	if command.CommandType != Seat {
+		return customerror.InvalidParsedCommand.New("this is not a Seat command.")
+	}
+	
+	// pass
+	
 	return customerror.NewNil()
 }
 

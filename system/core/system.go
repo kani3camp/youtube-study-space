@@ -579,15 +579,15 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 		if command.InfoOption.ShowDetails {
 			switch userDoc.RankVisible {
 			case true:
-				replyMessage += "［ランク表示：オン］"
+				replyMessage += "［🏆ランク表示：オン］"
 				if userDoc.IsContinuousActive {
 					continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
-					replyMessage += "［継続" + strconv.Itoa(continuousActiveDays+1) + "日目（連続日数：" + strconv.Itoa(continuousActiveDays) + "）］"
+					replyMessage += "［🏃継続" + strconv.Itoa(continuousActiveDays+1) + "日目（連続日数：" + strconv.Itoa(continuousActiveDays) + "）］"
 				} else {
 					// 表示しない
 				}
 			case false:
-				replyMessage += "［ランク表示：オフ］"
+				replyMessage += "［🏆ランク表示：オフ］"
 			}
 			
 			if userDoc.DefaultStudyMin == 0 {
@@ -597,12 +597,12 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 			}
 			
 			if userDoc.FavoriteColor == "" {
-				replyMessage += "［お気に入りカラー：なし］"
+				replyMessage += "［🎨お気に入りカラー：なし］"
 			} else {
-				replyMessage += "［お気に入りカラー：" + utils.ColorCodeToColorName(userDoc.FavoriteColor) + "］"
+				replyMessage += "［🎨お気に入りカラー：" + utils.ColorCodeToColorName(userDoc.FavoriteColor) + "］"
 			}
 			
-			replyMessage += "［登録日：" + userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日") + "］"
+			replyMessage += "［📅登録日：" + userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日") + "］"
 		}
 		return nil
 	})
@@ -613,7 +613,8 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 	return err
 }
 
-func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
+func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error {
+	showDetails := command.SeatOption.ShowDetails
 	var replyMessage string
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室しているか？
@@ -639,16 +640,26 @@ func (s *System) ShowSeatInfo(_ CommandDetails, ctx context.Context) error {
 			var breakUntilStr string
 			switch currentSeat.State {
 			case myfirestore.WorkState:
-				stateStr = "作業中"
+				stateStr = "作業中💪"
 				breakUntilStr = ""
 			case myfirestore.BreakState:
-				stateStr = "休憩中"
+				stateStr = "休憩中☕️"
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
-				breakUntilStr = "作業再開まで" + strconv.Itoa(int(breakUntilDuration.Minutes())) + "分です"
+				breakUntilStr = "作業再開まで" + strconv.Itoa(int(breakUntilDuration.Minutes())) + "分です。"
 			}
 			replyMessage = s.ProcessedUserDisplayName + "さんは" + strconv.Itoa(currentSeat.SeatId) +
 				"番の席で" + stateStr + "です。現在" + strconv.Itoa(realtimeSittingDurationMin) + "分入室中、作業時間は" + strconv.Itoa(int(realtimeTotalStudyDurationOfSeat.Minutes())) + "分、自動退室まで残り" +
 				strconv.Itoa(remainingMinutes) + "分です。" + breakUntilStr
+			
+			if showDetails {
+				recentTotalEntryDuration, err := s.GetRecentUserSittingTimeForSeat(ctx, s.ProcessedUserId, currentSeat.SeatId)
+				if err != nil {
+					s.MessageToLineBotWithError("failed to GetRecentUserSittingTimeForSeat", err)
+					return err
+				}
+				replyMessage += "過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(currentSeat.SeatId) +
+					"番席に合計" + strconv.Itoa(int(recentTotalEntryDuration.Minutes())) + "分着席しています🪑"
+			}
 		} else {
 			replyMessage = s.ProcessedUserDisplayName +
 				"さんは入室していません。「" + InCommand + "」コマンドで入室しましょう！"
@@ -2635,7 +2646,6 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 }
 
 func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId string, seatId int) (bool, error) {
-	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Configs.Constants.RecentRangeMin) * time.Minute)
 	jstNow := utils.JstNow()
 	
 	// ホワイトリスト・ブラックリストを検索
@@ -2675,46 +2685,9 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		}
 	}
 	
-	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
-	enterRoomActivities, err := s.FirestoreController.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
+	totalEntryDuration, err := s.GetRecentUserSittingTimeForSeat(ctx, userId, seatId)
 	if err != nil {
 		return false, err
-	}
-	exitRoomActivities, err := s.FirestoreController.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
-	if err != nil {
-		return false, err
-	}
-	activityOnlyEnterExitList := append(enterRoomActivities, exitRoomActivities...)
-	
-	// activityListは長さ0の可能性もあることに注意
-	
-	// 入室と退室が交互に並んでいるか確認
-	SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
-	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
-	if !orderOK {
-		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
-		return false, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
-	}
-	
-	log.Println("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
-	
-	// 入退室をセットで考え、合計入室時間を求める
-	totalEntryDuration := time.Duration(0)
-	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
-	lastEnteredTimestamp := checkDurationFrom
-	for i, activity := range activityOnlyEnterExitList {
-		//log.Println(activity.TakenAt.In(utils.JapanLocation()).String() + "に" + string(activity.ActivityType))
-		if activity.ActivityType == myfirestore.EnterRoomActivity {
-			lastEnteredTimestamp = activity.TakenAt
-			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
-				entryCount += 1
-				totalEntryDuration += utils.NoNegativeDuration(utils.JstNow().Sub(activity.TakenAt))
-			}
-			continue
-		} else if activity.ActivityType == myfirestore.ExitRoomActivity {
-			entryCount += 1
-			totalEntryDuration += utils.NoNegativeDuration(activity.TakenAt.Sub(lastEnteredTimestamp))
-		}
 	}
 	
 	log.Println("[" + userId + "] 過去" + strconv.Itoa(s.Configs.Constants.RecentRangeMin) + "分以内に" + strconv.Itoa(seatId) + "番席に合計" + strconv.Itoa(int(totalEntryDuration.Minutes())) +
@@ -2746,6 +2719,53 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 	}
 	
 	return ifSittingTooMuch, nil
+}
+
+func (s *System) GetRecentUserSittingTimeForSeat(ctx context.Context, userId string, seatId int) (time.Duration, error) {
+	checkDurationFrom := utils.JstNow().Add(-time.Duration(s.Configs.Constants.RecentRangeMin) * time.Minute)
+	
+	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
+	enterRoomActivities, err := s.FirestoreController.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
+	if err != nil {
+		return 0, err
+	}
+	exitRoomActivities, err := s.FirestoreController.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId)
+	if err != nil {
+		return 0, err
+	}
+	activityOnlyEnterExitList := append(enterRoomActivities, exitRoomActivities...)
+	
+	// activityListは長さ0の可能性もあることに注意
+	
+	// 入室と退室が交互に並んでいるか確認
+	SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
+	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
+	if !orderOK {
+		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
+		return 0, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
+	}
+	
+	log.Println("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
+	
+	// 入退室をセットで考え、合計入室時間を求める
+	totalEntryDuration := time.Duration(0)
+	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
+	lastEnteredTimestamp := checkDurationFrom
+	for i, activity := range activityOnlyEnterExitList {
+		//log.Println(activity.TakenAt.In(utils.JapanLocation()).String() + "に" + string(activity.ActivityType))
+		if activity.ActivityType == myfirestore.EnterRoomActivity {
+			lastEnteredTimestamp = activity.TakenAt
+			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
+				entryCount += 1
+				totalEntryDuration += utils.NoNegativeDuration(utils.JstNow().Sub(activity.TakenAt))
+			}
+			continue
+		} else if activity.ActivityType == myfirestore.ExitRoomActivity {
+			entryCount += 1
+			totalEntryDuration += utils.NoNegativeDuration(activity.TakenAt.Sub(lastEnteredTimestamp))
+		}
+	}
+	return totalEntryDuration, nil
 }
 
 func (s *System) BanUser(ctx context.Context, userId string) error {
