@@ -4,7 +4,6 @@ import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/myfirestore"
-	"cloud.google.com/go/firestore"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
 	"log"
@@ -26,27 +25,18 @@ func Rooms() (RoomsResponseStruct, error) {
 	if err != nil {
 		return RoomsResponseStruct{}, err
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return RoomsResponseStruct{}, err
 	}
-	defer _system.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	
-	var seats []myfirestore.SeatDoc
 	var constants myfirestore.ConstantsConfigDoc
-	err = _system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		var err error
-		seats, err = _system.FirestoreController.ReadAllSeats(ctx)
-		if err != nil {
-			return err
-		}
-		
-		constants, err = _system.FirestoreController.ReadSystemConstantsConfig(ctx, tx)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	seats, err := sys.FirestoreController.ReadAllSeats(ctx)
+	if err != nil {
+		return RoomsResponseStruct{}, err
+	}
+	constants, err = sys.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return RoomsResponseStruct{}, err
 	}

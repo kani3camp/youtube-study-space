@@ -1,6 +1,6 @@
 import { FC, useEffect, useState } from 'react'
 import api from '../lib/api_config'
-import { useInterval } from '../lib/common'
+import { useInterval, validateRoomsStateResponse } from '../lib/common'
 import fetcher from '../lib/fetcher'
 import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
 import * as styles from '../styles/Room.styles'
@@ -92,6 +92,13 @@ const Seats: FC = () => {
                         console.error(r)
                         reject()
                     }
+
+                    // 値チェック
+                    if (!validateRoomsStateResponse(r)) {
+                        console.error('validate response failed: ', r)
+                        reject()
+                    }
+
                     setLatestRoomsState(r)
                     maxSeats = r.max_seats
 
