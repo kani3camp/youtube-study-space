@@ -199,7 +199,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 				// 整数に変換できるか
 				num, err := strconv.Atoi(paramStr)
 				if err != nil {
-					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は半角数字にしてください")
+					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は有効な半角数字にしてください")
 				}
 				options = append(options, MyOption{
 					Type:     FavoriteColor,

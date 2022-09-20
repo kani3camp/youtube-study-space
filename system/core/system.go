@@ -645,15 +645,15 @@ func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error
 			var breakUntilStr string
 			switch currentSeat.State {
 			case myfirestore.WorkState:
-				stateStr = "作業中💪"
+				stateStr = "作業中です💪"
 				breakUntilStr = ""
 			case myfirestore.BreakState:
-				stateStr = "休憩中☕️"
+				stateStr = "休憩中です☕️"
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
 				breakUntilStr = "作業再開まで" + strconv.Itoa(int(breakUntilDuration.Minutes())) + "分です。"
 			}
 			replyMessage = s.ProcessedUserDisplayName + "さんは" + strconv.Itoa(currentSeat.SeatId) +
-				"番の席で" + stateStr + "です。現在" + strconv.Itoa(realtimeSittingDurationMin) + "分入室中、作業時間は" + strconv.Itoa(int(realtimeTotalStudyDurationOfSeat.Minutes())) + "分、自動退室まで残り" +
+				"番の席で" + stateStr + "現在" + strconv.Itoa(realtimeSittingDurationMin) + "分入室中、作業時間は" + strconv.Itoa(int(realtimeTotalStudyDurationOfSeat.Minutes())) + "分、自動退室まで残り" +
 				strconv.Itoa(remainingMinutes) + "分です。" + breakUntilStr
 			
 			if showDetails {
