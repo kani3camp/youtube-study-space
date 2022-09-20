@@ -54,6 +54,9 @@ type ConstantsConfigDoc struct {
 	
 	// 並行でRP処理を行うLambdaインスタンスの数
 	NumberOfParallelLambdaToProcessUserRP int `firestore:"number-of-parallel-lambda-to-process-user-rp"`
+	
+	// Botの設定（ブロック・通知対象の正規表現など）をまとめたスプレッドシートのID
+	BotConfigSpreadsheetId string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
 }
 
 type CredentialsConfigDoc struct {

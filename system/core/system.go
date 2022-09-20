@@ -78,7 +78,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		}
 	}
 	
-	ssc, err := myspreadsheet.NewSpreadsheetController(ctx, clientOption, "1IOAs6CfXmkHAhtMQP_o8ATRcFUqCKmryq7cLoFRR3nQ", "01", "02")
+	ssc, err := myspreadsheet.NewSpreadsheetController(ctx, clientOption, configs.Constants.BotConfigSpreadsheetId, "01", "02")
 	if err != nil {
 		return System{}, nil
 	}
@@ -125,7 +125,7 @@ func (s *System) CloseFirestoreClient() {
 
 func (s *System) GetInfoString() string {
 	numAllFilteredRegex := len(s.blockRegexListForChatMessage) + len(s.blockRegexListForChannelName) + len(s.notificationRegexListForChatMessage) + len(s.notificationRegexListForChannelName)
-	return "規制ワード数（全カテゴリ）: " + strconv.Itoa(numAllFilteredRegex)
+	return "全規制ワード数: " + strconv.Itoa(numAllFilteredRegex)
 }
 
 func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) error {
