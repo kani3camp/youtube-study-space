@@ -8,6 +8,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -148,6 +149,10 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Durat
 		}
 	}
 	return duration, nil
+}
+
+func SortUserActivityByTakenAtAscending(docs []myfirestore.UserActivityDoc) {
+	sort.Slice(docs, func(i, j int) bool { return docs[i].TakenAt.Before(docs[j].TakenAt) })
 }
 
 // CheckEnterExitActivityOrder 入室と退室が交互に並んでいるか確認する。

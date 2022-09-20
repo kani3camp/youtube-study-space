@@ -13,6 +13,7 @@ import (
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"context"
+	"fmt"
 	"github.com/kr/pretty"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -2688,10 +2689,11 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 	// activityListは長さ0の可能性もあることに注意
 	
 	// 入室と退室が交互に並んでいるか確認
+	SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
 	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
 	if !orderOK {
 		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
-		return false, errors.New("入室activityと退室activityが交互に並んでいない")
+		return false, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
 	}
 	
 	log.Println("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))

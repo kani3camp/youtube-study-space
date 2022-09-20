@@ -17,9 +17,9 @@ aws lambda update-function-code --function-name     youtube_organize_database   
 # Mac OS
 cd system; cd aws-lambda;  # ディレクトリを移動
 aws configure set region us-east-1
-GOARCH=amd64 GOOS=linux go build -o main    daily_organize_database.go
+GOARCH=amd64 GOOS=linux go build -o main    youtube_organize_database.go
 zip main.zip main
 
 aws lambda create-function --function-name change_user_info --runtime go1.x --zip-file fileb://main.zip --handler main --role arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th --timeout 120 --profile soraride
 
-aws lambda update-function-code --function-name   daily_organize_database   --zip-file fileb://main.zip --profile soraride
+aws lambda update-function-code --function-name   youtube_organize_database   --zip-file fileb://main.zip --profile soraride
