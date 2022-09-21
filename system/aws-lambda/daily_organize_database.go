@@ -20,7 +20,7 @@ type DailyOrganizeDatabaseResponseStruct struct {
 }
 
 func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
-	log.Println("ResetDailyTotalStudyTime()")
+	log.Println("DailyOrganizeDatabase()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

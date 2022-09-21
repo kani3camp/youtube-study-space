@@ -14,7 +14,7 @@ type OrganizeDatabaseResponseStruct struct {
 }
 
 func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
-	log.Println("OrganizeDB()")
+	log.Println("OrganizeDatabase()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

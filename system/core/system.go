@@ -274,7 +274,7 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 			return err
 		}
 		if !isRegistered {
-			err := s.InitializeUser(tx)
+			err := s.CreateUser(tx)
 			if err != nil {
 				s.MessageToLineBotWithError("failed to CreateUser", err)
 				return err
@@ -1559,7 +1559,7 @@ func (s *System) IsUserInRoom(ctx context.Context, userId string) (bool, error) 
 	return true, nil
 }
 
-func (s *System) InitializeUser(tx *firestore.Transaction) error {
+func (s *System) CreateUser(tx *firestore.Transaction) error {
 	log.Println("CreateUser()")
 	userData := myfirestore.UserDoc{
 		DailyTotalStudySec: 0,
