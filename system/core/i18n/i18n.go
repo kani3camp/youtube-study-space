@@ -49,23 +49,7 @@ type Localizer struct {
 	namespace string
 }
 
-type TrText struct {
-	Name string `json:"name"`
-	Text string `json:"text"`
-}
-
-type TrLocale struct {
-	Locale      string
-	Transitions map[string]*[]TrText
-}
-
-type Tr struct {
-	TrTexts map[string]*TrLocale
-}
-
-type HFType func(string, ...string) string
-
-type TFuncType func(key string, args ...map[string]interface{}) string
+type TFuncType func(key string, args ...interface{}) string
 
 func SetDefaultLanguage(lang Language) {
 	defaultLanguage = lang
@@ -153,8 +137,19 @@ func LoadLocaleFolderFS(f embed.FS, name string) error {
 	return nil
 }
 
-func t(lang, fallback Language, namespace, key string, args ...map[string]interface{}) string {
-	fmt.Println("\nlang:", lang, "|| fallback:", fallback, "|| ns:", namespace, "|| key:", key)
+func formatText(str string, args ...interface{}) string {
+	if len(args) < 1 {
+		return str
+	}
+	oldnew := []string{}
+	for i, d := range args {
+		oldnew = append(oldnew, fmt.Sprintf("{%d}", i), fmt.Sprintf("%v", d))
+	}
+	r := strings.NewReplacer(oldnew...)
+	return r.Replace(str)
+}
+
+func t(lang, fallback Language, namespace, key string, args ...interface{}) string {
 	if namespace == "" {
 		splited := strings.Split(key, ":")
 		if len(splited) != 2 {
@@ -164,21 +159,19 @@ func t(lang, fallback Language, namespace, key string, args ...map[string]interf
 		key = splited[1]
 	}
 
-	value := localeData[lang][namespace][key]
-	if value != "" {
-		return value
+	if value := localeData[lang][namespace][key]; value != "" {
+		return formatText(value, args...)
 	}
 
-	fmt.Println("Fallback::", localeData[fallback])
-	value = localeData[fallback][namespace][key]
-	if value == "" {
-		return fmt.Sprintf("NO DATA[%s]: %s:%s", lang, namespace, key)
+	// Fallback
+	if value := localeData[fallback][namespace][key]; value != "" {
+		return formatText(value, args...)
 	}
 
-	return value
+	return fmt.Sprintf("NO DATA[%s]: %s:%s", lang, namespace, key)
 }
 
-func T(key string, args ...map[string]interface{}) string {
+func T(key string, args ...interface{}) string {
 	return t(defaultLanguage, defaultFallback, "", key, args...)
 }
 
@@ -213,7 +206,7 @@ func (l *Localizer) SetNamespace(namespace string) {
 	l.namespace = namespace
 }
 
-func (l *Localizer) T(key string, args ...map[string]interface{}) string {
+func (l *Localizer) T(key string, args ...interface{}) string {
 	return t(l.language, l.fallback, l.namespace, key, args...)
 }
 
@@ -226,7 +219,7 @@ func getTFunc(lang, fallback Language, namespace ...string) TFuncType {
 	if len(namespace) > 0 {
 		ns = namespace[0]
 	}
-	return func(key string, args ...map[string]interface{}) string {
+	return func(key string, args ...interface{}) string {
 		return t(lang, fallback, ns, key, args...)
 	}
 }

@@ -1,3 +1,4 @@
 # Locale file just for test
 [common]
 test = "Hello"
+test-args = "First: {0} | Second: {1}"

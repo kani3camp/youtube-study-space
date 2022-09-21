@@ -8,8 +8,14 @@ import (
 )
 
 const (
-	CommonTestKO = "안녕"
-	CommonTestEN = "Hello"
+	CommonTestKO     = "안녕"
+	CommonTestEN     = "Hello"
+	CommonTestArgsEN = "First: 1 | Second: 2"
+	CommonTestArgsKO = "두번째: 2 | 첫번째: 1"
+)
+
+var (
+	CommonTestArgs = []interface{}{1, "2"}
 )
 
 // //go:embed *.toml
@@ -29,7 +35,6 @@ func TestI18n(test *testing.T) {
 	if err := i18n.LoadLocaleFile("en.toml"); err != nil {
 		test.Fatal(err)
 	}
-	fmt.Println(i18n.T("common:test"))
 
 	if i18n.T("common:test") != CommonTestEN { // Check Fallback
 		test.Fatal()
@@ -55,6 +60,17 @@ func TestI18n(test *testing.T) {
 	{
 		t := i18n.NewWithLang(i18n.LanguageKO, "common").GetTFunc()
 		if t("test") != CommonTestKO {
+			test.Fatal()
+		}
+	}
+	{
+		ko := i18n.GetTFuncWithLang(i18n.LanguageKO)
+		if ko("common:test-args", CommonTestArgs...) != CommonTestArgsKO {
+			test.Fatal()
+		}
+		en := i18n.GetTFuncWithLang(i18n.LanguageEN)
+		fmt.Println(en("common:test-args", CommonTestArgs...))
+		if en("common:test-args", CommonTestArgs...) != CommonTestArgsEN {
 			test.Fatal()
 		}
 	}

@@ -1,3 +1,4 @@
 # Locale file just for test
 [common]
 test = "안녕"
+test-args = "두번째: {1} | 첫번째: {0}"
