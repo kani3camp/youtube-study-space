@@ -1,0 +1,3 @@
+# Locale file just for test
+[common]
+test = "Hello"
