@@ -1,27 +1,39 @@
 package main
 
 import (
-	"app.modules/core"
-	"app.modules/core/utils"
 	"context"
+	"embed"
 	"fmt"
-	"github.com/pkg/errors"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 	"log"
 	"math"
 	"os"
 	"strconv"
 	"time"
+
+	"app.modules/core"
+	"app.modules/core/i18n"
+	"app.modules/core/utils"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 )
+
+//go:embed locales/*.toml
+var fs embed.FS
 
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
-	
+
+	i18n.SetDefaultFallback(i18n.LanguageEN)
+	i18n.SetDefaultFallback(i18n.LanguageJP)
+	if err := i18n.LoadLocaleFolderFS(fs, "locales"); err != nil {
+		return nil, nil, err
+	}
+
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	
+
 	// 本番GCPプロジェクトの場合はCLI上で確認
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
@@ -48,14 +60,14 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 		sys.MessageToLineBotWithError("failed core.NewSystem()", err)
 		return
 	}
-	
+
 	sys.MessageToLineBot("居座り防止プログラムが起動しました。")
 	defer func() {
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToLineBot("app stopped!!")
 	}()
-	
+
 	sys.GoroutineCheckLongTimeSitting(ctx)
 }
 
@@ -66,25 +78,25 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		sys.MessageToLineBotWithError("failed core.NewSystem()", err)
 		return
 	}
-	
+
 	sys.MessageToLineBot("Botが起動しました。")
 	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToLineBot("app stopped!!")
 	}()
-	
+
 	checkDesiredMaxSeatsIntervalSec := sys.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
-	
+
 	lastCheckedDesiredMaxSeats := utils.JstNow()
-	
+
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	var lastChatFetched time.Time
 	var waitAtLeastMilliSec1 float64
 	var waitAtLeastMilliSec2 float64
 	var sleepInterval time.Duration
-	
+
 	for {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
@@ -102,7 +114,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 			lastCheckedDesiredMaxSeats = utils.JstNow()
 		}
-		
+
 		// page token取得
 		pageToken, err := sys.RetrieveNextPageToken(ctx, nil)
 		if err != nil {
@@ -116,7 +128,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
-		
+
 		// チャット取得
 		chatMessages, nextPageToken, pollingIntervalMillis, err := sys.ListLiveChatMessages(ctx, pageToken)
 		if err != nil {
@@ -132,14 +144,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousListMessagesFailed = 0
 		}
 		lastChatFetched = utils.JstNow()
-		
+
 		// nextPageTokenを保存
 		err = sys.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
 			sys.MessageToLineBotWithError("failed to save next page token", err)
 			return
 		}
-		
+
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
 			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
@@ -148,7 +160,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				return
 			}
 		}
-		
+
 		// コマンドを抜き出して各々処理
 		for _, chatMessage := range chatMessages {
 			message := chatMessage.Snippet.TextMessageDetails.MessageText
@@ -158,7 +170,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				sys.MessageToLineBotWithError("error in core.Command()", err)
 			}
 		}
-		
+
 		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(sys.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
@@ -171,7 +183,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	// 居座り防止処理を並行実行
 	go CheckLongTimeSitting(ctx, clientOption)
-	
+
 	Bot(ctx, clientOption)
 }
 
@@ -183,7 +195,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	}
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
-	
+
 }
 
 func main() {
@@ -192,11 +204,11 @@ func main() {
 		log.Println(err.Error())
 		return
 	}
-	
+
 	// デプロイ時切り替え
 	LocalMain(ctx, clientOption)
 	//Test(ctx, clientOption)
-	
+
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(clientOption, ctx)
 	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
