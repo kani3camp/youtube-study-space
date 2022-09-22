@@ -18,7 +18,7 @@ const Message: FC<Props> = (props) => {
             <div css={styles.message}>
                 <div css={styles.roomName}>
                     {t('message.room', {
-                        index: props.currentPageIndex,
+                        index: props.currentPageIndex + 1,
                         length: props.currentRoomsLength,
                     })}
                 </div>
