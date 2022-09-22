@@ -96,25 +96,25 @@
 "work" =  "{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분）" # 0: Username, 1: seatId, 2: until exit
 
 [others]
-"force-move" = "{0}님이 {1}번 좌석 입장 시간의 한도에 도달했기 때문에 좌석을 이동합니다💨"   # 0: userName, 1:  seatId   # TODO check
+"force-move" = "{0}님이 {1}번 좌석 사용 가능 시간의 한계에 도달했기 때문에 좌석을 이동합니다💨"   # 0: userName, 1:  seatId
 
-[parse] # TODO check
-"isolated-!" = "깜짝 마크를 옆의 문자와 붙여주세요."
-"non-half-width-!" = "깜짝 마크를 반각으로하십시오."
-"invalid-seat-id" = "유효한 좌석 번호를 지정하세요."
-"missing-seat-id" = "좌석 번호 지정."
+[parse]
+"isolated-!" = "느낌표를 옆의 문자와 붙여주세요."
+"non-half-width-!" = "느낌표를 반각문자로 해주세요."
+"invalid-seat-id" = "올바른 좌석 번호를 지정하세요."
+"missing-seat-id" = "좌석 번호를 입력하세요."
 "missing-message" = "{0} 오른쪽에 공백을 넣어 메시지를 작성하세요." # 0: command
 "missing-more-option" = "옵션으로 연장 시간(분)을 지정하세요."
 "check-option" = "{0}의 값을 확인하세요."   # 0: optionName
 "non-half-width-digit-option" = "{0}의 값은 반각 숫자여야 합니다."    # 0: optionPrefix
-"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하십시오."
+"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하세요."
 "missing-time-option" = "{0}에서 시간(분)을 지정하세요."    # 0: timeOptionPrefix
 
-[validate]  # TODO check
-"invalid-work-time-range" = "근무 시간(분)은 {0}~{1}의 값이어야 합니다." # 0: minMin, 1: maxMin
+[validate]
+"invalid-work-time-range" = "작업 시간(분)은 {0}~{1}의 값이어야 합니다." # 0: minMin, 1: maxMin
 "negative-seat-id" = "좌석 번호는 0 이상의 값이어야 합니다."
-"invalid-favorite-color-option" = "{0}의 값은 설정하고 싶은 색이 되는 누계 시간(0 이상)을 지정해 주세요. 리셋하는 경우는 빈칸으로 하십시오." # 0: favoriteColorOptionPrefix
+"invalid-favorite-color-option" = "{0}의 값은 설정하고 싶은 색이 되는 누계 시간(0 이상)을 지정해 주세요. 리셋하는 경우는 빈칸으로 해주세요." # 0: favoriteColorOptionPrefix
 "non-one-or-more-seat-id" = "좌석 번호는 1 이상이어야 합니다."
 "missing-option" = "옵션을 지정하세요."
 "invalid-break-time-range" = "휴식 시간(분)은 {0}~{1}의 값이어야 합니다."    # 0: minMin, 1: maxMin
-"non-one-or-more-extended-time" = "연장 시간(분)은 1 이상의 값으로 하십시오."
+"non-one-or-more-extended-time" = "시간 연장은 1분 이상이어야 합니다."
