@@ -541,7 +541,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		// 退室処理
 		workedTimeSec, addedRP, err := s.exitRoom(tx, seat, &userDoc)
 		if err != nil {
-			s.MessageToLineBotWithError("failed in s.exitRoom(seatId, ctx)", customErr.Body)
+			s.MessageToLineBotWithError("failed in s.exitRoom", err)
 			return err
 		}
 		var rpEarned string
@@ -796,8 +796,8 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 			s.MessageToLineBotWithError("failed to ReadSeat", err)
 			return err
 		}
-		sinceMinutes := utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes()
-		untilMinutes := utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()
+		sinceMinutes := int(utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes())
+		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
 		message := s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(seat.SeatId) + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(int(
 			sinceMinutes)) + "分\n" +
@@ -1112,21 +1112,21 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 			switch currentSeat.State {
 			case myfirestore.WorkState:
 				// 作業時間（入室時間から自動退室までの時間）を変更
-				realtimeEntryDurationMin := utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes()
+				realtimeEntryDurationMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.DurationMin) * time.Minute)
 				
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
-					remainingWorkMin := currentSeat.Until.Sub(jstNow).Minutes()
+					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 					replyMessage += t("work-duration-before", changeOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 				} else if requestedUntil.After(jstNow.Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 					// もし現在時刻より最大延長可能時間以上後なら却下
-					remainingWorkMin := currentSeat.Until.Sub(jstNow).Minutes()
+					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 					replyMessage += t("work-duration-after", s.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
 				} else { // それ以外なら延長
 					newSeat.Until = requestedUntil
 					newSeat.CurrentStateUntil = requestedUntil
-					remainingWorkMin := utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes()
+					remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
 					replyMessage += t("work-duration", changeOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 				}
 			case myfirestore.BreakState:
@@ -1137,11 +1137,11 @@ func (s *System) Change(command CommandDetails, ctx context.Context) error {
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
 					remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-					replyMessage += t("break-duration-before", changeOption.DurationMin, realtimeBreakDuration.Minutes(), remainingBreakDuration.Minutes())
+					replyMessage += t("break-duration-before", changeOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 				} else { // それ以外ならuntilを変更
 					newSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
-					replyMessage += t("break-duration", changeOption.DurationMin, realtimeBreakDuration.Minutes(), remainingBreakDuration.Minutes())
+					replyMessage += t("break-duration", changeOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 				}
 			}
 		}
@@ -1240,7 +1240,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			replyMessage += t("reply-work", addedMin)
 		case myfirestore.BreakState:
 			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
-			replyMessage += t("reply-break", addedMin, remainingBreakDuration.Minutes())
+			replyMessage += t("reply-break", addedMin, int(remainingBreakDuration.Minutes()))
 		}
 		realtimeEnteredTimeMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
 		replyMessage += t("reply", realtimeEnteredTimeMin, remainingUntilExitMin)
@@ -1281,7 +1281,7 @@ func (s *System) Break(ctx context.Context, command CommandDetails) error {
 		}
 		
 		// 前回の入室または再開から、最低休憩間隔経っているか？
-		currentWorkedMin := utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes()
+		currentWorkedMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
 		if int(currentWorkedMin) < s.Configs.Constants.MinBreakIntervalMin {
 			replyMessage = t("warn", s.ProcessedUserDisplayName, s.Configs.Constants.MinBreakIntervalMin, currentWorkedMin)
 			return nil
@@ -1895,37 +1895,49 @@ func (s *System) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *fir
 	return totalDuration, dailyTotalDuration, nil
 }
 
-// ExitAllUserInRoom roomの全てのユーザーを退室させる。
-func (s *System) ExitAllUserInRoom(ctx context.Context) error {
-	finished := false
+// ExitAllUsersInRoom roomの全てのユーザーを退室させる。
+func (s *System) ExitAllUsersInRoom(ctx context.Context) error {
 	for {
-		if finished {
+		seats, err := s.FirestoreController.ReadAllSeats(ctx)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to ReadAllSeats", err)
+			return err
+		}
+		if len(seats) == 0 {
 			break
 		}
-		return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			seats, err := s.FirestoreController.ReadAllSeats(ctx)
-			if err != nil {
-				s.MessageToLineBotWithError("failed to ReadAllSeats", err)
-				return err
-			}
-			if len(seats) > 0 {
-				seat := seats[0]
+		for _, seatCandidate := range seats {
+			var message string
+			err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+				seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatCandidate.SeatId)
+				if err != nil {
+					return err
+				}
 				s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false)
 				userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
 				if err != nil {
 					s.MessageToLineBotWithError("failed to ReadUser", err)
 					return err
 				}
-				_, _, err = s.exitRoom(tx, seat, &userDoc)
+				// 退室処理
+				workedTimeSec, addedRP, err := s.exitRoom(tx, seat, &userDoc)
 				if err != nil {
-					s.MessageToLineBotWithError("failed to exitRoom", err)
+					s.MessageToLineBotWithError("failed in s.exitRoom", err)
 					return err
 				}
-			} else if len(seats) == 0 {
-				finished = true
+				var rpEarned string
+				if userDoc.RankVisible {
+					rpEarned = i18n.T("command:rp-earned", addedRP)
+				}
+				message = i18n.T("command:exit", s.ProcessedUserDisplayName, workedTimeSec/60, seat.SeatId, rpEarned)
+				return nil
+			})
+			if err != nil {
+				log.Println(err)
+				err = nil
 			}
-			return nil
-		})
+			log.Println(message)
+		}
 	}
 	return nil
 }

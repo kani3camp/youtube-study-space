@@ -12,10 +12,13 @@ import (
 	"os"
 )
 
-func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
+func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
 	var s string
-	_, _ = fmt.Scanf("%s", &s)
+	if _, err := fmt.Scanf("%s", &s); err != nil {
+		panic(err)
+		return
+	}
 	if s != "yes" {
 		return
 	}
@@ -26,13 +29,13 @@ func ExitAllUsersInRoom(clientOption option.ClientOption, ctx context.Context) {
 		return
 	}
 	
-	sys.MessageToLiveChat(ctx, "全ユーザーを退室させます。")
-	err = sys.ExitAllUserInRoom(ctx)
+	log.Println("全ユーザーを退室させます。")
+	err = sys.ExitAllUsersInRoom(ctx)
 	if err != nil {
 		panic(err)
 		return
 	}
-	sys.MessageToLiveChat(ctx, "全ユーザーを退室させました。")
+	log.Println("全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
