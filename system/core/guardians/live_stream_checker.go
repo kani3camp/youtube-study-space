@@ -29,7 +29,7 @@ func NewLiveStreamChecker(
 	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
 	lineBot *mylinebot.LineBot,
 ) *LiveStreamChecker {
-	
+
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
 		LineBot:             lineBot,
@@ -38,7 +38,7 @@ func NewLiveStreamChecker(
 }
 
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
-	credentials, err := checker.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+	credentials, err := checker.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -68,19 +68,19 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
 	//fmt.Printf("%# v\n", pretty.Formatter(liveStreamListResponse))
-	
+
 	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
 	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status
-	
+
 	fmt.Println(streamStatus)
 	fmt.Println(healthStatus)
-	
+
 	if streamStatus != "active" {
 		_ = checker.LineBot.SendMessage("stream status is now : " + streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
 		_ = checker.LineBot.SendMessage("stream HEALTH status is now : " + healthStatus)
 	}
-	
+
 	return nil
 }

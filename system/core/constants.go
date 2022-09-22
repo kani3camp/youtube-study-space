@@ -21,6 +21,7 @@ const (
 	
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
+	BlockCommand = "!block"
 	
 	LegacyAddCommand = "!add"
 	
@@ -34,7 +35,7 @@ const (
 	TimeOptionPrefixLegacy      = "min-"
 	TimeOptionShortPrefixLegacy = "m-"
 	
-	InfoDetailsOption = "d"
+	ShowDetailsOption = "d"
 	
 	RankVisibleMyOptionPrefix = "rank="
 	RankVisibleMyOptionOn     = "on"

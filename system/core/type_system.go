@@ -14,16 +14,21 @@ type System struct {
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
 	lineBot             *mylinebot.LineBot
 	discordBot          *discordbot.DiscordBot
-	
+
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserIsModeratorOrOwner bool
+
+	blockRegexListForChatMessage        []string
+	blockRegexListForChannelName        []string
+	notificationRegexListForChatMessage []string
+	notificationRegexListForChannelName []string
 }
 
 // SystemConfigs System生成時に初期化すべきフィールド値
 type SystemConfigs struct {
 	Constants myfirestore.ConstantsConfigDoc
-	
+
 	LiveChatBotChannelId string
 }
 
@@ -32,8 +37,10 @@ type CommandDetails struct {
 	InOption     InOption
 	InfoOption   InfoOption
 	MyOptions    []MyOption
+	SeatOption   SeatOption
 	KickOption   KickOption
 	CheckOption  CheckOption
+	BlockOption  BlockOption
 	ReportOption ReportOption
 	ChangeOption MinutesAndWorkNameOption
 	MoreOption   MoreOption
@@ -55,6 +62,7 @@ const (
 	Report // !report
 	Kick   // !kick
 	Check  // !check
+	Block  // !block
 	More   // !more
 	Rank   // !rank
 	Break  // !break
@@ -86,11 +94,19 @@ type MyOption struct {
 	StringValue string
 }
 
+type SeatOption struct {
+	ShowDetails bool
+}
+
 type KickOption struct {
 	SeatId int
 }
 
 type CheckOption struct {
+	SeatId int
+}
+
+type BlockOption struct {
 	SeatId int
 }
 

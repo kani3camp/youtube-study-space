@@ -79,7 +79,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 
-	sys.MessageToLineBot("Botが起動しました。")
+	sys.MessageToLineBot("Botが起動しました。\n" + sys.GetInfoString())
 	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
@@ -101,9 +101,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			log.Println("checking desired max seats")
-			constants, err := sys.FirestoreController.RetrieveSystemConstantsConfig(ctx, nil)
+			constants, err := sys.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 			if err != nil {
-				sys.MessageToLineBotWithError("sys.firestoreController.RetrieveSystemConstantsConfig(ctx)でエラー", err)
+				sys.MessageToLineBotWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
 			} else {
 				if constants.DesiredMaxSeats != constants.MaxSeats {
 					err := sys.AdjustMaxSeats(ctx)
@@ -116,7 +116,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		}
 
 		// page token取得
-		pageToken, err := sys.RetrieveNextPageToken(ctx, nil)
+		pageToken, err := sys.GetNextPageToken(ctx, nil)
 		if err != nil {
 			sys.MessageToLineBotWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1

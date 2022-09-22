@@ -27,18 +27,15 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 		case ChangeCommand:
 			return ParseChange(commandString)
 		case SeatCommand:
-			return CommandDetails{
-				CommandType: Seat,
-			}, customerror.NewNil()
+			return ParseSeat(commandString)
 		case ReportCommand:
 			return ParseReport(commandString)
 		case KickCommand:
 			return ParseKick(commandString)
 		case CheckCommand:
 			return ParseCheck(commandString)
-		
-		case LegacyAddCommand:
-			return CommandDetails{}, customerror.InvalidCommand.New("「" + LegacyAddCommand + "」は使えなくなりました。代わりに「" + MoreCommand + "」か「" + OkawariCommand + "」を使ってください")
+		case BlockCommand:
+			return ParseBlock(commandString)
 		
 		case OkawariCommand:
 			fallthrough
@@ -122,7 +119,7 @@ func ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
 	
 	showDetails := false
 	if len(slice) >= 2 {
-		if slice[1] == InfoDetailsOption {
+		if slice[1] == ShowDetailsOption {
 			showDetails = true
 		}
 	}
@@ -259,6 +256,28 @@ func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) 
 	}, customerror.NewNil()
 }
 
+func ParseBlock(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	var targetSeatId int
+	if len(slice) >= 2 {
+		num, err := strconv.Atoi(slice[1])
+		if err != nil {
+			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+		}
+		targetSeatId = num
+	} else {
+		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+	}
+	
+	return CommandDetails{
+		CommandType: Block,
+		BlockOption: BlockOption{
+			SeatId: targetSeatId,
+		},
+	}, customerror.NewNil()
+}
+
 func ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
@@ -289,6 +308,24 @@ func ParseChange(commandString string) (CommandDetails, customerror.CustomError)
 	return CommandDetails{
 		CommandType:  Change,
 		ChangeOption: options,
+	}, customerror.NewNil()
+}
+
+func ParseSeat(commandString string) (CommandDetails, customerror.CustomError) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+	
+	showDetails := false
+	if len(slice) >= 2 {
+		if slice[1] == ShowDetailsOption {
+			showDetails = true
+		}
+	}
+	
+	return CommandDetails{
+		CommandType: Seat,
+		SeatOption: SeatOption{
+			ShowDetails: showDetails,
+		},
 	}, customerror.NewNil()
 }
 
@@ -367,8 +404,8 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, custom
 			return num, customerror.NewNil()
 		} else if allowNonPrefix {
 			num, err := strconv.Atoi(str)
-			if err == nil {
-				return num, customerror.NewNil()
+			if err != nil {
+				return num, customerror.ParseFailed.New("オプションが正しく設定されているか確認してください")
 			}
 			return num, customerror.NewNil()
 		}

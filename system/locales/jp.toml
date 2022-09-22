@@ -86,6 +86,6 @@
 "warn" = "{0}さん、作業を始めてから{1}分間は休憩できません。現在{2}分作業中" # 0: Username, 1: min break, 2: current
 "break" = "{0}さんが休憩します（最大{1}分、{2}番席）" # 0: Username, 1: min, 2: seatId
 
-[command-resum]
+[command-resume]
 "break-only" = "{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
 "work" =  "{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit

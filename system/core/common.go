@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -85,12 +87,30 @@ func containsInt(s []int, e int) bool {
 }
 
 func containsString(s []string, e string) bool {
-	for _, a := range s {
+	contains, _ := containsStringWithFoundIndex(s, e)
+	return contains
+}
+
+func containsStringWithFoundIndex(s []string, e string) (bool, int) {
+	for i, a := range s {
 		if a == e {
-			return true
+			return true, i
 		}
 	}
-	return false
+	return false, 0
+}
+
+func containsRegexWithFoundIndex(s []string, e string) (bool, int, error) {
+	for i, a := range s {
+		r, err := regexp.Compile(a)
+		if err != nil {
+			return false, 0, err
+		}
+		if r.MatchString(e) {
+			return true, i, nil
+		}
+	}
+	return false, 0, nil
 }
 
 func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
@@ -129,6 +149,10 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Durat
 		}
 	}
 	return duration, nil
+}
+
+func SortUserActivityByTakenAtAscending(docs []myfirestore.UserActivityDoc) {
+	sort.Slice(docs, func(i, j int) bool { return docs[i].TakenAt.Before(docs[j].TakenAt) })
 }
 
 // CheckEnterExitActivityOrder 入室と退室が交互に並んでいるか確認する。

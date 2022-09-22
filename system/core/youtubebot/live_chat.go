@@ -30,7 +30,7 @@ type AccessTokenResponseStruct struct {
 }
 
 func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreController, ctx context.Context) (*YoutubeLiveChatBot, error) {
-	credentials, err := controller.RetrieveCredentialsConfig(ctx, nil)
+	credentials, err := controller.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		log.Println("first call failed in ListMessages().")
 		log.Println(err)
 		// b credentialのaccess tokenが期限切れの可能性
-		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 		if err != nil {
 			return nil, "", 0, err
 		}
@@ -184,7 +184,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		log.Println("first post was failed", err)
 		
 		// b credentialのaccess tokenが期限切れの可能性
-		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -241,7 +241,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 	if len(response.Items) == 1 {
 		newLiveChatId := response.Items[0].Snippet.LiveChatId
 		log.Println("live chat id :", newLiveChatId)
-		err := b.FirestoreController.SaveLiveChatId(ctx, nil, newLiveChatId)
+		err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
 		if err != nil {
 			return err
 		}
@@ -273,7 +273,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		if len(response.Items) == 1 {
 			newLiveChatId := response.Items[0].Snippet.LiveChatId
 			log.Println("live chat id :", newLiveChatId)
-			err := b.FirestoreController.SaveLiveChatId(ctx, nil, newLiveChatId)
+			err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
 			if err != nil {
 				return err
 			}
@@ -292,7 +292,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 func (b *YoutubeLiveChatBot) refreshChannelAccessToken(ctx context.Context) error {
 	log.Println("refreshChannelAccessToken()")
 	return b.FirestoreController.FirestoreClient.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -332,7 +332,7 @@ func (b *YoutubeLiveChatBot) refreshChannelAccessToken(ctx context.Context) erro
 		b.ChannelYoutubeService = newService
 		
 		// Firestoreに保存
-		err = b.FirestoreController.SetAccessTokenOfChannelCredential(tx, newAccessToken, newExpirationDate)
+		err = b.FirestoreController.UpdateAccessTokenOfChannelCredential(tx, newAccessToken, newExpirationDate)
 		if err != nil {
 			return err
 		}
@@ -342,7 +342,7 @@ func (b *YoutubeLiveChatBot) refreshChannelAccessToken(ctx context.Context) erro
 
 func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context) error {
 	log.Println("refreshBotAccessToken()")
-	credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+	credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -381,7 +381,7 @@ func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context) error {
 	b.ChannelYoutubeService = newService
 	
 	// Firestoreに保存
-	err = b.FirestoreController.SetAccessTokenOfBotCredential(ctx, newAccessToken, newExpirationDate)
+	err = b.FirestoreController.UpdateAccessTokenOfBotCredential(ctx, newAccessToken, newExpirationDate)
 	if err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func (b *YoutubeLiveChatBot) refreshBotAccessToken(ctx context.Context) error {
 
 func (b *YoutubeLiveChatBot) refreshAccessToken(ctx context.Context, clientId string, clientSecret string, refreshToken string) (string, time.Time, error) {
 	log.Println("refreshAccessToken()")
-	credentialsConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+	credentialsConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -444,14 +444,14 @@ func (b *YoutubeLiveChatBot) refreshAccessToken(ctx context.Context, clientId st
 }
 
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
-func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, liveChatId string, userId string) error {
-	err := b.banRequest(ctx, liveChatId, userId)
+func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
+	err := b.banRequest(ctx, b.LiveChatId, userId)
 	// first call
 	if err != nil {
 		log.Println("first banRequest was failed", err)
 		
 		// b credentialのaccess tokenが期限切れの可能性
-		credentialConfig, err := b.FirestoreController.RetrieveCredentialsConfig(ctx, nil)
+		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -470,7 +470,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, liveChatId string, use
 		}
 		
 		// second call
-		err = b.banRequest(ctx, liveChatId, userId)
+		err = b.banRequest(ctx, b.LiveChatId, userId)
 		if err != nil {
 			log.Println("second banRequest was failed")
 			return err

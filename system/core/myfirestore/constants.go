@@ -1,19 +1,28 @@
 package myfirestore
 
 const (
-	CONFIG          = "config"
-	SEATS           = "seats"
-	USERS           = "users"
-	LiveChatHistory = "live-chat-history"
-	UserActivities  = "user-activities"
+	CONFIG              = "config"
+	SEATS               = "seats"
+	USERS               = "users"
+	LiveChatHistory     = "live-chat-history"
+	UserActivities      = "user-activities"
+	SeatLimitsBlackList = "seat-limits-black-list"
+	SeatLimitsWhiteList = "seat-limits-white-list"
 	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
-	DefaultRoomDocName           = "default"
 	PublishedAtDocProperty       = "published-at"
 	TakenAtDocProperty           = "taken-at"
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
+	
+	CreatedAtDocProperty = "created-at"
+	UntilDocProperty     = "until"
+	
+	StateDocProperty             = "state"
+	CurrentStateUntilDocProperty = "current-state-until"
+	
+	ActivityTypeDocProperty = "activity-type"
 	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
@@ -23,7 +32,6 @@ const (
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 	
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	SeatsDocProperty                     = "seats"
 	LiveChatIdDocProperty                = "youtube-live-chat-id"
 	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
 	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"

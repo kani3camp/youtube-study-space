@@ -20,13 +20,15 @@ func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError
 		// seatStateに依存するためChange()の中で行う。
 		return customerror.NewNil()
 	case Seat:
-		return customerror.NewNil()
+		return s.ValidateSeat(command)
 	case Report:
 		return s.ValidateReport(command)
 	case Kick:
 		return s.ValidateKick(command)
 	case Check:
 		return s.ValidateCheck(command)
+	case Block:
+		return s.ValidateBlock(command)
 	case More:
 		return s.ValidateMore(command)
 	case Break:
@@ -118,6 +120,16 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
+func (s *System) ValidateSeat(command CommandDetails) customerror.CustomError {
+	if command.CommandType != Seat {
+		return customerror.InvalidParsedCommand.New("this is not a Seat command.")
+	}
+	
+	// pass
+	
+	return customerror.NewNil()
+}
+
 func (s *System) ValidateKick(command CommandDetails) customerror.CustomError {
 	if command.CommandType != Kick {
 		return customerror.InvalidParsedCommand.New("this is not a Kick command.")
@@ -138,6 +150,19 @@ func (s *System) ValidateCheck(command CommandDetails) customerror.CustomError {
 	
 	// 指定座席番号
 	if command.CheckOption.SeatId <= 0 {
+		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
+	}
+	
+	return customerror.NewNil()
+}
+
+func (s *System) ValidateBlock(command CommandDetails) customerror.CustomError {
+	if command.CommandType != Block {
+		return customerror.InvalidParsedCommand.New("this is not a Block command.")
+	}
+	
+	// 指定座席番号
+	if command.BlockOption.SeatId <= 0 {
 		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
 	}
 	
