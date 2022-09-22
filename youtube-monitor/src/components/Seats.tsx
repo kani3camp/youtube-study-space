@@ -1,6 +1,6 @@
 import { FC, useEffect, useState } from 'react'
 import api from '../lib/api_config'
-import { useInterval } from '../lib/common'
+import { useInterval, validateRoomsStateResponse } from '../lib/common'
 import fetcher from '../lib/fetcher'
 import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
 import * as styles from '../styles/Room.styles'
@@ -83,87 +83,100 @@ const Seats: FC = () => {
         let maxSeats = 0
 
         // seats取得
-        await new Promise<void>((resolve, reject) => {
-            console.log('fetchする')
-            fetcher<RoomsStateResponse>(api.roomsState)
-                .then(async (r) => {
-                    console.log('fetchした')
-                    if (r.result !== 'ok') {
-                        console.error(r)
-                        reject()
-                    }
-                    setLatestRoomsState(r)
-                    maxSeats = r.max_seats
-
-                    // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
-                    let finalDesiredMaxSeats: number
-                    const minSeatsByVacancyRate = Math.ceil(
-                        r.seats.length / (1 - r.min_vacancy_rate)
-                    )
-                    // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-                    if (minSeatsByVacancyRate > numSeatsInAllBasicRooms()) {
-                        let current_num_seats: number =
-                            numSeatsInAllBasicRooms()
-                        let current_adding_temporary_room_index = 0
-                        while (current_num_seats < minSeatsByVacancyRate) {
-                            current_num_seats +=
-                                allRooms.temporaryRooms[
-                                    current_adding_temporary_room_index
-                                ].seats.length
-                            current_adding_temporary_room_index =
-                                (current_adding_temporary_room_index + 1) %
-                                allRooms.temporaryRooms.length
+        try {
+            await new Promise<void>((resolve, reject) => {
+                console.log('fetchする')
+                fetcher<RoomsStateResponse>(api.roomsState)
+                    .then(async (r) => {
+                        console.log('fetchした')
+                        if (r.result !== 'ok') {
+                            console.error(r)
+                            throw Error("r.result !== 'ok'")
                         }
-                        finalDesiredMaxSeats = current_num_seats
-                    } else {
-                        // そうでなければ、基本ルームの席数とするべき
-                        finalDesiredMaxSeats = numSeatsInAllBasicRooms()
-                    }
-                    console.log(
-                        `desired: ${finalDesiredMaxSeats}, current: ${r.max_seats}`
-                    )
 
-                    // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
-                    if (finalDesiredMaxSeats !== r.max_seats) {
-                        console.log(
-                            'リクエストを送る',
-                            finalDesiredMaxSeats,
-                            r.max_seats
+                        // 値チェック
+                        if (!validateRoomsStateResponse(r)) {
+                            console.error('validate response failed: ', r)
+                            throw Error('validate response failed')
+                        }
+
+                        setLatestRoomsState(r)
+                        maxSeats = r.max_seats
+
+                        // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
+                        let finalDesiredMaxSeats: number
+                        const minSeatsByVacancyRate = Math.ceil(
+                            r.seats.length / (1 - r.min_vacancy_rate)
                         )
-                        requestMaxSeatsUpdate(finalDesiredMaxSeats) // awaitはしない
-                    }
-
-                    // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
-                    // 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
-                    const nextDisplayLayouts: RoomLayout[] = [
-                        ...allRooms.basicRooms,
-                    ] // まずは基本ルームを設定
-                    if (maxSeats > numSeatsInAllBasicRooms()) {
-                        let currentAddingLayoutIndex = 0
-                        while (
-                            numSeatsOfRoomLayouts(nextDisplayLayouts) < maxSeats
-                        ) {
-                            nextDisplayLayouts.push(
-                                allRooms.temporaryRooms[
-                                    currentAddingLayoutIndex
-                                ]
-                            )
-                            currentAddingLayoutIndex =
-                                (currentAddingLayoutIndex + 1) %
-                                allRooms.temporaryRooms.length
+                        // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
+                        if (minSeatsByVacancyRate > numSeatsInAllBasicRooms()) {
+                            let current_num_seats: number =
+                                numSeatsInAllBasicRooms()
+                            let current_adding_temporary_room_index = 0
+                            while (current_num_seats < minSeatsByVacancyRate) {
+                                current_num_seats +=
+                                    allRooms.temporaryRooms[
+                                        current_adding_temporary_room_index
+                                    ].seats.length
+                                current_adding_temporary_room_index =
+                                    (current_adding_temporary_room_index + 1) %
+                                    allRooms.temporaryRooms.length
+                            }
+                            finalDesiredMaxSeats = current_num_seats
+                        } else {
+                            // そうでなければ、基本ルームの席数とするべき
+                            finalDesiredMaxSeats = numSeatsInAllBasicRooms()
                         }
-                    }
+                        console.log(
+                            `desired: ${finalDesiredMaxSeats}, current: ${r.max_seats}`
+                        )
 
-                    // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
+                        // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
+                        if (finalDesiredMaxSeats !== r.max_seats) {
+                            console.log(
+                                'リクエストを送る',
+                                finalDesiredMaxSeats,
+                                r.max_seats
+                            )
+                            requestMaxSeatsUpdate(finalDesiredMaxSeats) // awaitはしない
+                        }
 
-                    setUsedLayouts(nextDisplayLayouts)
-                    resolve()
-                })
-                .catch((err) => {
-                    console.error(err)
-                    reject(err)
-                })
-        })
+                        // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
+                        // 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
+                        const nextDisplayLayouts: RoomLayout[] = [
+                            ...allRooms.basicRooms,
+                        ] // まずは基本ルームを設定
+                        if (maxSeats > numSeatsInAllBasicRooms()) {
+                            let currentAddingLayoutIndex = 0
+                            while (
+                                numSeatsOfRoomLayouts(nextDisplayLayouts) <
+                                maxSeats
+                            ) {
+                                nextDisplayLayouts.push(
+                                    allRooms.temporaryRooms[
+                                        currentAddingLayoutIndex
+                                    ]
+                                )
+                                currentAddingLayoutIndex =
+                                    (currentAddingLayoutIndex + 1) %
+                                    allRooms.temporaryRooms.length
+                            }
+                        }
+
+                        // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
+
+                        setUsedLayouts(nextDisplayLayouts)
+                    })
+                    .catch((err) => {
+                        console.error(err)
+                        reject(err)
+                    })
+                resolve()
+            })
+        } catch (e) {
+            // catch error otherwise program get stuck.
+            console.error(e)
+        }
     }
 
     const requestMaxSeatsUpdate = async (desiredMaxSeats: number) => {

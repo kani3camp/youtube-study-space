@@ -237,7 +237,17 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         <>
             <div
                 css={styles.roomLayout}
-                style={props.display ? {} : { display: 'none' }}
+                style={
+                    props.display
+                        ? {
+                              display: 'block',
+                              width: roomShape.widthPx,
+                              height: roomShape.heightPx,
+                          }
+                        : {
+                              display: 'none',
+                          }
+                }
             >
                 {props.roomLayout.floor_image && (
                     <img
