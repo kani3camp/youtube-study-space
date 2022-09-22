@@ -48,7 +48,7 @@ export const validateRoomsStateResponse = (
     } else {
         return false
     }
-    if (resp.seats && resp.seats.length > 0) {
+    if (resp.seats && resp.seats.length >= 0) {
         // pass
     } else {
         return false
