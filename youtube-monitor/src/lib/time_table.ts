@@ -138,17 +138,17 @@ export function remainingTime(
 }
 
 export const PartType = {
-  Morning: '朝パート',
-  BeforeNoon: '午前パート',
-  Noon: '昼パート',
-  AfterNoon1: '午後パートⅠ',
-  AfterNoon2: '午後パートⅡ',
-  Evening: '夕方パート',
-  Night1: '夜パートⅠ',
-  Night2: '夜パートⅡ',
-  MidNight1: '深夜パートⅠ',
-  MidNight2: '深夜パートⅡ',
-  EarlyMorning: '早朝パート',
+    Morning: 'common:part_type.morning',
+    BeforeNoon: 'common:part_type.before_noon',
+    Noon: 'common:part_type.noon',
+    AfterNoon1: 'common:part_type.after_noon1',
+    AfterNoon2: 'common:part_type.after_noon2',
+    Evening: 'common:part_type.evening',
+    Night1: 'common:part_type.night1',
+    Night2: 'common:part_type.night2',
+    MidNight1: 'common:part_type.mid_night1',
+    MidNight2: 'common:part_type.mid_night2',
+    EarlyMorning: 'common:part_type.early_morning',
 }
 
 const TimeTable: TimeSection[] = [

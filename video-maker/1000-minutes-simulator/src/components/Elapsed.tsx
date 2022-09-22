@@ -1,3 +1,4 @@
+import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import { HiClock } from 'react-icons/hi'
 import * as styles from '../styles/Elapsed.styles'
@@ -8,6 +9,8 @@ type Props = {
 }
 
 const Elapsed: FC<Props> = (props) => {
+    const { t } = useTranslation()
+
     const elapsedSecondsInteger = Math.floor(props.elapsedSeconds % 60)
     const elapsedMinutesInteger = Math.floor(props.elapsedSeconds / 60)
     const elapsedHoursInteger = Math.floor(elapsedMinutesInteger / 60)
@@ -17,11 +20,13 @@ const Elapsed: FC<Props> = (props) => {
             <div css={styles.innerCell}>
                 <div css={common.heading}>
                     <HiClock size={common.IconSize} css={styles.icon}></HiClock>
-                    <span>経過時間</span>
+                    <span>{t('elapsed.title')}</span>
                 </div>
                 <div css={styles.elapsedTime}>
                     <span>{elapsedMinutesInteger}</span>
-                    <span css={styles.elapsedTimeSubscript}>分</span>
+                    <span css={styles.elapsedTimeSubscript}>
+                        {t('elapsed.time_subscript')}
+                    </span>
 
                     {/* <span css={styles.elapsedTimeSubscript}>
                         {String(elapsedSecondsInteger).padStart(2, '0')}秒
@@ -30,13 +35,19 @@ const Elapsed: FC<Props> = (props) => {
                 <div css={styles.elapsedTime2}>
                     {'( '}
                     <span>{elapsedHoursInteger}</span>
-                    <span css={styles.elapsedTimeSubscript}>時間</span>
+                    <span css={styles.elapsedTimeSubscript}>
+                        {t('elapsed.hour')}
+                    </span>
                     <span>{elapsedMinutesInteger % 60}</span>
-                    <span css={styles.elapsedTimeSubscript}>分</span>
+                    <span css={styles.elapsedTimeSubscript}>
+                        {t('elapsed.minute')}
+                    </span>
                     <span>
                         {String(elapsedSecondsInteger).padStart(2, '0')}
                     </span>
-                    <span css={styles.elapsedTimeSubscript}>秒</span>
+                    <span css={styles.elapsedTimeSubscript}>
+                        {t('elapsed.second')}
+                    </span>
                     {')'}
                 </div>
             </div>

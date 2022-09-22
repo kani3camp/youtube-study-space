@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/bigquery v1.24.0
 	cloud.google.com/go/firestore v1.4.0
 	cloud.google.com/go/storage v1.26.0
+	github.com/BurntSushi/toml v1.2.0
 	github.com/aws/aws-lambda-go v1.23.0
 	github.com/aws/aws-sdk-go v1.44.81
 	github.com/bwmarrin/discordgo v0.23.2
@@ -45,3 +46,5 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
+
+require github.com/googleapis/go-type-adapters v1.0.0 // indirect

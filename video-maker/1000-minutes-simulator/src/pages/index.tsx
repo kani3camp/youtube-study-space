@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
-import type { NextPage } from 'next'
+import type { GetServerSideProps, NextPage } from 'next'
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import { useEffect, useRef, useState } from 'react'
 import BGMPlayer from '../components/BGMPlayer'
 import CurrentColor from '../components/CurrentColor'
@@ -64,5 +65,11 @@ const Home: NextPage = () => {
         </div>
     )
 }
+
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
+    props: {
+        ...(await serverSideTranslations(locale ?? 'jp', ['common'])),
+    },
+})
 
 export default Home

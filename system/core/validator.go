@@ -2,8 +2,8 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/i18n"
 	"app.modules/core/myfirestore"
-	"strconv"
 )
 
 func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError {
@@ -51,13 +51,13 @@ func (s *System) ValidateIn(command CommandDetails) customerror.CustomError {
 	if inputWorkMin != 0 {
 		expect := s.Configs.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= s.Configs.Constants.MaxWorkTimeMin
 		if !expect {
-			return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
+			return customerror.InvalidCommand.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
 		}
 	}
 	// 席番号
 	if command.InOption.IsSeatIdSet {
 		if command.InOption.SeatId < 0 {
-			return customerror.InvalidCommand.New("座席番号は0以上の値にしてください。")
+			return customerror.InvalidCommand.New(i18n.T("validate:negative-seat-id"))
 		}
 	}
 	
@@ -99,7 +99,7 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			if inputDefaultStudyMin != 0 {
 				expect := s.Configs.Constants.MinWorkTimeMin <= inputDefaultStudyMin && inputDefaultStudyMin <= s.Configs.Constants.MaxWorkTimeMin
 				if !expect {
-					return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
+					return customerror.InvalidCommand.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
 				}
 			}
 			isDefaultStudyMinSet = true
@@ -107,10 +107,10 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			if isFavoriteColorSet {
 				return customerror.InvalidParsedCommand.New("more than 2 FavoriteColor options.")
 			}
-			// 「color=」、つまり空欄の場合は-1として扱う。
+			// 空欄「color=」、つまりリセットの場合は-1として扱う。
 			expect := option.IntValue == -1 || 0 <= option.IntValue
 			if !expect {
-				return customerror.InvalidParsedCommand.New(FavoriteColorMyOptionPrefix + "の値は設定したい色になる累計時間（0以上）を指定してください。リセットする場合は空欄にしてください。")
+				return customerror.InvalidParsedCommand.New(i18n.T("validate:invalid-favorite-color-option", FavoriteColorMyOptionPrefix))
 			}
 			isFavoriteColorSet = true
 		default:
@@ -137,7 +137,7 @@ func (s *System) ValidateKick(command CommandDetails) customerror.CustomError {
 	
 	// 指定座席番号
 	if command.KickOption.SeatId <= 0 {
-		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
+		return customerror.InvalidCommand.New(i18n.T("validate:non-one-or-more-seat-id"))
 	}
 	
 	return customerror.NewNil()
@@ -150,7 +150,20 @@ func (s *System) ValidateCheck(command CommandDetails) customerror.CustomError {
 	
 	// 指定座席番号
 	if command.CheckOption.SeatId <= 0 {
-		return customerror.InvalidCommand.New("席番号は1以上にしてください。")
+		return customerror.InvalidCommand.New(i18n.T("validate:non-one-or-more-seat-id"))
+	}
+	
+	return customerror.NewNil()
+}
+
+func (s *System) ValidateBlock(command CommandDetails) customerror.CustomError {
+	if command.CommandType != Block {
+		return customerror.InvalidParsedCommand.New("this is not a Block command.")
+	}
+	
+	// 指定座席番号
+	if command.BlockOption.SeatId <= 0 {
+		return customerror.InvalidCommand.New(i18n.T("validate:non-one-or-more-seat-id"))
 	}
 	
 	return customerror.NewNil()
@@ -176,7 +189,7 @@ func (s *System) ValidateReport(command CommandDetails) customerror.CustomError 
 	
 	// 空欄でないか
 	if command.ReportOption.Message == "" {
-		return customerror.InvalidCommand.New(ReportCommand + "の右にスペースを空けてメッセージを書いてください。")
+		return customerror.InvalidCommand.New(i18n.T("validate:parse:missing-message", ReportCommand))
 	}
 	
 	return customerror.NewNil()
@@ -189,7 +202,7 @@ func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.Se
 	
 	// オプションが1つ以上指定されているか
 	if command.ChangeOption.NumOptionsSet() == 0 {
-		return customerror.InvalidCommand.New("オプションを指定してください")
+		return customerror.InvalidCommand.New(i18n.T("validate:missing-option"))
 	}
 	
 	switch seatState {
@@ -202,7 +215,7 @@ func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.Se
 			inputDurationMin := command.ChangeOption.DurationMin
 			expect := s.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxWorkTimeMin
 			if !expect {
-				return customerror.InvalidCommand.New("作業時間（分）は" + strconv.Itoa(s.Configs.Constants.MinWorkTimeMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxWorkTimeMin) + "の値にしてください。")
+				return customerror.InvalidCommand.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
 			}
 		}
 	case myfirestore.BreakState:
@@ -214,7 +227,7 @@ func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.Se
 			inputDurationMin := command.ChangeOption.DurationMin
 			expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
 			if !expect {
-				return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Configs.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin) + "の値にしてください。")
+				return customerror.InvalidCommand.New(i18n.T("validate:invalid-break-time-range", s.Configs.Constants.MinBreakDurationMin, s.Configs.Constants.MaxBreakDurationMin))
 			}
 		}
 	}
@@ -229,7 +242,7 @@ func (s *System) ValidateMore(command CommandDetails) customerror.CustomError {
 	
 	// 時間オプション
 	if command.MoreOption.DurationMin <= 0 {
-		return customerror.InvalidCommand.New("延長時間（分）は1以上の値にしてください。")
+		return customerror.InvalidCommand.New(i18n.T("validate:non-one-or-more-extended-time"))
 	}
 	
 	return customerror.NewNil()
@@ -248,7 +261,7 @@ func (s *System) ValidateBreak(command CommandDetails) customerror.CustomError {
 		inputDurationMin := command.BreakOption.DurationMin
 		expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
 		if !expect {
-			return customerror.InvalidCommand.New("休憩時間（分）は" + strconv.Itoa(s.Configs.Constants.MinBreakDurationMin) + "～" + strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin) + "の値にしてください。")
+			return customerror.InvalidCommand.New(i18n.T("validate:invalid-break-time-range", s.Configs.Constants.MinBreakDurationMin, s.Configs.Constants.MaxBreakDurationMin))
 		}
 	}
 	

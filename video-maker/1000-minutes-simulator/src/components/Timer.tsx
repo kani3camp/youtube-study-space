@@ -1,4 +1,5 @@
 import { css } from '@emotion/react'
+import { useTranslation } from 'next-i18next'
 import { FC, useEffect, useState } from 'react'
 import {
     buildStyles,
@@ -21,6 +22,8 @@ type Props = {
 }
 
 const Timer: FC<Props> = (props) => {
+    const { t } = useTranslation()
+
     const chime1DivId = 'chime1'
     const chime2DivId = 'chime2'
 
@@ -48,7 +51,7 @@ const Timer: FC<Props> = (props) => {
                     vertical-align: middle;
                 `}
             >
-                集中
+                {t('timer.focus')}
             </span>
         </>
     ) : (
@@ -62,7 +65,7 @@ const Timer: FC<Props> = (props) => {
                     vertical-align: middle;
                 `}
             >
-                休憩
+                {t('timer.break')}
             </span>
         </>
     )
@@ -97,7 +100,7 @@ const Timer: FC<Props> = (props) => {
                         size={common.IconSize}
                         css={styles.icon}
                     ></RiTimerFill>
-                    <span>ポモドーロタイマー</span>
+                    <span>{t('timer.title')}</span>
                 </div>
                 <div css={styles.progressBarContainer}>
                     <CircularProgressbarWithChildren
@@ -109,7 +112,9 @@ const Timer: FC<Props> = (props) => {
                         })}
                     >
                         <div css={styles.numberOfRoundsString}>
-                            {numberOfPomodoroRounds}周目
+                            {t('timer.round', {
+                                value: numberOfPomodoroRounds,
+                            })}
                         </div>
                         <div css={styles.isStudying}>{stateHTML}</div>
                         <div css={styles.remaining}>
@@ -124,11 +129,11 @@ const Timer: FC<Props> = (props) => {
                     </CircularProgressbarWithChildren>
                 </div>
                 <div>
-                    次は
+                    {t('timer.next')}
                     {isStudying ? (
-                        <span> 5分 休憩</span>
+                        <span>{` ${t('timer.next_rest', { value: 5 })}`}</span>
                     ) : (
-                        <span> 25分 作業</span>
+                        <span>{` ${t('timer.next_work', { value: 5 })}`}</span>
                     )}
                 </div>
             </div>

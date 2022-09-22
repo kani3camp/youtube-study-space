@@ -1,24 +1,35 @@
 package main
 
 import (
-	"app.modules/core"
-	"app.modules/core/utils"
 	"context"
+	"embed"
 	"fmt"
-	"github.com/pkg/errors"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 	"log"
 	"math"
 	"os"
-	"regexp"
 	"strconv"
 	"time"
+	
+	"app.modules/core"
+	"app.modules/core/i18n"
+	"app.modules/core/utils"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 )
+
+//go:embed locales/*.toml
+var fs embed.FS
 
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv()
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
+	
+	i18n.SetDefaultFallback(i18n.LanguageEN)
+	i18n.SetDefaultLanguage(i18n.LanguageJP)
+	if err := i18n.LoadLocaleFolderFS(fs, "locales"); err != nil {
+		return nil, nil, err
+	}
 	
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
@@ -185,8 +196,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer s.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	r := regexp.MustCompile("オンライン作業部屋")
-	fmt.Println(r.MatchString("オンライン作業部屋"))
+	fmt.Println(i18n.T("command:error", s.ProcessedUserDisplayName))
 }
 
 func main() {

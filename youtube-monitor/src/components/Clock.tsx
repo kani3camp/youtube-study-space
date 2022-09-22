@@ -1,8 +1,11 @@
-import React, { FC, useState } from 'react'
+import { useTranslation } from 'next-i18next'
+import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import * as styles from '../styles/Clock.styles'
 
 const Clock: FC = () => {
+    const { t } = useTranslation()
+
     const updateIntervalMilliSec = 1000
 
     const [now, setNow] = useState<Date>(new Date())
@@ -16,8 +19,9 @@ const Clock: FC = () => {
             <div css={styles.dateStringStyle}>
                 {/*{this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}*/}
                 {/*{this.state.now.getFullYear()}*/}
-                {now.getFullYear()} 年 {now.getMonth() + 1} 月 {now.getDate()}{' '}
-                日
+                {`${now.getFullYear()} ${t('year')} ${now.getMonth() + 1} ${t(
+                    'month'
+                )} ${now.getDate()} ${t('day')}`}
             </div>
             <div css={styles.timeStringStyle}>
                 {now.getHours()}：

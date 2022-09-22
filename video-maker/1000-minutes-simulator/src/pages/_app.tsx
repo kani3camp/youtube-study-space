@@ -1,4 +1,5 @@
 import { Global } from '@emotion/react'
+import { appWithTranslation } from 'next-i18next'
 import type { AppProps } from 'next/app'
 import { globalStyle } from '../styles/global.styles'
 
@@ -11,4 +12,4 @@ function MyApp({ Component, pageProps }: AppProps): JSX.Element {
     )
 }
 
-export default MyApp
+export default appWithTranslation(MyApp)
