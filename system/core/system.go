@@ -1241,7 +1241,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
 			replyMessage += t("reply-break", addedMin, remainingBreakDuration.Minutes())
 		}
-		realtimeEnteredTimeMin := utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes()
+		realtimeEnteredTimeMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
 		replyMessage += t("reply", realtimeEnteredTimeMin, remainingUntilExitMin)
 		
 		return nil
