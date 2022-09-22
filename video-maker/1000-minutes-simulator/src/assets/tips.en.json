@@ -1,9 +1,7 @@
 [
-    [
-        {
-            "tips": "First Tip",
-            "name": "Name",
-            "annotation": "Annotation"
-        }
-    ]
+    {
+        "tips": "First Tip",
+        "name": "Name",
+        "annotation": "Annotation"
+    }
 ]
