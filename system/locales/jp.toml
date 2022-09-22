@@ -1,6 +1,6 @@
 [common]
-"work" = "作業中"
-"break" = "休憩中"
+"work" = "作業中です💪"
+"break" = "休憩中です☕"
 "on" = "オン"
 "off" = "オフ"
 "sir" = "{0}さん、"
@@ -8,12 +8,12 @@
 [command]
 "option-warn" = "{0}さん、オプションが正しく設定されているか確認してください" # 0: Username
 "error" = "{0}さん、エラーが発生しました。もう一度試してみてください" # 0: Username
-"rp-earned" = "（{0} RP）" # 0: Earned
+"rp-earned" = "（+ {0} RP）" # 0: Earned
 "not-enter" = "{0}さんは入室していません。「{1}」コマンドで入室しましょう！" # 0: Username, 1: InCommand
 "enter-only" = "{0}さん、入室中のみ使えるコマンドです" # 0: Username
 "permission" = "{0}さんは「{1}」コマンドを使用できません" # 0: Username. 1: Command
 "exit"= "{0}さんが退室しました🚶🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unuse" = "{0}さん、その番号の座席は誰も使用していません" # 0: UserName
+"unused" = "{0}さん、その番号の座席は誰も使用していません" # 0: UserName
 "sent" = "{0}さん、情報を送信しました" # 0: UserName
 "rank" = "{0}さんのランク表示を{1}にしました" # 0: UserName, 1: Value
 
@@ -32,19 +32,21 @@
 [command-user-info]
 "base" = "{0} さん ［本日の作業時間：{1}] ［累計作業時間：{2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
 "rank" = "［ランクポイント：{0} RP]" # 0: RP
-"rank-on" = "［ランク表示：オン］"
-"rank-on-continuous" = "［継続{0}日目（連続日数：{1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
-"rank-off" = "［ランク表示：オフ］"
+"rank-on" = "［🏆ランク表示：オン］"
+"rank-on-continuous" = "［🏃継続{0}日目（連続日数：{1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
+"rank-off" = "［🏆ランク表示：オフ］"
 "default-work-off" = "［デフォルト作業時間：なし］"
 "default-work" = "［デフォルト作業時間：{0}分］" # 0: Value
-"favorite-color-off" = "［お気に入りカラー：なし］"
-"favorite-color" = "［お気に入りカラー： {0}］" # 0: Value
-"register-date" = "［登録日：{0}］" # 0: Value
+"favorite-color-off" = "［🎨お気に入りカラー：なし］"
+"favorite-color" = "［🎨お気に入りカラー： {0}］" # 0: Value
+"register-date" = "［📅登録日：{0}］" # 0: Value
 
 [command-seat-info]
-"break-until" = "作業再開まで{0}分です" # 0: Value
+"break-until" = "作業再開まで{0}分です。" # 0: Value
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
-"base" = "{0}さんは{1}番の席で{2}です。現在{3}分入室中、作業時間は{4}分、自動退室まで残り{5}分です。{6}"
+"base" = "{0}さんは{1}番の席で{2}現在{3}分入室中、作業時間は{4}分、自動退室まで残り{5}分です。{6}"
+# 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
+"details" = "過去{0}分以内に{1}番席に合計{2}分着席しています🪑"
 
 [command-report]
 "no-message" = "{0}さん、スペースを空けてメッセージを書いてください。" # 0: Username
@@ -56,6 +58,9 @@
 
 [command-kick]
 "kick" = "{0}さん、{1}番席の{2}さんを退室させます" # 0: Username, 1: SeatId, 2: seat user
+
+[command-block]
+"block" = "{0}さん、{1}番席の{2}さんをブロックします。"  # 0: UserName, 1: seatId, 2: TargetUserName
 
 [command-my]
 "already-rank" = "ランク表示モードはすでに{0}です。" # 0: Status
@@ -89,3 +94,27 @@
 [command-resume]
 "break-only" = "{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
 "work" =  "{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
+
+[others]
+"force-move" = "{0}さんが{1}番席の入室時間の一時上限に達したため席移動します💨"   # 0: userName, 1:  seatId
+
+[parse]
+"isolated-!" = "びっくりマークは隣の文字とくっつけてください"
+"non-half-width-!" = "びっくりマークは半角にしてください"
+"invalid-seat-id" = "有効な席番号を指定してください"
+"missing-seat-id" = "席番号を指定してください"
+"missing-message" = "{0}の右にスペースを空けてメッセージを書いてください。" # 0: command
+"missing-more-option" = "オプションに延長時間（分）を指定してください"
+"check-option" = "{0}の値を確認してください"   # 0: optionName
+"non-half-width-digit-option" = "{0}の値は半角数字にしてください"    # 0: optionPrefix
+"invalid-option" = "オプションが正しく設定されているか確認してください"
+"missing-time-option" = "{0}で時間（分）を指定してください"    # 0: timeOptionPrefix
+
+[validate]
+"invalid-work-time-range" = "作業時間（分）は{0}～{1}の値にしてください。" # 0: minMin, 1: maxMin
+"negative-seat-id" = "座席番号は0以上の値にしてください。"
+"invalid-favorite-color-option" = "{0}の値は設定したい色になる累計時間（0以上）を指定してください。リセットする場合は空欄にしてください。" # 0: favoriteColorOptionPrefix
+"non-one-or-more-seat-id" = "席番号は1以上にしてください。"
+"missing-option" = "オプションを指定してください"
+"invalid-break-time-range" = "休憩時間（分）は{0}〜{1}の値にしてください。"    # 0: minMin, 1: maxMin
+"non-one-or-more-extended-time" = "延長時間（分）は1以上の値にしてください。"

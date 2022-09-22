@@ -285,19 +285,19 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 		return nil
 	})
 	if err != nil {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、エラーが発生しました")
+		s.MessageToLiveChat(ctx, i18n.T("command:error", s.ProcessedUserDisplayName))
 		return err
 	}
 	
 	commandDetails, cerr := ParseCommand(commandString)
 	if cerr.IsNotNil() { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+cerr.Body.Error())
 		return nil
 	}
 	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 	
 	if cerr := s.ValidateCommand(commandDetails); cerr.IsNotNil() {
-		s.MessageToLiveChat(ctx, s.ProcessedUserDisplayName+"さん、"+cerr.Body.Error())
+		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+cerr.Body.Error())
 		return nil
 	}
 	
@@ -546,9 +546,9 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
-			rpEarned = t("rp-earned", addedRP)
+			rpEarned = i18n.T("command:rp-earned", addedRP)
 		}
-		replyMessage = t("exit", s.ProcessedUserDisplayName, workedTimeSec/60, seat.SeatId, rpEarned)
+		replyMessage = i18n.T("command:exit", s.ProcessedUserDisplayName, workedTimeSec/60, seat.SeatId, rpEarned)
 		return nil
 	})
 	if err != nil {
@@ -620,6 +620,7 @@ func (s *System) ShowUserInfo(command CommandDetails, ctx context.Context) error
 
 func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error {
 	t := i18n.GetTFunc("command-seat-info")
+	showDetails := command.SeatOption.ShowDetails
 	var replyMessage string
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室しているか？
@@ -653,6 +654,15 @@ func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error
 				breakUntilStr = t("break-until", int(breakUntilDuration.Minutes()))
 			}
 			replyMessage = t("base", s.ProcessedUserDisplayName, currentSeat.SeatId, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
+			
+			if showDetails {
+				recentTotalEntryDuration, err := s.GetRecentUserSittingTimeForSeat(ctx, s.ProcessedUserId, currentSeat.SeatId)
+				if err != nil {
+					s.MessageToLineBotWithError("failed to GetRecentUserSittingTimeForSeat", err)
+					return err
+				}
+				replyMessage += t("details", s.Configs.Constants.RecentRangeMin, currentSeat.SeatId, int(recentTotalEntryDuration.Minutes()))
+			}
 		} else {
 			replyMessage = i18n.T("command:not-enter", s.ProcessedUserDisplayName, InCommand)
 		}
@@ -702,7 +712,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if isSeatAvailable {
-			replyMessage = i18n.T("command:unuse", s.ProcessedUserDisplayName)
+			replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 			return nil
 		}
 		
@@ -710,7 +720,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		targetSeat, err := s.FirestoreController.ReadSeat(ctx, tx, targetSeatId)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = t("unuse", s.ProcessedUserDisplayName)
+				replyMessage = t("unused", s.ProcessedUserDisplayName)
 				return nil
 			}
 			s.MessageToLineBotWithError("failed to ReadSeat", err)
@@ -749,7 +759,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		replyMessage = i18n.T("error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
 	return err
@@ -767,20 +777,20 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 		}
 		
 		// ターゲットの座席は誰か使っているか
-		isSeatAvailable, err := s.IfSeatVacant(ctx, tx, targetSeatId)
+		isSeatVacant, err := s.IfSeatVacant(ctx, tx, targetSeatId)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to IfSeatVacant", err)
 			return err
 		}
-		if isSeatAvailable {
-			replyMessage = i18n.T("command:unuse", s.ProcessedUserDisplayName)
+		if isSeatVacant {
+			replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 			return nil
 		}
 		// 座席情報を表示する
 		seat, err := s.FirestoreController.ReadSeat(ctx, tx, targetSeatId)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = i18n.T("command:unuse", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 				return nil
 			}
 			s.MessageToLineBotWithError("failed to ReadSeat", err)
@@ -803,30 +813,30 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		replyMessage = i18n.T("error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
 	return err
 }
 
 func (s *System) Block(command CommandDetails, ctx context.Context) error {
+	t := i18n.GetTFunc("command-block")
 	targetSeatId := command.BlockOption.SeatId
-	
 	var replyMessage string
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// commanderはモデレーターかチャットオーナーか
 		if !s.ProcessedUserIsModeratorOrOwner {
-			replyMessage = s.ProcessedUserDisplayName + "さんは" + BlockCommand + "コマンドを使用できません"
+			replyMessage = i18n.T("command:permission", s.ProcessedUserDisplayName, BlockCommand)
 			return nil
 		}
 		
 		// ターゲットの座席は誰か使っているか
-		isSeatAvailable, err := s.IfSeatVacant(ctx, tx, targetSeatId)
+		isSeatVacant, err := s.IfSeatVacant(ctx, tx, targetSeatId)
 		if err != nil {
 			return err
 		}
-		if isSeatAvailable {
-			replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+		if isSeatVacant {
+			replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 			return nil
 		}
 		
@@ -834,13 +844,13 @@ func (s *System) Block(command CommandDetails, ctx context.Context) error {
 		targetSeat, err := s.FirestoreController.ReadSeat(ctx, tx, targetSeatId)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 				return nil
 			}
 			s.MessageToLineBotWithError("failed to ReadSeat", err)
 			return err
 		}
-		replyMessage = s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
+		replyMessage = t("block", s.ProcessedUserDisplayName, targetSeat.SeatId, targetSeat.UserDisplayName)
 		
 		// s.ProcessedUserが処理の対象ではないことに注意。
 		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, targetSeat.UserId)
@@ -856,10 +866,9 @@ func (s *System) Block(command CommandDetails, ctx context.Context) error {
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
-			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
+			rpEarned = i18n.T("command:rp-earned", addedRP)
 		}
-		replyMessage += targetSeat.UserDisplayName + "さんが退室しました🚶🚪" +
-			"（+ " + strconv.Itoa(workedTimeSec/60) + "分、" + strconv.Itoa(targetSeat.SeatId) + "番席）" + rpEarned
+		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, targetSeat.SeatId, rpEarned)
 		
 		// ブロック
 		err = s.BanUser(ctx, targetSeat.UserId)
@@ -881,7 +890,7 @@ func (s *System) Block(command CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		replyMessage = s.ProcessedUserDisplayName + "さん、エラーが発生しました。もう一度試してみてください"
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
 	return err
@@ -894,7 +903,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 	
 	// オプションが1つ以上指定されているか？
 	if len(command.MyOptions) == 0 {
-		s.MessageToLiveChat(ctx, i18n.T("common:option-warn", s.ProcessedUserDisplayName))
+		s.MessageToLiveChat(ctx, i18n.T("command:option-warn", s.ProcessedUserDisplayName))
 		return nil
 	}
 	
@@ -915,21 +924,19 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		var seats []myfirestore.SeatDoc
-		var realTimeTotalStudySec int
 		if isUserInRoom {
 			seats, err = s.FirestoreController.ReadAllSeats(ctx)
 			if err != nil {
 				s.MessageToLineBotWithError("failed to CurrentSeat", err)
 				return err
 			}
-			
-			realTimeTotalStudyDuration, _, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
-			if err != nil {
-				s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
-				return err
-			}
-			realTimeTotalStudySec = int(realTimeTotalStudyDuration.Seconds())
 		}
+		realTimeTotalStudyDuration, _, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to RetrieveRealtimeTotalStudyDuration", err)
+			return err
+		}
+		realTimeTotalStudySec := int(realTimeTotalStudyDuration.Seconds())
 		
 		// これ以降は書き込みのみ
 		
@@ -1165,7 +1172,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		if !isUserInRoom {
-			replyMessage = s.ProcessedUserDisplayName + "さん、入室中のみ使えるコマンドです"
+			replyMessage = i18n.T("command:enter-only", s.ProcessedUserDisplayName)
 			return nil
 		}
 		
@@ -1399,7 +1406,7 @@ func (s *System) Resume(ctx context.Context, command CommandDetails) error {
 		}
 		
 		untilExitDuration := utils.NoNegativeDuration(until.Sub(jstNow))
-		replyMessage = t("work", s.ProcessedUserDisplayName, currentSeat.SeatId, untilExitDuration.Minutes())
+		replyMessage = t("work", s.ProcessedUserDisplayName, currentSeat.SeatId, int(untilExitDuration.Minutes()))
 		return nil
 	})
 	if err != nil {
@@ -2034,10 +2041,9 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context) error {
 				}
 				var rpEarned string
 				if userDoc.RankVisible {
-					rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
+					rpEarned = i18n.T("command:rp-earned", addedRP)
 				}
-				liveChatMessage = s.ProcessedUserDisplayName + "さんが退室しました🚶🚪" +
-					"（+ " + strconv.Itoa(workedTimeSec/60) + "分、" + strconv.Itoa(seat.SeatId) + "番席）" + rpEarned
+				liveChatMessage = i18n.T("command:exit", s.ProcessedUserDisplayName, workedTimeSec/60, seat.SeatId, rpEarned)
 			}
 			
 			return nil
@@ -2117,8 +2123,7 @@ func (s *System) OrganizeDBResume(ctx context.Context) error {
 					s.MessageToLineBotWithError("failed to add an user activity", err)
 					return err
 				}
-				liveChatMessage = s.ProcessedUserDisplayName + "さんが作業を再開します（自動退室まで" +
-					utils.Ftoa(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()) + "分）"
+				liveChatMessage = i18n.T("command-resume:work", s.ProcessedUserDisplayName, seat.SeatId, int(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
 			}
 			return nil
 		})

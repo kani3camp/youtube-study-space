@@ -2,6 +2,7 @@ package core
 
 import (
 	"app.modules/core/customerror"
+	"app.modules/core/i18n"
 	"strconv"
 	"strings"
 )
@@ -56,7 +57,7 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 				CommandType: Rank,
 			}, customerror.NewNil()
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
-			return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは隣の文字とくっつけてください")
+			return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:isolated-!"))
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
@@ -70,7 +71,7 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 			}, customerror.NewNil()
 		}
 	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
-		return CommandDetails{}, customerror.InvalidCommand.New("びっくりマークは半角にしてください")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-!"))
 	}
 	return CommandDetails{
 		CommandType: NotCommand,
@@ -162,7 +163,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 			} else if rankVisibleStr == RankVisibleMyOptionOff {
 				rankVisible = false
 			} else {
-				return []MyOption{}, customerror.InvalidCommand.New("「" + RankVisibleMyOptionPrefix + "」の後の値を確認してください")
+				return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", RankVisibleMyOptionPrefix))
 			}
 			options = append(options, MyOption{
 				Type:      RankVisible,
@@ -199,7 +200,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 				// 整数に変換できるか
 				num, err := strconv.Atoi(paramStr)
 				if err != nil {
-					return []MyOption{}, customerror.InvalidCommand.New("「" + FavoriteColorMyOptionPrefix + "」の後の値は半角数字にしてください")
+					return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-digit-option", FavoriteColorMyOptionPrefix))
 				}
 				options = append(options, MyOption{
 					Type:     FavoriteColor,
@@ -219,11 +220,11 @@ func ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return CommandDetails{}, customerror.ParseFailed.New("有効な席番号を指定してください")
+			return CommandDetails{}, customerror.ParseFailed.New(i18n.T("parse:invalid-seat-id"))
 		}
 		kickSeatId = num
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
 	}
 	
 	return CommandDetails{
@@ -241,11 +242,11 @@ func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) 
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+			return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:invalid-seat-id"))
 		}
 		targetSeatId = num
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
 	}
 	
 	return CommandDetails{
@@ -263,11 +264,11 @@ func ParseBlock(commandString string) (CommandDetails, customerror.CustomError) 
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return CommandDetails{}, customerror.InvalidCommand.New("有効な席番号を指定してください")
+			return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:invalid-seat-id"))
 		}
 		targetSeatId = num
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("席番号を指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
 	}
 	
 	return CommandDetails{
@@ -283,7 +284,7 @@ func ParseReport(commandString string) (CommandDetails, customerror.CustomError)
 	
 	var reportMessage string
 	if len(slice) == 1 {
-		return CommandDetails{}, customerror.InvalidCommand.New("!reportの右にスペースを空けてメッセージを書いてください。")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-message", ReportCommand))
 	} else { // len(slice) > 1
 		reportMessage = commandString
 	}
@@ -341,7 +342,7 @@ func ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 			return CommandDetails{}, cerr
 		}
 	} else {
-		return CommandDetails{}, customerror.InvalidCommand.New("オプションに延長時間（分）を指定してください")
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-more-option")) // !more doesn't need 'min=' prefix.
 	}
 	
 	return CommandDetails{
@@ -399,18 +400,18 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, custom
 		if HasTimeOptionPrefix(str) {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil {
-				return 0, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+				return 0, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
 			}
 			return num, customerror.NewNil()
 		} else if allowNonPrefix {
 			num, err := strconv.Atoi(str)
 			if err != nil {
-				return num, customerror.ParseFailed.New("オプションが正しく設定されているか確認してください")
+				return num, customerror.ParseFailed.New(i18n.T("parse:invalid-option"))
 			}
 			return num, customerror.NewNil()
 		}
 	}
-	return 0, customerror.InvalidCommand.New("時間（分）のオプションをつけてください")
+	return 0, customerror.InvalidCommand.New(i18n.T("parse:missing-time-option"))
 }
 
 func ParseMinutesAndWorkNameOptions(commandSlice []string) (MinutesAndWorkNameOption,
@@ -425,7 +426,7 @@ func ParseMinutesAndWorkNameOptions(commandSlice []string) (MinutesAndWorkNameOp
 		} else if (HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
-				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New("時間（分）の値を確認してください")
+				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
 			}
 			options.DurationMin = num
 			options.IsDurationMinSet = true

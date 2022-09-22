@@ -14,11 +14,11 @@ type System struct {
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
 	lineBot             *mylinebot.LineBot
 	discordBot          *discordbot.DiscordBot
-
+	
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserIsModeratorOrOwner bool
-
+	
 	blockRegexListForChatMessage        []string
 	blockRegexListForChannelName        []string
 	notificationRegexListForChatMessage []string
@@ -28,7 +28,7 @@ type System struct {
 // SystemConfigs System生成時に初期化すべきフィールド値
 type SystemConfigs struct {
 	Constants myfirestore.ConstantsConfigDoc
-
+	
 	LiveChatBotChannelId string
 }
 

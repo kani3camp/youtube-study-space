@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"path"
 	"strings"
-
+	
 	"github.com/BurntSushi/toml"
 )
 
@@ -42,7 +42,6 @@ var localeData map[Language]LocaleData = make(map[Language]LocaleData)
 var defaultLanguage Language = LanguageJP
 var defaultFallback Language = LanguageEN
 
-// Localizer
 type Localizer struct {
 	language  Language
 	fallback  Language
@@ -77,12 +76,12 @@ func LoadLocaleFile(name string) error {
 	if err != nil {
 		return err
 	}
-
+	
 	var decoded LocaleFile
 	if _, err := toml.DecodeFile(name, &decoded); err != nil {
 		return err
 	}
-
+	
 	localeData[lang] = LocaleData(decoded)
 	fmt.Printf("%+v\n", localeData)
 	return nil
@@ -93,12 +92,12 @@ func LoadLocaleFileFS(f embed.FS, name string) error {
 	if err != nil {
 		return err
 	}
-
+	
 	var decoded LocaleFile
 	if _, err := toml.DecodeFS(f, name, &decoded); err != nil {
 		return err
 	}
-
+	
 	localeData[lang] = LocaleData(decoded)
 	return nil
 }
@@ -108,7 +107,7 @@ func LoadLocaleFolder(name string) error {
 	if err != nil {
 		return err
 	}
-
+	
 	for _, file := range files {
 		if file.IsDir() {
 			return ErrLocaleFile
@@ -125,7 +124,7 @@ func LoadLocaleFolderFS(f embed.FS, name string) error {
 	if err != nil {
 		return err
 	}
-
+	
 	for _, file := range dir {
 		if file.IsDir() {
 			return ErrLocaleFile
@@ -158,16 +157,16 @@ func t(lang, fallback Language, namespace, key string, args ...interface{}) stri
 		namespace = splited[0]
 		key = splited[1]
 	}
-
+	
 	if value := localeData[lang][namespace][key]; value != "" {
 		return formatText(value, args...)
 	}
-
+	
 	// Fallback
 	if value := localeData[fallback][namespace][key]; value != "" {
 		return formatText(value, args...)
 	}
-
+	
 	return fmt.Sprintf("NO DATA[%s]: %s:%s", lang, namespace, key)
 }
 
