@@ -148,16 +148,27 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// nextPageTokenを保存
 		err = sys.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to save next page token", err)
-			return
+			sys.MessageToLineBotWithError("(1回目) failed to save next page token", err)
+			// 少し待ってから再試行
+			time.Sleep(3 * time.Second)
+			err2 := sys.SaveNextPageToken(ctx, nextPageToken)
+			if err2 != nil {
+				sys.MessageToLineBotWithError("(2回目) failed to save next page token", err2)
+				// pass
+			}
 		}
 		
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
 			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
-				sys.MessageToLineBotWithError("failed to add live chat history", err)
-				return
+				sys.MessageToLineBotWithError("(1回目) failed to add live chat history", err)
+				time.Sleep(2 * time.Second)
+				err2 := sys.AddLiveChatHistoryDoc(ctx, chatMessage)
+				if err2 != nil {
+					sys.MessageToLineBotWithError("(2回目) failed to add live chat history", err2)
+					// pass
+				}
 			}
 		}
 		
