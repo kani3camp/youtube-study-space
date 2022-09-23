@@ -27,35 +27,37 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 	if err != nil {
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
-	defer _system.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	
-	err, userIdsToProcess := _system.DailyOrganizeDB(ctx)
+	err, userIdsToProcess := sys.DailyOrganizeDB(ctx)
 	if err != nil {
-		_system.MessageToLineBotWithError("failed to DailyOrganizeDB", err)
+		sys.MessageToLineBotWithError("failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	
 	sess, err := session.NewSession()
 	if err != nil {
-		_system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
+		sys.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	svc := lambda2.New(sess)
 	
-	allBatch := utils.DivideStringEqually(_system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
-	log.Println(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
+	allBatch := utils.DivideStringEqually(sys.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
+	sys.MessageToLineBot(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		log.Println("batch No. " + strconv.Itoa(i+1))
 		log.Println(batch)
 		payload := lambdautils.ProcessUserRPParallelRequestStruct{
-			UserIds: batch,
+			ProcessIndex: i,
+			UserIds:      batch,
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
+			sys.MessageToLineBotWithError("failed to json.Marshal(payload)", err)
 			return DailyOrganizeDatabaseResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -65,7 +67,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			_system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			sys.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponseStruct{}, err
 		}
 		log.Println(resp)

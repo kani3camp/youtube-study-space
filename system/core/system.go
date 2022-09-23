@@ -2283,7 +2283,7 @@ func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
 	}
 	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 	
-	log.Println("RP関連の情報更新・ペナルティ処理")
+	log.Println("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
 	err, userIdsToProcessRP := s.GetUserIdsToProcessRP(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to GetUserIdsToProcessRP", err)
@@ -2292,6 +2292,7 @@ func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
 	
 	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
 	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
+	s.MessageToLineBot(lineMessage)
 	log.Println("finished DailyOrganizeDB().")
 	return nil, userIdsToProcessRP
 }
@@ -2321,6 +2322,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 		}
 		err := s.FirestoreController.UpdateLastResetDailyTotalStudyTime(ctx, now)
 		if err != nil {
+			s.MessageToLineBotWithError("failed to UpdateLastResetDailyTotalStudyTime", err)
 			return 0, err
 		}
 		return count, nil

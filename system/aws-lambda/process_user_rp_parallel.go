@@ -26,33 +26,36 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	defer _system.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	
-	remainingUserIds, err := _system.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptionTimeLimitSeconds)
+	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
+	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptionTimeLimitSeconds)
 	if err != nil {
-		_system.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
+		sys.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
 	
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
-		log.Println(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
+		sys.MessageToLineBot(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
 		
 		sess, err := session.NewSession()
 		if err != nil {
-			_system.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
+			sys.MessageToLineBotWithError("failed to session.NewSession()", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
 		payload := lambdautils.ProcessUserRPParallelRequestStruct{
-			UserIds: remainingUserIds,
+			ProcessIndex: request.ProcessIndex,
+			UserIds:      remainingUserIds,
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
+			sys.MessageToLineBotWithError("failed to json.Marshal(payload)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -62,12 +65,12 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			_system.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			sys.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		log.Println(resp)
 	} else {
-		log.Println("all user's processes in this batch completed.")
+		sys.MessageToLineBot("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
 	}
 	
 	return ProcessUserRPParallelResponse(), nil

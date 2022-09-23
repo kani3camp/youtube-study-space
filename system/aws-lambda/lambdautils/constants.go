@@ -8,5 +8,6 @@ const (
 
 // ProcessUserRPParallelRequestStruct 複数のファイルで使用するため、build時にundefinedとならないようにここで宣言。
 type ProcessUserRPParallelRequestStruct struct {
-	UserIds []string `json:"user_ids"`
+	ProcessIndex int      `json:"process_index"`
+	UserIds      []string `json:"user_ids"`
 }
