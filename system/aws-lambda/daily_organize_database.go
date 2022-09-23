@@ -33,7 +33,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 	}
 	defer sys.CloseFirestoreClient()
 	
-	err, userIdsToProcess := sys.DailyOrganizeDB(ctx)
+	userIdsToProcess, err := sys.DailyOrganizeDB(ctx)
 	if err != nil {
 		sys.MessageToLineBotWithError("failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err

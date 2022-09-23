@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cloud.google.com/go/firestore"
 	"context"
 	"embed"
 	"fmt"
@@ -199,15 +200,48 @@ func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func Test(ctx context.Context, clientOption option.ClientOption) {
-	s, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	defer s.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	fmt.Println(i18n.T("command:error", s.ProcessedUserDisplayName))
+	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
+	if err != nil {
+		log.Println("failed to GetUserIdsToProcessRP", err)
+		panic(err)
+	}
+	
+	for _, userId := range userIdsToProcessRP {
+		log.Println("[userId: " + userId + "] processing RP.")
+		err := sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			userDoc, err := sys.FirestoreController.ReadUser(ctx, tx, userId)
+			if err != nil {
+				log.Println("failed to ReadUser", err)
+				return err
+			}
+			
+			lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, utils.JstNow())
+			inactiveDays, err := utils.CalcContinuousInactiveDays(lastActiveAt)
+			if err != nil {
+				panic(err)
+			}
+			if userDoc.LastPenaltyImposedDays > inactiveDays {
+				log.Println("userDoc.LastPenaltyImposedDays > inactiveDays")
+				err := sys.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
+				if err != nil {
+					panic(err)
+				}
+				log.Println("reset LastPenaltyImposedDays done.")
+			}
+			return nil
+		})
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 func main() {
@@ -224,4 +258,5 @@ func main() {
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(ctx, clientOption)
 	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
+	//direct_operations.UpdateUsersRP(ctx, clientOption)
 }

@@ -1675,11 +1675,16 @@ func (s *System) enterRoom(
 		s.MessageToLineBotWithError("failed to add an user activity", err)
 		return 0, err
 	}
-	// 久しぶりの入室であれば、isContinuousActiveをtrueに更新
+	// 久しぶりの入室であれば、isContinuousActiveをtrueに、lastPenaltyImposedDaysを0に更新
 	if !isContinuousActive {
 		err = s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(tx, userId, true, enterDate)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", err)
+			return 0, err
+		}
+		err = s.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to UpdateUserLastPenaltyImposedDays", err)
 			return 0, err
 		}
 	}
@@ -2271,7 +2276,7 @@ func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
 	return checker.Check(ctx)
 }
 
-func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
+func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	log.Println("DailyOrganizeDB()")
 	var lineMessage string
 	
@@ -2279,7 +2284,7 @@ func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
 	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to ResetDailyTotalStudyTime", err)
-		return err, []string{}
+		return []string{}, err
 	}
 	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 	
@@ -2287,14 +2292,14 @@ func (s *System) DailyOrganizeDB(ctx context.Context) (error, []string) {
 	err, userIdsToProcessRP := s.GetUserIdsToProcessRP(ctx)
 	if err != nil {
 		s.MessageToLineBotWithError("failed to GetUserIdsToProcessRP", err)
-		return err, []string{}
+		return []string{}, err
 	}
 	
 	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
 	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
 	s.MessageToLineBot(lineMessage)
 	log.Println("finished DailyOrganizeDB().")
-	return nil, userIdsToProcessRP
+	return userIdsToProcessRP, nil
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
@@ -2369,7 +2374,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 		err := s.UpdateUserRP(ctx, userId, jstNow)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to UpdateUserRP, while processing "+userId, err)
-			continue // 次のuserから処理は継続
+			// pass. mark user as done
 		}
 		doneUserIds = append(doneUserIds, userId)
 	}
@@ -2426,7 +2431,7 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 		if rankPoint != userDoc.RankPoint {
 			err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
 			if err != nil {
-				s.MessageToLineBotWithError("failed to UpdateUserRP", err)
+				s.MessageToLineBotWithError("failed to UpdateUserRankPoint", err)
 				return err
 			}
 		}

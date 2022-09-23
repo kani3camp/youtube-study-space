@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"google.golang.org/api/option"
 	"log"
+	"math"
 	"os"
 )
 
@@ -29,6 +30,8 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 	
+	sys.MessageToLineBot("direct op: ExitAllUsersInRoom")
+	
 	log.Println("全ユーザーを退室させます。")
 	err = sys.ExitAllUsersInRoom(ctx)
 	if err != nil {
@@ -38,12 +41,14 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	log.Println("全ユーザーを退室させました。")
 }
 
-func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx context.Context) {
+func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
 		return
 	}
+	
+	sys.MessageToLineBot("direct op: ExitSpecificUser")
 	
 	sys.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
@@ -57,12 +62,14 @@ func ExitSpecificUser(userId string, clientOption option.ClientOption, ctx conte
 	}
 }
 
-func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Context) {
+func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
 		return
 	}
+	
+	sys.MessageToLineBot("direct op: ExportUsersCollectionJson")
 	
 	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
 	err = sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -91,4 +98,29 @@ func ExportUsersCollectionJson(clientOption option.ClientOption, ctx context.Con
 		return
 	}
 	log.Println("finished exporting json.")
+}
+
+func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
+	sys, err := core.NewSystem(ctx, clientOption)
+	if err != nil {
+		panic(err)
+		return
+	}
+	
+	sys.MessageToLineBot("direct op: UpdateUsersRP")
+	
+	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
+	if err != nil {
+		log.Println("failed to GetUserIdsToProcessRP", err)
+		panic(err)
+	}
+	
+	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
+	if err != nil {
+		log.Println("failed to UpdateUserRPBatch", err)
+		panic(err)
+	}
+	
+	log.Println("remaining user ids:")
+	log.Println(remainingUserIds)
 }
