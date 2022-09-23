@@ -214,8 +214,8 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 		panic(err)
 	}
 	
-	for _, userId := range userIdsToProcessRP {
-		log.Println("[userId: " + userId + "] processing RP.")
+	for i, userId := range userIdsToProcessRP {
+		log.Println("[" + strconv.Itoa(i) + " userId: " + userId + "] processing RP.")
 		err := sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			userDoc, err := sys.FirestoreController.ReadUser(ctx, tx, userId)
 			if err != nil {
@@ -223,19 +223,26 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 				return err
 			}
 			
-			lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, utils.JstNow())
-			inactiveDays, err := utils.CalcContinuousInactiveDays(lastActiveAt)
-			if err != nil {
-				panic(err)
-			}
-			if userDoc.LastPenaltyImposedDays > inactiveDays {
-				log.Println("userDoc.LastPenaltyImposedDays > inactiveDays")
-				err := sys.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
+			if utils.DateEqualJST(userDoc.LastRPProcessed, utils.JstNow()) {
+				err := sys.FirestoreController.UpdateUserLastRPProcessed(tx, userId, utils.JstNow().AddDate(0, 0, -1))
 				if err != nil {
 					panic(err)
 				}
-				log.Println("reset LastPenaltyImposedDays done.")
 			}
+			
+			//lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, utils.JstNow())
+			//inactiveDays, err := utils.CalcContinuousInactiveDays(lastActiveAt)
+			//if err != nil {
+			//	panic(err)
+			//}
+			//if userDoc.LastPenaltyImposedDays > inactiveDays {
+			//	log.Println("userDoc.LastPenaltyImposedDays > inactiveDays")
+			//	err := sys.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
+			//	if err != nil {
+			//		panic(err)
+			//	}
+			//	log.Println("reset LastPenaltyImposedDays done.")
+			//}
 			return nil
 		})
 		if err != nil {
