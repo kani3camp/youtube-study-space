@@ -21,15 +21,15 @@ func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
 	if err != nil {
 		return OrganizeDatabaseResponseStruct{}, nil
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return OrganizeDatabaseResponseStruct{}, nil
 	}
-	defer _system.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	
-	err = _system.OrganizeDB(ctx)
+	err = sys.OrganizeDB(ctx)
 	if err != nil {
-		_system.MessageToLineBotWithError("failed to OrganizeDB", err)
+		sys.MessageToLineBotWithError("failed to OrganizeDB", err)
 		return OrganizeDatabaseResponseStruct{}, nil
 	}
 	

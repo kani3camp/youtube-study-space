@@ -11,6 +11,9 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+//go:embed locales/*.toml
+var fs embed.FS
+
 var (
 	ErrLocaleFile = errors.New("i18n: wrong file name or struct")
 )
@@ -21,6 +24,8 @@ const (
 	LanguageEN Language = "EN"
 	LanguageJP Language = "JP"
 	LanguageKO Language = "KO"
+	
+	LocalesFolderName string = "locales"
 )
 
 func isValidLocale(l string) bool {
@@ -119,8 +124,8 @@ func LoadLocaleFolder(name string) error {
 	return nil
 }
 
-func LoadLocaleFolderFS(f embed.FS, name string) error {
-	dir, err := f.ReadDir(name)
+func LoadLocaleFolderFS() error {
+	dir, err := fs.ReadDir(LocalesFolderName)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func LoadLocaleFolderFS(f embed.FS, name string) error {
 		if file.IsDir() {
 			return ErrLocaleFile
 		}
-		if err := LoadLocaleFileFS(f, path.Join(name, file.Name())); err != nil {
+		if err := LoadLocaleFileFS(fs, path.Join(LocalesFolderName, file.Name())); err != nil {
 			return err
 		}
 	}
@@ -174,7 +179,7 @@ func T(key string, args ...interface{}) string {
 	return t(defaultLanguage, defaultFallback, "", key, args...)
 }
 
-func New(namespaces ...string) *Localizer {
+func NewLocalizer(namespaces ...string) *Localizer {
 	ns := ""
 	if len(namespaces) > 0 {
 		ns = namespaces[0]
@@ -186,7 +191,7 @@ func New(namespaces ...string) *Localizer {
 	}
 }
 
-func NewWithLang(lang Language, namespaces ...string) *Localizer {
+func NewLocalizerWithLang(lang Language, namespaces ...string) *Localizer {
 	ns := ""
 	if len(namespaces) > 0 {
 		ns = namespaces[0]

@@ -48,7 +48,7 @@ func TestI18n(test *testing.T) {
 	}
 	
 	{
-		t := i18n.NewWithLang(i18n.LanguageKO)
+		t := i18n.NewLocalizerWithLang(i18n.LanguageKO)
 		if t.T("common:test") != CommonTestKO {
 			test.Fatal()
 		}
@@ -58,7 +58,7 @@ func TestI18n(test *testing.T) {
 		}
 	}
 	{
-		t := i18n.NewWithLang(i18n.LanguageKO, "common").GetTFunc()
+		t := i18n.NewLocalizerWithLang(i18n.LanguageKO, "common").GetTFunc()
 		if t("test") != CommonTestKO {
 			test.Fatal()
 		}

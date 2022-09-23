@@ -31,6 +31,11 @@ import (
 )
 
 func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, error) {
+	err := i18n.LoadLocaleFolderFS()
+	if err != nil {
+		return System{}, err
+	}
+	
 	fsController, err := myfirestore.NewFirestoreController(ctx, clientOption)
 	if err != nil {
 		return System{}, err
