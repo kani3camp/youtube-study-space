@@ -1,7 +1,7 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const Freepick3RoomLayout: RoomLayout = {
-    floor_image: '/images/freepick3-room.png',
+export const Freepik3RoomLayout: RoomLayout = {
+    floor_image: '/images/freepik3-room.png',
     version: 1,
     font_size_ratio: 0.015,
     room_shape: {
@@ -136,13 +136,13 @@ export const Freepick3RoomLayout: RoomLayout = {
         },
         {
             id: 21,
-            x: 870,
+            x: 775,
             y: 15,
             rotate: 0,
         },
         {
             id: 22,
-            x: 710,
+            x: 620,
             y: 15,
             rotate: 0,
         },
@@ -154,7 +154,7 @@ export const Freepick3RoomLayout: RoomLayout = {
         },
         {
             id: 24,
-            x: 375,
+            x: 340,
             y: 580,
             rotate: 0,
         },

@@ -1,8 +1,8 @@
 import { RoomLayout } from '../types/room-layout'
 import { classRoomLayout } from './layouts/classroom'
-import { Freepick1RoomLayout } from './layouts/freepick1_room'
-import { Freepick2RoomLayout } from './layouts/freepick2_room'
-import { Freepick3RoomLayout } from './layouts/freepick3_room'
+import { Freepik1RoomLayout } from './layouts/freepik1_room'
+import { Freepik2RoomLayout } from './layouts/freepik2_room'
+import { Freepik3RoomLayout } from './layouts/freepik3_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
@@ -13,7 +13,7 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepick1RoomLayout, Freepick2RoomLayout],
+    basicRooms: [Freepik1RoomLayout, Freepik2RoomLayout],
     temporaryRooms: [
         classRoomLayout,
         SimpleRoomLayout,
@@ -23,11 +23,11 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepick3RoomLayout],
+    basicRooms: [Freepik3RoomLayout],
     temporaryRooms: [
-        Freepick1RoomLayout,
-        Freepick2RoomLayout,
-        Freepick3RoomLayout,
+        Freepik1RoomLayout,
+        Freepik2RoomLayout,
+        Freepik3RoomLayout,
     ],
 }
 
