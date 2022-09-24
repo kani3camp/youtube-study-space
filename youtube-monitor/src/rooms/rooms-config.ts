@@ -1,4 +1,5 @@
 import { RoomLayout } from '../types/room-layout'
+import { Anonymous1Layout } from './layouts/anonymous1'
 import { classRoomLayout } from './layouts/classroom'
 import { Freepik1RoomLayout } from './layouts/freepik1_room'
 import { Freepik2RoomLayout } from './layouts/freepik2_room'
@@ -23,7 +24,7 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-    basicRooms: [Freepik3RoomLayout],
+    basicRooms: [Anonymous1Layout],
     temporaryRooms: [
         Freepik1RoomLayout,
         Freepik2RoomLayout,
