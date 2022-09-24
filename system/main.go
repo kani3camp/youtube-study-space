@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
 	"log"
@@ -18,7 +17,7 @@ import (
 )
 
 func Init() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv()
+	utils.LoadEnv(".env")
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
@@ -197,47 +196,6 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer sys.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
-	if err != nil {
-		log.Println("failed to GetUserIdsToProcessRP", err)
-		panic(err)
-	}
-	
-	for i, userId := range userIdsToProcessRP {
-		log.Println("[" + strconv.Itoa(i) + " userId: " + userId + "] processing RP.")
-		err := sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			userDoc, err := sys.FirestoreController.ReadUser(ctx, tx, userId)
-			if err != nil {
-				log.Println("failed to ReadUser", err)
-				return err
-			}
-			
-			if utils.DateEqualJST(userDoc.LastRPProcessed, utils.JstNow()) {
-				err := sys.FirestoreController.UpdateUserLastRPProcessed(tx, userId, utils.JstNow().AddDate(0, 0, -1))
-				if err != nil {
-					panic(err)
-				}
-			}
-			
-			//lastActiveAt := utils.LastActiveAt(userDoc.LastEntered, userDoc.LastExited, utils.JstNow())
-			//inactiveDays, err := utils.CalcContinuousInactiveDays(lastActiveAt)
-			//if err != nil {
-			//	panic(err)
-			//}
-			//if userDoc.LastPenaltyImposedDays > inactiveDays {
-			//	log.Println("userDoc.LastPenaltyImposedDays > inactiveDays")
-			//	err := sys.FirestoreController.UpdateUserLastPenaltyImposedDays(tx, userId, 0)
-			//	if err != nil {
-			//		panic(err)
-			//	}
-			//	log.Println("reset LastPenaltyImposedDays done.")
-			//}
-			return nil
-		})
-		if err != nil {
-			panic(err)
-		}
-	}
 }
 
 func main() {
@@ -248,8 +206,8 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
+	Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
 	//direct_operations.ExitAllUsersInRoom(ctx, clientOption)

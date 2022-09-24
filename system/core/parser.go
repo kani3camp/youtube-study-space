@@ -3,6 +3,7 @@ package core
 import (
 	"app.modules/core/customerror"
 	"app.modules/core/i18n"
+	"app.modules/core/utils"
 	"strconv"
 	"strings"
 )
@@ -170,10 +171,10 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 				BoolValue: rankVisible,
 			})
 			isRankVisibleSet = true
-		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
+		} else if utils.HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
 			var durationMin int
 			// 0もしくは空欄ならリセットなので、空欄も許可。リセットは内部的には0で扱う。
-			if IsEmptyTimeOption(str) {
+			if utils.IsEmptyTimeOption(str) {
 				durationMin = 0
 			} else {
 				var cerr customerror.CustomError
@@ -382,8 +383,8 @@ func ParseResume(commandString string) (CommandDetails, customerror.CustomError)
 
 func ParseWorkNameOption(strSlice []string) WorkNameOption {
 	for _, str := range strSlice {
-		if HasWorkNameOptionPrefix(str) {
-			workName := TrimWorkNameOptionPrefix(str)
+		if utils.HasWorkNameOptionPrefix(str) {
+			workName := utils.TrimWorkNameOptionPrefix(str)
 			return WorkNameOption{
 				IsWorkNameSet: true,
 				WorkName:      workName,
@@ -397,8 +398,8 @@ func ParseWorkNameOption(strSlice []string) WorkNameOption {
 
 func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, customerror.CustomError) {
 	for _, str := range strSlice {
-		if HasTimeOptionPrefix(str) {
-			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
+		if utils.HasTimeOptionPrefix(str) {
+			num, err := strconv.Atoi(utils.TrimTimeOptionPrefix(str))
 			if err != nil {
 				return 0, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
 			}
@@ -419,12 +420,12 @@ func ParseMinutesAndWorkNameOptions(commandSlice []string) (MinutesAndWorkNameOp
 	var options MinutesAndWorkNameOption
 	
 	for _, str := range commandSlice {
-		if (HasWorkNameOptionPrefix(str)) && !options.IsWorkNameSet {
-			workName := TrimWorkNameOptionPrefix(str)
+		if (utils.HasWorkNameOptionPrefix(str)) && !options.IsWorkNameSet {
+			workName := utils.TrimWorkNameOptionPrefix(str)
 			options.WorkName = workName
 			options.IsWorkNameSet = true
-		} else if (HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
-			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
+		} else if (utils.HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
+			num, err := strconv.Atoi(utils.TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
 				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
 			}

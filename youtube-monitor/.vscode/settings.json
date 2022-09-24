@@ -6,8 +6,9 @@
     "eslint.format.enable": false,
     "files.eol": "\n",
     "editor.tabSize": 4,
-    "typescript.suggest.autoImports": false,
+    "typescript.suggest.autoImports": true,
     "cSpell.words": [
+        "chabio",
         "freepick",
         "freepik",
         "Himajin",

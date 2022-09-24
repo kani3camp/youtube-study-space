@@ -1,6 +1,7 @@
-package core
+package test
 
 import (
+	"app.modules/core"
 	"app.modules/core/utils"
 	"context"
 	"fmt"
@@ -12,11 +13,12 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
 func InitTest() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv()
+	utils.LoadEnv("../../.env")
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 	
 	ctx := context.Background()
@@ -39,14 +41,14 @@ func InitTest() (option.ClientOption, context.Context, error) {
 	return clientOption, ctx, nil
 }
 
-func NewTestSystem() (System, error) {
+func NewTestSystem() (core.System, error) {
 	clientOption, ctx, err := InitTest()
 	if err != nil {
-		return System{}, err
+		return core.System{}, err
 	}
-	s, err := NewSystem(ctx, clientOption)
+	s, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return System{}, err
+		return core.System{}, err
 	}
 	return s, nil
 }
@@ -54,44 +56,44 @@ func NewTestSystem() (System, error) {
 func TestSystem_ParseCommand(t *testing.T) {
 	type TestCase struct {
 		Input  string
-		Output CommandDetails
+		Output core.CommandDetails
 	}
 	testCases := [...]TestCase{
 		{
 			Input: "out",
-			Output: CommandDetails{
-				CommandType: NotCommand,
-				InOption:    InOption{},
+			Output: core.CommandDetails{
+				CommandType: core.NotCommand,
+				InOption:    core.InOption{},
 			},
 		},
 		{
 			Input: "!out",
-			Output: CommandDetails{
-				CommandType: Out,
-				InOption:    InOption{},
+			Output: core.CommandDetails{
+				CommandType: core.Out,
+				InOption:    core.InOption{},
 			},
 		},
 		{
 			Input: "!info",
-			Output: CommandDetails{
-				CommandType: Info,
-				InOption:    InOption{},
+			Output: core.CommandDetails{
+				CommandType: core.Info,
+				InOption:    core.InOption{},
 			},
 		},
 		{
 			Input: "!my",
-			Output: CommandDetails{
-				CommandType: My,
-				MyOptions:   nil,
+			Output: core.CommandDetails{
+				CommandType: core.My,
+				MyOptions:   []core.MyOption{},
 			},
 		},
 		{
 			Input: "!my rank=on",
-			Output: CommandDetails{
-				CommandType: My,
-				MyOptions: []MyOption{
+			Output: core.CommandDetails{
+				CommandType: core.My,
+				MyOptions: []core.MyOption{
 					{
-						Type:      RankVisible,
+						Type:      core.RankVisible,
 						BoolValue: true,
 					},
 				},
@@ -99,11 +101,11 @@ func TestSystem_ParseCommand(t *testing.T) {
 		},
 		{
 			Input: "!my rank=off",
-			Output: CommandDetails{
-				CommandType: My,
-				MyOptions: []MyOption{
+			Output: core.CommandDetails{
+				CommandType: core.My,
+				MyOptions: []core.MyOption{
 					{
-						Type:      RankVisible,
+						Type:      core.RankVisible,
 						BoolValue: false,
 					},
 				},
@@ -111,15 +113,15 @@ func TestSystem_ParseCommand(t *testing.T) {
 		},
 	}
 	
-	for _, testCase := range testCases {
-		commandDetails, err := ParseCommand(testCase.Input)
+	for i, testCase := range testCases {
+		commandDetails, err := core.ParseCommand(testCase.Input)
 		if err.IsNotNil() {
 			t.Error(err)
 		}
 		if !reflect.DeepEqual(commandDetails, testCase.Output) {
 			fmt.Printf("result:\n%# v\n", pretty.Formatter(commandDetails))
 			fmt.Printf("expected:\n%# v\n", pretty.Formatter(testCase.Output))
-			t.Error("command details do not match.")
+			t.Error("command details do not match. (i=" + strconv.Itoa(i) + ")")
 		}
 		//assert.True(t, reflect.DeepEqual(commandDetails, testCase.Output))
 	}

@@ -135,9 +135,32 @@ func (s *System) GetInfoString() string {
 	return "全規制ワード数: " + strconv.Itoa(numAllFilteredRegex)
 }
 
+// GoroutineCheckLongTimeSitting 居座り検出ループ
+func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
+	minimumInterval := time.Duration(s.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
+	log.Printf("居座りチェックの最小間隔: %v\n", minimumInterval)
+	
+	for {
+		log.Println("checking long time sitting")
+		start := utils.JstNow()
+		
+		err := s.CheckLongTimeSitting(ctx)
+		if err != nil {
+			s.MessageToLineBotWithError("failed to CheckLongTimeSitting", err)
+			log.Println(err)
+		}
+		
+		end := utils.JstNow()
+		duration := end.Sub(start)
+		if duration < minimumInterval {
+			time.Sleep(minimumInterval - duration)
+		}
+	}
+}
+
 func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) error {
 	// ブロック対象チェック
-	found, index, err := containsRegexWithFoundIndex(s.blockRegexListForChatMessage, message)
+	found, index, err := utils.ContainsRegexWithFoundIndex(s.blockRegexListForChatMessage, message)
 	if err != nil {
 		return err
 	}
@@ -153,7 +176,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 			"\nチャット内容: `" + message + "`" +
 			"\n日時: " + utils.JstNow().String())
 	}
-	found, index, err = containsRegexWithFoundIndex(s.blockRegexListForChannelName, channelName)
+	found, index, err = utils.ContainsRegexWithFoundIndex(s.blockRegexListForChannelName, channelName)
 	if err != nil {
 		return err
 	}
@@ -171,7 +194,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 	}
 	
 	// 通知対象チェック
-	found, index, err = containsRegexWithFoundIndex(s.notificationRegexListForChatMessage, message)
+	found, index, err = utils.ContainsRegexWithFoundIndex(s.notificationRegexListForChatMessage, message)
 	if err != nil {
 		return err
 	}
@@ -183,7 +206,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 			"\nチャット内容: `" + message + "`" +
 			"\n日時: " + utils.JstNow().String())
 	}
-	found, index, err = containsRegexWithFoundIndex(s.notificationRegexListForChannelName, channelName)
+	found, index, err = utils.ContainsRegexWithFoundIndex(s.notificationRegexListForChannelName, channelName)
 	if err != nil {
 		return err
 	}
@@ -641,7 +664,7 @@ func (s *System) ShowSeatInfo(command CommandDetails, ctx context.Context) error
 			}
 			
 			realtimeSittingDurationMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes())
-			realtimeTotalStudyDurationOfSeat, err := RealTimeTotalStudyDurationOfSeat(currentSeat)
+			realtimeTotalStudyDurationOfSeat, err := utils.RealTimeTotalStudyDurationOfSeat(currentSeat)
 			if err != nil {
 				s.MessageToLineBotWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
 				return err
@@ -983,7 +1006,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 						}
 						
 						// 席の色を更新
-						newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
+						newSeat, err := utils.GetSeatByUserId(seats, s.ProcessedUserId)
 						if err != nil {
 							return err
 						}
@@ -1038,7 +1061,7 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 				
 				// 入室中であれば、座席の色も変える
 				if isUserInRoom {
-					newSeat, err := GetSeatByUserId(seats, s.ProcessedUserId)
+					newSeat, err := utils.GetSeatByUserId(seats, s.ProcessedUserId)
 					if err != nil {
 						s.MessageToLineBotWithError("failed to GetSeatByUserId", err)
 						return err
@@ -1878,12 +1901,12 @@ func (s *System) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *fir
 		}
 		
 		var err error
-		realtimeDuration, err = RealTimeTotalStudyDurationOfSeat(currentSeat)
+		realtimeDuration, err = utils.RealTimeTotalStudyDurationOfSeat(currentSeat)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
 			return 0, 0, err
 		}
-		realtimeDailyDuration, err = RealTimeDailyTotalStudyDurationOfSeat(currentSeat)
+		realtimeDailyDuration, err = utils.RealTimeDailyTotalStudyDurationOfSeat(currentSeat)
 		if err != nil {
 			s.MessageToLineBotWithError("failed to RealTimeDailyTotalStudyDurationOfSeat", err)
 			return 0, 0, err
@@ -2386,7 +2409,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 	
 	var remainingUserIds []string
 	for _, userId := range userIds {
-		if containsString(doneUserIds, userId) {
+		if utils.ContainsString(doneUserIds, userId) {
 			continue
 		} else {
 			remainingUserIds = append(remainingUserIds, userId)
@@ -2610,7 +2633,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		}
 		defer gcsClient.CloseClient()
 		
-		projectId, err := GetGcpProjectId(ctx, clientOption)
+		projectId, err := utils.GetGcpProjectId(ctx, clientOption)
 		if err != nil {
 			return err
 		}
@@ -2750,8 +2773,8 @@ func (s *System) GetRecentUserSittingTimeForSeat(ctx context.Context, userId str
 	// activityListは長さ0の可能性もあることに注意
 	
 	// 入室と退室が交互に並んでいるか確認
-	SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
-	orderOK := CheckEnterExitActivityOrder(activityOnlyEnterExitList)
+	utils.SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
+	orderOK := utils.CheckEnterExitActivityOrder(activityOnlyEnterExitList)
 	if !orderOK {
 		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
 		return 0, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))

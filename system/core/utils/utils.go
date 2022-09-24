@@ -1,11 +1,20 @@
 package utils
 
 import (
+	"app.modules/core"
+	"app.modules/core/myfirestore"
+	"context"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 	"image/color"
 	"log"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,15 +46,12 @@ func Get7daysBefore(date time.Time) time.Time {
 	return date.AddDate(0, 0, -7)
 }
 
-func LoadEnv() {
-	err := godotenv.Load()
+// LoadEnv TODO さらに上の階層に書くべき
+func LoadEnv(relativeEnvPath string) {
+	err := godotenv.Load(relativeEnvPath)
 	if err != nil {
-		log.Println(err)
-		err = godotenv.Load("../.env")
-		if err != nil {
-			log.Println(err.Error())
-			log.Fatal("Error loading .env file")
-		}
+		log.Println(err.Error())
+		log.Fatal("Error loading .env file")
 	}
 }
 
@@ -124,4 +130,162 @@ func DivideStringEqually(batchSize int, values []string) [][]string {
 		batchList[index] = append(batchList[index], value)
 	}
 	return batchList
+}
+
+func HasWorkNameOptionPrefix(str string) bool {
+	return strings.HasPrefix(str, core.WorkNameOptionPrefix) ||
+		strings.HasPrefix(str, core.WorkNameOptionShortPrefix) ||
+		strings.HasPrefix(str, core.WorkNameOptionPrefixLegacy) ||
+		strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+}
+
+func TrimWorkNameOptionPrefix(str string) string {
+	if strings.HasPrefix(str, core.WorkNameOptionPrefix) {
+		return strings.TrimPrefix(str, core.WorkNameOptionPrefix)
+	} else if strings.HasPrefix(str, core.WorkNameOptionShortPrefix) {
+		return strings.TrimPrefix(str, core.WorkNameOptionShortPrefix)
+	} else if strings.HasPrefix(str, core.WorkNameOptionPrefixLegacy) {
+		return strings.TrimPrefix(str, core.WorkNameOptionPrefixLegacy)
+	} else if strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy) {
+		return strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	}
+	return str
+}
+
+func HasTimeOptionPrefix(str string) bool {
+	return strings.HasPrefix(str, core.TimeOptionPrefix) ||
+		strings.HasPrefix(str, core.TimeOptionShortPrefix) ||
+		strings.HasPrefix(str, core.TimeOptionPrefixLegacy) ||
+		strings.HasPrefix(str, core.TimeOptionShortPrefixLegacy)
+}
+
+func IsEmptyTimeOption(str string) bool {
+	return str == core.TimeOptionPrefix ||
+		str == core.TimeOptionShortPrefix ||
+		str == core.TimeOptionPrefixLegacy ||
+		str == core.TimeOptionShortPrefixLegacy
+}
+
+func TrimTimeOptionPrefix(str string) string {
+	if strings.HasPrefix(str, core.TimeOptionPrefix) {
+		return strings.TrimPrefix(str, core.TimeOptionPrefix)
+	} else if strings.HasPrefix(str, core.TimeOptionShortPrefix) {
+		return strings.TrimPrefix(str, core.TimeOptionShortPrefix)
+	} else if strings.HasPrefix(str, core.TimeOptionPrefixLegacy) {
+		return strings.TrimPrefix(str, core.TimeOptionPrefixLegacy)
+	} else if strings.HasPrefix(str, core.TimeOptionShortPrefixLegacy) {
+		return strings.TrimPrefix(str, core.TimeOptionShortPrefixLegacy)
+	}
+	return str
+}
+
+func GetSeatByUserId(seats []myfirestore.SeatDoc, userId string) (myfirestore.SeatDoc, error) {
+	for _, seat := range seats {
+		if seat.UserId == userId {
+			return seat, nil
+		}
+	}
+	return myfirestore.SeatDoc{}, errors.New("no seat found with user id = " + userId)
+}
+
+func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (string, error) {
+	creds, err := transport.Creds(ctx, clientOption)
+	if err != nil {
+		return "", err
+	}
+	return creds.ProjectID, nil
+}
+
+func containsInt(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func ContainsString(s []string, e string) bool {
+	contains, _ := ContainsStringWithFoundIndex(s, e)
+	return contains
+}
+
+func ContainsStringWithFoundIndex(s []string, e string) (bool, int) {
+	for i, a := range s {
+		if a == e {
+			return true, i
+		}
+	}
+	return false, 0
+}
+
+func ContainsRegexWithFoundIndex(s []string, e string) (bool, int, error) {
+	for i, a := range s {
+		r, err := regexp.Compile(a)
+		if err != nil {
+			return false, 0, err
+		}
+		if r.MatchString(e) {
+			return true, i, nil
+		}
+	}
+	return false, 0, nil
+}
+
+func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
+	jstNow := JstNow()
+	var duration time.Duration
+	switch seat.State {
+	case myfirestore.WorkState:
+		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
+	case myfirestore.BreakState:
+		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
+	default:
+		return 0, errors.New("unknown seat.State: " + string(seat.State))
+	}
+	return duration, nil
+}
+
+func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
+	jstNow := JstNow()
+	var duration time.Duration
+	// 今のstateになってから日付が変っている可能性
+	if DateEqualJST(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
+		switch seat.State {
+		case myfirestore.WorkState:
+			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
+		case myfirestore.BreakState:
+			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
+		default:
+			return 0, errors.New("unknown seat.State: " + string(seat.State))
+		}
+	} else { // 日付変わってる
+		switch seat.State {
+		case myfirestore.WorkState:
+			duration = time.Duration(SecondsOfDay(jstNow)) * time.Second
+		case myfirestore.BreakState:
+			duration = time.Duration(0)
+		}
+	}
+	return duration, nil
+}
+
+func SortUserActivityByTakenAtAscending(docs []myfirestore.UserActivityDoc) {
+	sort.Slice(docs, func(i, j int) bool { return docs[i].TakenAt.Before(docs[j].TakenAt) })
+}
+
+// CheckEnterExitActivityOrder 入室と退室が交互に並んでいるか確認する。
+func CheckEnterExitActivityOrder(activityDocs []myfirestore.UserActivityDoc) bool {
+	var lastActivityType myfirestore.UserActivityType
+	for i, activity := range activityDocs {
+		if i == 0 {
+			lastActivityType = activity.ActivityType
+			continue
+		}
+		if activity.ActivityType == lastActivityType {
+			return false
+		}
+		lastActivityType = activity.ActivityType
+	}
+	return true
 }
