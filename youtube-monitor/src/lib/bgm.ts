@@ -4141,7 +4141,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'Tabula Rasa',
         artist: 'Purrple Cat',
-        file: '/audio/lofigirl/Dove',
+        file: '/audio/lofigirl/Distant Worlds/11 - Tabula Rasa.mp3',
         forPart: AllPartType,
     },
     // "Angelic",
@@ -7237,8 +7237,8 @@ export const LofiGirlBgmTable: Bgm[] = [
     },
     {
         title: 'How We Feel',
-        artist: '/audio/lofigirl/Mirror of Time/8 How We Feel.mp3',
-        file: 'xxxxxxxxxxxx',
+        artist: 'Yasumu',
+        file: '/audio/lofigirl/Mirror of Time/8 How We Feel.mp3',
         forPart: AllPartType,
     },
     {
@@ -8090,31 +8090,31 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'time for bed',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: 'xxxxxxxxxxxx', // TODO
         forPart: AllPartType,
     },
     {
         title: 'slept in',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 5) slept in.mp3',
         forPart: AllPartType,
     },
     {
         title: 'working late',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 2) night shift.mp3',
         forPart: AllPartType,
     },
     {
         title: 'early morning',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 1) morning.mp3',
         forPart: AllPartType,
     },
     {
         title: 'dreams',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 4) dreams.mp3',
         forPart: AllPartType,
     },
     // "Massa",
@@ -9222,7 +9222,7 @@ export const LofiGirlBgmTable: Bgm[] = [
         // ファイル名とタイトルが一致しない。
         title: 'Suntory Time',
         artist: 'Mondo Loops x WYS',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Mondo Loops - Forest Tales/6) Mondo Loops X WYS (mastered) .mp3',
         forPart: AllPartType,
     },
     {
@@ -10578,49 +10578,49 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'Horizon',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/1 Laffey x Softy - Horizon (Master V2).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Forest Friends',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/1 Laffey x Softy - Horizon (Master V2).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Willow',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/3 Laffey x Softy - Willow (Master V1).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Belonging',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/3 Laffey x Softy - Willow (Master V1).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Patience',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/4 Laffey x Softy - Belonging (Master V1).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Teardrops',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/6 Laffey x Softy - Teardrops (Master V2).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Beyond',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/6 Laffey x Softy - Teardrops (Master V2).mp3',
         forPart: AllPartType,
     },
     {
         title: 'Gentle',
         artist: 'Laffey x softy',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Laffey x Softy - Belonging/7 Laffey x Softy - Beyond (Master V2).mp3',
         forPart: AllPartType,
     },
     // "Ballerina",
