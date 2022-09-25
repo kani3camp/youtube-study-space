@@ -29,6 +29,7 @@ const testAllRooms: AllRoomsConfig = {
         Freepik1RoomLayout,
         Freepik2RoomLayout,
         Freepik3RoomLayout,
+        Freepik4Layout,
     ],
 }
 
