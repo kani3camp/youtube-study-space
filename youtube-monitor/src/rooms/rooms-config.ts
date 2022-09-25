@@ -6,6 +6,7 @@ import { classRoomLayout } from './layouts/classroom'
 import { Freepik1RoomLayout } from './layouts/freepik1_room'
 import { Freepik2RoomLayout } from './layouts/freepik2_room'
 import { Freepik3RoomLayout } from './layouts/freepik3_room'
+import { Freepik4Layout } from './layouts/freepik4_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
@@ -31,6 +32,7 @@ const testAllRooms: AllRoomsConfig = {
         Freepik3RoomLayout,
         Chabio1Layout,
         Chabio2Layout,
+        Freepik4Layout,
     ],
     temporaryRooms: [
         Freepik1RoomLayout,
