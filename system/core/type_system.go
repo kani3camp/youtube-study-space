@@ -3,7 +3,6 @@ package core
 import (
 	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
-	"app.modules/core/mylinebot"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
 )
@@ -12,8 +11,8 @@ type System struct {
 	Configs             *SystemConfigs
 	FirestoreController *myfirestore.FirestoreController
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
-	lineBot             *mylinebot.LineBot
-	discordBot          *discordbot.DiscordBot
+	discordOwnerBot     *discordbot.DiscordBot
+	discordSharedBot    *discordbot.DiscordBot
 	
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string

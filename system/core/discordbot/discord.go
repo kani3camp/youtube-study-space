@@ -31,3 +31,8 @@ func (bot *DiscordBot) SendMessage(message string) error {
 	}
 	return nil
 }
+
+func (bot *DiscordBot) SendMessageWithError(message string, err error) error {
+	message += ":\n" + err.Error()
+	return bot.SendMessage(message)
+}

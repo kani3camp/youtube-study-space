@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"app.modules/core"
 	"app.modules/core/myfirestore"
 	"context"
 	"fmt"
@@ -133,48 +132,48 @@ func DivideStringEqually(batchSize int, values []string) [][]string {
 }
 
 func HasWorkNameOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, core.WorkNameOptionPrefix) ||
-		strings.HasPrefix(str, core.WorkNameOptionShortPrefix) ||
-		strings.HasPrefix(str, core.WorkNameOptionPrefixLegacy) ||
-		strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	return strings.HasPrefix(str, WorkNameOptionPrefix) ||
+		strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
+		strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
+		strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)
 }
 
 func TrimWorkNameOptionPrefix(str string) string {
-	if strings.HasPrefix(str, core.WorkNameOptionPrefix) {
-		return strings.TrimPrefix(str, core.WorkNameOptionPrefix)
-	} else if strings.HasPrefix(str, core.WorkNameOptionShortPrefix) {
-		return strings.TrimPrefix(str, core.WorkNameOptionShortPrefix)
-	} else if strings.HasPrefix(str, core.WorkNameOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, core.WorkNameOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, core.WorkNameOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, core.WorkNameOptionShortPrefixLegacy)
+	if strings.HasPrefix(str, WorkNameOptionPrefix) {
+		return strings.TrimPrefix(str, WorkNameOptionPrefix)
+	} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) {
+		return strings.TrimPrefix(str, WorkNameOptionShortPrefix)
+	} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) {
+		return strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
+	} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
+		return strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
 	}
 	return str
 }
 
 func HasTimeOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, core.TimeOptionPrefix) ||
-		strings.HasPrefix(str, core.TimeOptionShortPrefix) ||
-		strings.HasPrefix(str, core.TimeOptionPrefixLegacy) ||
-		strings.HasPrefix(str, core.TimeOptionShortPrefixLegacy)
+	return strings.HasPrefix(str, TimeOptionPrefix) ||
+		strings.HasPrefix(str, TimeOptionShortPrefix) ||
+		strings.HasPrefix(str, TimeOptionPrefixLegacy) ||
+		strings.HasPrefix(str, TimeOptionShortPrefixLegacy)
 }
 
 func IsEmptyTimeOption(str string) bool {
-	return str == core.TimeOptionPrefix ||
-		str == core.TimeOptionShortPrefix ||
-		str == core.TimeOptionPrefixLegacy ||
-		str == core.TimeOptionShortPrefixLegacy
+	return str == TimeOptionPrefix ||
+		str == TimeOptionShortPrefix ||
+		str == TimeOptionPrefixLegacy ||
+		str == TimeOptionShortPrefixLegacy
 }
 
 func TrimTimeOptionPrefix(str string) string {
-	if strings.HasPrefix(str, core.TimeOptionPrefix) {
-		return strings.TrimPrefix(str, core.TimeOptionPrefix)
-	} else if strings.HasPrefix(str, core.TimeOptionShortPrefix) {
-		return strings.TrimPrefix(str, core.TimeOptionShortPrefix)
-	} else if strings.HasPrefix(str, core.TimeOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, core.TimeOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, core.TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, core.TimeOptionShortPrefixLegacy)
+	if strings.HasPrefix(str, TimeOptionPrefix) {
+		return strings.TrimPrefix(str, TimeOptionPrefix)
+	} else if strings.HasPrefix(str, TimeOptionShortPrefix) {
+		return strings.TrimPrefix(str, TimeOptionShortPrefix)
+	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
+		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
+	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
+		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
 	}
 	return str
 }

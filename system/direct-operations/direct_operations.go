@@ -30,7 +30,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 	
-	sys.MessageToLineBot("direct op: ExitAllUsersInRoom")
+	sys.MessageToOwner("direct op: ExitAllUsersInRoom")
 	
 	log.Println("全ユーザーを退室させます。")
 	err = sys.ExitAllUsersInRoom(ctx)
@@ -48,7 +48,7 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 		return
 	}
 	
-	sys.MessageToLineBot("direct op: ExitSpecificUser")
+	sys.MessageToOwner("direct op: ExitSpecificUser")
 	
 	sys.SetProcessedUser(userId, "**", false, false)
 	outCommandDetails := core.CommandDetails{
@@ -69,7 +69,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 		return
 	}
 	
-	sys.MessageToLineBot("direct op: ExportUsersCollectionJson")
+	sys.MessageToOwner("direct op: ExportUsersCollectionJson")
 	
 	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
 	err = sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -107,7 +107,7 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 	
-	sys.MessageToLineBot("direct op: UpdateUsersRP")
+	sys.MessageToOwner("direct op: UpdateUsersRP")
 	
 	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
 	if err != nil {

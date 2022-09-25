@@ -10,58 +10,58 @@ import (
 
 // ParseCommand コマンドを解析
 func ParseCommand(commandString string) (CommandDetails, customerror.CustomError) {
-	commandString = strings.Replace(commandString, FullWidthSpace, HalfWidthSpace, -1)
-	commandString = strings.Replace(commandString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	commandString = strings.Replace(commandString, utils.FullWidthSpace, utils.HalfWidthSpace, -1)
+	commandString = strings.Replace(commandString, utils.FullWidthEqualSign, utils.HalfWidthEqualSign, -1)
 	
-	if strings.HasPrefix(commandString, CommandPrefix) {
-		slice := strings.Split(commandString, HalfWidthSpace)
+	if strings.HasPrefix(commandString, utils.CommandPrefix) {
+		slice := strings.Split(commandString, utils.HalfWidthSpace)
 		switch slice[0] {
-		case InCommand:
+		case utils.InCommand:
 			return ParseIn(commandString)
-		case OutCommand:
+		case utils.OutCommand:
 			return CommandDetails{
 				CommandType: Out,
 			}, customerror.NewNil()
-		case InfoCommand:
+		case utils.InfoCommand:
 			return ParseInfo(commandString)
-		case MyCommand:
+		case utils.MyCommand:
 			return ParseMy(commandString)
-		case ChangeCommand:
+		case utils.ChangeCommand:
 			return ParseChange(commandString)
-		case SeatCommand:
+		case utils.SeatCommand:
 			return ParseSeat(commandString)
-		case ReportCommand:
+		case utils.ReportCommand:
 			return ParseReport(commandString)
-		case KickCommand:
+		case utils.KickCommand:
 			return ParseKick(commandString)
-		case CheckCommand:
+		case utils.CheckCommand:
 			return ParseCheck(commandString)
-		case BlockCommand:
+		case utils.BlockCommand:
 			return ParseBlock(commandString)
 		
-		case OkawariCommand:
+		case utils.OkawariCommand:
 			fallthrough
-		case MoreCommand:
+		case utils.MoreCommand:
 			return ParseMore(commandString)
 		
-		case RestCommand:
+		case utils.RestCommand:
 			fallthrough
-		case ChillCommand:
+		case utils.ChillCommand:
 			fallthrough
-		case BreakCommand:
+		case utils.BreakCommand:
 			return ParseBreak(commandString)
 		
-		case ResumeCommand:
+		case utils.ResumeCommand:
 			return ParseResume(commandString)
-		case RankCommand:
+		case utils.RankCommand:
 			return CommandDetails{
 				CommandType: Rank,
 			}, customerror.NewNil()
-		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
+		case utils.CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:isolated-!"))
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
+			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], utils.CommandPrefix))
 			if err == nil {
 				return ParseSeatIn(num, commandString)
 			}
@@ -71,7 +71,7 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 				CommandType: InvalidCommand,
 			}, customerror.NewNil()
 		}
-	} else if strings.HasPrefix(commandString, WrongCommandPrefix) {
+	} else if strings.HasPrefix(commandString, utils.WrongCommandPrefix) {
 		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-!"))
 	}
 	return CommandDetails{
@@ -80,7 +80,7 @@ func ParseCommand(commandString string) (CommandDetails, customerror.CustomError
 }
 
 func ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 追加オプションチェック
 	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
@@ -98,7 +98,7 @@ func ParseIn(commandString string) (CommandDetails, customerror.CustomError) {
 }
 
 func ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 追加オプションチェック
 	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
@@ -117,11 +117,11 @@ func ParseSeatIn(seatNum int, commandString string) (CommandDetails, customerror
 }
 
 func ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	showDetails := false
 	if len(slice) >= 2 {
-		if slice[1] == ShowDetailsOption {
+		if slice[1] == utils.ShowDetailsOption {
 			showDetails = true
 		}
 	}
@@ -135,7 +135,7 @@ func ParseInfo(commandString string) (CommandDetails, customerror.CustomError) {
 }
 
 func ParseMy(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	options, err := ParseMyOptions(slice[1:])
 	if err.IsNotNil() {
@@ -156,15 +156,15 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 	options := make([]MyOption, 0)
 	
 	for _, str := range commandSlice {
-		if strings.HasPrefix(str, RankVisibleMyOptionPrefix) && !isRankVisibleSet {
+		if strings.HasPrefix(str, utils.RankVisibleMyOptionPrefix) && !isRankVisibleSet {
 			var rankVisible bool
-			rankVisibleStr := strings.TrimPrefix(str, RankVisibleMyOptionPrefix)
-			if rankVisibleStr == RankVisibleMyOptionOn {
+			rankVisibleStr := strings.TrimPrefix(str, utils.RankVisibleMyOptionPrefix)
+			if rankVisibleStr == utils.RankVisibleMyOptionOn {
 				rankVisible = true
-			} else if rankVisibleStr == RankVisibleMyOptionOff {
+			} else if rankVisibleStr == utils.RankVisibleMyOptionOff {
 				rankVisible = false
 			} else {
-				return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", RankVisibleMyOptionPrefix))
+				return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", utils.RankVisibleMyOptionPrefix))
 			}
 			options = append(options, MyOption{
 				Type:      RankVisible,
@@ -188,8 +188,8 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 				IntValue: durationMin,
 			})
 			isDefaultStudyMinSet = true
-		} else if strings.HasPrefix(str, FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
-			var paramStr = strings.TrimPrefix(str, FavoriteColorMyOptionPrefix)
+		} else if strings.HasPrefix(str, utils.FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
+			var paramStr = strings.TrimPrefix(str, utils.FavoriteColorMyOptionPrefix)
 			if paramStr == "" {
 				// 「color=」、つまり空欄の場合はリセット。システム内部では-1として扱う。
 				options = append(options, MyOption{
@@ -201,7 +201,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 				// 整数に変換できるか
 				num, err := strconv.Atoi(paramStr)
 				if err != nil {
-					return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-digit-option", FavoriteColorMyOptionPrefix))
+					return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-digit-option", utils.FavoriteColorMyOptionPrefix))
 				}
 				options = append(options, MyOption{
 					Type:     FavoriteColor,
@@ -215,7 +215,7 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 }
 
 func ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	var kickSeatId int
 	if len(slice) >= 2 {
@@ -237,7 +237,7 @@ func ParseKick(commandString string) (CommandDetails, customerror.CustomError) {
 }
 
 func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	var targetSeatId int
 	if len(slice) >= 2 {
@@ -259,7 +259,7 @@ func ParseCheck(commandString string) (CommandDetails, customerror.CustomError) 
 }
 
 func ParseBlock(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	var targetSeatId int
 	if len(slice) >= 2 {
@@ -281,11 +281,11 @@ func ParseBlock(commandString string) (CommandDetails, customerror.CustomError) 
 }
 
 func ParseReport(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	var reportMessage string
 	if len(slice) == 1 {
-		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-message", ReportCommand))
+		return CommandDetails{}, customerror.InvalidCommand.New(i18n.T("parse:missing-message", utils.ReportCommand))
 	} else { // len(slice) > 1
 		reportMessage = commandString
 	}
@@ -299,7 +299,7 @@ func ParseReport(commandString string) (CommandDetails, customerror.CustomError)
 }
 
 func ParseChange(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 追加オプションチェック
 	options, err := ParseMinutesAndWorkNameOptions(slice[1:])
@@ -314,11 +314,11 @@ func ParseChange(commandString string) (CommandDetails, customerror.CustomError)
 }
 
 func ParseSeat(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	showDetails := false
 	if len(slice) >= 2 {
-		if slice[1] == ShowDetailsOption {
+		if slice[1] == utils.ShowDetailsOption {
 			showDetails = true
 		}
 	}
@@ -332,7 +332,7 @@ func ParseSeat(commandString string) (CommandDetails, customerror.CustomError) {
 }
 
 func ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 延長時間
 	var durationMin int
@@ -355,7 +355,7 @@ func ParseMore(commandString string) (CommandDetails, customerror.CustomError) {
 }
 
 func ParseBreak(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 追加オプションチェック
 	options, cerr := ParseMinutesAndWorkNameOptions(slice[1:])
@@ -370,7 +370,7 @@ func ParseBreak(commandString string) (CommandDetails, customerror.CustomError) 
 }
 
 func ParseResume(commandString string) (CommandDetails, customerror.CustomError) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+	slice := strings.Split(commandString, utils.HalfWidthSpace)
 	
 	// 作業名
 	option := ParseWorkNameOption(slice[1:])
@@ -401,7 +401,7 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool) (int, custom
 		if utils.HasTimeOptionPrefix(str) {
 			num, err := strconv.Atoi(utils.TrimTimeOptionPrefix(str))
 			if err != nil {
-				return 0, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+				return 0, customerror.InvalidCommand.New(i18n.T("parse:check-option", utils.TimeOptionPrefix))
 			}
 			return num, customerror.NewNil()
 		} else if allowNonPrefix {
@@ -427,7 +427,7 @@ func ParseMinutesAndWorkNameOptions(commandSlice []string) (MinutesAndWorkNameOp
 		} else if (utils.HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
 			num, err := strconv.Atoi(utils.TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
-				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+				return MinutesAndWorkNameOption{}, customerror.InvalidCommand.New(i18n.T("parse:check-option", utils.TimeOptionPrefix))
 			}
 			options.DurationMin = num
 			options.IsDurationMinSet = true

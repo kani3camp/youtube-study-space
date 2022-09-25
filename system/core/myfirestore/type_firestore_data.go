@@ -60,14 +60,13 @@ type ConstantsConfigDoc struct {
 }
 
 type CredentialsConfigDoc struct {
-	// ラインBotのアクセス情報
-	LineBotChannelSecret     string `firestore:"line-bot-channel-secret"`
-	LineBotChannelToken      string `firestore:"line-bot-channel-token"`
-	LineBotDestinationLineId string `firestore:"line-bot-destination-line-id"`
+	// Discord Bot for owner credential
+	DiscordOwnerBotToken         string `firestore:"discord-owner-bot-token"`
+	DiscordOwnerBotTextChannelId string `firestore:"discord-owner-bot-text-channel-id"`
 	
-	// Discord Botのアクセス情報
-	DiscordBotToken         string `firestore:"discord-bot-token"`
-	DiscordBotTextChannelId string `firestore:"discord-bot-text-channel-id"`
+	// Discord Bot for share credential
+	DiscordSharedBotToken         string `firestore:"discord-shared-bot-token"`
+	DiscordSharedBotTextChannelId string `firestore:"discord-shared-bot-text-channel-id"`
 	
 	// Bot用youtubeチャンネルのAPIアクセス情報
 	YoutubeBotAccessToken    string    `firestore:"youtube-bot-access-token"`

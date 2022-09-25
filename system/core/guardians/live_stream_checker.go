@@ -1,8 +1,8 @@
 package guardians
 
 import (
+	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
-	"app.modules/core/mylinebot"
 	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
@@ -20,19 +20,19 @@ type LiveStreamsListResponse struct {
 
 type LiveStreamChecker struct {
 	YoutubeLiveChatBot  *youtubebot.YoutubeLiveChatBot
-	LineBot             *mylinebot.LineBot
+	OwnerDiscordBot     *discordbot.DiscordBot
 	FirestoreController *myfirestore.FirestoreController
 }
 
 func NewLiveStreamChecker(
 	controller *myfirestore.FirestoreController,
 	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
-	lineBot *mylinebot.LineBot,
+	discordBot *discordbot.DiscordBot,
 ) *LiveStreamChecker {
-
+	
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
-		LineBot:             lineBot,
+		OwnerDiscordBot:     discordBot,
 		FirestoreController: controller,
 	}
 }
@@ -68,19 +68,19 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
 	//fmt.Printf("%# v\n", pretty.Formatter(liveStreamListResponse))
-
+	
 	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
 	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status
-
+	
 	fmt.Println(streamStatus)
 	fmt.Println(healthStatus)
-
+	
 	if streamStatus != "active" {
-		_ = checker.LineBot.SendMessage("stream status is now : " + streamStatus)
+		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
-		_ = checker.LineBot.SendMessage("stream HEALTH status is now : " + healthStatus)
+		_ = checker.OwnerDiscordBot.SendMessage("stream HEALTH status is now : " + healthStatus)
 	}
-
+	
 	return nil
 }

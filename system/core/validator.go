@@ -4,6 +4,7 @@ import (
 	"app.modules/core/customerror"
 	"app.modules/core/i18n"
 	"app.modules/core/myfirestore"
+	"app.modules/core/utils"
 )
 
 func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError {
@@ -110,7 +111,7 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			// 空欄「color=」、つまりリセットの場合は-1として扱う。
 			expect := option.IntValue == -1 || 0 <= option.IntValue
 			if !expect {
-				return customerror.InvalidParsedCommand.New(i18n.T("validate:invalid-favorite-color-option", FavoriteColorMyOptionPrefix))
+				return customerror.InvalidParsedCommand.New(i18n.T("validate:invalid-favorite-color-option", utils.FavoriteColorMyOptionPrefix))
 			}
 			isFavoriteColorSet = true
 		default:
@@ -176,7 +177,7 @@ func (s *System) ValidateReport(command CommandDetails) customerror.CustomError 
 	
 	// 空欄でないか
 	if command.ReportOption.Message == "" {
-		return customerror.InvalidCommand.New(i18n.T("validate:parse:missing-message", ReportCommand))
+		return customerror.InvalidCommand.New(i18n.T("validate:parse:missing-message", utils.ReportCommand))
 	}
 	
 	return customerror.NewNil()

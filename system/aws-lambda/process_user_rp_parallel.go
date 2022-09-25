@@ -35,17 +35,17 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
 	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptionTimeLimitSeconds)
 	if err != nil {
-		sys.MessageToLineBotWithError("failed to UpdateUserRPBatch", err)
+		sys.MessageToOwnerWithError("failed to UpdateUserRPBatch", err)
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
 	
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
-		sys.MessageToLineBot(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
+		sys.MessageToOwner(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
 		
 		sess, err := session.NewSession()
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to session.NewSession()", err)
+			sys.MessageToOwnerWithError("failed to session.NewSession()", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
@@ -55,7 +55,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to json.Marshal(payload)", err)
+			sys.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -65,12 +65,12 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		log.Println(resp)
 	} else {
-		sys.MessageToLineBot("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
+		sys.MessageToOwner("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
 	}
 	
 	return ProcessUserRPParallelResponse(), nil

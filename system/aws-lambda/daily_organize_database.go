@@ -35,19 +35,19 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 	
 	userIdsToProcess, err := sys.DailyOrganizeDB(ctx)
 	if err != nil {
-		sys.MessageToLineBotWithError("failed to DailyOrganizeDB", err)
+		sys.MessageToOwnerWithError("failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	
 	sess, err := session.NewSession()
 	if err != nil {
-		sys.MessageToLineBotWithError("failed to lambda2.New(session.NewSession())", err)
+		sys.MessageToOwnerWithError("failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponseStruct{}, err
 	}
 	svc := lambda2.New(sess)
 	
 	allBatch := utils.DivideStringEqually(sys.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
-	sys.MessageToLineBot(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
+	sys.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		log.Println("batch No. " + strconv.Itoa(i+1))
 		log.Println(batch)
@@ -57,7 +57,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to json.Marshal(payload)", err)
+			sys.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
 			return DailyOrganizeDatabaseResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -67,7 +67,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			sys.MessageToLineBotWithError("failed to svc.Invoke(&input)", err)
+			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponseStruct{}, err
 		}
 		log.Println(resp)
