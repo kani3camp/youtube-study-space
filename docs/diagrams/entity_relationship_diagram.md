@@ -14,5 +14,5 @@ erDiagram
         string userId
     }
     
-    USER ||--|| SEAT
+    USER ||--|| SEAT: ""
 ```
