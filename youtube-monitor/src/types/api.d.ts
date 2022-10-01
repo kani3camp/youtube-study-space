@@ -20,14 +20,6 @@ export type Seat = {
     daily_cumulative_work_sec: number
 }
 
-export type RoomsStateResponse = {
-    result: string
-    message: string
-    seats: Seat[]
-    max_seats: number
-    min_vacancy_rate: number
-}
-
 export type SetDesiredMaxSeatsResponse = {
     result: string
     message: string

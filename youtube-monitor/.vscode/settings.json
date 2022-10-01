@@ -8,7 +8,9 @@
     "editor.tabSize": 4,
     "typescript.suggest.autoImports": true,
     "cSpell.words": [
+        "appspot",
         "chabio",
+        "firebaseapp",
         "firestore",
         "freepick",
         "freepik",
