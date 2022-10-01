@@ -25,6 +25,10 @@ const Seats: FC = () => {
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 
     useEffect(() => {
+        if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
+            alert('Environment variable NEXT_PUBLIC_API_KEY is not defined')
+        }
+
         fetchAndUpdateRoomLayouts()
     }, [])
 
