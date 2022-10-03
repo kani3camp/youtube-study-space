@@ -218,7 +218,7 @@ const Seats: FC = () => {
         ) {
             return
         }
-        console.log(reviewMaxSeats.name)
+        console.log('reviewing max seats.')
 
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
         let finalDesiredMaxSeats: number
