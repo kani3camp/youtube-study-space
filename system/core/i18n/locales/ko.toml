@@ -10,12 +10,12 @@
 "error" = "{0}님 오류가 발생하였습니다. 다시 시도해 주세요" # 0: Username
 "rp-earned" = "（{0} RP）" # 0: Earned
 "not-enter" = "{0}님, 아직 입장하지 않으셨습니다. 「{1}」로 입실해주세요!" # 0: Username, 1: InCommand
-"enter-only" = "{0}씨, 입실중에만 사용할 수 있는 커맨드입니다" # 0: Username  # TODO check
-"permission" = "{0}님은 '{1}' 명령을 사용할 수 없습니다." # 0: Username. 1: Command  # TODO check
+"enter-only" = "{0}씨, 입실중에만 사용할 수 있는 커맨드입니다" # 0: Username
+"permission" = "{0}님은 '{1}' 명령을 사용할 수 없습니다." # 0: Username. 1: Command
 "exit"= "{0}님이 퇴실하셨습니다🚶🚪 (+ {1}분, {2}번석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "{0}님, 해당 번호의 좌석은 아무도 사용하지 않습니다." # 0: UserName # TODO check
-"sent" = "{0}님이 정보를 보냈습니다." # 0: UserName    # TODO check
-"rank" = "{0} 님의 순위 표시를 {1}로 설정했습니다." # 0: UserName, 1: Value # TODO check
+"unused" = "{0}님, 해당 번호의 좌석은 아무도 사용하지 않습니다." # 0: UserName
+"sent" = "{0}님이 정보를 보냈습니다." # 0: UserName
+"rank" = "{0} 님의 순위 표시를 {1}로 설정했습니다." # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
@@ -46,7 +46,7 @@
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
 "base" = "{0}님은 {1}번 자리에서 {2} 입니다. 현재 {3}분 입실중이며, 작업시간은 {4}분, 자동퇴실까지는 {5}분 남았습니다。{6}"
 # 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
-"details" = "지난 {0}분 이내에 {1}번 좌석에 총 {2}분 좌석🪑"   # TODO check
+"details" = "지난 {0}분 이내에 {1}번 좌석에 총 {2}분 좌석🪑"
 
 [command-report]
 "no-message" = "{0}님, 띄어쓰기 후 메시지를 써주세요" # 0: Username
@@ -60,7 +60,7 @@
 "kick" = "{0}님, {1}번석의 {2}님을 퇴실시킵니다." # 0: Username, 1: SeatId, 2: seat user
 
 [command-block]
-"block" = "{0}님, {1}번석의 {2}님을 차단합니다."  # 0: UserName, 1: seatId, 2: TargetUserName  # TODO check
+"block" = "{0}님, {1}번석의 {2}님을 차단합니다."  # 0: UserName, 1: seatId, 2: TargetUserName
 
 [command-my]
 "already-rank" = "랭크 표시 모드가 이미 {0} 입니다." # 0: Status
