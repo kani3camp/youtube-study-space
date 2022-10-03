@@ -1,3 +1,4 @@
+import { debug } from '../lib/constants'
 import { RoomLayout } from '../types/room-layout'
 import { Anonymous1Layout } from './layouts/anonymous1'
 import { Chabio1Layout } from './layouts/chabio1_room'
@@ -55,7 +56,7 @@ const testAllRooms: AllRoomsConfig = {
     ],
 }
 
-export const allRooms: AllRoomsConfig = prodAllRooms
+export const allRooms: AllRoomsConfig = debug ? testAllRooms : prodAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0

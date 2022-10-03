@@ -5,3 +5,5 @@ export const Constants = {
     chime1FilePath: '/chime/chime1.mp3',
     chime2FilePath: '/chime/chime2.mp3',
 }
+
+export const debug = false
