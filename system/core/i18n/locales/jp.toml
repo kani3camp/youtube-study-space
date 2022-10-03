@@ -113,7 +113,7 @@
 [validate]
 "invalid-work-time-range" = "作業時間（分）は{0}～{1}の値にしてください。" # 0: minMin, 1: maxMin
 "negative-seat-id" = "座席番号は0以上の値にしてください。"
-"invalid-favorite-color-option" = "{0}の値は設定したい色になる累計時間（0以上）を指定してください。リセットする場合は空欄にしてください。" # 0: favoriteColorOptionPrefix
+"invalid-favorite-color-option" = "{0}の値は設定したい色の名前を指定してください。リセットする場合は空欄にしてください。設定できる色の名前は https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f をご覧ください。" # 0: favoriteColorOptionPrefix
 "non-one-or-more-seat-id" = "席番号は1以上にしてください。"
 "missing-option" = "オプションを指定してください"
 "invalid-break-time-range" = "休憩時間（分）は{0}〜{1}の値にしてください。"    # 0: minMin, 1: maxMin

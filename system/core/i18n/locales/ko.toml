@@ -113,7 +113,7 @@
 [validate]
 "invalid-work-time-range" = "작업 시간(분)은 {0}~{1}의 값이어야 합니다." # 0: minMin, 1: maxMin
 "negative-seat-id" = "좌석 번호는 0 이상의 값이어야 합니다."
-"invalid-favorite-color-option" = "{0}의 값은 설정하고 싶은 색이 되는 누계 시간(0 이상)을 지정해 주세요. 리셋하는 경우는 빈칸으로 해주세요." # 0: favoriteColorOptionPrefix
+"invalid-favorite-color-option" = "{0}의 값은 설정할 색상의 이름을 지정합니다. 리셋하는 경우는 공란으로 해 주세요. 설정할 수 있는 색상의 이름은 https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f 를 참조하십시오." # 0: favoriteColorOptionPrefix
 "non-one-or-more-seat-id" = "좌석 번호는 1 이상이어야 합니다."
 "missing-option" = "옵션을 지정하세요."
 "invalid-break-time-range" = "휴식 시간(분)은 {0}~{1}의 값이어야 합니다."    # 0: minMin, 1: maxMin

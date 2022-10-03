@@ -190,25 +190,11 @@ func ParseMyOptions(commandSlice []string) ([]MyOption, customerror.CustomError)
 			isDefaultStudyMinSet = true
 		} else if strings.HasPrefix(str, utils.FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
 			var paramStr = strings.TrimPrefix(str, utils.FavoriteColorMyOptionPrefix)
-			if paramStr == "" {
-				// 「color=」、つまり空欄の場合はリセット。システム内部では-1として扱う。
-				options = append(options, MyOption{
-					Type:     FavoriteColor,
-					IntValue: -1,
-				})
-				isFavoriteColorSet = true
-			} else {
-				// 整数に変換できるか
-				num, err := strconv.Atoi(paramStr)
-				if err != nil {
-					return []MyOption{}, customerror.InvalidCommand.New(i18n.T("parse:non-half-width-digit-option", utils.FavoriteColorMyOptionPrefix))
-				}
-				options = append(options, MyOption{
-					Type:     FavoriteColor,
-					IntValue: num,
-				})
-				isFavoriteColorSet = true
-			}
+			options = append(options, MyOption{
+				Type:        FavoriteColor,
+				StringValue: paramStr,
+			})
+			isFavoriteColorSet = true
 		}
 	}
 	return options, customerror.NewNil()

@@ -1031,31 +1031,16 @@ func (s *System) My(command CommandDetails, ctx context.Context) error {
 					replyMessage += t("set-default-work", myOption.IntValue)
 				}
 			} else if myOption.Type == FavoriteColor {
-				// 値が-1はリセットのこと。
-				var colorCode string
-				if myOption.IntValue == -1 {
-					colorCode = ""
-					err = s.FirestoreController.UpdateUserFavoriteColor(tx, s.ProcessedUserId, colorCode)
-					if err != nil {
-						s.MessageToOwnerWithError("failed to UpdateUserFavoriteColor", err)
-						return err
-					}
-					replyMessage += t("reset-favorite-color")
-				} else {
-					colorCode, err = utils.TotalStudyHoursToColorCode(myOption.IntValue)
-					if err != nil {
-						s.MessageToOwnerWithError("failed to TotalStudyHoursToColorCode", err)
-						return err
-					}
-					err = s.FirestoreController.UpdateUserFavoriteColor(tx, s.ProcessedUserId, colorCode)
-					if err != nil {
-						s.MessageToOwnerWithError("failed to UpdateUserFavoriteColor", err)
-						return err
-					}
-					replyMessage += t("set-favorite-color")
-					if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
-						replyMessage += t("alert-favorite-color", utils.FavoriteColorAvailableThresholdHours)
-					}
+				// 値が""はリセットのこと。
+				colorCode := utils.ColorNameToColorCode(myOption.StringValue)
+				err = s.FirestoreController.UpdateUserFavoriteColor(tx, s.ProcessedUserId, colorCode)
+				if err != nil {
+					s.MessageToOwnerWithError("failed to UpdateUserFavoriteColor", err)
+					return err
+				}
+				replyMessage += t("set-favorite-color")
+				if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
+					replyMessage += t("alert-favorite-color", utils.FavoriteColorAvailableThresholdHours)
 				}
 				
 				// 入室中であれば、座席の色も変える

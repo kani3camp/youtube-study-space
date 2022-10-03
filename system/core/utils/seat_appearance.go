@@ -128,6 +128,50 @@ func TotalStudyHoursToColorCode(totalHours int) (string, error) {
 	}
 }
 
+func IsIncludedInColorNames(value string) bool {
+	return value == ColorName0To5 || value == ColorName5To10 || value == ColorName10To20 || value == ColorName20To30 ||
+		value == ColorName30To50 || value == ColorName50To70 || value == ColorName70To100 || value == ColorName100To150 ||
+		value == ColorName150To200 || value == ColorName200To300 || value == ColorName300To400 || value == ColorName400To500 ||
+		value == ColorName500To700 || value == ColorName700To1000 || value == ColorNameFrom1000
+}
+
+func ColorNameToColorCode(colorName string) string {
+	switch colorName {
+	case ColorName0To5:
+		return ColorHours0To5
+	case ColorName5To10:
+		return ColorHours5To10
+	case ColorName10To20:
+		return ColorHours10To20
+	case ColorName20To30:
+		return ColorHours20To30
+	case ColorName30To50:
+		return ColorHours30To50
+	case ColorName50To70:
+		return ColorHours50To70
+	case ColorName70To100:
+		return ColorHours70To100
+	case ColorName100To150:
+		return ColorHours100To150
+	case ColorName150To200:
+		return ColorHours150To200
+	case ColorName200To300:
+		return ColorHours200To300
+	case ColorName300To400:
+		return ColorHours300To400
+	case ColorName400To500:
+		return ColorHours400To500
+	case ColorName500To700:
+		return ColorHours500To700
+	case ColorName700To1000:
+		return ColorHours700To1000
+	case ColorNameFrom1000:
+		return ColorHoursFrom1000
+	default:
+		return ""
+	}
+}
+
 // ColorCodeToColorName 累計時間の分け方で使用されている色のみ対応。
 func ColorCodeToColorName(colorCode string) string {
 	switch colorCode {

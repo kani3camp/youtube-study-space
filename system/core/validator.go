@@ -108,8 +108,7 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 			if isFavoriteColorSet {
 				return customerror.InvalidParsedCommand.New("more than 2 FavoriteColor options.")
 			}
-			// 空欄「color=」、つまりリセットの場合は-1として扱う。
-			expect := option.IntValue == -1 || 0 <= option.IntValue
+			expect := utils.IsIncludedInColorNames(option.StringValue) || option.StringValue == ""
 			if !expect {
 				return customerror.InvalidParsedCommand.New(i18n.T("validate:invalid-favorite-color-option", utils.FavoriteColorMyOptionPrefix))
 			}
