@@ -1619,16 +1619,15 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 	
 	if len(vacantSeatIdList) > 0 {
 		// 入室制限にかからない席を選ぶ
-		// TODO このfor range意味不明。vacantSeatIdListをシャッフルすれば？
-		for range vacantSeatIdList {
-			rand.Seed(utils.JstNow().UnixNano())
-			selectedSeatId := vacantSeatIdList[rand.Intn(len(vacantSeatIdList))]
-			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, selectedSeatId)
+		rand.Seed(utils.JstNow().UnixNano())
+		rand.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
+		for _, seatId := range vacantSeatIdList {
+			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, seatId)
 			if err != nil {
 				return -1, customerror.Unknown.Wrap(err)
 			}
 			if !ifSittingTooMuch {
-				return selectedSeatId, customerror.NewNil()
+				return seatId, customerror.NewNil()
 			}
 		}
 	}
