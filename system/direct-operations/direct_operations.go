@@ -16,7 +16,7 @@ import (
 func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
 	var s string
-	if _, err := fmt.Scanf("%s", &s); err != nil {
+	if _, err := fmt.Scanln(&s); err != nil {
 		panic(err)
 		return
 	}
