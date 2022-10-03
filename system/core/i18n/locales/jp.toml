@@ -51,7 +51,7 @@
 [command-report]
 "no-message" = "{0}さん、スペースを空けてメッセージを書いてください。" # 0: Username
 # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
-"line" = "【{0}受信】\nチャンネルID: {1}\nチャンネル名: {2}\n\n{3}"
+"owner" = "【{0}受信】\nチャンネルID: {1}\nチャンネル名: {2}\n\n{3}"
 # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
 "discord" = "【{0}受信】\nチャンネル名: `{1}`\nメッセージ: `{2}`"
 "alert" = "{0}さん、管理者へメッセージを送信しました⚠" # 0: UserName

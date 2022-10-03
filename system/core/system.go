@@ -709,8 +709,8 @@ func (s *System) Report(command CommandDetails, ctx context.Context) error {
 		return nil
 	}
 	
-	lineMessage := t("line", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	s.MessageToOwner(lineMessage)
+	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
+	s.MessageToOwner(ownerMessage)
 	
 	discordMessage := t("discord", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
 	err := s.MessageToSharedDiscord(discordMessage)
@@ -747,7 +747,7 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		targetSeat, err := s.FirestoreController.ReadSeat(ctx, tx, targetSeatId)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = t("unused", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
 				return nil
 			}
 			s.MessageToOwnerWithError("failed to ReadSeat", err)
