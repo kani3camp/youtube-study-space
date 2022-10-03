@@ -55,7 +55,7 @@ const testAllRooms: AllRoomsConfig = {
     ],
 }
 
-export const allRooms: AllRoomsConfig = testAllRooms
+export const allRooms: AllRoomsConfig = prodAllRooms
 
 export const numSeatsInAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0
