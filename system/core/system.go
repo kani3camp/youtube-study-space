@@ -579,7 +579,7 @@ func (s *System) Out(_ CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		replyMessage = t("error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
 	return err
