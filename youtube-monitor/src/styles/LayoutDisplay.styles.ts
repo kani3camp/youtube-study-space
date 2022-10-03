@@ -20,6 +20,7 @@ export const seat = css`
     justify-content: center;
     align-items: center;
     transform-origin: top left;
+    font-family: ${Constants.seatFontFamily};
 `
 
 export const partition = css`
@@ -43,7 +44,7 @@ export const usedSeatNum = css``
 
 export const workName = css`
     margin: 0;
-    color: #28292d;
+    color: #24317e;
     max-width: 100%;
     text-overflow: ellipsis;
     overflow: hidden;
