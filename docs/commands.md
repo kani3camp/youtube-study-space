@@ -1,3 +1,3 @@
 - [ ] write Japanese version first.
 
-see commands-ja.md
+See commands-ja.md
