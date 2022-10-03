@@ -3694,7 +3694,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'Floating',
         artist: 'brillion. x Jazzinuf',
-        file: '/audio/lofigirl/Bedtime Stories Pt. 3/(11.) REPLACE brillion. x Odyssee - Down To Earth (Master).mp3',
+        file: '/audio/lofigirl/Bedtime Stories Pt. 3/(10.) brillion. x Jazzinuf - Floating (Master).mp3',
         forPart: AllPartType,
     },
     {
@@ -8946,7 +8946,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'i’m your fallen soldier',
         artist: 'Jhove x kokoro',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3 - Jhove - dream tapes/jhove x kokoro - im your fallen soldier.mp3',
         forPart: AllPartType,
     },
     {

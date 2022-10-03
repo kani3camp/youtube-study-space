@@ -3661,7 +3661,7 @@ export const LofiGirlBgmTable1: Bgm[] = [
     {
         title: 'Floating',
         artist: 'brillion. x Jazzinuf',
-        file: '/audio/lofigirl/Bedtime Stories Pt. 3/(11.) REPLACE brillion. x Odyssee - Down To Earth (Master).mp3',
+        file: '/audio/lofigirl/Bedtime Stories Pt. 3/(10.) brillion. x Jazzinuf - Floating (Master).mp3',
         forPart: AllPartType,
     },
     {
@@ -8057,7 +8057,7 @@ export const LofiGirlBgmTable1: Bgm[] = [
     {
         title: 'time for bed',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx',
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 3) time for bed.mp3',
         forPart: AllPartType,
     },
     {
@@ -9982,7 +9982,7 @@ export const LofiGirlBgmTable1: Bgm[] = [
     },
     {
         title: 'Winter Gardens',
-        artist: ' Midnight Alpha x Nothingtosay',
+        artist: 'Midnight Alpha x Nothingtosay',
         file: '/audio/lofigirl/MP3 - Compilation 7 - Soothing Breeze/09 Midnight Alpha - Winter Gardens (w Nothingtosay) (Kupla Master).mp3',
         forPart: AllPartType,
     },
