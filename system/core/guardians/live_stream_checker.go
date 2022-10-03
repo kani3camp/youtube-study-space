@@ -75,7 +75,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	fmt.Println(streamStatus)
 	fmt.Println(healthStatus)
 	
-	if streamStatus != "active" {
+	if streamStatus != "active" && streamStatus != "ready" {
 		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {

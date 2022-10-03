@@ -86,15 +86,18 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	
 	ssc, err := myspreadsheet.NewSpreadsheetController(ctx, clientOption, configs.Constants.BotConfigSpreadsheetId, "01", "02")
 	if err != nil {
-		return System{}, nil
+		log.Println("failed NewSpreadsheetController", err)
+		return System{}, err
 	}
 	blockRegexListForChannelName, blockRegexListForChatMessage, err := ssc.GetRegexForBlock()
 	if err != nil {
-		return System{}, nil
+		log.Println("failed GetRegexForBlock", err)
+		return System{}, err
 	}
 	notificationRegexListForChatMessage, notificationRegexListForChannelName, err := ssc.GetRegexForNotification()
 	if err != nil {
-		return System{}, nil
+		log.Println("failed GetRegexForNotification", err)
+		return System{}, err
 	}
 	
 	return System{

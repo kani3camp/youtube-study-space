@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"google.golang.org/api/iterator"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"log"
 	"math"
 	"os"
@@ -199,33 +196,12 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer sys.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	it := sys.FirestoreController.FirestoreClient.Collection("users").Snapshots(ctx)
-	for {
-		log.Println("for 1")
-		snap, err := it.Next()
-		// DeadlineExceeded will be returned when ctx is cancelled.
-		if status.Code(err) == codes.DeadlineExceeded {
-			return
-		}
-		if err != nil {
-			fmt.Errorf("Snapshots.Next: %v", err)
-			return
-		}
-		if snap != nil {
-			for {
-				doc, err := snap.Documents.Next()
-				if err == iterator.Done {
-					fmt.Println("done")
-					break
-				}
-				if err != nil {
-					fmt.Errorf("Documents.Next: %v", err)
-					return
-				}
-				fmt.Printf("update: %v, %v\n", doc.Ref.ID, doc.Data())
-			}
-		}
+	err = sys.CheckLiveStreamStatus(ctx)
+	if err != nil {
+		sys.MessageToOwnerWithError("failed to check live stream", err)
+		panic(err)
 	}
+	
 }
 
 func main() {
