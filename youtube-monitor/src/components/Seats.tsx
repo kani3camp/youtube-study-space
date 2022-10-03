@@ -61,11 +61,16 @@ const Seats: FC = () => {
     }, [currentPageIndex])
 
     const initFirestore = () => {
-        // TODO: check env variables
+        // check env variables
         if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
-            console.error('NEXT_PUBLIC_FIREBASE_PROJECT_ID undefined.')
+            alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID undefined.')
             return
         }
+        if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY === undefined) {
+            alert('NEXT_PUBLIC_FIREBASE_API_KEY undefined.')
+            return
+        }
+
         const firebaseConfig: FirebaseOptions = {
             apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
             authDomain: 'test--study-space.firebaseapp.com',
