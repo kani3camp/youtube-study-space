@@ -8090,7 +8090,7 @@ export const LofiGirlBgmTable: Bgm[] = [
     {
         title: 'time for bed',
         artist: 'goodnyght',
-        file: 'xxxxxxxxxxxx', // TODO
+        file: '/audio/lofigirl/MP3-Aso - Sleep Cycles EP/(track 3) time for bed.mp3',
         forPart: AllPartType,
     },
     {
