@@ -42,6 +42,7 @@ const Seats: FC = () => {
     }, [])
 
     useInterval(() => {
+        console.log('interval')
         if (usedLayouts.length > 0) {
             const newPageIndex = (currentPageIndex + 1) % usedLayouts.length
             setCurrentPageIndex(newPageIndex)
@@ -160,7 +161,6 @@ const Seats: FC = () => {
             querySnapshot.forEach((doc) => {
                 seats.push(doc.data())
             })
-            console.log('Current seats: ', seats)
             setLatestSeats(seats)
         })
 
