@@ -64,6 +64,12 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		return System{}, err
 	}
 	
+	// discord bot for share log
+	discordSharedLogBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelId)
+	if err != nil {
+		return System{}, err
+	}
+	
 	// core constant values
 	constantsConfig, err := fsController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
@@ -106,6 +112,7 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 		liveChatBot:                         liveChatBot,
 		discordOwnerBot:                     discordOwnerBot,
 		discordSharedBot:                    discordSharedBot,
+		discordSharedLogBot:                 discordSharedLogBot,
 		blockRegexListForChannelName:        blockRegexListForChannelName,
 		blockRegexListForChatMessage:        blockRegexListForChatMessage,
 		notificationRegexListForChatMessage: notificationRegexListForChatMessage,
@@ -171,7 +178,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err != nil {
 			return err
 		}
-		return s.MessageToSharedDiscord("発言から禁止ワードを検出、ユーザーをブロックしました。" +
+		return s.LogToSharedDiscord("発言から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexListForChatMessage[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -187,7 +194,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err != nil {
 			return err
 		}
-		return s.MessageToSharedDiscord("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
+		return s.LogToSharedDiscord("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexListForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -776,14 +783,14 @@ func (s *System) Kick(command CommandDetails, ctx context.Context) error {
 		}
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, targetSeat.SeatId, rpEarned)
 		
-		err = s.MessageToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+		err = s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
 			SeatId) + "番席のユーザーをkickしました。\n" +
 			"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
 			"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
 			"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
 		if err != nil {
-			s.MessageToOwnerWithError("failed MessageToSharedDiscord()", err)
+			s.MessageToOwnerWithError("failed LogToSharedDiscord()", err)
 			return err
 		}
 		return nil
@@ -834,9 +841,9 @@ func (s *System) Check(command CommandDetails, ctx context.Context) error {
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(int(untilMinutes)) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserId
-		err = s.MessageToSharedDiscord(message)
+		err = s.LogToSharedDiscord(message)
 		if err != nil {
-			s.MessageToOwnerWithError("failed MessageToSharedDiscord()", err)
+			s.MessageToOwnerWithError("failed LogToSharedDiscord()", err)
 			return err
 		}
 		replyMessage = i18n.T("command:sent", s.ProcessedUserDisplayName)
@@ -908,14 +915,14 @@ func (s *System) Block(command CommandDetails, ctx context.Context) error {
 			return err
 		}
 		
-		err = s.MessageToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+		err = s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
 			SeatId) + "番席のユーザーをblockしました。\n" +
 			"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
 			"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
 			"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
 		if err != nil {
-			s.MessageToOwnerWithError("failed MessageToSharedDiscord()", err)
+			s.MessageToOwnerWithError("failed LogToSharedDiscord()", err)
 			return err
 		}
 		return nil
@@ -1991,6 +1998,10 @@ func (s *System) MessageToOwnerWithError(message string, argErr error) {
 
 func (s *System) MessageToSharedDiscord(message string) error {
 	return s.discordSharedBot.SendMessage(message)
+}
+
+func (s *System) LogToSharedDiscord(logMessage string) error {
+	return s.discordSharedLogBot.SendMessage(logMessage)
 }
 
 // OrganizeDB 1分ごとに処理を行う。

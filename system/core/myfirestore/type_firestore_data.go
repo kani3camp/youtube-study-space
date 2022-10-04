@@ -64,6 +64,7 @@ type CredentialsConfigDoc struct {
 	// Discord Bot for share credential
 	DiscordSharedBotToken         string `firestore:"discord-shared-bot-token"`
 	DiscordSharedBotTextChannelId string `firestore:"discord-shared-bot-text-channel-id"`
+	DiscordSharedBotLogChannelId  string `firestore:"discord-shared-bot-log-channel-id"`
 	
 	// Bot用youtubeチャンネルのAPIアクセス情報
 	YoutubeBotAccessToken    string    `firestore:"youtube-bot-access-token"`

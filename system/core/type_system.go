@@ -13,6 +13,7 @@ type System struct {
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
 	discordOwnerBot     *discordbot.DiscordBot
 	discordSharedBot    *discordbot.DiscordBot
+	discordSharedLogBot *discordbot.DiscordBot
 	
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
