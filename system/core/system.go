@@ -1218,7 +1218,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 			if remainingUntilExitMin > s.Configs.Constants.MaxWorkTimeMin {
 				newUntil = jstNow.Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)
-				replyMessage += t("max", s.Configs.Constants.MaxWorkTimeMin)
+				replyMessage += t("max-work", s.Configs.Constants.MaxWorkTimeMin)
 			}
 			addedMin = int(utils.NoNegativeDuration(newUntil.Sub(currentSeat.Until)).Minutes())
 			newSeat.Until = newUntil
@@ -1230,7 +1230,7 @@ func (s *System) More(command CommandDetails, ctx context.Context) error {
 			// もし延長後の休憩時間が最大休憩時間を超えていたら、最大休憩時間まで延長
 			if int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt)).Minutes()) > s.Configs.Constants.MaxBreakDurationMin {
 				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(s.Configs.Constants.MaxBreakDurationMin) * time.Minute)
-				replyMessage += t("max", strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin))
+				replyMessage += t("max-break", strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin))
 			}
 			addedMin = int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateUntil)).Minutes())
 			newSeat.CurrentStateUntil = newBreakUntil
