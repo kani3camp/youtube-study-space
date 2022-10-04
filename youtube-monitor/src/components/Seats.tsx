@@ -30,7 +30,7 @@ const Seats: FC = () => {
     const [latestMaxSeats, setLatestMaxSeats] = useState<number>()
     const [latestMinVacancyRate, setLatestMinVacancyRate] = useState<number>()
     const [currentPageIndex, setCurrentPageIndex] = useState<number>(0)
-    const [usedLayouts, setUsedLayouts] = useState<RoomLayout[]>([])
+    const [activeLayouts, setActiveLayouts] = useState<RoomLayout[]>([])
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 
     useEffect(() => {
@@ -43,8 +43,8 @@ const Seats: FC = () => {
 
     useInterval(() => {
         console.log('interval')
-        if (usedLayouts.length > 0) {
-            const newPageIndex = (currentPageIndex + 1) % usedLayouts.length
+        if (activeLayouts.length > 0) {
+            const newPageIndex = (currentPageIndex + 1) % activeLayouts.length
             setCurrentPageIndex(newPageIndex)
 
             reviewMaxSeats()
@@ -53,7 +53,7 @@ const Seats: FC = () => {
 
     useEffect(() => {
         updatePageProps()
-    }, [latestSeats, usedLayouts])
+    }, [latestSeats, activeLayouts])
 
     useEffect(() => {
         reviewMaxSeats()
@@ -254,8 +254,9 @@ const Seats: FC = () => {
         if (finalDesiredMaxSeats !== snapshotMaxSeats) {
             console.log(
                 'リクエストを送る',
-                finalDesiredMaxSeats,
-                snapshotMaxSeats
+                snapshotMaxSeats,
+                ' => ',
+                finalDesiredMaxSeats
             )
             requestMaxSeatsUpdate(finalDesiredMaxSeats) // awaitはしない
         }
@@ -279,7 +280,7 @@ const Seats: FC = () => {
 
         // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
-        setUsedLayouts(nextDisplayLayouts)
+        setActiveLayouts(nextDisplayLayouts)
     }
 
     const requestMaxSeatsUpdate = async (desiredMaxSeats: number) => {
@@ -296,7 +297,7 @@ const Seats: FC = () => {
     const updatePageProps = () => {
         // 各項目のスナップショットをとる
         const snapshotPageProps = [...pageProps]
-        const snapshotUsedLayouts = [...usedLayouts]
+        const snapshotUsedLayouts = [...activeLayouts]
         const snapshotLatestSeats = [...latestSeats]
 
         if (snapshotUsedLayouts.length < currentPageIndex + 1) {
@@ -358,7 +359,7 @@ const Seats: FC = () => {
                     {layoutPages}
                     <Message
                         currentPageIndex={currentPageIndex}
-                        currentRoomsLength={usedLayouts.length}
+                        currentRoomsLength={activeLayouts.length}
                         seats={latestSeats}
                     ></Message>
                 </div>
