@@ -46,6 +46,8 @@ const Seats: FC = () => {
         if (usedLayouts.length > 0) {
             const newPageIndex = (currentPageIndex + 1) % usedLayouts.length
             setCurrentPageIndex(newPageIndex)
+
+            reviewMaxSeats()
         }
     }, PAGING_INTERVAL_MSEC)
 
@@ -170,6 +172,8 @@ const Seats: FC = () => {
                 const maxSeats = (doc.data() as Constants).max_seats
                 const minVacancyRate = (doc.data() as Constants)
                     .min_vacancy_rate
+                console.log('max seats: ', maxSeats)
+                console.log('min vacancy rate: ', minVacancyRate)
                 setLatestMaxSeats(maxSeats)
                 setLatestMinVacancyRate(minVacancyRate)
             }
