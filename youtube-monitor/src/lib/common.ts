@@ -17,5 +17,5 @@ export const useInterval = (
         return () => {
             clearInterval(id)
         }
-    })
+    }, [])
 }
