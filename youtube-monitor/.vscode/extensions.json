@@ -1,12 +1,13 @@
 {
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "ms-azuretools.vscode-docker",
-    "christian-kohler.npm-intellisense",
-    "esbenp.prettier-vscode",
-    "mechatroner.rainbow-csv",
-    "stylelint.vscode-stylelint",
-    "redhat.vscode-yaml",
-    "streetsidesoftware.code-spell-checker"
-  ]
+    "recommendations": [
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "christian-kohler.npm-intellisense",
+        "esbenp.prettier-vscode",
+        "mechatroner.rainbow-csv",
+        "stylelint.vscode-stylelint",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker",
+        "AntiAntiSepticeye.vscode-color-picker"
+    ]
 }
