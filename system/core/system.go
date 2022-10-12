@@ -2550,7 +2550,7 @@ func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube
 			AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
 			Id:                    chatMessage.Id,
 			LiveChatId:            chatMessage.Snippet.LiveChatId,
-			MessageText:           chatMessage.Snippet.TextMessageDetails.MessageText,
+			MessageText:           youtubebot.ExtractTextMessageByAuthor(chatMessage),
 			PublishedAt:           publishedAt,
 			Type:                  chatMessage.Snippet.Type,
 		}

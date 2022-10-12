@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
 	"log"
@@ -149,6 +150,11 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
+			// only if chatMessage is a normal text message
+			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
+				continue
+			}
+			
 			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
 				sys.MessageToOwnerWithError("(1回目) failed to add live chat history", err)
@@ -163,7 +169,12 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		
 		// コマンドを抜き出して各々処理
 		for _, chatMessage := range chatMessages {
-			message := chatMessage.Snippet.TextMessageDetails.MessageText
+			// only if chatMessage has text message content
+			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
+				continue
+			}
+			
+			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			err := sys.Command(ctx, message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner)
 			if err != nil {
