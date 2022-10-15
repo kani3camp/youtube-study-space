@@ -21,15 +21,15 @@ func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryRespo
 	if err != nil {
 		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
 	}
-	defer _system.CloseFirestoreClient()
+	defer sys.CloseFirestoreClient()
 	
-	err = _system.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
+	err = sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
-		_system.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
+		sys.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
 		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
 	}
 	
