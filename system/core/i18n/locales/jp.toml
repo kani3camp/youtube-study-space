@@ -69,7 +69,7 @@
 "set-default-work" = "デフォルトの作業時間を{0}分に設定しました。" # 0: Status
 "reset-favorite-color" = "お気に入りカラーをリセットしました。"
 "set-favorite-color" = "お気に入りカラーを更新しました。"
-"alert-favorite-color" = "（累計作業時間が{0}時間を超えるまでお気に入りカラーは使えません）" # 0: Hour
+"alert-favorite-color" = "（累計作業時間が{0}時間を超えるとお気に入りカラーが使えるようになります）" # 0: Hour
 
 [command-change]
 "update-work" = "作業内容を更新しました（{0}番席）。" # 0: Seat
