@@ -1,6 +1,6 @@
 import { css, keyframes } from '@emotion/react'
 import chroma from 'chroma-js'
-import { FC } from 'react'
+import { FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
 import { Seat } from '../types/api'
@@ -21,32 +21,35 @@ const SeatState = {
 const SeatsPage: FC<LayoutPageProps> = (props) => {
     const emptySeatColor = '#F3E8DC'
 
+    const propsMemo = useMemo(() => props, [props])
+
     const roomShape = {
         widthPx:
-            (1000 * props.roomLayout.room_shape.width) /
-            props.roomLayout.room_shape.height,
+            (1000 * propsMemo.roomLayout.room_shape.width) /
+            propsMemo.roomLayout.room_shape.height,
         heightPx: 1000,
     }
 
-    const seatFontSizePx = roomShape.widthPx * props.roomLayout.font_size_ratio
+    const seatFontSizePx =
+        roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
     const seatShape = {
         width:
-            (100 * props.roomLayout.seat_shape.width) /
-            props.roomLayout.room_shape.width,
+            (100 * propsMemo.roomLayout.seat_shape.width) /
+            propsMemo.roomLayout.room_shape.width,
         height:
-            (100 * props.roomLayout.seat_shape.height) /
-            props.roomLayout.room_shape.height,
+            (100 * propsMemo.roomLayout.seat_shape.height) /
+            propsMemo.roomLayout.room_shape.height,
     }
 
-    const seatPositions = props.roomLayout.seats.map((seat) => ({
-        x: (100 * seat.x) / props.roomLayout.room_shape.width,
-        y: (100 * seat.y) / props.roomLayout.room_shape.height,
+    const seatPositions = propsMemo.roomLayout.seats.map((seat) => ({
+        x: (100 * seat.x) / propsMemo.roomLayout.room_shape.width,
+        y: (100 * seat.y) / propsMemo.roomLayout.room_shape.height,
         rotate: seat.rotate,
     }))
 
-    const partitionShapes = props.roomLayout.partitions.map((partition) => {
-        const partitionShapes = props.roomLayout.partition_shapes
+    const partitionShapes = propsMemo.roomLayout.partitions.map((partition) => {
+        const partitionShapes = propsMemo.roomLayout.partition_shapes
         const shapeType = partition.shape_type
         let widthPercent
         let heightPercent
@@ -54,10 +57,10 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             if (partitionShapes[i].name === shapeType) {
                 widthPercent =
                     (100 * partitionShapes[i].width) /
-                    props.roomLayout.room_shape.width
+                    propsMemo.roomLayout.room_shape.width
                 heightPercent =
                     (100 * partitionShapes[i].height) /
-                    props.roomLayout.room_shape.height
+                    propsMemo.roomLayout.room_shape.height
             }
         }
         return {
@@ -76,16 +79,18 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         return targetSeat
     }
 
-    const partitionPositions = props.roomLayout.partitions.map((partition) => ({
-        x: (100 * partition.x) / props.roomLayout.room_shape.width,
-        y: (100 * partition.y) / props.roomLayout.room_shape.height,
-    }))
+    const partitionPositions = propsMemo.roomLayout.partitions.map(
+        (partition) => ({
+            x: (100 * partition.x) / propsMemo.roomLayout.room_shape.width,
+            y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
+        })
+    )
 
-    const seatList = props.roomLayout.seats.map((seat, index) => {
-        const usedSeatIds = props.usedSeats.map((seat) => seat.seat_id)
-        const globalSeatId = props.firstSeatId + index
+    const seatList = propsMemo.roomLayout.seats.map((seat, index) => {
+        const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
+        const globalSeatId = propsMemo.firstSeatId + index
         const isUsed = usedSeatIds.includes(globalSeatId)
-        const processingSeat = seatWithSeatId(globalSeatId, props.usedSeats)
+        const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
@@ -218,7 +223,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         )
     })
 
-    const partitionList = props.roomLayout.partitions.map(
+    const partitionList = propsMemo.roomLayout.partitions.map(
         (partition, index) => (
             <div
                 key={partition.id}
@@ -238,7 +243,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             <div
                 css={styles.roomLayout}
                 style={
-                    props.display
+                    propsMemo.display
                         ? {
                               display: 'block',
                               width: roomShape.widthPx,
@@ -249,9 +254,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                           }
                 }
             >
-                {props.roomLayout.floor_image && (
+                {propsMemo.roomLayout.floor_image && (
                     <img
-                        src={props.roomLayout.floor_image}
+                        src={propsMemo.roomLayout.floor_image}
                         width={roomShape.widthPx}
                         height={roomShape.heightPx}
                     />

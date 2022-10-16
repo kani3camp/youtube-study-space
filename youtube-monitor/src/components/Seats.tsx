@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import api from '../lib/api_config'
 import { useInterval } from '../lib/common'
 import fetcher from '../lib/fetcher'
@@ -202,15 +202,19 @@ const Seats: FC = () => {
         setPageProps(newPageProps)
     }
 
-    const layoutPages = pageProps.map((pageProp, index) => (
-        <SeatsPage
-            key={index}
-            firstSeatId={pageProp.firstSeatId}
-            roomLayout={pageProp.roomLayout}
-            usedSeats={pageProp.usedSeats}
-            display={pageProp.display}
-        ></SeatsPage>
-    ))
+    const layoutPagesMemo = useMemo(
+        () =>
+            pageProps.map((pageProp, index) => (
+                <SeatsPage
+                    key={index}
+                    firstSeatId={pageProp.firstSeatId}
+                    roomLayout={pageProp.roomLayout}
+                    usedSeats={pageProp.usedSeats}
+                    display={pageProp.display}
+                ></SeatsPage>
+            )),
+        [pageProps]
+    )
 
     const reviewMaxSeats = async () => {
         const snapshotMaxSeats = latestMaxSeats
@@ -352,16 +356,23 @@ const Seats: FC = () => {
         return count
     }
 
+    const messageMemo = useMemo(
+        () => (
+            <Message
+                currentPageIndex={currentPageIndex}
+                currentRoomsLength={activeLayouts.length}
+                seats={latestSeats}
+            ></Message>
+        ),
+        [currentPageIndex, activeLayouts, latestSeats]
+    )
+
     if (pageProps.length > 0) {
         return (
             <>
                 <div css={styles.defaultRoom}>
-                    {layoutPages}
-                    <Message
-                        currentPageIndex={currentPageIndex}
-                        currentRoomsLength={activeLayouts.length}
-                        seats={latestSeats}
-                    ></Message>
+                    {layoutPagesMemo}
+                    {messageMemo}
                 </div>
             </>
         )
