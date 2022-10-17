@@ -114,7 +114,7 @@ func TestSystem_ParseCommand(t *testing.T) {
 	}
 	
 	for i, testCase := range testCases {
-		commandDetails, err := core.ParseCommand(testCase.Input)
+		commandDetails, err := utils.ParseCommand(testCase.Input)
 		if err.IsNotNil() {
 			t.Error(err)
 		}

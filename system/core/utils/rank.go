@@ -65,7 +65,8 @@ func DailyUpdateRankPoint(
 	// アクティブ・非アクティブ状態の更新
 	// 過去24時間以内に入室していたらactive、そうでなければinactive
 	lastActiveAt := LastActiveAt(lastEntered, lastExited, jstNow)
-	if jstNow.Sub(lastActiveAt) < (time.Hour * 24) {
+	lastActiveToNow := jstNow.Sub(lastActiveAt)
+	if lastActiveToNow < (time.Hour * 24) {
 		isContinuousActive = true
 		lastPenaltyImposedDays = 0
 	} else {

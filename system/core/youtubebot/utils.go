@@ -34,3 +34,23 @@ func ExtractTextMessageByAuthor(chat *youtube.LiveChatMessage) string {
 	}
 	return ""
 }
+
+func IsChatMessageByModerator(chat *youtube.LiveChatMessage) bool {
+	return chat.AuthorDetails.IsChatModerator
+}
+
+func IsChatMessageByOwner(chat *youtube.LiveChatMessage) bool {
+	return chat.AuthorDetails.IsChatOwner
+}
+
+func IsChatMessageByMember(chat *youtube.LiveChatMessage) bool {
+	return chat.AuthorDetails.IsChatSponsor
+}
+
+func ExtractAuthorChannelId(chat *youtube.LiveChatMessage) string {
+	return chat.AuthorDetails.ChannelId
+}
+
+func ExtractAuthorDisplayName(chat *youtube.LiveChatMessage) string {
+	return chat.AuthorDetails.DisplayName
+}

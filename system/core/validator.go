@@ -7,43 +7,43 @@ import (
 	"app.modules/core/utils"
 )
 
-func (s *System) ValidateCommand(command CommandDetails) customerror.CustomError {
+func (s *System) ValidateCommand(command utils.CommandDetails) customerror.CustomError {
 	switch command.CommandType {
-	case In:
+	case utils.In:
 		return s.ValidateIn(command)
-	case Out:
+	case utils.Out:
 		return customerror.NewNil()
-	case Info:
+	case utils.Info:
 		return s.ValidateInfo(command)
-	case My:
+	case utils.My:
 		return s.ValidateMy(command)
-	case Change:
+	case utils.Change:
 		// seatStateに依存するためChange()の中で行う。
 		return customerror.NewNil()
-	case Seat:
+	case utils.Seat:
 		return s.ValidateSeat(command)
-	case Report:
+	case utils.Report:
 		return s.ValidateReport(command)
-	case Kick:
+	case utils.Kick:
 		return s.ValidateKick(command)
-	case Check:
+	case utils.Check:
 		return s.ValidateCheck(command)
-	case Block:
+	case utils.Block:
 		return s.ValidateBlock(command)
-	case More:
+	case utils.More:
 		return s.ValidateMore(command)
-	case Break:
+	case utils.Break:
 		return s.ValidateBreak(command)
-	case Resume:
+	case utils.Resume:
 		return s.ValidateResume(command)
-	case Rank:
+	case utils.Rank:
 		return customerror.NewNil()
 	}
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateIn(command CommandDetails) customerror.CustomError {
-	if command.CommandType != In {
+func (s *System) ValidateIn(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.In {
 		return customerror.InvalidParsedCommand.New("this is not a In command.")
 	}
 	
@@ -68,8 +68,8 @@ func (s *System) ValidateIn(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateInfo(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Info {
+func (s *System) ValidateInfo(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Info {
 		return customerror.InvalidParsedCommand.New("this is not a Info command.")
 	}
 	
@@ -78,8 +78,8 @@ func (s *System) ValidateInfo(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
-	if command.CommandType != My {
+func (s *System) ValidateMy(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.My {
 		return customerror.InvalidParsedCommand.New("this is not a My command.")
 	}
 	
@@ -87,12 +87,12 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 	
 	for _, option := range command.MyOptions {
 		switch option.Type {
-		case RankVisible:
+		case utils.RankVisible:
 			if isRankVisibleSet {
 				return customerror.InvalidParsedCommand.New("more than 2 RankVisible options.")
 			}
 			isRankVisibleSet = true
-		case DefaultStudyMin:
+		case utils.DefaultStudyMin:
 			if isDefaultStudyMinSet {
 				return customerror.InvalidParsedCommand.New("more than 2 DefaultStudyMin options.")
 			}
@@ -104,7 +104,7 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 				}
 			}
 			isDefaultStudyMinSet = true
-		case FavoriteColor:
+		case utils.FavoriteColor:
 			if isFavoriteColorSet {
 				return customerror.InvalidParsedCommand.New("more than 2 FavoriteColor options.")
 			}
@@ -120,8 +120,8 @@ func (s *System) ValidateMy(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateSeat(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Seat {
+func (s *System) ValidateSeat(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Seat {
 		return customerror.InvalidParsedCommand.New("this is not a Seat command.")
 	}
 	
@@ -130,8 +130,8 @@ func (s *System) ValidateSeat(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateKick(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Kick {
+func (s *System) ValidateKick(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Kick {
 		return customerror.InvalidParsedCommand.New("this is not a Kick command.")
 	}
 	
@@ -143,8 +143,8 @@ func (s *System) ValidateKick(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateCheck(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Check {
+func (s *System) ValidateCheck(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Check {
 		return customerror.InvalidParsedCommand.New("this is not a Check command.")
 	}
 	
@@ -156,8 +156,8 @@ func (s *System) ValidateCheck(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateBlock(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Block {
+func (s *System) ValidateBlock(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Block {
 		return customerror.InvalidParsedCommand.New("this is not a Block command.")
 	}
 	
@@ -169,8 +169,8 @@ func (s *System) ValidateBlock(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateReport(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Report {
+func (s *System) ValidateReport(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Report {
 		return customerror.InvalidParsedCommand.New("this is not a Report command.")
 	}
 	
@@ -182,8 +182,8 @@ func (s *System) ValidateReport(command CommandDetails) customerror.CustomError 
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.SeatState) customerror.CustomError {
-	if command.CommandType != Change {
+func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirestore.SeatState) customerror.CustomError {
+	if command.CommandType != utils.Change {
 		return customerror.InvalidParsedCommand.New("this is not a Change command.")
 	}
 	
@@ -222,8 +222,8 @@ func (s *System) ValidateChange(command CommandDetails, seatState myfirestore.Se
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateMore(command CommandDetails) customerror.CustomError {
-	if command.CommandType != More {
+func (s *System) ValidateMore(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.More {
 		return customerror.InvalidParsedCommand.New("this is not a More command.")
 	}
 	
@@ -235,8 +235,8 @@ func (s *System) ValidateMore(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateBreak(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Break {
+func (s *System) ValidateBreak(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Break {
 		return customerror.InvalidParsedCommand.New("this is not a More command.")
 	}
 	
@@ -255,8 +255,8 @@ func (s *System) ValidateBreak(command CommandDetails) customerror.CustomError {
 	return customerror.NewNil()
 }
 
-func (s *System) ValidateResume(command CommandDetails) customerror.CustomError {
-	if command.CommandType != Resume {
+func (s *System) ValidateResume(command utils.CommandDetails) customerror.CustomError {
+	if command.CommandType != utils.Resume {
 		return customerror.InvalidParsedCommand.New("this is not a Resume command.")
 	}
 	
