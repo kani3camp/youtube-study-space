@@ -270,7 +270,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 						InOption: utils.InOption{
 							IsSeatIdSet: true,
 							SeatId:      0,
-							MinutesAndWorkName: utils.MinutesAndWorkNameOption{
+							MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
 								IsWorkNameSet:    true,
 								IsDurationMinSet: true,
 								WorkName:         seat.WorkName,
@@ -334,7 +334,7 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 	}
 	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 	
-	if cerr := s.ValidateCommand(commandDetails); cerr.IsNotNil() {
+	if cerr := s.ValidateCommand(*commandDetails); cerr.IsNotNil() {
 		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+cerr.Body.Error())
 		return nil
 	}
@@ -497,7 +497,7 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 				return nil
 			} else { // 今と別の席番号の場合: 退室させてから、入室させる。
 				// 席移動処理
-				workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(tx, inOption.SeatId, inOption.MinutesAndWorkName, currentSeat, &userDoc)
+				workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(tx, inOption.SeatId, *inOption.MinutesAndWorkName, currentSeat, &userDoc)
 				if err != nil {
 					s.MessageToOwnerWithError("failed to moveSeat for "+s.ProcessedUserId, err)
 					return err
@@ -1110,7 +1110,7 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 		}
 		
 		// validation
-		cerr = s.ValidateChange(command, currentSeat.State)
+		cerr = s.ValidateChange(*command, currentSeat.State)
 		if cerr.IsNotNil() {
 			replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName) + cerr.Body.Error()
 			return nil
@@ -2279,7 +2279,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 				CommandType: utils.In,
 				InOption: utils.InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: utils.MinutesAndWorkNameOption{
+					MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         seatSnapshot.WorkName,
