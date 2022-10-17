@@ -58,3 +58,75 @@ func TestDivideStringEqually(t *testing.T) {
 		assert.Equal(t, testCase.OutStrings, strings)
 	}
 }
+
+func TestMatchEmojiCommandIndex(t *testing.T) {
+	s := "こんにちは" + TestEmojiIn0 + "jio"
+	expected := "jio"
+	loc := FindEmojiCommandIndex(s, InString)
+	if s[loc[1]:] != expected {
+		t.Error()
+	}
+}
+
+func TestIsEmojiCommandString(t *testing.T) {
+	type TestCase struct {
+		Input  string
+		Output bool
+	}
+	testCases := [...]TestCase{
+		{
+			Input:  "hello",
+			Output: false,
+		},
+		{
+			Input:  ":_command:",
+			Output: true,
+		},
+		{
+			Input:  TestEmoji360Min0,
+			Output: true,
+		},
+		{
+			Input:  TestEmojiInfoD0,
+			Output: true,
+		},
+		{
+			Input:  "dev" + TestEmojiIn0,
+			Output: true,
+		},
+	}
+	
+	for _, testCase := range testCases {
+		out := MatchEmojiCommandString(testCase.Input)
+		if out != testCase.Output {
+			t.Error("input: ", testCase.Input)
+			t.Error("result: ", out)
+			t.Error("expected: ", testCase.Output)
+		}
+	}
+}
+
+func TestReplaceAnyEmojiCommandStringWithSpace(t *testing.T) {
+	type TestCase struct {
+		Input  string
+		Output string
+	}
+	testCases := [...]TestCase{
+		{
+			Input:  TestEmojiIn0,
+			Output: HalfWidthSpace,
+		},
+		{
+			Input:  TestEmojiIn0 + "orange" + TestEmojiWork0 + "apple",
+			Output: " orange apple",
+		},
+	}
+	for _, testCase := range testCases {
+		out := ReplaceAnyEmojiCommandStringWithSpace(testCase.Input)
+		if out != testCase.Output {
+			t.Error("input: ", testCase.Input)
+			t.Error("result: ", out)
+			t.Error("expected: ", testCase.Output)
+		}
+	}
+}

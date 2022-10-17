@@ -118,10 +118,6 @@ func NoNegativeDuration(duration time.Duration) time.Duration {
 	return duration
 }
 
-func Ftoa(f float64) string {
-	return strconv.Itoa(int(f))
-}
-
 func DivideStringEqually(batchSize int, values []string) [][]string {
 	batchList := make([][]string, batchSize)
 	for i, value := range values {
@@ -205,11 +201,11 @@ func containsInt(s []int, e int) bool {
 }
 
 func ContainsString(s []string, e string) bool {
-	contains, _ := ContainsStringWithFoundIndex(s, e)
+	contains, _ := ContainsStringWithIndex(s, e)
 	return contains
 }
 
-func ContainsStringWithFoundIndex(s []string, e string) (bool, int) {
+func ContainsStringWithIndex(s []string, e string) (bool, int) {
 	for i, a := range s {
 		if a == e {
 			return true, i
@@ -218,7 +214,7 @@ func ContainsStringWithFoundIndex(s []string, e string) (bool, int) {
 	return false, 0
 }
 
-func ContainsRegexWithFoundIndex(s []string, e string) (bool, int, error) {
+func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
 	for i, a := range s {
 		r, err := regexp.Compile(a)
 		if err != nil {
@@ -229,6 +225,20 @@ func ContainsRegexWithFoundIndex(s []string, e string) (bool, int, error) {
 		}
 	}
 	return false, 0, nil
+}
+
+func ContainsEmojiElement(s []EmojiElement, e EmojiElement) bool {
+	contains, _ := ContainsEmojiElementWithIndex(s, e)
+	return contains
+}
+
+func ContainsEmojiElementWithIndex(s []EmojiElement, e EmojiElement) (bool, int) {
+	for i, a := range s {
+		if a == e {
+			return true, i
+		}
+	}
+	return false, 0
 }
 
 func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
@@ -287,4 +297,60 @@ func CheckEnterExitActivityOrder(activityDocs []myfirestore.UserActivityDoc) boo
 		lastActivityType = activity.ActivityType
 	}
 	return true
+}
+
+func MatchEmojiCommand(text string, commandName string) bool {
+	r, _ := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
+	return r.MatchString(text)
+}
+
+func FindEmojiCommandIndex(text string, commandName string) []int {
+	r, _ := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
+	return r.FindStringIndex(text)
+}
+
+func ExtractEmojiString(text string, commandName string) string {
+	loc := FindEmojiCommandIndex(text, commandName)
+	if len(loc) != 2 {
+		return ""
+	}
+	return text[loc[0]:loc[1]]
+}
+
+func ExtractEmojiMinValue(fullString, emojiString string, allowEmpty bool) (int, error) {
+	tmp := strings.TrimPrefix(emojiString, EmojiCommandPrefix)
+	r, _ := regexp.Compile(MinString + `[0-9]*` + EmojiSide)
+	loc := r.FindStringIndex(tmp)
+	if len(loc) != 2 {
+		return 0, errors.New("invalid emoji min string.")
+	}
+	numString := tmp[:loc[0]]
+	if numString != "" { // "min=xxx" emoji
+		return strconv.Atoi(numString)
+	}
+	
+	// "min=" emoji
+	loc = FindEmojiCommandIndex(fullString, MinString)
+	if len(loc) != 2 {
+		return 0, errors.New("couldn't find min emoji.")
+	}
+	latterString := fullString[loc[1]:]
+	latterString = ReplaceAnyEmojiCommandStringWithSpace(latterString)
+	slice := strings.Split(latterString, HalfWidthSpace)
+	numString = slice[0] // may include emoji command.
+	if allowEmpty && numString == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(numString)
+}
+
+// MatchEmojiCommandString partial match.
+func MatchEmojiCommandString(text string) bool {
+	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+	return r.MatchString(text)
+}
+
+func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
+	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+	return r.ReplaceAllString(text, HalfWidthSpace)
 }
