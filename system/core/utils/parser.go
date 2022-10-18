@@ -592,7 +592,7 @@ func ParseDurationMinOption(strSlice []string, fullString string, allowNonPrefix
 			err = nil
 		}
 	}
-	return 0, customerror.InvalidCommand.New(i18n.T("parse:missing-time-option"))
+	return 0, customerror.InvalidCommand.New(i18n.T("parse:missing-time-option", TimeOptionPrefix))
 }
 
 func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) (*MinutesAndWorkNameOption,
