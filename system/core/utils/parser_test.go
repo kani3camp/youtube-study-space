@@ -259,6 +259,49 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+		{ // no space
+			Input:    "!in" + TestEmojiWork0 + "わーく" + TestEmojiMin0 + "111",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						WorkName:         "わーく",
+						IsDurationMinSet: true,
+						DurationMin:      111,
+					},
+				},
+			},
+		},
+		{ // no space
+			Input:    "!in" + TestEmojiWork0 + "わーく" + TestEmojiInfo0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet: true,
+						WorkName:      "わーく",
+					},
+				},
+			},
+		},
+		{ // no space
+			Input:    "!in" + TestEmojiWork0 + TestEmojiMin0 + "111",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						WorkName:         "",
+						IsDurationMinSet: true,
+						DurationMin:      111,
+					},
+				},
+			},
+		},
 		{
 			Input:    TestEmojiIn0 + TestEmoji360Min0,
 			IsMember: true,
@@ -1110,7 +1153,7 @@ func TestParseCommand(t *testing.T) {
 				t.Error(err)
 			}
 			if !reflect.DeepEqual(out, testCase.Output) {
-				t.Error("input: ", testCase.Input)
+				t.Errorf("input: %s\n", testCase.Input)
 				t.Errorf("result:\n%# v\n", pretty.Formatter(out))
 				t.Errorf("expected:\n%# v\n", pretty.Formatter(testCase.Output))
 				t.Error("command details do not match.")

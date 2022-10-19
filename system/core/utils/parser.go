@@ -641,7 +641,9 @@ func ParseEmojiWorkNameOption(fullString string) string {
 	if len(emojiLoc) != 2 {
 		return ""
 	}
-	slice := strings.Split(fullString[emojiLoc[1]:], HalfWidthSpace)
+	targetString := fullString[emojiLoc[1]:]
+	targetString = ReplaceAnyEmojiCommandStringWithSpace(targetString)
+	slice := strings.Split(targetString, HalfWidthSpace)
 	if MatchEmojiCommandString(slice[0]) {
 		return ""
 	}
