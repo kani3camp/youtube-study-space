@@ -25,5 +25,5 @@
     "part_type.mid_night2": "深夜パートⅡ",
     "part_type.early_morning": "早朝パート",
     "message.room": "ページ{{index}} / {{length}}",
-    "message.num_studying_people": "{{value}}人が作業中☘"
+    "message.num_studying_people": "{{value}}人が作業中"
 }
