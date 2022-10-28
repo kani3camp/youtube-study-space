@@ -6,4 +6,4 @@ export const Constants = {
     chime2FilePath: '/chime/chime2.mp3',
 }
 
-export const debug = false
+export const debug = true
