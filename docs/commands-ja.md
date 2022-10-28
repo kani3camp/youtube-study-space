@@ -143,7 +143,7 @@
     自分のお気に入り作業時間をリセットします。
   
   ### オプション `color=`
-  お気に入りカラーを指定できます。
+  [お気に入りカラー](https://youtube-study-space.notion.site/3fc22ea1b4214b3f976b03331c51d113)を指定できます。
   - 例 `!my color=アクアマリン`\
     自分のお気に入りカラーをアクアマリンに変更します。\
     指定できる色の名前は[こちら](https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f)
