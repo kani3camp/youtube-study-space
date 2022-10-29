@@ -31,7 +31,7 @@ func TestCalcRankPoint(t *testing.T) {
 				LastActiveAt:             JstNow().Add(-time.Hour),
 				PreviousRankPoint:        0,
 			},
-			Output: 5,
+			Output: 57,
 		},
 		{
 			Input: InputCalcRankPoint{
@@ -107,11 +107,28 @@ type TestCaseDailyUpdateRankPoint struct {
 func TestDailyUpdateRankPoint(t *testing.T) {
 	jstNow := JstNow()
 	testCases := []TestCaseDailyUpdateRankPoint{
+		{ // だいぶ前に登録だけした人
+			Input: InputDailyUpdateRankPoint{
+				LastPenaltyImposedDays:      30,
+				IsContinuousActive:          false,
+				CurrentActivityStateStarted: time.Time{},
+				RankPoint:                   0,
+				LastEntered:                 time.Time{},
+				LastExited:                  time.Time{},
+				JstNow:                      jstNow,
+			},
+			Output: OutputDailyUpdateRankPoint{
+				LastPenaltyImposedDays:      30,
+				IsContinuousActive:          false,
+				CurrentActivityStateStarted: time.Time{},
+				RankPoint:                   0,
+			},
+		},
 		{ // 前日に入室した人
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
-				IsContinuousActive:          false,
-				CurrentActivityStateStarted: time.Time{},
+				IsContinuousActive:          true,
+				CurrentActivityStateStarted: jstNow.AddDate(0, 0, -1),
 				RankPoint:                   100,
 				LastEntered:                 jstNow.AddDate(0, 0, -1),
 				LastExited:                  jstNow.AddDate(0, 0, -1).Add(time.Minute * 120),
@@ -206,7 +223,7 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 			rankPoint != testCase.Output.RankPoint {
 			t.Errorf("input: %# v\n", pretty.Formatter(in))
 			t.Error("result: ", lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint)
-			t.Errorf("expected: %v\n", pretty.Formatter(testCase.Output))
+			t.Errorf("expected: %# v\n", pretty.Formatter(testCase.Output))
 		}
 	}
 }

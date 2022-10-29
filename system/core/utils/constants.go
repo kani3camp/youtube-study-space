@@ -23,7 +23,25 @@ const (
 	CheckCommand = "!check"
 	BlockCommand = "!block"
 	
-	LegacyAddCommand = "!add"
+	EmojiSide          = ":"
+	EmojiCommandPrefix = EmojiSide + "_command"
+	InString           = "In"
+	InZeroString       = "InZero"
+	OutString          = "Out"
+	InfoString         = "Info"
+	InfoDString        = "InfoD"
+	MyString           = "My"
+	ChangeString       = "Change"
+	SeatString         = "Seat"
+	SeatDString        = "SeatD"
+	MoreString         = "More"
+	BreakString        = "Break"
+	ResumeString       = "Resume"
+	WorkString         = "Work"
+	MinString          = "Min"
+	ColorString        = "Color"
+	RankOnString       = "RankOn"
+	RankOffString      = "RankOff"
 	
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="
@@ -47,4 +65,27 @@ const (
 	HalfWidthSpace     = " "
 	FullWidthEqualSign = "＝"
 	HalfWidthEqualSign = "="
+)
+
+type EmojiElement int
+
+const (
+	EmojiIn EmojiElement = iota
+	EmojiInZero
+	EmojiOut
+	EmojiInfo
+	EmojiInfoD
+	EmojiMy
+	EmojiChange
+	EmojiSeat
+	EmojiSeatD
+	EmojiMore
+	EmojiBreak
+	EmojiResume
+	
+	EmojiWork
+	EmojiMin
+	EmojiColor
+	EmojiRankOn
+	EmojiRankOff
 )

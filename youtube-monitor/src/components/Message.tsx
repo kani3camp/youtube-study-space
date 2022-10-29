@@ -23,7 +23,7 @@ const Message: FC<Props> = (props) => {
                     })}
                 </div>
                 <div css={styles.numStudyingPeople}>
-                    {t('message.num_studying_people', { value: numWorkers })}
+                    {t('message.num_studying_people', { value: numWorkers })} 🎃
                 </div>
             </div>
         )

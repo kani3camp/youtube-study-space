@@ -119,7 +119,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
 		
-		// チャット取得
+		// fetch chat messages
 		chatMessages, nextPageToken, pollingIntervalMillis, err := sys.ListLiveChatMessages(ctx, pageToken)
 		if err != nil {
 			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
@@ -135,7 +135,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		}
 		lastChatFetched = utils.JstNow()
 		
-		// nextPageTokenを保存
+		// save nextPageToken
 		err = sys.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
 			sys.MessageToOwnerWithError("(1回目) failed to save next page token", err)
@@ -150,7 +150,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
-			// only if chatMessage is a normal text message
+			// only if chatMessage has a text message
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
 				continue
 			}
@@ -167,7 +167,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 		}
 		
-		// コマンドを抜き出して各々処理
+		// process the command (includes not command)
 		for _, chatMessage := range chatMessages {
 			// only if chatMessage has text message content
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
@@ -175,10 +175,15 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 			
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
+			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
+			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
+			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
+			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
+			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := sys.Command(ctx, message, chatMessage.AuthorDetails.ChannelId, chatMessage.AuthorDetails.DisplayName, chatMessage.AuthorDetails.IsChatModerator, chatMessage.AuthorDetails.IsChatOwner)
+			err := sys.Command(ctx, message, channelId, displayName, isModerator, isOwner, isMember)
 			if err != nil {
-				sys.MessageToOwnerWithError("error in core.Command()", err)
+				sys.MessageToOwnerWithError("error in Command()", err)
 			}
 		}
 		
