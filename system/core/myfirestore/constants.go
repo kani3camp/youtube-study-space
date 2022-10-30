@@ -1,8 +1,9 @@
 package myfirestore
 
-const (
+const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CONFIG              = "config"
 	SEATS               = "seats"
+	MemberSeats         = "member-seats"
 	USERS               = "users"
 	LiveChatHistory     = "live-chat-history"
 	UserActivities      = "user-activities"
@@ -25,7 +26,9 @@ const (
 	ActivityTypeDocProperty = "activity-type"
 	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
+	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
+	MemberMaxSeatsDocProperty                        = "member-max-seats"
 	MinVacancyRateDocProperty                        = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"

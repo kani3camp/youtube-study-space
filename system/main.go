@@ -95,7 +95,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			if err != nil {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
 			} else {
-				if constants.DesiredMaxSeats != constants.MaxSeats {
+				if constants.DesiredMaxSeats != constants.MaxSeats || constants.DesiredMemberMaxSeats != constants.MemberMaxSeats {
 					err := sys.AdjustMaxSeats(ctx)
 					if err != nil {
 						sys.MessageToOwnerWithError("failed sys.AdjustMaxSeats()", err)

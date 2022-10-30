@@ -11,6 +11,7 @@ export type LayoutPageProps = {
     usedSeats: Seat[]
     firstSeatId: number
     display: boolean // 表示するページの場合はtrue、それ以外はfalse
+    memberOnly: boolean
 }
 
 const SeatState = {
@@ -25,21 +26,17 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
     const roomShape = {
         widthPx:
-            (1000 * propsMemo.roomLayout.room_shape.width) /
-            propsMemo.roomLayout.room_shape.height,
+            (1000 * propsMemo.roomLayout.room_shape.width) / propsMemo.roomLayout.room_shape.height,
         heightPx: 1000,
     }
 
-    const seatFontSizePx =
-        roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
+    const seatFontSizePx = roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
     const seatShape = {
         width:
-            (100 * propsMemo.roomLayout.seat_shape.width) /
-            propsMemo.roomLayout.room_shape.width,
+            (100 * propsMemo.roomLayout.seat_shape.width) / propsMemo.roomLayout.room_shape.width,
         height:
-            (100 * propsMemo.roomLayout.seat_shape.height) /
-            propsMemo.roomLayout.room_shape.height,
+            (100 * propsMemo.roomLayout.seat_shape.height) / propsMemo.roomLayout.room_shape.height,
     }
 
     const seatPositions = propsMemo.roomLayout.seats.map((seat) => ({
@@ -56,11 +53,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         for (let i = 0; i < partitionShapes.length; i++) {
             if (partitionShapes[i].name === shapeType) {
                 widthPercent =
-                    (100 * partitionShapes[i].width) /
-                    propsMemo.roomLayout.room_shape.width
+                    (100 * partitionShapes[i].width) / propsMemo.roomLayout.room_shape.width
                 heightPercent =
-                    (100 * partitionShapes[i].height) /
-                    propsMemo.roomLayout.room_shape.height
+                    (100 * partitionShapes[i].height) / propsMemo.roomLayout.room_shape.height
             }
         }
         return {
@@ -79,12 +74,10 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         return targetSeat
     }
 
-    const partitionPositions = propsMemo.roomLayout.partitions.map(
-        (partition) => ({
-            x: (100 * partition.x) / propsMemo.roomLayout.room_shape.width,
-            y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
-        })
-    )
+    const partitionPositions = propsMemo.roomLayout.partitions.map((partition) => ({
+        x: (100 * partition.x) / propsMemo.roomLayout.room_shape.width,
+        y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
+    }))
 
     const seatList = propsMemo.roomLayout.seats.map((seat, index) => {
         const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
@@ -94,12 +87,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
-        const seat_color = isUsed
-            ? processingSeat.appearance.color_code
-            : emptySeatColor
+        const seat_color = isUsed ? processingSeat.appearance.color_code : emptySeatColor
         const isBreak = isUsed && processingSeat.state === SeatState.Break
-        const glowAnimationEnabled =
-            isUsed && processingSeat.appearance.glow_animation
+        const glowAnimationEnabled = isUsed && processingSeat.appearance.glow_animation
         const numStars = isUsed ? processingSeat.appearance.num_stars : 0
 
         // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
@@ -108,14 +98,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             const canvas: HTMLCanvasElement = document.createElement('canvas')
             const context = canvas.getContext('2d')
             if (context) {
-                context.font = `${workNameFontSizePx.toString()}px ${
-                    Constants.fontFamily
-                }`
-                const metrics = context.measureText(
-                    isBreak ? breakWorkName : workName
-                )
-                const actualSeatWidth =
-                    (roomShape.widthPx * seatShape.width) / 100
+                context.font = `${workNameFontSizePx.toString()}px ${Constants.fontFamily}`
+                const metrics = context.measureText(isBreak ? breakWorkName : workName)
+                const actualSeatWidth = (roomShape.widthPx * seatShape.width) / 100
                 if (metrics.width > actualSeatWidth) {
                     workNameFontSizePx *= actualSeatWidth / metrics.width
                     workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
@@ -164,9 +149,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     transform: `rotate(${seatPositions[index].rotate}deg)`,
                     width: `${seatShape.width}%`,
                     height: `${seatShape.height}%`,
-                    fontSize: isUsed
-                        ? `${seatFontSizePx}px`
-                        : `${seatFontSizePx * 2}px`,
+                    fontSize: isUsed ? `${seatFontSizePx}px` : `${seatFontSizePx * 2}px`,
                 }}
             >
                 {/* 席番号 */}
@@ -223,20 +206,18 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         )
     })
 
-    const partitionList = propsMemo.roomLayout.partitions.map(
-        (partition, index) => (
-            <div
-                key={partition.id}
-                css={styles.partition}
-                style={{
-                    left: `${partitionPositions[index].x}%`,
-                    top: `${partitionPositions[index].y}%`,
-                    width: `${partitionShapes[index].widthPercent}%`,
-                    height: `${partitionShapes[index].heightPercent}%`,
-                }}
-            />
-        )
-    )
+    const partitionList = propsMemo.roomLayout.partitions.map((partition, index) => (
+        <div
+            key={partition.id}
+            css={styles.partition}
+            style={{
+                left: `${partitionPositions[index].x}%`,
+                top: `${partitionPositions[index].y}%`,
+                width: `${partitionShapes[index].widthPercent}%`,
+                height: `${partitionShapes[index].heightPercent}%`,
+            }}
+        />
+    ))
 
     return (
         <>

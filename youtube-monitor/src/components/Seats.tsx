@@ -2,7 +2,11 @@ import { FC, useEffect, useMemo, useState } from 'react'
 import api from '../lib/api_config'
 import { useInterval } from '../lib/common'
 import fetcher from '../lib/fetcher'
-import { allRooms, numSeatsInAllBasicRooms } from '../rooms/rooms-config'
+import {
+    allRooms,
+    numSeatsInGeneralAllBasicRooms,
+    numSeatsInMemberAllBasicRooms,
+} from '../rooms/rooms-config'
 import * as styles from '../styles/Room.styles'
 import { Seat, SetDesiredMaxSeatsResponse } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
@@ -26,11 +30,14 @@ import {
 const Seats: FC = () => {
     const PAGING_INTERVAL_MSEC = 8 * 1000
 
-    const [latestSeats, setLatestSeats] = useState<Seat[]>([])
-    const [latestMaxSeats, setLatestMaxSeats] = useState<number>()
+    const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
+    const [latestMemberSeats, setLatestMemberSeats] = useState<Seat[]>([])
+    const [latestGeneralMaxSeats, setLatestGeneralMaxSeats] = useState<number>()
+    const [latestMemberMaxSeats, setLatestMemberMaxSeats] = useState<number>()
     const [latestMinVacancyRate, setLatestMinVacancyRate] = useState<number>()
     const [currentPageIndex, setCurrentPageIndex] = useState<number>(0)
-    const [activeLayouts, setActiveLayouts] = useState<RoomLayout[]>([])
+    const [activeGeneralLayouts, setActiveGeneralLayouts] = useState<RoomLayout[]>([])
+    const [activeMemberLayouts, setActiveMemberLayouts] = useState<RoomLayout[]>([])
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 
     useEffect(() => {
@@ -43,8 +50,8 @@ const Seats: FC = () => {
 
     useInterval(() => {
         console.log('interval')
-        if (activeLayouts.length > 0) {
-            const newPageIndex = (currentPageIndex + 1) % activeLayouts.length
+        if (activeGeneralLayouts.length > 0) {
+            const newPageIndex = (currentPageIndex + 1) % activeGeneralLayouts.length
             setCurrentPageIndex(newPageIndex)
 
             reviewMaxSeats()
@@ -53,11 +60,11 @@ const Seats: FC = () => {
 
     useEffect(() => {
         updatePageProps()
-    }, [latestSeats, activeLayouts])
+    }, [latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts])
 
     useEffect(() => {
         reviewMaxSeats()
-    }, [latestMaxSeats, latestMinVacancyRate])
+    }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
 
     useEffect(() => {
         changePage(currentPageIndex)
@@ -104,10 +111,7 @@ const Seats: FC = () => {
                     'daily-cumulative-work-sec': seat.daily_cumulative_work_sec,
                 }
             },
-            fromFirestore(
-                snapshot: QueryDocumentSnapshot,
-                options: SnapshotOptions
-            ): Seat {
+            fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Seat {
                 const data = snapshot.data(options)
                 return {
                     seat_id: data['seat-id'],
@@ -126,58 +130,53 @@ const Seats: FC = () => {
                     current_state_started_at: data['current-state-started-at'],
                     current_state_until: data['current-state-until'],
                     cumulative_work_sec: data['cumulative-work-sec'],
-                    daily_cumulative_work_sec:
-                        data['daily-cumulative-work-sec'],
+                    daily_cumulative_work_sec: data['daily-cumulative-work-sec'],
                 }
             },
         }
 
         type Constants = {
             max_seats: number
+            member_max_seats: number
             min_vacancy_rate: number
         }
         const constantsConverter: FirestoreDataConverter<Constants> = {
             toFirestore(constants: Constants): DocumentData {
                 return {
                     'max-seats': constants.max_seats,
+                    'member-max-seats': constants.member_max_seats,
                     'min-vacancy-rate': constants.min_vacancy_rate,
                 }
             },
-            fromFirestore(
-                snapshot: QueryDocumentSnapshot,
-                options: SnapshotOptions
-            ): Constants {
+            fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Constants {
                 const data = snapshot.data(options)
                 return {
                     max_seats: data['max-seats'],
+                    member_max_seats: data['member-max-seats'],
                     min_vacancy_rate: data['min-vacancy-rate'],
                 }
             },
         }
 
-        const seatsQuery = query(collection(db, 'seats')).withConverter(
-            seatConverter
-        )
+        const seatsQuery = query(collection(db, 'seats')).withConverter(seatConverter)
         onSnapshot(seatsQuery, (querySnapshot) => {
             const seats: Seat[] = []
             querySnapshot.forEach((doc) => {
                 seats.push(doc.data())
             })
-            setLatestSeats(seats)
+            setLatestGeneralSeats(seats)
         })
 
-        onSnapshot(
-            doc(db, 'config', 'constants').withConverter(constantsConverter),
-            (doc) => {
-                const maxSeats = (doc.data() as Constants).max_seats
-                const minVacancyRate = (doc.data() as Constants)
-                    .min_vacancy_rate
-                console.log('max seats: ', maxSeats)
-                console.log('min vacancy rate: ', minVacancyRate)
-                setLatestMaxSeats(maxSeats)
-                setLatestMinVacancyRate(minVacancyRate)
-            }
-        )
+        onSnapshot(doc(db, 'config', 'constants').withConverter(constantsConverter), (doc) => {
+            const generalMaxSeats = (doc.data() as Constants).max_seats
+            const memberMaxSeats = (doc.data() as Constants).member_max_seats
+            const minVacancyRate = (doc.data() as Constants).min_vacancy_rate
+            console.log('max seats: ', generalMaxSeats)
+            console.log('min vacancy rate: ', minVacancyRate)
+            setLatestGeneralMaxSeats(generalMaxSeats)
+            setLatestMemberMaxSeats(memberMaxSeats)
+            setLatestMinVacancyRate(minVacancyRate)
+        })
     }
 
     /**
@@ -189,16 +188,14 @@ const Seats: FC = () => {
         if (pageIndex + 1 > snapshotPageProps.length) {
             pageIndex = 0 // index out of range にならないように１ページ目に。
         }
-        const newPageProps: LayoutPageProps[] = snapshotPageProps.map(
-            (page, index) => {
-                if (index === pageIndex) {
-                    page.display = true
-                } else {
-                    page.display = false
-                }
-                return page
+        const newPageProps: LayoutPageProps[] = snapshotPageProps.map((page, index) => {
+            if (index === pageIndex) {
+                page.display = true
+            } else {
+                page.display = false
             }
-        )
+            return page
+        })
         setPageProps(newPageProps)
     }
 
@@ -211,17 +208,21 @@ const Seats: FC = () => {
                     roomLayout={pageProp.roomLayout}
                     usedSeats={pageProp.usedSeats}
                     display={pageProp.display}
+                    memberOnly={pageProp.memberOnly}
                 ></SeatsPage>
             )),
         [pageProps]
     )
 
     const reviewMaxSeats = async () => {
-        const snapshotMaxSeats = latestMaxSeats
+        const snapshotGeneralMaxSeats = latestGeneralMaxSeats
+        const snapshotMemberMaxSeats = latestMemberMaxSeats
         const snapshotMinVacancyRate = latestMinVacancyRate
-        const snapshotSeats = [...latestSeats]
+        const snapshotGeneralSeats = [...latestGeneralSeats]
+        const snapshotMemberSeats = [...latestMemberSeats]
         if (
-            snapshotMaxSeats === undefined ||
+            snapshotGeneralMaxSeats === undefined ||
+            snapshotMemberMaxSeats === undefined ||
             snapshotMinVacancyRate === undefined
         ) {
             return
@@ -229,69 +230,104 @@ const Seats: FC = () => {
         console.log('reviewing max seats.')
 
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
-        let finalDesiredMaxSeats: number
-        const minSeatsByVacancyRate = Math.ceil(
-            snapshotSeats.length / (1 - snapshotMinVacancyRate)
+        let finalDesiredGeneralMaxSeats: number
+        const generalMinSeatsByVacancyRate = Math.ceil(
+            snapshotGeneralSeats.length / (1 - snapshotMinVacancyRate)
         )
         // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-        if (minSeatsByVacancyRate > numSeatsInAllBasicRooms()) {
-            let current_num_seats: number = numSeatsInAllBasicRooms()
+        if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
+            let current_num_seats: number = numSeatsInGeneralAllBasicRooms()
             let current_adding_temporary_room_index = 0
-            while (current_num_seats < minSeatsByVacancyRate) {
+            while (current_num_seats < generalMinSeatsByVacancyRate) {
                 current_num_seats +=
-                    allRooms.temporaryRooms[current_adding_temporary_room_index]
-                        .seats.length
+                    allRooms.generalTemporaryRooms[current_adding_temporary_room_index].seats.length
                 current_adding_temporary_room_index =
                     (current_adding_temporary_room_index + 1) %
-                    allRooms.temporaryRooms.length
+                    allRooms.generalTemporaryRooms.length
             }
-            finalDesiredMaxSeats = current_num_seats
+            finalDesiredGeneralMaxSeats = current_num_seats
         } else {
             // そうでなければ、基本ルームの席数とするべき
-            finalDesiredMaxSeats = numSeatsInAllBasicRooms()
+            finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
+        }
+        console.log(`desired: ${finalDesiredGeneralMaxSeats}, current: ${snapshotMemberMaxSeats}`)
+
+        let finalDesiredMemberMaxSeats: number
+        const memberMinSeatsByVacancyRate = Math.ceil(
+            snapshotMemberSeats.length / (1 - snapshotMinVacancyRate)
+        )
+        // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
+        if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
+            let current_num_seats: number = numSeatsInMemberAllBasicRooms()
+            let current_adding_temporary_room_index = 0
+            while (current_num_seats < memberMinSeatsByVacancyRate) {
+                current_num_seats +=
+                    allRooms.memberTemporaryRooms[current_adding_temporary_room_index].seats.length
+                current_adding_temporary_room_index =
+                    (current_adding_temporary_room_index + 1) % allRooms.memberTemporaryRooms.length
+            }
+            finalDesiredMemberMaxSeats = current_num_seats
+        } else {
+            // そうでなければ、基本ルームの席数とするべき
+            finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
         }
         console.log(
-            `desired: ${finalDesiredMaxSeats}, current: ${snapshotMaxSeats}`
+            `[member] desired: ${finalDesiredMemberMaxSeats}, current: ${snapshotMemberMaxSeats}`
         )
 
         // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
-        if (finalDesiredMaxSeats !== snapshotMaxSeats) {
+        if (
+            finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
+            finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
+        ) {
             console.log(
                 'リクエストを送る',
-                snapshotMaxSeats,
+                snapshotGeneralMaxSeats,
                 ' => ',
-                finalDesiredMaxSeats
+                finalDesiredGeneralMaxSeats,
+                snapshotMemberMaxSeats,
+                ' => ',
+                finalDesiredMemberMaxSeats
             )
-            requestMaxSeatsUpdate(finalDesiredMaxSeats) // awaitはしない
+            requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats) // awaitはしない
         }
 
         // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
         // 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
-        const nextDisplayLayouts: RoomLayout[] = [...allRooms.basicRooms] // まずは基本ルームを設定
-        if (snapshotMaxSeats > numSeatsInAllBasicRooms()) {
+        const nextGeneralLayouts: RoomLayout[] = [...allRooms.generalBasicRooms] // まずは基本ルームを設定
+        if (snapshotGeneralMaxSeats > numSeatsInGeneralAllBasicRooms()) {
             let currentAddingLayoutIndex = 0
-            while (
-                numSeatsOfRoomLayouts(nextDisplayLayouts) < snapshotMaxSeats
-            ) {
-                nextDisplayLayouts.push(
-                    allRooms.temporaryRooms[currentAddingLayoutIndex]
-                )
+            while (numSeatsOfRoomLayouts(nextGeneralLayouts) < snapshotGeneralMaxSeats) {
+                nextGeneralLayouts.push(allRooms.generalTemporaryRooms[currentAddingLayoutIndex])
                 currentAddingLayoutIndex =
-                    (currentAddingLayoutIndex + 1) %
-                    allRooms.temporaryRooms.length
+                    (currentAddingLayoutIndex + 1) % allRooms.generalTemporaryRooms.length
+            }
+        }
+        const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
+        if (snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()) {
+            let currentAddingLayoutIndex = 0
+            while (numSeatsOfRoomLayouts(nextMemberLayouts) < snapshotMemberMaxSeats) {
+                nextMemberLayouts.push(allRooms.memberTemporaryRooms[currentAddingLayoutIndex])
+                currentAddingLayoutIndex =
+                    (currentAddingLayoutIndex + 1) % allRooms.memberTemporaryRooms.length
             }
         }
 
         // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
-        setActiveLayouts(nextDisplayLayouts)
+        setActiveGeneralLayouts(nextGeneralLayouts)
+        setActiveMemberLayouts(nextMemberLayouts)
     }
 
-    const requestMaxSeatsUpdate = async (desiredMaxSeats: number) => {
+    const requestMaxSeatsUpdate = async (
+        desiredGeneralMaxSeats: number,
+        desiredMemberMaxSeats: number
+    ) => {
         await fetcher<SetDesiredMaxSeatsResponse>(api.setDesiredMaxSeats, {
             method: 'POST',
             body: JSON.stringify({
-                desired_max_seats: desiredMaxSeats,
+                desired_max_seats: desiredGeneralMaxSeats,
+                desired_member_max_seats: desiredMemberMaxSeats,
             }),
         }).then(async () => {
             console.log('リクエストした')
@@ -301,25 +337,26 @@ const Seats: FC = () => {
     const updatePageProps = () => {
         // 各項目のスナップショットをとる
         const snapshotPageProps = [...pageProps]
-        const snapshotUsedLayouts = [...activeLayouts]
-        const snapshotLatestSeats = [...latestSeats]
+        const snapshotActiveGeneralLayouts = [...activeGeneralLayouts]
+        const snapshotActiveMemberLayouts = [...activeMemberLayouts]
+        const snapshotLatestSeats = [...latestGeneralSeats]
 
-        if (snapshotUsedLayouts.length < currentPageIndex + 1) {
+        if (snapshotActiveGeneralLayouts.length < currentPageIndex + 1) {
             // index out of rangeにならないように1ページ目に。
             setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
         }
 
         let sumSeats = 0
-        const newPageProps: LayoutPageProps[] = snapshotUsedLayouts.map(
-            (layout, index): LayoutPageProps => {
+        const mapFunc =
+            (member_only: boolean) =>
+            (layout: RoomLayout, index: number): LayoutPageProps => {
                 const numSeats = layout.seats.length
                 const firstSeatIdInLayout = sumSeats + 1 // not index
                 sumSeats += numSeats
                 const LastSeatIdInLayout = sumSeats // not index
                 const usedSeatsInLayout: Seat[] = snapshotLatestSeats.filter(
                     (seat) =>
-                        firstSeatIdInLayout <= seat.seat_id &&
-                        seat.seat_id <= LastSeatIdInLayout
+                        firstSeatIdInLayout <= seat.seat_id && seat.seat_id <= LastSeatIdInLayout
                 )
                 let displayThisPage = false
                 if (pageProps.length == 0 && index === 0) {
@@ -337,10 +374,15 @@ const Seats: FC = () => {
                     firstSeatId: firstSeatIdInLayout,
                     usedSeats: usedSeatsInLayout,
                     display: displayThisPage,
+                    memberOnly: member_only,
                 }
             }
+
+        const newGeneralPageProps: LayoutPageProps[] = snapshotActiveGeneralLayouts.map(
+            mapFunc(false)
         )
-        setPageProps(newPageProps)
+        const newMemberPageProps: LayoutPageProps[] = snapshotActiveMemberLayouts.map(mapFunc(true))
+        setPageProps(newGeneralPageProps.concat(newMemberPageProps))
     }
 
     /**
@@ -360,11 +402,11 @@ const Seats: FC = () => {
         () => (
             <Message
                 currentPageIndex={currentPageIndex}
-                currentRoomsLength={activeLayouts.length}
-                seats={latestSeats}
+                currentRoomsLength={activeGeneralLayouts.length}
+                seats={latestGeneralSeats}
             ></Message>
         ),
-        [currentPageIndex, activeLayouts, latestSeats]
+        [currentPageIndex, activeGeneralLayouts, latestGeneralSeats]
     )
 
     if (pageProps.length > 0) {

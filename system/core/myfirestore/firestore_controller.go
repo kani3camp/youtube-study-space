@@ -83,6 +83,9 @@ func (c *FirestoreController) usersCollection() *firestore.CollectionRef {
 func (c *FirestoreController) seatsCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(SEATS)
 }
+func (c *FirestoreController) memberSeatsCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(MemberSeats)
+}
 
 func (c *FirestoreController) liveChatHistoryCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(LiveChatHistory)
@@ -165,8 +168,12 @@ func (c *FirestoreController) UpdateNextPageToken(ctx context.Context, nextPageT
 	return nil
 }
 
-func (c *FirestoreController) ReadAllSeats(ctx context.Context) ([]SeatDoc, error) {
+func (c *FirestoreController) ReadGeneralSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.seatsCollection().Documents(ctx)
+	return GetSeatsFromIterator(iter)
+}
+func (c *FirestoreController) ReadMemberSeats(ctx context.Context) ([]SeatDoc, error) {
+	iter := c.memberSeatsCollection().Documents(ctx)
 	return GetSeatsFromIterator(iter)
 }
 
@@ -369,11 +376,24 @@ func (c *FirestoreController) UpdateDesiredMaxSeats(ctx context.Context, tx *fir
 		{Path: DesiredMaxSeatsDocProperty, Value: desiredMaxSeats},
 	})
 }
+func (c *FirestoreController) UpdateDesiredMemberMaxSeats(ctx context.Context, tx *firestore.Transaction,
+	desiredMemberMaxSeats int) error {
+	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: DesiredMemberMaxSeatsDocProperty, Value: desiredMemberMaxSeats},
+	})
+}
 
 func (c *FirestoreController) UpdateMaxSeats(ctx context.Context, tx *firestore.Transaction, maxSeats int) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: MaxSeatsDocProperty, Value: maxSeats},
+	})
+}
+func (c *FirestoreController) UpdateMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, memberMaxSeats int) error {
+	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: MemberMaxSeatsDocProperty, Value: memberMaxSeats},
 	})
 }
 

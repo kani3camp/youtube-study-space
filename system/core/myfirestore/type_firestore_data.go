@@ -27,8 +27,10 @@ type ConstantsConfigDoc struct {
 	// monitorが定期的に最大席数がmin-vacancy-rateを満たしつつ妥当な値であるかを判断し、最大席数を変更すべきと判断したらfirestoreの
 	// desired-max-seatsを更新し、botプログラムが参照できるようにする。
 	// botプログラムは定期的にfirestoreのdesired-max-seatsを読み込み、問題ないことを確認してmax-seatsに反映する。
-	MaxSeats        int `firestore:"max-seats" json:"max_seats"`                 // 席数（最大席番号）
-	DesiredMaxSeats int `firestore:"desired-max-seats" json:"desired_max_seats"` // 希望の席数（最大席番号）
+	MaxSeats              int `firestore:"max-seats" json:"max_seats"`                 // 席数（最大席番号）
+	MemberMaxSeats        int `firestore:"member-max-seats" json:"member_max_seats"`   // メンバー専用席の席数（最大席番号）
+	DesiredMaxSeats       int `firestore:"desired-max-seats" json:"desired_max_seats"` // 希望の席数（最大席番号）
+	DesiredMemberMaxSeats int `firestore:"desired-member-max-seats" json:"desired_member_max_seats"`
 	
 	// botプログラムにおいてdesired-max-seatsをチェックする最小インターバル
 	CheckDesiredMaxSeatsIntervalSec int `firestore:"check-desired-max-seats-interval-sec"`

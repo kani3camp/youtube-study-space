@@ -240,14 +240,14 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if constants.DesiredMaxSeats == constants.MaxSeats {
-		return nil
-	} else if constants.DesiredMaxSeats > constants.MaxSeats { // 席を増やす
-		s.MessageToLiveChat(ctx, "ルームを増やします↗")
+	
+	// 一般席
+	if constants.DesiredMaxSeats > constants.MaxSeats { // 一般席を増やす
+		s.MessageToLiveChat(ctx, "席を増やします↗")
 		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
-	} else { // 席を減らす
+	} else if constants.DesiredMaxSeats < constants.MaxSeats { // 一般席を減らす
 		// max_seatsを減らしても、空席率が設定値以上か確認
-		seats, err := s.FirestoreController.ReadAllSeats(ctx)
+		seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
 		if err != nil {
 			return err
 		}
@@ -260,7 +260,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return s.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, constants.MaxSeats)
 		} else {
 			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, "人数が減ったためルームを減らします↘ 必要な場合は席を移動してもらうことがあります。")
+			s.MessageToLiveChat(ctx, "人数が減ったため席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false, false)
@@ -288,6 +288,56 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
 		}
 	}
+	
+	// メンバー席
+	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
+		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")
+		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
+	} else if constants.DesiredMemberMaxSeats < constants.MemberMaxSeats { // メンバー席を減らす
+		// member_max_seatsを減らしても、空席率が設定値以上か確認
+		seats, err := s.FirestoreController.ReadMemberSeats(ctx)
+		if err != nil {
+			return err
+		}
+		if int(float32(constants.DesiredMemberMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
+			message := "減らそうとしすぎ。desiredは却下し、desired member max seats <= current member max seatsとします。" +
+				"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
+				"current member max seats: " + strconv.Itoa(constants.MemberMaxSeats) + ", " +
+				"current seats: " + strconv.Itoa(len(seats))
+			log.Println(message)
+			return s.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, constants.MemberMaxSeats)
+		} else {
+			// 消えてしまう席にいるユーザーを移動させる
+			s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
+			for _, seat := range seats {
+				if seat.SeatId > constants.DesiredMemberMaxSeats {
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false, false)
+					// 移動させる
+					inCommandDetails := &utils.CommandDetails{
+						CommandType: utils.In,
+						InOption: utils.InOption{
+							IsSeatIdSet: true,
+							SeatId:      0,
+							MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+								IsWorkNameSet:    true,
+								IsDurationMinSet: true,
+								WorkName:         seat.WorkName,
+								DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+							},
+						},
+					}
+					err = s.In(ctx, inCommandDetails) // TODO: メンバー限定の/in
+					if err != nil {
+						return err
+					}
+				}
+			}
+			// member_max_seatsを更新
+			return s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats)
+		}
+	}
+	
+	return nil
 }
 
 // Command 入力コマンドを解析して実行
@@ -964,7 +1014,7 @@ func (s *System) My(command *utils.CommandDetails, ctx context.Context) error {
 		}
 		var seats []myfirestore.SeatDoc
 		if isUserInRoom {
-			seats, err = s.FirestoreController.ReadAllSeats(ctx)
+			seats, err = s.FirestoreController.ReadGeneralSeats(ctx)
 			if err != nil {
 				s.MessageToOwnerWithError("failed to CurrentSeat", err)
 				return err
@@ -1589,7 +1639,7 @@ func (s *System) SaveNextPageToken(ctx context.Context, nextPageToken string) er
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int,
 	customerror.CustomError) {
-	seats, err := s.FirestoreController.ReadAllSeats(ctx)
+	seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
 	if err != nil {
 		return 0, customerror.Unknown.Wrap(err)
 	}
@@ -1925,9 +1975,9 @@ func (s *System) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *fir
 // ExitAllUsersInRoom roomの全てのユーザーを退室させる。
 func (s *System) ExitAllUsersInRoom(ctx context.Context) error {
 	for {
-		seats, err := s.FirestoreController.ReadAllSeats(ctx)
+		seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
 		if err != nil {
-			s.MessageToOwnerWithError("failed to ReadAllSeats", err)
+			s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
 			return err
 		}
 		if len(seats) == 0 {
@@ -2041,7 +2091,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context) error {
 	jstNow := utils.JstNow()
 	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredUntil(ctx, jstNow)
 	if err != nil {
-		s.MessageToOwnerWithError("failed to ReadAllSeats", err)
+		s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
 		return err
 	}
 	log.Println("自動退室候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
@@ -2107,7 +2157,7 @@ func (s *System) OrganizeDBResume(ctx context.Context) error {
 	jstNow := utils.JstNow()
 	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredBreakUntil(ctx, jstNow)
 	if err != nil {
-		s.MessageToOwnerWithError("failed to ReadAllSeats", err)
+		s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
 		return err
 	}
 	log.Println("作業再開候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
@@ -2215,9 +2265,9 @@ func (s *System) OrganizeDBExpiredSeatLimits(ctx context.Context) error {
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
 func (s *System) CheckLongTimeSitting(ctx context.Context) error {
 	// 全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err := s.FirestoreController.ReadAllSeats(ctx)
+	seatsSnapshot, err := s.FirestoreController.ReadGeneralSeats(ctx)
 	if err != nil {
-		s.MessageToOwnerWithError("failed to ReadAllSeats", err)
+		s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
 		return err
 	}
 	err = s.OrganizeDBForceMove(ctx, seatsSnapshot)
@@ -2494,7 +2544,7 @@ func (s *System) GetAllUsersTotalStudySecList(ctx context.Context) ([]utils.User
 
 // MinAvailableSeatIdForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
 func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string) (int, error) {
-	seats, err := s.FirestoreController.ReadAllSeats(ctx)
+	seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
 	if err != nil {
 		return -1, err
 	}
