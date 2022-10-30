@@ -2,7 +2,7 @@ import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import * as styles from '../styles/Usage.styles'
 
-const StandingRoom: FC = () => {
+const Usage: FC = () => {
     const { t } = useTranslation()
 
     return (
@@ -13,9 +13,7 @@ const StandingRoom: FC = () => {
                 <div css={styles.seat}>
                     <div css={styles.seatId}>{t('usage.seat.id')}</div>
                     <div css={styles.workName}>{t('usage.seat.work_name')}</div>
-                    <div css={styles.userDisplayName}>
-                        {t('usage.seat.user_display_name')}
-                    </div>
+                    <div css={styles.userDisplayName}>{t('usage.seat.user_display_name')}</div>
                 </div>
 
                 <div>
@@ -33,4 +31,4 @@ const StandingRoom: FC = () => {
     )
 }
 
-export default StandingRoom
+export default Usage

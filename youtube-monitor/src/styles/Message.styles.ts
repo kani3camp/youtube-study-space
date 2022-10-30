@@ -9,12 +9,31 @@ export const message = css`
     text-align: center;
     font-size: 1.6rem;
     background-color: #ffffff60;
+    display: flex;
+    flex-direction: row;
 `
 
-export const roomName = css`
+export const pageInfo = css`
     width: 30%;
     height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+`
+
+export const pageIndex = css`
     display: inline-block;
+`
+
+export const memberOnly = css`
+    width: 2.5rem;
+    margin-left: 1rem;
+    padding: 0.1rem;
+    display: inline-block;
+    font-size: 0.6rem;
+    color: white;
+    background-color: #2ba640;
+    border-radius: 0.3rem;
 `
 
 export const numStudyingPeople = css`

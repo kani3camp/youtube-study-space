@@ -25,5 +25,6 @@
     "part_type.mid_night2": "Mid Night Part Ⅱ",
     "part_type.early_morning": "Early Morning Part",
     "message.room": "Page {{index}} / {{length}}",
+    "member": "member only",
     "message.num_studying_people": "{{value}} people working"
 }

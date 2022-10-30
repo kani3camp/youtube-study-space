@@ -6,7 +6,7 @@ import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
 import Seats from '../components/Seats'
 import Timer from '../components/Timer'
-import StandingRoom from '../components/Usage'
+import Usage from '../components/Usage'
 
 const Home: FC = () => (
     <div
@@ -20,7 +20,7 @@ const Home: FC = () => (
         <BackgroundImage></BackgroundImage>
         <BgmPlayer></BgmPlayer>
         <Clock />
-        <StandingRoom />
+        <Usage />
         <Timer />
         <Seats />
     </div>
@@ -28,7 +28,7 @@ const Home: FC = () => (
 
 export const getStaticProps: GetStaticProps = async ({ locale }) => ({
     props: {
-        ...(await serverSideTranslations(locale ?? 'jp', ['common'])),
+        ...(await serverSideTranslations(locale ?? 'ja', ['common'])),
     },
 })
 

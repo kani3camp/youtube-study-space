@@ -26,9 +26,10 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
+import { Constants } from '../lib/constants'
 
 const Seats: FC = () => {
-    const PAGING_INTERVAL_MSEC = 8 * 1000
+    const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
     const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
     const [latestMemberSeats, setLatestMemberSeats] = useState<Seat[]>([])
@@ -49,9 +50,9 @@ const Seats: FC = () => {
     }, [])
 
     useInterval(() => {
-        console.log('interval')
-        if (activeGeneralLayouts.length > 0) {
-            const newPageIndex = (currentPageIndex + 1) % activeGeneralLayouts.length
+        console.log('interval', new Date())
+        if (pageProps.length > 0) {
+            const newPageIndex = (currentPageIndex + 1) % pageProps.length
             setCurrentPageIndex(newPageIndex)
 
             reviewMaxSeats()
@@ -83,7 +84,7 @@ const Seats: FC = () => {
 
         const firebaseConfig: FirebaseOptions = {
             apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-            authDomain: 'test--study-space.firebaseapp.com',
+            // authDomain: 'test--study-space.firebaseapp.com',
             projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         }
         const app = initializeApp(firebaseConfig)
@@ -158,13 +159,21 @@ const Seats: FC = () => {
             },
         }
 
-        const seatsQuery = query(collection(db, 'seats')).withConverter(seatConverter)
-        onSnapshot(seatsQuery, (querySnapshot) => {
+        const generalSeatsQuery = query(collection(db, 'seats')).withConverter(seatConverter)
+        onSnapshot(generalSeatsQuery, (querySnapshot) => {
             const seats: Seat[] = []
             querySnapshot.forEach((doc) => {
                 seats.push(doc.data())
             })
             setLatestGeneralSeats(seats)
+        })
+        const memberSeatsQuery = query(collection(db, 'member-seats')).withConverter(seatConverter)
+        onSnapshot(memberSeatsQuery, (querySnapshot) => {
+            const seats: Seat[] = []
+            querySnapshot.forEach((doc) => {
+                seats.push(doc.data())
+            })
+            setLatestMemberSeats(seats)
         })
 
         onSnapshot(doc(db, 'config', 'constants').withConverter(constantsConverter), (doc) => {
@@ -184,6 +193,7 @@ const Seats: FC = () => {
      * @param pageIndex 次に表示したいページのインデックス番号（0始まり）
      */
     const changePage = (pageIndex: number) => {
+        console.log('change index: ', pageIndex)
         const snapshotPageProps = [...pageProps]
         if (pageIndex + 1 > snapshotPageProps.length) {
             pageIndex = 0 // index out of range にならないように１ページ目に。
@@ -341,7 +351,7 @@ const Seats: FC = () => {
         const snapshotActiveMemberLayouts = [...activeMemberLayouts]
         const snapshotLatestSeats = [...latestGeneralSeats]
 
-        if (snapshotActiveGeneralLayouts.length < currentPageIndex + 1) {
+        if (snapshotPageProps.length < currentPageIndex + 1) {
             // index out of rangeにならないように1ページ目に。
             setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
         }
@@ -349,7 +359,7 @@ const Seats: FC = () => {
         let sumSeats = 0
         const mapFunc =
             (member_only: boolean) =>
-            (layout: RoomLayout, index: number): LayoutPageProps => {
+            (layout: RoomLayout): LayoutPageProps => {
                 const numSeats = layout.seats.length
                 const firstSeatIdInLayout = sumSeats + 1 // not index
                 sumSeats += numSeats
@@ -358,22 +368,11 @@ const Seats: FC = () => {
                     (seat) =>
                         firstSeatIdInLayout <= seat.seat_id && seat.seat_id <= LastSeatIdInLayout
                 )
-                let displayThisPage = false
-                if (pageProps.length == 0 && index === 0) {
-                    // 初回構築のときは1ページ目を表示
-                    displayThisPage = true
-                } else if (index >= snapshotPageProps.length) {
-                    // 増えたページの場合は、表示はfalse
-                    displayThisPage = false
-                } else {
-                    displayThisPage = snapshotPageProps[index].display
-                }
-
                 return {
                     roomLayout: layout,
                     firstSeatId: firstSeatIdInLayout,
                     usedSeats: usedSeatsInLayout,
-                    display: displayThisPage,
+                    display: false, // set later
                     memberOnly: member_only,
                 }
             }
@@ -382,11 +381,24 @@ const Seats: FC = () => {
             mapFunc(false)
         )
         const newMemberPageProps: LayoutPageProps[] = snapshotActiveMemberLayouts.map(mapFunc(true))
-        setPageProps(newGeneralPageProps.concat(newMemberPageProps))
+        const newPageProps: LayoutPageProps[] = newGeneralPageProps.concat(newMemberPageProps)
+        // set if display
+        for (let i = 0; i < newPageProps.length; i++) {
+            if (snapshotPageProps.length === 0 && i === 0) {
+                // 初回構築のときは1ページ目を表示
+                newPageProps[i].display = true
+            } else if (i >= snapshotPageProps.length) {
+                // 増えたページの場合は、表示はfalse
+                newPageProps[i].display = false
+            } else {
+                newPageProps[i].display = snapshotPageProps[i].display
+            }
+        }
+        setPageProps(newPageProps)
     }
 
     /**
-     * 実際に必要な席数。
+     * Number of seats of the given layouts.
      * @param layouts
      * @returns
      */
@@ -402,8 +414,11 @@ const Seats: FC = () => {
         () => (
             <Message
                 currentPageIndex={currentPageIndex}
-                currentRoomsLength={activeGeneralLayouts.length}
-                seats={latestGeneralSeats}
+                currentPagesLength={pageProps.length}
+                currentPageIsMember={
+                    pageProps.length > 0 ? pageProps[currentPageIndex].memberOnly : false
+                }
+                seats={latestGeneralSeats.concat(latestMemberSeats)}
             ></Message>
         ),
         [currentPageIndex, activeGeneralLayouts, latestGeneralSeats]

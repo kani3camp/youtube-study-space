@@ -6,6 +6,9 @@ import { getCurrentSection, SectionType } from '../lib/time_table'
 import * as styles from '../styles/BgmPlayer.styles'
 
 const BgmPlayer: FC = () => {
+    const BGM_VOLUME = Constants.bgmVolume
+    const CHIME_VOLUME = Constants.chimeVolume
+
     const [lastSectionType, setLastSectionType] = useState('')
     const [audioTitle, setAudioTitle] = useState('BGMタイトル')
     const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
@@ -77,7 +80,7 @@ const BgmPlayer: FC = () => {
         audio.src = bgm.file
         setAudioTitle(bgm.title)
         setAudioArtist(bgm.artist)
-        audio.volume = 0.3
+        audio.volume = BGM_VOLUME
         audio.play()
     }
 
@@ -90,13 +93,13 @@ const BgmPlayer: FC = () => {
 
     const chime1Play = () => {
         const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
-        chime1.volume = 0.7
+        chime1.volume = CHIME_VOLUME
         chime1.play()
     }
 
     const chime2Play = () => {
         const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
-        chime2.volume = 0.7
+        chime2.volume = CHIME_VOLUME
         chime2.play()
     }
 
