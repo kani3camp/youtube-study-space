@@ -13,12 +13,14 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
 	
-	if strings.HasPrefix(fullString, CommandPrefix) {
+	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
 		slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 		switch slice[0] {
+		case MemberInCommand:
+			return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
 		case InCommand:
-			return ParseIn(emojiExcludedString, fullString, isMember, emojis)
+			return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,
@@ -64,7 +66,12 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
 			if err == nil {
-				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, emojis)
+				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, false, emojis)
+			}
+			// /席番号かどうか
+			num, err = strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix))
+			if err == nil {
+				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, true, emojis)
 			}
 			
 			// 間違いコマンド
@@ -79,9 +86,11 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 		if len(emojis) > 0 {
 			switch emojis[0] {
 			case EmojiInZero:
-				return ParseSeatIn(0, emojiExcludedString, fullString, isMember, emojis)
+				return ParseSeatIn(0, emojiExcludedString, fullString, isMember, false, emojis)
+			case EmojiMemberIn:
+				return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
 			case EmojiIn:
-				return ParseIn(emojiExcludedString, fullString, isMember, emojis)
+				return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
 			case EmojiOut:
 				return &CommandDetails{
 					CommandType: Out,
@@ -153,6 +162,8 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 			m = EmojiRankOn
 		case MatchEmojiCommand(s, RankOffString):
 			m = EmojiRankOff
+		case MatchEmojiCommand(s, MemberInString):
+			m = EmojiMemberIn
 		default:
 			continue
 		}
@@ -164,7 +175,7 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 	return emojis, emojiExcludedString
 }
 
-func ParseIn(emojiExcludedString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
+func ParseIn(emojiExcludedString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 	
 	// 追加オプションチェック
@@ -178,11 +189,12 @@ func ParseIn(emojiExcludedString string, fullString string, isMember bool, emoji
 		InOption: InOption{
 			IsSeatIdSet:        false,
 			MinutesAndWorkName: options,
+			IsMemberSeat:       isMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
+func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
@@ -197,6 +209,7 @@ func ParseSeatIn(seatNum int, commandString string, fullString string, isMember 
 			IsSeatIdSet:        true,
 			SeatId:             seatNum,
 			MinutesAndWorkName: options,
+			IsMemberSeat:       isMemberSeat,
 		},
 	}, customerror.NewNil()
 }

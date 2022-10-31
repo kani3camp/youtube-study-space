@@ -7,20 +7,21 @@ import (
 )
 
 const (
-	TestEmojiIn0     = ":_commandIn0:"
-	TestEmojiIn1     = ":_commandIn1:"
-	TestEmojiInZero0 = ":_command0InZero0:"
-	TestEmojiOut0    = ":_commandOut0:"
-	TestEmojiInfo0   = ":_commandInfo0:"
-	TestEmojiInfoD0  = ":_commandInfoD0:"
-	TestEmojiSeat0   = ":_commandSeat0:"
-	TestEmojiSeatD0  = ":_commandSeatD0:"
-	TestEmojiChange0 = ":_commandChange0:"
-	TestEmojiBreak0  = ":_commandBreak0:"
-	TestEmojiResume0 = ":_commandResume0:"
-	TestEmojiMore0   = ":_commandMore0:"
-	TestEmojiMy0     = ":_commandMy0:"
-	TestEmojiRank0   = ":_commandRank0:"
+	TestEmojiIn0       = ":_commandIn0:"
+	TestEmojiIn1       = ":_commandIn1:"
+	TestEmojiInZero0   = ":_command0InZero0:"
+	TestEmojiOut0      = ":_commandOut0:"
+	TestEmojiInfo0     = ":_commandInfo0:"
+	TestEmojiInfoD0    = ":_commandInfoD0:"
+	TestEmojiSeat0     = ":_commandSeat0:"
+	TestEmojiSeatD0    = ":_commandSeatD0:"
+	TestEmojiChange0   = ":_commandChange0:"
+	TestEmojiBreak0    = ":_commandBreak0:"
+	TestEmojiResume0   = ":_commandResume0:"
+	TestEmojiMore0     = ":_commandMore0:"
+	TestEmojiMy0       = ":_commandMy0:"
+	TestEmojiRank0     = ":_commandRank0:"
+	TestEmojiMemberIn0 = ":_commandMemberIn0:"
 	
 	TestEmojiMin0     = ":_commandMin0:"
 	TestEmoji360Min0  = ":_command360Min0:"
@@ -195,6 +196,33 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+		{
+			Input: "/in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsMemberSeat:       true,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{},
+				},
+			},
+		},
+		{
+			Input: "/1 work=work min=35",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "work",
+						DurationMin:      35,
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
 		
 		{
 			Input:    TestEmojiIn0,
@@ -363,6 +391,27 @@ func TestParseCommand(t *testing.T) {
 						IsWorkNameSet: true,
 						WorkName:      "英単語",
 					},
+				},
+			},
+		},
+		{
+			Input:    TestEmojiMemberIn0,
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Input:    TestEmojiMemberIn0 + TestEmojiColor0 + TestEmojiMin0 + "30",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsDurationMinSet: true,
+						DurationMin:      30,
+					},
+					IsMemberSeat: true,
 				},
 			},
 		},
