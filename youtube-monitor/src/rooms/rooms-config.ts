@@ -3,13 +3,14 @@ import { RoomLayout } from '../types/room-layout'
 import { Anonymous1Layout } from './layouts/anonymous1'
 import { Chabio1Layout } from './layouts/chabio1_room'
 import { Chabio2Layout } from './layouts/chabio2_room'
+import { circleRoomLayout } from './layouts/circle_room'
+import { classRoomLayout } from './layouts/classroom'
 import { Freepik1RoomLayout } from './layouts/freepik1_room'
 import { Freepik2RoomLayout } from './layouts/freepik2_room'
 import { Freepik3RoomLayout } from './layouts/freepik3_room'
 import { Freepik4Layout } from './layouts/freepik4_room'
 import { Freepik5Layout } from './layouts/freepik5_room'
 import { mazeRoomLayout } from './layouts/maze_room'
-import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 
 type AllRoomsConfig = {
     basicRooms: RoomLayout[]
@@ -26,12 +27,12 @@ const prodAllRooms: AllRoomsConfig = {
         Freepik5Layout,
     ],
     temporaryRooms: [
-        SeaOfSeatRoomLayout,
+        classRoomLayout,
         Freepik2RoomLayout,
         Freepik4Layout,
         Chabio2Layout,
         Freepik1RoomLayout,
-        Freepik3RoomLayout,
+        circleRoomLayout,
         Freepik5Layout,
     ],
 }
@@ -46,12 +47,12 @@ const testAllRooms: AllRoomsConfig = {
         Freepik5Layout,
     ],
     temporaryRooms: [
-        SeaOfSeatRoomLayout,
+        classRoomLayout,
         Freepik2RoomLayout,
         Freepik4Layout,
         Chabio2Layout,
         Freepik1RoomLayout,
-        Freepik3RoomLayout,
+        circleRoomLayout,
         Freepik5Layout,
     ],
 }
