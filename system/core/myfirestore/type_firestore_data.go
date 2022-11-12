@@ -169,12 +169,6 @@ type UserDoc struct {
 	FavoriteColor string `json:"favorite_color" firestore:"favorite-color"`
 }
 
-type UserHistoryDoc struct {
-	Action  string      `json:"action" firestore:"action"`
-	Date    time.Time   `json:"date" firestore:"date"`
-	Details interface{} `json:"details" firestore:"details"`
-}
-
 type LiveChatHistoryDoc struct {
 	AuthorChannelId       string    `json:"author_channel_id" firestore:"author-channel-id"`
 	AuthorDisplayName     string    `json:"author_display_name" firestore:"author-display-name"`
@@ -194,11 +188,13 @@ const (
 	ExitRoomActivity                    = "exit-room"
 	StartBreakActivity                  = "start-break"
 	EndBreakActivity                    = "end-break"
+	// TODO: add others
 )
 
 type UserActivityDoc struct {
 	UserId       string           `json:"user_id" firestore:"user-id"`
 	ActivityType UserActivityType `json:"activity_type" firestore:"activity-type"`
 	SeatId       int              `json:"seat_id" firestore:"seat-id"`
+	IsMemberSeat bool             `json:"is_member_seat" firestore:"is-member-seat"`
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
 }

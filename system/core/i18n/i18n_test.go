@@ -22,7 +22,7 @@ var (
 // var f embed.FS
 
 func TestI18n(test *testing.T) {
-	i18n.SetDefaultLanguage(i18n.LanguageJP)
+	i18n.SetDefaultLanguage(i18n.LanguageJA)
 	i18n.SetDefaultFallback(i18n.LanguageEN)
 	
 	// if err := i18n.LoadLocaleFileFS(f, "ko.toml"); err != nil {
