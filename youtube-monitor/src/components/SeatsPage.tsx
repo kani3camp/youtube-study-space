@@ -135,7 +135,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
               `
 
         return (
-            // 1つの座席
+            // for each seat
             <div
                 key={globalSeatId}
                 css={css`
@@ -152,12 +152,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     fontSize: isUsed ? `${seatFontSizePx}px` : `${seatFontSizePx * 2}px`,
                 }}
             >
-                {/* 席番号 */}
+                {/* seat No. */}
                 <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
                     {globalSeatId}
                 </div>
 
-                {/* 作業名 */}
+                {/* work name */}
                 {(workName !== '' || breakWorkName !== '') && (
                     <div
                         css={styles.workName}
@@ -169,10 +169,10 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     </div>
                 )}
 
-                {/* 名前 */}
+                {/* display name */}
                 <div css={styles.userDisplayName}>{displayName}</div>
 
-                {/* 休み中 */}
+                {/* break mode */}
                 {isBreak && (
                     <div
                         css={styles.breakBadge}

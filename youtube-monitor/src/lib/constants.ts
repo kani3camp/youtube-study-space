@@ -1,4 +1,7 @@
-export const DEBUG = true
+if (process.env.NEXT_PUBLIC_DEBUG !== 'true' && process.env.NEXT_PUBLIC_DEBUG !== 'false') {
+    throw Error(`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`)
+}
+export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
 
 export const Constants = {
     fontFamily: "'Zen Maru Gothic', sans-serif",

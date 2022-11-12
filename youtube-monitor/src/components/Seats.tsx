@@ -421,7 +421,7 @@ const Seats: FC = () => {
                 seats={latestGeneralSeats.concat(latestMemberSeats)}
             ></Message>
         ),
-        [currentPageIndex, activeGeneralLayouts, latestGeneralSeats]
+        [currentPageIndex, activeGeneralLayouts, latestGeneralSeats, latestMemberSeats, pageProps]
     )
 
     if (pageProps.length > 0) {
