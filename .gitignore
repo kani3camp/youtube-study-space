@@ -8,7 +8,7 @@ system/.gcloudignore
 youtube-monitor/.next/
 youtube-monitor/node_modules/
 youtube-monitor/out/
-youtube-monitor/public/audio/lofigirl/*
+youtube-monitor/public/audio/*
 youtube-monitor/public/chime/*
 youtube-monitor/public/images/*
 system/app.modules.exe
