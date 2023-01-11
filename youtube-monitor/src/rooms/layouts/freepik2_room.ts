@@ -22,7 +22,7 @@ export const Freepik2RoomLayout: RoomLayout = {
         },
         {
             id: 2,
-            x: 200,
+            x: 210,
             y: 30,
             rotate: 0,
         },
