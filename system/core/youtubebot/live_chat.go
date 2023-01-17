@@ -182,6 +182,12 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	_, err := insertCall.Do()
 	if err != nil {
 		log.Println("first post was failed", err)
+		// second call
+		_, err := insertCall.Do()
+		if err == nil {
+			log.Println("second post succeeded!")
+			return nil
+		}
 		
 		// b credentialのaccess tokenが期限切れの可能性
 		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
@@ -202,13 +208,13 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 			}
 		}
 		
-		// second call
+		// third call
 		liveChatMessage.Snippet.LiveChatId = b.LiveChatId
 		liveChatMessageService = youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
 		_, err = insertCall.Do()
 		if err != nil {
-			log.Println("second post was failed")
+			log.Println("third post was failed")
 			return err
 		}
 	}
