@@ -188,6 +188,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 			log.Println("second post succeeded!")
 			return nil
 		}
+		log.Println("second post was failed", err)
 		
 		// b credentialのaccess tokenが期限切れの可能性
 		credentialConfig, err := b.FirestoreController.ReadCredentialsConfig(ctx, nil)
