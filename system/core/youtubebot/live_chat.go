@@ -218,6 +218,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 			log.Println("third post was failed")
 			return err
 		}
+		log.Println("third post succeeded!")
 	}
 	
 	return nil
