@@ -12,7 +12,6 @@ require (
 	github.com/bwmarrin/discordgo v0.23.2
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/pretty v0.1.0
-	github.com/line/line-bot-sdk-go v7.8.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
@@ -31,7 +30,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.4.0 // indirect
-	github.com/gorilla/websocket v1.4.0 // indirect
+	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -46,5 +45,3 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
-
-require github.com/googleapis/go-type-adapters v1.0.0 // indirect
