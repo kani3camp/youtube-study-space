@@ -1,6 +1,6 @@
 # youtube-study-space
 
-Go to [Youtube channel](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg)
+Go to [YouTube channel](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg)
 
 ## Overview
 
