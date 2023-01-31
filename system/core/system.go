@@ -168,18 +168,18 @@ func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	}
 }
 
-func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) error {
+func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) (bool, error) {
 	// ブロック対象チェック
 	found, index, err := utils.ContainsRegexWithIndex(s.blockRegexListForChatMessage, message)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if found {
 		err := s.BanUser(ctx, userId)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return s.LogToSharedDiscord("発言から禁止ワードを検出、ユーザーをブロックしました。" +
+		return true, s.LogToSharedDiscord("発言から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexListForChatMessage[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -188,14 +188,14 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 	}
 	found, index, err = utils.ContainsRegexWithIndex(s.blockRegexListForChannelName, channelName)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if found {
 		err := s.BanUser(ctx, userId)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return s.LogToSharedDiscord("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
+		return true, s.LogToSharedDiscord("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexListForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -206,10 +206,10 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 	// 通知対象チェック
 	found, index, err = utils.ContainsRegexWithIndex(s.notificationRegexListForChatMessage, message)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if found {
-		return s.MessageToSharedDiscord("発言から禁止ワードを検出しました。（通知のみ）" +
+		return false, s.MessageToSharedDiscord("発言から禁止ワードを検出しました。（通知のみ）" +
 			"\n禁止ワード: `" + s.notificationRegexListForChatMessage[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -218,17 +218,17 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 	}
 	found, index, err = utils.ContainsRegexWithIndex(s.notificationRegexListForChannelName, channelName)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if found {
-		return s.MessageToSharedDiscord("チャンネルから禁止ワードを検出しました。（通知のみ）" +
+		return false, s.MessageToSharedDiscord("チャンネルから禁止ワードを検出しました。（通知のみ）" +
 			"\n禁止ワード: `" + s.notificationRegexListForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
 			"\nチャット内容: `" + message + "`" +
 			"\n日時: " + utils.JstNow().String())
 	}
-	return nil
+	return false, nil
 }
 
 func (s *System) AdjustMaxSeats(ctx context.Context) error {
@@ -349,10 +349,13 @@ func (s *System) Command(ctx context.Context, commandString string, userId strin
 	
 	// check if an unwanted word included
 	if !isChatModerator && !isChatOwner {
-		err := s.CheckIfUnwantedWordIncluded(ctx, userId, commandString, userDisplayName)
+		blocked, err := s.CheckIfUnwantedWordIncluded(ctx, userId, commandString, userDisplayName)
 		if err != nil {
 			s.MessageToOwnerWithError("failed to CheckIfUnwantedWordIncluded", err)
 			// continue
+		}
+		if blocked {
+			return nil
 		}
 	}
 	
