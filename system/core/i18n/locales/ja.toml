@@ -57,7 +57,7 @@
 "alert" = "{0}さん、管理者へメッセージを送信しました⚠" # 0: UserName
 
 [command-kick]
-"kick" = "{0}さん、{1}番席の{2}さんを退室させます" # 0: Username, 1: SeatId, 2: seat user
+"kick" = "{0}さん、{1}番席の{2}さんを退室させます。" # 0: Username, 1: SeatId, 2: seat user
 
 [command-block]
 "block" = "{0}さん、{1}番席の{2}さんをブロックします。"  # 0: UserName, 1: seatId, 2: TargetUserName
