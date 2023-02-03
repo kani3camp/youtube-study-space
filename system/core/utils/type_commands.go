@@ -68,15 +68,18 @@ type SeatOption struct {
 }
 
 type KickOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type CheckOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type BlockOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type ReportOption struct {

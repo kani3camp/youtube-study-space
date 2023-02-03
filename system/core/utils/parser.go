@@ -350,7 +350,7 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 	return options, customerror.NewNil()
 }
 
-func ParseKick(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var kickSeatId int
@@ -367,12 +367,13 @@ func ParseKick(commandString string) (*CommandDetails, customerror.CustomError) 
 	return &CommandDetails{
 		CommandType: Kick,
 		KickOption: KickOption{
-			SeatId: kickSeatId,
+			SeatId:             kickSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseCheck(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -389,12 +390,13 @@ func ParseCheck(commandString string) (*CommandDetails, customerror.CustomError)
 	return &CommandDetails{
 		CommandType: Check,
 		CheckOption: CheckOption{
-			SeatId: targetSeatId,
+			SeatId:             targetSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseBlock(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -411,7 +413,8 @@ func ParseBlock(commandString string) (*CommandDetails, customerror.CustomError)
 	return &CommandDetails{
 		CommandType: Block,
 		BlockOption: BlockOption{
-			SeatId: targetSeatId,
+			SeatId:             targetSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }

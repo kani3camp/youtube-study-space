@@ -4,6 +4,7 @@
 "on" = "オン"
 "off" = "オフ"
 "sir" = "{0}さん、"
+"vip-seat-id" = "VIP{0}"    # 0: SeatId
 
 [command]
 "option-warn" = "{0}さん、オプションが正しく設定されているか確認してください" # 0: Username

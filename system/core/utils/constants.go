@@ -26,6 +26,10 @@ const (
 	
 	MemberInCommand = "/in"
 	
+	MemberKickCommand  = "/kick"
+	MemberCheckCommand = "/check"
+	MemberBlockCommand = "/block"
+	
 	EmojiSide          = ":"
 	EmojiCommandPrefix = EmojiSide + "_command"
 	InString           = "In"
