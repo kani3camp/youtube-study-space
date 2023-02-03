@@ -124,9 +124,10 @@ func (s *System) RunTransaction(ctx context.Context, f func(ctx context.Context,
 	return s.FirestoreController.FirestoreClient.RunTransaction(ctx, f)
 }
 
-func (s *System) SetProcessedUser(userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
+func (s *System) SetProcessedUser(userId string, userDisplayName string, userProfileImageUrl string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
 	s.ProcessedUserId = userId
 	s.ProcessedUserDisplayName = userDisplayName
+	s.ProcessedUserProfileImageUrl = userProfileImageUrl
 	s.ProcessedUserIsModeratorOrOwner = isChatModerator || isChatOwner
 	s.ProcessedUserIsMember = isChatMember
 }
@@ -263,7 +264,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			s.MessageToLiveChat(ctx, "人数が減ったため席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
-					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false, false)
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
 					inCommandDetails := &utils.CommandDetails{
 						CommandType: utils.In,
@@ -311,7 +312,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
-					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, false, false, false)
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
 					inCommandDetails := &utils.CommandDetails{
 						CommandType: utils.In,
@@ -341,11 +342,20 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 }
 
 // Command 入力コマンドを解析して実行
-func (s *System) Command(ctx context.Context, commandString string, userId string, userDisplayName string, isChatModerator bool, isChatOwner bool, isChatMember bool) error {
+func (s *System) Command(
+	ctx context.Context,
+	commandString string,
+	userId string,
+	userDisplayName string,
+	userProfileImageUrl string,
+	isChatModerator bool,
+	isChatOwner bool,
+	isChatMember bool,
+	) error {
 	if userId == s.Configs.LiveChatBotChannelId {
 		return nil
 	}
-	s.SetProcessedUser(userId, userDisplayName, isChatModerator, isChatOwner, isChatMember)
+	s.SetProcessedUser(userId, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
 	
 	// check if an unwanted word included
 	if !isChatModerator && !isChatOwner {
@@ -436,13 +446,19 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 	var replyMessage string
 	t := i18n.GetTFunc("command-in")
 	inOption := &command.InOption
-	isMemberRoom := inOption.IsMemberSeat
+	isMemberSeat := inOption.IsMemberSeat
+	
+	if isMemberSeat && !s.ProcessedUserIsMember {
+		s.MessageToLiveChat(ctx, t("member-seat-forbidden"))
+		return nil
+	}
+	
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 席が指定されているか？
 		if inOption.IsSeatIdSet {
 			// 0番席だったら最小番号の空席に決定
 			if inOption.SeatId == 0 {
-				seatId, err := s.MinAvailableSeatIdForUser(ctx, tx, s.ProcessedUserId, isMemberRoom)
+				seatId, err := s.MinAvailableSeatIdForUser(ctx, tx, s.ProcessedUserId, isMemberSeat)
 				if err != nil {
 					s.MessageToOwnerWithError("failed s.MinAvailableSeatIdForUser()", err)
 					return err
@@ -464,7 +480,7 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 					return nil
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
-				ifSittingTooMuch, err2 = s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, inOption.SeatId)
+				ifSittingTooMuch, err2 = s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, inOption.SeatId, isMemberSeat)
 				if err2 != nil {
 					s.MessageToOwnerWithError("failed s.CheckIfUserSittingTooMuchForSeat()", err2)
 					return err2
@@ -520,12 +536,21 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 			s.MessageToOwnerWithError("failed s.IsUserInRoom()", err)
 			return err
 		}
-		isInRoom := isInGeneralRoom || isInMemberRoom
+		if isInGeneralRoom && isInMemberRoom {
+			s.MessageToOwner("isInGeneralRoom && isInMemberRoom")
+			return errors.New("isInGeneralRoom && isInMemberRoom")
+		}
 		var currentSeat myfirestore.SeatDoc
 		var customErr customerror.CustomError
+		// 現在座っている席を取得
 		if isInGeneralRoom {
-			// 現在座っている席を取得
-			currentSeat, customErr = s.CurrentSeat(ctx, s.ProcessedUserId)
+			currentSeat, customErr = s.CurrentSeat(ctx, s.ProcessedUserId, isMemberSeat)
+			if customErr.IsNotNil() {
+				s.MessageToOwnerWithError("failed CurrentSeat", customErr.Body)
+				return customErr.Body
+			}
+		} else if isInMemberRoom {
+			currentSeat, customErr = s.CurrentSeat(ctx, s.ProcessedUserId, isMemberSeat)
 			if customErr.IsNotNil() {
 				s.MessageToOwnerWithError("failed CurrentSeat", customErr.Body)
 				return customErr.Body
@@ -536,9 +561,9 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 		
 		if isInGeneralRoom { // 退室させてから、入室させる。
 			// 席移動処理
-			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(tx, inOption.SeatId, *inOption.MinutesAndWorkName, currentSeat, &userDoc)
+			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(tx, inOption.SeatId, s.ProcessedUserProfileImageUrl, isMemberSeat, *inOption.MinutesAndWorkName, currentSeat, &userDoc)
 			if err != nil {
-				s.MessageToOwnerWithError("failed to moveSeat for "+s.ProcessedUserId, err)
+				s.MessageToOwnerWithError(fmt.Sprintf("failed to moveSeat for %s (%s)", s.ProcessedUserDisplayName, s.ProcessedUserId), err)
 				return err
 			}
 			
@@ -550,9 +575,21 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 			
 			return nil
 		} else { // 入室のみ
-			untilExitMin, err := s.enterRoom(tx, s.ProcessedUserId, s.ProcessedUserDisplayName,
-				inOption.SeatId, inOption.MinutesAndWorkName.WorkName, "", inOption.MinutesAndWorkName.DurationMin,
-				seatAppearance, myfirestore.WorkState, userDoc.IsContinuousActive, time.Time{}, time.Time{})
+			untilExitMin, err := s.enterRoom(
+				tx,
+				s.ProcessedUserId,
+				s.ProcessedUserDisplayName,
+				s.ProcessedUserProfileImageUrl,
+				inOption.SeatId,
+				isMemberSeat,
+				inOption.MinutesAndWorkName.WorkName,
+				"",
+				inOption.MinutesAndWorkName.DurationMin,
+				seatAppearance,
+				myfirestore.WorkState,
+				userDoc.IsContinuousActive,
+				time.Time{},
+				time.Time{})
 			if err != nil {
 				s.MessageToOwnerWithError("failed to enter room", err)
 				return err
@@ -1675,15 +1712,17 @@ func (s *System) enterRoom(
 	tx *firestore.Transaction,
 	userId string,
 	userDisplayName string,
+	userProfileImageUrl string,
 	seatId int,
+	isMemberSeat bool,
 	workName string,
 	breakWorkName string,
 	workMin int,
 	seatAppearance myfirestore.SeatAppearance,
 	state myfirestore.SeatState,
 	isContinuousActive bool,
-	breakStartedAt time.Time,
-	breakUntil time.Time,
+	breakStartedAt time.Time,	// set when moving seat
+	breakUntil time.Time,	// set when moving seat
 ) (int, error) {
 	enterDate := utils.JstNow()
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
@@ -1703,6 +1742,7 @@ func (s *System) enterRoom(
 		SeatId:                 seatId,
 		UserId:                 userId,
 		UserDisplayName:        userDisplayName,
+		UserProfileImageUrl:    userProfileImageUrl,
 		WorkName:               workName,
 		BreakWorkName:          breakWorkName,
 		EnteredAt:              enterDate,
@@ -1714,7 +1754,7 @@ func (s *System) enterRoom(
 		CumulativeWorkSec:      0,
 		DailyCumulativeWorkSec: 0,
 	}
-	err := s.FirestoreController.CreateSeat(tx, newSeat)
+	err := s.FirestoreController.CreateSeat(tx, newSeat, isMemberSeat)
 	if err != nil {
 		return 0, err
 	}
@@ -1730,7 +1770,7 @@ func (s *System) enterRoom(
 		UserId:       userId,
 		ActivityType: myfirestore.EnterRoomActivity,
 		SeatId:       seatId,
-		IsMemberSeat: ,
+		IsMemberSeat: isMemberSeat,
 		TakenAt:      enterDate,
 	}
 	err = s.FirestoreController.CreateUserActivityDoc(tx, enterActivity)
@@ -1761,6 +1801,7 @@ func (s *System) enterRoom(
 // exitRoom ユーザーを退室させる。
 func (s *System) exitRoom(
 	tx *firestore.Transaction,
+	isMemberSeat bool,
 	previousSeat myfirestore.SeatDoc,
 	previousUserDoc *myfirestore.UserDoc,
 ) (int, int, error) {
@@ -1790,7 +1831,7 @@ func (s *System) exitRoom(
 	}
 	
 	// 退室処理
-	err := s.FirestoreController.DeleteSeat(tx, previousSeat.SeatId)
+	err := s.FirestoreController.DeleteSeat(tx, previousSeat.SeatId, isMemberSeat)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1800,7 +1841,7 @@ func (s *System) exitRoom(
 		UserId:       previousSeat.UserId,
 		ActivityType: myfirestore.ExitRoomActivity,
 		SeatId:       previousSeat.SeatId,
-		IsMemberSeat: ,
+		IsMemberSeat: isMemberSeat,
 		TakenAt:      exitDate,
 	}
 	err = s.FirestoreController.CreateUserActivityDoc(tx, exitActivity)
@@ -1834,11 +1875,11 @@ func (s *System) exitRoom(
 	addedRP := newRP - previousUserDoc.RankPoint
 	
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
-	log.Println("addedRP: " + strconv.Itoa(addedRP) + ", newRP: " + strconv.Itoa(newRP) + ", previous RP: " + strconv.Itoa(previousUserDoc.RankPoint))
+	log.Println(fmt.Sprintf("addedRP: %d, newRP: %d, previous RP: %d", addedRP, newRP, previousUserDoc.RankPoint))
 	return addedWorkedTimeSec, addedRP, nil
 }
 
-func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, option utils.MinutesAndWorkNameOption, previousSeat myfirestore.SeatDoc, previousUserDoc *myfirestore.UserDoc) (int, int, int, error) {
+func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, latestUserProfileImage string, isMemberSeat bool, option utils.MinutesAndWorkNameOption, previousSeat myfirestore.SeatDoc, previousUserDoc *myfirestore.UserDoc) (int, int, int, error) {
 	jstNow := utils.JstNow()
 	
 	// 値チェック
@@ -1847,7 +1888,7 @@ func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, option ut
 	}
 	
 	// 退室
-	workedTimeSec, addedRP, err := s.exitRoom(tx, previousSeat, previousUserDoc)
+	workedTimeSec, addedRP, err := s.exitRoom(tx, isMemberSeat, previousSeat, previousUserDoc)
 	if err != nil {
 		s.MessageToOwnerWithError("failed to exitRoom for "+s.ProcessedUserId, err)
 		return 0, 0, 0, err
@@ -1875,8 +1916,21 @@ func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, option ut
 	}
 	
 	// 入室
-	untilExitMin, err := s.enterRoom(tx, previousSeat.UserId, previousSeat.UserDisplayName, targetSeatId, workName, previousSeat.BreakWorkName,
-		workMin, newSeatAppearance, previousSeat.State, previousUserDoc.IsContinuousActive, previousSeat.CurrentStateStartedAt, previousSeat.CurrentStateUntil)
+	untilExitMin, err := s.enterRoom(
+		tx,
+		previousSeat.UserId,
+		previousSeat.UserDisplayName,
+		latestUserProfileImage,
+		targetSeatId,
+		isMemberSeat,
+		workName,
+		previousSeat.BreakWorkName,
+		workMin,
+		newSeatAppearance,
+		previousSeat.State,
+		previousUserDoc.IsContinuousActive,
+		previousSeat.CurrentStateStartedAt,
+		previousSeat.CurrentStateUntil)
 	if err != nil {
 		s.MessageToOwnerWithError("failed to enter room", err)
 		return 0, 0, 0, err
@@ -1885,8 +1939,8 @@ func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, option ut
 	return workedTimeSec, addedRP, untilExitMin, nil
 }
 
-func (s *System) CurrentSeat(ctx context.Context, userId string) (myfirestore.SeatDoc, customerror.CustomError) {
-	seat, err := s.FirestoreController.ReadSeatWithUserId(ctx, userId)
+func (s *System) CurrentSeat(ctx context.Context, userId string, isMemberSeat bool) (myfirestore.SeatDoc, customerror.CustomError) {
+	seat, err := s.FirestoreController.ReadSeatWithUserId(ctx, userId, isMemberSeat)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return myfirestore.SeatDoc{}, customerror.UserNotInTheRoom.New("the user is not in the room.")

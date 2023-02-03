@@ -177,11 +177,12 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
 			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
 			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
+			profileImageUrl := youtubebot.ExtractAuthorProfileImageUrl(chatMessage)
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := sys.Command(ctx, message, channelId, displayName, isModerator, isOwner, isMember)
+			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
 			if err != nil {
 				sys.MessageToOwnerWithError("error in Command()", err)
 			}

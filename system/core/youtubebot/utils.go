@@ -54,3 +54,7 @@ func ExtractAuthorChannelId(chat *youtube.LiveChatMessage) string {
 func ExtractAuthorDisplayName(chat *youtube.LiveChatMessage) string {
 	return chat.AuthorDetails.DisplayName
 }
+
+func ExtractAuthorProfileImageUrl(chat *youtube.LiveChatMessage) string {
+	return chat.AuthorDetails.ProfileImageUrl
+}
