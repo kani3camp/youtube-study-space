@@ -132,6 +132,7 @@ const Seats: FC = () => {
                     current_state_until: data['current-state-until'],
                     cumulative_work_sec: data['cumulative-work-sec'],
                     daily_cumulative_work_sec: data['daily-cumulative-work-sec'],
+                    user_profile_image_url: data['user-profile-image-url'],
                 }
             },
         }
@@ -349,25 +350,34 @@ const Seats: FC = () => {
         const snapshotPageProps = [...pageProps]
         const snapshotActiveGeneralLayouts = [...activeGeneralLayouts]
         const snapshotActiveMemberLayouts = [...activeMemberLayouts]
-        const snapshotLatestSeats = [...latestGeneralSeats]
+        const snapshotLatestGeneralSeats = [...latestGeneralSeats]
+        const snapshotLatestMemberSeats = [...latestMemberSeats]
 
         if (snapshotPageProps.length < currentPageIndex + 1) {
             // index out of rangeにならないように1ページ目に。
             setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
         }
 
-        let sumSeats = 0
+        let sumSeatsGeneral = 0
+        let sumSeatsMember = 0
         const mapFunc =
             (member_only: boolean) =>
             (layout: RoomLayout): LayoutPageProps => {
                 const numSeats = layout.seats.length
-                const firstSeatIdInLayout = sumSeats + 1 // not index
-                sumSeats += numSeats
-                const LastSeatIdInLayout = sumSeats // not index
-                const usedSeatsInLayout: Seat[] = snapshotLatestSeats.filter(
+                const firstSeatIdInLayout = member_only ? sumSeatsMember + 1 : sumSeatsGeneral + 1 // not index
+                if (member_only) {
+                    sumSeatsMember += numSeats
+                } else {
+                    sumSeatsGeneral += numSeats
+                }
+                const LastSeatIdInLayout = member_only ? sumSeatsMember : sumSeatsGeneral // not index
+                const usedSeatsInLayout: Seat[] = (
+                    member_only ? snapshotLatestMemberSeats : snapshotLatestGeneralSeats
+                ).filter(
                     (seat) =>
                         firstSeatIdInLayout <= seat.seat_id && seat.seat_id <= LastSeatIdInLayout
                 )
+
                 return {
                     roomLayout: layout,
                     firstSeatId: firstSeatIdInLayout,

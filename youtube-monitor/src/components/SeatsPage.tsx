@@ -79,18 +79,37 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
     }))
 
+    const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
+
     const seatList = propsMemo.roomLayout.seats.map((seat, index) => {
-        const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
         const globalSeatId = propsMemo.firstSeatId + index
         const isUsed = usedSeatIds.includes(globalSeatId)
         const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
-        const seat_color = isUsed ? processingSeat.appearance.color_code : emptySeatColor
+        const seatColor = isUsed ? processingSeat.appearance.color_code : emptySeatColor
         const isBreak = isUsed && processingSeat.state === SeatState.Break
         const glowAnimationEnabled = isUsed && processingSeat.appearance.glow_animation
         const numStars = isUsed ? processingSeat.appearance.num_stars : 0
+
+        const profileImageUrl = isUsed ? processingSeat.user_profile_image_url : ''
+        const minutesElapsed = isUsed
+            ? Math.floor(
+                  (new Date().valueOf() -
+                      new Date(processingSeat.entered_at.toMillis()).valueOf()) /
+                      1000 /
+                      60
+              )
+            : 0
+        const hoursElapsed = isUsed ? Math.floor(minutesElapsed / 60) : 0
+        const minutesRemaining = isUsed
+            ? Math.floor(
+                  (new Date(processingSeat.until.toMillis()).valueOf() - new Date().valueOf()) /
+                      1000 /
+                      60
+              )
+            : 0
 
         // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
         let workNameFontSizePx = seatFontSizePx
@@ -110,17 +129,17 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }
             }
         }
-        const gColorLighten = chroma(seat_color).brighten(1).hex()
-        const gColorDarken = chroma(seat_color).darken(2).hex()
+        const gColorLighten = chroma(seatColor).brighten(1).hex()
+        const gColorDarken = chroma(seatColor).darken(2).hex()
         const glowKeyframes = keyframes`
             0% {
-                background-color: ${seat_color};
+                background-color: ${seatColor};
             }
             50% {
                 background-color: ${gColorLighten};
             }
             100% {
-                background-color: ${seat_color};
+                background-color: ${seatColor};
             }
             `
 
@@ -143,7 +162,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     ${glowStyle};
                 `}
                 style={{
-                    backgroundColor: seat_color,
+                    backgroundColor: seatColor,
                     left: `${seatPositions[index].x}%`,
                     top: `${seatPositions[index].y}%`,
                     transform: `rotate(${seatPositions[index].rotate}deg)`,
@@ -201,6 +220,32 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     >
                         {`★×${numStars}`}
                     </div>
+                )}
+
+                {/* profile image */}
+                {isUsed && props.memberOnly && (
+                    <img
+                        css={styles.profileImage}
+                        style={{
+                            width: '1rem',
+                            height: '1rem',
+                        }}
+                        src={profileImageUrl}
+                    />
+                )}
+
+                {/* time elapsed */}
+                {isUsed && props.memberOnly && (
+                    <div css={styles.timeElapsed}>
+                        {hoursElapsed > 0
+                            ? `${hoursElapsed}h${minutesElapsed % 60}m入室`
+                            : `${minutesElapsed % 60}m入室`}
+                    </div>
+                )}
+
+                {/* time remaining */}
+                {isUsed && props.memberOnly && (
+                    <div css={styles.timeRemaining}>{`あと${minutesRemaining}m`}</div>
                 )}
             </div>
         )

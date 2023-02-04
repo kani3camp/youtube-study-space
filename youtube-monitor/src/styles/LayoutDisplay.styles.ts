@@ -77,3 +77,26 @@ export const starsBadge = css`
     right: 0;
     overflow-wrap: anywhere;
 `
+
+export const profileImage = css`
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+`
+
+export const timeElapsed = css`
+    color: darkorange;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    background-color: #0000007e;
+`
+
+export const timeRemaining = css`
+    color: green;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background-color: #00000073;
+`
