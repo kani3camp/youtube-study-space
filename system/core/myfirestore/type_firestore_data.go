@@ -116,7 +116,7 @@ type SeatDoc struct {
 	CurrentStateUntil      time.Time      `json:"current_state_until" firestore:"current-state-until"`
 	CumulativeWorkSec      int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
 	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
-	UserProfileImageUrl    string         `json:"user_profile_image_url" json:"user-profile-image-url"`
+	UserProfileImageUrl    string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
 }
 
 type SeatLimitDoc struct { // used for both collections seat-limits-black-list and seat-limits-white-list

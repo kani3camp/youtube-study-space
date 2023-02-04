@@ -1721,15 +1721,17 @@ func (s *System) IsUserInRoom(ctx context.Context, userId string) (isInMemberRoo
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			isInMemberRoom = false
+		} else {
+			return false, false, err
 		}
-		return false, false, err
 	}
 	_, err = s.FirestoreController.ReadSeatWithUserId(ctx, userId, false)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			isInGeneralRoom = false
+		} else {
+			return false, false, err
 		}
-		return false, false, err
 	}
 	if isInGeneralRoom && isInMemberRoom {
 		s.MessageToOwner("isInGeneralRoom && isInMemberRoom")
