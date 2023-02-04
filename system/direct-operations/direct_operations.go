@@ -14,7 +14,7 @@ import (
 )
 
 func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
-	fmt.Println("全ユーザーを退室させます。よろしいですか？(yes / no)")
+	fmt.Println("全ルームの全ユーザーを退室させます。よろしいですか？(yes / no)")
 	var s string
 	if _, err := fmt.Scanln(&s); err != nil {
 		panic(err)
@@ -32,13 +32,17 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	
 	sys.MessageToOwner("direct op: ExitAllUsersInRoom")
 	
-	log.Println("全ユーザーを退室させます。")
-	err = sys.ExitAllUsersInRoom(ctx)
+	log.Println("全ルームの全ユーザーを退室させます。")
+	err = sys.ExitAllUsersInRoom(ctx, true)
 	if err != nil {
 		panic(err)
-		return
 	}
-	log.Println("全ユーザーを退室させました。")
+	err = sys.ExitAllUsersInRoom(ctx, false)
+	if err != nil {
+		panic(err)
+	}
+	
+	log.Println("全ルームの全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
@@ -50,9 +54,9 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 	
 	sys.MessageToOwner("direct op: ExitSpecificUser")
 	
-	sys.SetProcessedUser(userId, "**", false, false)
-	outCommandDetails := core.CommandDetails{
-		CommandType: core.Out,
+	sys.SetProcessedUser(userId, "**", "**", false, false, false)
+	outCommandDetails := &utils.CommandDetails{
+		CommandType: utils.Out,
 	}
 	
 	err = sys.Out(outCommandDetails, ctx)
@@ -71,7 +75,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	
 	sys.MessageToOwner("direct op: ExportUsersCollectionJson")
 	
-	var allUsersTotalStudySecList []core.UserIdTotalStudySecSet
+	var allUsersTotalStudySecList []utils.UserIdTotalStudySecSet
 	err = sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
 		allUsersTotalStudySecList, err = sys.GetAllUsersTotalStudySecList(ctx)

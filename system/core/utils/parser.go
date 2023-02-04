@@ -36,11 +36,17 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 		case ReportCommand:
 			return ParseReport(emojiExcludedString)
 		case KickCommand:
-			return ParseKick(emojiExcludedString)
+			return ParseKick(emojiExcludedString, false)
+		case MemberKickCommand:
+			return ParseKick(emojiExcludedString, true)
 		case CheckCommand:
-			return ParseCheck(emojiExcludedString)
+			return ParseCheck(emojiExcludedString, false)
+		case MemberCheckCommand:
+			return ParseCheck(emojiExcludedString, true)
 		case BlockCommand:
-			return ParseBlock(emojiExcludedString)
+			return ParseBlock(emojiExcludedString, false)
+		case MemberBlockCommand:
+			return ParseBlock(emojiExcludedString, true)
 		
 		case OkawariCommand:
 			fallthrough
@@ -175,7 +181,7 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 	return emojis, emojiExcludedString
 }
 
-func ParseIn(emojiExcludedString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
+func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 	
 	// 追加オプションチェック
@@ -189,7 +195,7 @@ func ParseIn(emojiExcludedString string, fullString string, isMember bool, isMem
 		InOption: InOption{
 			IsSeatIdSet:        false,
 			MinutesAndWorkName: options,
-			IsMemberSeat:       isMemberSeat,
+			IsMemberSeat:       isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
