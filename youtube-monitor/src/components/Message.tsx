@@ -27,7 +27,7 @@ const Message: FC<Props> = (props) => {
                     {props.currentPageIsMember && <div css={styles.memberOnly}>{t('member')}</div>}
                 </div>
                 <div css={styles.numStudyingPeople}>
-                    {t('message.num_studying_people', { value: numWorkers })} 🎄
+                    {t('message.num_studying_people', { value: numWorkers })} 🫧
                 </div>
             </div>
         )
