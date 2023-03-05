@@ -70,8 +70,8 @@ export const MemberSimpleRoom: RoomLayout = {
         },
         {
             id: 4,
-            x: 170,
-            y: 130,
+            x: 30,
+            y: 30,
             rotate: 0,
         },
         {
@@ -124,8 +124,8 @@ export const MemberSimpleRoom: RoomLayout = {
         },
         {
             id: 13,
-            x: 10,
-            y: 180,
+            x: 190,
+            y: 80,
             rotate: 0,
         },
         {

@@ -39,12 +39,12 @@ export const seatIdContainerMember = css`
     position: absolute;
     top: 0;
     left: 0;
-    width: 20%;
-    height: 30%;
-    background-color: yellow;
+    width: 2rem;
+    height: 1.5rem;
+    background-color: #ffff6d;
     border-right: solid black 0.06rem;
     border-bottom: solid black 0.06rem;
-    border-bottom-right-radius: 40%;
+    border-bottom-right-radius: 0.5rem;
 `
 export const seatIdMember = css`
     position: absolute;

@@ -290,8 +290,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                         }}
                     >
                         {hoursElapsed > 0
-                            ? `${hoursElapsed}h${minutesElapsed % 60}m入室`
-                            : `${minutesElapsed % 60}m入室`}
+                            ? `${hoursElapsed}時間${minutesElapsed % 60}分入室`
+                            : `${minutesElapsed % 60}分入室`}
                     </div>
                 )}
 
@@ -302,7 +302,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                         style={{
                             fontSize: `${seatFontSizePx * 0.6}px`,
                         }}
-                    >{`あと${minutesRemaining}m`}</div>
+                    >{`あと${minutesRemaining}分`}</div>
                 )}
             </div>
         )
