@@ -12,6 +12,7 @@ import { Freepik4Layout } from './layouts/freepik4_room'
 import { Freepik5Layout } from './layouts/freepik5_room'
 import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
+import { MemberSimpleRoom } from './layouts/member_simple_room'
 import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
 import { SimpleRoomLayout } from './layouts/simple_room'
 
@@ -55,7 +56,7 @@ const testAllRooms: AllRoomsConfig = {
         Freepik3RoomLayout,
         Freepik5Layout,
     ],
-    memberBasicRooms: [SimpleRoomLayout],
+    memberBasicRooms: [MemberSimpleRoom],
     memberTemporaryRooms: [HimajinRoomLayout],
 }
 

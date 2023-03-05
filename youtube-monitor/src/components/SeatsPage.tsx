@@ -153,6 +153,64 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                   box-shadow: none;
               `
 
+        let seatNo = <></>
+        let userDisplayName = <></>
+        if (isUsed) {
+            if (props.memberOnly) {
+                seatNo = (
+                    <div css={styles.seatIdContainerMember}>
+                        <div css={styles.seatIdMember} style={{ fontWeight: 'bold' }}>
+                            {globalSeatId}
+                        </div>
+                    </div>
+                )
+                userDisplayName = <div css={styles.userDisplayNameMember}>{displayName}</div>
+            } else {
+                seatNo = (
+                    <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
+                        {globalSeatId}
+                    </div>
+                )
+                userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
+            }
+        } else {
+            seatNo = (
+                <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
+                    {globalSeatId}
+                </div>
+            )
+            userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
+        }
+
+        let workNameDisplay = <></>
+        if (isUsed) {
+            const content =
+                !isBreak && workName ? workName : isBreak && breakWorkName ? breakWorkName : ''
+            if (props.memberOnly) {
+                workNameDisplay = (
+                    <div
+                        css={styles.workNameMember}
+                        style={{
+                            fontSize: `${workNameFontSizePx}px`,
+                        }}
+                    >
+                        {content}
+                    </div>
+                )
+            } else {
+                workNameDisplay = (
+                    <div
+                        css={styles.workName}
+                        style={{
+                            fontSize: `${workNameFontSizePx}px`,
+                        }}
+                    >
+                        {content}
+                    </div>
+                )
+            }
+        }
+
         return (
             // for each seat
             <div
@@ -172,24 +230,13 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }}
             >
                 {/* seat No. */}
-                <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
-                    {globalSeatId}
-                </div>
+                {seatNo}
 
                 {/* work name */}
-                {(workName !== '' || breakWorkName !== '') && (
-                    <div
-                        css={styles.workName}
-                        style={{
-                            fontSize: `${workNameFontSizePx}px`,
-                        }}
-                    >
-                        {isBreak ? breakWorkName : workName}
-                    </div>
-                )}
+                {workNameDisplay}
 
                 {/* display name */}
-                <div css={styles.userDisplayName}>{displayName}</div>
+                {userDisplayName}
 
                 {/* break mode */}
                 {isBreak && (
@@ -225,10 +272,10 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 {/* profile image */}
                 {isUsed && props.memberOnly && (
                     <img
-                        css={styles.profileImage}
+                        css={styles.profileImageMember}
                         style={{
-                            width: '1rem',
-                            height: '1rem',
+                            width: '1.2rem',
+                            height: '1.2rem',
                         }}
                         src={profileImageUrl}
                     />
@@ -236,7 +283,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
                 {/* time elapsed */}
                 {isUsed && props.memberOnly && (
-                    <div css={styles.timeElapsed}>
+                    <div
+                        css={styles.timeElapsed}
+                        style={{
+                            fontSize: `${seatFontSizePx * 0.6}px`,
+                        }}
+                    >
                         {hoursElapsed > 0
                             ? `${hoursElapsed}h${minutesElapsed % 60}m入室`
                             : `${minutesElapsed % 60}m入室`}
@@ -245,7 +297,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
                 {/* time remaining */}
                 {isUsed && props.memberOnly && (
-                    <div css={styles.timeRemaining}>{`あと${minutesRemaining}m`}</div>
+                    <div
+                        css={styles.timeRemaining}
+                        style={{
+                            fontSize: `${seatFontSizePx * 0.6}px`,
+                        }}
+                    >{`あと${minutesRemaining}m`}</div>
                 )}
             </div>
         )

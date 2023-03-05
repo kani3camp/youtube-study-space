@@ -35,6 +35,25 @@ export const seatId = css`
     left: 0;
     color: #414141;
 `
+export const seatIdContainerMember = css`
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20%;
+    height: 30%;
+    background-color: yellow;
+    border-right: solid black 0.06rem;
+    border-bottom: solid black 0.06rem;
+    border-bottom-right-radius: 40%;
+`
+export const seatIdMember = css`
+    position: absolute;
+    margin: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #414141;
+`
 
 export const emptySeatNum = css`
     margin: 0;
@@ -51,6 +70,20 @@ export const workName = css`
     white-space: nowrap;
     font-weight: bolder;
 `
+export const workNameMember = css`
+    margin: 0;
+    color: #24317e;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    font-weight: bolder;
+    position: absolute;
+    width: 75%;
+    right: 1%;
+    top: 20%;
+    text-align: center;
+`
 
 export const userDisplayName = css`
     margin: 0;
@@ -59,6 +92,19 @@ export const userDisplayName = css`
     overflow: hidden;
     white-space: nowrap;
     color: #202020;
+`
+
+export const userDisplayNameMember = css`
+    position: absolute;
+    margin: 0;
+    width: 75%;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    color: #202020;
+    right: 1%;
+    bottom: 20%;
+    text-align: center;
 `
 
 export const breakBadge = css`
@@ -78,25 +124,25 @@ export const starsBadge = css`
     overflow-wrap: anywhere;
 `
 
-export const profileImage = css`
+export const profileImageMember = css`
+    margin: 0;
     position: absolute;
-    top: 0;
-    left: 0;
+    bottom: 20%;
+    left: 5%;
+    /* transform: translate(0, 50%); */
     border-radius: 50%;
 `
 
 export const timeElapsed = css`
     color: darkorange;
     position: absolute;
-    bottom: 0;
-    left: 0;
-    background-color: #0000007e;
+    bottom: 1%;
+    left: 2%;
 `
 
 export const timeRemaining = css`
     color: green;
     position: absolute;
-    bottom: 0;
-    right: 0;
-    background-color: #00000073;
+    bottom: 1%;
+    right: 2%;
 `

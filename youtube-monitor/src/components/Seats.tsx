@@ -1,6 +1,5 @@
 import { FC, useEffect, useMemo, useState } from 'react'
 import api from '../lib/api_config'
-import { useInterval } from '../lib/common'
 import fetcher from '../lib/fetcher'
 import {
     allRooms,
@@ -26,6 +25,7 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
+import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 
 const Seats: FC = () => {
@@ -53,7 +53,7 @@ const Seats: FC = () => {
         console.log('interval', new Date())
         if (pageProps.length > 0) {
             const newPageIndex = (currentPageIndex + 1) % pageProps.length
-            setCurrentPageIndex(newPageIndex)
+            setCurrentPageIndex(1)
 
             reviewMaxSeats()
         }
