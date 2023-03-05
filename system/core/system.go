@@ -2228,6 +2228,7 @@ func (s *System) LogToSharedDiscord(logMessage string) error {
 // - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
 // - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
 func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
+	log.Println(utils.FuncNameOf(s.OrganizeDB), "isMemberRoom:", isMemberRoom)
 	var err error
 	
 	log.Println("自動退室")

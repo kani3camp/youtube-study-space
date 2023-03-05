@@ -10,7 +10,9 @@ import (
 	"google.golang.org/api/transport"
 	"image/color"
 	"log"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -353,4 +355,8 @@ func MatchEmojiCommandString(text string) bool {
 func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
 	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	return r.ReplaceAllString(text, HalfWidthSpace)
+}
+
+func FuncNameOf(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }

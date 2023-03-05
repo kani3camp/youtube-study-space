@@ -213,7 +213,7 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer sys.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
+	err = sys.OrganizeDB(ctx, true)
 	if err != nil {
 		panic(err)
 	}
