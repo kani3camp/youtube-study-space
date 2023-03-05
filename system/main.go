@@ -213,9 +213,8 @@ func Test(ctx context.Context, clientOption option.ClientOption) {
 	defer sys.CloseFirestoreClient()
 	// === ここまでおまじない ===
 	
-	err = sys.CheckLiveStreamStatus(ctx)
+	err = sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
-		sys.MessageToOwnerWithError("failed to check live stream", err)
 		panic(err)
 	}
 	

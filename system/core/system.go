@@ -2803,15 +2803,17 @@ func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube
 	return s.FirestoreController.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc)
 }
 
-func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) error {
+func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) (int, int, error) {
 	// Firestoreでは1回のトランザクションで500件までしか削除できないため、500件ずつ回す
+	var numRowsLiveChat, numRowsUserActivity int
 	
 	// date以前の全てのlive chat history docsをクエリで取得
 	for {
 		iter := s.FirestoreController.Get500LiveChatHistoryDocIdsBeforeDate(ctx, date)
 		count, err := s.DeleteIteratorDocs(ctx, iter)
+		numRowsLiveChat += count
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		if count == 0 {
 			break
@@ -2822,14 +2824,15 @@ func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date tim
 	for {
 		iter := s.FirestoreController.Get500UserActivityDocIdsBeforeDate(ctx, date)
 		count, err := s.DeleteIteratorDocs(ctx, iter)
+		numRowsUserActivity += count
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 		if count == 0 {
 			break
 		}
 	}
-	return nil
+	return numRowsLiveChat, numRowsUserActivity, nil
 }
 
 // DeleteIteratorDocs iterは最大500件とすること。
@@ -2900,12 +2903,13 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			0, 0, 0, 0, retentionFromDate.Location())
 		
 		// ライブチャット・ユーザー行動ログ削除
-		err = s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
+		numRowsLiveChat, numRowsUserActivity, err := s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
 		if err != nil {
 			return err
 		}
 		s.MessageToOwner(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
 			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。")
+		s.MessageToOwner(fmt.Sprintf("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d", numRowsLiveChat, numRowsUserActivity))
 		
 		err = s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now)
 		if err != nil {
