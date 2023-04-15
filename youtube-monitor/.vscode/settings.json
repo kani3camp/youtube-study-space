@@ -24,5 +24,8 @@
         "soundcloud",
         "stylelint",
         "takochan"
-    ]
+    ],
+    "[sql]": {
+        "editor.defaultFormatter": "adpyke.vscode-sql-formatter"
+    }
 }
