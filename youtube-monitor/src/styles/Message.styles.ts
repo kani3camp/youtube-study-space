@@ -1,8 +1,9 @@
 import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const message = css`
-    height: 80px;
-    width: calc(1920px - 400px);
+    height: ${Constants.messageBarHeight}px;
+    width: calc(${Constants.screenWidth}px - ${Constants.sideBarWidth}px);
     position: absolute;
     bottom: 0;
     left: 0;

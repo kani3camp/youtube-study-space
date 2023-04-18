@@ -6,7 +6,7 @@ export const roomLayout = css`
     top: 0;
     left: 0;
     width: 100%;
-    height: calc(1080px - 80px);
+    height: ${Constants.screenHeight - Constants.messageBarHeight}px;
     box-sizing: border-box;
     margin: auto;
     /* border: solid 6px #303030; */
@@ -40,7 +40,7 @@ export const seatIdContainerMember = css`
     top: 0;
     left: 0;
     width: 2rem;
-    height: 1.5rem;
+    height: 1.3rem;
     background-color: #ffff6d;
     border-right: solid black 0.06rem;
     border-bottom: solid black 0.06rem;
@@ -79,9 +79,9 @@ export const workNameMember = css`
     white-space: nowrap;
     font-weight: bolder;
     position: absolute;
-    width: 75%;
+    width: 70%;
     right: 1%;
-    top: 20%;
+    top: 16%;
     text-align: center;
 `
 
@@ -134,14 +134,14 @@ export const profileImageMember = css`
 `
 
 export const timeElapsed = css`
-    color: darkorange;
+    color: #000;
     position: absolute;
     bottom: 1%;
     left: 2%;
 `
 
 export const timeRemaining = css`
-    color: green;
+    color: black;
     position: absolute;
     bottom: 1%;
     right: 2%;

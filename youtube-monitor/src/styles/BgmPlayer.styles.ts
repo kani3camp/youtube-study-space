@@ -1,8 +1,9 @@
 import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const bgmPlayer = css`
     height: calc(1080px - 200px - 350px - 300px);
-    width: 400px;
+    width: ${Constants.sideBarWidth}px;
     background-color: #3535359f;
     position: absolute;
     right: 0;

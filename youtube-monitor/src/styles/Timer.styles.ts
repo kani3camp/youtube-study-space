@@ -1,4 +1,5 @@
 import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const timerTitle = css`
     font-size: 1.5rem;
@@ -7,7 +8,7 @@ export const timerTitle = css`
 
 export const timer = css`
     height: 300px;
-    width: 400px;
+    width: ${Constants.sideBarWidth}px;
     position: absolute;
     bottom: 0;
     right: 0;

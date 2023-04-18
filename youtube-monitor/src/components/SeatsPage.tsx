@@ -24,11 +24,21 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
     const propsMemo = useMemo(() => props, [props])
 
-    const roomShape = {
-        widthPx:
-            (1000 * propsMemo.roomLayout.room_shape.width) / propsMemo.roomLayout.room_shape.height,
-        heightPx: 1000,
-    }
+    const frameWidth = Constants.screenWidth - Constants.sideBarWidth
+    const frameHeight = Constants.screenHeight - Constants.messageBarHeight
+    const frameRatio = frameWidth / frameHeight
+    const roomShapeRatio =
+        propsMemo.roomLayout.room_shape.width / propsMemo.roomLayout.room_shape.height
+    const roomShape =
+        roomShapeRatio >= frameRatio
+            ? {
+                  widthPx: frameWidth,
+                  heightPx: frameWidth / roomShapeRatio,
+              }
+            : {
+                  widthPx: frameHeight * roomShapeRatio,
+                  heightPx: frameHeight,
+              }
 
     const seatFontSizePx = roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
