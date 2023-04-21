@@ -10,7 +10,7 @@ export const MemberSimpleRoom: RoomLayout = {
     },
     seat_shape: {
         width: 287.24409449,
-        height: 136.06299213,
+        height: 166.06299213,
     },
     partition_shapes: [
         //     {
