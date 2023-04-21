@@ -39,7 +39,7 @@ export const seatIdContainerMember = css`
     position: absolute;
     top: 0;
     left: 0;
-    width: 2rem;
+    width: 1.7rem;
     height: 1.3rem;
     background-color: #ffff6d;
     border-right: solid black 0.06rem;
@@ -76,12 +76,17 @@ export const workNameMember = css`
     max-width: 100%;
     text-overflow: ellipsis;
     overflow: hidden;
-    white-space: nowrap;
+    word-wrap: break-word;
+    line-height: 1.1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    /* white-space: nowrap; */
     font-weight: bolder;
     position: absolute;
-    width: 70%;
+    width: 75%;
     right: 1%;
-    top: 16%;
+    top: 18%;
     text-align: center;
 `
 
