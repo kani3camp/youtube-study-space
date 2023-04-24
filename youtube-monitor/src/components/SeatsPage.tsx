@@ -155,25 +155,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
         const glowStyle = glowAnimationEnabled
             ? css`
-                  /* animation: ${glowKeyframes} 5s linear infinite;
-                  box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken}; */
-                  background: linear-gradient(254deg, #bdb7e5, #bf80df);
-                  background-size: 400% 400%;
-
-                  -webkit-animation: AnimationName 3s ease infinite;
-                  -moz-animation: AnimationName 3s ease infinite;
-                  animation: AnimationName 3s ease infinite;
-                  @keyframes AnimationName {
-                      0% {
-                          background-position: 0% 50%;
-                      }
-                      50% {
-                          background-position: 100% 50%;
-                      }
-                      100% {
-                          background-position: 0% 50%;
-                      }
-                  }
+                  animation: ${glowKeyframes} 5s linear infinite;
+                  box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken};
               `
             : css`
                   animation: none;

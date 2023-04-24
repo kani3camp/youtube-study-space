@@ -27,6 +27,7 @@ export const pageIndex = css`
 `
 
 export const memberOnly = css`
+    font-family: ${Constants.seatFontFamily};
     width: 2.5rem;
     margin-left: 1rem;
     padding: 0.1rem;
