@@ -319,7 +319,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
-					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, true)
 					// 移動させる
 					inCommandDetails := &utils.CommandDetails{
 						CommandType: utils.In,
