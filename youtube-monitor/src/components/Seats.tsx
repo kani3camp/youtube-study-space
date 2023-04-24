@@ -53,7 +53,7 @@ const Seats: FC = () => {
         console.log('interval', new Date())
         if (pageProps.length > 0) {
             const newPageIndex = (currentPageIndex + 1) % pageProps.length
-            setCurrentPageIndex(1)
+            setCurrentPageIndex(newPageIndex)
 
             reviewMaxSeats()
         }
