@@ -300,7 +300,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	// メンバー席
 	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
 		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")
-		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
+		return s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats)
 	} else if constants.DesiredMemberMaxSeats < constants.MemberMaxSeats { // メンバー席を減らす
 		// member_max_seatsを減らしても、空席率が設定値以上か確認
 		seats, err := s.FirestoreController.ReadMemberSeats(ctx)
