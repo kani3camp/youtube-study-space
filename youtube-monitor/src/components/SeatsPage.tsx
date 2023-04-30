@@ -1,5 +1,4 @@
 import { css, keyframes } from '@emotion/react'
-import chroma from 'chroma-js'
 import { FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
@@ -137,24 +136,22 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }
             }
         }
-        const gColorLighten = chroma(seatColor).brighten(1).hex()
-        const gColorDarken = chroma(seatColor).darken(2).hex()
-        const glowKeyframes = keyframes`
-            0% {
-                background-color: ${seatColor};
-            }
-            50% {
-                background-color: ${gColorLighten};
-            }
-            100% {
-                background-color: ${seatColor};
-            }
-            `
+
+        const colorGradientKeyframes = keyframes`
+            0%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+            100%{background-position:0% 50%}
+        `
 
         const colorGradientStyle = colorGradientEnabled
             ? css`
-                  animation: ${glowKeyframes} 5s linear infinite;
-                  box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken};
+                  background-image: linear-gradient(
+                      90deg,
+                      ${seatColor},
+                      ${processingSeat.appearance.color_code2}
+                  );
+                  background-size: 400% 400%;
+                  animation: ${colorGradientKeyframes} 7s linear infinite;
               `
             : css`
                   animation: none;
@@ -184,6 +181,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         } else {
             seatNo = (
                 <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
+                    {props.memberOnly ? '/' : ''}
                     {globalSeatId}
                 </div>
             )
