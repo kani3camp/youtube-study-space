@@ -1,9 +1,10 @@
 import { Timestamp } from 'firebase/firestore'
 
 export type SeatAppearance = {
-    color_code: string
+    color_code1: string
+    color_code2: string
     num_stars: number
-    glow_animation: boolean
+    color_gradient_enabled: boolean
 }
 
 export type Seat = {
