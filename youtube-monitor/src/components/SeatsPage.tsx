@@ -20,8 +20,6 @@ const SeatState = {
 }
 
 const SeatsPage: FC<LayoutPageProps> = (props) => {
-    const emptySeatColor = '#F3E8DC'
-
     const propsMemo = useMemo(() => props, [props])
 
     const frameWidth = Constants.screenWidth - Constants.sideBarWidth
@@ -98,9 +96,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
-        const seatColor = isUsed ? processingSeat.appearance.color_code : emptySeatColor
+        const seatColor = isUsed ? processingSeat.appearance.color_code1 : Constants.emptySeatColor
         const isBreak = isUsed && processingSeat.state === SeatState.Break
-        const glowAnimationEnabled = isUsed && processingSeat.appearance.glow_animation
+        const colorGradientEnabled = isUsed && processingSeat.appearance.color_gradient_enabled
         const numStars = isUsed ? processingSeat.appearance.num_stars : 0
 
         const profileImageUrl = isUsed ? processingSeat.user_profile_image_url : ''
@@ -153,7 +151,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             }
             `
 
-        const glowStyle = glowAnimationEnabled
+        const colorGradientStyle = colorGradientEnabled
             ? css`
                   animation: ${glowKeyframes} 5s linear infinite;
                   box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken};
@@ -227,7 +225,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 key={globalSeatId}
                 css={css`
                     ${styles.seat};
-                    ${glowStyle};
+                    ${colorGradientStyle};
                 `}
                 style={{
                     backgroundColor: seatColor,
