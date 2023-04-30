@@ -16,8 +16,8 @@ const BgmPlayer: FC = () => {
 
     const audioDivId = 'music'
     const audioCanvasId = 'audioCanvas'
-    const chime1DivId = 'chime1'
-    const chime2DivId = 'chime2'
+    const chimeSingleDivId = 'chimeSingle'
+    const chimeDoubleDivId = 'chimeDouble'
 
     useEffect(() => {
         checkChimeCanPlay()
@@ -25,7 +25,7 @@ const BgmPlayer: FC = () => {
 
     const checkChimeCanPlay = async () => {
         console.log('checking chime audio files.')
-        const chimeDivIdList = [chime1DivId, chime2DivId]
+        const chimeDivIdList = [chimeSingleDivId, chimeDoubleDivId]
         chimeDivIdList.forEach((divId) => {
             const chime = document.getElementById(divId) as HTMLAudioElement
             chime.addEventListener('error', () => {
@@ -92,15 +92,15 @@ const BgmPlayer: FC = () => {
     }
 
     const chime1Play = () => {
-        const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
-        chime1.volume = CHIME_VOLUME
-        chime1.play()
+        const chimeSingle = document.getElementById(chimeSingleDivId) as HTMLAudioElement
+        chimeSingle.volume = CHIME_VOLUME
+        chimeSingle.play()
     }
 
     const chime2Play = () => {
-        const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
-        chime2.volume = CHIME_VOLUME
-        chime2.play()
+        const chimeDouble = document.getElementById(chimeDoubleDivId) as HTMLAudioElement
+        chimeDouble.volume = CHIME_VOLUME
+        chimeDouble.play()
     }
 
     useEffect(() => {
@@ -130,8 +130,8 @@ const BgmPlayer: FC = () => {
             <div css={styles.bgmPlayer}>
                 <audio autoPlay id={audioDivId}></audio>
 
-                <audio id={chime1DivId} src={Constants.chime1FilePath}></audio>
-                <audio id={chime2DivId} src={Constants.chime2FilePath}></audio>
+                <audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}></audio>
+                <audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath}></audio>
                 <h4>♪ {audioTitle}</h4>
                 <h4>by {audioArtist}</h4>
             </div>

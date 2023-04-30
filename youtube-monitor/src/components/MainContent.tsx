@@ -437,7 +437,7 @@ const Seats: FC = () => {
     if (pageProps.length > 0) {
         return (
             <>
-                <div css={styles.defaultRoom}>
+                <div css={styles.mainContent}>
                     {layoutPagesMemo}
                     {messageMemo}
                 </div>
