@@ -6,7 +6,7 @@ import {
     numSeatsInGeneralAllBasicRooms,
     numSeatsInMemberAllBasicRooms,
 } from '../rooms/rooms-config'
-import * as styles from '../styles/Room.styles'
+import { mainContent } from '../styles/MainContent.styles'
 import { Seat, SetDesiredMaxSeatsResponse } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
@@ -438,7 +438,7 @@ const Seats: FC = () => {
     if (pageProps.length > 0) {
         return (
             <>
-                <div css={styles.mainContent}>
+                <div css={mainContent}>
                     {layoutPagesMemo}
                     {messageMemo}
                 </div>
