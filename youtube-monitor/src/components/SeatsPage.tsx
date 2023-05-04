@@ -1,5 +1,4 @@
 import { css, keyframes } from '@emotion/react'
-import chroma from 'chroma-js'
 import { FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/LayoutDisplay.styles'
@@ -20,8 +19,6 @@ const SeatState = {
 }
 
 const SeatsPage: FC<LayoutPageProps> = (props) => {
-    const emptySeatColor = '#F3E8DC'
-
     const propsMemo = useMemo(() => props, [props])
 
     const frameWidth = Constants.screenWidth - Constants.sideBarWidth
@@ -98,9 +95,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
-        const seatColor = isUsed ? processingSeat.appearance.color_code : emptySeatColor
+        const seatColor = isUsed ? processingSeat.appearance.color_code1 : Constants.emptySeatColor
         const isBreak = isUsed && processingSeat.state === SeatState.Break
-        const glowAnimationEnabled = isUsed && processingSeat.appearance.glow_animation
+        const colorGradientEnabled = isUsed && processingSeat.appearance.color_gradient_enabled
         const numStars = isUsed ? processingSeat.appearance.num_stars : 0
 
         const profileImageUrl = isUsed ? processingSeat.user_profile_image_url : ''
@@ -139,24 +136,22 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }
             }
         }
-        const gColorLighten = chroma(seatColor).brighten(1).hex()
-        const gColorDarken = chroma(seatColor).darken(2).hex()
-        const glowKeyframes = keyframes`
-            0% {
-                background-color: ${seatColor};
-            }
-            50% {
-                background-color: ${gColorLighten};
-            }
-            100% {
-                background-color: ${seatColor};
-            }
-            `
 
-        const glowStyle = glowAnimationEnabled
+        const colorGradientKeyframes = keyframes`
+            0%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+            100%{background-position:0% 50%}
+        `
+
+        const colorGradientStyle = colorGradientEnabled
             ? css`
-                  animation: ${glowKeyframes} 5s linear infinite;
-                  box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken};
+                  background-image: linear-gradient(
+                      90deg,
+                      ${seatColor},
+                      ${processingSeat.appearance.color_code2}
+                  );
+                  background-size: 400% 400%;
+                  animation: ${colorGradientKeyframes} 4s linear infinite;
               `
             : css`
                   animation: none;
@@ -186,6 +181,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         } else {
             seatNo = (
                 <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
+                    {props.memberOnly ? '/' : ''}
                     {globalSeatId}
                 </div>
             )
@@ -199,7 +195,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             if (props.memberOnly) {
                 workNameDisplay = (
                     <div
-                        css={styles.workNameMember}
+                        css={workName !== '' && styles.workNameMember}
                         style={{
                             fontSize: `${workNameFontSizePx}px`,
                         }}
@@ -221,13 +217,18 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             }
         }
 
+        const reloadImage = (e: React.SyntheticEvent<HTMLImageElement, Event>, imgSrc: string) => {
+            console.error(`retrying to load image... ' + ${imgSrc}`)
+            e.currentTarget.src = `${imgSrc}?${new Date().getTime().toString()}`
+        }
+
         return (
             // for each seat
             <div
                 key={globalSeatId}
                 css={css`
                     ${styles.seat};
-                    ${glowStyle};
+                    ${colorGradientStyle};
                 `}
                 style={{
                     backgroundColor: seatColor,
@@ -265,14 +266,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     </div>
                 )}
 
-                {/* ★マーク */}
+                {/* ★Mark */}
                 {numStars > 0 && (
                     <div
                         css={styles.starsBadge}
                         style={{
                             fontSize: `${seatFontSizePx * 0.6}px`,
-                            width: `${seatFontSizePx * 1.8}px`,
-                            paddingTop: `${seatFontSizePx / 8}px`,
                         }}
                     >
                         {`★×${numStars}`}
@@ -282,12 +281,13 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 {/* profile image */}
                 {isUsed && props.memberOnly && (
                     <img
-                        css={styles.profileImageMember}
-                        style={{
-                            width: '1.2rem',
-                            height: '1.2rem',
-                        }}
+                        css={
+                            workName !== ''
+                                ? styles.profileImageMemberWithWorkName
+                                : styles.profileImageMemberNoWorkName
+                        }
                         src={profileImageUrl}
+                        onError={(event) => reloadImage(event, profileImageUrl)}
                     />
                 )}
 

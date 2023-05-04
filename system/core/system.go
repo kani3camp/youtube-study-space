@@ -300,7 +300,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	// メンバー席
 	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
 		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")
-		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
+		return s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats)
 	} else if constants.DesiredMemberMaxSeats < constants.MemberMaxSeats { // メンバー席を減らす
 		// member_max_seatsを減らしても、空席率が設定値以上か確認
 		seats, err := s.FirestoreController.ReadMemberSeats(ctx)
@@ -319,7 +319,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 			s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
-					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, true)
 					// 移動させる
 					inCommandDetails := &utils.CommandDetails{
 						CommandType: utils.In,
@@ -335,7 +335,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 							IsMemberSeat: true,
 						},
 					}
-					err = s.In(ctx, inCommandDetails) // TODO: メンバー限定の/in
+					err = s.In(ctx, inCommandDetails)
 					if err != nil {
 						return err
 					}
@@ -560,22 +560,14 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 				return err
 			}
 			
-			var rpEarned, previousSeatId, newSeatId string
+			var rpEarned string
 			if userDoc.RankVisible {
 				rpEarned = i18n.T("command:rp-earned", addedRP)
 			}
-			if isInMemberRoom {
-				previousSeatId = i18n.T("common:vip-seat-id", currentSeat.SeatId)
-			} else {
-				previousSeatId = strconv.Itoa(currentSeat.SeatId)
-			}
-			if isTargetMemberSeat {
-				newSeatId = i18n.T("common:vip-seat-id", inOption.SeatId)
-			} else {
-				newSeatId = strconv.Itoa(inOption.SeatId)
-			}
+			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
+			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 			
-			replyMessage += t("seat-move", s.ProcessedUserDisplayName, previousSeatId, newSeatId, workedTimeSec/60, rpEarned, untilExitMin)
+			replyMessage += t("seat-move", s.ProcessedUserDisplayName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
 			
 			return nil
 		} else { // 入室のみ
@@ -598,9 +590,15 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 				s.MessageToOwnerWithError("failed to enter room", err)
 				return err
 			}
+			var newSeatId string
+			if isTargetMemberSeat {
+				newSeatId = i18n.T("common:vip-seat-id", inOption.SeatId)
+			} else {
+				newSeatId = strconv.Itoa(inOption.SeatId)
+			}
 			
 			// 入室しましたのメッセージ
-			replyMessage = t("start", s.ProcessedUserDisplayName, untilExitMin, inOption.SeatId)
+			replyMessage = t("start", s.ProcessedUserDisplayName, untilExitMin, newSeatId)
 			return nil
 		}
 	})
@@ -669,7 +667,7 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 			rpEarned = i18n.T("command:rp-earned", addedRP)
 		}
 		if isInMemberRoom {
-			seatIdStr = i18n.T("vip-seat-id", seat.SeatId)
+			seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
 		} else {
 			seatIdStr = strconv.Itoa(seat.SeatId)
 		}
@@ -780,19 +778,19 @@ func (s *System) ShowSeatInfo(command *utils.CommandDetails, ctx context.Context
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
 				breakUntilStr = t("break-until", int(breakUntilDuration.Minutes()))
 			}
-			replyMessage = t("base", s.ProcessedUserDisplayName, currentSeat.SeatId, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
+			var seatIdStr string
+			if isInMemberRoom {
+				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
+			} else {
+				seatIdStr = strconv.Itoa(currentSeat.SeatId)
+			}
+			replyMessage = t("base", s.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
 			
 			if showDetails {
 				recentTotalEntryDuration, err := s.GetRecentUserSittingTimeForSeat(ctx, s.ProcessedUserId, currentSeat.SeatId, isInMemberRoom)
 				if err != nil {
 					s.MessageToOwnerWithError("failed to GetRecentUserSittingTimeForSeat", err)
 					return err
-				}
-				var seatIdStr string
-				if isInMemberRoom {
-					seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
-				} else {
-					seatIdStr = strconv.Itoa(currentSeat.SeatId)
 				}
 				replyMessage += t("details", s.Configs.Constants.RecentRangeMin, seatIdStr, int(recentTotalEntryDuration.Minutes()))
 			}
@@ -861,7 +859,9 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 			s.MessageToOwnerWithError("failed to ReadSeat", err)
 			return err
 		}
-		replyMessage = t("kick", s.ProcessedUserDisplayName, targetSeat.SeatId, targetSeat.UserDisplayName)
+		
+		seatIdStr := utils.SeatIdStr(targetSeatId, isTargetMemberSeat)
+		replyMessage = t("kick", s.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 		
 		// s.ProcessedUserが処理の対象ではないことに注意。
 		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, targetSeat.UserId)
@@ -876,14 +876,8 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 			return exitErr
 		}
 		var rpEarned string
-		var seatIdStr string
 		if userDoc.RankVisible {
 			rpEarned = i18n.T("command:rp-earned", addedRP)
-		}
-		if isTargetMemberSeat {
-			seatIdStr = i18n.T("vip-seat-id", targetSeatId)
-		} else {
-			seatIdStr = strconv.Itoa(targetSeatId)
 		}
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 		
@@ -942,7 +936,7 @@ func (s *System) Check(command *utils.CommandDetails, ctx context.Context) error
 		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
 		var seatIdStr string
 		if isTargetMemberSeat {
-			seatIdStr = i18n.T("vip-seat-id", targetSeatId)
+			seatIdStr = i18n.T("common:vip-seat-id", targetSeatId)
 		} else {
 			seatIdStr = strconv.Itoa(targetSeatId)
 		}
@@ -1018,7 +1012,7 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 		}
 		if isTargetMemberSeat {
-			seatIdStr = i18n.T("vip-seat-id", targetSeatId)
+			seatIdStr = i18n.T("common:vip-seat-id", targetSeatId)
 		} else {
 			seatIdStr = strconv.Itoa(targetSeatId)
 		}
@@ -1248,7 +1242,7 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
 			var seatIdStr string
 			if isInMemberRoom {
-				seatIdStr = i18n.T("vip-seat-id", currentSeat.SeatId)
+				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
 			} else {
 				seatIdStr = strconv.Itoa(currentSeat.SeatId)
 			}
@@ -1492,7 +1486,7 @@ func (s *System) Break(ctx context.Context, command *utils.CommandDetails) error
 		
 		var seatIdStr string
 		if isInMemberRoom {
-			seatIdStr = i18n.T("vip-seat-id", currentSeat.SeatId)
+			seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
 		} else {
 			seatIdStr = strconv.Itoa(currentSeat.SeatId)
 		}
@@ -1576,7 +1570,7 @@ func (s *System) Resume(ctx context.Context, command *utils.CommandDetails) erro
 		
 		var seatIdStr string
 		if isInMemberRoom {
-			seatIdStr = i18n.T("vip-seat-id", currentSeat.SeatId)
+			seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
 		} else {
 			seatIdStr = strconv.Itoa(currentSeat.SeatId)
 		}
@@ -1780,9 +1774,15 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 	if err != nil {
 		return 0, customerror.Unknown.Wrap(err)
 	}
+	var maxSeats int
+	if isMemberSeat {
+		maxSeats = constants.MemberMaxSeats
+	} else {
+		maxSeats = constants.MaxSeats
+	}
 	
 	var vacantSeatIdList []int
-	for id := 1; id <= constants.MaxSeats; id++ {
+	for id := 1; id <= maxSeats; id++ {
 		isUsed := false
 		for _, seatInUse := range seats {
 			if id == seatInUse.SeatId {
@@ -1988,7 +1988,7 @@ func (s *System) moveSeat(tx *firestore.Transaction, targetSeatId int, latestUse
 	jstNow := utils.JstNow()
 	
 	// 値チェック
-	if targetSeatId == previousSeat.SeatId {
+	if targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat {
 		return 0, 0, 0, errors.New("targetSeatId == previousSeat.SeatId")
 	}
 	
@@ -2170,7 +2170,7 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 					rpEarned = i18n.T("command:rp-earned", addedRP)
 				}
 				if isMemberRoom {
-					seatIdStr = i18n.T("vip-seat-id", seat.SeatId)
+					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
@@ -2308,7 +2308,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 					rpEarned = i18n.T("command:rp-earned", addedRP)
 				}
 				if isMemberRoom {
-					seatIdStr = i18n.T("vip-seat-id", seat.SeatId)
+					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
@@ -2395,7 +2395,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 				}
 				var seatIdStr string
 				if isMemberRoom {
-					seatIdStr = i18n.T("vip-seat-id", seat.SeatId)
+					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
@@ -2506,7 +2506,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 		if forcedMove {
 			var seatIdStr string
 			if isMemberSeat {
-				seatIdStr = i18n.T("vip-seat-id", seatSnapshot.SeatId)
+				seatIdStr = i18n.T("common:vip-seat-id", seatSnapshot.SeatId)
 			} else {
 				seatIdStr = strconv.Itoa(seatSnapshot.SeatId)
 			}
@@ -2735,12 +2735,12 @@ func (s *System) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Tr
 	var seats []myfirestore.SeatDoc
 	var err error
 	if isMemberSeat {
-		seats, err = s.FirestoreController.ReadGeneralSeats(ctx)
+		seats, err = s.FirestoreController.ReadMemberSeats(ctx)
 		if err != nil {
 			return -1, err
 		}
 	} else {
-		seats, err = s.FirestoreController.ReadMemberSeats(ctx)
+		seats, err = s.FirestoreController.ReadGeneralSeats(ctx)
 		if err != nil {
 			return -1, err
 		}

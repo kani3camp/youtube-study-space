@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"app.modules/core/i18n"
 	"app.modules/core/myfirestore"
 	"context"
 	"fmt"
@@ -359,4 +360,12 @@ func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
 
 func FuncNameOf(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+}
+
+func SeatIdStr(seatId int, isMemberSeat bool) string {
+	if isMemberSeat {
+		return i18n.T("common:vip-seat-id", seatId)
+	} else {
+		return strconv.Itoa(seatId)
+	}
 }

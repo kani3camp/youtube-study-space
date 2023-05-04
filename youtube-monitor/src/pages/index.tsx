@@ -4,7 +4,7 @@ import { FC } from 'react'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
-import Seats from '../components/Seats'
+import Seats from '../components/MainContent'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
 

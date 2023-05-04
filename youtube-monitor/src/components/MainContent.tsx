@@ -6,7 +6,7 @@ import {
     numSeatsInGeneralAllBasicRooms,
     numSeatsInMemberAllBasicRooms,
 } from '../rooms/rooms-config'
-import * as styles from '../styles/Room.styles'
+import { mainContent } from '../styles/MainContent.styles'
 import { Seat, SetDesiredMaxSeatsResponse } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
@@ -25,11 +25,14 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
+import { useRouter } from 'next/router'
 import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 
 const Seats: FC = () => {
     const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
+
+    const router = useRouter()
 
     const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
     const [latestMemberSeats, setLatestMemberSeats] = useState<Seat[]>([])
@@ -49,11 +52,28 @@ const Seats: FC = () => {
         initFirestore()
     }, [])
 
+    const getQueryPageIndex = (): number | undefined => {
+        const queryPageNum = router.query.page
+        if (
+            queryPageNum !== undefined &&
+            Number(queryPageNum) > 0 &&
+            Number(queryPageNum) <= pageProps.length
+        ) {
+            return Number(queryPageNum) - 1
+        } else {
+            return undefined
+        }
+    }
+
     useInterval(() => {
-        console.log('interval', new Date())
         if (pageProps.length > 0) {
-            const newPageIndex = (currentPageIndex + 1) % pageProps.length
-            setCurrentPageIndex(1)
+            const queryPageIndex = getQueryPageIndex()
+            if (queryPageIndex !== undefined) {
+                setCurrentPageIndex(queryPageIndex)
+            } else {
+                const newPageIndex = (currentPageIndex + 1) % pageProps.length
+                setCurrentPageIndex(newPageIndex)
+            }
 
             reviewMaxSeats()
         }
@@ -101,9 +121,9 @@ const Seats: FC = () => {
                     'entered-at': seat.entered_at,
                     until: seat.until,
                     appearance: {
-                        'color-code': seat.appearance.color_code,
+                        'color-code': seat.appearance.color_code1,
                         'num-stars': seat.appearance.num_stars,
-                        'glow-animation': seat.appearance.glow_animation,
+                        'glow-animation': seat.appearance.color_gradient_enabled,
                     },
                     state: seat.state,
                     'current-state-started-at': seat.current_state_started_at,
@@ -123,9 +143,10 @@ const Seats: FC = () => {
                     entered_at: data['entered-at'],
                     until: data.until,
                     appearance: {
-                        color_code: data.appearance['color-code'],
+                        color_code1: data.appearance['color-code1'],
+                        color_code2: data.appearance['color-code2'],
                         num_stars: data.appearance['num-stars'],
-                        glow_animation: data.appearance['glow-animation'],
+                        color_gradient_enabled: data.appearance['color-gradient-enabled'],
                     },
                     state: data.state,
                     current_state_started_at: data['current-state-started-at'],
@@ -437,7 +458,7 @@ const Seats: FC = () => {
     if (pageProps.length > 0) {
         return (
             <>
-                <div css={styles.defaultRoom}>
+                <div css={mainContent}>
                     {layoutPagesMemo}
                     {messageMemo}
                 </div>

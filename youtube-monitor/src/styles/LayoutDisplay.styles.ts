@@ -39,12 +39,11 @@ export const seatIdContainerMember = css`
     position: absolute;
     top: 0;
     left: 0;
-    width: 2rem;
-    height: 1.3rem;
-    background-color: #ffff6d;
+    width: 1.7rem;
+    height: 1rem;
     border-right: solid black 0.06rem;
     border-bottom: solid black 0.06rem;
-    border-bottom-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.4rem;
 `
 export const seatIdMember = css`
     position: absolute;
@@ -71,18 +70,45 @@ export const workName = css`
     font-weight: bolder;
 `
 export const workNameMember = css`
-    margin: 0;
-    color: #24317e;
-    max-width: 100%;
     text-overflow: ellipsis;
     overflow: hidden;
-    white-space: nowrap;
-    font-weight: bolder;
+    word-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+
     position: absolute;
-    width: 70%;
-    right: 1%;
-    top: 16%;
+    bottom: 42%;
+    left: 22%;
     text-align: center;
+    min-width: 3rem;
+    max-width: 4.5rem;
+    max-height: 1.4rem;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.2rem;
+    border: 0.05rem solid #000000;
+    border-radius: 0.3rem;
+    background-color: #fff;
+    color: #24317e;
+    font-weight: bolder;
+
+    &::before,
+    &::after {
+        position: absolute;
+        bottom: 20%;
+        left: -0.5rem;
+        width: 0.5rem;
+        height: 0.4rem;
+        clip-path: polygon(0 50%, 100% 0, 100% 100%);
+        content: '';
+    }
+    &::before {
+        background-color: #000000;
+    }
+    &::after {
+        left: -0.35rem;
+        background-color: #ffffff;
+    }
 `
 
 export const userDisplayName = css`
@@ -97,13 +123,13 @@ export const userDisplayName = css`
 export const userDisplayNameMember = css`
     position: absolute;
     margin: 0;
-    width: 75%;
+    width: 100%;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
     color: #202020;
-    right: 1%;
-    bottom: 20%;
+    right: 0;
+    bottom: 17%;
     text-align: center;
 `
 
@@ -122,14 +148,27 @@ export const starsBadge = css`
     top: 0;
     right: 0;
     overflow-wrap: anywhere;
+    padding-right: 0.2rem;
 `
 
-export const profileImageMember = css`
+export const profileImageMemberWithWorkName = css`
     margin: 0;
     position: absolute;
-    bottom: 20%;
-    left: 5%;
-    /* transform: translate(0, 50%); */
+    top: 30%;
+    left: 15%;
+    width: 1.2rem;
+    height: 1.2rem;
+    transform: translate(-50%, 0);
+    border-radius: 50%;
+`
+export const profileImageMemberNoWorkName = css`
+    margin: 0;
+    position: absolute;
+    top: 8%;
+    left: 50%;
+    width: 1.9rem;
+    height: 1.9rem;
+    transform: translate(-50%, 0);
     border-radius: 50%;
 `
 

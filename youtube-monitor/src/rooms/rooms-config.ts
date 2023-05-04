@@ -10,11 +10,9 @@ import { Freepik2RoomLayout } from './layouts/freepik2_room'
 import { Freepik3RoomLayout } from './layouts/freepik3_room'
 import { Freepik4Layout } from './layouts/freepik4_room'
 import { Freepik5Layout } from './layouts/freepik5_room'
-import { HimajinRoomLayout } from './layouts/himajin_room'
 import { mazeRoomLayout } from './layouts/maze_room'
-import { MemberSimpleRoom } from './layouts/member_simple_room'
+import { MemberSimpleRoom1 } from './layouts/member_simple_room1'
 import { SeaOfSeatRoomLayout } from './layouts/sea_of_seat_room'
-import { SimpleRoomLayout } from './layouts/simple_room'
 
 type AllRoomsConfig = {
     generalBasicRooms: RoomLayout[]
@@ -41,8 +39,8 @@ const prodAllRooms: AllRoomsConfig = {
         circleRoomLayout,
         Freepik5Layout,
     ],
-    memberBasicRooms: [SimpleRoomLayout],
-    memberTemporaryRooms: [HimajinRoomLayout],
+    memberBasicRooms: [MemberSimpleRoom1],
+    memberTemporaryRooms: [MemberSimpleRoom1],
 }
 
 const testAllRooms: AllRoomsConfig = {
@@ -56,8 +54,8 @@ const testAllRooms: AllRoomsConfig = {
         Freepik3RoomLayout,
         Freepik5Layout,
     ],
-    memberBasicRooms: [MemberSimpleRoom],
-    memberTemporaryRooms: [HimajinRoomLayout],
+    memberBasicRooms: [MemberSimpleRoom1],
+    memberTemporaryRooms: [MemberSimpleRoom1],
 }
 
 export const allRooms: AllRoomsConfig = DEBUG ? testAllRooms : prodAllRooms
