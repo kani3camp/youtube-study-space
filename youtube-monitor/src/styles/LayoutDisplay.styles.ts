@@ -71,8 +71,8 @@ export const workName = css`
 `
 export const workNameMember = css`
     text-overflow: ellipsis;
+    overflow: hidden;
     word-wrap: break-word;
-    line-height: 1.1;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -148,6 +148,7 @@ export const starsBadge = css`
     top: 0;
     right: 0;
     overflow-wrap: anywhere;
+    padding-right: 0.2rem;
 `
 
 export const profileImageMemberWithWorkName = css`
