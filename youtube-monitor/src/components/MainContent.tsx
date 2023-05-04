@@ -25,11 +25,14 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
+import { useRouter } from 'next/router'
 import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 
 const Seats: FC = () => {
     const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
+
+    const router = useRouter()
 
     const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
     const [latestMemberSeats, setLatestMemberSeats] = useState<Seat[]>([])
@@ -49,11 +52,28 @@ const Seats: FC = () => {
         initFirestore()
     }, [])
 
+    const getQueryPageIndex = (): number | undefined => {
+        const queryPageNum = router.query.page
+        if (
+            queryPageNum !== undefined &&
+            Number(queryPageNum) > 0 &&
+            Number(queryPageNum) <= pageProps.length
+        ) {
+            return Number(queryPageNum) - 1
+        } else {
+            return undefined
+        }
+    }
+
     useInterval(() => {
-        console.log('interval', new Date())
         if (pageProps.length > 0) {
-            const newPageIndex = (currentPageIndex + 1) % pageProps.length
-            setCurrentPageIndex(newPageIndex)
+            const queryPageIndex = getQueryPageIndex()
+            if (queryPageIndex !== undefined) {
+                setCurrentPageIndex(queryPageIndex)
+            } else {
+                const newPageIndex = (currentPageIndex + 1) % pageProps.length
+                setCurrentPageIndex(newPageIndex)
+            }
 
             reviewMaxSeats()
         }

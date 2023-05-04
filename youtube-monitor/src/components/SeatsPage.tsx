@@ -151,7 +151,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                       ${processingSeat.appearance.color_code2}
                   );
                   background-size: 400% 400%;
-                  animation: ${colorGradientKeyframes} 7s linear infinite;
+                  animation: ${colorGradientKeyframes} 4s linear infinite;
               `
             : css`
                   animation: none;
@@ -217,6 +217,11 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             }
         }
 
+        const reloadImage = (e: React.SyntheticEvent<HTMLImageElement, Event>, imgSrc: string) => {
+            console.error(`retrying to load image... ' + ${imgSrc}`)
+            e.currentTarget.src = `${imgSrc}?${new Date().getTime().toString()}`
+        }
+
         return (
             // for each seat
             <div
@@ -261,14 +266,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     </div>
                 )}
 
-                {/* ★マーク */}
+                {/* ★Mark */}
                 {numStars > 0 && (
                     <div
                         css={styles.starsBadge}
                         style={{
                             fontSize: `${seatFontSizePx * 0.6}px`,
-                            width: `${seatFontSizePx * 1.8}px`,
-                            paddingTop: `${seatFontSizePx / 8}px`,
                         }}
                     >
                         {`★×${numStars}`}
@@ -284,6 +287,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                                 : styles.profileImageMemberNoWorkName
                         }
                         src={profileImageUrl}
+                        onError={(event) => reloadImage(event, profileImageUrl)}
                     />
                 )}
 
