@@ -69,31 +69,21 @@ export const workName = css`
     white-space: nowrap;
     font-weight: bolder;
 `
-export const workNameMember = css`
-    text-overflow: ellipsis;
-    overflow: hidden;
-    word-wrap: break-word;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-
+export const workNameMemberBalloon = css`
     position: absolute;
     bottom: 42%;
-    left: 22%;
+    left: 25%;
     text-align: center;
-    min-width: 3rem;
-    max-width: 4.5rem;
-    max-height: 1.4rem;
+    min-width: 30%;
+    max-width: 58%;
     margin-left: 0.5rem;
     padding: 0.1rem 0.2rem;
-    border: 0.05rem solid #000000;
     border-radius: 0.3rem;
-    background-color: #fff;
+    background-color: #fff6;
     color: #24317e;
     font-weight: bolder;
 
-    &::before,
-    &::after {
+    &::before {
         position: absolute;
         bottom: 20%;
         left: -0.5rem;
@@ -101,14 +91,17 @@ export const workNameMember = css`
         height: 0.4rem;
         clip-path: polygon(0 50%, 100% 0, 100% 100%);
         content: '';
+        background-color: inherit;
     }
-    &::before {
-        background-color: #000000;
-    }
-    &::after {
-        left: -0.35rem;
-        background-color: #ffffff;
-    }
+`
+
+export const workNameMemberText = css`
+    text-overflow: ellipsis;
+    overflow: hidden;
+    word-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 `
 
 export const userDisplayName = css`

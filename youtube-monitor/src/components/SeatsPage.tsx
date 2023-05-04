@@ -194,13 +194,15 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 !isBreak && workName ? workName : isBreak && breakWorkName ? breakWorkName : ''
             if (props.memberOnly) {
                 workNameDisplay = (
-                    <div
-                        css={workName !== '' && styles.workNameMember}
-                        style={{
-                            fontSize: `${workNameFontSizePx}px`,
-                        }}
-                    >
-                        {content}
+                    <div css={workName !== '' && styles.workNameMemberBalloon}>
+                        <div
+                            css={workName !== '' && styles.workNameMemberText}
+                            style={{
+                                fontSize: `${workNameFontSizePx}px`,
+                            }}
+                        >
+                            {content}
+                        </div>
                     </div>
                 )
             } else {
