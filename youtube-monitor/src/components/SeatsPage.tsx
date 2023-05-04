@@ -195,7 +195,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
             if (props.memberOnly) {
                 workNameDisplay = (
                     <div
-                        css={styles.workNameMember}
+                        css={workName !== '' && styles.workNameMember}
                         style={{
                             fontSize: `${workNameFontSizePx}px`,
                         }}
@@ -278,11 +278,11 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 {/* profile image */}
                 {isUsed && props.memberOnly && (
                     <img
-                        css={styles.profileImageMember}
-                        style={{
-                            width: '1.2rem',
-                            height: '1.2rem',
-                        }}
+                        css={
+                            workName !== ''
+                                ? styles.profileImageMemberWithWorkName
+                                : styles.profileImageMemberNoWorkName
+                        }
                         src={profileImageUrl}
                     />
                 )}
