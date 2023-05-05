@@ -40,9 +40,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
     const seatFontSizePx = roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
     const seatShape = {
-        width:
+        widthPercent:
             (100 * propsMemo.roomLayout.seat_shape.width) / propsMemo.roomLayout.room_shape.width,
-        height:
+        heightPercent:
             (100 * propsMemo.roomLayout.seat_shape.height) / propsMemo.roomLayout.room_shape.height,
     }
 
@@ -120,13 +120,21 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
         // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
         let workNameFontSizePx = seatFontSizePx
-        if (isUsed) {
+        if (isUsed && (workName !== '' || breakWorkName !== '')) {
             const canvas: HTMLCanvasElement = document.createElement('canvas')
             const context = canvas.getContext('2d')
             if (context) {
-                context.font = `${workNameFontSizePx.toString()}px ${Constants.fontFamily}`
+                context.font = `${workNameFontSizePx.toString()}px ${Constants.seatFontFamily}`
                 const metrics = context.measureText(isBreak ? breakWorkName : workName)
-                const actualSeatWidth = (roomShape.widthPx * seatShape.width) / 100
+                let actualSeatWidth = (roomShape.widthPx * seatShape.widthPercent) / 100
+                if (props.memberOnly) {
+                    actualSeatWidth =
+                        (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
+                }
+                console.log(`actualSeatWidth: ${actualSeatWidth}`)
+                console.log(
+                    `metrics.width: ${metrics.width} with '${isBreak ? breakWorkName : workName}'`
+                )
                 if (metrics.width > actualSeatWidth) {
                     workNameFontSizePx *= actualSeatWidth / metrics.width
                     workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
@@ -194,15 +202,11 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 !isBreak && workName ? workName : isBreak && breakWorkName ? breakWorkName : ''
             if (props.memberOnly) {
                 workNameDisplay = (
-                    <div css={workName !== '' && styles.workNameMemberBalloon}>
-                        <div
-                            css={workName !== '' && styles.workNameMemberText}
-                            style={{
-                                fontSize: `${workNameFontSizePx}px`,
-                            }}
-                        >
-                            {content}
-                        </div>
+                    <div
+                        css={content !== '' && styles.workNameMemberBalloon}
+                        style={{ fontSize: `${workNameFontSizePx}px` }}
+                    >
+                        <div css={content !== '' && styles.workNameMemberText}>{content}</div>
                     </div>
                 )
             } else {
@@ -237,8 +241,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     left: `${seatPositions[index].x}%`,
                     top: `${seatPositions[index].y}%`,
                     transform: `rotate(${seatPositions[index].rotate}deg)`,
-                    width: `${seatShape.width}%`,
-                    height: `${seatShape.height}%`,
+                    width: `${seatShape.widthPercent}%`,
+                    height: `${seatShape.heightPercent}%`,
                     fontSize: isUsed ? `${seatFontSizePx}px` : `${seatFontSizePx * 2}px`,
                 }}
             >
@@ -284,7 +288,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 {isUsed && props.memberOnly && (
                     <img
                         css={
-                            workName !== ''
+                            (isBreak ? breakWorkName : workName !== '')
                                 ? styles.profileImageMemberWithWorkName
                                 : styles.profileImageMemberNoWorkName
                         }

@@ -75,7 +75,8 @@ export const workNameMemberBalloon = css`
     left: 25%;
     text-align: center;
     min-width: 30%;
-    max-width: 58%;
+    max-width: ${Constants.memberSeatWorkNameWidthPercent}%;
+    max-height: 1.4rem;
     margin-left: 0.5rem;
     padding: 0.1rem 0.2rem;
     border-radius: 0.3rem;
@@ -96,6 +97,7 @@ export const workNameMemberBalloon = css`
 `
 
 export const workNameMemberText = css`
+    max-height: inherit;
     text-overflow: ellipsis;
     overflow: hidden;
     word-wrap: break-word;
