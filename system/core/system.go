@@ -170,7 +170,7 @@ func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 		end := utils.JstNow()
 		duration := end.Sub(start)
 		if duration < minimumInterval {
-			time.Sleep(minimumInterval - duration)
+			time.Sleep(utils.NoNegativeDuration(minimumInterval - duration))
 		}
 	}
 }
@@ -2446,9 +2446,15 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
 func (s *System) CheckLongTimeSitting(ctx context.Context, isMemberRoom bool) error {
 	// 全座席のスナップショットをとる（トランザクションなし）
-	seatsSnapshot, err := s.FirestoreController.ReadGeneralSeats(ctx)
+	var seatsSnapshot []myfirestore.SeatDoc
+	var err error
+	if isMemberRoom {
+		seatsSnapshot, err = s.FirestoreController.ReadMemberSeats(ctx)
+	} else {
+		seatsSnapshot, err = s.FirestoreController.ReadGeneralSeats(ctx)
+	}
 	if err != nil {
-		s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
+		s.MessageToOwnerWithError("failed to read seats", err)
 		return err
 	}
 	err = s.OrganizeDBForceMove(ctx, seatsSnapshot, isMemberRoom)
