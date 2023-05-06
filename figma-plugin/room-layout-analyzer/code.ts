@@ -1,21 +1,68 @@
-// This plugin creates 5 rectangles on the screen.
-const numberOfRectangles = 5
+const POSITION_DECIMAL_PLACES = 10;
 
-// This file holds the main code for the plugins. It has access to the *document*.
-// You can access browser APIs such as the network by creating a UI which contains
-// a full browser environment (see documentation).
+figma.showUI(__html__, { width: 400, height: 300 });
 
-const nodes: SceneNode[] = [];
-for (let i = 0; i < numberOfRectangles; i++) {
-  const rect = figma.createRectangle();
-  rect.x = i * 150;
-  rect.fills = [{type: 'SOLID', color: {r: 1, g: 0.5, b: 0}}];
-  figma.currentPage.appendChild(rect);
-  nodes.push(rect);
+figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'getFrames') {
+    const frameList = getFramesInCurrentPage();
+    figma.ui.postMessage({ type: 'frameList', frames: frameList });
+  }
+};
+
+type RoomLayoutFrame = {
+  frameName: string,
+  seats: {
+    seatNum: number,
+    x: number,
+    y: number,
+  }[]
 }
-figma.currentPage.selection = nodes;
-figma.viewport.scrollAndZoomIntoView(nodes);
 
-// Make sure to close the plugin when you're done. Otherwise the plugin will
-// keep running, which shows the cancel button at the bottom of the screen.
-figma.closePlugin();
+function getFramesInCurrentPage(): RoomLayoutFrame[] {
+  const frames = figma.currentPage.findAll((node) => node.type === "FRAME") as Array<FrameNode>;
+  const layoutFrames: RoomLayoutFrame[] = [];
+  
+  type Seat = ComponentNode | InstanceNode;
+  
+  for (const frame of frames) {
+    console.log('\n' + frame.name);
+    
+    const seatGroups = frame.findAll((node) => (node.type === "COMPONENT" || node.type === "INSTANCE") && node.name === "Seat") as Array<Seat>;
+    seatGroups.sort((a: Seat, b: Seat) => {
+      const aSeatNumText: TextNode = a.findChild((node) => node.type === "TEXT") as TextNode;
+      const bSeatNumText: TextNode = b.findChild((node) => node.type === "TEXT") as TextNode;
+      return parseInt(aSeatNumText.characters) - parseInt(bSeatNumText.characters);
+    });
+    for (const seatGroup of seatGroups) {
+      const seatNumText: TextNode = seatGroup.findChild((node) => node.type === "TEXT") as TextNode;
+      const seatNumStr = seatNumText.characters;
+      console.log(`${seatNumStr} ${roundToDecimalPlace(seatGroup.x, POSITION_DECIMAL_PLACES)} ${roundToDecimalPlace(seatGroup.y, POSITION_DECIMAL_PLACES)}`);
+    }
+    layoutFrames.push({
+      frameName: frame.name,
+      seats: seatGroups.map((seatGroup: Seat) => {
+        const seatNumText: TextNode = seatGroup.findChild((node) => node.type === "TEXT") as TextNode;
+        const seatNumStr = seatNumText.characters;
+        return {
+          seatNum: parseInt(seatNumStr),
+          x: roundToDecimalPlace(seatGroup.x, POSITION_DECIMAL_PLACES),
+          y: roundToDecimalPlace(seatGroup.y, POSITION_DECIMAL_PLACES),
+        }
+      }),
+    })
+  }
+
+  return layoutFrames;
+}
+
+/**
+ * Rounds a number to the specified number of decimal places.
+ *
+ * @param value - The number to be rounded.
+ * @param decimalPlaces - The number of decimal places to round to.
+ * @returns The rounded number.
+ */
+function roundToDecimalPlace(value: number, decimalPlaces: number): number {
+  const factor = Math.pow(10, decimalPlaces);
+  return Math.round(value * factor) / factor;
+}
