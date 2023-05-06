@@ -117,6 +117,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                       60
               )
             : 0
+        const hoursRemaining = isUsed ? Math.floor(minutesRemaining / 60) : 0
 
         // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
         let workNameFontSizePx = seatFontSizePx
@@ -306,8 +307,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                         }}
                     >
                         {hoursElapsed > 0
-                            ? `${hoursElapsed}時間${minutesElapsed % 60}分入室`
-                            : `${minutesElapsed % 60}分入室`}
+                            ? `${hoursElapsed}時間${minutesElapsed % 60}分`
+                            : `${minutesElapsed % 60}分`}
                     </div>
                 )}
 
@@ -318,7 +319,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                         style={{
                             fontSize: `${seatFontSizePx * 0.6}px`,
                         }}
-                    >{`あと${minutesRemaining}分`}</div>
+                    >
+                        あと
+                        {hoursRemaining > 0
+                            ? `${hoursRemaining}時間${minutesRemaining % 60}分`
+                            : `${minutesRemaining}分`}
+                    </div>
                 )}
             </div>
         )
