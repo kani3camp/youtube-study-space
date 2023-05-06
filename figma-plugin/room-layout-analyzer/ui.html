@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Figma Plugin UI</title>
+  <style>
+    button {
+        margin: 10px;
+    }
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <button id="getFramesButton">Get Frames</button>
+  <ul id="frameList"></ul>
+  
+  <select id="download-frame-select">
+    
+  </select>
+  <button id="downloadFile">Download File</button>
+  
+
+  <script>
+    let layoutFrames = [];
+    
+    document.getElementById('getFramesButton').onclick = () => {
+        parent.postMessage({ pluginMessage: { type: 'getFrames' } }, '*');
+    };
+
+    window.onmessage = (event) => {
+        const msg = event.data.pluginMessage;
+        if (msg.type === 'frameList') {
+            const frameList = document.getElementById('frameList');
+            frameList.innerHTML = '';
+
+            msg.frames.forEach(frame => {
+                const li = document.createElement('li');
+                li.textContent = `${frame.frameName}`;
+                frameList.appendChild(li);
+            });
+            
+            layoutFrames = msg.frames;
+            let downloadFrameSelect = document.getElementById('download-frame-select');
+            downloadFrameSelect.innerHTML = '';
+            msg.frames.forEach(frame => {
+                let option = document.createElement('option');
+                option.value = frame.frameName;
+                option.textContent = frame.frameName;
+                option.innerText = frame.frameName;
+                downloadFrameSelect.appendChild(option);
+            });
+        }
+    };
+    
+    document.getElementById('downloadFile').onclick = () => {
+        const downloadFrameSelect = document.getElementById('download-frame-select');
+        const frameName = downloadFrameSelect.value;
+        for (const frame of layoutFrames) {
+            if (frame.frameName === frameName) {
+                let seatsDataStr = ''
+                for (const seat of frame.seats) {
+                    seatsDataStr += `${seat.seatNum} ${seat.x} ${seat.y}\n`
+                }
+                downloadFile(seatsDataStr, `${frameName}.txt`);
+                break;
+            }
+        }
+    };
+    
+    function downloadFile(content, filename) {
+      const element = document.createElement('a');
+      const file = new Blob([content], { type: 'text/plain' });
+      element.href = URL.createObjectURL(file);
+      element.download = filename;
+      document.body.appendChild(element);
+      element.click();
+      setTimeout(() => {
+        document.body.removeChild(element);
+        URL.revokeObjectURL(element.href);
+      }, 100);
+    }
+  </script>
+</body>
+</html>
