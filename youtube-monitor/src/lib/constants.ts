@@ -11,7 +11,7 @@ export const Constants = {
     fontFamily: "'Zen Maru Gothic', sans-serif",
     breakBadgeZIndex: 10,
     seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
-    bgmVolume: DEBUG ? 0.03 : 0.3,
+    bgmVolume: DEBUG ? 0.1 : 0.3,
     chimeVolume: 0.7,
     chimeSingleFilePath: '/chime/chime1.mp3',
     chimeDoubleFilePath: '/chime/chime2.mp3',
