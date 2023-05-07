@@ -307,8 +307,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                         }}
                     >
                         {hoursElapsed > 0
-                            ? `${hoursElapsed}時間${minutesElapsed % 60}分`
-                            : `${minutesElapsed % 60}分`}
+                            ? `${hoursElapsed}h ${minutesElapsed % 60}m`
+                            : `${minutesElapsed % 60}m`}
                     </div>
                 )}
 
@@ -322,8 +322,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     >
                         あと
                         {hoursRemaining > 0
-                            ? `${hoursRemaining}時間${minutesRemaining % 60}分`
-                            : `${minutesRemaining}分`}
+                            ? `${hoursRemaining}h ${minutesRemaining % 60}m`
+                            : `${minutesRemaining}m`}
                     </div>
                 )}
             </div>

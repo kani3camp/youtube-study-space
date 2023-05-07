@@ -3,7 +3,7 @@ import { RoomLayout } from '../../types/room-layout'
 export const MemberIllustratedRoom1: RoomLayout = {
     version: 1,
     floor_image: '/images/member_illustrated_room1.png',
-    font_size_ratio: 0.015,
+    font_size_ratio: 0.017,
     room_shape: {
         width: 1520,
         height: 1000,

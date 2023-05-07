@@ -71,14 +71,14 @@ export const workName = css`
 `
 export const workNameMemberBalloon = css`
     position: absolute;
-    bottom: 42%;
+    bottom: 40%;
     left: 25%;
     text-align: center;
     min-width: 30%;
     max-width: ${Constants.memberSeatWorkNameWidthPercent}%;
-    max-height: 1.4rem;
+    max-height: 1.65rem;
     margin-left: 0.5rem;
-    padding: 0.1rem 0.2rem;
+    padding: 0.08rem 0.2rem;
     border-radius: 0.3rem;
     background-color: #fff6;
     color: #24317e;
@@ -124,7 +124,7 @@ export const userDisplayNameMember = css`
     white-space: nowrap;
     color: #202020;
     right: 0;
-    bottom: 17%;
+    bottom: 14%;
     text-align: center;
 `
 
