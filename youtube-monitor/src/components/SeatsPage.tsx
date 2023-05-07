@@ -1,7 +1,7 @@
 import { css, keyframes } from '@emotion/react'
 import { FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
-import * as styles from '../styles/LayoutDisplay.styles'
+import * as styles from '../styles/SeatsPage.styles'
 import { Seat } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 
