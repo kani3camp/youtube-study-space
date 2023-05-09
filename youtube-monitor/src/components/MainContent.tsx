@@ -1,5 +1,5 @@
 import { FC, useEffect, useMemo, useState } from 'react'
-import api from '../lib/api_config'
+import api from '../lib/api-config'
 import fetcher from '../lib/fetcher'
 import {
     allRooms,
@@ -29,9 +29,9 @@ import { useRouter } from 'next/router'
 import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 
-const Seats: FC = () => {
-    const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
+const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
+const Seats: FC = () => {
     const router = useRouter()
 
     const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
@@ -92,19 +92,17 @@ const Seats: FC = () => {
     }, [currentPageIndex])
 
     const initFirestore = () => {
-        // check env variables
         if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
-            alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID undefined.')
+            alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not defined.')
             return
         }
         if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY === undefined) {
-            alert('NEXT_PUBLIC_FIREBASE_API_KEY undefined.')
+            alert('NEXT_PUBLIC_FIREBASE_API_KEY is not defined.')
             return
         }
 
         const firebaseConfig: FirebaseOptions = {
             apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-            // authDomain: 'test--study-space.firebaseapp.com',
             projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         }
         const app = initializeApp(firebaseConfig)

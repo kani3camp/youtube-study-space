@@ -9,7 +9,6 @@ export const roomLayout = css`
     height: ${Constants.screenHeight - Constants.messageBarHeight}px;
     box-sizing: border-box;
     margin: auto;
-    /* border: solid 6px #303030; */
     background-size: contain;
 `
 
