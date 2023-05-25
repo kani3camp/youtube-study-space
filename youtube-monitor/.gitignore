@@ -1,0 +1,7 @@
+.env
+.next/
+node_modules/
+out/
+public/audio/lofigirl/*
+public/chime/*
+public/images/*
