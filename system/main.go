@@ -70,7 +70,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	
 	sys.MessageToOwner("Botが起動しました。\n" + sys.GetInfoString())
-	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
+	defer func() { // when error occurred
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
