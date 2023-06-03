@@ -180,8 +180,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			profileImageUrl := youtubebot.ExtractAuthorProfileImageUrl(chatMessage)
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
-			//isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage) // TODO: Uncomment after debugging
-			isMember := true
+			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
 			if err != nil {
