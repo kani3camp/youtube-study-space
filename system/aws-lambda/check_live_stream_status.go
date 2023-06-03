@@ -8,38 +8,36 @@ import (
 	"log"
 )
 
-type CheckLiveStreamResponseStruct struct {
+type CheckLiveStreamResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
 }
 
-func CheckLiveStream() (CheckLiveStreamResponseStruct, error) {
+// CheckLiveStream checks the live stream status and, in case of an error, sends a message to the owner.
+func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	log.Println("CheckLiveStream()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return CheckLiveStreamResponseStruct{}, err
+		return CheckLiveStreamResponse{}, err
 	}
-	_system, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return CheckLiveStreamResponseStruct{}, err
+		return CheckLiveStreamResponse{}, err
 	}
-	defer _system.CloseFirestoreClient()
+	defer system.CloseFirestoreClient()
 	
-	err = _system.CheckLiveStreamStatus(ctx)
+	err = system.CheckLiveStreamStatus(ctx)
 	if err != nil {
-		_system.MessageToOwnerWithError("failed to check live stream", err)
-		return CheckLiveStreamResponseStruct{}, err
+		system.MessageToOwnerWithError("failed to check live stream status", err)
+		return CheckLiveStreamResponse{}, err
 	}
 	
-	return CheckLiveStreamResponse(), nil
-}
-
-func CheckLiveStreamResponse() CheckLiveStreamResponseStruct {
-	var apiResp CheckLiveStreamResponseStruct
-	apiResp.Result = lambdautils.OK
-	return apiResp
+	return CheckLiveStreamResponse{
+		Result:  lambdautils.OK,
+		Message: "",
+	}, nil
 }
 
 func main() {

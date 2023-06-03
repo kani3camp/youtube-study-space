@@ -62,8 +62,8 @@ func (c *FirestoreController) update(ctx context.Context, tx *firestore.Transact
 	}
 }
 
+// delete deletes the document. If the document doesn't exist, it does nothing and returns no error.
 func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, opts ...firestore.Precondition) error {
-	// TODO: ドキュメントが元から存在しないときは明示的にエラーを返したい
 	if tx != nil {
 		return tx.Delete(ref, opts...)
 	} else {

@@ -14,51 +14,52 @@ import (
 	"strconv"
 )
 
-type DailyOrganizeDatabaseResponseStruct struct {
+type DailyOrganizeDatabaseResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
 }
 
-func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
+func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	log.Println("DailyOrganizeDatabase()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return DailyOrganizeDatabaseResponseStruct{}, err
+		return DailyOrganizeDatabaseResponse{}, err
 	}
-	sys, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return DailyOrganizeDatabaseResponseStruct{}, err
+		return DailyOrganizeDatabaseResponse{}, err
 	}
-	defer sys.CloseFirestoreClient()
+	defer system.CloseFirestoreClient()
 	
-	userIdsToProcess, err := sys.DailyOrganizeDB(ctx)
+	userIdsToProcess, err := system.DailyOrganizeDB(ctx)
 	if err != nil {
-		sys.MessageToOwnerWithError("failed to DailyOrganizeDB", err)
-		return DailyOrganizeDatabaseResponseStruct{}, err
+		system.MessageToOwnerWithError("Failed to DailyOrganizeDB", err)
+		return DailyOrganizeDatabaseResponse{}, err
 	}
 	
 	sess, err := session.NewSession()
 	if err != nil {
-		sys.MessageToOwnerWithError("failed to lambda2.New(session.NewSession())", err)
-		return DailyOrganizeDatabaseResponseStruct{}, err
+		system.MessageToOwnerWithError("failed to lambda2.New(session.NewSession())", err)
+		return DailyOrganizeDatabaseResponse{}, err
 	}
 	svc := lambda2.New(sess)
 	
-	allBatch := utils.DivideStringEqually(sys.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
-	sys.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
+	allBatch := utils.DivideStringEqually(system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
+	system.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		log.Println("batch No. " + strconv.Itoa(i+1))
 		log.Println(batch)
-		payload := lambdautils.ProcessUserRPParallelRequestStruct{
+		
+		payload := lambdautils.UserRPParallelRequest{
 			ProcessIndex: i,
 			UserIds:      batch,
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
-			return DailyOrganizeDatabaseResponseStruct{}, err
+			system.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
+			return DailyOrganizeDatabaseResponse{}, err
 		}
 		input := lambda2.InvokeInput{
 			FunctionName:   aws.String("process_user_rp_parallel"),
@@ -67,19 +68,16 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponseStruct, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
-			return DailyOrganizeDatabaseResponseStruct{}, err
+			system.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
+			return DailyOrganizeDatabaseResponse{}, err
 		}
 		log.Println(resp)
 	}
 	
-	return DailyOrganizeDatabaseResponse(), nil
-}
-
-func DailyOrganizeDatabaseResponse() DailyOrganizeDatabaseResponseStruct {
-	var apiResp DailyOrganizeDatabaseResponseStruct
-	apiResp.Result = lambdautils.OK
-	return apiResp
+	return DailyOrganizeDatabaseResponse{
+		Result:  lambdautils.OK,
+		Message: "",
+	}, nil
 }
 
 func main() {

@@ -4,29 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
-	"log"
 )
 
-
-type ErrorResponseStruct struct {
-	Result  string       `json:"result"`
-	Message string       `json:"message"`
+type ErrorResponse struct {
+	Result  string `json:"result"`
+	Message string `json:"message"`
 }
 
-func Response(jsonBytes []byte) (events.APIGatewayProxyResponse, error) {
-	log.Println("Response()")
+func Response(jsonBytes []byte) events.APIGatewayProxyResponse {
 	return events.APIGatewayProxyResponse{
 		Body:       string(jsonBytes),
-		StatusCode: 200, // これないとInternal Server Errorになる
+		StatusCode: 200, // Necessary to avoid Internal Server Error on API Gateway
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-	}, nil
+	}
 }
 
-
-func ErrorResponse(err error) (events.APIGatewayProxyResponse, error) {
-	var apiResp ErrorResponseStruct
+// ResponseError creates an API Gateway proxy response for a given error.
+func ResponseError(err error) events.APIGatewayProxyResponse {
+	var apiResp ErrorResponse
 	fmt.Println(err.Error())
 	apiResp.Result = ERROR
 	apiResp.Message = err.Error()

@@ -9,9 +9,12 @@ import (
 	"os"
 )
 
-func RetrieveFirebaseCredentialInBytes() ([]byte, error) {
-	log.Println("RetrieveFirebaseCredentialInBytes()")
-	region := os.Getenv("AWS_REGION") // Lambda関数と同じregionのDynamoDBテーブル
+type SecretData struct {
+	SecretData string `dynamodbav:"secret_data"`
+}
+
+func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
+	region := os.Getenv("AWS_REGION") // Use the same region as the Lambda function for the DynamoDB table
 	sess := session.Must(session.NewSession())
 	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
 	
@@ -22,11 +25,6 @@ func RetrieveFirebaseCredentialInBytes() ([]byte, error) {
 				S: aws.String(SecretNameFirestore),
 			},
 		},
-	}
-	
-	// データstruct
-	type SecretData struct {
-		SecretData string `dynamodbav:"secret_data"`
 	}
 	
 	result, err := db.GetItem(params)

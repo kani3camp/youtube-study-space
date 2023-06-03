@@ -1,4 +1,4 @@
-import { PartType } from './time_table'
+import { PartType } from './time-table'
 
 export type Bgm = {
     title: string

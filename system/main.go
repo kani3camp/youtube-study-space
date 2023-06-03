@@ -70,7 +70,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	
 	sys.MessageToOwner("Botが起動しました。\n" + sys.GetInfoString())
-	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
+	defer func() { // when error occurred
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
@@ -199,26 +199,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func LocalMain(ctx context.Context, clientOption option.ClientOption) {
-	// 居座り防止処理を並行実行
-	go CheckLongTimeSitting(ctx, clientOption)
+	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
 	
 	Bot(ctx, clientOption)
-}
-
-func Test(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer sys.CloseFirestoreClient()
-	// === ここまでおまじない ===
-	
-	err = sys.OrganizeDB(ctx, true)
-	if err != nil {
-		panic(err)
-	}
-	
 }
 
 func main() {
@@ -228,12 +211,5 @@ func main() {
 		return
 	}
 	
-	// デプロイ時切り替え
 	LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
-	
-	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
-	//direct_operations.ExitAllUsersInRoom(ctx, clientOption)
-	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
-	//direct_operations.UpdateUsersRP(ctx, clientOption)
 }

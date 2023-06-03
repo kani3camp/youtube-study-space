@@ -1,15 +1,10 @@
 import { useTranslation } from 'next-i18next'
 import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
-import {
-    getCurrentSection,
-    getNextSection,
-    remainingTime,
-    SectionType,
-} from '../lib/time_table'
+import { getCurrentSection, getNextSection, remainingTime, SectionType } from '../lib/time-table'
 import * as styles from '../styles/Timer.styles'
 
-const TimeUpdateIntervalMilliSec = (1 / 30) * 1000 // 30fps
+const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
 
 const Timer: FC = () => {
     const { t } = useTranslation()
@@ -53,9 +48,7 @@ const Timer: FC = () => {
                     )
                 )
                 setNextSection(
-                    currentSection.sectionType === SectionType.Study
-                        ? t('break')
-                        : t('study')
+                    currentSection.sectionType === SectionType.Study ? t('break') : t('study')
                 )
                 setSectionType(currentSection.sectionType)
                 setSectionMessage(
@@ -65,7 +58,7 @@ const Timer: FC = () => {
                 )
             }
         }
-    }, TimeUpdateIntervalMilliSec)
+    }, TIME_UPDATE_INTERVAL_MILLI_SEC)
 
     return (
         <div css={styles.timer}>
@@ -73,24 +66,17 @@ const Timer: FC = () => {
                 <div
                     css={[
                         styles.sectionColor,
-                        sectionType === SectionType.Study
-                            ? styles.studyMode
-                            : styles.breakMode,
+                        sectionType === SectionType.Study ? styles.studyMode : styles.breakMode,
                     ]}
                 >
                     {sectionMessage}
                 </div>
             </div>
             <div css={styles.remaining}>
-                {remainingMin}：
-                {String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
+                {remainingMin}：{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
             </div>
             <span>{`${currentPartName}` + ' '}</span>
-            <span>
-                {currentSectionId !== 0
-                    ? t('section', { value: currentSectionId })
-                    : ''}
-            </span>
+            <span>{currentSectionId !== 0 ? t('section', { value: currentSectionId }) : ''}</span>
             <div css={styles.spacer} />
             <div css={styles.nextDescription}>
                 <span>{`${t('next')} `}</span>

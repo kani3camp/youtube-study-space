@@ -67,7 +67,6 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	}
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
-	//fmt.Printf("%# v\n", pretty.Formatter(liveStreamListResponse))
 	
 	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
 	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status

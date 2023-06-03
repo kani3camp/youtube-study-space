@@ -18,7 +18,7 @@ type ProcessUserRPParallelResponseStruct struct {
 	Message string `json:"message"`
 }
 
-func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruct) (ProcessUserRPParallelResponseStruct, error) {
+func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUserRPParallelResponseStruct, error) {
 	log.Println("ProcessUserRPParallel()")
 	
 	ctx := context.Background()
@@ -33,7 +33,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 	defer sys.CloseFirestoreClient()
 	
 	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
-	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptionTimeLimitSeconds)
+	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed to UpdateUserRPBatch", err)
 		return ProcessUserRPParallelResponseStruct{}, err
@@ -49,7 +49,7 @@ func ProcessUserRPParallel(request lambdautils.ProcessUserRPParallelRequestStruc
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
-		payload := lambdautils.ProcessUserRPParallelRequestStruct{
+		payload := lambdautils.UserRPParallelRequest{
 			ProcessIndex: request.ProcessIndex,
 			UserIds:      remainingUserIds,
 		}

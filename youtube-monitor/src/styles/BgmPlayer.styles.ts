@@ -10,7 +10,6 @@ export const bgmPlayer = css`
     bottom: 300px;
     text-align: center;
     color: white;
-    // overflow: hidden;
     word-break: break-all;
     z-index: 20;
 
@@ -28,9 +27,6 @@ export const audioCanvasDiv = css`
     position: absolute;
     right: 0;
     bottom: 300px;
-    // text-align: center;
-    // color: white;
-    // overflow: hidden;
     z-index: 10;
 `
 
@@ -41,8 +37,5 @@ export const audioCanvas = css`
     position: absolute;
     right: 0;
     bottom: 0;
-    // text-align: center;
-    // color: white;
-    // overflow: hidden;
     z-index: 15;
 `

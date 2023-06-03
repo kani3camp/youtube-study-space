@@ -13,7 +13,6 @@ type DiscordBot struct {
 func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
-		log.Println("Error creating Discord session: ", err)
 		return nil, err
 	}
 	
