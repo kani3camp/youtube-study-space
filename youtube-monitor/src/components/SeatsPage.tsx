@@ -132,10 +132,6 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     actualSeatWidth =
                         (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
                 }
-                console.log(`actualSeatWidth: ${actualSeatWidth}`)
-                console.log(
-                    `metrics.width: ${metrics.width} with '${isBreak ? breakWorkName : workName}'`
-                )
                 if (metrics.width > actualSeatWidth) {
                     workNameFontSizePx *= actualSeatWidth / metrics.width
                     workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない

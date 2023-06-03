@@ -13,21 +13,17 @@ import CenterLoading from './CenterLoading'
 import Message from './Message'
 import SeatsPage, { LayoutPageProps } from './SeatsPage'
 
-import { FirebaseOptions, initializeApp } from 'firebase/app'
-import {
-    collection,
-    doc,
-    DocumentData,
-    FirestoreDataConverter,
-    getFirestore,
-    onSnapshot,
-    query,
-    QueryDocumentSnapshot,
-    SnapshotOptions,
-} from 'firebase/firestore'
+import { initializeApp } from 'firebase/app'
+import { collection, doc, getFirestore, onSnapshot, query } from 'firebase/firestore'
 import { useRouter } from 'next/router'
 import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
+import {
+    firestoreConstantsConverter,
+    firestoreSeatConverter,
+    getFirebaseConfig,
+    SystemConstants,
+} from '../lib/firestore'
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
@@ -52,8 +48,52 @@ const Seats: FC = () => {
         initFirestore()
     }, [])
 
+    useInterval(() => {
+        refreshPageIndex()
+    }, PAGING_INTERVAL_MSEC)
+
+    useEffect(() => {
+        console.log('[currentPageIndex]:', currentPageIndex)
+        changePage(currentPageIndex)
+    }, [currentPageIndex])
+
+    /**
+     * URLのクエリパラメータにpageが指定されており、かつ座席データも読み込めていたらそのページを表示する。
+     */
+    useEffect(() => {
+        console.log('[router.query.page]:', router.query)
+        if (router && pageProps.length > 0) {
+            if (router.query.page !== undefined) {
+                const queryPageIndex = getQueryPageIndex()
+                if (queryPageIndex !== undefined) {
+                    setCurrentPageIndex(queryPageIndex)
+                }
+            }
+        }
+    }, [router.query.page, pageProps.length])
+
+    /**
+     * 座席に変更があったり、max_seatsが変更されたりしたら、全ページを更新する。
+     */
+    useEffect(() => {
+        console.debug(
+            '[latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts]'
+        )
+        updatePageProps()
+    }, [latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts])
+
+    /**
+     * 許容空席率もしくはmax_seatsが変更されたら、座席数の見直しを行う。
+     * システム管理者が手動で更新しない限り、各変数の初期化時のみ実行される。
+     */
+    useEffect(() => {
+        console.debug('[latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate]')
+        reviewMaxSeats()
+    }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
+
     const getQueryPageIndex = (): number | undefined => {
         const queryPageNum = router.query.page
+        console.debug('queryPageNum:', queryPageNum)
         if (
             queryPageNum !== undefined &&
             Number(queryPageNum) > 0 &&
@@ -65,119 +105,24 @@ const Seats: FC = () => {
         }
     }
 
-    useInterval(() => {
+    const refreshPageIndex = () => {
         if (pageProps.length > 0) {
-            const queryPageIndex = getQueryPageIndex()
+            const queryPageIndex: number | undefined = getQueryPageIndex()
             if (queryPageIndex !== undefined) {
                 setCurrentPageIndex(queryPageIndex)
             } else {
                 const newPageIndex = (currentPageIndex + 1) % pageProps.length
                 setCurrentPageIndex(newPageIndex)
             }
-
-            reviewMaxSeats()
         }
-    }, PAGING_INTERVAL_MSEC)
-
-    useEffect(() => {
-        updatePageProps()
-    }, [latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts])
-
-    useEffect(() => {
-        reviewMaxSeats()
-    }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
-
-    useEffect(() => {
-        changePage(currentPageIndex)
-    }, [currentPageIndex])
+    }
 
     const initFirestore = () => {
-        if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
-            alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not defined.')
-            return
-        }
-        if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY === undefined) {
-            alert('NEXT_PUBLIC_FIREBASE_API_KEY is not defined.')
-            return
-        }
-
-        const firebaseConfig: FirebaseOptions = {
-            apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        }
-        const app = initializeApp(firebaseConfig)
+        const app = initializeApp(getFirebaseConfig())
         const db = getFirestore(app)
 
-        const seatConverter: FirestoreDataConverter<Seat> = {
-            toFirestore(seat: Seat): DocumentData {
-                return {
-                    'seat-id': seat.seat_id,
-                    'user-id': seat.user_id,
-                    'user-display-name': seat.user_display_name,
-                    'work-name': seat.work_name,
-                    'break-work-name': seat.break_work_name,
-                    'entered-at': seat.entered_at,
-                    until: seat.until,
-                    appearance: {
-                        'color-code': seat.appearance.color_code1,
-                        'num-stars': seat.appearance.num_stars,
-                        'glow-animation': seat.appearance.color_gradient_enabled,
-                    },
-                    state: seat.state,
-                    'current-state-started-at': seat.current_state_started_at,
-                    'current-state-until': seat.current_state_until,
-                    'cumulative-work-sec': seat.cumulative_work_sec,
-                    'daily-cumulative-work-sec': seat.daily_cumulative_work_sec,
-                }
-            },
-            fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Seat {
-                const data = snapshot.data(options)
-                return {
-                    seat_id: data['seat-id'],
-                    user_id: data['user-id'],
-                    user_display_name: data['user-display-name'],
-                    work_name: data['work-name'],
-                    break_work_name: data['break-work-name'],
-                    entered_at: data['entered-at'],
-                    until: data.until,
-                    appearance: {
-                        color_code1: data.appearance['color-code1'],
-                        color_code2: data.appearance['color-code2'],
-                        num_stars: data.appearance['num-stars'],
-                        color_gradient_enabled: data.appearance['color-gradient-enabled'],
-                    },
-                    state: data.state,
-                    current_state_started_at: data['current-state-started-at'],
-                    current_state_until: data['current-state-until'],
-                    cumulative_work_sec: data['cumulative-work-sec'],
-                    daily_cumulative_work_sec: data['daily-cumulative-work-sec'],
-                    user_profile_image_url: data['user-profile-image-url'],
-                }
-            },
-        }
-
-        type Constants = {
-            max_seats: number
-            member_max_seats: number
-            min_vacancy_rate: number
-        }
-        const constantsConverter: FirestoreDataConverter<Constants> = {
-            toFirestore(constants: Constants): DocumentData {
-                return {
-                    'max-seats': constants.max_seats,
-                    'member-max-seats': constants.member_max_seats,
-                    'min-vacancy-rate': constants.min_vacancy_rate,
-                }
-            },
-            fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Constants {
-                const data = snapshot.data(options)
-                return {
-                    max_seats: data['max-seats'],
-                    member_max_seats: data['member-max-seats'],
-                    min_vacancy_rate: data['min-vacancy-rate'],
-                }
-            },
-        }
+        const constantsConverter = firestoreConstantsConverter
+        const seatConverter = firestoreSeatConverter
 
         const generalSeatsQuery = query(collection(db, 'seats')).withConverter(seatConverter)
         onSnapshot(generalSeatsQuery, (querySnapshot) => {
@@ -197,11 +142,9 @@ const Seats: FC = () => {
         })
 
         onSnapshot(doc(db, 'config', 'constants').withConverter(constantsConverter), (doc) => {
-            const generalMaxSeats = (doc.data() as Constants).max_seats
-            const memberMaxSeats = (doc.data() as Constants).member_max_seats
-            const minVacancyRate = (doc.data() as Constants).min_vacancy_rate
-            console.log('max seats: ', generalMaxSeats)
-            console.log('min vacancy rate: ', minVacancyRate)
+            const generalMaxSeats = (doc.data() as SystemConstants).max_seats
+            const memberMaxSeats = (doc.data() as SystemConstants).member_max_seats
+            const minVacancyRate = (doc.data() as SystemConstants).min_vacancy_rate
             setLatestGeneralMaxSeats(generalMaxSeats)
             setLatestMemberMaxSeats(memberMaxSeats)
             setLatestMinVacancyRate(minVacancyRate)
@@ -209,11 +152,10 @@ const Seats: FC = () => {
     }
 
     /**
-     * 表示するページを変更する。
-     * @param pageIndex 次に表示したいページのインデックス番号（0始まり）
+     * Changes the page to be displayed.
+     * @param pageIndex The index number of the page you want to display next (starting from 0)
      */
     const changePage = (pageIndex: number) => {
-        console.log('change index: ', pageIndex)
         const snapshotPageProps = [...pageProps]
         if (pageIndex + 1 > snapshotPageProps.length) {
             pageIndex = 0 // index out of range にならないように１ページ目に。
@@ -244,6 +186,10 @@ const Seats: FC = () => {
         [pageProps]
     )
 
+    /**
+     * 座席数の見直しを行う。
+     * 座席数の増減が必要な場合は、APIにリクエストを送信し、ルーム数を調整する。
+     */
     const reviewMaxSeats = async () => {
         const snapshotGeneralMaxSeats = latestGeneralMaxSeats
         const snapshotMemberMaxSeats = latestMemberMaxSeats
@@ -257,7 +203,6 @@ const Seats: FC = () => {
         ) {
             return
         }
-        console.log('reviewing max seats.')
 
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
         let finalDesiredGeneralMaxSeats: number
@@ -280,7 +225,6 @@ const Seats: FC = () => {
             // そうでなければ、基本ルームの席数とするべき
             finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
         }
-        console.log(`desired: ${finalDesiredGeneralMaxSeats}, current: ${snapshotMemberMaxSeats}`)
 
         let finalDesiredMemberMaxSeats: number
         const memberMinSeatsByVacancyRate = Math.ceil(
@@ -301,9 +245,6 @@ const Seats: FC = () => {
             // そうでなければ、基本ルームの席数とするべき
             finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
         }
-        console.log(
-            `[member] desired: ${finalDesiredMemberMaxSeats}, current: ${snapshotMemberMaxSeats}`
-        )
 
         // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
         if (
@@ -311,7 +252,7 @@ const Seats: FC = () => {
             finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
         ) {
             console.log(
-                'リクエストを送る',
+                'sending request to change max_seats:',
                 snapshotGeneralMaxSeats,
                 ' => ',
                 finalDesiredGeneralMaxSeats,
@@ -319,7 +260,7 @@ const Seats: FC = () => {
                 ' => ',
                 finalDesiredMemberMaxSeats
             )
-            requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats) // awaitはしない
+            await requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats)
         }
 
         // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
@@ -360,22 +301,20 @@ const Seats: FC = () => {
                 desired_member_max_seats: desiredMemberMaxSeats,
             }),
         }).then(async () => {
-            console.log('リクエストした')
+            console.log('request succeeded')
         })
     }
 
+    /**
+     * 全ページのプロパティを再構成する。
+     */
     const updatePageProps = () => {
         // 各項目のスナップショットをとる
-        const snapshotPageProps = [...pageProps]
         const snapshotActiveGeneralLayouts = [...activeGeneralLayouts]
         const snapshotActiveMemberLayouts = [...activeMemberLayouts]
         const snapshotLatestGeneralSeats = [...latestGeneralSeats]
         const snapshotLatestMemberSeats = [...latestMemberSeats]
-
-        if (snapshotPageProps.length < currentPageIndex + 1) {
-            // index out of rangeにならないように1ページ目に。
-            setCurrentPageIndex(0) // 反映はほんの少し遅延するが、ほんの少しなので視覚的にはすぐに回復するはず？
-        }
+        const snapshotCurrentPageIndex = currentPageIndex
 
         let sumSeatsGeneral = 0
         let sumSeatsMember = 0
@@ -411,16 +350,14 @@ const Seats: FC = () => {
         )
         const newMemberPageProps: LayoutPageProps[] = snapshotActiveMemberLayouts.map(mapFunc(true))
         const newPageProps: LayoutPageProps[] = newGeneralPageProps.concat(newMemberPageProps)
-        // set if display
+
+        const pageIndexToDisplay =
+            newPageProps.length > snapshotCurrentPageIndex ? snapshotCurrentPageIndex : 0
         for (let i = 0; i < newPageProps.length; i++) {
-            if (snapshotPageProps.length === 0 && i === 0) {
-                // 初回構築のときは1ページ目を表示
+            if (i === pageIndexToDisplay) {
                 newPageProps[i].display = true
-            } else if (i >= snapshotPageProps.length) {
-                // 増えたページの場合は、表示はfalse
-                newPageProps[i].display = false
             } else {
-                newPageProps[i].display = snapshotPageProps[i].display
+                newPageProps[i].display = false
             }
         }
         setPageProps(newPageProps)
