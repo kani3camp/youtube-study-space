@@ -8,38 +8,35 @@ import (
 	"log"
 )
 
-type TransferCollectionHistoryBigqueryResponseStruct struct {
+type TransferCollectionHistoryBigqueryResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
 }
 
-func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryResponseStruct, error) {
+func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryResponse, error) {
 	log.Println("TransferCollectionHistoryBigquery()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
+		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
+		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
 	defer sys.CloseFirestoreClient()
 	
 	err = sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
-		return TransferCollectionHistoryBigqueryResponseStruct{}, nil
+		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
 	
-	return TransferCollectionHistoryBigqueryResponse(), nil
-}
-
-func TransferCollectionHistoryBigqueryResponse() TransferCollectionHistoryBigqueryResponseStruct {
-	var apiResp TransferCollectionHistoryBigqueryResponseStruct
-	apiResp.Result = lambdautils.OK
-	return apiResp
+	return TransferCollectionHistoryBigqueryResponse{
+		Result:  lambdautils.OK,
+		Message: "",
+	}, nil
 }
 
 func main() {

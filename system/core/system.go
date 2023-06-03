@@ -1752,7 +1752,8 @@ func (s *System) SaveNextPageToken(ctx context.Context, nextPageToken string) er
 	return s.FirestoreController.UpdateNextPageToken(ctx, nextPageToken)
 }
 
-// RandomAvailableSeatIdForUser roomの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
+// RandomAvailableSeatIdForUser
+// ルームの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string, isMemberSeat bool) (int,
 	customerror.CustomError) {

@@ -5,8 +5,10 @@ import (
 	"google.golang.org/api/option"
 )
 
+// FirestoreClientOption retrieves Firebase credentials from DynamoDB and
+// returns a client option suitable for creating a Firestore client.
 func FirestoreClientOption() (option.ClientOption, error) {
-	credentialBytes, err := mydynamodb.RetrieveFirebaseCredentialInBytes()
+	credentialBytes, err := mydynamodb.FetchFirebaseCredentialsAsBytes()
 	if err != nil {
 		return nil, err
 	}
