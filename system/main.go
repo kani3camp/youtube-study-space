@@ -2,6 +2,7 @@ package main
 
 import (
 	"app.modules/core/youtubebot"
+	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"log"
@@ -228,11 +229,11 @@ func main() {
 	}
 	
 	// デプロイ時切り替え
-	LocalMain(ctx, clientOption)
+	//LocalMain(ctx, clientOption)
 	//Test(ctx, clientOption)
 	
 	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
-	//direct_operations.ExitAllUsersInRoom(ctx, clientOption)
+	direct_operations.ExitAllUsersInRoom(ctx, clientOption)
 	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
 	//direct_operations.UpdateUsersRP(ctx, clientOption)
 }
