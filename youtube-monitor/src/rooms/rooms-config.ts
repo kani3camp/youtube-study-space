@@ -41,7 +41,7 @@ const prodAllRooms: AllRoomsConfig = {
         Freepik5Layout,
     ],
     memberBasicRooms: [MemberIllustratedRoom1],
-    memberTemporaryRooms: [MemberSimpleRoom1],
+    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1],
 }
 
 const testAllRooms: AllRoomsConfig = {
@@ -56,7 +56,7 @@ const testAllRooms: AllRoomsConfig = {
         Freepik5Layout,
     ],
     memberBasicRooms: [MemberIllustratedRoom1],
-    memberTemporaryRooms: [MemberSimpleRoom1],
+    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1],
 }
 
 export const allRooms: AllRoomsConfig = DEBUG ? testAllRooms : prodAllRooms
