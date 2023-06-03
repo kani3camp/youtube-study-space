@@ -30,27 +30,15 @@ export const partition = css`
 export const seatId = css`
     margin: 0;
     position: relative;
-    top: 0;
-    left: 0;
     color: #414141;
-`
-export const seatIdContainerMember = css`
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 1.7rem;
-    height: 1rem;
-    border-right: solid black 0.06rem;
-    border-bottom: solid black 0.06rem;
-    border-bottom-right-radius: 0.4rem;
+    font-weight: bold;
 `
 export const seatIdMember = css`
     position: absolute;
     margin: 0;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    top: 0;
     color: #414141;
+    font-weight: bold;
 `
 
 export const emptySeatNum = css`
@@ -70,8 +58,8 @@ export const workName = css`
 `
 export const workNameMemberBalloon = css`
     position: absolute;
-    bottom: 40%;
-    left: 25%;
+    bottom: 38%;
+    left: 23%;
     text-align: center;
     min-width: 30%;
     max-width: ${Constants.memberSeatWorkNameWidthPercent}%;
@@ -79,13 +67,13 @@ export const workNameMemberBalloon = css`
     margin-left: 0.5rem;
     padding: 0.08rem 0.2rem;
     border-radius: 0.3rem;
-    background-color: #fff6;
+    background-color: #ffffffa0;
     color: #24317e;
     font-weight: bolder;
 
     &::before {
         position: absolute;
-        bottom: 20%;
+        bottom: 25%;
         left: -0.5rem;
         width: 0.5rem;
         height: 0.4rem;
@@ -148,8 +136,8 @@ export const starsBadge = css`
 export const profileImageMemberWithWorkName = css`
     margin: 0;
     position: absolute;
-    top: 30%;
-    left: 15%;
+    top: 35%;
+    left: 12%;
     width: 1.2rem;
     height: 1.2rem;
     transform: translate(-50%, 0);
@@ -158,10 +146,10 @@ export const profileImageMemberWithWorkName = css`
 export const profileImageMemberNoWorkName = css`
     margin: 0;
     position: absolute;
-    top: 8%;
+    top: 24%;
     left: 50%;
-    width: 1.9rem;
-    height: 1.9rem;
+    width: 1.8rem;
+    height: 1.8rem;
     transform: translate(-50%, 0);
     border-radius: 50%;
 `

@@ -167,20 +167,10 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         let userDisplayName = <></>
         if (isUsed) {
             if (props.memberOnly) {
-                seatNo = (
-                    <div css={styles.seatIdContainerMember}>
-                        <div css={styles.seatIdMember} style={{ fontWeight: 'bold' }}>
-                            {globalSeatId}
-                        </div>
-                    </div>
-                )
+                seatNo = <div css={styles.seatIdMember}>{globalSeatId}</div>
                 userDisplayName = <div css={styles.userDisplayNameMember}>{displayName}</div>
             } else {
-                seatNo = (
-                    <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
-                        {globalSeatId}
-                    </div>
-                )
+                seatNo = <div css={styles.seatId}>{globalSeatId}</div>
                 userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
             }
         } else {

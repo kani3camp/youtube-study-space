@@ -17,5 +17,5 @@ export const Constants = {
     chimeDoubleFilePath: '/chime/chime2.mp3',
     pagingIntervalSeconds: 8,
     emptySeatColor: '#F3E8DC',
-    memberSeatWorkNameWidthPercent: 58,
+    memberSeatWorkNameWidthPercent: 60,
 }
