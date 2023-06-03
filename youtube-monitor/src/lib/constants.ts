@@ -19,3 +19,5 @@ export const Constants = {
     emptySeatColor: '#F3E8DC',
     memberSeatWorkNameWidthPercent: 60,
 }
+
+export const debug = false
