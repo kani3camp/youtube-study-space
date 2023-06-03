@@ -26,13 +26,16 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
-		return
 	}
 	
 	sys.MessageToOwner("direct op: ExitAllUsersInRoom")
 	
 	log.Println("全ルームの全ユーザーを退室させます。")
-	err = sys.ExitAllUsersInRoom(ctx)
+	err = sys.ExitAllUsersInRoom(ctx, true)
+	if err != nil {
+		panic(err)
+	}
+	err = sys.ExitAllUsersInRoom(ctx, false)
 	if err != nil {
 		panic(err)
 	}
@@ -44,12 +47,11 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
-		return
 	}
 	
 	sys.MessageToOwner("direct op: ExitSpecificUser")
 	
-	sys.SetProcessedUser(userId, "**", false, false, true)
+	sys.SetProcessedUser(userId, "**", "**", false, false, true)
 	outCommandDetails := &utils.CommandDetails{
 		CommandType: utils.Out,
 	}
@@ -57,7 +59,6 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 	err = sys.Out(outCommandDetails, ctx)
 	if err != nil {
 		panic(err)
-		return
 	}
 }
 
@@ -65,7 +66,6 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
-		return
 	}
 	
 	sys.MessageToOwner("direct op: ExportUsersCollectionJson")
@@ -85,7 +85,6 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	f, err := os.Create("./" + dateString + "_user-total-study-sec-list.json")
 	if err != nil {
 		panic(err)
-		return
 	}
 	defer func() { _ = f.Close() }()
 	
@@ -94,7 +93,6 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	err = jsonEnc.Encode(allUsersTotalStudySecList)
 	if err != nil {
 		panic(err)
-		return
 	}
 	log.Println("finished exporting json.")
 }
@@ -103,7 +101,6 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 	sys, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
 		panic(err)
-		return
 	}
 	
 	sys.MessageToOwner("direct op: UpdateUsersRP")

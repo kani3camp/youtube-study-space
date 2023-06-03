@@ -1,8 +1,9 @@
 import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const background = css`
     height: 390px;
-    width: 400px;
+    width: ${Constants.sideBarWidth}px;
     background-color: rgba(255, 241, 221, 1);
     padding: 0.5rem 1rem;
     box-sizing: border-box;

@@ -1,13 +1,16 @@
 package myfirestore
 
-const (
-	CONFIG              = "config"
-	SEATS               = "seats"
-	USERS               = "users"
-	LiveChatHistory     = "live-chat-history"
-	UserActivities      = "user-activities"
-	SeatLimitsBlackList = "seat-limits-black-list"
-	SeatLimitsWhiteList = "seat-limits-white-list"
+const ( // TODO: ~~CollectionName, DocProperty~~に変更
+	CONFIG                    = "config"
+	SEATS                     = "seats"
+	MemberSeats               = "member-seats"
+	USERS                     = "users"
+	LiveChatHistory           = "live-chat-history"
+	UserActivities            = "user-activities"
+	SeatLimitsBlackList       = "seat-limits-black-list"
+	SeatLimitsWhiteList       = "seat-limits-white-list"
+	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
+	MemberSeatLimitsWhiteList = "member-seat-limits-white-list"
 	
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
@@ -25,7 +28,9 @@ const (
 	ActivityTypeDocProperty = "activity-type"
 	
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
+	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
+	MemberMaxSeatsDocProperty                        = "member-max-seats"
 	MinVacancyRateDocProperty                        = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
@@ -50,6 +55,7 @@ const (
 	IsContinuousActiveDocProperty          = "is-continuous-active"
 	CurrentActivityStateStartedDocProperty = "current-activity-state-started"
 	LastPenaltyImposedDaysDocProperty      = "last-penalty-imposed-days"
+	IsMemberSeatDocProperty                = "is-member-seat"
 	
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

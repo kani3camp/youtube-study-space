@@ -8,38 +8,40 @@ import (
 	"log"
 )
 
-type OrganizeDatabaseResponseStruct struct {
+type OrganizeDatabaseResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
 }
 
-func OrganizeDatabase() (OrganizeDatabaseResponseStruct, error) {
+func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 	log.Println("OrganizeDatabase()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return OrganizeDatabaseResponseStruct{}, nil
+		return OrganizeDatabaseResponse{}, nil
 	}
-	sys, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return OrganizeDatabaseResponseStruct{}, nil
+		return OrganizeDatabaseResponse{}, nil
 	}
-	defer sys.CloseFirestoreClient()
+	defer system.CloseFirestoreClient()
 	
-	err = sys.OrganizeDB(ctx)
+	err = system.OrganizeDB(ctx, true)
 	if err != nil {
-		sys.MessageToOwnerWithError("failed to OrganizeDB", err)
-		return OrganizeDatabaseResponseStruct{}, nil
+		system.MessageToOwnerWithError("failed to OrganizeDB", err)
+		return OrganizeDatabaseResponse{}, nil
+	}
+	err = system.OrganizeDB(ctx, false)
+	if err != nil {
+		system.MessageToOwnerWithError("failed to OrganizeDB", err)
+		return OrganizeDatabaseResponse{}, nil
 	}
 	
-	return OrganizeDatabaseResponse(), nil
-}
-
-func OrganizeDatabaseResponse() OrganizeDatabaseResponseStruct {
-	var apiResp OrganizeDatabaseResponseStruct
-	apiResp.Result = lambdautils.OK
-	return apiResp
+	return OrganizeDatabaseResponse{
+		Result:  lambdautils.OK,
+		Message: "",
+	}, nil
 }
 
 func main() {

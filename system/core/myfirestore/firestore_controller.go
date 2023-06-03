@@ -62,8 +62,8 @@ func (c *FirestoreController) update(ctx context.Context, tx *firestore.Transact
 	}
 }
 
+// delete deletes the document. If the document doesn't exist, it does nothing and returns no error.
 func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, opts ...firestore.Precondition) error {
-	// TODO: ドキュメントが元から存在しないときは明示的にエラーを返したい
 	if tx != nil {
 		return tx.Delete(ref, opts...)
 	} else {
@@ -80,8 +80,19 @@ func (c *FirestoreController) usersCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(USERS)
 }
 
-func (c *FirestoreController) seatsCollection() *firestore.CollectionRef {
+func (c *FirestoreController) seatsCollection(isMemberSeat bool) *firestore.CollectionRef {
+	if isMemberSeat {
+		return c.memberSeatsCollection()
+	} else {
+		return c.generalSeatsCollection()
+	}
+}
+
+func (c *FirestoreController) generalSeatsCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(SEATS)
+}
+func (c *FirestoreController) memberSeatsCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(MemberSeats)
 }
 
 func (c *FirestoreController) liveChatHistoryCollection() *firestore.CollectionRef {
@@ -92,12 +103,20 @@ func (c *FirestoreController) userActivitiesCollection() *firestore.CollectionRe
 	return c.FirestoreClient.Collection(UserActivities)
 }
 
-func (c *FirestoreController) seatLimitsBLACKListCollection() *firestore.CollectionRef {
+func (c *FirestoreController) generalSeatLimitsBLACKListCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(SeatLimitsBlackList)
 }
 
-func (c *FirestoreController) seatLimitsWHITEListCollection() *firestore.CollectionRef {
+func (c *FirestoreController) generalSeatLimitsWHITEListCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(SeatLimitsWhiteList)
+}
+
+func (c *FirestoreController) memberSeatLimitsBLACKListCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(MemberSeatLimitsBlackList)
+}
+
+func (c *FirestoreController) memberSeatLimitsWHITEListCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(MemberSeatLimitsWhiteList)
 }
 
 func (c *FirestoreController) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
@@ -165,18 +184,22 @@ func (c *FirestoreController) UpdateNextPageToken(ctx context.Context, nextPageT
 	return nil
 }
 
-func (c *FirestoreController) ReadAllSeats(ctx context.Context) ([]SeatDoc, error) {
-	iter := c.seatsCollection().Documents(ctx)
+func (c *FirestoreController) ReadGeneralSeats(ctx context.Context) ([]SeatDoc, error) {
+	iter := c.generalSeatsCollection().Documents(ctx)
+	return GetSeatsFromIterator(iter)
+}
+func (c *FirestoreController) ReadMemberSeats(ctx context.Context) ([]SeatDoc, error) {
+	iter := c.memberSeatsCollection().Documents(ctx)
 	return GetSeatsFromIterator(iter)
 }
 
-func (c *FirestoreController) ReadSeatsExpiredUntil(ctx context.Context, thresholdTime time.Time) ([]SeatDoc, error) {
-	iter := c.seatsCollection().Where(UntilDocProperty, "<", thresholdTime).Documents(ctx)
+func (c *FirestoreController) ReadSeatsExpiredUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
+	iter := c.seatsCollection(isMemberSeat).Where(UntilDocProperty, "<", thresholdTime).Documents(ctx)
 	return GetSeatsFromIterator(iter)
 }
 
-func (c *FirestoreController) ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time) ([]SeatDoc, error) {
-	iter := c.seatsCollection().Where(StateDocProperty, "==", BreakState).Where(CurrentStateUntilDocProperty, "<", thresholdTime).Documents(ctx)
+func (c *FirestoreController) ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
+	iter := c.seatsCollection(isMemberSeat).Where(StateDocProperty, "==", BreakState).Where(CurrentStateUntilDocProperty, "<", thresholdTime).Documents(ctx)
 	return GetSeatsFromIterator(iter)
 }
 
@@ -200,8 +223,8 @@ func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
 	return seats, nil
 }
 
-func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int) (SeatDoc, error) {
-	ref := c.seatsCollection().Doc(strconv.Itoa(seatId))
+func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (SeatDoc, error) {
+	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seatId))
 	doc, err := c.get(ctx, tx, ref)
 	if err != nil {
 		return SeatDoc{}, err // NotFoundの場合もerrに含まれる
@@ -214,8 +237,8 @@ func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transa
 	return seatDoc, nil
 }
 
-func (c *FirestoreController) ReadSeatWithUserId(ctx context.Context, userId string) (SeatDoc, error) {
-	docs, err := c.seatsCollection().Where(UserIdDocProperty, "==", userId).Documents(ctx).GetAll()
+func (c *FirestoreController) ReadSeatWithUserId(ctx context.Context, userId string, isMemberSeat bool) (SeatDoc, error) {
+	docs, err := c.seatsCollection(isMemberSeat).Where(UserIdDocProperty, "==", userId).Documents(ctx).GetAll()
 	if err != nil {
 		return SeatDoc{}, err
 	}
@@ -369,11 +392,24 @@ func (c *FirestoreController) UpdateDesiredMaxSeats(ctx context.Context, tx *fir
 		{Path: DesiredMaxSeatsDocProperty, Value: desiredMaxSeats},
 	})
 }
+func (c *FirestoreController) UpdateDesiredMemberMaxSeats(ctx context.Context, tx *firestore.Transaction,
+	desiredMemberMaxSeats int) error {
+	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: DesiredMemberMaxSeatsDocProperty, Value: desiredMemberMaxSeats},
+	})
+}
 
 func (c *FirestoreController) UpdateMaxSeats(ctx context.Context, tx *firestore.Transaction, maxSeats int) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: MaxSeatsDocProperty, Value: maxSeats},
+	})
+}
+func (c *FirestoreController) UpdateMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, memberMaxSeats int) error {
+	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: MemberMaxSeatsDocProperty, Value: memberMaxSeats},
 	})
 }
 
@@ -393,18 +429,18 @@ func (c *FirestoreController) UpdateAccessTokenOfBotCredential(ctx context.Conte
 	})
 }
 
-func (c *FirestoreController) CreateSeat(tx *firestore.Transaction, seat SeatDoc) error {
-	ref := c.seatsCollection().Doc(strconv.Itoa(seat.SeatId))
+func (c *FirestoreController) CreateSeat(tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error {
+	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seat.SeatId))
 	return tx.Create(ref, seat)
 }
 
-func (c *FirestoreController) UpdateSeat(tx *firestore.Transaction, seat SeatDoc) error {
-	ref := c.seatsCollection().Doc(strconv.Itoa(seat.SeatId))
+func (c *FirestoreController) UpdateSeat(tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error {
+	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seat.SeatId))
 	return c.set(nil, tx, ref, seat)
 }
 
-func (c *FirestoreController) DeleteSeat(tx *firestore.Transaction, seatId int) error {
-	ref := c.seatsCollection().Doc(strconv.Itoa(seatId))
+func (c *FirestoreController) DeleteSeat(tx *firestore.Transaction, seatId int, isMemberSeat bool) error {
+	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seatId))
 	return c.delete(nil, tx, ref)
 }
 
@@ -438,25 +474,28 @@ func (c *FirestoreController) GetAllUserActivityDocIdsAfterDate(ctx context.Cont
 }
 
 func (c *FirestoreController) GetAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
-		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).OrderBy(TakenAtDocProperty,
+		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).
+		Where(IsMemberSeatDocProperty, "==", isMemberSeat).OrderBy(TakenAtDocProperty,
 		firestore.Asc).Documents(ctx)
 	return getUserActivitiesFromIterator(iter)
 }
 
 func (c *FirestoreController) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIdDocProperty, "==", userId).
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", EnterRoomActivity).
+		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
 	return getUserActivitiesFromIterator(iter)
 }
 
 func (c *FirestoreController) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userId string, seatId int) ([]UserActivityDoc, error) {
+	date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIdDocProperty, "==", userId).
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", ExitRoomActivity).
+		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
 	return getUserActivitiesFromIterator(iter)
 }
@@ -511,13 +550,25 @@ func (c *FirestoreController) UpdateUserRPAndLastPenaltyImposedDays(tx *firestor
 	})
 }
 
-func (c *FirestoreController) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string) ([]SeatLimitDoc, error) {
-	iter := c.seatLimitsWHITEListCollection().Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
+func (c *FirestoreController) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error) {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsWHITEListCollection()
+	} else {
+		collection = c.generalSeatLimitsWHITEListCollection()
+	}
+	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
 	return getSeatLimitsDocsFromIterator(iter)
 }
 
-func (c *FirestoreController) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string) ([]SeatLimitDoc, error) {
-	iter := c.seatLimitsBLACKListCollection().Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
+func (c *FirestoreController) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error) {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsBLACKListCollection()
+	} else {
+		collection = c.generalSeatLimitsBLACKListCollection()
+	}
+	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
 	return getSeatLimitsDocsFromIterator(iter)
 }
 
@@ -541,13 +592,23 @@ func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimi
 	return seatLimits, nil
 }
 
-func (c *FirestoreController) CreateSeatLimitInWhiteList(ctx context.Context, seatId int, userId string, createdAt, until time.Time) error {
-	ref := c.seatLimitsWHITEListCollection().NewDoc()
+func (c *FirestoreController) CreateSeatLimitInWHITEList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
+	var ref *firestore.DocumentRef
+	if isMemberSeat {
+		ref = c.memberSeatLimitsWHITEListCollection().NewDoc()
+	} else {
+		ref = c.generalSeatLimitsWHITEListCollection().NewDoc()
+	}
 	return c.createSeatLimit(ctx, ref, seatId, userId, createdAt, until)
 }
 
-func (c *FirestoreController) CreateSeatLimitInBlackList(ctx context.Context, seatId int, userId string, createdAt, until time.Time) error {
-	ref := c.seatLimitsBLACKListCollection().NewDoc()
+func (c *FirestoreController) CreateSeatLimitInBLACKList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
+	var ref *firestore.DocumentRef
+	if isMemberSeat {
+		ref = c.memberSeatLimitsBLACKListCollection().NewDoc()
+	} else {
+		ref = c.generalSeatLimitsBLACKListCollection().NewDoc()
+	}
 	return c.createSeatLimit(ctx, ref, seatId, userId, createdAt, until)
 }
 
@@ -562,21 +623,45 @@ func (c *FirestoreController) createSeatLimit(ctx context.Context, ref *firestor
 }
 
 // Get500SeatLimitsAfterUntilInWHITEList returns all seat limit docs whose `until` is after `thresholdTime`.
-func (c *FirestoreController) Get500SeatLimitsAfterUntilInWHITEList(ctx context.Context, thresholdTime time.Time) *firestore.DocumentIterator {
-	return c.seatLimitsWHITEListCollection().Where(UntilDocProperty, "<", thresholdTime).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
+func (c *FirestoreController) Get500SeatLimitsAfterUntilInWHITEList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsWHITEListCollection()
+	} else {
+		collection = c.generalSeatLimitsWHITEListCollection()
+	}
+	return collection.Where(UntilDocProperty, "<", thresholdTime).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
 // Get500SeatLimitsAfterUntilInBLACKList returns all seat limit docs whose `until` is after `thresholdTime`.
-func (c *FirestoreController) Get500SeatLimitsAfterUntilInBLACKList(ctx context.Context, thresholdTime time.Time) *firestore.DocumentIterator {
-	return c.seatLimitsBLACKListCollection().Where(UntilDocProperty, "<", thresholdTime).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
+func (c *FirestoreController) Get500SeatLimitsAfterUntilInBLACKList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsBLACKListCollection()
+	} else {
+		collection = c.generalSeatLimitsBLACKListCollection()
+	}
+	return collection.Where(UntilDocProperty, "<", thresholdTime).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
-func (c *FirestoreController) DeleteSeatLimitInWHITEList(ctx context.Context, docId string) error {
-	ref := c.seatLimitsWHITEListCollection().Doc(docId)
+func (c *FirestoreController) DeleteSeatLimitInWHITEList(ctx context.Context, docId string, isMemberSeat bool) error {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsWHITEListCollection()
+	} else {
+		collection = c.generalSeatLimitsWHITEListCollection()
+	}
+	ref := collection.Doc(docId)
 	return c.delete(ctx, nil, ref)
 }
 
-func (c *FirestoreController) DeleteSeatLimitInBLACKList(ctx context.Context, docId string) error {
-	ref := c.seatLimitsBLACKListCollection().Doc(docId)
+func (c *FirestoreController) DeleteSeatLimitInBLACKList(ctx context.Context, docId string, isMemberSeat bool) error {
+	var collection *firestore.CollectionRef
+	if isMemberSeat {
+		collection = c.memberSeatLimitsBLACKListCollection()
+	} else {
+		collection = c.generalSeatLimitsBLACKListCollection()
+	}
+	ref := collection.Doc(docId)
 	return c.delete(ctx, nil, ref)
 }

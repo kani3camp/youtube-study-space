@@ -1,8 +1,9 @@
 import { css } from '@emotion/react'
+import { Constants } from '../lib/constants'
 
 export const clockStyle = css`
     height: 160px;
-    width: 400px;
+    width: ${Constants.sideBarWidth}px;
     background-color: rgba(255, 241, 221, 1);
     backdrop-filter: blur(3px);
     position: absolute;

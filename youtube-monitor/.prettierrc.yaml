@@ -4,3 +4,4 @@ semi: false
 singleQuote: true
 jsxSingleQuote: true
 endOfLine: 'lf'
+printWidth: 100

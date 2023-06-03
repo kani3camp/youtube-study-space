@@ -2,7 +2,6 @@ package main
 
 import (
 	"app.modules/core/youtubebot"
-	direct_operations "app.modules/direct-operations"
 	"context"
 	"fmt"
 	"log"
@@ -71,7 +70,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	
 	sys.MessageToOwner("Botが起動しました。\n" + sys.GetInfoString())
-	defer func() { // プログラムが停止してしまうとき。このプログラムは無限なので停止するのはエラーがおこったとき。
+	defer func() { // when error occurred
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
@@ -96,7 +95,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			if err != nil {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
 			} else {
-				if constants.DesiredMaxSeats != constants.MaxSeats {
+				if constants.DesiredMaxSeats != constants.MaxSeats || constants.DesiredMemberMaxSeats != constants.MemberMaxSeats {
 					err := sys.AdjustMaxSeats(ctx)
 					if err != nil {
 						sys.MessageToOwnerWithError("failed sys.AdjustMaxSeats()", err)
@@ -178,11 +177,12 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
 			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
 			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
+			profileImageUrl := youtubebot.ExtractAuthorProfileImageUrl(chatMessage)
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := sys.Command(ctx, message, channelId, displayName, isModerator, isOwner, isMember)
+			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
 			if err != nil {
 				sys.MessageToOwnerWithError("error in Command()", err)
 			}
@@ -198,27 +198,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func LocalMain(ctx context.Context, clientOption option.ClientOption) {
-	// 居座り防止処理を並行実行
-	go CheckLongTimeSitting(ctx, clientOption)
+	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
 	
 	Bot(ctx, clientOption)
-}
-
-func Test(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer sys.CloseFirestoreClient()
-	// === ここまでおまじない ===
-	
-	err = sys.CheckLiveStreamStatus(ctx)
-	if err != nil {
-		sys.MessageToOwnerWithError("failed to check live stream", err)
-		panic(err)
-	}
-	
 }
 
 func main() {
@@ -228,12 +210,5 @@ func main() {
 		return
 	}
 	
-	// デプロイ時切り替え
-	//LocalMain(ctx, clientOption)
-	//Test(ctx, clientOption)
-	
-	//direct_operations.ExportUsersCollectionJson(clientOption, ctx)
-	direct_operations.ExitAllUsersInRoom(ctx, clientOption)
-	//direct_operations.ExitSpecificUser("UCTYYfHyJLOBDiFqvfpvmUHg", clientOption, ctx)
-	//direct_operations.UpdateUsersRP(ctx, clientOption)
+	LocalMain(ctx, clientOption)
 }

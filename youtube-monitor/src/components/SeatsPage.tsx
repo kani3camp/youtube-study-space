@@ -1,8 +1,7 @@
 import { css, keyframes } from '@emotion/react'
-import chroma from 'chroma-js'
 import { FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
-import * as styles from '../styles/LayoutDisplay.styles'
+import * as styles from '../styles/SeatsPage.styles'
 import { Seat } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 
@@ -11,6 +10,7 @@ export type LayoutPageProps = {
     usedSeats: Seat[]
     firstSeatId: number
     display: boolean // 表示するページの場合はtrue、それ以外はfalse
+    memberOnly: boolean
 }
 
 const SeatState = {
@@ -19,27 +19,31 @@ const SeatState = {
 }
 
 const SeatsPage: FC<LayoutPageProps> = (props) => {
-    const emptySeatColor = '#F3E8DC'
-
     const propsMemo = useMemo(() => props, [props])
 
-    const roomShape = {
-        widthPx:
-            (1000 * propsMemo.roomLayout.room_shape.width) /
-            propsMemo.roomLayout.room_shape.height,
-        heightPx: 1000,
-    }
+    const frameWidth = Constants.screenWidth - Constants.sideBarWidth
+    const frameHeight = Constants.screenHeight - Constants.messageBarHeight
+    const frameRatio = frameWidth / frameHeight
+    const roomShapeRatio =
+        propsMemo.roomLayout.room_shape.width / propsMemo.roomLayout.room_shape.height
+    const roomShape =
+        roomShapeRatio >= frameRatio
+            ? {
+                  widthPx: frameWidth,
+                  heightPx: frameWidth / roomShapeRatio,
+              }
+            : {
+                  widthPx: frameHeight * roomShapeRatio,
+                  heightPx: frameHeight,
+              }
 
-    const seatFontSizePx =
-        roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
+    const seatFontSizePx = roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
     const seatShape = {
-        width:
-            (100 * propsMemo.roomLayout.seat_shape.width) /
-            propsMemo.roomLayout.room_shape.width,
-        height:
-            (100 * propsMemo.roomLayout.seat_shape.height) /
-            propsMemo.roomLayout.room_shape.height,
+        widthPercent:
+            (100 * propsMemo.roomLayout.seat_shape.width) / propsMemo.roomLayout.room_shape.width,
+        heightPercent:
+            (100 * propsMemo.roomLayout.seat_shape.height) / propsMemo.roomLayout.room_shape.height,
     }
 
     const seatPositions = propsMemo.roomLayout.seats.map((seat) => ({
@@ -56,11 +60,9 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         for (let i = 0; i < partitionShapes.length; i++) {
             if (partitionShapes[i].name === shapeType) {
                 widthPercent =
-                    (100 * partitionShapes[i].width) /
-                    propsMemo.roomLayout.room_shape.width
+                    (100 * partitionShapes[i].width) / propsMemo.roomLayout.room_shape.width
                 heightPercent =
-                    (100 * partitionShapes[i].height) /
-                    propsMemo.roomLayout.room_shape.height
+                    (100 * partitionShapes[i].height) / propsMemo.roomLayout.room_shape.height
             }
         }
         return {
@@ -79,43 +81,57 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         return targetSeat
     }
 
-    const partitionPositions = propsMemo.roomLayout.partitions.map(
-        (partition) => ({
-            x: (100 * partition.x) / propsMemo.roomLayout.room_shape.width,
-            y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
-        })
-    )
+    const partitionPositions = propsMemo.roomLayout.partitions.map((partition) => ({
+        x: (100 * partition.x) / propsMemo.roomLayout.room_shape.width,
+        y: (100 * partition.y) / propsMemo.roomLayout.room_shape.height,
+    }))
+
+    const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
 
     const seatList = propsMemo.roomLayout.seats.map((seat, index) => {
-        const usedSeatIds = propsMemo.usedSeats.map((seat) => seat.seat_id)
         const globalSeatId = propsMemo.firstSeatId + index
         const isUsed = usedSeatIds.includes(globalSeatId)
         const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
         const workName = isUsed ? processingSeat.work_name : ''
         const breakWorkName = isUsed ? processingSeat.break_work_name : ''
         const displayName = isUsed ? processingSeat.user_display_name : ''
-        const seat_color = isUsed
-            ? processingSeat.appearance.color_code
-            : emptySeatColor
+        const seatColor = isUsed ? processingSeat.appearance.color_code1 : Constants.emptySeatColor
         const isBreak = isUsed && processingSeat.state === SeatState.Break
-        const glowAnimationEnabled =
-            isUsed && processingSeat.appearance.glow_animation
+        const colorGradientEnabled = isUsed && processingSeat.appearance.color_gradient_enabled
         const numStars = isUsed ? processingSeat.appearance.num_stars : 0
+
+        const profileImageUrl = isUsed ? processingSeat.user_profile_image_url : ''
+        const minutesElapsed = isUsed
+            ? Math.floor(
+                  (new Date().valueOf() -
+                      new Date(processingSeat.entered_at.toMillis()).valueOf()) /
+                      1000 /
+                      60
+              )
+            : 0
+        const hoursElapsed = isUsed ? Math.floor(minutesElapsed / 60) : 0
+        const minutesRemaining = isUsed
+            ? Math.floor(
+                  (new Date(processingSeat.until.toMillis()).valueOf() - new Date().valueOf()) /
+                      1000 /
+                      60
+              )
+            : 0
+        const hoursRemaining = isUsed ? Math.floor(minutesRemaining / 60) : 0
 
         // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
         let workNameFontSizePx = seatFontSizePx
-        if (isUsed) {
+        if (isUsed && (workName !== '' || breakWorkName !== '')) {
             const canvas: HTMLCanvasElement = document.createElement('canvas')
             const context = canvas.getContext('2d')
             if (context) {
-                context.font = `${workNameFontSizePx.toString()}px ${
-                    Constants.fontFamily
-                }`
-                const metrics = context.measureText(
-                    isBreak ? breakWorkName : workName
-                )
-                const actualSeatWidth =
-                    (roomShape.widthPx * seatShape.width) / 100
+                context.font = `${workNameFontSizePx.toString()}px ${Constants.seatFontFamily}`
+                const metrics = context.measureText(isBreak ? breakWorkName : workName)
+                let actualSeatWidth = (roomShape.widthPx * seatShape.widthPercent) / 100
+                if (props.memberOnly) {
+                    actualSeatWidth =
+                        (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
+                }
                 if (metrics.width > actualSeatWidth) {
                     workNameFontSizePx *= actualSeatWidth / metrics.width
                     workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
@@ -125,71 +141,108 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }
             }
         }
-        const gColorLighten = chroma(seat_color).brighten(1).hex()
-        const gColorDarken = chroma(seat_color).darken(2).hex()
-        const glowKeyframes = keyframes`
-            0% {
-                background-color: ${seat_color};
-            }
-            50% {
-                background-color: ${gColorLighten};
-            }
-            100% {
-                background-color: ${seat_color};
-            }
-            `
 
-        const glowStyle = glowAnimationEnabled
+        const colorGradientKeyframes = keyframes`
+            0%{background-position:0% 50%}
+            50%{background-position:100% 50%}
+            100%{background-position:0% 50%}
+        `
+
+        const colorGradientStyle = colorGradientEnabled
             ? css`
-                  animation: ${glowKeyframes} 5s linear infinite;
-                  box-shadow: inset 0 0 ${seatFontSizePx}px 0 ${gColorDarken};
+                  background-image: linear-gradient(
+                      90deg,
+                      ${seatColor},
+                      ${processingSeat.appearance.color_code2}
+                  );
+                  background-size: 400% 400%;
+                  animation: ${colorGradientKeyframes} 4s linear infinite;
               `
             : css`
                   animation: none;
                   box-shadow: none;
               `
 
-        return (
-            // 1つの座席
-            <div
-                key={globalSeatId}
-                css={css`
-                    ${styles.seat};
-                    ${glowStyle};
-                `}
-                style={{
-                    backgroundColor: seat_color,
-                    left: `${seatPositions[index].x}%`,
-                    top: `${seatPositions[index].y}%`,
-                    transform: `rotate(${seatPositions[index].rotate}deg)`,
-                    width: `${seatShape.width}%`,
-                    height: `${seatShape.height}%`,
-                    fontSize: isUsed
-                        ? `${seatFontSizePx}px`
-                        : `${seatFontSizePx * 2}px`,
-                }}
-            >
-                {/* 席番号 */}
+        let seatNo = <></>
+        let userDisplayName = <></>
+        if (isUsed) {
+            if (props.memberOnly) {
+                seatNo = <div css={styles.seatIdMember}>{globalSeatId}</div>
+                userDisplayName = <div css={styles.userDisplayNameMember}>{displayName}</div>
+            } else {
+                seatNo = <div css={styles.seatId}>{globalSeatId}</div>
+                userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
+            }
+        } else {
+            seatNo = (
                 <div css={styles.seatId} style={{ fontWeight: 'bold' }}>
+                    {props.memberOnly ? '/' : ''}
                     {globalSeatId}
                 </div>
+            )
+            userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
+        }
 
-                {/* 作業名 */}
-                {(workName !== '' || breakWorkName !== '') && (
+        let workNameDisplay = <></>
+        if (isUsed) {
+            const content =
+                !isBreak && workName ? workName : isBreak && breakWorkName ? breakWorkName : ''
+            if (props.memberOnly) {
+                workNameDisplay = (
+                    <div
+                        css={content !== '' && styles.workNameMemberBalloon}
+                        style={{ fontSize: `${workNameFontSizePx}px` }}
+                    >
+                        <div css={content !== '' && styles.workNameMemberText}>{content}</div>
+                    </div>
+                )
+            } else {
+                workNameDisplay = (
                     <div
                         css={styles.workName}
                         style={{
                             fontSize: `${workNameFontSizePx}px`,
                         }}
                     >
-                        {isBreak ? breakWorkName : workName}
+                        {content}
                     </div>
-                )}
+                )
+            }
+        }
 
-                {/* 名前 */}
-                <div css={styles.userDisplayName}>{displayName}</div>
+        const reloadImage = (e: React.SyntheticEvent<HTMLImageElement, Event>, imgSrc: string) => {
+            console.error(`retrying to load image... ' + ${imgSrc}`)
+            e.currentTarget.src = `${imgSrc}?${new Date().getTime().toString()}`
+        }
 
-                {/* 休み中 */}
+        return (
+            // for each seat
+            <div
+                key={globalSeatId}
+                css={css`
+                    ${styles.seat};
+                    ${colorGradientStyle};
+                `}
+                style={{
+                    backgroundColor: seatColor,
+                    left: `${seatPositions[index].x}%`,
+                    top: `${seatPositions[index].y}%`,
+                    transform: `rotate(${seatPositions[index].rotate}deg)`,
+                    width: `${seatShape.widthPercent}%`,
+                    height: `${seatShape.heightPercent}%`,
+                    fontSize: isUsed ? `${seatFontSizePx}px` : `${seatFontSizePx * 2}px`,
+                }}
+            >
+                {/* seat No. */}
+                {seatNo}
+
+                {/* work name */}
+                {workNameDisplay}
+
+                {/* display name */}
+                {userDisplayName}
+
+                {/* break mode */}
                 {isBreak && (
                     <div
                         css={styles.breakBadge}
@@ -206,37 +259,75 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                     </div>
                 )}
 
-                {/* ★マーク */}
+                {/* ★Mark */}
                 {numStars > 0 && (
                     <div
                         css={styles.starsBadge}
                         style={{
                             fontSize: `${seatFontSizePx * 0.6}px`,
-                            width: `${seatFontSizePx * 1.8}px`,
-                            paddingTop: `${seatFontSizePx / 8}px`,
                         }}
                     >
                         {`★×${numStars}`}
+                    </div>
+                )}
+
+                {/* profile image */}
+                {isUsed && props.memberOnly && (
+                    <img
+                        css={
+                            (isBreak ? breakWorkName : workName !== '')
+                                ? styles.profileImageMemberWithWorkName
+                                : styles.profileImageMemberNoWorkName
+                        }
+                        src={profileImageUrl}
+                        onError={(event) => reloadImage(event, profileImageUrl)}
+                    />
+                )}
+
+                {/* time elapsed */}
+                {isUsed && props.memberOnly && (
+                    <div
+                        css={styles.timeElapsed}
+                        style={{
+                            fontSize: `${seatFontSizePx * 0.6}px`,
+                        }}
+                    >
+                        {hoursElapsed > 0
+                            ? `${hoursElapsed}h ${minutesElapsed % 60}m`
+                            : `${minutesElapsed % 60}m`}
+                    </div>
+                )}
+
+                {/* time remaining */}
+                {isUsed && props.memberOnly && (
+                    <div
+                        css={styles.timeRemaining}
+                        style={{
+                            fontSize: `${seatFontSizePx * 0.6}px`,
+                        }}
+                    >
+                        あと
+                        {hoursRemaining > 0
+                            ? `${hoursRemaining}h ${minutesRemaining % 60}m`
+                            : `${minutesRemaining}m`}
                     </div>
                 )}
             </div>
         )
     })
 
-    const partitionList = propsMemo.roomLayout.partitions.map(
-        (partition, index) => (
-            <div
-                key={partition.id}
-                css={styles.partition}
-                style={{
-                    left: `${partitionPositions[index].x}%`,
-                    top: `${partitionPositions[index].y}%`,
-                    width: `${partitionShapes[index].widthPercent}%`,
-                    height: `${partitionShapes[index].heightPercent}%`,
-                }}
-            />
-        )
-    )
+    const partitionList = propsMemo.roomLayout.partitions.map((partition, index) => (
+        <div
+            key={partition.id}
+            css={styles.partition}
+            style={{
+                left: `${partitionPositions[index].x}%`,
+                top: `${partitionPositions[index].y}%`,
+                width: `${partitionShapes[index].widthPercent}%`,
+                height: `${partitionShapes[index].heightPercent}%`,
+            }}
+        />
+    ))
 
     return (
         <>

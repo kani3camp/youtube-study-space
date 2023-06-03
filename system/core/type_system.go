@@ -16,6 +16,7 @@ type System struct {
 	
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
+	ProcessedUserProfileImageUrl    string
 	ProcessedUserIsModeratorOrOwner bool
 	ProcessedUserIsMember           bool
 	

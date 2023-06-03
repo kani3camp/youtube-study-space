@@ -10,45 +10,49 @@ import (
 )
 
 type SetMaxSeatsParams struct {
-	DesiredMaxSeats int `json:"desired_max_seats"`
+	DesiredMaxSeats       int `json:"desired_max_seats"`
+	DesiredMemberMaxSeats int `json:"desired_member_max_seats"`
 }
 
-type SetMaxSeatsResponseStruct struct {
+type SetMaxSeatsResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
 }
 
-func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponseStruct, error) {
+func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) {
 	log.Println("SetDesiredMaxSeats()")
 	
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return SetMaxSeatsResponseStruct{}, err
+		return SetMaxSeatsResponse{}, err
 	}
-	sys, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, clientOption)
 	if err != nil {
-		return SetMaxSeatsResponseStruct{}, err
+		return SetMaxSeatsResponse{}, err
 	}
-	defer sys.CloseFirestoreClient()
+	defer system.CloseFirestoreClient()
 	
-	if request.DesiredMaxSeats <= 0 {
-		return SetMaxSeatsResponseStruct{}, errors.New("invalid parameter")
+	if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
+		return SetMaxSeatsResponse{}, errors.New("invalid parameter")
 	}
 	
 	// transaction not necessary
-	err = sys.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, request.DesiredMaxSeats)
+	err = system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, request.DesiredMaxSeats)
 	if err != nil {
-		return SetMaxSeatsResponseStruct{}, err
+		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
+		return SetMaxSeatsResponse{}, err
+	}
+	err = system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, request.DesiredMemberMaxSeats)
+	if err != nil {
+		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
+		return SetMaxSeatsResponse{}, err
 	}
 	
-	return SetMaxSeatsResponse(), nil
-}
-
-func SetMaxSeatsResponse() SetMaxSeatsResponseStruct {
-	var apiResp SetMaxSeatsResponseStruct
-	apiResp.Result = lambdautils.OK
-	return apiResp
+	return SetMaxSeatsResponse{
+		Result:  lambdautils.OK,
+		Message: "",
+	}, nil
 }
 
 func main() {

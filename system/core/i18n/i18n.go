@@ -22,14 +22,14 @@ type Language string
 
 const (
 	LanguageEN Language = "EN"
-	LanguageJP Language = "JP"
+	LanguageJA Language = "JA"
 	LanguageKO Language = "KO"
 	
 	LocalesFolderName string = "locales"
 )
 
 func isValidLocale(l string) bool {
-	list := []string{string(LanguageEN), string(LanguageJP), string(LanguageKO)}
+	list := []string{string(LanguageEN), string(LanguageJA), string(LanguageKO)}
 	for _, d := range list {
 		if d == l {
 			return true
@@ -44,7 +44,7 @@ type LocaleData map[string]map[string]string
 type LocaleFile LocaleData
 
 var localeData map[Language]LocaleData = make(map[Language]LocaleData)
-var defaultLanguage Language = LanguageJP
+var defaultLanguage Language = LanguageJA
 var defaultFallback Language = LanguageEN
 
 type Localizer struct {
@@ -65,11 +65,11 @@ func SetDefaultFallback(fallback Language) {
 
 func validateFileName(name string) (Language, error) {
 	name = path.Base(name)
-	splitedName := strings.Split(name, ".")
-	if len(splitedName) != 2 || splitedName[1] != "toml" {
+	splitName := strings.Split(name, ".")
+	if len(splitName) != 2 || splitName[1] != "toml" {
 		return LanguageEN, ErrLocaleFile
 	}
-	localeName := strings.ToUpper(splitedName[0])
+	localeName := strings.ToUpper(splitName[0])
 	if !isValidLocale(localeName) {
 		return LanguageEN, ErrLocaleFile
 	}
@@ -145,11 +145,11 @@ func formatText(str string, args ...interface{}) string {
 	if len(args) < 1 {
 		return str
 	}
-	oldnew := []string{}
+	var oldNew []string
 	for i, d := range args {
-		oldnew = append(oldnew, fmt.Sprintf("{%d}", i), fmt.Sprintf("%v", d))
+		oldNew = append(oldNew, fmt.Sprintf("{%d}", i), fmt.Sprintf("%v", d))
 	}
-	r := strings.NewReplacer(oldnew...)
+	r := strings.NewReplacer(oldNew...)
 	return r.Replace(str)
 }
 

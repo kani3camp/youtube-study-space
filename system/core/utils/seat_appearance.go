@@ -9,7 +9,7 @@ import (
 
 const (
 	FavoriteColorAvailableThresholdHours = 1000
-	
+
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
 	ColorHours10To20    = "#FF9580"
@@ -25,7 +25,7 @@ const (
 	ColorHours500To700  = "#947FFF"
 	ColorHours700To1000 = "#C880FF"
 	ColorHoursFrom1000  = "#FF7FFF"
-	
+
 	ColorName0To5      = "白"
 	ColorName5To10     = "うすももいろ"
 	ColorName10To20    = "ライトサーモン"
@@ -41,39 +41,42 @@ const (
 	ColorName500To700  = "青紫"
 	ColorName700To1000 = "紫"
 	ColorNameFrom1000  = "ピンク"
-	
-	ColorRank1  = "#D8D8D8"
-	ColorRank2  = "#93FF66"
-	ColorRank3  = "#FFFF66"
-	ColorRank4  = "#FFC666"
-	ColorRank5  = "#FF6666"
-	ColorRank6  = "#00FFFF"
-	ColorRank7  = "#95ABED"
-	ColorRank8  = "#bdb7e5"
-	ColorRank9  = "#BF80DF"
-	ColorRank10 = "#FF66FF"
+
+	ColorRank1         = "#D8D8D8"
+	ColorRank2         = "#93FF66"
+	ColorRank3         = "#FFFF66"
+	ColorRank4         = "#FFC666"
+	ColorRank5         = "#FF6666"
+	ColorRank6         = "#00FFFF"
+	ColorRank7         = "#95ABED"
+	ColorRank8         = "#BDB7E5"
+	ColorRank9         = "#BF80DF"
+	ColorRank10        = "#FF66FF"
+	ColorRank10andMore = "#FF1F1F"
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (myfirestore.SeatAppearance, error) {
-	var colorCode string
+	var colorCode1 string
+	var colorCode2 string
 	if rankVisible {
-		colorCode = RankPointToColorCode(rp)
+		colorCode1, colorCode2 = RankPointToColorCodePair(rp)
 	} else {
 		if CanUseFavoriteColor(totalStudySec) && !reflect.ValueOf(favoriteColor).IsZero() {
-			colorCode = favoriteColor
+			colorCode1 = favoriteColor
 		} else {
 			var err error
-			colorCode, err = TotalStudySecToColorCode(totalStudySec)
+			colorCode1, err = TotalStudySecToColorCode(totalStudySec)
 			if err != nil {
 				return myfirestore.SeatAppearance{}, err
 			}
 		}
 	}
-	
+
 	return myfirestore.SeatAppearance{
-		ColorCode:     colorCode,
-		NumStars:      TotalStudySecToNumStars(totalStudySec),
-		GlowAnimation: rankVisible,
+		ColorCode1:           colorCode1,
+		ColorCode2:           colorCode2,
+		NumStars:             TotalStudySecToNumStars(totalStudySec),
+		ColorGradientEnabled: rankVisible,
 	}, nil
 }
 
@@ -210,26 +213,26 @@ func ColorCodeToColorName(colorCode string) string {
 	}
 }
 
-func RankPointToColorCode(rp int) string {
+func RankPointToColorCodePair(rp int) (string, string) {
 	if rp < 1e4 {
-		return ColorRank1
+		return ColorRank1, ColorRank2
 	} else if rp < 2e4 {
-		return ColorRank2
+		return ColorRank2, ColorRank3
 	} else if rp < 3e4 {
-		return ColorRank3
+		return ColorRank3, ColorRank4
 	} else if rp < 4e4 {
-		return ColorRank4
+		return ColorRank4, ColorRank5
 	} else if rp < 5e4 {
-		return ColorRank5
+		return ColorRank5, ColorRank6
 	} else if rp < 6e4 {
-		return ColorRank6
+		return ColorRank6, ColorRank7
 	} else if rp < 7e4 {
-		return ColorRank7
+		return ColorRank7, ColorRank8
 	} else if rp < 8e4 {
-		return ColorRank8
+		return ColorRank8, ColorRank9
 	} else if rp < 9e4 {
-		return ColorRank9
+		return ColorRank9, ColorRank10
 	} else {
-		return ColorRank10
+		return ColorRank10, ColorRank10andMore
 	}
 }

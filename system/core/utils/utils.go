@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"app.modules/core/i18n"
 	"app.modules/core/myfirestore"
 	"context"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"google.golang.org/api/transport"
 	"image/color"
 	"log"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -101,7 +104,7 @@ func DateEqualJST(date1, date2 time.Time) bool {
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
-// DurationToString for Japanese.
+// DurationToString for Japanese. // TODO: support other languages using i18n
 func DurationToString(duration time.Duration) string {
 	if duration < time.Hour {
 		return strconv.Itoa(int(duration.Minutes())) + "分"
@@ -353,4 +356,16 @@ func MatchEmojiCommandString(text string) bool {
 func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
 	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	return r.ReplaceAllString(text, HalfWidthSpace)
+}
+
+func FuncNameOf(i interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+}
+
+func SeatIdStr(seatId int, isMemberSeat bool) string {
+	if isMemberSeat {
+		return i18n.T("common:vip-seat-id", seatId)
+	} else {
+		return strconv.Itoa(seatId)
+	}
 }

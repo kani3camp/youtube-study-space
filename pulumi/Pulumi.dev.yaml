@@ -1,0 +1,5 @@
+config:
+  aws:profile: soraride
+  aws:region: us-east-1
+  aws:skipMetadataApiCheck: "false"
+  gcp:project: test-youtube-study-space

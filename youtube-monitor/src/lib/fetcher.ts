@@ -1,8 +1,3 @@
-// export async function fetcher(url: string): Promise<boolean | null> {
-//   const response = await fetch(url);
-//   return response.json();
-// }
-
 // Tはレスポンスのjsonの型を指定する
 const wrap = <T>(task: Promise<Response>): Promise<T> =>
     new Promise((resolve, reject) => {
@@ -11,7 +6,6 @@ const wrap = <T>(task: Promise<Response>): Promise<T> =>
                 response
                     .json()
                     .then((json) => {
-                        // jsonが取得できた場合だけresolve
                         resolve(json)
                     })
                     .catch((error) => {
@@ -25,14 +19,11 @@ const wrap = <T>(task: Promise<Response>): Promise<T> =>
         })
     })
 
-const fetcher = <T = any>(
-    url: RequestInfo,
-    init: RequestInit = {}
-): Promise<T> => {
+const fetcher = <T = any>(url: RequestInfo, init: RequestInit = {}): Promise<T> => {
     const requestHeaders: HeadersInit = new Headers()
     const apiKey = process.env.NEXT_PUBLIC_API_KEY
     if (apiKey === undefined) {
-        throw new Error('process.env.NEXT_PUBLIC_API_KEY is undefined')
+        throw new Error('process.env.NEXT_PUBLIC_API_KEY is not defined.')
     }
     requestHeaders.append('x-api-key', apiKey)
     init.headers = requestHeaders

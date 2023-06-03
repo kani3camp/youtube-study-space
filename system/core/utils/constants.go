@@ -1,8 +1,9 @@
 package utils
 
 const (
-	CommandPrefix      = "!"
-	WrongCommandPrefix = "！"
+	CommandPrefix       = "!"
+	WrongCommandPrefix  = "！"
+	MemberCommandPrefix = "/"
 	
 	InCommand      = "!in"
 	OutCommand     = "!out"
@@ -23,6 +24,12 @@ const (
 	CheckCommand = "!check"
 	BlockCommand = "!block"
 	
+	MemberInCommand = "/in"
+	
+	MemberKickCommand  = "/kick"
+	MemberCheckCommand = "/check"
+	MemberBlockCommand = "/block"
+	
 	EmojiSide          = ":"
 	EmojiCommandPrefix = EmojiSide + "_command"
 	InString           = "In"
@@ -42,6 +49,7 @@ const (
 	ColorString        = "Color"
 	RankOnString       = "RankOn"
 	RankOffString      = "RankOff"
+	MemberInString     = "MemberIn"
 	
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="
@@ -82,6 +90,7 @@ const (
 	EmojiMore
 	EmojiBreak
 	EmojiResume
+	EmojiMemberIn
 	
 	EmojiWork
 	EmojiMin

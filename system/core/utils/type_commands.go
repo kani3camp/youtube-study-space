@@ -21,7 +21,7 @@ type CommandType uint
 const (
 	NotCommand CommandType = iota
 	InvalidCommand
-	In     // !in もしくは !席番号
+	In     // !in or /in or !{seat No.} or /{seat No.}
 	Out    // !out
 	Info   // !info
 	My     // !my
@@ -53,6 +53,7 @@ type InOption struct {
 	IsSeatIdSet        bool
 	SeatId             int
 	MinutesAndWorkName *MinutesAndWorkNameOption
+	IsMemberSeat       bool
 }
 
 type MyOption struct {
@@ -67,15 +68,18 @@ type SeatOption struct {
 }
 
 type KickOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type CheckOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type BlockOption struct {
-	SeatId int
+	SeatId             int
+	IsTargetMemberSeat bool
 }
 
 type ReportOption struct {

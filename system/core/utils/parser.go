@@ -13,12 +13,14 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
 	
-	if strings.HasPrefix(fullString, CommandPrefix) {
+	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
 		slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 		switch slice[0] {
+		case MemberInCommand:
+			return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
 		case InCommand:
-			return ParseIn(emojiExcludedString, fullString, isMember, emojis)
+			return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,
@@ -34,11 +36,17 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 		case ReportCommand:
 			return ParseReport(emojiExcludedString)
 		case KickCommand:
-			return ParseKick(emojiExcludedString)
+			return ParseKick(emojiExcludedString, false)
+		case MemberKickCommand:
+			return ParseKick(emojiExcludedString, true)
 		case CheckCommand:
-			return ParseCheck(emojiExcludedString)
+			return ParseCheck(emojiExcludedString, false)
+		case MemberCheckCommand:
+			return ParseCheck(emojiExcludedString, true)
 		case BlockCommand:
-			return ParseBlock(emojiExcludedString)
+			return ParseBlock(emojiExcludedString, false)
+		case MemberBlockCommand:
+			return ParseBlock(emojiExcludedString, true)
 		
 		case OkawariCommand:
 			fallthrough
@@ -64,7 +72,12 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
 			if err == nil {
-				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, emojis)
+				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, false, emojis)
+			}
+			// /席番号かどうか
+			num, err = strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix))
+			if err == nil {
+				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, true, emojis)
 			}
 			
 			// 間違いコマンド
@@ -79,9 +92,11 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, customerro
 		if len(emojis) > 0 {
 			switch emojis[0] {
 			case EmojiInZero:
-				return ParseSeatIn(0, emojiExcludedString, fullString, isMember, emojis)
+				return ParseSeatIn(0, emojiExcludedString, fullString, isMember, false, emojis)
+			case EmojiMemberIn:
+				return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
 			case EmojiIn:
-				return ParseIn(emojiExcludedString, fullString, isMember, emojis)
+				return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
 			case EmojiOut:
 				return &CommandDetails{
 					CommandType: Out,
@@ -153,6 +168,8 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 			m = EmojiRankOn
 		case MatchEmojiCommand(s, RankOffString):
 			m = EmojiRankOff
+		case MatchEmojiCommand(s, MemberInString):
+			m = EmojiMemberIn
 		default:
 			continue
 		}
@@ -164,7 +181,7 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 	return emojis, emojiExcludedString
 }
 
-func ParseIn(emojiExcludedString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
+func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 	
 	// 追加オプションチェック
@@ -178,11 +195,12 @@ func ParseIn(emojiExcludedString string, fullString string, isMember bool, emoji
 		InOption: InOption{
 			IsSeatIdSet:        false,
 			MinutesAndWorkName: options,
+			IsMemberSeat:       isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
+func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	// 追加オプションチェック
@@ -197,6 +215,7 @@ func ParseSeatIn(seatNum int, commandString string, fullString string, isMember 
 			IsSeatIdSet:        true,
 			SeatId:             seatNum,
 			MinutesAndWorkName: options,
+			IsMemberSeat:       isMemberSeat,
 		},
 	}, customerror.NewNil()
 }
@@ -337,7 +356,7 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 	return options, customerror.NewNil()
 }
 
-func ParseKick(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var kickSeatId int
@@ -354,12 +373,13 @@ func ParseKick(commandString string) (*CommandDetails, customerror.CustomError) 
 	return &CommandDetails{
 		CommandType: Kick,
 		KickOption: KickOption{
-			SeatId: kickSeatId,
+			SeatId:             kickSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseCheck(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -376,12 +396,13 @@ func ParseCheck(commandString string) (*CommandDetails, customerror.CustomError)
 	return &CommandDetails{
 		CommandType: Check,
 		CheckOption: CheckOption{
-			SeatId: targetSeatId,
+			SeatId:             targetSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }
 
-func ParseBlock(commandString string) (*CommandDetails, customerror.CustomError) {
+func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails, customerror.CustomError) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 	
 	var targetSeatId int
@@ -398,7 +419,8 @@ func ParseBlock(commandString string) (*CommandDetails, customerror.CustomError)
 	return &CommandDetails{
 		CommandType: Block,
 		BlockOption: BlockOption{
-			SeatId: targetSeatId,
+			SeatId:             targetSeatId,
+			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, customerror.NewNil()
 }

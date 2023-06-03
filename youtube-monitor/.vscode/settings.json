@@ -1,6 +1,6 @@
 {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnPaste": true,
+    "editor.formatOnPaste": false,
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": ["source.fixAll.eslint"],
     "eslint.format.enable": false,
@@ -10,16 +10,23 @@
     "cSpell.words": [
         "appspot",
         "chabio",
+        "darkorange",
         "firebaseapp",
         "firestore",
         "freepick",
         "freepik",
         "Himajin",
+        "Lofi",
+        "Maru",
         "Milli",
+        "Millis",
         "parens",
         "reduxjs",
         "soundcloud",
         "stylelint",
         "takochan"
-    ]
+    ],
+    "[sql]": {
+        "editor.defaultFormatter": "adpyke.vscode-sql-formatter"
+    }
 }

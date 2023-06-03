@@ -7,14 +7,7 @@ type ErrorType uint
 const (
 	Unknown ErrorType = iota
 	
-	SeatNotAvailable
 	UserNotInTheRoom
-	UserNotInAnyRoom
-	NoSuchUserExists
-	RoomNotExist
-	InvalidRoomLayout
-	YoutubeLiveChatBotFailed
-	SeatNotFound
 	NoSeatAvailable
 	
 	InvalidCommand

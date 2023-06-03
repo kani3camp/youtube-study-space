@@ -1,4 +1,4 @@
-import { debug } from './constants'
+import { DEBUG } from './constants'
 
 const prodApi = {
     setDesiredMaxSeats:
@@ -10,6 +10,6 @@ const testApi = {
         'https://q8ff9jqwef.execute-api.us-east-1.amazonaws.com/default/set_desired_max_seats',
 }
 
-const api = debug ? testApi : prodApi
+const api = DEBUG ? testApi : prodApi
 
 export default api

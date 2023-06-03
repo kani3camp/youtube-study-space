@@ -2,19 +2,19 @@ import Wave from '@foobar404/wave'
 import { FC, useEffect, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
-import { getCurrentSection, SectionType } from '../lib/time_table'
+import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
 
 const BgmPlayer: FC = () => {
     const [lastSectionType, setLastSectionType] = useState('')
-    const [audioTitle, setAudioTitle] = useState('BGMタイトル')
-    const [audioArtist, setAudioArtist] = useState('BGMアーティスト')
+    const [audioTitle, setAudioTitle] = useState('BGM TITLE')
+    const [audioArtist, setAudioArtist] = useState('BGM ARTIST')
     const [initialized, setInitialized] = useState(false)
 
     const audioDivId = 'music'
     const audioCanvasId = 'audioCanvas'
-    const chime1DivId = 'chime1'
-    const chime2DivId = 'chime2'
+    const chimeSingleDivId = 'chimeSingle'
+    const chimeDoubleDivId = 'chimeDouble'
 
     useEffect(() => {
         checkChimeCanPlay()
@@ -22,7 +22,7 @@ const BgmPlayer: FC = () => {
 
     const checkChimeCanPlay = async () => {
         console.log('checking chime audio files.')
-        const chimeDivIdList = [chime1DivId, chime2DivId]
+        const chimeDivIdList = [chimeSingleDivId, chimeDoubleDivId]
         chimeDivIdList.forEach((divId) => {
             const chime = document.getElementById(divId) as HTMLAudioElement
             chime.addEventListener('error', () => {
@@ -43,14 +43,14 @@ const BgmPlayer: FC = () => {
             lastSectionType === SectionType.Break &&
             currentSection.sectionType === SectionType.Study
         ) {
-            chime1Play()
+            playChimeSingle()
         }
         // 作業時間から休憩時間に変わるタイミングでチャイムを再生
         if (
             lastSectionType === SectionType.Study &&
             currentSection.sectionType === SectionType.Break
         ) {
-            chime2Play()
+            playChimeDouble()
         }
         setLastSectionType(currentSection.sectionType)
     }
@@ -58,13 +58,12 @@ const BgmPlayer: FC = () => {
     const audioStart = () => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.addEventListener('ended', () => {
-            console.log('ended.')
-            setAudioTitle('BGMタイトル')
-            setAudioArtist('BGMアーティスト')
+            setAudioTitle('BGM TITLE')
+            setAudioArtist('BGM ARTIST')
             audioNext()
         })
         audio.addEventListener('error', () => {
-            console.log('error loading audio file.')
+            console.error(`Error loading audio file: ${audio.src}`)
             audioNext()
         })
         audioNext()
@@ -77,31 +76,30 @@ const BgmPlayer: FC = () => {
         audio.src = bgm.file
         setAudioTitle(bgm.title)
         setAudioArtist(bgm.artist)
-        audio.volume = 0.3
+        audio.volume = Constants.bgmVolume
         audio.play()
     }
 
     const stop = () => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.pause()
-        setAudioTitle('BGMタイトル')
-        setAudioArtist('BGMアーティスト')
+        setAudioTitle('BGM TITLE')
+        setAudioArtist('BGM ARTIST')
     }
 
-    const chime1Play = () => {
-        const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
-        chime1.volume = 0.7
-        chime1.play()
+    const playChimeSingle = () => {
+        const chimeSingle = document.getElementById(chimeSingleDivId) as HTMLAudioElement
+        chimeSingle.volume = Constants.chimeVolume
+        chimeSingle.play()
     }
 
-    const chime2Play = () => {
-        const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
-        chime2.volume = 0.7
-        chime2.play()
+    const playChimeDouble = () => {
+        const chimeDouble = document.getElementById(chimeDoubleDivId) as HTMLAudioElement
+        chimeDouble.volume = Constants.chimeVolume
+        chimeDouble.play()
     }
 
     useEffect(() => {
-        // console.log('useEffect')
         if (!initialized) {
             setInitialized(true)
 
@@ -117,18 +115,17 @@ const BgmPlayer: FC = () => {
         }
         const intervalId = setInterval(() => updateState(), 1000)
         return () => {
-            // console.log('クリーンアップ')
             clearInterval(intervalId)
         }
-    }, [updateState, audioStart, audioNext, stop]) // この第２引数がないといけない。。。
+    }, [updateState, audioStart, audioNext, stop])
 
     return (
         <>
             <div css={styles.bgmPlayer}>
                 <audio autoPlay id={audioDivId}></audio>
 
-                <audio id={chime1DivId} src={Constants.chime1FilePath}></audio>
-                <audio id={chime2DivId} src={Constants.chime2FilePath}></audio>
+                <audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}></audio>
+                <audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath}></audio>
                 <h4>♪ {audioTitle}</h4>
                 <h4>by {audioArtist}</h4>
             </div>

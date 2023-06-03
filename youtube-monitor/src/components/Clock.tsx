@@ -17,17 +17,13 @@ const Clock: FC = () => {
     return (
         <div css={styles.clockStyle}>
             <div css={styles.dateStringStyle}>
-                {/*{this.state.now.getMonth() + 1} / {this.state.now.getDate()} /{" "}*/}
-                {/*{this.state.now.getFullYear()}*/}
                 {`${now.getFullYear()} ${t('year')} ${now.getMonth() + 1} ${t(
                     'month'
                 )} ${now.getDate()} ${t('day')}`}
             </div>
             <div css={styles.timeStringStyle}>
                 {now.getHours()}：
-                {now.getMinutes() < 10
-                    ? `0${now.getMinutes().toString()}`
-                    : now.getMinutes()}
+                {now.getMinutes() < 10 ? `0${now.getMinutes()}` : now.getMinutes()}
             </div>
         </div>
     )
