@@ -9,7 +9,7 @@ import (
 
 const (
 	FavoriteColorAvailableThresholdHours = 1000
-
+	
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
 	ColorHours10To20    = "#FF9580"
@@ -25,7 +25,7 @@ const (
 	ColorHours500To700  = "#947FFF"
 	ColorHours700To1000 = "#C880FF"
 	ColorHoursFrom1000  = "#FF7FFF"
-
+	
 	ColorName0To5      = "白"
 	ColorName5To10     = "うすももいろ"
 	ColorName10To20    = "ライトサーモン"
@@ -41,7 +41,7 @@ const (
 	ColorName500To700  = "青紫"
 	ColorName700To1000 = "紫"
 	ColorNameFrom1000  = "ピンク"
-
+	
 	ColorRank1         = "#D8D8D8"
 	ColorRank2         = "#93FF66"
 	ColorRank3         = "#FFFF66"
@@ -52,7 +52,7 @@ const (
 	ColorRank8         = "#BDB7E5"
 	ColorRank9         = "#BF80DF"
 	ColorRank10        = "#FF66FF"
-	ColorRank10andMore = "#FF1F1F"
+	ColorRank10andMore = "#FF5252"
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (myfirestore.SeatAppearance, error) {
@@ -71,7 +71,7 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 			}
 		}
 	}
-
+	
 	return myfirestore.SeatAppearance{
 		ColorCode1:           colorCode1,
 		ColorCode2:           colorCode2,
