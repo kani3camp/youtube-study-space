@@ -457,7 +457,7 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 	isTargetMemberSeat := inOption.IsMemberSeat
 	
 	if isTargetMemberSeat && !s.ProcessedUserIsMember {
-		s.MessageToLiveChat(ctx, t("member-seat-forbidden"))
+		s.MessageToLiveChat(ctx, t("member-seat-forbidden", s.ProcessedUserDisplayName))
 		return nil
 	}
 	
