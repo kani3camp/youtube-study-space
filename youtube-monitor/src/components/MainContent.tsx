@@ -36,8 +36,8 @@ const Seats: FC = () => {
     const [latestMemberMaxSeats, setLatestMemberMaxSeats] = useState<number>()
     const [latestMinVacancyRate, setLatestMinVacancyRate] = useState<number>()
     const [currentPageIndex, setCurrentPageIndex] = useState<number>(0)
-    const [activeGeneralLayouts, setActiveGeneralLayouts] = useState<RoomLayout[]>([])
-    const [activeMemberLayouts, setActiveMemberLayouts] = useState<RoomLayout[]>([])
+    const [latestGeneralLayouts, setGeneralLayouts] = useState<RoomLayout[]>([])
+    const [latestMemberLayouts, setMemberLayouts] = useState<RoomLayout[]>([])
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 
     useEffect(() => {
@@ -61,7 +61,6 @@ const Seats: FC = () => {
      * URLのクエリパラメータにpageが指定されており、かつ座席データも読み込めていたらそのページを表示する。
      */
     useEffect(() => {
-        console.log('[router.query.page]:', router.query)
         if (router && pageProps.length > 0) {
             if (router.query.page !== undefined) {
                 const queryPageIndex = getQueryPageIndex()
@@ -73,21 +72,24 @@ const Seats: FC = () => {
     }, [router.query.page, pageProps.length])
 
     /**
-     * 座席に変更があったり、max_seatsが変更されたりしたら、全ページを更新する。
+     * 入室状況もしくはレイアウト編成に変更があったら、全ページを更新する。
      */
     useEffect(() => {
-        console.debug(
-            '[latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts]'
-        )
         updatePageProps()
-    }, [latestGeneralSeats, latestMemberSeats, activeGeneralLayouts, activeMemberLayouts])
+    }, [latestGeneralSeats, latestMemberSeats, latestGeneralLayouts, latestMemberLayouts])
+
+    /**
+     * 入室状況に変更があったら、座席数を見直す。
+     */
+    useEffect(() => {
+        reviewMaxSeats()
+    }, [latestGeneralSeats, latestMemberSeats])
 
     /**
      * 許容空席率もしくはmax_seatsが変更されたら、座席数の見直しを行う。
      * システム管理者が手動で更新しない限り、各変数の初期化時のみ実行される。
      */
     useEffect(() => {
-        console.debug('[latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate]')
         reviewMaxSeats()
     }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
 
@@ -246,20 +248,13 @@ const Seats: FC = () => {
             finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
         }
 
-        // 求めたmax_seatsが現状の値と異なったら、リクエストを送る
         if (
             finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
             finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
         ) {
-            console.log(
-                'sending request to change max_seats:',
-                snapshotGeneralMaxSeats,
-                ' => ',
-                finalDesiredGeneralMaxSeats,
-                snapshotMemberMaxSeats,
-                ' => ',
-                finalDesiredMemberMaxSeats
-            )
+            console.log('sending request to change max_seats')
+            console.log(`general: ${snapshotGeneralMaxSeats} => ${finalDesiredGeneralMaxSeats}`)
+            console.log(`members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`)
             await requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats)
         }
 
@@ -286,8 +281,8 @@ const Seats: FC = () => {
 
         // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
-        setActiveGeneralLayouts(nextGeneralLayouts)
-        setActiveMemberLayouts(nextMemberLayouts)
+        setGeneralLayouts(nextGeneralLayouts)
+        setMemberLayouts(nextMemberLayouts)
     }
 
     const requestMaxSeatsUpdate = async (
@@ -309,11 +304,11 @@ const Seats: FC = () => {
      * 全ページのプロパティを再構成する。
      */
     const updatePageProps = () => {
-        // 各項目のスナップショットをとる
-        const snapshotActiveGeneralLayouts = [...activeGeneralLayouts]
-        const snapshotActiveMemberLayouts = [...activeMemberLayouts]
-        const snapshotLatestGeneralSeats = [...latestGeneralSeats]
-        const snapshotLatestMemberSeats = [...latestMemberSeats]
+        // take snapshot
+        const snapshotGeneralLayouts = [...latestGeneralLayouts]
+        const snapshotMemberLayouts = [...latestMemberLayouts]
+        const snapshotGeneralSeats = [...latestGeneralSeats]
+        const snapshotMemberSeats = [...latestMemberSeats]
         const snapshotCurrentPageIndex = currentPageIndex
 
         let sumSeatsGeneral = 0
@@ -330,7 +325,7 @@ const Seats: FC = () => {
                 }
                 const LastSeatIdInLayout = member_only ? sumSeatsMember : sumSeatsGeneral // not index
                 const usedSeatsInLayout: Seat[] = (
-                    member_only ? snapshotLatestMemberSeats : snapshotLatestGeneralSeats
+                    member_only ? snapshotMemberSeats : snapshotGeneralSeats
                 ).filter(
                     (seat) =>
                         firstSeatIdInLayout <= seat.seat_id && seat.seat_id <= LastSeatIdInLayout
@@ -340,15 +335,13 @@ const Seats: FC = () => {
                     roomLayout: layout,
                     firstSeatId: firstSeatIdInLayout,
                     usedSeats: usedSeatsInLayout,
-                    display: false, // set later
+                    display: false, // set later in this function
                     memberOnly: member_only,
                 }
             }
 
-        const newGeneralPageProps: LayoutPageProps[] = snapshotActiveGeneralLayouts.map(
-            mapFunc(false)
-        )
-        const newMemberPageProps: LayoutPageProps[] = snapshotActiveMemberLayouts.map(mapFunc(true))
+        const newGeneralPageProps: LayoutPageProps[] = snapshotGeneralLayouts.map(mapFunc(false))
+        const newMemberPageProps: LayoutPageProps[] = snapshotMemberLayouts.map(mapFunc(true))
         const newPageProps: LayoutPageProps[] = newGeneralPageProps.concat(newMemberPageProps)
 
         const pageIndexToDisplay =
@@ -387,7 +380,7 @@ const Seats: FC = () => {
                 seats={latestGeneralSeats.concat(latestMemberSeats)}
             ></Message>
         ),
-        [currentPageIndex, activeGeneralLayouts, latestGeneralSeats, latestMemberSeats, pageProps]
+        [currentPageIndex, latestGeneralLayouts, latestGeneralSeats, latestMemberSeats, pageProps]
     )
 
     if (pageProps.length > 0) {
