@@ -354,6 +354,10 @@ const Seats: FC = () => {
             }
         }
         setPageProps(newPageProps)
+
+        if (currentPageIndex >= newPageProps.length) {
+            setCurrentPageIndex(0)
+        }
     }
 
     /**
@@ -375,7 +379,9 @@ const Seats: FC = () => {
                 currentPageIndex={currentPageIndex}
                 currentPagesLength={pageProps.length}
                 currentPageIsMember={
-                    pageProps.length > 0 ? pageProps[currentPageIndex].memberOnly : false
+                    pageProps.length > 0 && currentPageIndex < pageProps.length
+                        ? pageProps[currentPageIndex].memberOnly
+                        : false
                 }
                 seats={latestGeneralSeats.concat(latestMemberSeats)}
             ></Message>
