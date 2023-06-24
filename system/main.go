@@ -17,6 +17,9 @@ import (
 	"google.golang.org/api/transport"
 )
 
+const MaxRetryIntervalSeconds = 300
+const RetryIntervalCalculationBase = 1.2
+
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv(".env")
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
@@ -52,13 +55,12 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 	}
 	
 	sys.MessageToOwner("居座り防止プログラムが起動しました。")
-	defer func() {
-		sys.CloseFirestoreClient()
-		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
-		sys.MessageToOwner("app stopped!!")
-	}()
 	
 	sys.GoroutineCheckLongTimeSitting(ctx)
+}
+
+func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
+	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
 }
 
 // Bot ローカル運用
@@ -110,11 +112,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		if err != nil {
 			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
-			if numContinuousRetrieveNextPageTokenFailed > 5 {
-				break
-			} else {
-				continue
-			}
+			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
+			time.Sleep(time.Duration(waitSeconds) * time.Second)
+			continue
 		} else {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
@@ -125,11 +125,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
 				"回目） failed to retrieve chat messages", err)
 			numContinuousListMessagesFailed += 1
-			if numContinuousListMessagesFailed > 5 {
-				break
-			} else {
-				continue
-			}
+			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousListMessagesFailed)
+			time.Sleep(time.Duration(waitSeconds) * time.Second)
+			continue
 		} else {
 			numContinuousListMessagesFailed = 0
 		}

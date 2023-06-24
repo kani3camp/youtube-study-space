@@ -1,6 +1,8 @@
 package youtubebot
 
-import "google.golang.org/api/youtube/v3"
+import (
+	"google.golang.org/api/youtube/v3"
+)
 
 const (
 	TextMessageEventString   = "textMessageEvent"
