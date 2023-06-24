@@ -413,17 +413,17 @@ func (c *FirestoreController) UpdateMemberMaxSeats(ctx context.Context, tx *fire
 	})
 }
 
-func (c *FirestoreController) UpdateAccessTokenOfChannelCredential(tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
+func (c *FirestoreController) UpdateAccessTokenOfChannelCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
 	ref := c.configCollection().Doc(CredentialsConfigDocName)
-	return c.update(nil, tx, ref, []firestore.Update{
+	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: YoutubeChannelAccessTokenDocProperty, Value: accessToken},
 		{Path: YoutubeChannelExpirationDate, Value: expireDate},
 	})
 }
 
-func (c *FirestoreController) UpdateAccessTokenOfBotCredential(ctx context.Context, accessToken string, expireDate time.Time) error {
+func (c *FirestoreController) UpdateAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
 	ref := c.configCollection().Doc(CredentialsConfigDocName)
-	return c.update(ctx, nil, ref, []firestore.Update{
+	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: YoutubeBotAccessTokenDocProperty, Value: accessToken},
 		{Path: YoutubeBotExpirationDateDocProperty, Value: expireDate},
 	})
