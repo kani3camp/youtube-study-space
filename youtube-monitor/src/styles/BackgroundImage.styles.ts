@@ -5,7 +5,7 @@ export const backgroundImage = css`
     position: absolute;
     top: 0;
     left: 0;
-    width: ${Constants.screenWidth};
-    height: ${Constants.screenHeight};
+    width: ${Constants.screenWidth}px;
+    height: ${Constants.screenHeight}px;
     z-index: -1;
 `
