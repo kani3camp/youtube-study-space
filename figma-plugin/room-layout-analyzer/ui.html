@@ -58,6 +58,10 @@
     
     document.getElementById('downloadFile').onclick = () => {
         const downloadFrameSelect = document.getElementById('download-frame-select');
+        if (!downloadFrameSelect) {
+            console.error('downloadFrameSelect is not defined');
+            return;
+        }
         const frameName = downloadFrameSelect.value;
         for (const frame of layoutFrames) {
             if (frame.frameName === frameName) {
