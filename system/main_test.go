@@ -4,26 +4,21 @@ import (
 	"app.modules/core"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
-	"log"
 	"math/rand"
 	"testing"
 	"time"
 )
 
 func TestSetProcessedUser(t *testing.T) {
-	clientOption, ctx, err := Init()
-	if err != nil {
-		log.Println(err.Error())
-		return
+	s := core.System{
+		Configs:                         nil,
+		FirestoreController:             nil,
+		ProcessedUserId:                 "",
+		ProcessedUserDisplayName:        "",
+		ProcessedUserProfileImageUrl:    "",
+		ProcessedUserIsModeratorOrOwner: false,
+		ProcessedUserIsMember:           false,
 	}
-	
-	s, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer s.CloseFirestoreClient()
-	// === ここまでおまじない ===
 	
 	// check initial values
 	assert.Equal(t, s.ProcessedUserId, "")
