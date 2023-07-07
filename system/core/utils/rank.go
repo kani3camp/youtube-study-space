@@ -7,9 +7,10 @@ import (
 
 const (
 	RankPointLowerLimit = 0
-	RankPointUpperLimit = 10e4 - 1 // = 99,999
+	RankPointUpperLimit = 99_999
 )
 
+// CalcNewRPExitRoom calculates the newly added rank points when a user leaves a room.
 func CalcNewRPExitRoom(
 	netStudyDuration time.Duration,
 	isWorkNameSet bool,
@@ -55,6 +56,7 @@ func CalcNewRPExitRoom(
 	return ApplyRPRange(previousRankPoint + addedRP), nil
 }
 
+// DailyUpdateRankPoint checks the number of consecutive days of use by users and adjusts rank points daily.
 func DailyUpdateRankPoint(
 	lastPenaltyImposedDays int,
 	isContinuousActive bool,
