@@ -2,7 +2,9 @@ name: GoTest
 
 on:
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main, release, dev ]
+  push:
+    branches: [ main, release, dev ]
 
 jobs:
 
