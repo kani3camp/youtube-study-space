@@ -10,8 +10,10 @@ import { Freepik2RoomLayout } from './layouts/freepik2-room'
 import { Freepik3RoomLayout } from './layouts/freepik3-room'
 import { Freepik4Layout } from './layouts/freepik4-room'
 import { Freepik5Layout } from './layouts/freepik5-room'
+import { Freepik6Layout } from './layouts/freepik6-room'
 import { mazeRoomLayout } from './layouts/maze-room'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
+import { MemberIllustratedRoom2Beach } from './layouts/member-illustrated-room2-beach'
 import { MemberSimpleRoom1 } from './layouts/member-simple-room1'
 import { SeaOfSeatRoomLayout } from './layouts/sea-of-seat-room'
 
@@ -26,11 +28,12 @@ const prodAllRooms: AllRoomsConfig = {
     generalBasicRooms: [
         mazeRoomLayout,
         Anonymous1Layout,
-        Chabio1Layout,
+        Freepik6Layout,
         Freepik1RoomLayout,
         Freepik4Layout,
     ],
     generalTemporaryRooms: [
+        Chabio1Layout,
         Freepik3RoomLayout,
         classRoomLayout,
         Freepik2RoomLayout,
@@ -39,12 +42,12 @@ const prodAllRooms: AllRoomsConfig = {
         Freepik5Layout,
         SeaOfSeatRoomLayout,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1],
-    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1],
+    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
 }
 
 const testAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [mazeRoomLayout],
+    generalBasicRooms: [mazeRoomLayout, Freepik6Layout],
     generalTemporaryRooms: [
         Anonymous1Layout,
         Chabio1Layout,
@@ -58,8 +61,8 @@ const testAllRooms: AllRoomsConfig = {
         Freepik5Layout,
         SeaOfSeatRoomLayout,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1],
-    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1],
+    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
 }
 
 export const allRooms: AllRoomsConfig = DEBUG ? testAllRooms : prodAllRooms
