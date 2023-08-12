@@ -3,11 +3,11 @@ version: '3'
 tasks:
   build:
     platforms: [ windows ]
-    desc: Build a single lambda function. Please use PowerShell to run this task.
+    desc: Build a single lambda function.
     cmds:
       - echo "Building function {{.CLI_ARGS}}"
-      - $env:GOOS = "linux"
-      - $env:GOARCH = "amd64"
-      - $env:CGO_ENABLED = "0"
+      - set GOOS=linux
+      - set GOARCH=amd64
+      - set CGO_ENABLED=0
       - go build -o main {{.CLI_ARGS}}/main.go
-      - C:\Users\momom\go\bin\build-lambda-zip.exe -output main.zip main
+      - ~/Go/bin/build-lambda-zip.exe -o main.zip main
