@@ -1,0 +1,45 @@
+version: '3'
+
+includes:
+  os: ./Taskfile_{{OS}}.yml
+
+vars:
+  AWS_PROFILE: soraride
+  AWS_REGION: us-east-1
+  LAMBDA_ROLE_ARN: arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th
+
+tasks:
+  default:
+    cmds:
+      - # noinspection YAMLSchemaValidation
+        for: [
+        'set_desired_max_seats',
+        'youtube_organize_database',
+        'daily_organize_database',
+        'check_live_stream_status',
+        'transfer_collection_history_bigquery',
+        'process_user_rp_parallel'
+      ]
+        cmd: task deploy-one -- {{.ITEM}}
+
+#  build:
+#    platforms: [darwin]
+#    desc: Build a single lambda function
+#    cmds:
+#      - echo "Building function {{.CLI_ARGS}}"
+#      - GOARCH=amd64 GOOS=linux go build -o main {{.CLI_ARGS}}/main.go
+#      - zip main.zip main
+
+  create-one:
+    desc: Create a new lambda function
+    cmds:
+      - echo "Creating function {{.CLI_ARGS}}"
+      - task os:build -- {{.CLI_ARGS}}
+      - aws lambda create-function --function-name {{.CLI_ARGS}} --runtime go1.x --zip-file fileb://main.zip --handler main --role {{.LAMBDA_ROLE_ARN}} --timeout 120 --profile {{.AWS_PROFILE}} --region {{.AWS_REGION}} --no-cli-pager
+
+  deploy-one:
+    desc: Update the code of a single lambda function
+    cmds:
+      - echo "Deploying function {{.CLI_ARGS}}"
+      - task os:build -- {{.CLI_ARGS}}
+      - aws lambda update-function-code --function-name {{.CLI_ARGS}} --zip-file fileb://main.zip --profile {{.AWS_PROFILE}} --region {{.AWS_REGION}} --no-cli-pager
