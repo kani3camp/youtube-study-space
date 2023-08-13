@@ -3,11 +3,12 @@ version: '3'
 tasks:
   build:
     platforms: [ windows ]
+    internal: true
     desc: Build a single lambda function.
     cmds:
-      - echo "Building function {{.CLI_ARGS}}"
+      - echo "Building function {{.FUNCTION_NAME}}"
       - set GOOS=linux
       - set GOARCH=amd64
       - set CGO_ENABLED=0
-      - go build -o main {{.CLI_ARGS}}/main.go
+      - go build -o main {{.FUNCTION_NAME}}/main.go
       - ~/Go/bin/build-lambda-zip.exe -o main.zip main

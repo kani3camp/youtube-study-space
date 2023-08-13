@@ -3,8 +3,9 @@ version: '3'
 tasks:
   build:
     platforms: [ darwin ]
+    internal: true
     desc: Build a single lambda function
     cmds:
-      - echo "Building function {{.CLI_ARGS}}"
-      - GOARCH=amd64 GOOS=linux go build -o main {{.CLI_ARGS}}/main.go
+      - echo "Building function {{.FUNCTION_NAME}}"
+      - GOARCH=amd64 GOOS=linux go build -o main {{.FUNCTION_NAME}}/main.go
       - zip main.zip main
