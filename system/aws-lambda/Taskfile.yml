@@ -1,0 +1,72 @@
+version: '3'
+
+includes:
+  os: ./Taskfile_{{OS}}.yml
+
+vars:
+  AWS_PROFILE: soraride
+  AWS_REGION_DEV: us-east-1
+  AWS_REGION_PROD: ap-northeast-1
+  LAMBDA_ROLE_ARN: arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th
+  LAMBDA_FUNCTION_NAMES: set_desired_max_seats youtube_organize_database daily_organize_database check_live_stream_status transfer_collection_history_bigquery process_user_rp_parallel
+
+tasks:
+  dev:
+    desc: Deploy to development
+    cmds:
+      - # noinspection YAMLSchemaValidation
+        for: { var: LAMBDA_FUNCTION_NAMES }
+        task: deploy
+        vars:
+          FUNCTION_NAME: '{{.ITEM}}'
+          REGION: '{{.AWS_REGION_DEV}}'
+
+  prod:
+    desc: Deploy to production
+    prompt: This will deploy to production. Are you sure?
+    cmds:
+      - # noinspection YAMLSchemaValidation
+        for: { var: LAMBDA_FUNCTION_NAMES }
+        task: deploy
+        vars:
+          FUNCTION_NAME: '{{.ITEM}}'
+          REGION: '{{.AWS_REGION_PROD}}'
+
+  create-dev:
+    desc: Create a new lambda function on development
+    cmds:
+      - echo "Creating function {{.CLI_ARGS}} on region {{.AWS_REGION_DEV}}"
+      - task: create
+        vars:
+          FUNCTION_NAME: '{{.CLI_ARGS}}'
+          REGION: '{{.AWS_REGION_DEV}}'
+
+  create-prod:
+    desc: Create a new lambda function on production
+    prompt: This will work on production. Are you sure?
+    cmds:
+      - echo "Creating function {{.CLI_ARGS}} on region {{.AWS_REGION_PROD}}"
+      - task: create
+        vars:
+          FUNCTION_NAME: '{{.CLI_ARGS}}'
+          REGION: '{{.AWS_REGION_PROD}}'
+
+  create:
+    internal: true
+    desc: Create a new lambda function
+    cmds:
+      - echo "Creating function {{.CLI_ARGS}}"
+      - task: os:build
+        vars:
+          FUNCTION_NAME: '{{.FUNCTION_NAME}}'
+      - aws lambda create-function --function-name {{.FUNCTION_NAME}} --runtime go1.x --zip-file fileb://main.zip --handler main --role {{.LAMBDA_ROLE_ARN}} --timeout 120 --profile {{.AWS_PROFILE}} --region {{.REGION}} --no-cli-pager
+
+  deploy:
+    internal: true
+    desc: Update the code of a single lambda function
+    cmds:
+      - echo "Deploying function {{.FUNCTION_NAME}} on region {{.REGION}}"
+      - task: os:build
+        vars:
+          FUNCTION_NAME: '{{.FUNCTION_NAME}}'
+      - aws lambda update-function-code --function-name {{.FUNCTION_NAME}} --zip-file fileb://main.zip --profile {{.AWS_PROFILE}} --region {{.REGION}} --no-cli-pager
