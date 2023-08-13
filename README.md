@@ -16,5 +16,7 @@ Despite the title "study space," various tasks other than studying (walking, yog
 Please see `docs/system-setup.md` for the system setup instructions.
 
 
-## License
+## Licenses & Attributions
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsorarideblog%2Fyoutube-study-space.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsorarideblog%2Fyoutube-study-space?ref=badge_large)
+
+This project utilizes code from various open-source projects. The full list of software attributions is available in [ATTRIBUTIONS.md](./ATTRIBUTIONS.md).
