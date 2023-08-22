@@ -55,6 +55,8 @@ type ConstantsConfigDoc struct {
 
 	// Botの設定（ブロック・通知対象の正規表現など）をまとめたスプレッドシートのID
 	BotConfigSpreadsheetId string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
+
+	YoutubeMembershipEnabled bool `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
 }
 
 // CredentialsConfigDoc defines credentials for various services.
