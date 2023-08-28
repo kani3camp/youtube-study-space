@@ -39,6 +39,8 @@ const Seats: FC = () => {
     const [latestGeneralLayouts, setGeneralLayouts] = useState<RoomLayout[]>([])
     const [latestMemberLayouts, setMemberLayouts] = useState<RoomLayout[]>([])
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
+    const [latestYoutubeMembershipEnabled, setLatestYoutubeMembershipEnabled] =
+        useState<boolean>(false)
 
     useEffect(() => {
         if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
@@ -82,7 +84,7 @@ const Seats: FC = () => {
      * 入室状況に変更があったら、座席数を見直す。
      */
     useEffect(() => {
-        reviewMaxSeats()
+        reviewMaxSeats(latestMinVacancyRate, latestYoutubeMembershipEnabled)
     }, [latestGeneralSeats, latestMemberSeats])
 
     /**
@@ -90,7 +92,7 @@ const Seats: FC = () => {
      * システム管理者が手動で更新しない限り、各変数の初期化時のみ実行される。
      */
     useEffect(() => {
-        reviewMaxSeats()
+        reviewMaxSeats(latestMinVacancyRate, latestYoutubeMembershipEnabled)
     }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
 
     const getQueryPageIndex = (): number | undefined => {
@@ -147,9 +149,12 @@ const Seats: FC = () => {
             const generalMaxSeats = (doc.data() as SystemConstants).max_seats
             const memberMaxSeats = (doc.data() as SystemConstants).member_max_seats
             const minVacancyRate = (doc.data() as SystemConstants).min_vacancy_rate
+            const youtubeMembershipEnabled = (doc.data() as SystemConstants)
+                .youtube_membership_enabled
             setLatestGeneralMaxSeats(generalMaxSeats)
             setLatestMemberMaxSeats(memberMaxSeats)
             setLatestMinVacancyRate(minVacancyRate)
+            setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
         })
     }
 
@@ -192,24 +197,28 @@ const Seats: FC = () => {
      * 座席数の見直しを行う。
      * 座席数の増減が必要な場合は、APIにリクエストを送信し、ルーム数を調整する。
      */
-    const reviewMaxSeats = async () => {
+    const reviewMaxSeats = async (
+        min_vacancy_rate: number | undefined,
+        membership_enabled: boolean
+    ) => {
         const snapshotGeneralMaxSeats = latestGeneralMaxSeats
-        const snapshotMemberMaxSeats = latestMemberMaxSeats
-        const snapshotMinVacancyRate = latestMinVacancyRate
         const snapshotGeneralSeats = [...latestGeneralSeats]
+        const snapshotMemberMaxSeats = latestMemberMaxSeats
         const snapshotMemberSeats = [...latestMemberSeats]
+
         if (
             snapshotGeneralMaxSeats === undefined ||
-            snapshotMemberMaxSeats === undefined ||
-            snapshotMinVacancyRate === undefined
+            min_vacancy_rate === undefined ||
+            snapshotMemberMaxSeats === undefined
         ) {
             return
         }
 
+        // GENERAL
         // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
         let finalDesiredGeneralMaxSeats: number
         const generalMinSeatsByVacancyRate = Math.ceil(
-            snapshotGeneralSeats.length / (1 - snapshotMinVacancyRate)
+            snapshotGeneralSeats.length / (1 - min_vacancy_rate)
         )
         // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
         if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
@@ -228,26 +237,32 @@ const Seats: FC = () => {
             finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
         }
 
+        // MEMBER
         let finalDesiredMemberMaxSeats: number
-        const memberMinSeatsByVacancyRate = Math.ceil(
-            snapshotMemberSeats.length / (1 - snapshotMinVacancyRate)
-        )
-        // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-        if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
-            let current_num_seats: number = numSeatsInMemberAllBasicRooms()
-            let current_adding_temporary_room_index = 0
-            while (current_num_seats < memberMinSeatsByVacancyRate) {
-                current_num_seats +=
-                    allRooms.memberTemporaryRooms[current_adding_temporary_room_index].seats.length
-                current_adding_temporary_room_index =
-                    (current_adding_temporary_room_index + 1) % allRooms.memberTemporaryRooms.length
+        if (membership_enabled) {
+            const memberMinSeatsByVacancyRate = Math.ceil(
+                snapshotMemberSeats.length / (1 - min_vacancy_rate)
+            )
+            // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
+            if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
+                let current_num_seats: number = numSeatsInMemberAllBasicRooms()
+                let current_adding_temporary_room_index = 0
+                while (current_num_seats < memberMinSeatsByVacancyRate) {
+                    current_num_seats +=
+                        allRooms.memberTemporaryRooms[current_adding_temporary_room_index].seats
+                            .length
+                    current_adding_temporary_room_index =
+                        (current_adding_temporary_room_index + 1) %
+                        allRooms.memberTemporaryRooms.length
+                }
+                finalDesiredMemberMaxSeats = current_num_seats
+            } else {
+                // そうでなければ、基本ルームの席数とするべき
+                finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
             }
-            finalDesiredMemberMaxSeats = current_num_seats
         } else {
-            // そうでなければ、基本ルームの席数とするべき
-            finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
+            finalDesiredMemberMaxSeats = snapshotMemberMaxSeats
         }
-
         if (
             finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
             finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
@@ -257,6 +272,8 @@ const Seats: FC = () => {
             console.log(`members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`)
             await requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats)
         }
+
+        // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
         // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
         // 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
@@ -269,20 +286,20 @@ const Seats: FC = () => {
                     (currentAddingLayoutIndex + 1) % allRooms.generalTemporaryRooms.length
             }
         }
-        const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
-        if (snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()) {
-            let currentAddingLayoutIndex = 0
-            while (numSeatsOfRoomLayouts(nextMemberLayouts) < snapshotMemberMaxSeats) {
-                nextMemberLayouts.push(allRooms.memberTemporaryRooms[currentAddingLayoutIndex])
-                currentAddingLayoutIndex =
-                    (currentAddingLayoutIndex + 1) % allRooms.memberTemporaryRooms.length
-            }
-        }
-
-        // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
-
         setGeneralLayouts(nextGeneralLayouts)
-        setMemberLayouts(nextMemberLayouts)
+
+        if (membership_enabled) {
+            const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
+            if (snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()) {
+                let currentAddingLayoutIndex = 0
+                while (numSeatsOfRoomLayouts(nextMemberLayouts) < snapshotMemberMaxSeats) {
+                    nextMemberLayouts.push(allRooms.memberTemporaryRooms[currentAddingLayoutIndex])
+                    currentAddingLayoutIndex =
+                        (currentAddingLayoutIndex + 1) % allRooms.memberTemporaryRooms.length
+                }
+            }
+            setMemberLayouts(nextMemberLayouts)
+        }
     }
 
     const requestMaxSeatsUpdate = async (
@@ -341,8 +358,12 @@ const Seats: FC = () => {
             }
 
         const newGeneralPageProps: LayoutPageProps[] = snapshotGeneralLayouts.map(mapFunc(false))
-        const newMemberPageProps: LayoutPageProps[] = snapshotMemberLayouts.map(mapFunc(true))
-        const newPageProps: LayoutPageProps[] = newGeneralPageProps.concat(newMemberPageProps)
+
+        let newPageProps: LayoutPageProps[] = [...newGeneralPageProps]
+        if (latestYoutubeMembershipEnabled) {
+            const newMemberPageProps: LayoutPageProps[] = snapshotMemberLayouts.map(mapFunc(true))
+            newPageProps = newGeneralPageProps.concat(newMemberPageProps)
+        }
 
         const pageIndexToDisplay =
             newPageProps.length > snapshotCurrentPageIndex ? snapshotCurrentPageIndex : 0
