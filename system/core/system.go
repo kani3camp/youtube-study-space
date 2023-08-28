@@ -472,7 +472,11 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 	isTargetMemberSeat := inOption.IsMemberSeat
 
 	if isTargetMemberSeat && !s.ProcessedUserIsMember {
-		s.MessageToLiveChat(ctx, t("member-seat-forbidden", s.ProcessedUserDisplayName))
+		if s.Configs.Constants.YoutubeMembershipEnabled {
+			s.MessageToLiveChat(ctx, t("member-seat-forbidden", s.ProcessedUserDisplayName))
+		} else {
+			s.MessageToLiveChat(ctx, t("membership-disabled", s.ProcessedUserDisplayName))
+		}
 		return nil
 	}
 
