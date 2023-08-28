@@ -20,29 +20,29 @@ type ProcessUserRPParallelResponseStruct struct {
 
 func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUserRPParallelResponseStruct, error) {
 	log.Println("ProcessUserRPParallel()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	sys, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
 	defer sys.CloseFirestoreClient()
-	
+
 	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
 	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed to UpdateUserRPBatch", err)
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	
+
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
 		sys.MessageToOwner(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
-		
+
 		sess, err := session.NewSession()
 		if err != nil {
 			sys.MessageToOwnerWithError("failed to session.NewSession()", err)
@@ -72,7 +72,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 	} else {
 		sys.MessageToOwner("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
 	}
-	
+
 	return ProcessUserRPParallelResponse(), nil
 }
 

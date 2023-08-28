@@ -4,12 +4,13 @@ import (
 	"time"
 )
 
+// ConstantsConfigDoc defines constants for the configuration of the system.
 type ConstantsConfigDoc struct {
-	MaxWorkTimeMin     int `firestore:"max-work-time-min"`     // 設定可能な最大入室時間（分）
-	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // 設定可能な最小入室時間（分）
+	MaxWorkTimeMin     int `firestore:"max-work-time-min"`     // 指定可能な最大入室時間（分）
+	MinWorkTimeMin     int `firestore:"min-work-time-min"`     // 指定可能な最小入室時間（分）
 	DefaultWorkTimeMin int `firestore:"default-work-time-min"` // デフォルト入室時間（分）
 
-	MinBreakDurationMin     int `firestore:"min-break-duration-min"`     // 設定可能な最小休憩時間（分）
+	MinBreakDurationMin     int `firestore:"min-break-duration-min"`     // 指定可能な最小休憩時間（分）
 	MinBreakIntervalMin     int `firestore:"min-break-interval-min"`     // 休憩できる最短間隔（分）
 	MaxBreakDurationMin     int `firestore:"max-break-duration-min"`     // 休憩できる最大時間（分）
 	DefaultBreakDurationMin int `firestore:"default-break-duration-min"` // デフォルト休憩時間（分）
@@ -20,11 +21,9 @@ type ConstantsConfigDoc struct {
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 
 	// 前回のチャットログや入退室ログをbigqueryに保存した日時
-	LastTransferCollectionHistoryBigquery time.
-						Time `firestore:"last-transfer-collection-history-bigquery" json:"last_transfer_collection_history_bigquery"`
+	LastTransferCollectionHistoryBigquery time.Time `firestore:"last-transfer-collection-history-bigquery" json:"last_transfer_collection_history_bigquery"`
 
-	// 席数（最大席番号）はfirestoreで管理される。各ルームの座席数の情報はfirestoreやbotプログラムでは保持せず、monitorでのみ参照できるため、
-	// monitorが定期的に最大席数がmin-vacancy-rateを満たしつつ妥当な値であるかを判断し、最大席数を変更すべきと判断したらfirestoreの
+	// youtube-monitorが定期的にmax-seatsがmin-vacancy-rateを満たしつつ妥当な値であるかを判断し、最大席数を変更すべきと判断したらfirestoreの
 	// desired-max-seatsを更新し、botプログラムが参照できるようにする。
 	// botプログラムは定期的にfirestoreのdesired-max-seatsを読み込み、問題ないことを確認してmax-seatsに反映する。
 	MaxSeats              int `firestore:"max-seats" json:"max_seats"`                 // 席数（最大席番号）
@@ -56,19 +55,19 @@ type ConstantsConfigDoc struct {
 
 	// Botの設定（ブロック・通知対象の正規表現など）をまとめたスプレッドシートのID
 	BotConfigSpreadsheetId string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
+
+	YoutubeMembershipEnabled bool `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
 }
 
+// CredentialsConfigDoc defines credentials for various services.
 type CredentialsConfigDoc struct {
-	// Discord Bot for owner credential
 	DiscordOwnerBotToken         string `firestore:"discord-owner-bot-token"`
 	DiscordOwnerBotTextChannelId string `firestore:"discord-owner-bot-text-channel-id"`
 
-	// Discord Bot for share credential
 	DiscordSharedBotToken         string `firestore:"discord-shared-bot-token"`
 	DiscordSharedBotTextChannelId string `firestore:"discord-shared-bot-text-channel-id"`
 	DiscordSharedBotLogChannelId  string `firestore:"discord-shared-bot-log-channel-id"`
 
-	// Bot用youtubeチャンネルのAPIアクセス情報
 	YoutubeBotAccessToken    string    `firestore:"youtube-bot-access-token"`
 	YoutubeBotClientId       string    `firestore:"youtube-bot-client-id"`
 	YoutubeBotClientSecret   string    `firestore:"youtube-bot-client-secret"`
@@ -76,14 +75,12 @@ type CredentialsConfigDoc struct {
 	YoutubeBotRefreshToken   string    `firestore:"youtube-bot-refresh-token"`
 	YoutubeBotChannelId      string    `firestore:"youtube-bot-channel-id"`
 
-	// ライブ配信用youtubeチャンネルのAPIアクセス情報
 	YoutubeChannelAccessToken    string    `firestore:"youtube-channel-access-token"`
 	YoutubeChannelClientId       string    `firestore:"youtube-channel-client-id"`
 	YoutubeChannelClientSecret   string    `firestore:"youtube-channel-client-secret"`
 	YoutubeChannelExpirationDate time.Time `firestore:"youtube-channel-expiration-date"`
 	YoutubeChannelRefreshToken   string    `firestore:"youtube-channel-refresh-token"`
 
-	// youtubeライブ配信の情報
 	YoutubeLiveChatId            string `firestore:"youtube-live-chat-id"`
 	YoutubeLiveChatNextPageToken string `firestore:"youtube-live-chat-next-page-token"`
 	OAuthRefreshTokenUrl         string `firestore:"o-auth-refresh-token-url"`
@@ -120,6 +117,7 @@ type SeatDoc struct {
 	UserProfileImageUrl    string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
 }
 
+// SeatLimitDoc defines limitations of a seat.
 type SeatLimitDoc struct { // used for both collections seat-limits-black-list and seat-limits-white-list
 	SeatId    int       `firestore:"seat-id"`
 	UserId    string    `firestore:"user-id"`
