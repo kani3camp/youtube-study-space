@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, error) {
+func NewSystem(ctx context.Context, configCheck bool, clientOption option.ClientOption) (System, error) {
 	err := i18n.LoadLocaleFolderFS()
 	if err != nil {
 		return System{}, err
@@ -85,8 +85,20 @@ func NewSystem(ctx context.Context, clientOption option.ClientOption) (System, e
 	v := reflect.ValueOf(configs.Constants)
 	for i := 0; i < v.NumField(); i++ {
 		if v.Field(i).IsZero() {
-			panic("The field " + v.Type().Field(i).Name + " has not initialized. " +
-				"Check if the value on firestore appropriately set.")
+			if configCheck {
+				fieldName := v.Type().Field(i).Name
+				fieldValue := fmt.Sprintf("%v", v.Field(i))
+				fmt.Println("The field \"" + fieldName + " = " + fieldValue + "\" may not be initialized. " +
+					"Continue? (yes / no)")
+				var s string
+				_, err := fmt.Scanln(&s)
+				if err != nil {
+					return System{}, err
+				}
+				if s != "yes" {
+					return System{}, errors.New("")
+				}
+			}
 		}
 	}
 
