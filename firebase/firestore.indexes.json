@@ -1,6 +1,48 @@
 {
   "indexes": [
     {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-channel-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-channel-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-display-name`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "member-seats",
       "queryScope": "COLLECTION",
       "fields": [
