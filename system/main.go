@@ -32,8 +32,8 @@ func Init() (option.ClientOption, context.Context, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if creds.ProjectID == "youtube-study-space" {
-		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
+	if creds.ProjectID == "youtube-study-space" || creds.ProjectID == "geek-library-space" {
+		fmt.Println("本番環境用のcredential (" + creds.ProjectID + ") が使われます。よろしいですか？(yes / no)")
 		var s string
 		_, _ = fmt.Scanln(&s)
 		if s != "yes" {

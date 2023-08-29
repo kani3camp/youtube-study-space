@@ -1,4 +1,4 @@
-import { DEBUG } from './constants'
+import { CHANNEL_GL, DEBUG } from './constants'
 
 const prodApi = {
     setDesiredMaxSeats:
@@ -10,6 +10,11 @@ const testApi = {
         'https://mmlcz4c490.execute-api.ap-northeast-1.amazonaws.com/default/set_desired_max_seats',
 }
 
-const api = DEBUG ? testApi : prodApi
+const glApi = {
+    setDesiredMaxSeats:
+        'https://e014jdu68e.execute-api.ap-northeast-1.amazonaws.com/default/set_desired_max_seats',
+}
+
+const api = CHANNEL_GL ? glApi : DEBUG ? testApi : prodApi
 
 export default api

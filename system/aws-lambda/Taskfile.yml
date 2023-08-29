@@ -6,9 +6,11 @@ includes:
 vars:
   AWS_PROFILE_PROD: soraride
   AWS_PROFILE_DEV: soraride-dev
+  AWS_PROFILE_GL: gl
   AWS_REGION: ap-northeast-1
   LAMBDA_ROLE_ARN_PROD: arn:aws:iam::652333062396:role/service-role/my-first-golang-lambda-function-role-cb8uw4th
   LAMBDA_ROLE_ARN_DEV: arn:aws:iam::657533259235:role/lambda-role
+  LAMBDA_ROLE_ARN_GL: arn:aws:iam::256982007275:role/lambda-role
   LAMBDA_FUNCTION_NAMES: set_desired_max_seats youtube_organize_database daily_organize_database check_live_stream_status transfer_collection_history_bigquery process_user_rp_parallel
 
 tasks:
@@ -35,6 +37,18 @@ tasks:
           PROFILE: '{{.AWS_PROFILE_PROD}}'
           REGION: '{{.AWS_REGION}}'
 
+  gl:
+    desc: Deploy to GL production
+    prompt: This will deploy to GL production. Using profile "{{.AWS_PROFILE_GL}}". Are you sure?
+    cmds:
+      - # noinspection YAMLSchemaValidation
+        for: { var: LAMBDA_FUNCTION_NAMES }
+        task: deploy
+        vars:
+          FUNCTION_NAME: '{{.ITEM}}'
+          PROFILE: '{{.AWS_PROFILE_GL}}'
+          REGION: '{{.AWS_REGION}}'
+
   create-dev:
     desc: Create a new lambda function on development
     cmds:
@@ -56,6 +70,18 @@ tasks:
           FUNCTION_NAME: '{{.CLI_ARGS}}'
           PROFILE: '{{.AWS_PROFILE_PROD}}'
           LAMBDA_ROLE_ARN: '{{.LAMBDA_ROLE_ARN_PROD}}'
+          REGION: '{{.AWS_REGION}}'
+
+  create-gl:
+    desc: Create a new lambda function on GL production
+    prompt: This will work on GL production. Are you sure?
+    cmds:
+      - echo "Creating function {{.CLI_ARGS}} on region {{.AWS_REGION}}"
+      - task: create
+        vars:
+          FUNCTION_NAME: '{{.CLI_ARGS}}'
+          PROFILE: '{{.AWS_PROFILE_GL}}'
+          LAMBDA_ROLE_ARN: '{{.LAMBDA_ROLE_ARN_GL}}'
           REGION: '{{.AWS_REGION}}'
 
   create:
