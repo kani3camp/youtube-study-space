@@ -7,7 +7,7 @@ const prodApi = {
 
 const testApi = {
     setDesiredMaxSeats:
-        'https://q8ff9jqwef.execute-api.us-east-1.amazonaws.com/default/set_desired_max_seats',
+        'https://mmlcz4c490.execute-api.ap-northeast-1.amazonaws.com/default/set_desired_max_seats',
 }
 
 const api = DEBUG ? testApi : prodApi
