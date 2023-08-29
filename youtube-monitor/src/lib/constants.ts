@@ -2,6 +2,7 @@ if (process.env.NEXT_PUBLIC_DEBUG !== 'true' && process.env.NEXT_PUBLIC_DEBUG !=
     throw Error(`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`)
 }
 export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
+export const CHANNEL_GL = process.env.NEXT_PUBLIC_CHANNEL_GL === 'true'
 
 export const Constants = {
     screenWidth: 1920,
