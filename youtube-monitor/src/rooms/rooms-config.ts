@@ -1,4 +1,4 @@
-import { DEBUG } from '../lib/constants'
+import { CHANNEL_GL, DEBUG } from '../lib/constants'
 import { RoomLayout } from '../types/room-layout'
 import { Anonymous1Layout } from './layouts/anonymous1'
 import { Chabio1Layout } from './layouts/chabio1-room'
@@ -11,6 +11,8 @@ import { Freepik3RoomLayout } from './layouts/freepik3-room'
 import { Freepik4Layout } from './layouts/freepik4-room'
 import { Freepik5Layout } from './layouts/freepik5-room'
 import { Freepik6Layout } from './layouts/freepik6-room'
+import { GLAkihabaraLayout } from './layouts/gl-in-akihabara'
+import { GLOnlineLayout } from './layouts/gl-in-online-room'
 import { mazeRoomLayout } from './layouts/maze-room'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
 import { MemberIllustratedRoom2Beach } from './layouts/member-illustrated-room2-beach'
@@ -65,7 +67,14 @@ const testAllRooms: AllRoomsConfig = {
     memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
 }
 
-export const allRooms: AllRoomsConfig = DEBUG ? testAllRooms : prodAllRooms
+const glRooms: AllRoomsConfig = {
+    generalBasicRooms: [GLOnlineLayout, GLAkihabaraLayout],
+    generalTemporaryRooms: [],
+    memberBasicRooms: [],
+    memberTemporaryRooms: [],
+}
+
+export const allRooms: AllRoomsConfig = CHANNEL_GL ? glRooms : DEBUG ? testAllRooms : prodAllRooms
 
 export const numSeatsInGeneralAllBasicRooms = (): number => {
     let numSeatsBasicRooms = 0

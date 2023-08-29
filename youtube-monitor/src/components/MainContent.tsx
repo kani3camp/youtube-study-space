@@ -171,9 +171,7 @@ const Seats: FC = () => {
             setLatestMemberMaxSeats(memberMaxSeats)
             setLatestMinVacancyRate(minVacancyRate)
             setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
-            console.log('latestYoutubeMembershipEnabled:', latestYoutubeMembershipEnabled)
             setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
-            console.log('latestFixedMaxSeatsEnabled:', latestFixedMaxSeatsEnabled)
         })
     }
 
@@ -318,7 +316,10 @@ const Seats: FC = () => {
         // リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
         // 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
         const nextGeneralLayouts: RoomLayout[] = [...allRooms.generalBasicRooms] // まずは基本ルームを設定
-        if (snapshotGeneralMaxSeats > numSeatsInGeneralAllBasicRooms()) {
+        if (
+            !fixed_max_seats_enabled &&
+            snapshotGeneralMaxSeats > numSeatsInGeneralAllBasicRooms()
+        ) {
             let currentAddingLayoutIndex = 0
             while (numSeatsOfRoomLayouts(nextGeneralLayouts) < snapshotGeneralMaxSeats) {
                 nextGeneralLayouts.push(allRooms.generalTemporaryRooms[currentAddingLayoutIndex])
@@ -330,7 +331,10 @@ const Seats: FC = () => {
 
         if (membership_enabled) {
             const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
-            if (snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()) {
+            if (
+                !fixed_max_seats_enabled &&
+                snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()
+            ) {
                 let currentAddingLayoutIndex = 0
                 while (numSeatsOfRoomLayouts(nextMemberLayouts) < snapshotMemberMaxSeats) {
                     nextMemberLayouts.push(allRooms.memberTemporaryRooms[currentAddingLayoutIndex])
@@ -429,7 +433,9 @@ const Seats: FC = () => {
     const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
         let count = 0
         for (const layout of layouts) {
-            count += layout.seats.length
+            if (layout) {
+                count += layout.seats.length
+            }
         }
         return count
     }
