@@ -252,8 +252,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 
 func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	log.Println("AdjustMaxSeats()")
-	// UpdateDesiredMaxSeats()などはLambdaからも並列で実行される可能性があるが、競合が起こってもそこまで深刻な問題にはならないため
-	//トランザクションは使用しない。
+	// UpdateDesiredMaxSeats()などはLambdaからも並列で実行される可能性があるが、競合が起こってもそこまで深刻な問題にはならないためトランザクションは使用しない。
 
 	constants, err := s.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
@@ -263,98 +262,160 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 	// 一般席
 	if constants.DesiredMaxSeats > constants.MaxSeats { // 一般席を増やす
 		s.MessageToLiveChat(ctx, "席を増やします↗")
-		return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
-	} else if constants.DesiredMaxSeats < constants.MaxSeats { // 一般席を減らす
-		// max_seatsを減らしても、空席率が設定値以上か確認
-		seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
-		if err != nil {
+		if err := s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats); err != nil {
 			return err
 		}
-		if int(float32(constants.DesiredMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
-			message := "減らそうとしすぎ。desiredは却下し、desired max seats <= current max seatsとします。" +
-				"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
-				"current max seats: " + strconv.Itoa(constants.MaxSeats) + ", " +
-				"current seats: " + strconv.Itoa(len(seats))
-			log.Println(message)
-			return s.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, constants.MaxSeats)
-		} else {
-			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, "人数が減ったため席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
+	} else if constants.DesiredMaxSeats < constants.MaxSeats { // 一般席を減らす
+		if constants.FixedMaxSeatsEnabled { // 空席率に関係なく、max_seatsをdesiredに合わせる
+			// なくなる座席にいるユーザーは退出させる
+			seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
+			if err != nil {
+				return err
+			}
+			s.MessageToLiveChat(ctx, "座席数を"+strconv.Itoa(constants.DesiredMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					inCommandDetails := &utils.CommandDetails{
-						CommandType: utils.In,
-						InOption: utils.InOption{
-							IsSeatIdSet: true,
-							SeatId:      0,
-							MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
-								IsWorkNameSet:    true,
-								IsDurationMinSet: true,
-								WorkName:         seat.WorkName,
-								DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
-							},
-							IsMemberSeat: false,
-						},
+					outCommandDetails := &utils.CommandDetails{
+						CommandType: utils.Out,
 					}
-					err = s.In(ctx, inCommandDetails)
-					if err != nil {
+					if err := s.Out(outCommandDetails, ctx); err != nil {
 						return err
 					}
 				}
 			}
+
 			// max_seatsを更新
-			return s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats)
+			if err := s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats); err != nil {
+				return err
+			}
+		} else {
+			// max_seatsを減らしても、空席率が設定値以上か確認
+			seats, err := s.FirestoreController.ReadGeneralSeats(ctx)
+			if err != nil {
+				return err
+			}
+			if int(float32(constants.DesiredMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
+				message := "減らそうとしすぎ。desiredは却下します。" +
+					"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
+					"current max seats: " + strconv.Itoa(constants.MaxSeats) + ", " +
+					"current seats: " + strconv.Itoa(len(seats))
+				log.Println(message)
+				if err := s.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, constants.MaxSeats); err != nil {
+					return err
+				}
+			} else {
+				// 消えてしまう席にいるユーザーを移動させる
+				s.MessageToLiveChat(ctx, "人数が減ったため席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
+				for _, seat := range seats {
+					if seat.SeatId > constants.DesiredMaxSeats {
+						s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+						// 移動させる
+						inCommandDetails := &utils.CommandDetails{
+							CommandType: utils.In,
+							InOption: utils.InOption{
+								IsSeatIdSet: true,
+								SeatId:      0,
+								MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+									IsWorkNameSet:    true,
+									IsDurationMinSet: true,
+									WorkName:         seat.WorkName,
+									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+								},
+								IsMemberSeat: false,
+							},
+						}
+						if err := s.In(ctx, inCommandDetails); err != nil {
+							return err
+						}
+					}
+				}
+				// max_seatsを更新
+				if err := s.FirestoreController.UpdateMaxSeats(ctx, nil, constants.DesiredMaxSeats); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
 	// メンバー席
 	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
 		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")
-		return s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats)
-	} else if constants.DesiredMemberMaxSeats < constants.MemberMaxSeats { // メンバー席を減らす
-		// member_max_seatsを減らしても、空席率が設定値以上か確認
-		seats, err := s.FirestoreController.ReadMemberSeats(ctx)
-		if err != nil {
+		if err := s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats); err != nil {
 			return err
 		}
-		if int(float32(constants.DesiredMemberMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
-			message := "減らそうとしすぎ。desiredは却下し、desired member max seats <= current member max seatsとします。" +
-				"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
-				"current member max seats: " + strconv.Itoa(constants.MemberMaxSeats) + ", " +
-				"current seats: " + strconv.Itoa(len(seats))
-			log.Println(message)
-			return s.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, constants.MemberMaxSeats)
-		} else {
-			// 消えてしまう席にいるユーザーを移動させる
-			s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
+	} else if constants.DesiredMemberMaxSeats < constants.MemberMaxSeats { // メンバー席を減らす
+		if constants.FixedMaxSeatsEnabled { // 空席率に関係なく、member_max_seatsをdesiredに合わせる
+			// なくなる座席にいるユーザーは退出させる
+			seats, err := s.FirestoreController.ReadMemberSeats(ctx)
+			if err != nil {
+				return err
+			}
+			s.MessageToLiveChat(ctx, "メンバー限定の座席数を"+strconv.Itoa(constants.DesiredMemberMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
-					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, true)
+					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					inCommandDetails := &utils.CommandDetails{
-						CommandType: utils.In,
-						InOption: utils.InOption{
-							IsSeatIdSet: true,
-							SeatId:      0,
-							MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
-								IsWorkNameSet:    true,
-								IsDurationMinSet: true,
-								WorkName:         seat.WorkName,
-								DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
-							},
-							IsMemberSeat: true,
-						},
+					outCommandDetails := &utils.CommandDetails{
+						CommandType: utils.Out,
 					}
-					err = s.In(ctx, inCommandDetails)
-					if err != nil {
+					if err := s.Out(outCommandDetails, ctx); err != nil {
 						return err
 					}
 				}
 			}
 			// member_max_seatsを更新
-			return s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats)
+			if err := s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats); err != nil {
+				return err
+			}
+		} else {
+			// member_max_seatsを減らしても、空席率が設定値以上か確認
+			seats, err := s.FirestoreController.ReadMemberSeats(ctx)
+			if err != nil {
+				return err
+			}
+			if int(float32(constants.DesiredMemberMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
+				message := "減らそうとしすぎ。desiredは却下します。" +
+					"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
+					"current member max seats: " + strconv.Itoa(constants.MemberMaxSeats) + ", " +
+					"current seats: " + strconv.Itoa(len(seats))
+				log.Println(message)
+				if err := s.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, constants.MemberMaxSeats); err != nil {
+					return err
+				}
+			} else {
+				// 消えてしまう席にいるユーザーを移動させる
+				s.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
+				for _, seat := range seats {
+					if seat.SeatId > constants.DesiredMemberMaxSeats {
+						s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, true)
+						// 移動させる
+						inCommandDetails := &utils.CommandDetails{
+							CommandType: utils.In,
+							InOption: utils.InOption{
+								IsSeatIdSet: true,
+								SeatId:      0,
+								MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+									IsWorkNameSet:    true,
+									IsDurationMinSet: true,
+									WorkName:         seat.WorkName,
+									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+								},
+								IsMemberSeat: true,
+							},
+						}
+
+						if err = s.In(ctx, inCommandDetails); err != nil {
+							return err
+						}
+					}
+				}
+				// member_max_seatsを更新
+				if err := s.FirestoreController.UpdateMemberMaxSeats(ctx, nil, constants.DesiredMemberMaxSeats); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

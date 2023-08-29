@@ -57,6 +57,8 @@ type ConstantsConfigDoc struct {
 	BotConfigSpreadsheetId string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
 
 	YoutubeMembershipEnabled bool `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
+
+	FixedMaxSeatsEnabled bool `firestore:"fixed-max-seats-enabled" json:"fixed_max_seats_enabled"`
 }
 
 // CredentialsConfigDoc defines credentials for various services.

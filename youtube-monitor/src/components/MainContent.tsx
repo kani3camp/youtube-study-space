@@ -41,6 +41,7 @@ const Seats: FC = () => {
     const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
     const [latestYoutubeMembershipEnabled, setLatestYoutubeMembershipEnabled] =
         useState<boolean>(false)
+    const [latestFixedMaxSeatsEnabled, setLatestFixedMaxSeatsEnabled] = useState<boolean>()
 
     useEffect(() => {
         if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
@@ -84,7 +85,11 @@ const Seats: FC = () => {
      * 入室状況に変更があったら、座席数を見直す。
      */
     useEffect(() => {
-        reviewMaxSeats(latestMinVacancyRate, latestYoutubeMembershipEnabled)
+        reviewMaxSeats(
+            latestMinVacancyRate,
+            latestYoutubeMembershipEnabled,
+            latestFixedMaxSeatsEnabled
+        )
     }, [latestGeneralSeats, latestMemberSeats])
 
     /**
@@ -92,8 +97,18 @@ const Seats: FC = () => {
      * システム管理者が手動で更新しない限り、各変数の初期化時のみ実行される。
      */
     useEffect(() => {
-        reviewMaxSeats(latestMinVacancyRate, latestYoutubeMembershipEnabled)
-    }, [latestGeneralMaxSeats, latestMemberMaxSeats, latestMinVacancyRate])
+        reviewMaxSeats(
+            latestMinVacancyRate,
+            latestYoutubeMembershipEnabled,
+            latestFixedMaxSeatsEnabled
+        )
+    }, [
+        latestGeneralMaxSeats,
+        latestMemberMaxSeats,
+        latestMinVacancyRate,
+        latestYoutubeMembershipEnabled,
+        latestFixedMaxSeatsEnabled,
+    ])
 
     const getQueryPageIndex = (): number | undefined => {
         const queryPageNum = router.query.page
@@ -151,10 +166,14 @@ const Seats: FC = () => {
             const minVacancyRate = (doc.data() as SystemConstants).min_vacancy_rate
             const youtubeMembershipEnabled = (doc.data() as SystemConstants)
                 .youtube_membership_enabled
+            const fixedMaxSeatsEnabled = (doc.data() as SystemConstants).fixed_max_seats_enabled
             setLatestGeneralMaxSeats(generalMaxSeats)
             setLatestMemberMaxSeats(memberMaxSeats)
             setLatestMinVacancyRate(minVacancyRate)
             setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
+            console.log('latestYoutubeMembershipEnabled:', latestYoutubeMembershipEnabled)
+            setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
+            console.log('latestFixedMaxSeatsEnabled:', latestFixedMaxSeatsEnabled)
         })
     }
 
@@ -199,7 +218,8 @@ const Seats: FC = () => {
      */
     const reviewMaxSeats = async (
         min_vacancy_rate: number | undefined,
-        membership_enabled: boolean
+        membership_enabled: boolean,
+        fixed_max_seats_enabled: boolean | undefined
     ) => {
         const snapshotGeneralMaxSeats = latestGeneralMaxSeats
         const snapshotGeneralSeats = [...latestGeneralSeats]
@@ -208,69 +228,89 @@ const Seats: FC = () => {
 
         if (
             snapshotGeneralMaxSeats === undefined ||
+            snapshotMemberMaxSeats === undefined ||
             min_vacancy_rate === undefined ||
-            snapshotMemberMaxSeats === undefined
+            fixed_max_seats_enabled === undefined
         ) {
             return
         }
 
-        // GENERAL
-        // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
-        let finalDesiredGeneralMaxSeats: number
-        const generalMinSeatsByVacancyRate = Math.ceil(
-            snapshotGeneralSeats.length / (1 - min_vacancy_rate)
-        )
-        // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-        if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
-            let current_num_seats: number = numSeatsInGeneralAllBasicRooms()
-            let current_adding_temporary_room_index = 0
-            while (current_num_seats < generalMinSeatsByVacancyRate) {
-                current_num_seats +=
-                    allRooms.generalTemporaryRooms[current_adding_temporary_room_index].seats.length
-                current_adding_temporary_room_index =
-                    (current_adding_temporary_room_index + 1) %
-                    allRooms.generalTemporaryRooms.length
+        if (fixed_max_seats_enabled) {
+            const numSeatsGeneralBasicRooms = numSeatsInGeneralAllBasicRooms()
+            const numSeatsMemberBasicRooms = numSeatsInMemberAllBasicRooms()
+            if (
+                snapshotGeneralMaxSeats !== numSeatsGeneralBasicRooms ||
+                snapshotMemberMaxSeats !== numSeatsMemberBasicRooms
+            ) {
+                console.log('sending request to change max_seats')
+                console.log(`general: ${snapshotGeneralMaxSeats} => ${numSeatsGeneralBasicRooms}`)
+                console.log(
+                    `members-only: ${snapshotMemberMaxSeats} => ${numSeatsMemberBasicRooms}`
+                )
+                await requestMaxSeatsUpdate(numSeatsGeneralBasicRooms, numSeatsMemberBasicRooms)
             }
-            finalDesiredGeneralMaxSeats = current_num_seats
         } else {
-            // そうでなければ、基本ルームの席数とするべき
-            finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
-        }
-
-        // MEMBER
-        let finalDesiredMemberMaxSeats: number
-        if (membership_enabled) {
-            const memberMinSeatsByVacancyRate = Math.ceil(
-                snapshotMemberSeats.length / (1 - min_vacancy_rate)
+            // GENERAL
+            // まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
+            let finalDesiredGeneralMaxSeats: number
+            const generalMinSeatsByVacancyRate = Math.ceil(
+                snapshotGeneralSeats.length / (1 - min_vacancy_rate)
             )
             // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-            if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
-                let current_num_seats: number = numSeatsInMemberAllBasicRooms()
+            if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
+                let current_num_seats: number = numSeatsInGeneralAllBasicRooms()
                 let current_adding_temporary_room_index = 0
-                while (current_num_seats < memberMinSeatsByVacancyRate) {
+                while (current_num_seats < generalMinSeatsByVacancyRate) {
                     current_num_seats +=
-                        allRooms.memberTemporaryRooms[current_adding_temporary_room_index].seats
+                        allRooms.generalTemporaryRooms[current_adding_temporary_room_index].seats
                             .length
                     current_adding_temporary_room_index =
                         (current_adding_temporary_room_index + 1) %
-                        allRooms.memberTemporaryRooms.length
+                        allRooms.generalTemporaryRooms.length
                 }
-                finalDesiredMemberMaxSeats = current_num_seats
+                finalDesiredGeneralMaxSeats = current_num_seats
             } else {
                 // そうでなければ、基本ルームの席数とするべき
-                finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
+                finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
             }
-        } else {
-            finalDesiredMemberMaxSeats = snapshotMemberMaxSeats
-        }
-        if (
-            finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
-            finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
-        ) {
-            console.log('sending request to change max_seats')
-            console.log(`general: ${snapshotGeneralMaxSeats} => ${finalDesiredGeneralMaxSeats}`)
-            console.log(`members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`)
-            await requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats)
+
+            // MEMBER
+            let finalDesiredMemberMaxSeats: number
+            if (membership_enabled) {
+                const memberMinSeatsByVacancyRate = Math.ceil(
+                    snapshotMemberSeats.length / (1 - min_vacancy_rate)
+                )
+                // もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
+                if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
+                    let current_num_seats: number = numSeatsInMemberAllBasicRooms()
+                    let current_adding_temporary_room_index = 0
+                    while (current_num_seats < memberMinSeatsByVacancyRate) {
+                        current_num_seats +=
+                            allRooms.memberTemporaryRooms[current_adding_temporary_room_index].seats
+                                .length
+                        current_adding_temporary_room_index =
+                            (current_adding_temporary_room_index + 1) %
+                            allRooms.memberTemporaryRooms.length
+                    }
+                    finalDesiredMemberMaxSeats = current_num_seats
+                } else {
+                    // そうでなければ、基本ルームの席数とするべき
+                    finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
+                }
+            } else {
+                finalDesiredMemberMaxSeats = snapshotMemberMaxSeats
+            }
+            if (
+                finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
+                finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
+            ) {
+                console.log('sending request to change max_seats')
+                console.log(`general: ${snapshotGeneralMaxSeats} => ${finalDesiredGeneralMaxSeats}`)
+                console.log(
+                    `members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`
+                )
+                await requestMaxSeatsUpdate(finalDesiredGeneralMaxSeats, finalDesiredMemberMaxSeats)
+            }
         }
 
         // TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
