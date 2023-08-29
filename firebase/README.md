@@ -21,5 +21,5 @@ firebase init firestore
 
 ### Firebaseプロジェクトにセキュリティルールをデプロイする
 ```bash
-firebase deploy --only firestore:rules
+firebase deploy
 ```
