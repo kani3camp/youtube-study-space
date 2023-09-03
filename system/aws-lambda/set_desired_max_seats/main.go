@@ -33,8 +33,14 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) 
 	}
 	defer system.CloseFirestoreClient()
 
-	if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
-		return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+	if system.Configs.Constants.YoutubeMembershipEnabled {
+		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
+			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		}
+	} else {
+		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats != 0 {
+			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		}
 	}
 
 	// transaction not necessary
