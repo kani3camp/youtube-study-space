@@ -70,22 +70,17 @@ type CredentialsConfigDoc struct {
 	DiscordSharedBotTextChannelId string `firestore:"discord-shared-bot-text-channel-id"`
 	DiscordSharedBotLogChannelId  string `firestore:"discord-shared-bot-log-channel-id"`
 
-	YoutubeBotAccessToken    string    `firestore:"youtube-bot-access-token"`
-	YoutubeBotClientId       string    `firestore:"youtube-bot-client-id"`
-	YoutubeBotClientSecret   string    `firestore:"youtube-bot-client-secret"`
-	YoutubeBotExpirationDate time.Time `firestore:"youtube-bot-expiration-date"`
-	YoutubeBotRefreshToken   string    `firestore:"youtube-bot-refresh-token"`
-	YoutubeBotChannelId      string    `firestore:"youtube-bot-channel-id"`
+	YoutubeBotClientId     string `firestore:"youtube-bot-client-id"`
+	YoutubeBotClientSecret string `firestore:"youtube-bot-client-secret"`
+	YoutubeBotRefreshToken string `firestore:"youtube-bot-refresh-token"`
+	YoutubeBotChannelId    string `firestore:"youtube-bot-channel-id"`
 
-	YoutubeChannelAccessToken    string    `firestore:"youtube-channel-access-token"`
-	YoutubeChannelClientId       string    `firestore:"youtube-channel-client-id"`
-	YoutubeChannelClientSecret   string    `firestore:"youtube-channel-client-secret"`
-	YoutubeChannelExpirationDate time.Time `firestore:"youtube-channel-expiration-date"`
-	YoutubeChannelRefreshToken   string    `firestore:"youtube-channel-refresh-token"`
+	YoutubeChannelClientId     string `firestore:"youtube-channel-client-id"`
+	YoutubeChannelClientSecret string `firestore:"youtube-channel-client-secret"`
+	YoutubeChannelRefreshToken string `firestore:"youtube-channel-refresh-token"`
 
 	YoutubeLiveChatId            string `firestore:"youtube-live-chat-id"`
 	YoutubeLiveChatNextPageToken string `firestore:"youtube-live-chat-next-page-token"`
-	OAuthRefreshTokenUrl         string `firestore:"o-auth-refresh-token-url"`
 }
 
 type SeatState string
