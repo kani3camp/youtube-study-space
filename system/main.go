@@ -83,6 +83,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 
+	const MinimumTryingTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	var lastChatFetched time.Time
@@ -111,8 +112,10 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// page token取得
 		pageToken, err := sys.GetNextPageToken(ctx, nil)
 		if err != nil {
-			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
+			if numContinuousRetrieveNextPageTokenFailed >= MinimumTryingTimesToNotify {
+				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed)+"回目） failed to retrieve next page token", err)
+			}
 			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
@@ -123,9 +126,11 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// fetch chat messages
 		chatMessages, nextPageToken, pollingIntervalMillis, err := sys.ListLiveChatMessages(ctx, pageToken)
 		if err != nil {
-			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
-				"回目） failed to retrieve chat messages", err)
 			numContinuousListMessagesFailed += 1
+			if numContinuousListMessagesFailed >= MinimumTryingTimesToNotify {
+				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed)+
+					"回目） failed to retrieve chat messages", err)
+			}
 			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousListMessagesFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
