@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 	"time"
-	
+
 	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/pkg/errors"
@@ -20,10 +20,10 @@ import (
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv(".env")
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
-	
+
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
-	
+
 	// 本番GCPプロジェクトの場合はCLI上で確認
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
@@ -50,14 +50,14 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 		sys.MessageToOwnerWithError("failed core.NewSystem()", err)
 		return
 	}
-	
+
 	sys.MessageToOwner("居座り防止プログラムが起動しました。")
 	defer func() {
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
 	}()
-	
+
 	sys.GoroutineCheckLongTimeSitting(ctx)
 }
 
@@ -68,25 +68,26 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		sys.MessageToOwnerWithError("failed core.NewSystem()", err)
 		return
 	}
-	
+
 	sys.MessageToOwner("Botが起動しました。\n" + sys.GetInfoString())
 	defer func() { // when error occurred
 		sys.CloseFirestoreClient()
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
 	}()
-	
+
 	checkDesiredMaxSeatsIntervalSec := sys.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
-	
+
 	lastCheckedDesiredMaxSeats := utils.JstNow()
-	
+
+	const MinimumTryingTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	var lastChatFetched time.Time
 	var waitAtLeastMilliSec1 float64
 	var waitAtLeastMilliSec2 float64
 	var sleepInterval time.Duration
-	
+
 	for {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
@@ -104,12 +105,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 			lastCheckedDesiredMaxSeats = utils.JstNow()
 		}
-		
+
 		// page token取得
 		pageToken, err := sys.GetNextPageToken(ctx, nil)
 		if err != nil {
-			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed+1)+"回目） failed to retrieve next page token", err)
 			numContinuousRetrieveNextPageTokenFailed += 1
+			if numContinuousRetrieveNextPageTokenFailed >= MinimumTryingTimesToNotify {
+				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed)+"回目） failed to retrieve next page token", err)
+			}
 			if numContinuousRetrieveNextPageTokenFailed > 5 {
 				break
 			} else {
@@ -118,13 +121,15 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
-		
+
 		// fetch chat messages
 		chatMessages, nextPageToken, pollingIntervalMillis, err := sys.ListLiveChatMessages(ctx, pageToken)
 		if err != nil {
-			sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed+1)+
-				"回目） failed to retrieve chat messages", err)
 			numContinuousListMessagesFailed += 1
+			if numContinuousListMessagesFailed >= MinimumTryingTimesToNotify {
+				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed)+
+					"回目） failed to retrieve chat messages", err)
+			}
 			if numContinuousListMessagesFailed > 5 {
 				break
 			} else {
@@ -134,7 +139,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousListMessagesFailed = 0
 		}
 		lastChatFetched = utils.JstNow()
-		
+
 		// save nextPageToken
 		err = sys.SaveNextPageToken(ctx, nextPageToken)
 		if err != nil {
@@ -147,14 +152,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				// pass
 			}
 		}
-		
+
 		// chatMessagesを保存
 		for _, chatMessage := range chatMessages {
 			// only if chatMessage has a text message
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
 				continue
 			}
-			
+
 			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
 			if err != nil {
 				sys.MessageToOwnerWithError("(1回目) failed to add live chat history", err)
@@ -166,14 +171,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				}
 			}
 		}
-		
+
 		// process the command (includes not command)
 		for _, chatMessage := range chatMessages {
 			// only if chatMessage has text message content
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
 				continue
 			}
-			
+
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
 			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
 			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
@@ -187,7 +192,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				sys.MessageToOwnerWithError("error in Command()", err)
 			}
 		}
-		
+
 		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(sys.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
@@ -199,7 +204,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 func LocalMain(ctx context.Context, clientOption option.ClientOption) {
 	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
-	
+
 	Bot(ctx, clientOption)
 }
 
@@ -209,6 +214,6 @@ func main() {
 		log.Println(err.Error())
 		return
 	}
-	
+
 	LocalMain(ctx, clientOption)
 }
