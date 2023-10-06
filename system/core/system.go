@@ -2213,7 +2213,7 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 		if isMemberRoom {
 			seats, err = s.FirestoreController.ReadMemberSeats(ctx)
 			if err != nil {
-				s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
+				s.MessageToOwnerWithError("failed to ReadMemberSeats", err)
 				return err
 			}
 		} else {
