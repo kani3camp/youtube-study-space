@@ -68,7 +68,7 @@ func TestCalcRankPoint(t *testing.T) {
 			Output: 40,
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		in := testCase.Input
 		rp, err := CalcNewRPExitRoom(in.NetStudyDuration, in.IsWorkNameSet, in.YesterdayContinuedActive, in.CurrentStateStarted, in.LastActiveAt, in.PreviousRankPoint)
@@ -200,7 +200,7 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			in := testCase.Input
@@ -216,14 +216,6 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 			}
 			assert.Equalf(t, testCase.Output, resultOutput, "")
 		})
-		//if lastPenaltyImposedDays != testCase.Output.LastPenaltyImposedDays ||
-		//	isContinuousActive != testCase.Output.IsContinuousActive ||
-		//	currentActivityStateStarted != testCase.Output.CurrentActivityStateStarted ||
-		//	rankPoint != testCase.Output.RankPoint {
-		//	t.Errorf("input: %# v\n", pretty.Formatter(in))
-		//	t.Error("result: ", lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint)
-		//	t.Error("expected: ", testCase.Output.LastPenaltyImposedDays, testCase.Output.IsContinuousActive, testCase.Output.CurrentActivityStateStarted, testCase.Output.RankPoint)
-		//}
 	}
 }
 
@@ -231,7 +223,7 @@ func TestLastActiveAt(t *testing.T) {
 	TIME1 := time.Date(2020, 1, 1, 0, 0, 0, 0, JapanLocation())
 	TIME2 := time.Date(2020, 1, 2, 0, 0, 0, 0, JapanLocation())
 	TIME3 := time.Date(2020, 1, 3, 0, 0, 0, 0, JapanLocation())
-	
+
 	type args struct {
 		lastEntered time.Time
 		lastExited  time.Time

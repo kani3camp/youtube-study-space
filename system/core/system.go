@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewSystem(ctx context.Context, configCheck bool, clientOption option.ClientOption) (System, error) {
+func NewSystem(ctx context.Context, interactive bool, clientOption option.ClientOption) (System, error) {
 	err := i18n.LoadLocaleFolderFS()
 	if err != nil {
 		return System{}, err
@@ -85,7 +85,7 @@ func NewSystem(ctx context.Context, configCheck bool, clientOption option.Client
 	v := reflect.ValueOf(configs.Constants)
 	for i := 0; i < v.NumField(); i++ {
 		if v.Field(i).IsZero() {
-			if configCheck {
+			if interactive {
 				fieldName := v.Type().Field(i).Name
 				fieldValue := fmt.Sprintf("%v", v.Field(i))
 				fmt.Println("The field \"" + fieldName + " = " + fieldValue + "\" may not be initialized. " +
@@ -2213,7 +2213,7 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 		if isMemberRoom {
 			seats, err = s.FirestoreController.ReadMemberSeats(ctx)
 			if err != nil {
-				s.MessageToOwnerWithError("failed to ReadGeneralSeats", err)
+				s.MessageToOwnerWithError("failed to ReadMemberSeats", err)
 				return err
 			}
 		} else {

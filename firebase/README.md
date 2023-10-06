@@ -14,6 +14,16 @@ npm install -g firebase-tools
 firebase login
 ```
 
+### Firebaseプロジェクトを確認する
+```bash
+firebase projects:list
+```
+
+### 使用するプロジェクトに切り替える
+```bash
+firebase use <project-id>
+```
+
 ### Firestoreについてディレクトリを初期化する
 ```bash
 firebase init firestore
