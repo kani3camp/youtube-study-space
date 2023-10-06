@@ -58,14 +58,14 @@
     
     document.getElementById('downloadFile').onclick = () => {
         const downloadFrameSelect = document.getElementById('download-frame-select');
+        if (!downloadFrameSelect) {
+            console.error('downloadFrameSelect is not defined');
+            return;
+        }
         const frameName = downloadFrameSelect.value;
         for (const frame of layoutFrames) {
             if (frame.frameName === frameName) {
-                let seatsDataStr = ''
-                for (const seat of frame.seats) {
-                    seatsDataStr += `${seat.seatNum} ${seat.x} ${seat.y}\n`
-                }
-                downloadFile(seatsDataStr, `${frameName}.txt`);
+                downloadFile(frame.layoutStr, `${frameName}.txt`);
                 break;
             }
         }

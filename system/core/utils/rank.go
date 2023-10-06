@@ -7,9 +7,10 @@ import (
 
 const (
 	RankPointLowerLimit = 0
-	RankPointUpperLimit = 10e4 - 1 // = 99,999
+	RankPointUpperLimit = 99_999
 )
 
+// CalcNewRPExitRoom calculates the newly added rank points when a user leaves a room.
 func CalcNewRPExitRoom(
 	netStudyDuration time.Duration,
 	isWorkNameSet bool,
@@ -55,6 +56,7 @@ func CalcNewRPExitRoom(
 	return ApplyRPRange(previousRankPoint + addedRP), nil
 }
 
+// DailyUpdateRankPoint checks the number of consecutive days of use by users and adjusts rank points daily.
 func DailyUpdateRankPoint(
 	lastPenaltyImposedDays int,
 	isContinuousActive bool,
@@ -63,15 +65,21 @@ func DailyUpdateRankPoint(
 	lastEntered, lastExited, jstNow time.Time,
 ) (int, bool, time.Time, int, error) {
 	// アクティブ・非アクティブ状態の更新
-	// 過去24時間以内に入室していたらactive、そうでなければinactive
+	// 前日0時〜24時に入室していたらactive、そうでなければinactive
+	yesterdayDate := jstNow.AddDate(0, 0, -1)
 	lastActiveAt := LastActiveAt(lastEntered, lastExited, jstNow)
-	lastActiveToNow := jstNow.Sub(lastActiveAt)
-	if lastActiveToNow < (time.Hour * 24) {
+	// 本日か昨日と同じ日付に入室していたらactive、そうでなければinactive
+	if DateEqualJST(lastActiveAt, yesterdayDate) {
+		isContinuousActive = true
+		lastPenaltyImposedDays = 0
+	} else if DateEqualJST(lastActiveAt, jstNow) {
 		isContinuousActive = true
 		lastPenaltyImposedDays = 0
 	} else {
+		if isContinuousActive {
+			currentActivityStateStarted = lastActiveAt
+		}
 		isContinuousActive = false
-		currentActivityStateStarted = jstNow
 	}
 	
 	// 最終active日時が一定日数以上前のユーザーはRPペナルティ処理
@@ -190,6 +198,8 @@ func WasUserActiveFromYesterday(lastEntered, lastExited, now time.Time) bool {
 // LastActiveAt 最近activeだった日時。現在を含む。
 func LastActiveAt(lastEntered, lastExited, now time.Time) time.Time {
 	if lastEntered.Before(lastExited) {
+		return lastExited
+	} else if lastEntered.Equal(lastExited) {
 		return lastExited
 	} else {
 		return now

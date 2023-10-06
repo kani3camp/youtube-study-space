@@ -15,24 +15,24 @@ type TransferCollectionHistoryBigqueryResponse struct {
 
 func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryResponse, error) {
 	log.Println("TransferCollectionHistoryBigquery()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
-	sys, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
 	defer sys.CloseFirestoreClient()
-	
+
 	err = sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
 		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
-	
+
 	return TransferCollectionHistoryBigqueryResponse{
 		Result:  lambdautils.OK,
 		Message: "",

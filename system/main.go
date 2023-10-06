@@ -17,6 +17,9 @@ import (
 	"google.golang.org/api/transport"
 )
 
+const MaxRetryIntervalSeconds = 300
+const RetryIntervalCalculationBase = 1.2
+
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv(".env")
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
@@ -29,8 +32,8 @@ func Init() (option.ClientOption, context.Context, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if creds.ProjectID == "youtube-study-space" {
-		fmt.Println("本番環境用のcredentialが使われます。よろしいですか？(yes / no)")
+	if creds.ProjectID == "youtube-study-space" || creds.ProjectID == "geek-library-space" {
+		fmt.Println("本番環境用のcredential (" + creds.ProjectID + ") が使われます。よろしいですか？(yes / no)")
 		var s string
 		_, _ = fmt.Scanln(&s)
 		if s != "yes" {
@@ -45,25 +48,23 @@ func Init() (option.ClientOption, context.Context, error) {
 }
 
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed core.NewSystem()", err)
 		return
 	}
 
 	sys.MessageToOwner("居座り防止プログラムが起動しました。")
-	defer func() {
-		sys.CloseFirestoreClient()
-		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
-		sys.MessageToOwner("app stopped!!")
-	}()
 
 	sys.GoroutineCheckLongTimeSitting(ctx)
 }
 
-// Bot ローカル運用
+func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
+	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
+}
+
 func Bot(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, clientOption)
+	sys, err := core.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError("failed core.NewSystem()", err)
 		return
@@ -75,6 +76,8 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		sys.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		sys.MessageToOwner("app stopped!!")
 	}()
+
+	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
 
 	checkDesiredMaxSeatsIntervalSec := sys.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 
@@ -113,11 +116,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			if numContinuousRetrieveNextPageTokenFailed >= MinimumTryingTimesToNotify {
 				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed)+"回目） failed to retrieve next page token", err)
 			}
-			if numContinuousRetrieveNextPageTokenFailed > 5 {
-				break
-			} else {
-				continue
-			}
+			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
+			time.Sleep(time.Duration(waitSeconds) * time.Second)
+			continue
 		} else {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
@@ -130,11 +131,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				sys.MessageToOwnerWithError("（"+strconv.Itoa(numContinuousListMessagesFailed)+
 					"回目） failed to retrieve chat messages", err)
 			}
-			if numContinuousListMessagesFailed > 5 {
-				break
-			} else {
-				continue
-			}
+			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousListMessagesFailed)
+			time.Sleep(time.Duration(waitSeconds) * time.Second)
+			continue
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
@@ -202,12 +201,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 }
 
-func LocalMain(ctx context.Context, clientOption option.ClientOption) {
-	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
-
-	Bot(ctx, clientOption)
-}
-
 func main() {
 	clientOption, ctx, err := Init()
 	if err != nil {
@@ -215,5 +208,5 @@ func main() {
 		return
 	}
 
-	LocalMain(ctx, clientOption)
+	Bot(ctx, clientOption)
 }

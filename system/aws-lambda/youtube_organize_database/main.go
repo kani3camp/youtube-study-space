@@ -15,18 +15,18 @@ type OrganizeDatabaseResponse struct {
 
 func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 	log.Println("OrganizeDatabase()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		return OrganizeDatabaseResponse{}, nil
 	}
-	system, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return OrganizeDatabaseResponse{}, nil
 	}
 	defer system.CloseFirestoreClient()
-	
+
 	err = system.OrganizeDB(ctx, true)
 	if err != nil {
 		system.MessageToOwnerWithError("failed to OrganizeDB", err)
@@ -37,7 +37,7 @@ func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 		system.MessageToOwnerWithError("failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
-	
+
 	return OrganizeDatabaseResponse{
 		Result:  lambdautils.OK,
 		Message: "",

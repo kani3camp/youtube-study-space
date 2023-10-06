@@ -25,6 +25,8 @@ export type SystemConstants = {
     max_seats: number
     member_max_seats: number
     min_vacancy_rate: number
+    youtube_membership_enabled: boolean
+    fixed_max_seats_enabled: boolean
 }
 
 export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants> = {
@@ -33,6 +35,8 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
             'max-seats': constants.max_seats,
             'member-max-seats': constants.member_max_seats,
             'min-vacancy-rate': constants.min_vacancy_rate,
+            'youtube-membership-enabled': constants.youtube_membership_enabled,
+            'fixed-max-seats-enabled': constants.fixed_max_seats_enabled,
         }
     },
     fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): SystemConstants {
@@ -41,6 +45,8 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
             max_seats: data['max-seats'],
             member_max_seats: data['member-max-seats'],
             min_vacancy_rate: data['min-vacancy-rate'],
+            youtube_membership_enabled: data['youtube-membership-enabled'],
+            fixed_max_seats_enabled: data['fixed-max-seats-enabled'],
         }
     },
 }

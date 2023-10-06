@@ -21,37 +21,37 @@ type DailyOrganizeDatabaseResponse struct {
 
 func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	log.Println("DailyOrganizeDatabase()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 	defer system.CloseFirestoreClient()
-	
+
 	userIdsToProcess, err := system.DailyOrganizeDB(ctx)
 	if err != nil {
 		system.MessageToOwnerWithError("Failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	
+
 	sess, err := session.NewSession()
 	if err != nil {
 		system.MessageToOwnerWithError("failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 	svc := lambda2.New(sess)
-	
+
 	allBatch := utils.DivideStringEqually(system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
 	system.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		log.Println("batch No. " + strconv.Itoa(i+1))
 		log.Println(batch)
-		
+
 		payload := lambdautils.UserRPParallelRequest{
 			ProcessIndex: i,
 			UserIds:      batch,
@@ -73,7 +73,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 		}
 		log.Println(resp)
 	}
-	
+
 	return DailyOrganizeDatabaseResponse{
 		Result:  lambdautils.OK,
 		Message: "",

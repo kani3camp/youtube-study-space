@@ -2,27 +2,23 @@ package main
 
 import (
 	"app.modules/core"
+	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
-	"log"
 	"math/rand"
 	"testing"
 	"time"
 )
 
 func TestSetProcessedUser(t *testing.T) {
-	clientOption, ctx, err := Init()
-	if err != nil {
-		log.Println(err.Error())
-		return
+	s := core.System{
+		Configs:                         nil,
+		FirestoreController:             nil,
+		ProcessedUserId:                 "",
+		ProcessedUserDisplayName:        "",
+		ProcessedUserProfileImageUrl:    "",
+		ProcessedUserIsModeratorOrOwner: false,
+		ProcessedUserIsMember:           false,
 	}
-	
-	s, err := core.NewSystem(ctx, clientOption)
-	if err != nil {
-		log.Println(err.Error())
-		return
-	}
-	defer s.CloseFirestoreClient()
-	// === ここまでおまじない ===
 	
 	// check initial values
 	assert.Equal(t, s.ProcessedUserId, "")
@@ -47,4 +43,56 @@ func TestSetProcessedUser(t *testing.T) {
 	assert.Equal(t, s.ProcessedUserProfileImageUrl, userProfileImageUrl)
 	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, isChatModerator || isChatOwner)
 	assert.Equal(t, s.ProcessedUserIsMember, isChatMember)
+}
+
+func TestCalculateRetryIntervalSec(t *testing.T) {
+	type args struct {
+		numContinuousFailed int
+	}
+	tests := []struct {
+		args args
+		want float64
+	}{
+		{
+			args: args{numContinuousFailed: 0},
+			want: 1,
+		},
+		{
+			args: args{numContinuousFailed: 1},
+			want: 1.2,
+		},
+		{
+			args: args{numContinuousFailed: 2},
+			want: 1.44,
+		},
+		{
+			args: args{numContinuousFailed: 3},
+			want: 1.728,
+		},
+		{
+			args: args{numContinuousFailed: 4},
+			want: 2.0736,
+		},
+		{
+			args: args{numContinuousFailed: 5},
+			want: 2.48832,
+		},
+		{
+			args: args{numContinuousFailed: 10},
+			want: 6.191736422,
+		},
+		{
+			args: args{numContinuousFailed: 20},
+			want: 38.337599924474700,
+		},
+		{ // 単純に計算すると300を超えるが、最大値は300
+			args: args{numContinuousFailed: 50},
+			want: 300,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(pretty.Sprintf("%# v", tt), func(t *testing.T) {
+			assert.InDeltaf(t, tt.want, CalculateRetryIntervalSec(RetryIntervalCalculationBase, tt.args.numContinuousFailed), 0.1, "CalculateRetryIntervalSec(%v)", tt.args.numContinuousFailed)
+		})
+	}
 }

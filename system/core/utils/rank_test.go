@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/kr/pretty"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
@@ -67,7 +68,7 @@ func TestCalcRankPoint(t *testing.T) {
 			Output: 40,
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		in := testCase.Input
 		rp, err := CalcNewRPExitRoom(in.NetStudyDuration, in.IsWorkNameSet, in.YesterdayContinuedActive, in.CurrentStateStarted, in.LastActiveAt, in.PreviousRankPoint)
@@ -100,6 +101,7 @@ type OutputDailyUpdateRankPoint struct {
 }
 
 type TestCaseDailyUpdateRankPoint struct {
+	Name   string
 	Input  InputDailyUpdateRankPoint
 	Output OutputDailyUpdateRankPoint
 }
@@ -107,7 +109,8 @@ type TestCaseDailyUpdateRankPoint struct {
 func TestDailyUpdateRankPoint(t *testing.T) {
 	jstNow := JstNow()
 	testCases := []TestCaseDailyUpdateRankPoint{
-		{ // だいぶ前に登録だけした人
+		{
+			Name: "だいぶ前に登録だけした人",
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      30,
 				IsContinuousActive:          false,
@@ -124,7 +127,8 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 				RankPoint:                   0,
 			},
 		},
-		{ // 前日に入室した人
+		{
+			Name: "前日に入室した人",
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
 				IsContinuousActive:          true,
@@ -141,7 +145,8 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 				RankPoint:                   100,
 			},
 		},
-		{ // 一昨日から入室してる人
+		{
+			Name: "一昨日から入室してる人",
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
 				IsContinuousActive:          true,
@@ -158,24 +163,26 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 				RankPoint:                   100,
 			},
 		},
-		{ // 昨日から入室しなくなった人
+		{
+			Name: "昨日から入室しなくなった人",
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
 				IsContinuousActive:          true,
 				CurrentActivityStateStarted: jstNow.AddDate(0, 0, -3),
 				RankPoint:                   100,
 				LastEntered:                 jstNow.AddDate(0, 0, -2),
-				LastExited:                  jstNow.AddDate(0, 0, -2).Add(time.Minute * 30),
+				LastExited:                  jstNow.AddDate(0, 0, -2),
 				JstNow:                      jstNow,
 			},
 			Output: OutputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
 				IsContinuousActive:          false,
-				CurrentActivityStateStarted: jstNow.AddDate(0, 0, -1),
+				CurrentActivityStateStarted: jstNow.AddDate(0, 0, -2),
 				RankPoint:                   100,
 			},
 		},
-		{ // 一昨日から入室しなくなった人
+		{
+			Name: "一昨日から入室しなくなった人",
 			Input: InputDailyUpdateRankPoint{
 				LastPenaltyImposedDays:      0,
 				IsContinuousActive:          false,
@@ -192,38 +199,72 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 				RankPoint:                   100,
 			},
 		},
-		//{
-		//	Input: InputDailyUpdateRankPoint{
-		//		LastPenaltyImposedDays: ,
-		//		IsContinuousActive: ,
-		//		CurrentActivityStateStarted: ,
-		//		RankPoint: ,
-		//		LastEntered: ,
-		//		LastExited: ,
-		//		JstNow: ,
-		//	},
-		//	Output: OutputDailyUpdateRankPoint{
-		//		LastPenaltyImposedDays: ,
-		//		IsContinuousActive: ,
-		//		CurrentActivityStateStarted: ,
-		//		RankPoint: ,
-		//	},
-		//},
 	}
-	
+
 	for _, testCase := range testCases {
-		in := testCase.Input
-		lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, err := DailyUpdateRankPoint(in.LastPenaltyImposedDays, in.IsContinuousActive, in.CurrentActivityStateStarted, in.RankPoint, in.LastEntered, in.LastExited, in.JstNow)
-		if err != nil {
-			t.Error(err)
-		}
-		if lastPenaltyImposedDays != testCase.Output.LastPenaltyImposedDays ||
-			isContinuousActive != testCase.Output.IsContinuousActive ||
-			currentActivityStateStarted != testCase.Output.CurrentActivityStateStarted ||
-			rankPoint != testCase.Output.RankPoint {
-			t.Errorf("input: %# v\n", pretty.Formatter(in))
-			t.Error("result: ", lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint)
-			t.Errorf("expected: %# v\n", pretty.Formatter(testCase.Output))
-		}
+		t.Run(testCase.Name, func(t *testing.T) {
+			in := testCase.Input
+			lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, err := DailyUpdateRankPoint(in.LastPenaltyImposedDays, in.IsContinuousActive, in.CurrentActivityStateStarted, in.RankPoint, in.LastEntered, in.LastExited, in.JstNow)
+			if err != nil {
+				t.Error(err)
+			}
+			resultOutput := OutputDailyUpdateRankPoint{
+				LastPenaltyImposedDays:      lastPenaltyImposedDays,
+				IsContinuousActive:          isContinuousActive,
+				CurrentActivityStateStarted: currentActivityStateStarted,
+				RankPoint:                   rankPoint,
+			}
+			assert.Equalf(t, testCase.Output, resultOutput, "")
+		})
+	}
+}
+
+func TestLastActiveAt(t *testing.T) {
+	TIME1 := time.Date(2020, 1, 1, 0, 0, 0, 0, JapanLocation())
+	TIME2 := time.Date(2020, 1, 2, 0, 0, 0, 0, JapanLocation())
+	TIME3 := time.Date(2020, 1, 3, 0, 0, 0, 0, JapanLocation())
+
+	type args struct {
+		lastEntered time.Time
+		lastExited  time.Time
+		now         time.Time
+	}
+	tests := []struct {
+		name string
+		args args
+		want time.Time
+	}{
+		{
+			name: "",
+			args: args{
+				lastEntered: TIME1,
+				lastExited:  TIME2,
+				now:         TIME3,
+			},
+			want: TIME2,
+		},
+		{
+			name: "",
+			args: args{
+				lastEntered: TIME2,
+				lastExited:  TIME1,
+				now:         TIME3,
+			},
+			want: TIME3,
+		},
+		{
+			name: "",
+			args: args{
+				lastEntered: time.Time{},
+				lastExited:  time.Time{},
+				now:         TIME3,
+			},
+			want: time.Time{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, LastActiveAt(tt.args.lastEntered, tt.args.lastExited, tt.args.now), "LastActiveAt(%v, %v, %v)", tt.args.lastEntered, tt.args.lastExited, tt.args.now)
+		})
 	}
 }

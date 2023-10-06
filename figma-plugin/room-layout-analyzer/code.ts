@@ -11,11 +11,7 @@ figma.ui.onmessage = async (msg) => {
 
 type RoomLayoutFrame = {
   frameName: string,
-  seats: {
-    seatNum: number,
-    x: number,
-    y: number,
-  }[]
+  layoutStr: string,
 }
 
 function getFramesInCurrentPage(): RoomLayoutFrame[] {
@@ -40,15 +36,12 @@ function getFramesInCurrentPage(): RoomLayoutFrame[] {
     }
     layoutFrames.push({
       frameName: frame.name,
-      seats: seatGroups.map((seatGroup: Seat) => {
+      layoutStr: seatGroups.map((seatGroup: Seat) => {
         const seatNumText: TextNode = seatGroup.findChild((node) => node.type === "TEXT") as TextNode;
         const seatNumStr = seatNumText.characters;
-        return {
-          seatNum: parseInt(seatNumStr),
-          x: roundToDecimalPlace(seatGroup.x, POSITION_DECIMAL_PLACES),
-          y: roundToDecimalPlace(seatGroup.y, POSITION_DECIMAL_PLACES),
-        }
-      }),
+        const seatStr = `{id: ${seatNumStr}, x: ${roundToDecimalPlace(seatGroup.x, POSITION_DECIMAL_PLACES)}, y: ${roundToDecimalPlace(seatGroup.y, POSITION_DECIMAL_PLACES)}, rotate: 0,},`
+        return seatStr;
+      }).join('\n'),
     })
   }
 
