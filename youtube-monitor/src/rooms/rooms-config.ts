@@ -16,7 +16,6 @@ import { GLOnlineLayout } from './layouts/gl-in-online-room'
 import { mazeRoomLayout } from './layouts/maze-room'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
 import { MemberIllustratedRoom2Beach } from './layouts/member-illustrated-room2-beach'
-import { MemberSimpleRoom1 } from './layouts/member-simple-room1'
 import { SeaOfSeatRoomLayout } from './layouts/sea-of-seat-room'
 
 type AllRoomsConfig = {
@@ -45,7 +44,7 @@ const prodAllRooms: AllRoomsConfig = {
         SeaOfSeatRoomLayout,
     ],
     memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
-    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
 }
 
 const testAllRooms: AllRoomsConfig = {
@@ -64,7 +63,7 @@ const testAllRooms: AllRoomsConfig = {
         SeaOfSeatRoomLayout,
     ],
     memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
-    memberTemporaryRooms: [MemberSimpleRoom1, MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
 }
 
 const glRooms: AllRoomsConfig = {
