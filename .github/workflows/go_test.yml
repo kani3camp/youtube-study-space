@@ -2,17 +2,15 @@ name: GoTest
 
 on:
   pull_request:
-    branches: [ main, release, dev ]
+    branches: [main, release, dev]
   push:
-    branches: [ main, release, dev ]
+    branches: [main, release, dev]
 
 jobs:
-
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-
       - name: Set up Go 1.19
         uses: actions/setup-go@v2
         with:
