@@ -634,10 +634,6 @@ func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMemb
 			options.DurationMin = num
 			options.IsDurationMinSet = true
 		}
-		if len(emojis) > 0 {
-			if emojis[0] == EmojiChange || emojis[0] == EmojiIn || emojis[0] == EmojiBreak {
-			}
-		}
 	}
 
 	for _, str := range strSlice {
