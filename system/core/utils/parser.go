@@ -1,11 +1,12 @@
 package utils
 
 import (
-	"app.modules/core/customerror"
-	"app.modules/core/i18n"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"app.modules/core/customerror"
+	"app.modules/core/i18n"
 )
 
 // ParseCommand コマンドを解析
@@ -605,13 +606,11 @@ func ParseDurationMinOption(strSlice []string, fullString string, allowNonPrefix
 			if err == nil {
 				return num, customerror.NewNil()
 			}
-			err = nil
 		} else if allowNonPrefix {
 			num, err := strconv.Atoi(str)
 			if err == nil {
 				return num, customerror.NewNil()
 			}
-			err = nil
 		}
 	}
 	return 0, customerror.InvalidCommand.New(i18n.T("parse:missing-time-option", TimeOptionPrefix))

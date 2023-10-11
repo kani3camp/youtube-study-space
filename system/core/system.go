@@ -791,8 +791,6 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 				if userDoc.IsContinuousActive {
 					continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
 					replyMessage += t("rank-on-continuous", continuousActiveDays+1, continuousActiveDays)
-				} else {
-					// 表示しない
 				}
 			case false:
 				replyMessage += t("rank-off")
@@ -2061,7 +2059,7 @@ func (s *System) exitRoom(
 	addedRP := newRP - previousUserDoc.RankPoint
 
 	log.Println(previousSeat.UserId + " exited the room. seat id: " + strconv.Itoa(previousSeat.SeatId) + " (+ " + strconv.Itoa(addedWorkedTimeSec) + "秒)")
-	log.Println(fmt.Sprintf("addedRP: %d, newRP: %d, previous RP: %d", addedRP, newRP, previousUserDoc.RankPoint))
+	log.Printf("addedRP: %d, newRP: %d, previous RP: %d\n", addedRP, newRP, previousUserDoc.RankPoint)
 	return addedWorkedTimeSec, addedRP, nil
 }
 
@@ -2260,7 +2258,6 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 			})
 			if err != nil {
 				log.Println(err)
-				err = nil
 			}
 			log.Println(message)
 		}
@@ -2277,7 +2274,6 @@ func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 	if err != nil {
 		s.MessageToOwnerWithError("failed to send live chat message \""+message+"\"\n", err)
 	}
-	return
 }
 
 func (s *System) MessageToOwner(message string) {
@@ -2285,7 +2281,7 @@ func (s *System) MessageToOwner(message string) {
 	if err != nil {
 		log.Println("failed to send message to owner: ", err)
 	}
-	return // これが最終連絡手段のため、エラーは返さずログのみ。
+	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
 func (s *System) MessageToOwnerWithError(message string, argErr error) {
@@ -2293,7 +2289,7 @@ func (s *System) MessageToOwnerWithError(message string, argErr error) {
 	if err != nil {
 		log.Println("failed to send message to owner: ", err)
 	}
-	return // これが最終連絡手段のため、エラーは返さずログのみ。
+	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
 func (s *System) MessageToSharedDiscord(message string) error {
@@ -2577,20 +2573,13 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 				forcedMove = true
 			}
 
-			// 以下書き込みのみ
-
-			if forcedMove { // 長時間入室制限による強制席移動
-				// nested transactionとならないよう、RunTransactionの外側で実行
-			}
-
 			return nil
 		})
 		if err != nil {
-			s.MessageToOwnerWithError("failed transaction", err)
+			s.MessageToOwnerWithError("failed transaction in OrganizeDBForceMove", err)
 			continue
 		}
-		// err != nil でもreturnではなく次に進む
-		if forcedMove {
+		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
 			var seatIdStr string
 			if isMemberSeat {
 				seatIdStr = i18n.T("common:vip-seat-id", seatSnapshot.SeatId)
