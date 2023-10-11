@@ -2732,7 +2732,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 
 	var remainingUserIds []string
 	for _, userId := range userIds {
-		if utils.ContainsString(doneUserIds, userId) {
+		if utils.Contains(doneUserIds, userId) {
 			continue
 		} else {
 			remainingUserIds = append(remainingUserIds, userId)
