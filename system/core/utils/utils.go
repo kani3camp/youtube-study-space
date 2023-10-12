@@ -194,27 +194,13 @@ func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (str
 	return creds.ProjectID, nil
 }
 
-func containsInt(s []int, e int) bool {
+func Contains[T comparable](s []T, e T) bool {
 	for _, a := range s {
 		if a == e {
 			return true
 		}
 	}
 	return false
-}
-
-func ContainsString(s []string, e string) bool {
-	contains, _ := ContainsStringWithIndex(s, e)
-	return contains
-}
-
-func ContainsStringWithIndex(s []string, e string) (bool, int) {
-	for i, a := range s {
-		if a == e {
-			return true, i
-		}
-	}
-	return false, 0
 }
 
 func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
@@ -331,7 +317,7 @@ func ExtractEmojiMinValue(fullString, emojiString string, allowEmpty bool) (int,
 	if numString != "" { // "min=xxx" emoji
 		return strconv.Atoi(numString)
 	}
-	
+
 	// "min=" emoji
 	loc = FindEmojiCommandIndex(fullString, MinString)
 	if len(loc) != 2 {

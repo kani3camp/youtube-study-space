@@ -1,11 +1,12 @@
 package guardians
 
 import (
+	"context"
+	"fmt"
+
 	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
 	"app.modules/core/youtubebot"
-	"context"
-	"fmt"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
@@ -29,7 +30,7 @@ func NewLiveStreamChecker(
 	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
 	discordBot *discordbot.DiscordBot,
 ) *LiveStreamChecker {
-	
+
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
 		OwnerDiscordBot:     discordBot,
@@ -61,19 +62,23 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	}
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
-	
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
 	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
 	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status
-	
+
 	fmt.Println(streamStatus)
 	fmt.Println(healthStatus)
-	
+
 	if streamStatus != "active" && streamStatus != "ready" {
 		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
 		_ = checker.OwnerDiscordBot.SendMessage("stream HEALTH status is now : " + healthStatus)
 	}
-	
+
 	return nil
 }

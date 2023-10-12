@@ -15,7 +15,7 @@ func main() {
 
 func deployAWS() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
-		
+
 		lambdaRole, err := iam.NewRole(ctx, "my-first-golang-lambda-function-role-cb8uw4th", &iam.RoleArgs{
 			AssumeRolePolicy: pulumi.String(`{
 				"Version": "2012-10-17",
@@ -50,7 +50,7 @@ func deployAWS() {
 		if err != nil {
 			return err
 		}
-		
+
 		// Attach the IAM policy to the Lambda role
 		_, err = iam.NewRolePolicyAttachment(ctx, "lambdaPolicyAttachment", &iam.RolePolicyAttachmentArgs{
 			PolicyArn: pulumi.String("arn:aws:iam::aws:policy/PowerUserAccess"),
@@ -59,7 +59,7 @@ func deployAWS() {
 		if err != nil {
 			return err
 		}
-		
+
 		// Create the Lambda function
 		lambdaFunction, err := lambda.NewFunction(ctx, "exampleLambda", &lambda.FunctionArgs{
 			Runtime:    pulumi.String("nodejs14.x"),
@@ -72,13 +72,13 @@ func deployAWS() {
 		if err != nil {
 			return err
 		}
-		
+
 		// Create the API Gateway REST API
 		apiGateway, err := apigateway.NewRestApi(ctx, "exampleApiGateway", nil)
 		if err != nil {
 			return err
 		}
-		
+
 		// Create a resource for the Lambda function
 		apiGatewayResource, err := apigateway.NewResource(ctx, "exampleResource", &apigateway.ResourceArgs{
 			ParentId: apiGateway.RootResourceId,
@@ -88,7 +88,7 @@ func deployAWS() {
 		if err != nil {
 			return err
 		}
-		
+
 		// Create an API Gateway integration with the Lambda function
 		_, err = apigateway.NewIntegration(ctx, "exampleIntegration", &apigateway.IntegrationArgs{
 			IntegrationHttpMethod: pulumi.String("ANY"),
@@ -101,15 +101,15 @@ func deployAWS() {
 		if err != nil {
 			return err
 		}
-		
+
 		// Create a deployment of the API Gateway
-		apiGatewayDeployment, err := apigateway.NewDeployment(ctx, "exampleDeployment", &apigateway.DeploymentArgs{
+		_, err = apigateway.NewDeployment(ctx, "exampleDeployment", &apigateway.DeploymentArgs{
 			RestApi: apiGateway.ID(),
 		}, pulumi.DependsOn([]pulumi.Resource{apiGatewayResource}))
 		if err != nil {
 			return err
 		}
-		
+
 		return nil
 	})
 }
@@ -125,7 +125,7 @@ func deployGCP() {
 			return err
 		}
 		ctx.Export("dbName", db.Name)
-		
+
 		return nil
 	})
 }

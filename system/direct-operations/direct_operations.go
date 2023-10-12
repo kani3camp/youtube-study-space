@@ -79,6 +79,9 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 		}
 		return nil
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	now := utils.JstNow()
 	dateString := now.Format("2006-01-02_15-04-05")
