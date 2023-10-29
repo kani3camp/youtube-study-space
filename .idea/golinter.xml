@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GoLinterSettings">
+    <option name="enabledLinters">
+      <list>
+        <option value="ineffassign" />
+        <option value="staticcheck" />
+        <option value="govet" />
+        <option value="errcheck" />
+        <option value="unused" />
+        <option value="gosimple" />
+      </list>
+    </option>
+    <option name="goLinterExe" value="C:\Users\momom\go\bin\golangci-lint.exe" />
+    <option name="linterSelected" value="true" />
+  </component>
+</project>
