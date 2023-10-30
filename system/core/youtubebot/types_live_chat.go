@@ -6,9 +6,8 @@ import (
 )
 
 type YoutubeLiveChatBot struct {
-	LiveChatId                string
-	ChannelYoutubeService            *youtube.Service
-	BotYoutubeService	*youtube.Service
-	FirestoreController *myfirestore.FirestoreController
+	LiveChatId            string
+	ChannelYoutubeService *youtube.Service
+	BotYoutubeService     *youtube.Service
+	FirestoreController   *myfirestore.FirestoreController
 }
-

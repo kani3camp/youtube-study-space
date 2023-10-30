@@ -21,22 +21,28 @@ type SetMaxSeatsResponse struct {
 
 func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) {
 	log.Println("SetDesiredMaxSeats()")
-	
+
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		return SetMaxSeatsResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, clientOption)
+	system, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return SetMaxSeatsResponse{}, err
 	}
 	defer system.CloseFirestoreClient()
-	
-	if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
-		return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+
+	if system.Configs.Constants.YoutubeMembershipEnabled {
+		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
+			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		}
+	} else {
+		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats != 0 {
+			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		}
 	}
-	
+
 	// transaction not necessary
 	err = system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, request.DesiredMaxSeats)
 	if err != nil {
@@ -48,7 +54,7 @@ func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) 
 		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
 		return SetMaxSeatsResponse{}, err
 	}
-	
+
 	return SetMaxSeatsResponse{
 		Result:  lambdautils.OK,
 		Message: "",

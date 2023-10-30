@@ -27,6 +27,7 @@
 "seat-move" = "{0}님이 자리를 이동하셨습니다🚶（{1}→{2}번석）（+ {3}분）{4}({5}분후 자동퇴실）"
 "start" = "{0}님이 작업을 시작하셨습니다🔥（최대{1}분, {2}번석）" # 0: Username, 1: Until Exit, 2: Seat
 "member-seat-forbidden" = "{0}さん、メンバー限定席に座るには、メンバー登録が必要です🍀" # TODO
+"membership-disabled" = "{0}さん、メンバーシップの機能は使えません"    # TODO
 
 [command-out]
 "already-exit" = "{0}님, 이미 퇴실하셨습니다" # 0: Username

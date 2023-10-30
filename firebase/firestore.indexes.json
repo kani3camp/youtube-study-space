@@ -1,0 +1,141 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-channel-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-channel-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`author-display-name`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`published-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "member-seats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`current-state-until`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "seats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`current-state-until`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "user-activities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`activity-type`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`is-member-seat`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`seat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`taken-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "user-activities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`activity-type`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`seat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`taken-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "user-activities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`seat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`taken-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

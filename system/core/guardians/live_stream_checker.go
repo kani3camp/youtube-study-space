@@ -46,18 +46,12 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 		ClientID:     credentials.YoutubeChannelClientId,
 		ClientSecret: credentials.YoutubeChannelClientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:   "https://accounts.google.com/o/oauth2/auth",
-			TokenURL:  "https://accounts.google.com/o/oauth2/token",
-			AuthStyle: 0,
+			TokenURL: "https://accounts.google.com/o/oauth2/token",
 		},
-		RedirectURL: "https://youtube.com/",
-		Scopes:      nil,
 	}
 	channelOauthToken := &oauth2.Token{
-		AccessToken:  credentials.YoutubeChannelAccessToken,
 		TokenType:    "Bearer",
 		RefreshToken: credentials.YoutubeChannelRefreshToken,
-		Expiry:       credentials.YoutubeChannelExpirationDate,
 	}
 	channelClientOption := option.WithTokenSource(config.TokenSource(ctx, channelOauthToken))
 	service, err := youtube.NewService(ctx, channelClientOption)
