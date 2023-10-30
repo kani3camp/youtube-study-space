@@ -1,7 +1,7 @@
 import { RoomLayout } from '../../types/room-layout'
 
 export const GLOnlineLayout: RoomLayout = {
-    floor_image: '/images/GL_inONLINE.png',
+    floor_image: '/images/GL_inONLINE_HW.png',
     version: 1,
     font_size_ratio: 0.015,
     room_shape: {
