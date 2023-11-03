@@ -15,7 +15,7 @@ import { GLAkihabaraLayout } from './layouts/gl-in-akihabara'
 import { GLOnlineLayout } from './layouts/gl-in-online-room'
 import { mazeRoomLayout } from './layouts/maze-room'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
-import { MemberIllustratedRoom2Beach } from './layouts/member-illustrated-room2-beach'
+import { MemberIllustratedRoom2Halloween } from './layouts/member-illustrated-room2-halloween'
 import { SeaOfSeatRoomLayout } from './layouts/sea-of-seat-room'
 
 type AllRoomsConfig = {
@@ -43,8 +43,8 @@ const prodAllRooms: AllRoomsConfig = {
         Freepik5Layout,
         SeaOfSeatRoomLayout,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
 }
 
 const testAllRooms: AllRoomsConfig = {
@@ -62,8 +62,8 @@ const testAllRooms: AllRoomsConfig = {
         Freepik5Layout,
         SeaOfSeatRoomLayout,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Beach],
+    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
 }
 
 const glRooms: AllRoomsConfig = {
