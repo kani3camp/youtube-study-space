@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
+	"log"
+
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
-	"context"
 	"github.com/aws/aws-lambda-go/lambda"
-	"log"
 )
 
 type TransferCollectionHistoryBigqueryResponse struct {
@@ -32,6 +33,7 @@ func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryRespo
 		sys.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
 		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
+	sys.MessageToOwner("successfully transferred each collection history to bigquery")
 
 	return TransferCollectionHistoryBigqueryResponse{
 		Result:  lambdautils.OK,
