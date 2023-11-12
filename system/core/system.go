@@ -2975,7 +2975,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return err
 		}
-		s.MessageToOwner("successfully transfer yesterday's live chat history to bigquery.")
+		log.Println("successfully transfer yesterday's live chat history to bigquery.")
 
 		// 一定期間前のライブチャットおよびユーザー行動ログを削除
 		// 何日以降分を保持するか求める
@@ -2989,9 +2989,9 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return err
 		}
-		s.MessageToOwner(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
+		log.Println(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
 			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。")
-		s.MessageToOwner(fmt.Sprintf("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d", numRowsLiveChat, numRowsUserActivity))
+		log.Println(fmt.Sprintf("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d", numRowsLiveChat, numRowsUserActivity))
 
 		err = s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now)
 		if err != nil {
