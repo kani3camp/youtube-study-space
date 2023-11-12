@@ -43,3 +43,4 @@ jobs:
         with:
           version: v1.54
           working-directory: system
+          args: --timeout 5m
