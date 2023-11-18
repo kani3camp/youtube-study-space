@@ -1,4 +1,4 @@
-name: GoTest
+name: Test
 
 on:
   pull_request:
@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Test
+  go-test:
+    name: Go Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,8 +28,8 @@ jobs:
           go mod tidy
           go test -v ./...
 
-  lint:
-    name: Lint
+  go-lint:
+    name: Go Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
