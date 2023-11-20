@@ -31,7 +31,7 @@ export const audioCanvasDiv = css`
 `
 
 export const audioCanvas = css`
-    height: calc(1080px - 200px - 350px - 300px - 150px);
+    height: calc((1080px - 200px - 350px - 300px) * 0.5);
     width: 400px;
     background-color: #77777700;
     position: absolute;

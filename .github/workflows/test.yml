@@ -1,15 +1,15 @@
-name: GoTest
+name: Test
 
 on:
   pull_request:
-    branches: [main, release, dev]
+    branches: [main, release, dev, add-frontend-test]
   push:
     branches: [main, release, dev]
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build
+  go-test:
+    name: Go Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,8 +28,8 @@ jobs:
           go mod tidy
           go test -v ./...
 
-  lint:
-    name: Lint
+  go-lint:
+    name: Go Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,3 +44,21 @@ jobs:
           version: v1.54
           working-directory: system
           args: --timeout 5m
+
+  jest:
+    name: Jest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Install dependencies
+        run: npm install
+      - name: Run tests
+        run: npm test
