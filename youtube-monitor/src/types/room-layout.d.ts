@@ -1,6 +1,5 @@
 export type RoomLayout = {
     floor_image: string
-    version: number
     font_size_ratio: number
     room_shape: {
         height: number
