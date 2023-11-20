@@ -713,6 +713,12 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 	t := i18n.GetTFunc("command-out")
 	var replyMessage string
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			s.MessageToOwnerWithError("failed to ReadUser", err)
+			return err
+		}
+
 		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
 		if err != nil {
 			s.MessageToOwnerWithError("failed IsUserInRoom", err)
@@ -720,7 +726,12 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = t("already-exit", s.ProcessedUserDisplayName)
+			if userDoc.LastExited.IsZero() {
+				replyMessage = t("already-exit", s.ProcessedUserDisplayName)
+			} else {
+				localTime := userDoc.LastExited.In(utils.JapanLocation())
+				replyMessage = t("already-exit-with-last-exit-time", s.ProcessedUserDisplayName, localTime.Hour(), localTime.Minute())
+			}
 			return nil
 		}
 
@@ -729,12 +740,6 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 		if customErr.Body != nil {
 			s.MessageToOwnerWithError("failed to s.CurrentSeat", customErr.Body)
 			return customErr.Body
-		}
-
-		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
-		if err != nil {
-			s.MessageToOwnerWithError("failed to ReadUser", err)
-			return err
 		}
 
 		// 退室処理
