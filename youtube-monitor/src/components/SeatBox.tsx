@@ -3,17 +3,12 @@ import * as styles from '../styles/SeatsPage.styles'
 import { css, keyframes } from '@emotion/react'
 import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
+import { SeatState } from './SeatsPage'
 
 type SeatProps = {
     globalSeatId: number
-    workName: string
-    breakWorkName: string
-    isBreak: boolean
-    numStars: number
     isUsed: boolean
     memberOnly: boolean
-    seatColor: string
-    profileImageUrl: string
     hoursRemaining: number
     minutesRemaining: number
     hoursElapsed: number
@@ -36,6 +31,15 @@ type SeatProps = {
 }
 
 const SeatBox: FC<SeatProps> = (props) => {
+    const workName = props.isUsed ? props.processingSeat.work_name : ''
+    const breakWorkName = props.isUsed ? props.processingSeat.break_work_name : ''
+    const seatColor = props.isUsed
+        ? props.processingSeat.appearance.color_code1
+        : Constants.emptySeatColor
+    const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
+    const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
+    const profileImageUrl = props.isUsed ? props.processingSeat.user_profile_image_url : ''
+
     const colorGradientEnabled =
         props.isUsed && props.processingSeat.appearance.color_gradient_enabled
 
@@ -54,7 +58,7 @@ const SeatBox: FC<SeatProps> = (props) => {
         ? css`
               background-image: linear-gradient(
                   90deg,
-                  ${props.seatColor},
+                  ${seatColor},
                   ${props.processingSeat.appearance.color_code2}
               );
               background-size: 400% 400%;
@@ -89,14 +93,12 @@ const SeatBox: FC<SeatProps> = (props) => {
 
     // 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
     let workNameFontSizePx = props.seatFontSizePx
-    if (props.isUsed && (props.workName !== '' || props.breakWorkName !== '')) {
+    if (props.isUsed && (workName !== '' || breakWorkName !== '')) {
         const canvas: HTMLCanvasElement = document.createElement('canvas')
         const context = canvas.getContext('2d')
         if (context) {
             context.font = `${workNameFontSizePx.toString()}px ${Constants.seatFontFamily}`
-            const metrics = context.measureText(
-                props.isBreak ? props.breakWorkName : props.workName
-            )
+            const metrics = context.measureText(isBreak ? breakWorkName : workName)
             let actualSeatWidth = (props.roomShape.widthPx * props.seatShape.widthPercent) / 100
             if (props.memberOnly) {
                 actualSeatWidth = (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
@@ -114,11 +116,7 @@ const SeatBox: FC<SeatProps> = (props) => {
     let workNameDisplay = <></>
     if (props.isUsed) {
         const content =
-            !props.isBreak && props.workName
-                ? props.workName
-                : props.isBreak && props.breakWorkName
-                ? props.breakWorkName
-                : ''
+            !isBreak && workName ? workName : isBreak && breakWorkName ? breakWorkName : ''
         if (props.memberOnly) {
             workNameDisplay = (
                 <div
@@ -150,7 +148,7 @@ const SeatBox: FC<SeatProps> = (props) => {
                 ${colorGradientStyle};
             `}
             style={{
-                backgroundColor: props.seatColor,
+                backgroundColor: seatColor,
                 left: `${props.seatPosition.x}%`,
                 top: `${props.seatPosition.y}%`,
                 transform: `rotate(${props.seatPosition.rotate}deg)`,
@@ -171,7 +169,7 @@ const SeatBox: FC<SeatProps> = (props) => {
             {userDisplayName}
 
             {/* break mode */}
-            {props.isBreak && (
+            {isBreak && (
                 <div
                     css={styles.breakBadge}
                     style={{
@@ -188,14 +186,14 @@ const SeatBox: FC<SeatProps> = (props) => {
             )}
 
             {/* ★Mark */}
-            {props.numStars > 0 && (
+            {numStars > 0 && (
                 <div
                     css={styles.starsBadge}
                     style={{
                         fontSize: `${props.seatFontSizePx * 0.6}px`,
                     }}
                 >
-                    {`★×${props.numStars}`}
+                    {`★×${numStars}`}
                 </div>
             )}
 
@@ -203,12 +201,12 @@ const SeatBox: FC<SeatProps> = (props) => {
             {props.isUsed && props.memberOnly && (
                 <img
                     css={
-                        (props.isBreak ? props.breakWorkName : props.workName !== '')
+                        (isBreak ? breakWorkName : workName !== '')
                             ? styles.profileImageMemberWithWorkName
                             : styles.profileImageMemberNoWorkName
                     }
-                    src={props.profileImageUrl}
-                    onError={(event) => reloadImage(event, props.profileImageUrl)}
+                    src={profileImageUrl}
+                    onError={(event) => reloadImage(event, profileImageUrl)}
                 />
             )}
 

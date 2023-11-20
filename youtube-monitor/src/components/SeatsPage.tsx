@@ -13,7 +13,7 @@ export type LayoutPageProps = {
     memberOnly: boolean
 }
 
-const SeatState = {
+export const SeatState = {
     Work: 'work',
     Break: 'break',
 }
@@ -92,13 +92,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         const globalSeatId = propsMemo.firstSeatId + index
         const isUsed = usedSeatIds.includes(globalSeatId)
         const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
-        const workName = isUsed ? processingSeat.work_name : ''
-        const breakWorkName = isUsed ? processingSeat.break_work_name : ''
-        const seatColor = isUsed ? processingSeat.appearance.color_code1 : Constants.emptySeatColor
-        const isBreak = isUsed && processingSeat.state === SeatState.Break
-        const numStars = isUsed ? processingSeat.appearance.num_stars : 0
 
-        const profileImageUrl = isUsed ? processingSeat.user_profile_image_url : ''
         const minutesElapsed = isUsed
             ? Math.floor(
                   (new Date().valueOf() -
@@ -118,17 +112,11 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
         const hoursRemaining = isUsed ? Math.floor(minutesRemaining / 60) : 0
 
         return (
-            // for each seat
             <SeatBox
+                key={globalSeatId}
                 globalSeatId={globalSeatId}
-                workName={workName}
-                breakWorkName={breakWorkName}
-                isBreak={isBreak}
-                numStars={numStars}
                 isUsed={isUsed}
                 memberOnly={props.memberOnly}
-                seatColor={seatColor}
-                profileImageUrl={profileImageUrl}
                 processingSeat={processingSeat}
                 seatPosition={seatPositions[index]}
                 seatShape={seatShape}
