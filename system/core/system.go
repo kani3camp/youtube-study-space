@@ -667,7 +667,8 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 				myfirestore.WorkState,
 				userDoc.IsContinuousActive,
 				time.Time{},
-				time.Time{})
+				time.Time{},
+				utils.JstNow())
 			if err != nil {
 				s.MessageToOwnerWithError("failed to enter room", err)
 				return err
@@ -1915,8 +1916,8 @@ func (s *System) enterRoom(
 	isContinuousActive bool,
 	breakStartedAt time.Time, // set when moving seat
 	breakUntil time.Time, // set when moving seat
+	enterDate time.Time,
 ) (int, error) {
-	enterDate := utils.JstNow()
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
 
 	var currentStateStartedAt time.Time
@@ -2124,7 +2125,8 @@ func (s *System) moveSeat(ctx context.Context, tx *firestore.Transaction, target
 		previousSeat.State,
 		previousUserDoc.IsContinuousActive,
 		previousSeat.CurrentStateStartedAt,
-		previousSeat.CurrentStateUntil)
+		previousSeat.CurrentStateUntil,
+		utils.JstNow())
 	if err != nil {
 		s.MessageToOwnerWithError("failed to enter room", err)
 		return 0, 0, 0, err
