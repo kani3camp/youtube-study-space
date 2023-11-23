@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"google.golang.org/api/iterator"
 	"os"
 	"testing"
 	"time"
@@ -15,8 +16,6 @@ import (
 
 func TestEnterRoom(t *testing.T) {
 	// 入室ができること
-
-	// TODO: ユーザーデータを作成しておく
 
 	setEnvErr := os.Setenv("FIRESTORE_EMULATOR_HOST", "localhost:8080")
 	if setEnvErr != nil {
@@ -47,16 +46,29 @@ func TestEnterRoom(t *testing.T) {
 
 	ctx := context.Background()
 
-	client, clientErr := firestore.NewClient(ctx, "test")
+	client, clientErr := firestore.NewClient(ctx, firestore.DetectProjectID)
 	if clientErr != nil {
 		t.Fatal(clientErr)
 	}
 	system := System{
 		FirestoreController: &myfirestore.FirestoreController{FirestoreClient: client},
 	}
-	defer func() {
+	t.Cleanup(func() {
 		system.CloseFirestoreClient()
-	}()
+	})
+
+	// ユーザーデータを作成しておく
+	userErr := system.FirestoreController.CreateUser(ctx, nil, userId, myfirestore.UserDoc{})
+	if userErr != nil {
+		t.Fatal(userErr)
+	}
+	t.Cleanup(func() {
+		userRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.USERS).Doc(userId)
+		err := system.FirestoreController.DeleteDocRef(ctx, nil, userRef)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	var resultUntilExitMin int
 	txErr := system.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -87,6 +99,12 @@ func TestEnterRoom(t *testing.T) {
 	if txErr != nil {
 		t.Fatal(txErr)
 	}
+	t.Cleanup(func() {
+		err := system.FirestoreController.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	// 入室したことを確認
 	seat, seatErr := system.FirestoreController.ReadSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
@@ -111,10 +129,40 @@ func TestEnterRoom(t *testing.T) {
 	}, seat)
 
 	// 履歴が作成されたことを確認
-	// TODO
+	iter := system.FirestoreController.FirestoreClient.Collection(myfirestore.UserActivities).Where(myfirestore.UserIdDocProperty, "==", userId).Documents(ctx)
+	var userActivities []myfirestore.UserActivityDoc
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		var userActivity myfirestore.UserActivityDoc
+		dataErr := doc.DataTo(&userActivity)
+		if dataErr != nil {
+			t.Fatal(dataErr)
+		}
+		t.Cleanup(func() {
+			userActivityRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.UserActivities).Doc(doc.Ref.ID)
+			err := system.FirestoreController.DeleteDocRef(ctx, nil, userActivityRef)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+		userActivities = append(userActivities, userActivity)
+	}
+	assert.Len(t, userActivities, 1)
+	userActivity := userActivities[0]
+	assert.Equal(t, myfirestore.UserActivityDoc{
+		UserId:       userId,
+		ActivityType: myfirestore.EnterRoomActivity,
+		SeatId:       inOption.SeatId,
+		IsMemberSeat: inOption.IsMemberSeat,
+		TakenAt:      enteredAt.UTC(),
+	}, userActivity)
 
 	// 自動退室予定時刻が正しいことを確認
 	assert.Equal(t, expectedUntilExitMin, resultUntilExitMin)
-
-	// TODO: 作成したDBデータの掃除
 }
