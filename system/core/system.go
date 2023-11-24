@@ -729,8 +729,8 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 			if userDoc.LastExited.IsZero() {
 				replyMessage = t("already-exit", s.ProcessedUserDisplayName)
 			} else {
-				localTime := userDoc.LastExited.In(utils.JapanLocation())
-				replyMessage = t("already-exit-with-last-exit-time", s.ProcessedUserDisplayName, localTime.Hour(), localTime.Minute())
+				lastExited := userDoc.LastExited.In(utils.JapanLocation())
+				replyMessage = t("already-exit-with-last-exit-time", s.ProcessedUserDisplayName, lastExited.Hour(), lastExited.Minute())
 			}
 			return nil
 		}
