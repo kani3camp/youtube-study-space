@@ -1,11 +1,16 @@
+//go:build integration
+
+// TODO: GitHub ActionsでFirestore Emulatorを使用するようになったら、このファイルも自動テスト対象に変更する。
+
 package core
 
 import (
 	"context"
-	"google.golang.org/api/iterator"
 	"os"
 	"testing"
 	"time"
+
+	"google.golang.org/api/iterator"
 
 	"app.modules/core/myfirestore"
 	"app.modules/core/utils"
