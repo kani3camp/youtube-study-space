@@ -51,19 +51,19 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		return System{}, err
 	}
 
-	// discord bot owner
+	// discord bot for system owner
 	discordOwnerBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelId)
 	if err != nil {
 		return System{}, err
 	}
 
-	// discord bot for share
+	// discord bot for sharing with moderators
 	discordSharedBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotTextChannelId)
 	if err != nil {
 		return System{}, err
 	}
 
-	// discord bot for share log
+	// discord bot for logging
 	discordSharedLogBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelId)
 	if err != nil {
 		return System{}, err
