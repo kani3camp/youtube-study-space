@@ -776,8 +776,8 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 			s.MessageToOwnerWithError("failed s.GetUserRealtimeTotalStudyDurations()", err)
 			return err
 		}
-		totalTimeStr := utils.DurationToString(totalStudyDuration)
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
+		totalTimeStr := utils.DurationToString(totalStudyDuration)
 		replyMessage += t("base", s.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
 		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
@@ -845,7 +845,7 @@ func (s *System) ShowSeatInfo(command *utils.CommandDetails, ctx context.Context
 			}
 
 			realtimeSittingDurationMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes())
-			realtimeTotalStudyDurationOfSeat, err := utils.RealTimeTotalStudyDurationOfSeat(currentSeat)
+			realtimeTotalStudyDurationOfSeat, err := utils.RealTimeTotalStudyDurationOfSeat(currentSeat, utils.JstNow())
 			if err != nil {
 				s.MessageToOwnerWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
 				return err
@@ -1540,7 +1540,7 @@ func (s *System) Break(ctx context.Context, command *utils.CommandDetails) error
 		if workedSec > utils.SecondsOfDay(jstNow) {
 			dailyCumulativeWorkSec = utils.SecondsOfDay(jstNow)
 		} else {
-			dailyCumulativeWorkSec = workedSec
+			dailyCumulativeWorkSec = currentSeat.DailyCumulativeWorkSec + workedSec
 		}
 		currentSeat.State = myfirestore.BreakState
 		currentSeat.CurrentStateStartedAt = jstNow
@@ -2176,8 +2176,7 @@ func (s *System) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *fir
 		s.MessageToOwnerWithError("failed IsUserInRoom", err)
 		return 0, 0, err
 	}
-	isInRoom := isInMemberRoom || isInGeneralRoom
-	if isInRoom {
+	if isInMemberRoom || isInGeneralRoom {
 		// 作業時間を計算
 		currentSeat, cerr := s.CurrentSeat(ctx, userId, isInMemberRoom)
 		if cerr.IsNotNil() {
@@ -2186,12 +2185,12 @@ func (s *System) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *fir
 		}
 
 		var err error
-		realtimeDuration, err = utils.RealTimeTotalStudyDurationOfSeat(currentSeat)
+		realtimeDuration, err = utils.RealTimeTotalStudyDurationOfSeat(currentSeat, utils.JstNow())
 		if err != nil {
 			s.MessageToOwnerWithError("failed to RealTimeTotalStudyDurationOfSeat", err)
 			return 0, 0, err
 		}
-		realtimeDailyDuration, err = utils.RealTimeDailyTotalStudyDurationOfSeat(currentSeat)
+		realtimeDailyDuration, err = utils.RealTimeDailyTotalStudyDurationOfSeat(currentSeat, utils.JstNow())
 		if err != nil {
 			s.MessageToOwnerWithError("failed to RealTimeDailyTotalStudyDurationOfSeat", err)
 			return 0, 0, err

@@ -1,14 +1,8 @@
 package utils
 
 import (
-	"app.modules/core/i18n"
-	"app.modules/core/myfirestore"
 	"context"
 	"fmt"
-	"github.com/joho/godotenv"
-	"github.com/pkg/errors"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 	"image/color"
 	"log"
 	"reflect"
@@ -18,6 +12,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"app.modules/core/i18n"
+	"app.modules/core/myfirestore"
+	"github.com/joho/godotenv"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 )
 
 func JapanLocation() *time.Location {
@@ -230,12 +231,11 @@ func ContainsEmojiElementWithIndex(s []EmojiElement, e EmojiElement) (bool, int)
 	return false, 0
 }
 
-func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
-	jstNow := JstNow()
+func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc, now time.Time) (time.Duration, error) {
 	var duration time.Duration
 	switch seat.State {
 	case myfirestore.WorkState:
-		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
+		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
 	case myfirestore.BreakState:
 		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
 	default:
@@ -244,14 +244,13 @@ func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, 
 	return duration, nil
 }
 
-func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Duration, error) {
-	jstNow := JstNow()
+func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc, now time.Time) (time.Duration, error) {
 	var duration time.Duration
 	// 今のstateになってから日付が変っている可能性
-	if DateEqualJST(seat.CurrentStateStartedAt, jstNow) { // 日付変わってない
+	if DateEqualJST(seat.CurrentStateStartedAt, now) { // 日付変わってない
 		switch seat.State {
 		case myfirestore.WorkState:
-			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt))
+			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
 		case myfirestore.BreakState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
 		default:
@@ -260,7 +259,7 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc) (time.Durat
 	} else { // 日付変わってる
 		switch seat.State {
 		case myfirestore.WorkState:
-			duration = time.Duration(SecondsOfDay(jstNow)) * time.Second
+			duration = time.Duration(SecondsOfDay(now)) * time.Second
 		case myfirestore.BreakState:
 			duration = time.Duration(0)
 		}
