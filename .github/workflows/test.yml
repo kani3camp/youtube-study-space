@@ -24,7 +24,7 @@ jobs:
         working-directory: system
         run: |
           go mod tidy
-          go test -v ./...
+          go test -shuffle=on -v ./...
 
   go-lint:
     name: Go Lint

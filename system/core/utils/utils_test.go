@@ -1,9 +1,12 @@
 package utils
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"app.modules/core/myfirestore"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTodaySeconds(t *testing.T) {
@@ -23,7 +26,7 @@ func TestTodaySeconds(t *testing.T) {
 			ExpectedSeconds: 0,
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		seconds := SecondsOfDay(testCase.T)
 		assert.Equal(t, testCase.ExpectedSeconds, seconds)
@@ -52,7 +55,7 @@ func TestDivideStringEqually(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		strings := DivideStringEqually(testCase.InSize, testCase.InStrings)
 		assert.Equal(t, testCase.OutStrings, strings)
@@ -95,7 +98,7 @@ func TestIsEmojiCommandString(t *testing.T) {
 			Output: true,
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		out := MatchEmojiCommandString(testCase.Input)
 		if out != testCase.Output {
@@ -127,6 +130,105 @@ func TestReplaceAnyEmojiCommandStringWithSpace(t *testing.T) {
 			t.Error("input: ", testCase.Input)
 			t.Error("result: ", out)
 			t.Error("expected: ", testCase.Output)
+		}
+	}
+}
+
+func TestDurationToString(t *testing.T) {
+	type TestCase struct {
+		Input  time.Duration
+		Output string
+	}
+	testCases := [...]TestCase{
+		{
+			Input:  time.Duration(0),
+			Output: "0分",
+		},
+		{
+			Input:  time.Duration(1 * time.Minute),
+			Output: "1分",
+		},
+		{
+			Input:  time.Duration(1 * time.Hour),
+			Output: "1時間0分",
+		},
+		{
+			Input:  time.Duration(1*time.Hour + 1*time.Minute + 1*time.Second),
+			Output: "1時間1分",
+		},
+		{
+			Input:  time.Duration(1*time.Hour + 1*time.Minute + 1*time.Second + 1*time.Millisecond),
+			Output: "1時間1分",
+		},
+		{
+			Input:  time.Duration(24*time.Hour + 1*time.Minute),
+			Output: "24時間1分",
+		},
+	}
+	for _, testCase := range testCases {
+		out := DurationToString(testCase.Input)
+		if out != testCase.Output {
+			t.Error("input: ", testCase.Input)
+			t.Error("result: ", out)
+			t.Error("expected: ", testCase.Output)
+		}
+	}
+}
+
+func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
+	type TestCase struct {
+		Seat             myfirestore.SeatDoc
+		Now              time.Time
+		ExpectedDuration time.Duration
+	}
+	testCases := [...]TestCase{
+		{
+			Seat: myfirestore.SeatDoc{
+				State:                  myfirestore.WorkState,
+				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
+				DailyCumulativeWorkSec: 0,
+			},
+			Now:              time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
+			ExpectedDuration: 0,
+		},
+		{
+			Seat: myfirestore.SeatDoc{
+				State:                  myfirestore.WorkState,
+				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
+				DailyCumulativeWorkSec: 0,
+			},
+			Now:              time.Date(2021, 1, 1, 1, 1, 1, 0, JapanLocation()),
+			ExpectedDuration: 1*time.Hour + 1*time.Minute + 1*time.Second,
+		},
+		{
+			Seat: myfirestore.SeatDoc{
+				State:                  myfirestore.WorkState,
+				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
+				DailyCumulativeWorkSec: 0,
+			},
+			Now:              time.Date(2021, 1, 1, 0, 1, 0, 0, JapanLocation()),
+			ExpectedDuration: 1 * time.Minute,
+		},
+
+		{
+			Seat: myfirestore.SeatDoc{
+				State:                  myfirestore.WorkState,
+				CurrentStateStartedAt:  time.Date(2021, 1, 1, 12, 0, 0, 0, JapanLocation()),
+				DailyCumulativeWorkSec: int((time.Hour).Seconds()),
+			},
+			Now:              time.Date(2021, 1, 1, 12, 30, 0, 0, JapanLocation()),
+			ExpectedDuration: 1*time.Hour + 30*time.Minute,
+		},
+	}
+	for _, testCase := range testCases {
+		duration, err := RealTimeDailyTotalStudyDurationOfSeat(testCase.Seat, testCase.Now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if duration != testCase.ExpectedDuration {
+			t.Errorf("input: %#v", testCase)
+			t.Error("result: ", duration)
+			t.Error("expected: ", testCase.ExpectedDuration)
 		}
 	}
 }
