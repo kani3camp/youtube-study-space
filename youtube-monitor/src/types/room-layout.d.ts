@@ -1,6 +1,5 @@
 export type RoomLayout = {
     floor_image: string
-    version: number
     font_size_ratio: number
     room_shape: {
         height: number
@@ -19,7 +18,7 @@ export type RoomLayout = {
         id: number
         x: number
         y: number
-        rotate: number = 0 // CSSのtransformの仕様に合わせた回転方向、単位。
+        rotate: number // CSSのtransformの仕様に合わせた回転方向、単位。
     }[]
     partitions: {
         id: number

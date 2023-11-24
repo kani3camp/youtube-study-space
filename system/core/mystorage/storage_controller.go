@@ -1,14 +1,16 @@
 package mystorage
 
 import (
-	"app.modules/core/utils"
-	"cloud.google.com/go/storage"
 	"context"
-	"github.com/pkg/errors"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
 	"log"
 	"strings"
+
+	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
+
+	"app.modules/core/utils"
+	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
 )
 
 type StorageController struct {
@@ -47,15 +49,12 @@ func (controller *StorageController) GetGcsYesterdayExportFolderName(ctx context
 	}
 	bucket := controller.Client.Bucket(bucketName)
 	it := bucket.Objects(ctx, query)
-	for {
-		obj, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-		return strings.Split(obj.Name, "/")[0], nil
+	obj, err := it.Next()
+	if err == iterator.Done {
+		return "", errors.New("there is no object whose name begins with " + searchPrefix)
 	}
-	return "", errors.New("there is no object whose name begins with " + searchPrefix)
+	if err != nil {
+		return "", err
+	}
+	return strings.Split(obj.Name, "/")[0], nil
 }

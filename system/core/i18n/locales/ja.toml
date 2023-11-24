@@ -31,6 +31,7 @@
 
 [command-out]
 "already-exit" = "{0}さん、すでに退室しています" # 0: Username
+"already-exit-with-last-exit-time" = "{0}さん、すでに退室しています（前回の退出時刻：{1}時{2}分）" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
 
 [command-user-info]
 "base" = "{0} さん ［本日の作業時間：{1}] ［累計作業時間：{2}]" # 0: Username, 1: Daily Total Time, 2: Total Time

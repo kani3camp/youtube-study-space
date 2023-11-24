@@ -9,6 +9,8 @@
         "redhat.vscode-yaml",
         "streetsidesoftware.code-spell-checker",
         "antiantisepticeye.vscode-color-picker",
-        "styled-components.vscode-styled-components"
+        "styled-components.vscode-styled-components",
+        "orta.vscode-jest",
+        "firsttris.vscode-jest-runner"
     ]
 }

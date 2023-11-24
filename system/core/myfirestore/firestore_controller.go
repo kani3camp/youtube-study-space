@@ -1,15 +1,16 @@
 package myfirestore
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
+	"strconv"
+	"time"
+
+	"cloud.google.com/go/firestore"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"strconv"
-	"time"
 )
 
 type FirestoreController struct {
@@ -21,7 +22,7 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &FirestoreController{
 		FirestoreClient: client,
 	}, nil
@@ -340,9 +341,9 @@ func (c *FirestoreController) UpdateLiveChatId(ctx context.Context, tx *firestor
 	})
 }
 
-func (c *FirestoreController) CreateUser(tx *firestore.Transaction, userId string, userData UserDoc) error {
+func (c *FirestoreController) CreateUser(ctx context.Context, tx *firestore.Transaction, userId string, userData UserDoc) error {
 	ref := c.usersCollection().Doc(userId)
-	return c.create(nil, tx, ref, userData)
+	return c.create(ctx, tx, ref, userData)
 }
 
 func (c *FirestoreController) GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
@@ -434,14 +435,14 @@ func (c *FirestoreController) CreateSeat(tx *firestore.Transaction, seat SeatDoc
 	return tx.Create(ref, seat)
 }
 
-func (c *FirestoreController) UpdateSeat(tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error {
+func (c *FirestoreController) UpdateSeat(ctx context.Context, tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error {
 	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seat.SeatId))
-	return c.set(nil, tx, ref, seat)
+	return c.set(ctx, tx, ref, seat)
 }
 
-func (c *FirestoreController) DeleteSeat(tx *firestore.Transaction, seatId int, isMemberSeat bool) error {
+func (c *FirestoreController) DeleteSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) error {
 	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seatId))
-	return c.delete(nil, tx, ref)
+	return c.delete(ctx, tx, ref)
 }
 
 func (c *FirestoreController) CreateLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
@@ -457,9 +458,9 @@ func (c *FirestoreController) Get500LiveChatHistoryDocIdsBeforeDate(ctx context.
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
-func (c *FirestoreController) CreateUserActivityDoc(tx *firestore.Transaction, activity UserActivityDoc) error {
+func (c *FirestoreController) CreateUserActivityDoc(ctx context.Context, tx *firestore.Transaction, activity UserActivityDoc) error {
 	ref := c.userActivitiesCollection().NewDoc()
-	return c.create(nil, tx, ref, activity)
+	return c.create(ctx, tx, ref, activity)
 }
 
 func (c *FirestoreController) Get500UserActivityDocIdsBeforeDate(ctx context.Context, date time.Time,
@@ -526,25 +527,25 @@ func (c *FirestoreController) GetUsersActiveAfterDate(ctx context.Context, date 
 }
 
 func (c *FirestoreController) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(
-	tx *firestore.Transaction, userId string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
+	ctx context.Context, tx *firestore.Transaction, userId string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
 	ref := c.usersCollection().Doc(userId)
-	return c.update(nil, tx, ref, []firestore.Update{
+	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: IsContinuousActiveDocProperty, Value: isContinuousActive},
 		{Path: CurrentActivityStateStartedDocProperty, Value: currentActivityStateStarted},
 	})
 }
 
-func (c *FirestoreController) UpdateUserLastPenaltyImposedDays(tx *firestore.Transaction, userId string, lastPenaltyImposedDays int) error {
+func (c *FirestoreController) UpdateUserLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userId string, lastPenaltyImposedDays int) error {
 	ref := c.usersCollection().Doc(userId)
-	return c.update(nil, tx, ref, []firestore.Update{
+	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: LastPenaltyImposedDaysDocProperty, Value: lastPenaltyImposedDays},
 	})
 }
 
-func (c *FirestoreController) UpdateUserRPAndLastPenaltyImposedDays(tx *firestore.Transaction, userId string,
+func (c *FirestoreController) UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userId string,
 	newRP int, newLastPenaltyImposedDays int) error {
 	ref := c.usersCollection().Doc(userId)
-	return c.update(nil, tx, ref, []firestore.Update{
+	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: RankPointDocProperty, Value: newRP},
 		{Path: LastPenaltyImposedDaysDocProperty, Value: newLastPenaltyImposedDays},
 	})

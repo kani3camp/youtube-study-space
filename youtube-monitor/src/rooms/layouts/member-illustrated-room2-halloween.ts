@@ -1,7 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
 export const MemberIllustratedRoom2Halloween: RoomLayout = {
-    version: 1,
     floor_image: '/images/member_illustrated_room2_halloween.png',
     font_size_ratio: 0.017,
     room_shape: {

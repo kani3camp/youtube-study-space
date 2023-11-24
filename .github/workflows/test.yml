@@ -1,0 +1,62 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main, release, dev]
+  workflow_dispatch:
+
+jobs:
+  go-test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Go 1.19
+        uses: actions/setup-go@v4
+        with:
+          go-version: ^1.19
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+
+      - name: Get dependencies and run tests
+        working-directory: system
+        run: |
+          go mod tidy
+          go test -shuffle=on -v ./...
+
+  go-lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.19"
+          cache: false
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.54
+          working-directory: system
+          args: --timeout 5m
+
+  jest:
+    name: Jest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Install dependencies
+        run: npm install
+      - name: Run tests
+        run: npm test
