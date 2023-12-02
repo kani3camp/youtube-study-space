@@ -57,13 +57,13 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	channelClientOption := option.WithTokenSource(config.TokenSource(ctx, channelOauthToken))
 	service, err := youtube.NewService(ctx, channelClientOption)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println(err)
 		return err
 	}
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println(err)
 		return err
 	}
 

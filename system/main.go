@@ -32,18 +32,14 @@ func Init() (option.ClientOption, context.Context, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if creds.ProjectID == "youtube-study-space" || creds.ProjectID == "geek-library-space" {
-		fmt.Println("本番環境用のcredential (" + creds.ProjectID + ") が使われます。よろしいですか？(yes / no)")
-		var s string
-		_, _ = fmt.Scanln(&s)
-		if s != "yes" {
-			return nil, nil, errors.New("")
-		}
-	} else if creds.ProjectID == "test-youtube-study-space" {
-		log.Println("credential of test-youtube-study-space")
-	} else {
-		return nil, nil, errors.New("unknown project id on the credential.")
+	fmt.Printf("Project ID: %s\n", creds.ProjectID)
+	fmt.Println("Is this the correct project ID? (yes/no)")
+	var s string
+	_, _ = fmt.Scanln(&s)
+	if s != "yes" {
+		return nil, nil, errors.New("aborted")
 	}
+
 	return clientOption, ctx, nil
 }
 
@@ -204,8 +200,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 func main() {
 	clientOption, ctx, err := Init()
 	if err != nil {
-		log.Println(err.Error())
-		return
+		panic(err)
 	}
 
 	Bot(ctx, clientOption)
