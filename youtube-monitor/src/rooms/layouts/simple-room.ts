@@ -1,6 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const SimpleRoomLayout: RoomLayout = {
+export const SimpleRoom: RoomLayout = {
     floor_image: '',
     font_size_ratio: 0.018,
     room_shape: {
