@@ -1,6 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const oneSeatRoomLayout: RoomLayout = {
+export const oneSeatRoom: RoomLayout = {
     floor_image: '',
     font_size_ratio: 0.018,
     room_shape: {

@@ -1,22 +1,23 @@
 import { CHANNEL_GL, DEBUG } from '../lib/constants'
 import { RoomLayout } from '../types/room-layout'
-import { Anonymous1Layout } from './layouts/anonymous1'
-import { Chabio1Layout } from './layouts/chabio1-room'
-import { Chabio2Layout } from './layouts/chabio2-room'
-import { circleRoomLayout } from './layouts/circle-room'
-import { classRoomLayout } from './layouts/classroom'
-import { Freepik1RoomLayout } from './layouts/freepik1-room'
-import { Freepik2RoomLayout } from './layouts/freepik2-room'
-import { Freepik3RoomLayout } from './layouts/freepik3-room'
-import { Freepik4Layout } from './layouts/freepik4-room'
-import { Freepik5Layout } from './layouts/freepik5-room'
-import { Freepik6Layout } from './layouts/freepik6-room'
-import { GLAkihabaraLayout } from './layouts/gl-in-akihabara'
-import { GLOnlineLayout } from './layouts/gl-in-online-room'
-import { mazeRoomLayout } from './layouts/maze-room'
+import { Anonymous1Room } from './layouts/anonymous1'
+import { Chabio1Room } from './layouts/chabio1-room'
+import { Chabio2Room } from './layouts/chabio2-room'
+import { circleRoom } from './layouts/circle-room'
+import { classRoom } from './layouts/classroom'
+import { Freepik1Room } from './layouts/freepik1-room'
+import { Freepik2Room } from './layouts/freepik2-room'
+import { Freepik3Room } from './layouts/freepik3-room'
+import { Freepik4Room } from './layouts/freepik4-room'
+import { Freepik5Room } from './layouts/freepik5-room'
+import { Freepik7Room } from './layouts/freepik7-room'
+import { GLAkihabaraRoom } from './layouts/gl-in-akihabara'
+import { GLOnlineRoom } from './layouts/gl-in-online-room'
+import { mazeRoom } from './layouts/maze-room'
+import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
+import { MemberIllustratedRoomChristmas } from './layouts/member-illustrated-room-christmas'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
-import { MemberIllustratedRoom2Halloween } from './layouts/member-illustrated-room2-halloween'
-import { SeaOfSeatRoomLayout } from './layouts/sea-of-seat-room'
+import { SeaOfSeatRoom } from './layouts/sea-of-seat-room'
 
 type AllRoomsConfig = {
     generalBasicRooms: RoomLayout[]
@@ -26,48 +27,42 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [
-        mazeRoomLayout,
-        Anonymous1Layout,
-        Freepik6Layout,
-        Freepik1RoomLayout,
-        Freepik4Layout,
-    ],
+    generalBasicRooms: [mazeRoom, Anonymous1Room, Freepik7Room, Freepik1Room, Freepik4Room],
     generalTemporaryRooms: [
-        Chabio1Layout,
-        Freepik3RoomLayout,
-        classRoomLayout,
-        Freepik2RoomLayout,
-        Chabio2Layout,
-        circleRoomLayout,
-        Freepik5Layout,
-        SeaOfSeatRoomLayout,
+        Chabio1Room,
+        Freepik3Room,
+        classRoom,
+        Freepik2Room,
+        Chabio2Room,
+        circleRoom,
+        Freepik5Room,
+        SeaOfSeatRoom,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
+    memberBasicRooms: [MemberBoxRooms2, MemberIllustratedRoomChristmas],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberBoxRooms2, MemberIllustratedRoomChristmas],
 }
 
 const testAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [mazeRoomLayout, Freepik6Layout],
+    generalBasicRooms: [Freepik7Room, MemberBoxRooms2, MemberIllustratedRoomChristmas],
     generalTemporaryRooms: [
-        Anonymous1Layout,
-        Chabio1Layout,
-        Freepik1RoomLayout,
-        Freepik4Layout,
-        Freepik3RoomLayout,
-        classRoomLayout,
-        Freepik2RoomLayout,
-        Chabio2Layout,
-        circleRoomLayout,
-        Freepik5Layout,
-        SeaOfSeatRoomLayout,
+        Anonymous1Room,
+        Chabio1Room,
+        Freepik1Room,
+        Freepik4Room,
+        Freepik3Room,
+        classRoom,
+        Freepik2Room,
+        Chabio2Room,
+        circleRoom,
+        Freepik5Room,
+        SeaOfSeatRoom,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoom2Halloween],
+    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoomChristmas],
+    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoomChristmas],
 }
 
 const glRooms: AllRoomsConfig = {
-    generalBasicRooms: [GLOnlineLayout, GLAkihabaraLayout],
+    generalBasicRooms: [GLOnlineRoom, GLAkihabaraRoom],
     generalTemporaryRooms: [],
     memberBasicRooms: [],
     memberTemporaryRooms: [],
