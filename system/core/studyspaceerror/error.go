@@ -13,13 +13,6 @@ type ErrorType uint
 
 const (
 	Unknown ErrorType = iota
-
-	UserNotInTheRoom
-	NoSeatAvailable
-
-	InvalidCommand
-	ParseFailed
-	InvalidParsedCommand
 )
 
 type StudySpaceError struct {
@@ -32,13 +25,6 @@ func (et ErrorType) New(message string) StudySpaceError {
 }
 func (et ErrorType) Wrap(err error) StudySpaceError {
 	return StudySpaceError{ErrorType: et, Body: err}
-}
-
-func NewNil() StudySpaceError {
-	return StudySpaceError{
-		ErrorType: Unknown,
-		Body:      nil,
-	}
 }
 
 func (e *StudySpaceError) IsNil() bool {

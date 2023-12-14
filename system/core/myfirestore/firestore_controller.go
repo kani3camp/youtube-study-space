@@ -2,6 +2,7 @@ package myfirestore
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -20,7 +21,7 @@ type FirestoreController struct {
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreController, error) {
 	client, err := firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("in firestore.NewClient: %w", err)
 	}
 
 	return &FirestoreController{
@@ -139,7 +140,7 @@ func (c *FirestoreController) ReadCredentialsConfig(ctx context.Context, tx *fir
 	var credentialsData CredentialsConfigDoc
 	err = doc.DataTo(&credentialsData)
 	if err != nil {
-		return CredentialsConfigDoc{}, err
+		return CredentialsConfigDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return credentialsData, nil
 }
@@ -153,7 +154,7 @@ func (c *FirestoreController) ReadSystemConstantsConfig(ctx context.Context, tx 
 	var constantsConfig ConstantsConfigDoc
 	err = doc.DataTo(&constantsConfig)
 	if err != nil {
-		return ConstantsConfigDoc{}, err
+		return ConstantsConfigDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return constantsConfig, nil
 }
@@ -161,7 +162,7 @@ func (c *FirestoreController) ReadSystemConstantsConfig(ctx context.Context, tx 
 func (c *FirestoreController) ReadLiveChatId(ctx context.Context, tx *firestore.Transaction) (string, error) {
 	credentialsDoc, err := c.ReadCredentialsConfig(ctx, tx)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("in ReadCredentialsConfig: %w", err)
 	}
 	return credentialsDoc.YoutubeLiveChatId, nil
 }
@@ -169,7 +170,7 @@ func (c *FirestoreController) ReadLiveChatId(ctx context.Context, tx *firestore.
 func (c *FirestoreController) ReadNextPageToken(ctx context.Context, tx *firestore.Transaction) (string, error) {
 	credentialsDoc, err := c.ReadCredentialsConfig(ctx, tx)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("in ReadCredentialsConfig: %w", err)
 	}
 	return credentialsDoc.YoutubeLiveChatNextPageToken, nil
 }
@@ -212,12 +213,12 @@ func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
 			break
 		}
 		if err != nil {
-			return []SeatDoc{}, err
+			return []SeatDoc{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var seatDoc SeatDoc
 		err = doc.DataTo(&seatDoc)
 		if err != nil {
-			return []SeatDoc{}, err
+			return []SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		seats = append(seats, seatDoc)
 	}
@@ -233,7 +234,7 @@ func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transa
 	var seatDoc SeatDoc
 	err = doc.DataTo(&seatDoc)
 	if err != nil {
-		return SeatDoc{}, err
+		return SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return seatDoc, nil
 }
@@ -250,7 +251,7 @@ func (c *FirestoreController) ReadSeatWithUserId(ctx context.Context, userId str
 		var seatDoc SeatDoc
 		err := docs[0].DataTo(&seatDoc)
 		if err != nil {
-			return SeatDoc{}, err
+			return SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		return seatDoc, nil
 	}
@@ -302,7 +303,7 @@ func (c *FirestoreController) ReadUser(ctx context.Context, tx *firestore.Transa
 	userData := UserDoc{}
 	err = doc.DataTo(&userData)
 	if err != nil {
-		return UserDoc{}, err
+		return UserDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return userData, nil
 }
@@ -509,12 +510,12 @@ func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActi
 			break
 		}
 		if err != nil {
-			return []UserActivityDoc{}, err
+			return []UserActivityDoc{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var activity UserActivityDoc
 		err = doc.DataTo(&activity)
 		if err != nil {
-			return []UserActivityDoc{}, err
+			return []UserActivityDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		activityList = append(activityList, activity)
 	}
@@ -581,12 +582,12 @@ func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimi
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var seatLimitDoc SeatLimitDoc
 		err = doc.DataTo(&seatLimitDoc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		seatLimits = append(seatLimits, seatLimitDoc)
 	}

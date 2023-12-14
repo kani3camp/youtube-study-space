@@ -22,7 +22,7 @@ const (
 	TestEmojiMy0       = ":_commandMy0:"
 	TestEmojiRank0     = ":_commandRank0:"
 	TestEmojiMemberIn0 = ":_commandMemberIn0:"
-	
+
 	TestEmojiMin0     = ":_commandMin0:"
 	TestEmoji360Min0  = ":_command360Min0:"
 	TestEmojiColor0   = ":_commandColor0:"
@@ -38,7 +38,7 @@ func TestParseCommand(t *testing.T) {
 		Output   *CommandDetails
 		WillErr  bool
 	}
-	
+
 	testCases := [...]TestCase{
 		{
 			Input: "in",
@@ -223,7 +223,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input:    TestEmojiIn0,
 			IsMember: true,
@@ -415,7 +415,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!out",
 			Output: &CommandDetails{
@@ -429,7 +429,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: NotCommand,
 			},
 		},
-		
+
 		{
 			Input:    "!out",
 			IsMember: true,
@@ -444,7 +444,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: Out,
 			},
 		},
-		
+
 		{
 			Input: "!info",
 			Output: &CommandDetails{
@@ -477,7 +477,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: NotCommand,
 			},
 		},
-		
+
 		{
 			Input:    "!info",
 			IsMember: true,
@@ -532,7 +532,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!my rank=on",
 			Output: &CommandDetails{
@@ -635,7 +635,7 @@ func TestParseCommand(t *testing.T) {
 				MyOptions:   []MyOption{},
 			},
 		},
-		
+
 		{
 			Input:    "!my color=白 min=200 rank=off",
 			IsMember: true,
@@ -715,7 +715,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!change m=140 w=新",
 			Output: &CommandDetails{
@@ -741,7 +741,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: Change,
 			},
 		},
-		
+
 		{
 			Input:    "!change m=140 w=新",
 			IsMember: true,
@@ -821,7 +821,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!rank",
 			Output: &CommandDetails{
@@ -835,7 +835,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: NotCommand,
 			},
 		},
-		
+
 		{
 			Input: "!more 123",
 			Output: &CommandDetails{
@@ -872,7 +872,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input:    "!more 20",
 			IsMember: true,
@@ -938,7 +938,7 @@ func TestParseCommand(t *testing.T) {
 			IsMember: true,
 			WillErr:  true,
 		},
-		
+
 		{
 			Input: "!break",
 			Output: &CommandDetails{
@@ -961,7 +961,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input:    TestEmojiBreak0,
 			IsMember: true,
@@ -1012,7 +1012,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!resume",
 			Output: &CommandDetails{
@@ -1044,7 +1044,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: Resume,
 			},
 		},
-		
+
 		{
 			Input:    "!resume",
 			IsMember: true,
@@ -1081,7 +1081,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!seat",
 			Output: &CommandDetails{
@@ -1103,7 +1103,7 @@ func TestParseCommand(t *testing.T) {
 				CommandType: NotCommand,
 			},
 		},
-		
+
 		{
 			Input:    "!seat",
 			IsMember: true,
@@ -1147,7 +1147,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!kick 12",
 			Output: &CommandDetails{
@@ -1157,7 +1157,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!check 14",
 			Output: &CommandDetails{
@@ -1167,7 +1167,7 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		
+
 		{
 			Input: "!report めっせーじ",
 			Output: &CommandDetails{
@@ -1187,19 +1187,19 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, testCase := range testCases {
-		out, err := ParseCommand(testCase.Input, testCase.IsMember)
+		out, message := ParseCommand(testCase.Input, testCase.IsMember)
 		if testCase.WillErr {
-			if err.IsNil() {
-				t.Error("err expected, but nil.")
+			if message == "" {
+				t.Error("message expected, but nil.")
 				t.Error("input: ", testCase.Input)
 				t.Errorf("out: %# v\n", pretty.Formatter(out))
 			}
 		} else {
-			if err.IsNotNil() {
+			if message != "" {
 				t.Error("input: ", testCase.Input)
-				t.Error(err)
+				t.Error(message)
 			}
 			if !reflect.DeepEqual(out, testCase.Output) {
 				t.Errorf("input: %s\n", testCase.Input)
@@ -1240,7 +1240,7 @@ func TestExtractAllEmojiCommands(t *testing.T) {
 			Output2: " ピンク",
 		},
 	}
-	
+
 	for _, testCase := range testCases {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(testCase.Input)
 		if !reflect.DeepEqual(emojis, testCase.Output1) {
@@ -1252,7 +1252,7 @@ func TestExtractAllEmojiCommands(t *testing.T) {
 			t.Error("command details do not match.")
 		}
 	}
-	
+
 }
 
 func TestParseEmojiWorkNameOption(t *testing.T) {

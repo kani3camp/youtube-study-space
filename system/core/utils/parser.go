@@ -6,11 +6,10 @@ import (
 	"strings"
 
 	"app.modules/core/i18n"
-	"app.modules/core/studyspaceerror"
 )
 
 // ParseCommand コマンドを解析
-func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
 
@@ -25,7 +24,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspace
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,
-			}, studyspaceerror.NewNil()
+			}, ""
 		case InfoCommand:
 			return ParseInfo(emojiExcludedString, isMember, emojis)
 		case MyCommand:
@@ -66,9 +65,9 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspace
 		case RankCommand:
 			return &CommandDetails{
 				CommandType: Rank,
-			}, studyspaceerror.NewNil()
+			}, ""
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
-			return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:isolated-!"))
+			return nil, i18n.T("parse:isolated-!")
 		default: // !席番号 or 間違いコマンド
 			// !席番号かどうか
 			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
@@ -84,10 +83,10 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspace
 			// 間違いコマンド
 			return &CommandDetails{
 				CommandType: InvalidCommand,
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 	} else if strings.HasPrefix(fullString, WrongCommandPrefix) {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:non-half-width-!"))
+		return nil, i18n.T("parse:non-half-width-!")
 	} else if isMember && strings.HasPrefix(fullString, EmojiCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
 		if len(emojis) > 0 {
@@ -101,7 +100,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspace
 			case EmojiOut:
 				return &CommandDetails{
 					CommandType: Out,
-				}, studyspaceerror.NewNil()
+				}, ""
 			case EmojiInfo:
 				fallthrough
 			case EmojiInfoD:
@@ -125,7 +124,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, studyspace
 	}
 	return &CommandDetails{
 		CommandType: NotCommand,
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
 func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
@@ -182,13 +181,13 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 	return emojis, emojiExcludedString
 }
 
-func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 
 	// 追加オプションチェック
-	options, err := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
-	if err.IsNotNil() {
-		return nil, err
+	options, message := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
+	if message != "" {
+		return nil, message
 	}
 
 	return &CommandDetails{
@@ -198,16 +197,16 @@ func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTar
 			MinutesAndWorkName: options,
 			IsMemberSeat:       isTargetMemberSeat,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 追加オプションチェック
-	options, err := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
-	if err.IsNotNil() {
-		return nil, err
+	options, message := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
+	if message != "" {
+		return nil, message
 	}
 
 	return &CommandDetails{
@@ -218,10 +217,10 @@ func ParseSeatIn(seatNum int, commandString string, fullString string, isMember 
 			MinutesAndWorkName: options,
 			IsMemberSeat:       isMemberSeat,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	if isMember {
@@ -231,7 +230,7 @@ func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*Com
 				InfoOption: InfoOption{
 					ShowDetails: true,
 				},
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 		if ContainsEmojiElement(emojis, EmojiInfo) {
 			showDetails := Contains(slice, ShowDetailsOption)
@@ -240,7 +239,7 @@ func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*Com
 				InfoOption: InfoOption{
 					ShowDetails: showDetails,
 				},
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 	}
 
@@ -256,24 +255,24 @@ func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*Com
 		InfoOption: InfoOption{
 			ShowDetails: showDetails,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseMy(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseMy(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
-	options, err := ParseMyOptions(slice[1:], fullString, isMember, emojis)
-	if err.IsNotNil() {
-		return nil, err
+	options, message := ParseMyOptions(slice[1:], fullString, isMember, emojis)
+	if message != "" {
+		return nil, message
 	}
 
 	return &CommandDetails{
 		CommandType: My,
 		MyOptions:   options,
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) ([]MyOption, studyspaceerror.StudySpaceError) {
+func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) ([]MyOption, string) {
 	isRankVisibleSet := false
 	isDefaultStudyMinSet := false
 	isFavoriteColorSet := false
@@ -298,7 +297,7 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 			} else if emoji == EmojiMin && !isDefaultStudyMinSet {
 				num, err := ParseEmojiDurationMinOption(fullString, true)
 				if err != nil {
-					return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+					return nil, i18n.T("parse:check-option", TimeOptionPrefix)
 				}
 				options = append(options, MyOption{
 					Type:     DefaultStudyMin,
@@ -325,7 +324,7 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 			} else if rankVisibleStr == RankVisibleMyOptionOff {
 				rankVisible = false
 			} else {
-				return []MyOption{}, studyspaceerror.InvalidCommand.New(i18n.T("parse:check-option", RankVisibleMyOptionPrefix))
+				return []MyOption{}, i18n.T("parse:check-option", RankVisibleMyOptionPrefix)
 			}
 			options = append(options, MyOption{
 				Type:      RankVisible,
@@ -335,10 +334,10 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
 			var durationMin int
 			// 0もしくは空欄ならリセットなので、空欄も許可。リセットは内部的には0で扱う。
-			var cerr studyspaceerror.StudySpaceError
-			durationMin, cerr = ParseDurationMinOption([]string{str}, fullString, false, true, isMember, emojis)
-			if cerr.IsNotNil() {
-				return nil, cerr
+			var message string
+			durationMin, message = ParseDurationMinOption([]string{str}, fullString, false, true, isMember, emojis)
+			if message != "" {
+				return nil, message
 			}
 			options = append(options, MyOption{
 				Type:     DefaultStudyMin,
@@ -354,21 +353,21 @@ func ParseMyOptions(strSlice []string, fullString string, isMember bool, emojis 
 			isFavoriteColorSet = true
 		}
 	}
-	return options, studyspaceerror.NewNil()
+	return options, ""
 }
 
-func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	var kickSeatId int
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return nil, studyspaceerror.ParseFailed.New(i18n.T("parse:invalid-seat-id"))
+			return nil, i18n.T("parse:invalid-seat-id")
 		}
 		kickSeatId = num
 	} else {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
+		return nil, i18n.T("parse:missing-seat-id")
 	}
 
 	return &CommandDetails{
@@ -377,21 +376,21 @@ func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, 
 			SeatId:             kickSeatId,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	var targetSeatId int
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:invalid-seat-id"))
+			return nil, i18n.T("parse:invalid-seat-id")
 		}
 		targetSeatId = num
 	} else {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
+		return nil, i18n.T("parse:missing-seat-id")
 	}
 
 	return &CommandDetails{
@@ -400,21 +399,21 @@ func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails,
 			SeatId:             targetSeatId,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	var targetSeatId int
 	if len(slice) >= 2 {
 		num, err := strconv.Atoi(slice[1])
 		if err != nil {
-			return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:invalid-seat-id"))
+			return nil, i18n.T("parse:invalid-seat-id")
 		}
 		targetSeatId = num
 	} else {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-seat-id"))
+		return nil, i18n.T("parse:missing-seat-id")
 	}
 
 	return &CommandDetails{
@@ -423,15 +422,15 @@ func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails,
 			SeatId:             targetSeatId,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseReport(commandString string) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseReport(commandString string) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	var reportMessage string
 	if len(slice) == 1 {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-message", ReportCommand))
+		return nil, i18n.T("parse:missing-message", ReportCommand)
 	} else { // len(slice) > 1
 		reportMessage = commandString
 	}
@@ -441,25 +440,25 @@ func ParseReport(commandString string) (*CommandDetails, studyspaceerror.StudySp
 		ReportOption: ReportOption{
 			Message: reportMessage,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseChange(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseChange(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 追加オプションチェック
-	options, err := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
-	if err.IsNotNil() {
-		return nil, err
+	options, message := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
+	if message != "" {
+		return nil, message
 	}
 
 	return &CommandDetails{
 		CommandType:  Change,
 		ChangeOption: *options,
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	if isMember {
@@ -469,7 +468,7 @@ func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*Com
 				SeatOption: SeatOption{
 					ShowDetails: true,
 				},
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 		if ContainsEmojiElement(emojis, EmojiSeat) { // "{InfoEmoji}d" is NG. A space required.
 			showDetails := Contains(slice, ShowDetailsOption)
@@ -478,7 +477,7 @@ func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*Com
 				SeatOption: SeatOption{
 					ShowDetails: showDetails,
 				},
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 	}
 
@@ -494,37 +493,37 @@ func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*Com
 		SeatOption: SeatOption{
 			ShowDetails: showDetails,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseMore(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseMore(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 延長時間
 	var durationMin int
 	if isMember {
 		if ContainsEmojiElement(emojis, EmojiMore) {
-			durationMin, cerr := ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
-			if cerr.IsNotNil() {
-				return nil, cerr
+			durationMin, message := ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
+			if message != "" {
+				return nil, message
 			}
 			return &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
 					DurationMin: durationMin,
 				},
-			}, studyspaceerror.NewNil()
+			}, ""
 		}
 	}
 
 	if len(slice) >= 2 {
-		var cerr studyspaceerror.StudySpaceError
-		durationMin, cerr = ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
-		if cerr.IsNotNil() {
-			return nil, cerr
+		var message string
+		durationMin, message = ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
+		if message != "" {
+			return nil, message
 		}
 	} else {
-		return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-more-option")) // !more doesn't need 'min=' prefix.
+		return nil, i18n.T("parse:missing-more-option") // !more doesn't need 'min=' prefix.
 	}
 
 	return &CommandDetails{
@@ -532,25 +531,25 @@ func ParseMore(commandString string, fullString string, isMember bool, emojis []
 		MoreOption: MoreOption{
 			DurationMin: durationMin,
 		},
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseBreak(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseBreak(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 追加オプションチェック
-	options, cerr := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
-	if cerr.IsNotNil() {
-		return nil, cerr
+	options, message := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
+	if message != "" {
+		return nil, message
 	}
 
 	return &CommandDetails{
 		CommandType: Break,
 		BreakOption: *options,
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
-func ParseResume(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, studyspaceerror.StudySpaceError) {
+func ParseResume(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 作業名
@@ -559,7 +558,7 @@ func ParseResume(commandString string, fullString string, isMember bool, emojis 
 	return &CommandDetails{
 		CommandType:  Resume,
 		ResumeOption: option,
-	}, studyspaceerror.NewNil()
+	}, ""
 }
 
 func ParseWorkNameOption(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) WorkNameOption {
@@ -587,37 +586,37 @@ func ParseWorkNameOption(strSlice []string, fullString string, isMember bool, em
 	}
 }
 
-func ParseDurationMinOption(strSlice []string, fullString string, allowNonPrefix bool, allowEmpty bool, isMember bool, emojis []EmojiElement) (int, studyspaceerror.StudySpaceError) {
+func ParseDurationMinOption(strSlice []string, fullString string, allowNonPrefix bool, allowEmpty bool, isMember bool, emojis []EmojiElement) (int, string) {
 	if isMember {
 		if ContainsEmojiElement(emojis, EmojiMin) {
 			num, err := ParseEmojiDurationMinOption(fullString, allowEmpty)
 			if err != nil {
-				return 0, studyspaceerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+				return 0, i18n.T("parse:check-option", TimeOptionPrefix)
 			}
-			return num, studyspaceerror.NewNil()
+			return num, ""
 		}
 	}
 
 	for _, str := range strSlice {
 		if allowEmpty && IsEmptyTimeOption(str) {
-			return 0, studyspaceerror.NewNil()
+			return 0, ""
 		} else if HasTimeOptionPrefix(str) {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err == nil {
-				return num, studyspaceerror.NewNil()
+				return num, ""
 			}
 		} else if allowNonPrefix {
 			num, err := strconv.Atoi(str)
 			if err == nil {
-				return num, studyspaceerror.NewNil()
+				return num, ""
 			}
 		}
 	}
-	return 0, studyspaceerror.InvalidCommand.New(i18n.T("parse:missing-time-option", TimeOptionPrefix))
+	return 0, i18n.T("parse:missing-time-option", TimeOptionPrefix)
 }
 
 func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) (*MinutesAndWorkNameOption,
-	studyspaceerror.StudySpaceError) {
+	string) {
 	var options MinutesAndWorkNameOption
 
 	if isMember {
@@ -629,7 +628,7 @@ func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMemb
 		if ContainsEmojiElement(emojis, EmojiMin) && !options.IsDurationMinSet {
 			num, err := ParseEmojiDurationMinOption(fullString, false)
 			if err != nil {
-				return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
 			}
 			options.DurationMin = num
 			options.IsDurationMinSet = true
@@ -644,13 +643,13 @@ func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMemb
 		} else if (HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
-				return nil, studyspaceerror.InvalidCommand.New(i18n.T("parse:check-option", TimeOptionPrefix))
+				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
 			}
 			options.DurationMin = num
 			options.IsDurationMinSet = true
 		}
 	}
-	return &options, studyspaceerror.NewNil()
+	return &options, ""
 }
 
 func ParseEmojiWorkNameOption(fullString string) string {
