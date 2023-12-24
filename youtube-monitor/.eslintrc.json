@@ -6,14 +6,9 @@
     },
     "extends": [
         "eslint:recommended",
-        // "plugin:import/errors",
-        // "plugin:import/warnings",
-        // "plugin:import/typescript",
-        // "plugin:@typescript-eslint/eslint-recommended",
         "plugin:@typescript-eslint/recommended",
-        // "plugin:prettier/recommended",
-        "prettier"
-        // "eslint-plugin-prettier",
+        "prettier",
+        "plugin:@next/next/recommended"
     ],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
@@ -33,7 +28,7 @@
             }
         ],
         "semi": ["error", "never"],
-        "no-extra-semi": "error", // 余分なセミコロンを禁止する
+        "no-extra-semi": "error",
         "no-unused-vars": "warn",
         "comma-dangle": "off",
         "no-console": "off",

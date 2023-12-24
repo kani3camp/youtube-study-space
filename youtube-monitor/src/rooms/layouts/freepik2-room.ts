@@ -1,8 +1,7 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const Freepik2RoomLayout: RoomLayout = {
+export const Freepik2Room: RoomLayout = {
     floor_image: '/images/freepik2-room.png',
-    version: 1,
     font_size_ratio: 0.015,
     room_shape: {
         width: 1520,

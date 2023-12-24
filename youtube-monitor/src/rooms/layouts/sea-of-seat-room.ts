@@ -1,7 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const SeaOfSeatRoomLayout: RoomLayout = {
-    version: 1,
+export const SeaOfSeatRoom: RoomLayout = {
     floor_image: '',
     font_size_ratio: 0.02,
     room_shape: {

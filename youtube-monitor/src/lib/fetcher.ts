@@ -19,7 +19,7 @@ const wrap = <T>(task: Promise<Response>): Promise<T> =>
         })
     })
 
-const fetcher = <T = any>(url: RequestInfo, init: RequestInit = {}): Promise<T> => {
+const fetcher = <T = unknown>(url: RequestInfo, init: RequestInit = {}): Promise<T> => {
     const requestHeaders: HeadersInit = new Headers()
     const apiKey = process.env.NEXT_PUBLIC_API_KEY
     if (apiKey === undefined) {

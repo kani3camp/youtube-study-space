@@ -16,7 +16,7 @@ import SeatsPage, { LayoutPageProps } from './SeatsPage'
 import { initializeApp } from 'firebase/app'
 import { collection, doc, getFirestore, onSnapshot, query } from 'firebase/firestore'
 import { useRouter } from 'next/router'
-import { useInterval } from '../lib/common'
+import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 import {
     firestoreConstantsConverter,
@@ -423,21 +423,6 @@ const Seats: FC = () => {
         if (currentPageIndex >= newPageProps.length) {
             setCurrentPageIndex(0)
         }
-    }
-
-    /**
-     * Number of seats of the given layouts.
-     * @param layouts
-     * @returns
-     */
-    const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
-        let count = 0
-        for (const layout of layouts) {
-            if (layout) {
-                count += layout.seats.length
-            }
-        }
-        return count
     }
 
     const messageMemo = useMemo(
