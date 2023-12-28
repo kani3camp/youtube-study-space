@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -143,9 +143,9 @@ func (s *System) SetProcessedUser(userId string, userDisplayName string, userPro
 func (s *System) CloseFirestoreClient() {
 	err := s.FirestoreController.FirestoreClient.Close()
 	if err != nil {
-		log.Println("failed close firestore client.")
+		slog.Error("failed close firestore client.")
 	} else {
-		log.Println("successfully closed firestore client.")
+		slog.Info("successfully closed firestore client.")
 	}
 }
 
@@ -157,11 +157,11 @@ func (s *System) GetInfoString() string {
 // GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
 func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(s.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
-	log.Printf("居座りチェックの最小間隔: %v\n", minimumInterval)
+	slog.Info("居座りチェックの最小間隔: %v\n", minimumInterval)
 
 	var err error
 	for {
-		log.Println("checking long time sitting")
+		slog.Info("checking long time sitting.")
 		start := utils.JstNow()
 
 		err = s.CheckLongTimeSitting(ctx, true)
@@ -245,7 +245,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 }
 
 func (s *System) AdjustMaxSeats(ctx context.Context) error {
-	log.Println("AdjustMaxSeats()")
+	slog.Info(utils.NameOf(s.AdjustMaxSeats))
 	// UpdateDesiredMaxSeats()などはLambdaからも並列で実行される可能性があるが、競合が起こってもそこまで深刻な問題にはならないためトランザクションは使用しない。
 
 	constants, err := s.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
@@ -291,11 +291,10 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 				return fmt.Errorf("in ReadGeneralSeats(): %w", err)
 			}
 			if int(float32(constants.DesiredMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
-				message := "減らそうとしすぎ。desiredは却下します。" +
-					"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
-					"current max seats: " + strconv.Itoa(constants.MaxSeats) + ", " +
-					"current seats: " + strconv.Itoa(len(seats))
-				log.Println(message)
+				slog.Info("減らそうとしすぎ。desiredは却下します。",
+					"desired", constants.DesiredMaxSeats,
+					"current max seats", constants.MaxSeats,
+					"current seats length", len(seats))
 				if err := s.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, constants.MaxSeats); err != nil {
 					return fmt.Errorf("in UpdateDesiredMaxSeats(): %w", err)
 				}
@@ -370,11 +369,10 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 				return fmt.Errorf("in ReadMemberSeats(): %w", err)
 			}
 			if int(float32(constants.DesiredMemberMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
-				message := "減らそうとしすぎ。desiredは却下します。" +
-					"desired: " + strconv.Itoa(constants.DesiredMaxSeats) + ", " +
-					"current member max seats: " + strconv.Itoa(constants.MemberMaxSeats) + ", " +
-					"current seats: " + strconv.Itoa(len(seats))
-				log.Println(message)
+				slog.Warn("減らそうとしすぎ。desiredは却下します。",
+					"desired", constants.DesiredMaxSeats,
+					"current member max seats", constants.MemberMaxSeats,
+					"current seats length", len(seats))
 				if err := s.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, constants.MemberMaxSeats); err != nil {
 					return fmt.Errorf("in UpdateDesiredMemberMaxSeats(): %w", err)
 				}
@@ -471,7 +469,6 @@ func (s *System) Command(
 		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+message)
 		return nil
 	}
-	//log.Printf("parsed command: %# v\n", pretty.Formatter(commandDetails))
 
 	if message = s.ValidateCommand(*commandDetails); message != "" {
 		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+message)
@@ -1741,7 +1738,7 @@ func (s *System) IsUserInRoom(ctx context.Context, userId string) (isInMemberRoo
 }
 
 func (s *System) CreateUser(ctx context.Context, tx *firestore.Transaction) error {
-	log.Println("CreateUser()")
+	slog.Info(utils.NameOf(s.CreateUser))
 	userData := myfirestore.UserDoc{
 		DailyTotalStudySec: 0,
 		TotalStudySec:      0,
@@ -1980,8 +1977,8 @@ func (s *System) exitRoom(
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
 
-	log.Printf("%s exited the room. seat id: %d (+ %d秒)\n", previousSeat.UserId, previousSeat.SeatId, addedWorkedTimeSec)
-	log.Printf("addedRP: %d, newRP: %d, previous RP: %d\n", addedRP, newRP, previousUserDoc.RankPoint)
+	slog.Info("%s exited the room. seat id: %d (+ %d秒)\n", previousSeat.UserId, previousSeat.SeatId, addedWorkedTimeSec)
+	slog.Info("addedRP: %d, newRP: %d, previous RP: %d\n", addedRP, newRP, previousUserDoc.RankPoint)
 	return addedWorkedTimeSec, addedRP, nil
 }
 
@@ -2174,10 +2171,10 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 				message = i18n.T("command:exit", s.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 				return nil
 			})
-			if err != nil {
-				log.Println(err)
+			if err != nil { // log err but continues
+				slog.Error("error in transaction", "err", err)
 			}
-			log.Println(message)
+			slog.Info(message)
 		}
 	}
 	return nil
@@ -2197,7 +2194,7 @@ func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 func (s *System) MessageToOwner(message string) {
 	err := s.discordOwnerBot.SendMessage(message)
 	if err != nil {
-		log.Println("failed to send message to owner: ", err)
+		slog.Error("failed to send message to owner.", "err", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
@@ -2205,7 +2202,7 @@ func (s *System) MessageToOwner(message string) {
 func (s *System) MessageToOwnerWithError(message string, argErr error) {
 	err := s.discordOwnerBot.SendMessageWithError(message, argErr)
 	if err != nil {
-		log.Println("failed to send message to owner: ", err)
+		slog.Error("failed to send message to owner.", "err", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
@@ -2244,7 +2241,7 @@ func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
 }
 
 func (s *System) GetUserIdsToProcessRP(ctx context.Context) ([]string, error) {
-	log.Println("GetUserIdsToProcessRP()")
+	slog.Info(utils.NameOf(s.GetUserIdsToProcessRP))
 	jstNow := utils.JstNow()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
@@ -2438,7 +2435,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("len(whiteListForUserAndSeat) > 1")
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
-			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in white list. skipping.")
+			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in white list. skipping.")
 			return false, nil
 		}
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
@@ -2447,7 +2444,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, errors.New("len(blackListForUserAndSeat) > 1")
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
-			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in black list. skipping.")
+			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in black list. skipping.")
 			return true, nil
 		}
 		// ブラックリストに入っているが、期限切れのためチェックを続行
@@ -2458,7 +2455,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 	}
 
-	log.Printf("[%s] 過去%d分以内に%d番席に合計%d分入室\n", userId, s.Configs.Constants.RecentRangeMin, seatId, int(totalEntryDuration.Minutes()))
+	slog.Info("[%s] 過去%d分以内に%d番席に合計%d分入室\n", userId, s.Configs.Constants.RecentRangeMin, seatId, int(totalEntryDuration.Minutes()))
 
 	// 制限値と比較
 	ifSittingTooMuch := int(totalEntryDuration.Minutes()) > s.Configs.Constants.RecentThresholdMin
@@ -2471,7 +2468,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 			if err != nil {
 				return false, fmt.Errorf("in CreateSeatLimitInWHITEList(): %w", err)
 			}
-			log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to white list.")
+			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to white list.")
 		}
 	} else {
 		// ブラックリストに登録
@@ -2480,7 +2477,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		if err != nil {
 			return false, fmt.Errorf("in CreateSeatLimitInBLACKList(): %w", err)
 		}
-		log.Println("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to black list.")
+		slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to black list.")
 	}
 
 	return ifSittingTooMuch, nil
@@ -2492,11 +2489,11 @@ func (s *System) GetRecentUserSittingTimeForSeat(ctx context.Context, userId str
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
 	enterRoomActivities, err := s.FirestoreController.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId, isMemberSeat)
 	if err != nil {
-		return 0, fmt.Errorf("in GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(): %w", err)
+		return 0, fmt.Errorf("in "+utils.NameOf(s.FirestoreController.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat)+": %w", err)
 	}
 	exitRoomActivities, err := s.FirestoreController.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId, isMemberSeat)
 	if err != nil {
-		return 0, fmt.Errorf("in GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(): %w", err)
+		return 0, fmt.Errorf("in "+utils.NameOf(s.FirestoreController.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat)+": %w", err)
 	}
 	activityOnlyEnterExitList := append(enterRoomActivities, exitRoomActivities...)
 
@@ -2506,18 +2503,16 @@ func (s *System) GetRecentUserSittingTimeForSeat(ctx context.Context, userId str
 	utils.SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
 	orderOK := utils.CheckEnterExitActivityOrder(activityOnlyEnterExitList)
 	if !orderOK {
-		log.Printf("activity list: \n%v\n", pretty.Formatter(activityOnlyEnterExitList))
 		return 0, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
 	}
 
-	log.Println("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
+	slog.Info("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
 
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
 	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
 	lastEnteredTimestamp := checkDurationFrom
 	for i, activity := range activityOnlyEnterExitList {
-		//log.Println(activity.TakenAt.In(utils.JapanLocation()).String() + "に" + string(activity.ActivityType))
 		if activity.ActivityType == myfirestore.EnterRoomActivity {
 			lastEnteredTimestamp = activity.TakenAt
 			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算

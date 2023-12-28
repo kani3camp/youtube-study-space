@@ -3,7 +3,7 @@ package discordbot
 import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
-	"log"
+	"log/slog"
 )
 
 type DiscordBot struct {
@@ -24,7 +24,7 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 }
 
 func (bot *DiscordBot) SendMessage(message string) error {
-	log.Println("sending a message to Discord \"", message+"\"")
+	slog.Info("sending a message to Discord.", "message", message)
 	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
 	if err != nil {
 		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)

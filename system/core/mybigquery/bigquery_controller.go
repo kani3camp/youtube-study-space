@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -35,9 +35,9 @@ func NewBigqueryClient(ctx context.Context, projectId string, clientOption optio
 func (c *BigqueryController) CloseClient() {
 	err := c.Client.Close()
 	if err != nil {
-		log.Println("failed to close bigquery client.")
+		slog.Error("failed to close bigquery client.")
 	} else {
-		log.Println("successfully closed bigquery client.")
+		slog.Info("successfully closed bigquery client.")
 	}
 }
 
@@ -67,10 +67,9 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return err
 		}
 		if status.State == bigquery.Done {
-			log.Println("GCSからbqの一時テーブルまでデータの読込が完了")
+			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了")
 		} else {
-			log.Println("GCSからbqの一時テーブルまでデータの読込: ")
-			log.Println(status.State)
+			slog.Info("GCSからbqの一時テーブルまでデータの読込: %v", "state", status.State)
 			return errors.New("failed transfer data from gcs to bigquery temporary table.")
 		}
 
@@ -94,7 +93,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return fmt.Errorf("in iteratorSize: %w", err)
 		}
 		if numRows == 0 {
-			log.Println("number of loaded rows is zero.")
+			slog.Info("number of loaded rows is zero.")
 			continue
 		}
 
@@ -130,13 +129,13 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return fmt.Errorf("in status.Err: %w", err)
 		}
 		if status.State == bigquery.Done {
-			log.Println("bqの一時テーブルからメインテーブルまでデータの移行が完了")
+			slog.Info("bqの一時テーブルからメインテーブルまでデータの移行が完了")
 		} else {
-			log.Printf("bqの一時テーブルからメインテーブルまでデータの移行: %v\n", status.State)
+			slog.Error("bqの一時テーブルからメインテーブルまでデータの移行結果", "state", status.State)
 			return errors.New("failed transfer data from bigquery temporary table to main table.")
 		}
 	}
-	log.Println("finished all collection's processes.")
+	slog.Info("finished all collection's processes.")
 	return nil
 }
 

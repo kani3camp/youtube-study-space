@@ -2,6 +2,7 @@ package youtubebot
 
 import (
 	"app.modules/core/myfirestore"
+	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
 	"github.com/pkg/errors"
@@ -9,7 +10,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
-	"log"
+	"log/slog"
 	"strconv"
 	"unicode/utf8"
 )
@@ -98,8 +99,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 	}
 	response, err := listCall.Do()
 	if err != nil {
-		log.Println("first call failed in ListMessages().")
-		log.Println(err)
+		slog.Error("first call failed in ListMessages().", "err", err)
 
 		// errのステータスコードを確認
 		var errGoogle *googleapi.Error
@@ -119,19 +119,19 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		case 500:
 			return nil, "", 0, nil
 		default:
-			log.Println("Unknown status code: ", errGoogle.Code)
+			slog.Warn("Unknown status code.", "code", errGoogle.Code)
 			return nil, "", 0, err
 		}
 
 		// second call
-		log.Println("trying second call in ListMessages()...")
+		slog.Info("trying second call in ListMessages()...")
 		listCall := liveChatMessageService.List(b.LiveChatId, part)
 		if nextPageToken != "" {
 			listCall = listCall.PageToken(nextPageToken)
 		}
 		response, err = listCall.Do()
 		if err != nil {
-			log.Println("second call failed in ListMessages().")
+			slog.Error("second call failed in ListMessages().")
 			return nil, "", 0, err
 		}
 	}
@@ -139,7 +139,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 }
 
 func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) error {
-	log.Println("sending a message to Youtube Live \"" + message + "\"")
+	slog.Info("sending a message to Youtube Live.", "message", message)
 
 	if utf8.RuneCountInString(message) <= MaxLiveChatMessageLength {
 		return b.postMessage(ctx, message)
@@ -193,14 +193,14 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	// first call
 	_, err := insertCall.Do()
 	if err != nil {
-		log.Println("first post was failed", err)
+		slog.Error("first post was failed", "err", err)
 		// second call
 		_, err := insertCall.Do()
 		if err == nil {
-			log.Println("second post succeeded!")
+			slog.Info("second post succeeded!")
 			return nil
 		}
-		log.Println("second post was failed", err)
+		slog.Error("second post was failed", "err", err)
 
 		// live chat idが変わっている可能性があるため、更新して再試行
 		err = b.refreshLiveChatId(ctx)
@@ -214,10 +214,10 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
 		_, err = insertCall.Do()
 		if err != nil {
-			log.Println("third post was failed")
+			slog.Error("third post was failed", "err", err)
 			return err
 		}
-		log.Println("third post succeeded!")
+		slog.Info("third post succeeded!")
 	}
 
 	return nil
@@ -225,14 +225,14 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 
 // refreshLiveChatId live chat idを取得するとともに、firestoreに保存（更新）する
 func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
-	log.Println("refreshLiveChatId()")
+	slog.Info(utils.NameOf(b.refreshLiveChatId))
 	broadCastsService := youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 	part := []string{"snippet"}
 	listCall := broadCastsService.List(part).BroadcastStatus("active")
 	response, err := listCall.Do()
 	if err != nil {
-		log.Println("first call failed in refreshLiveChatId().")
-		log.Println("trying second call in refreshLiveChatId()...")
+		slog.Error("first call failed", "err", err)
+		slog.Info("trying second call...")
 		broadCastsService = youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 		listCall = broadCastsService.List(part).BroadcastStatus("active")
 		response, err = listCall.Do()
@@ -242,7 +242,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 	}
 	if len(response.Items) == 1 {
 		newLiveChatId := response.Items[0].Snippet.LiveChatId
-		log.Println("live chat id :", newLiveChatId)
+		slog.Info("new live chat id :" + newLiveChatId)
 		err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
 		if err != nil {
 			return err
@@ -250,7 +250,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		b.LiveChatId = newLiveChatId
 		return nil
 	} else if len(response.Items) == 0 {
-		log.Println("ライブ1個もやってない（1回目）")
+		slog.Warn("ライブ1個もやってない（1回目）")
 
 		// たまに、配信してるのにこの結果になることがあるかも（未確認）しれないので、もう一度。
 		broadCastsService := youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
@@ -258,8 +258,8 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		listCall := broadCastsService.List(part).BroadcastStatus("active")
 		response, err := listCall.Do()
 		if err != nil {
-			log.Println("first call failed in refreshLiveChatId().")
-			log.Println("trying second call in refreshLiveChatId()...")
+			slog.Error("first call failed", "err", err)
+			slog.Info("trying second call...")
 			broadCastsService = youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 			listCall = broadCastsService.List(part).BroadcastStatus("active")
 			response, err = listCall.Do()
@@ -269,7 +269,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		}
 		if len(response.Items) == 1 {
 			newLiveChatId := response.Items[0].Snippet.LiveChatId
-			log.Println("live chat id :", newLiveChatId)
+			slog.Info("new live chat id :" + newLiveChatId)
 			err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
 			if err != nil {
 				return err
@@ -291,7 +291,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
 	err := b.banRequest(b.LiveChatId, userId)
 	// first call
 	if err != nil {
-		log.Println("first banRequest was failed", err)
+		slog.Error("first banRequest was failed", "err", err)
 
 		// live chat idが変わっている可能性があるため、更新して再試行
 		err := b.refreshLiveChatId(ctx)
@@ -302,7 +302,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
 		// second call
 		err = b.banRequest(b.LiveChatId, userId)
 		if err != nil {
-			log.Println("second banRequest was failed")
+			slog.Error("second banRequest was failed", "err", err)
 			return err
 		}
 	}

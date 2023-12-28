@@ -14,7 +14,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
+	"log/slog"
 	"reflect"
 	"strconv"
 	"time"
@@ -25,23 +25,23 @@ import (
 // - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
 // - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
 func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
-	log.Println(utils.FuncNameOf(s.OrganizeDB), "isMemberRoom:", isMemberRoom)
+	slog.Info(utils.NameOf(s.OrganizeDB), "isMemberRoom", isMemberRoom)
 	var err error
 
-	log.Println("自動退室")
+	slog.Info("自動退室")
 	// 全座席のスナップショットをとる（トランザクションなし）
 	err = s.OrganizeDBAutoExit(ctx, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in OrganizeDBAutoExit(): %w", err)
 	}
 
-	log.Println("作業再開")
+	slog.Info("作業再開")
 	err = s.OrganizeDBResume(ctx, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in OrganizeDBResume(): %w", err)
 	}
 
-	log.Println("一時着席制限ブラックリスト・ホワイトリストのクリーニング")
+	slog.Info("一時着席制限ブラックリスト・ホワイトリストのクリーニング")
 	err = s.OrganizeDBDeleteExpiredSeatLimits(ctx, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in OrganizeDBDeleteExpiredSeatLimits(): %w", err)
@@ -56,7 +56,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredUntil(): %w", err)
 	}
-	log.Println("自動退室候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
+	slog.Info("自動退室候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
 
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
@@ -67,13 +67,13 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
-					log.Println("すぐ前に退室したということなのでスルー")
+					slog.Info("すぐ前に退室したということなのでスルー")
 					return nil
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
 			if !reflect.DeepEqual(seat, seatSnapshot) {
-				log.Println("その座席に少しでも変更が加えられているのでスルー")
+				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
 
@@ -124,7 +124,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredBreakUntil(): %w", err)
 	}
-	log.Println("作業再開候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
+	slog.Info("作業再開候補" + strconv.Itoa(len(candidateSeatsSnapshot)) + "人")
 
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
@@ -135,13 +135,13 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
-					log.Println("すぐ前に退室したということなのでスルー")
+					slog.Info("すぐ前に退室したということなのでスルー")
 					return nil
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
 			if !reflect.DeepEqual(seat, seatSnapshot) {
-				log.Println("その座席に少しでも変更が加えられているのでスルー")
+				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
 
@@ -230,7 +230,7 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 }
 
 func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc, isMemberSeat bool) error {
-	log.Println(strconv.Itoa(len(seatsSnapshot)) + "人")
+	slog.Info(utils.NameOf(s.OrganizeDBForceMove), "isMemberSeat", isMemberSeat, "len(seatsSnapshot)", len(seatsSnapshot))
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
 		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -240,13 +240,13 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberSeat)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
-					log.Println("すぐ前に退室したということなのでスルー")
+					slog.Info("すぐ前に退室したということなのでスルー")
 					return nil
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
 			if !reflect.DeepEqual(seat, seatSnapshot) {
-				log.Println("その座席に少しでも変更が加えられているのでスルー")
+				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
 
@@ -296,17 +296,17 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 }
 
 func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
-	log.Println("DailyOrganizeDB()")
+	slog.Info(utils.NameOf(s.DailyOrganizeDB))
 	var lineMessage string
 
-	log.Println("一時的累計作業時間をリセット")
+	slog.Info("一時的累計作業時間をリセット")
 	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		return []string{}, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 	}
 	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 
-	log.Println("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
+	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
 	userIdsToProcessRP, err := s.GetUserIdsToProcessRP(ctx)
 	if err != nil {
 		return []string{}, fmt.Errorf("in GetUserIdsToProcessRP(): %w", err)
@@ -315,12 +315,12 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
 	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
 	s.MessageToOwner(lineMessage)
-	log.Println("finished DailyOrganizeDB().")
+	slog.Info("finished " + utils.NameOf(s.DailyOrganizeDB))
 	return userIdsToProcessRP, nil
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
-	log.Println("ResetDailyTotalStudyTime()")
+	slog.Info(utils.NameOf(s.ResetDailyTotalStudyTime))
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Configs.Constants.LastResetDailyTotalStudySec.In(utils.JapanLocation())
 	now := utils.JstNow()
@@ -385,7 +385,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 }
 
 func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
-	log.Println("[userId: " + userId + "] processing RP.")
+	slog.Info("processing RP.", "userId", userId)
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, userId)
 		if err != nil {
@@ -394,7 +394,7 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 
 		// 同日の重複処理防止チェック
 		if utils.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
-			log.Println("user " + userId + " is already RP processed today, skipping.")
+			slog.Warn("user " + userId + " is already RP processed today, skipping.")
 			return nil
 		}
 
@@ -435,7 +435,7 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 }
 
 func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
-	log.Println("BackupCollectionHistoryFromGcsToBigquery()")
+	slog.Info(utils.NameOf(s.BackupCollectionHistoryFromGcsToBigquery))
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Configs.Constants.LastTransferCollectionHistoryBigquery.In(utils.JapanLocation())
 	now := utils.JstNow()
@@ -467,7 +467,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return fmt.Errorf("in ReadCollectionsFromGcs(): %w", err)
 		}
-		log.Println("successfully transfer yesterday's live chat history to bigquery.")
+		slog.Info("successfully transfer yesterday's live chat history to bigquery.")
 
 		// 一定期間前のライブチャットおよびユーザー行動ログを削除
 		// 何日以降分を保持するか求める
@@ -481,9 +481,9 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return fmt.Errorf("in DeleteCollectionHistoryBeforeDate(): %w", err)
 		}
-		log.Println(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
+		slog.Info(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
 			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。")
-		log.Printf("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d\n", numRowsLiveChat, numRowsUserActivity)
+		slog.Info("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d\n", numRowsLiveChat, numRowsUserActivity)
 
 		err = s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now)
 		if err != nil {
