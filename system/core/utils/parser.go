@@ -119,6 +119,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiResume:
 				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
+			default:
 			}
 		}
 	}

@@ -38,8 +38,9 @@ func (s *System) ValidateCommand(command utils.CommandDetails) string {
 		return s.ValidateResume(command)
 	case utils.Rank:
 		return ""
+	default:
+		return ""
 	}
-	return ""
 }
 
 func (s *System) ValidateIn(command utils.CommandDetails) string {
@@ -65,7 +66,7 @@ func (s *System) ValidateIn(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateInfo(command utils.CommandDetails) string {
+func (s *System) ValidateInfo(_ utils.CommandDetails) string {
 	// pass
 
 	return ""
@@ -109,7 +110,7 @@ func (s *System) ValidateMy(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateSeat(command utils.CommandDetails) string {
+func (s *System) ValidateSeat(_ utils.CommandDetails) string {
 	// pass
 
 	return ""
@@ -212,7 +213,7 @@ func (s *System) ValidateBreak(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateResume(command utils.CommandDetails) string {
+func (s *System) ValidateResume(_ utils.CommandDetails) string {
 	// 作業名
 	// pass
 

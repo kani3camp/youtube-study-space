@@ -37,7 +37,7 @@ func (c *FirestoreController) get(ctx context.Context, tx *firestore.Transaction
 	}
 }
 
-func (c *FirestoreController) create(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}, opts ...firestore.SetOption) error {
+func (c *FirestoreController) create(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}) error {
 	if tx != nil {
 		return tx.Create(ref, data)
 	} else {
@@ -209,7 +209,7 @@ func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
 	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
 	for {
 		doc, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -506,7 +506,7 @@ func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActi
 	var activityList []UserActivityDoc
 	for {
 		doc, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -578,7 +578,7 @@ func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimi
 	var seatLimits []SeatLimitDoc
 	for {
 		doc, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

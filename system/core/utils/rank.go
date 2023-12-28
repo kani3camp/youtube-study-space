@@ -180,13 +180,6 @@ func PenaltyMagnificationByInactiveDays(inactiveDays int) (float64, int) {
 	}
 }
 
-// WasUserActiveFromYesterday 昨日か今日にactiveかどうか
-func WasUserActiveFromYesterday(lastEntered, lastExited, now time.Time) bool {
-	yesterday := now.AddDate(0, 0, -1)
-	lastActiveAt := LastActiveAt(lastEntered, lastExited, now)
-	return DateEqualJST(lastActiveAt, yesterday) || DateEqualJST(lastActiveAt, now)
-}
-
 // LastActiveAt 最近activeだった日時。現在を含む。
 func LastActiveAt(lastEntered, lastExited, now time.Time) time.Time {
 	if lastEntered.Before(lastExited) {
