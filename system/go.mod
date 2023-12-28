@@ -1,6 +1,6 @@
 module app.modules
 
-go 1.19
+go 1.21
 
 require (
 	cloud.google.com/go/bigquery v1.50.0
