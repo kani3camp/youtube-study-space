@@ -102,12 +102,12 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		log.Println(err)
 
 		// errのステータスコードを確認
-		var gerr *googleapi.Error
-		ok := errors.As(err, &gerr)
+		var errGoogle *googleapi.Error
+		ok := errors.As(err, &errGoogle)
 		if !ok {
 			return nil, "", 0, errors.New("failed to cast error to googleapi.Error")
 		}
-		switch gerr.Code {
+		switch errGoogle.Code {
 		case 403:
 			fallthrough
 		case 404:
@@ -119,7 +119,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		case 500:
 			return nil, "", 0, nil
 		default:
-			log.Println("unknown status code: " + strconv.Itoa(gerr.Code))
+			log.Println("Unknown status code: ", errGoogle.Code)
 			return nil, "", 0, err
 		}
 

@@ -1020,7 +1020,7 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 		// ターゲットの座席は誰か使っているか
 		isSeatAvailable, err := s.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
-			return err
+			return fmt.Errorf("in IfSeatVacant(): %w", err)
 		}
 		if isSeatAvailable {
 			replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
@@ -1035,7 +1035,7 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 				return nil
 			}
 			s.MessageToOwnerWithError("in ReadSeat", err)
-			return err
+			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 		replyMessage = s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
 
