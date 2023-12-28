@@ -53,7 +53,7 @@ func Get7daysBefore(date time.Time) time.Time {
 func LoadEnv(relativeEnvPath string) {
 	err := godotenv.Load(relativeEnvPath)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println(err)
 		log.Fatal("Error loading .env file")
 	}
 }

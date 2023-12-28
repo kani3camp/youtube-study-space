@@ -26,13 +26,13 @@ type AccessTokenResponseStruct struct {
 func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreController, ctx context.Context) (*YoutubeLiveChatBot, error) {
 	var channelYoutubeService *youtube.Service
 	var botYoutubeService *youtube.Service
-	
+
 	txErr := controller.FirestoreClient.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		credentials, err := controller.ReadCredentialsConfig(ctx, tx)
 		if err != nil {
 			return err
 		}
-		
+
 		// channel
 		channelConfig := &oauth2.Config{
 			ClientID:     credentials.YoutubeChannelClientId,
@@ -51,7 +51,7 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 		if err != nil {
 			return err
 		}
-		
+
 		// bot
 		botConfig := &oauth2.Config{
 			ClientID:     credentials.YoutubeBotClientId,
@@ -75,7 +75,7 @@ func NewYoutubeLiveChatBot(liveChatId string, controller *myfirestore.FirestoreC
 	if txErr != nil {
 		return nil, txErr
 	}
-	
+
 	return &YoutubeLiveChatBot{
 		LiveChatId:            liveChatId,
 		ChannelYoutubeService: channelYoutubeService,
@@ -90,7 +90,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		"snippet",
 		"authorDetails",
 	}
-	
+
 	// first call
 	listCall := liveChatMessageService.List(b.LiveChatId, part)
 	if nextPageToken != "" {
@@ -100,13 +100,14 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 	if err != nil {
 		log.Println("first call failed in ListMessages().")
 		log.Println(err)
-		
+
 		// errのステータスコードを確認
-		gerr, ok := err.(*googleapi.Error)
+		var errGoogle *googleapi.Error
+		ok := errors.As(err, &errGoogle)
 		if !ok {
 			return nil, "", 0, errors.New("failed to cast error to googleapi.Error")
 		}
-		switch gerr.Code {
+		switch errGoogle.Code {
 		case 403:
 			fallthrough
 		case 404:
@@ -118,10 +119,10 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 		case 500:
 			return nil, "", 0, nil
 		default:
-			log.Println("unknown status code: " + strconv.Itoa(gerr.Code))
+			log.Println("Unknown status code: ", errGoogle.Code)
 			return nil, "", 0, err
 		}
-		
+
 		// second call
 		log.Println("trying second call in ListMessages()...")
 		listCall := liveChatMessageService.List(b.LiveChatId, part)
@@ -139,7 +140,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 
 func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) error {
 	log.Println("sending a message to Youtube Live \"" + message + "\"")
-	
+
 	if utf8.RuneCountInString(message) <= MaxLiveChatMessageLength {
 		return b.postMessage(ctx, message)
 	}
@@ -156,7 +157,7 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) er
 			}
 			p = i
 		}
-		
+
 		// リストに追加
 		messages = append(messages, message[:p])
 		message = message[p:]
@@ -174,7 +175,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	if len(message) == 0 {
 		return errors.New("message length is 0.")
 	}
-	
+
 	part := []string{"snippet"}
 	liveChatMessage := youtube.LiveChatMessage{
 		Snippet: &youtube.LiveChatMessageSnippet{
@@ -188,7 +189,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	}
 	liveChatMessageService := youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 	insertCall := liveChatMessageService.Insert(part, &liveChatMessage)
-	
+
 	// first call
 	_, err := insertCall.Do()
 	if err != nil {
@@ -200,13 +201,13 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 			return nil
 		}
 		log.Println("second post was failed", err)
-		
+
 		// live chat idが変わっている可能性があるため、更新して再試行
 		err = b.refreshLiveChatId(ctx)
 		if err != nil {
 			return err
 		}
-		
+
 		// third call
 		liveChatMessage.Snippet.LiveChatId = b.LiveChatId
 		liveChatMessageService = youtube.NewLiveChatMessagesService(b.BotYoutubeService)
@@ -218,7 +219,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		}
 		log.Println("third post succeeded!")
 	}
-	
+
 	return nil
 }
 
@@ -250,7 +251,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		return nil
 	} else if len(response.Items) == 0 {
 		log.Println("ライブ1個もやってない（1回目）")
-		
+
 		// たまに、配信してるのにこの結果になることがあるかも（未確認）しれないので、もう一度。
 		broadCastsService := youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 		part := []string{"snippet"}
@@ -287,19 +288,19 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
 func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
-	err := b.banRequest(ctx, b.LiveChatId, userId)
+	err := b.banRequest(b.LiveChatId, userId)
 	// first call
 	if err != nil {
 		log.Println("first banRequest was failed", err)
-		
+
 		// live chat idが変わっている可能性があるため、更新して再試行
 		err := b.refreshLiveChatId(ctx)
 		if err != nil {
 			return err
 		}
-		
+
 		// second call
-		err = b.banRequest(ctx, b.LiveChatId, userId)
+		err = b.banRequest(b.LiveChatId, userId)
 		if err != nil {
 			log.Println("second banRequest was failed")
 			return err
@@ -308,7 +309,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
 	return nil
 }
 
-func (b *YoutubeLiveChatBot) banRequest(ctx context.Context, liveChatId string, userId string) error {
+func (b *YoutubeLiveChatBot) banRequest(liveChatId string, userId string) error {
 	part := []string{"snippet"}
 	liveChatBan := youtube.LiveChatBan{
 		Snippet: &youtube.LiveChatBanSnippet{
@@ -321,7 +322,7 @@ func (b *YoutubeLiveChatBot) banRequest(ctx context.Context, liveChatId string, 
 	}
 	liveChatBanService := youtube.NewLiveChatBansService(b.BotYoutubeService)
 	insertCall := liveChatBanService.Insert(part, &liveChatBan)
-	
+
 	_, err := insertCall.Do()
 	return err
 }

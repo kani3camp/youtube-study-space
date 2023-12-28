@@ -1,6 +1,7 @@
 package discordbot
 
 import (
+	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"log"
 )
@@ -15,7 +16,7 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &DiscordBot{
 		session:       session,
 		textChannelId: textChannelId,
@@ -26,12 +27,12 @@ func (bot *DiscordBot) SendMessage(message string) error {
 	log.Println("sending a message to Discord \"", message+"\"")
 	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
 	if err != nil {
-		return err
+		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)
 	}
 	return nil
 }
 
 func (bot *DiscordBot) SendMessageWithError(message string, err error) error {
-	message += ":\n" + err.Error()
+	message += ":\n" + fmt.Sprintf("%+v", err)
 	return bot.SendMessage(message)
 }

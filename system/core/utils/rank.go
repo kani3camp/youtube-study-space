@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"time"
 )
@@ -20,39 +21,30 @@ func CalcNewRPExitRoom(
 	previousRankPoint int,
 ) (int, error) {
 	basePoint := int(netStudyDuration.Minutes())
-	
-	//log.Println("netStudyDuration: ", netStudyDuration)
-	//log.Println("isWorkNameSet: ", isWorkNameSet)
-	//log.Println("yesterdayContinuedActive: ", yesterdayContinuedActive)
-	//log.Println("currentStateStarted: ", currentStateStarted)
-	//log.Println("lastActiveAt: ", lastActiveAt)
-	//log.Println("previousRankPoint: ", previousRankPoint)
-	//log.Println("now: ", JstNow())
-	//log.Println("basePoint: ", basePoint)
-	
+
 	var workNameSetMagnification float64          // 作業内容設定倍率
 	var continuousActiveDaysMagnification float64 // 連続入室日数倍率
 	var rankMagnification float64                 // ランクによる倍率
-	
+
 	if isWorkNameSet {
 		workNameSetMagnification = 1.1
 	} else {
 		workNameSetMagnification = 1
 	}
-	
+
 	continuousActiveDays, err := CalcContinuousActiveDays(yesterdayContinuedActive, currentStateStarted, lastActiveAt)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("in CalcContinuousActiveDays: %w", err)
 	}
 	continuousActiveDaysMagnification = 1 + 0.01*float64(continuousActiveDays)
 	if continuousActiveDaysMagnification > 2 {
 		continuousActiveDaysMagnification = 2
 	}
-	
+
 	rankMagnification = MagnificationByRP(previousRankPoint)
-	
+
 	addedRP := int(float64(basePoint) * workNameSetMagnification * continuousActiveDaysMagnification * rankMagnification)
-	
+
 	return ApplyRPRange(previousRankPoint + addedRP), nil
 }
 
@@ -81,16 +73,16 @@ func DailyUpdateRankPoint(
 		}
 		isContinuousActive = false
 	}
-	
+
 	// 最終active日時が一定日数以上前のユーザーはRPペナルティ処理
 	if !isContinuousActive {
 		var err error
 		rankPoint, lastPenaltyImposedDays, err = CalcNewRPContinuousInactivity(rankPoint, lastActiveAt, lastPenaltyImposedDays)
 		if err != nil {
-			return 0, false, time.Time{}, 0, err
+			return 0, false, time.Time{}, 0, fmt.Errorf("in CalcNewRPContinuousInactivity: %w", err)
 		}
 	}
-	
+
 	return lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, nil
 }
 
@@ -98,7 +90,7 @@ func DailyUpdateRankPoint(
 func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastPenaltyImposedDays int) (int, int, error) {
 	inactiveDays, err := CalcContinuousInactiveDays(lastActiveAt)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("in CalcContinuousInactiveDays: %w", err)
 	}
 	if lastPenaltyImposedDays > inactiveDays {
 		return 0, 0, errors.New("lastPenaltyImposedDays > inactiveDays")
@@ -124,7 +116,7 @@ func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 // CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。
 func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted time.Time, lastActiveAt time.Time) (int, error) {
 	jstNow := JstNow()
-	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) { // 未来の日時はおかしい
+	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
 		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true.")
 	}
 	if yesterdayContinuedActive {
@@ -186,13 +178,6 @@ func PenaltyMagnificationByInactiveDays(inactiveDays int) (float64, int) {
 	} else {
 		return 1, 0
 	}
-}
-
-// WasUserActiveFromYesterday 昨日か今日にactiveかどうか
-func WasUserActiveFromYesterday(lastEntered, lastExited, now time.Time) bool {
-	yesterday := now.AddDate(0, 0, -1)
-	lastActiveAt := LastActiveAt(lastEntered, lastExited, now)
-	return DateEqualJST(lastActiveAt, yesterday) || DateEqualJST(lastActiveAt, now)
 }
 
 // LastActiveAt 最近activeだった日時。現在を含む。

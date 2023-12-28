@@ -108,17 +108,13 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 
 	sys.MessageToOwner("direct op: UpdateUsersRP")
 
-	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
+	userIdsToProcessRP, err := sys.GetUserIdsToProcessRP(ctx)
 	if err != nil {
-		log.Println("failed to GetUserIdsToProcessRP", err)
+		log.Println("in GetUserIdsToProcessRP: ", err)
 		panic(err)
 	}
 
-	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
-	if err != nil {
-		log.Println("failed to UpdateUserRPBatch", err)
-		panic(err)
-	}
+	remainingUserIds := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
 
 	log.Println("remaining user ids:")
 	log.Println(remainingUserIds)

@@ -33,11 +33,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 	defer sys.CloseFirestoreClient()
 
 	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
-	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
-	if err != nil {
-		sys.MessageToOwnerWithError("failed to UpdateUserRPBatch", err)
-		return ProcessUserRPParallelResponseStruct{}, err
-	}
+	remainingUserIds := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
 
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
