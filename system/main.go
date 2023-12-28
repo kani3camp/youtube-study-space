@@ -197,7 +197,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(sys.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
-		slog.Info("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
+		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
 }

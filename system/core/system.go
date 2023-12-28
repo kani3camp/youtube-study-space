@@ -157,7 +157,7 @@ func (s *System) GetInfoString() string {
 // GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
 func (s *System) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(s.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
-	slog.Info("居座りチェックの最小間隔: %v\n", minimumInterval)
+	slog.Info("", "居座りチェックの最小間隔", minimumInterval)
 
 	var err error
 	for {
@@ -1977,8 +1977,13 @@ func (s *System) exitRoom(
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
 
-	slog.Info("%s exited the room. seat id: %d (+ %d秒)\n", previousSeat.UserId, previousSeat.SeatId, addedWorkedTimeSec)
-	slog.Info("addedRP: %d, newRP: %d, previous RP: %d\n", addedRP, newRP, previousUserDoc.RankPoint)
+	slog.Info("user exited the room.",
+		"userId", previousSeat.UserId,
+		"seatId", previousSeat.SeatId,
+		"addedWorkedTimeSec", addedWorkedTimeSec,
+		"addedRP", addedRP,
+		"newRP", newRP,
+		"previous RP", previousUserDoc.RankPoint)
 	return addedWorkedTimeSec, addedRP, nil
 }
 
@@ -2455,7 +2460,11 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		return false, fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 	}
 
-	slog.Info("[%s] 過去%d分以内に%d番席に合計%d分入室\n", userId, s.Configs.Constants.RecentRangeMin, seatId, int(totalEntryDuration.Minutes()))
+	slog.Info("",
+		"userId", userId,
+		"seatId", seatId,
+		"過去何分", s.Configs.Constants.RecentRangeMin,
+		"合計何分", int(totalEntryDuration.Minutes()))
 
 	// 制限値と比較
 	ifSittingTooMuch := int(totalEntryDuration.Minutes()) > s.Configs.Constants.RecentThresholdMin

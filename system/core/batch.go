@@ -481,9 +481,8 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return fmt.Errorf("in DeleteCollectionHistoryBeforeDate(): %w", err)
 		}
-		slog.Info(strconv.Itoa(int(retentionFromDate.Month())) + "月" + strconv.Itoa(retentionFromDate.Day()) +
-			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。")
-		slog.Info("削除したライブチャット件数: %d\n削除したユーザー行動ログ件数: %d\n", numRowsLiveChat, numRowsUserActivity)
+		slog.Info(strconv.Itoa(int(retentionFromDate.Month()))+"月"+strconv.Itoa(retentionFromDate.Day())+
+			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。", "削除したライブチャット件数", numRowsLiveChat, "削除したユーザー行動ログ件数", numRowsUserActivity)
 
 		err = s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now)
 		if err != nil {
