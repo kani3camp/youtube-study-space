@@ -4,6 +4,7 @@ import (
 	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
+	"github.com/kr/pretty"
 	"log"
 	"math"
 	"os"
@@ -169,6 +170,10 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 		// process the command (includes not command)
 		for _, chatMessage := range chatMessages {
+			if youtubebot.IsFanFundingEvent(chatMessage) {
+				sys.MessageToOwner(fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
+			}
+
 			// only if chatMessage has text message content
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
 				continue
