@@ -1801,8 +1801,8 @@ func (s *System) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore
 
 	if len(vacantSeatIdList) > 0 {
 		// 入室制限にかからない席を選ぶ
-		rand.Seed(utils.JstNow().UnixNano())
-		rand.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
+		r := rand.New(rand.NewSource(utils.JstNow().UnixNano()))
+		r.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
 		for _, seatId := range vacantSeatIdList {
 			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, seatId, isMemberSeat)
 			if err != nil {

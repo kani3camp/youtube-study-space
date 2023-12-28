@@ -19,24 +19,24 @@ func TestSetProcessedUser(t *testing.T) {
 		ProcessedUserIsModeratorOrOwner: false,
 		ProcessedUserIsMember:           false,
 	}
-	
+
 	// check initial values
 	assert.Equal(t, s.ProcessedUserId, "")
 	assert.Equal(t, s.ProcessedUserDisplayName, "")
 	assert.Equal(t, s.ProcessedUserProfileImageUrl, "")
 	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, false)
 	assert.Equal(t, s.ProcessedUserIsMember, false)
-	
-	rand.Seed(time.Now().UnixNano())
-	
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	userId := "user1-id"
 	userDisplayName := "user1-display-name"
 	userProfileImageUrl := "https://example.com/user1-profile-image"
-	isChatModerator := rand.Intn(2) == 0
-	isChatOwner := rand.Intn(2) == 0
-	isChatMember := rand.Intn(2) == 0
+	isChatModerator := r.Intn(2) == 0
+	isChatOwner := r.Intn(2) == 0
+	isChatMember := r.Intn(2) == 0
 	s.SetProcessedUser(userId, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
-	
+
 	// 正しくセットされたか
 	assert.Equal(t, s.ProcessedUserId, userId)
 	assert.Equal(t, s.ProcessedUserDisplayName, userDisplayName)
