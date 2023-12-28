@@ -3,7 +3,7 @@ package mystorage
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -34,9 +34,9 @@ func NewStorageClient(ctx context.Context, clientOption option.ClientOption,
 func (controller *StorageController) CloseClient() {
 	err := controller.Client.Close()
 	if err != nil {
-		log.Println("failed to close cloud storage client.")
+		slog.Error("failed to close cloud storage client.")
 	} else {
-		log.Println("successfully closed cloud storage client.")
+		slog.Info("successfully closed cloud storage client.")
 	}
 }
 

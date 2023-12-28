@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"log"
 	"os"
 )
 
@@ -30,13 +29,11 @@ func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
 
 	result, err := db.GetItem(params)
 	if err != nil {
-		log.Println(err)
 		return nil, fmt.Errorf("in db.GetItem: %w", err)
 	}
 	secretData := SecretData{}
 	err = dynamodbattribute.UnmarshalMap(result.Item, &secretData)
 	if err != nil {
-		log.Println(err)
 		return nil, fmt.Errorf("in dynamodbattribute.UnmarshalMap: %w", err)
 	}
 	return []byte(secretData.SecretData), nil

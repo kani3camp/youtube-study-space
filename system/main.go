@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/kr/pretty"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 	"strconv"
@@ -91,7 +91,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	for {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
-			log.Println("checking desired max seats")
+			slog.Info("checking desired max seats")
 			constants, err := sys.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 			if err != nil {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
@@ -186,7 +186,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
-			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
+			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
 			if err != nil {
 				sys.MessageToOwnerWithError("error in Command()", err)
@@ -197,7 +197,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(sys.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
-		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
+		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
 }
