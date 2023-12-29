@@ -3,6 +3,8 @@ system/.gcloudignore
 system/app.modules.exe
 system/main.exe
 system/main
+system/bootstrap.exe
+system/bootstrap
 system/.env
 system/aws-lambda/main
 system/aws-lambda/main.zip
