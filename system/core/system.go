@@ -927,8 +927,7 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 		}
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
-		err = s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
-			SeatId) + "番席のユーザーをkickしました。\n" +
+		err = s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザーをkickしました。\n" +
 			"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
 			"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
 			"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
