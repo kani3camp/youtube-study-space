@@ -145,23 +145,23 @@ func TestDurationToString(t *testing.T) {
 			Output: "0分",
 		},
 		{
-			Input:  time.Duration(1 * time.Minute),
+			Input:  1 * time.Minute,
 			Output: "1分",
 		},
 		{
-			Input:  time.Duration(1 * time.Hour),
+			Input:  1 * time.Hour,
 			Output: "1時間0分",
 		},
 		{
-			Input:  time.Duration(1*time.Hour + 1*time.Minute + 1*time.Second),
+			Input:  1*time.Hour + 1*time.Minute + 1*time.Second,
 			Output: "1時間1分",
 		},
 		{
-			Input:  time.Duration(1*time.Hour + 1*time.Minute + 1*time.Second + 1*time.Millisecond),
+			Input:  1*time.Hour + 1*time.Minute + 1*time.Second + 1*time.Millisecond,
 			Output: "1時間1分",
 		},
 		{
-			Input:  time.Duration(24*time.Hour + 1*time.Minute),
+			Input:  24*time.Hour + 1*time.Minute,
 			Output: "24時間1分",
 		},
 	}

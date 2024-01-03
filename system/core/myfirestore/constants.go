@@ -11,22 +11,22 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	SeatLimitsWhiteList       = "seat-limits-white-list"
 	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
 	MemberSeatLimitsWhiteList = "member-seat-limits-white-list"
-	
+
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
 	PublishedAtDocProperty       = "published-at"
 	TakenAtDocProperty           = "taken-at"
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
-	
+
 	CreatedAtDocProperty = "created-at"
 	UntilDocProperty     = "until"
-	
+
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"
-	
+
 	ActivityTypeDocProperty = "activity-type"
-	
+
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
@@ -35,14 +35,14 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
-	
+
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
 	LiveChatIdDocProperty                = "youtube-live-chat-id"
 	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
 	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"
 	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"
 	YoutubeChannelExpirationDate         = "youtube-channel-expiration-date"
-	
+
 	LastEnteredDocProperty                 = "last-entered"
 	LastExitedDocProperty                  = "last-exited"
 	DailyTotalStudySecDocProperty          = "daily-total-study-sec"

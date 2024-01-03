@@ -13,7 +13,7 @@
 "not-enter" = "{0}님, 아직 입장하지 않으셨습니다. 「{1}」로 입실해주세요!" # 0: Username, 1: InCommand
 "enter-only" = "{0}씨, 입실중에만 사용할 수 있는 커맨드입니다" # 0: Username
 "permission" = "{0}님은 '{1}' 명령을 사용할 수 없습니다." # 0: Username. 1: Command
-"exit"= "{0}님이 퇴실하셨습니다🚶🚪 (+ {1}분, {2}번석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
+"exit" = "{0}님이 퇴실하셨습니다🚶🚪 (+ {1}분, {2}번석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
 "unused" = "{0}님, 해당 번호의 좌석은 아무도 사용하지 않습니다." # 0: UserName
 "sent" = "{0}님이 정보를 보냈습니다." # 0: UserName
 "rank" = "{0} 님의 순위 표시를 {1}로 설정했습니다." # 0: UserName, 1: Value
@@ -98,7 +98,7 @@
 
 [command-resume]
 "break-only" = "{0}님, 휴식중에만 사용할 수 있는 명령어입니다." # 0: Username
-"work" =  "{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분）" # 0: Username, 1: seatId, 2: until exit
+"work" = "{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분）" # 0: Username, 1: seatId, 2: until exit
 
 [others]
 "force-move" = "{0}님이 {1}번 좌석 사용 가능 시간의 한계에 도달했기 때문에 좌석을 이동합니다💨"   # 0: userName, 1:  seatId
