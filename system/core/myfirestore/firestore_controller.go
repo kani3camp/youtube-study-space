@@ -46,6 +46,11 @@ func (c *FirestoreController) create(ctx context.Context, tx *firestore.Transact
 	}
 }
 
+func (c *FirestoreController) bulkCreate(bulkWriter *firestore.BulkWriter, ref *firestore.DocumentRef, data interface{}) error {
+	_, err := bulkWriter.Create(ref, data)
+	return err
+}
+
 func (c *FirestoreController) set(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}, opts ...firestore.SetOption) error {
 	if tx != nil {
 		return tx.Set(ref, data, opts...)
@@ -80,6 +85,14 @@ func (c *FirestoreController) configCollection() *firestore.CollectionRef {
 
 func (c *FirestoreController) usersCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(USERS)
+}
+
+func (c *FirestoreController) workHistoryCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(WorkHistory)
+}
+
+func (c *FirestoreController) dailyWorkHistoryCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(DailyWorkHistory)
 }
 
 func (c *FirestoreController) seatsCollection(isMemberSeat bool) *firestore.CollectionRef {
@@ -188,41 +201,21 @@ func (c *FirestoreController) UpdateNextPageToken(ctx context.Context, nextPageT
 
 func (c *FirestoreController) ReadGeneralSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.generalSeatsCollection().Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocsFromIterator[SeatDoc](iter)
 }
 func (c *FirestoreController) ReadMemberSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.memberSeatsCollection().Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocsFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreController) ReadSeatsExpiredUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
 	iter := c.seatsCollection(isMemberSeat).Where(UntilDocProperty, "<", thresholdTime).Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocsFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreController) ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
 	iter := c.seatsCollection(isMemberSeat).Where(StateDocProperty, "==", BreakState).Where(CurrentStateUntilDocProperty, "<", thresholdTime).Documents(ctx)
-	return GetSeatsFromIterator(iter)
-}
-
-func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
-	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return []SeatDoc{}, fmt.Errorf("in iter.Next(): %w", err)
-		}
-		var seatDoc SeatDoc
-		err = doc.DataTo(&seatDoc)
-		if err != nil {
-			return []SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
-		}
-		seats = append(seats, seatDoc)
-	}
-	return seats, nil
+	return getDocsFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (SeatDoc, error) {
@@ -270,6 +263,50 @@ func (c *FirestoreController) UpdateUserLastExitedDate(tx *firestore.Transaction
 	return tx.Update(ref, []firestore.Update{
 		{Path: LastExitedDocProperty, Value: exitedDate},
 	})
+}
+
+func (c *FirestoreController) CreateWorkHistory(ctx context.Context, tx *firestore.Transaction, userId string, seatId int, isMemberSeat bool, startedAt time.Time, workName string, createdAt time.Time) (string, error) {
+	ref := c.workHistoryCollection().NewDoc()
+	doc := WorkHistoryDoc{
+		UserId:       userId,
+		SeatId:       seatId,
+		IsMemberSeat: isMemberSeat,
+		StartedAt:    startedAt,
+		EndedAt:      time.Time{},
+		WorkName:     workName,
+		CreatedAt:    createdAt,
+		UpdatedAt:    createdAt,
+	}
+	return ref.ID, c.create(ctx, tx, ref, doc)
+}
+
+func (c *FirestoreController) UpdateWorkHistoryEndedAt(ctx context.Context, tx *firestore.Transaction, workHistoryId string, endedAt time.Time) error {
+	ref := c.workHistoryCollection().Doc(workHistoryId)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: EndedAtDocProperty, Value: endedAt},
+	})
+}
+
+func (c *FirestoreController) GetWorkHistoriesBetween(ctx context.Context, from, until time.Time) ([]WorkHistoryDoc, error) {
+	iter := c.workHistoryCollection().
+		Where(EndedAtDocProperty, ">=", from).
+		Where(StartedAtDocProperty, "<", until).
+		Documents(ctx)
+	return getDocsFromIterator[WorkHistoryDoc](iter)
+}
+
+func (c *FirestoreController) CreateDailyWorkHistory(bulkWriter *firestore.BulkWriter, userId string, date time.Time, workDuration time.Duration, createdAt time.Time) error {
+	dateString := date.Format("2006-01-02")
+	workSec := int(workDuration.Seconds())
+
+	ref := c.dailyWorkHistoryCollection().Doc(dateString + "-" + userId)
+	doc := DailyWorkHistoryDoc{
+		UserId:    userId,
+		Date:      dateString,
+		WorkSec:   workSec,
+		CreatedAt: createdAt,
+	}
+	return c.bulkCreate(bulkWriter, ref, doc)
 }
 
 func (c *FirestoreController) UpdateUserRankVisible(tx *firestore.Transaction, userId string,
@@ -415,6 +452,13 @@ func (c *FirestoreController) UpdateMemberMaxSeats(ctx context.Context, tx *fire
 	})
 }
 
+func (c *FirestoreController) UpdateLastDailyWorkHistoryTargetDate(ctx context.Context, tx *firestore.Transaction, dateStr string) error {
+	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: LastDailyWorkHistoryTargetDateDocProperty, Value: dateStr},
+	})
+}
+
 func (c *FirestoreController) CreateSeat(tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error {
 	ref := c.seatsCollection(isMemberSeat).Doc(strconv.Itoa(seat.SeatId))
 	return tx.Create(ref, seat)
@@ -461,11 +505,14 @@ func (c *FirestoreController) GetAllUserActivityDocIdsAfterDate(ctx context.Cont
 
 func (c *FirestoreController) GetAllUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
 	date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error) {
-	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
-		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).
-		Where(IsMemberSeatDocProperty, "==", isMemberSeat).OrderBy(TakenAtDocProperty,
-		firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
+	iter := c.userActivitiesCollection().
+		Where(TakenAtDocProperty, ">=", date).
+		Where(UserIdDocProperty, "==", userId).
+		Where(SeatIdDocProperty, "==", seatId).
+		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
+		OrderBy(TakenAtDocProperty, firestore.Asc).
+		Documents(ctx)
+	return getDocsFromIterator[UserActivityDoc](iter)
 }
 
 func (c *FirestoreController) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
@@ -474,7 +521,7 @@ func (c *FirestoreController) GetEnterRoomUserActivityDocIdsAfterDateForUserAndS
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", EnterRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
+	return getDocsFromIterator[UserActivityDoc](iter)
 }
 
 func (c *FirestoreController) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
@@ -483,27 +530,7 @@ func (c *FirestoreController) GetExitRoomUserActivityDocIdsAfterDateForUserAndSe
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", ExitRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
-}
-
-func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActivityDoc, error) {
-	var activityList []UserActivityDoc
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return []UserActivityDoc{}, fmt.Errorf("in iter.Next(): %w", err)
-		}
-		var activity UserActivityDoc
-		err = doc.DataTo(&activity)
-		if err != nil {
-			return []UserActivityDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
-		}
-		activityList = append(activityList, activity)
-	}
-	return activityList, nil
+	return getDocsFromIterator[UserActivityDoc](iter)
 }
 
 // GetUsersActiveAfterDate date以後に入室したことのあるuserを全て取得
@@ -544,7 +571,7 @@ func (c *FirestoreController) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx con
 		collection = c.generalSeatLimitsWHITEListCollection()
 	}
 	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return getSeatLimitsDocsFromIterator(iter)
+	return getDocsFromIterator[SeatLimitDoc](iter)
 }
 
 func (c *FirestoreController) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error) {
@@ -555,27 +582,27 @@ func (c *FirestoreController) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx con
 		collection = c.generalSeatLimitsBLACKListCollection()
 	}
 	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return getSeatLimitsDocsFromIterator(iter)
+	return getDocsFromIterator[SeatLimitDoc](iter)
 }
 
-func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimitDoc, error) {
-	var seatLimits []SeatLimitDoc
+func getDocsFromIterator[T any](iter *firestore.DocumentIterator) ([]T, error) {
+	list := make([]T, 0) // jsonになったときにnullとならないように
 	for {
 		doc, err := iter.Next()
 		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("in iter.Next(): %w", err)
+			return []T{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
-		var seatLimitDoc SeatLimitDoc
-		err = doc.DataTo(&seatLimitDoc)
+		var data T
+		err = doc.DataTo(&data)
 		if err != nil {
-			return nil, fmt.Errorf("in doc.DataTo: %w", err)
+			return []T{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
-		seatLimits = append(seatLimits, seatLimitDoc)
+		list = append(list, data)
 	}
-	return seatLimits, nil
+	return list, nil
 }
 
 func (c *FirestoreController) CreateSeatLimitInWHITEList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
@@ -650,4 +677,19 @@ func (c *FirestoreController) DeleteSeatLimitInBLACKList(ctx context.Context, do
 	}
 	ref := collection.Doc(docId)
 	return c.delete(ctx, nil, ref)
+}
+
+func (c *FirestoreController) ReadDailyWorkHistoryOfDate(ctx context.Context, tx *firestore.Transaction, userId string, date time.Time) (DailyWorkHistoryDoc, error) {
+	docId := date.Format("2006-01-02") + "-" + userId
+	ref := c.dailyWorkHistoryCollection().Doc(docId)
+	doc, err := c.get(ctx, tx, ref)
+	if err != nil {
+		return DailyWorkHistoryDoc{}, err
+	}
+	var workHistoryData WorkHistoryDoc
+	err = doc.DataTo(&workHistoryData)
+	if err != nil {
+		return DailyWorkHistoryDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
+	}
+	return DailyWorkHistoryDoc{}, nil
 }

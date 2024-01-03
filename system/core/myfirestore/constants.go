@@ -7,6 +7,8 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	USERS                     = "users"
 	LiveChatHistory           = "live-chat-history"
 	UserActivities            = "user-activities"
+	WorkHistory               = "work-history"
+	DailyWorkHistory          = "daily-work-history"
 	SeatLimitsBlackList       = "seat-limits-black-list"
 	SeatLimitsWhiteList       = "seat-limits-white-list"
 	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
@@ -35,6 +37,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
+	LastDailyWorkHistoryTargetDateDocProperty        = "last-daily-work-history-target-date"
 
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
 	LiveChatIdDocProperty                = "youtube-live-chat-id"
@@ -56,6 +59,8 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CurrentActivityStateStartedDocProperty = "current-activity-state-started"
 	LastPenaltyImposedDaysDocProperty      = "last-penalty-imposed-days"
 	IsMemberSeatDocProperty                = "is-member-seat"
-	
+	StartedAtDocProperty                   = "started-at"
+	EndedAtDocProperty                     = "ended-at"
+
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

@@ -159,6 +159,13 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 					dailyCumulativeWorkSec = 0
 				}
 
+				// 作業履歴を作成
+				newWorkHistoryId, err := s.FirestoreController.CreateWorkHistory(ctx, tx, seatSnapshot.UserId, seatSnapshot.SeatId, isMemberRoom, jstNow, seatSnapshot.WorkName, jstNow)
+				if err != nil {
+					return fmt.Errorf("in CreateWorkHistory(): %w", err)
+				}
+
+				seat.WorkHistoryDocId = newWorkHistoryId
 				seat.State = myfirestore.WorkState
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
@@ -297,14 +304,20 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 
 func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	slog.Info(utils.NameOf(s.DailyOrganizeDB))
-	var lineMessage string
+	var resultMessage string
+
+	slog.Info("作業履歴を日次集計")
+	err := s.CreateDailyWorkHistoryUntilYesterday(ctx)
+	if err != nil {
+		return []string{}, fmt.Errorf("in CreateDailyWorkHistoryUntilYesterday(): %w", err)
+	}
 
 	slog.Info("一時的累計作業時間をリセット")
 	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		return []string{}, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 	}
-	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
+	resultMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 
 	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
 	userIdsToProcessRP, err := s.GetUserIdsToProcessRP(ctx)
@@ -312,11 +325,67 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 		return []string{}, fmt.Errorf("in GetUserIdsToProcessRP(): %w", err)
 	}
 
-	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
-	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
-	s.MessageToOwner(lineMessage)
+	resultMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
+	resultMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
+	s.MessageToOwner(resultMessage)
 	slog.Info("finished " + utils.NameOf(s.DailyOrganizeDB))
 	return userIdsToProcessRP, nil
+}
+
+func (s *System) CreateDailyWorkHistoryUntilYesterday(ctx context.Context) error {
+	slog.Info(utils.NameOf(s.CreateDailyWorkHistoryUntilYesterday))
+
+	lastTargetDate, err := time.ParseInLocation("2006-01-02", s.Configs.Constants.LastDailyWorkHistoryTargetDate, utils.JapanLocation())
+	if err != nil {
+		return fmt.Errorf("in time.ParseInLocation(): %w", err)
+	}
+
+	bulkWriter := s.FirestoreController.FirestoreClient.BulkWriter(ctx)
+
+	for _, targetDate := range utils.DateRange(lastTargetDate.AddDate(0, 0, 1), utils.JstNow()) {
+		from := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
+		to := from.AddDate(0, 0, 1)
+
+		// targetDateの0:00~23:59:59の間に入室していたユーザーの作業履歴を取得
+		workHistoryCandidates, err := s.FirestoreController.GetWorkHistoriesBetween(ctx, from, to)
+		if err != nil {
+			return fmt.Errorf("in GetWorkHistoriesBetween(): %w", err)
+		}
+
+		// ユーザーごとにグルーピング（単体テストできるように関数作る）
+		mapByUser := s.groupByUser(workHistoryCandidates)
+
+		// ユーザーごとに集計し、日次作業時間履歴を作成
+		for userId, workHistories := range mapByUser {
+			// 0:00~23:59:59の区間に切り取る
+			var sumDuration time.Duration
+			for _, workHistory := range workHistories {
+				sumDuration += workHistory.WorkDurationOfDate(targetDate)
+			}
+
+			// 保存
+			err := s.FirestoreController.CreateDailyWorkHistory(bulkWriter, userId, targetDate, sumDuration, utils.JstNow())
+			if err != nil {
+				return fmt.Errorf("in CreateDailyWorkHistory(): %w", err)
+			}
+		}
+
+		err = s.FirestoreController.UpdateLastDailyWorkHistoryTargetDate(ctx, nil, targetDate.Format("2006-01-02"))
+		if err != nil {
+			return fmt.Errorf("in UpdateLastDailyWorkHistoryTargetDate(): %w", err)
+		}
+	}
+	bulkWriter.End()
+
+	return nil
+}
+
+func (s *System) groupByUser(historyDocs []myfirestore.WorkHistoryDoc) map[string][]myfirestore.WorkHistoryDoc {
+	mapByUser := make(map[string][]myfirestore.WorkHistoryDoc)
+	for _, workHistory := range historyDocs {
+		mapByUser[workHistory.UserId] = append(mapByUser[workHistory.UserId], workHistory)
+	}
+	return mapByUser
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {

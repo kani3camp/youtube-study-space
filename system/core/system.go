@@ -1259,7 +1259,7 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 
 		// これ以降は書き込みのみ可。
 
-		newSeat := &currentSeat
+		newSeat := currentSeat
 		replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName)
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
 			var seatIdStr string
@@ -1315,9 +1315,21 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 				}
 			}
 		}
-		err = s.FirestoreController.UpdateSeat(ctx, tx, *newSeat, isInMemberRoom)
+		if newSeat.WorkName != currentSeat.WorkName {
+			err := s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow)
+			if err != nil {
+				return fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
+			}
+			newWorkHistoryId, err := s.FirestoreController.CreateWorkHistory(ctx, tx, newSeat.UserId, newSeat.SeatId, isInMemberRoom, jstNow, newSeat.WorkName, jstNow)
+			if err != nil {
+				return fmt.Errorf("in CreateWorkHistory: %w", err)
+			}
+			newSeat.WorkHistoryDocId = newWorkHistoryId
+		}
+
+		err = s.FirestoreController.UpdateSeat(ctx, tx, newSeat, isInMemberRoom)
 		if err != nil {
-			return fmt.Errorf("in UpdateSeats: %w", err)
+			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
 		return nil
@@ -1474,12 +1486,18 @@ func (s *System) Break(ctx context.Context, command *utils.CommandDetails) error
 		} else {
 			dailyCumulativeWorkSec = currentSeat.DailyCumulativeWorkSec + workedSec
 		}
+		// 作業履歴を確定
+		err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow)
+		if err != nil {
+			return fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
+		}
 		currentSeat.State = myfirestore.BreakState
 		currentSeat.CurrentStateStartedAt = jstNow
 		currentSeat.CurrentStateUntil = breakUntil
 		currentSeat.CumulativeWorkSec = cumulativeWorkSec
 		currentSeat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 		currentSeat.BreakWorkName = breakOption.WorkName
+		currentSeat.WorkHistoryDocId = ""
 
 		err = s.FirestoreController.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom)
 		if err != nil {
@@ -1555,16 +1573,25 @@ func (s *System) Resume(ctx context.Context, command *utils.CommandDetails) erro
 			workName = currentSeat.WorkName
 		}
 
+		// 作業履歴作成
+		newWorkHistoryId, err := s.FirestoreController.CreateWorkHistory(ctx, tx, currentSeat.UserId, currentSeat.SeatId, isInMemberRoom, jstNow, workName, jstNow)
+		if err != nil {
+			return fmt.Errorf("in CreateWorkHistory: %w", err)
+		}
+
+		currentSeat.WorkHistoryDocId = newWorkHistoryId
 		currentSeat.State = myfirestore.WorkState
 		currentSeat.CurrentStateStartedAt = jstNow
 		currentSeat.CurrentStateUntil = until
 		currentSeat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 		currentSeat.WorkName = workName
 
+		// 座席更新
 		err = s.FirestoreController.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom)
 		if err != nil {
-			return fmt.Errorf("in s.FirestoreController.UpdateSeats: %w", err)
+			return fmt.Errorf("in s.FirestoreController.UpdateSeat: %w", err)
 		}
+
 		// activityログ記録
 		endBreakActivity := myfirestore.UserActivityDoc{
 			UserId:       s.ProcessedUserId,
@@ -1847,6 +1874,13 @@ func (s *System) enterRoom(
 		currentStateUntil = breakUntil
 	}
 
+	// 作業履歴を作成
+	workHistoryId, err := s.FirestoreController.CreateWorkHistory(ctx, tx, userId, seatId, isMemberSeat, enterDate, workName, utils.JstNow())
+	if err != nil {
+		return 0, fmt.Errorf("in CreateWorkHistory: %w", err)
+	}
+
+	// 入室処理
 	newSeat := myfirestore.SeatDoc{
 		SeatId:                 seatId,
 		UserId:                 userId,
@@ -1862,8 +1896,9 @@ func (s *System) enterRoom(
 		CurrentStateUntil:      currentStateUntil,
 		CumulativeWorkSec:      0,
 		DailyCumulativeWorkSec: 0,
+		WorkHistoryDocId:       workHistoryId,
 	}
-	err := s.FirestoreController.CreateSeat(tx, newSeat, isMemberSeat)
+	err = s.FirestoreController.CreateSeat(tx, newSeat, isMemberSeat)
 	if err != nil {
 		return 0, fmt.Errorf("in CreateSeat: %w", err)
 	}
@@ -1873,6 +1908,7 @@ func (s *System) enterRoom(
 	if err != nil {
 		return 0, fmt.Errorf("in UpdateUserLastEnteredDate: %w", err)
 	}
+
 	// activityログ記録
 	enterActivity := myfirestore.UserActivityDoc{
 		UserId:       userId,
@@ -1940,6 +1976,12 @@ func (s *System) exitRoom(
 	err := s.FirestoreController.DeleteSeat(ctx, tx, previousSeat.SeatId, isMemberSeat)
 	if err != nil {
 		return 0, 0, fmt.Errorf("in DeleteSeat: %w", err)
+	}
+
+	// 作業履歴を確定
+	err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, previousSeat.WorkHistoryDocId, exitDate)
+	if err != nil {
+		return 0, 0, fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
 	}
 
 	// ログ記録
