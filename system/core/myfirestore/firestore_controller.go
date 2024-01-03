@@ -693,3 +693,13 @@ func (c *FirestoreController) ReadDailyWorkHistoryOfDate(ctx context.Context, tx
 	}
 	return DailyWorkHistoryDoc{}, nil
 }
+
+// ReadDailyWorkHistoryBetweenDates returns all work history docs whose `date` is between `from` and `until`. `from` is inclusive and `until` is exclusive.
+func (c *FirestoreController) ReadDailyWorkHistoryBetweenDates(ctx context.Context, userId string, from, until time.Time) ([]DailyWorkHistoryDoc, error) {
+	iter := c.dailyWorkHistoryCollection().
+		Where(UserIdDocProperty, "==", userId).
+		Where(DateDocProperty, ">=", from.Format("2006-01-02")).
+		Where(DateDocProperty, "<", until.Format("2006-01-02")).
+		Documents(ctx)
+	return getDocsFromIterator[DailyWorkHistoryDoc](iter)
+}

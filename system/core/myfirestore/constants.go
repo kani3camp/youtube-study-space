@@ -21,8 +21,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
 
-	CreatedAtDocProperty = "created-at"
-	UntilDocProperty     = "until"
+	UntilDocProperty = "until"
 
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"
@@ -33,18 +32,13 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MemberMaxSeatsDocProperty                        = "member-max-seats"
-	MinVacancyRateDocProperty                        = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 	LastDailyWorkHistoryTargetDateDocProperty        = "last-daily-work-history-target-date"
 
-	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	LiveChatIdDocProperty                = "youtube-live-chat-id"
-	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
-	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"
-	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"
-	YoutubeChannelExpirationDate         = "youtube-channel-expiration-date"
+	NextPageTokenDocProperty = "youtube-live-chat-next-page-token"
+	LiveChatIdDocProperty    = "youtube-live-chat-id"
 
 	LastEnteredDocProperty                 = "last-entered"
 	LastExitedDocProperty                  = "last-exited"
@@ -61,6 +55,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	IsMemberSeatDocProperty                = "is-member-seat"
 	StartedAtDocProperty                   = "started-at"
 	EndedAtDocProperty                     = "ended-at"
+	DateDocProperty                        = "date"
 
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

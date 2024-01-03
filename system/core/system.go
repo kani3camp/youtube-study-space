@@ -746,9 +746,17 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 		if err != nil {
 			return fmt.Errorf("in s.GetUserRealtimeTotalStudyDurations(): %w", err)
 		}
+		today := utils.JstNow()
+		yesterday := today.AddDate(0, 0, -1)
+		yesterdayWorkHistory, err := s.FirestoreController.ReadDailyWorkHistoryOfDate(ctx, tx, s.ProcessedUserId, yesterday)
+		if err != nil {
+			return fmt.Errorf("in ReadDailyWorkHistoryOfDate(): %w", err)
+		}
+
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
 		totalTimeStr := utils.DurationToString(totalStudyDuration)
-		replyMessage += t("base", s.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
+		yesterdayTotalTimeStr := utils.DurationToString(yesterdayWorkHistory.WorkDuration())
+		replyMessage += t("base", s.ProcessedUserDisplayName, dailyTotalTimeStr, yesterdayTotalTimeStr, totalTimeStr)
 
 		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
 		if err != nil {
@@ -760,6 +768,17 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 		}
 
 		if command.InfoOption.ShowDetails {
+			weeklyWorkHistories, err := s.FirestoreController.ReadDailyWorkHistoryBetweenDates(ctx, s.ProcessedUserId, today.AddDate(0, 0, -7), today)
+			if err != nil {
+				return fmt.Errorf("in ReadDailyWorkHistoryBetweenDates(): %w", err)
+			}
+			weeklySumDuration := time.Duration(0)
+			for _, daily := range weeklyWorkHistories {
+				weeklySumDuration += daily.WorkDuration()
+			}
+			weeklyTotalTimeStr := utils.DurationToString(weeklySumDuration)
+			replyMessage += t("7days", weeklyTotalTimeStr)
+
 			switch userDoc.RankVisible {
 			case true:
 				replyMessage += t("rank-on")
