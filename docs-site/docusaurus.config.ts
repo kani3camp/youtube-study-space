@@ -17,7 +17,7 @@ const config: Config = {
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'sorarideblog', // Usually your GitHub org/user name.
   projectName: 'youtube-study-space', // Usually your repo name.
-  deploymentBranch: 'release',
+  deploymentBranch: 'docusaurus',
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
