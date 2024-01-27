@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
         run:
-            working-directory: docs-site
+            working-directory: ./docs-site
     steps:
       - run: ls -la
       - uses: actions/checkout@v4
