@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@docusaurus/core": "3.1.1",
-    "@docusaurus/preset-classic": "3.1.1",
+    "@docusaurus/preset-classic": "^3.1.1",
     "@docusaurus/theme-mermaid": "^3.1.1",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
@@ -28,6 +28,8 @@
     "@docusaurus/module-type-aliases": "3.1.1",
     "@docusaurus/tsconfig": "3.1.1",
     "@docusaurus/types": "3.1.1",
+    "prettier": "3.2.4",
+    "prettier-plugin-md-nocjsp": "^1.5.1",
     "typescript": "~5.2.2"
   },
   "browserslist": {
