@@ -17,11 +17,11 @@ jobs:
 #        run:
 #            working-directory: ./docs-site
     steps:
-      - run: pwd
-      - run: ls -la
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: pwd
+      - run: ls -la
       - uses: actions/setup-node@v4
         with:
           node-version: 18
