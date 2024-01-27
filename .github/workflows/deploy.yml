@@ -17,6 +17,7 @@ jobs:
         run:
             working-directory: docs-site
     steps:
+      - run: ls -la
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
