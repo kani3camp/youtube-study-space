@@ -24,6 +24,7 @@ jobs:
       - run: ls -la
       - uses: actions/setup-node@v4
         with:
+          working-directory: docs-site
           node-version: 18
           cache: npm
 
