@@ -3,8 +3,6 @@ name: Deploy docs to GitHub Pages
 on:
   push:
     branches: [main, release, docusaurus]
-    # Review gh actions docs if you want to further define triggers, paths, etc
-    # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#on
 
 permissions:
   contents: write
@@ -13,9 +11,9 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
-#    defaults:
-#        run:
-#            working-directory: docs-site
+    defaults:
+      run:
+        working-directory: docs-site
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,23 +22,16 @@ jobs:
       - run: ls -la
       - uses: actions/setup-node@v4
         with:
-          working-directory: docs-site
           node-version: 18
           cache: npm
 
       - name: Install dependencies
-        working-directory: docs-site
         run: npm ci
       - name: Build website
-        working-directory: docs-site
         run: npm run build
 
-      # Popular action to deploy to GitHub Pages:
-      # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          workdir: docs-site
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Build output to publish to the `gh-pages` branch:
           publish_dir: ./build
