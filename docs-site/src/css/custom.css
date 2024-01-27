@@ -27,9 +27,3 @@
     --ifm-color-primary-lightest: #c4a6f7;
     --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
-
-@media (max-width: 996px) {
-    .toc-mobile {
-        display: block !important;
-    }
-}
