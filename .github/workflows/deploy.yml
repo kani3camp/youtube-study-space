@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 #    defaults:
 #        run:
-#            working-directory: ./docs-site
+#            working-directory: docs-site
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,8 +28,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        working-directory: docs-site
         run: npm ci
       - name: Build website
+        working-directory: docs-site
         run: npm run build
 
       # Popular action to deploy to GitHub Pages:
@@ -37,6 +39,7 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
+          workdir: docs-site
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Build output to publish to the `gh-pages` branch:
           publish_dir: ./build
