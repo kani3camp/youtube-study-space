@@ -54,7 +54,11 @@ const config: Config = {
     themeConfig: {
         // TODO: Replace with your project's social card
         image: 'img/docusaurus-social-card.jpg',
-        hideableSidebar: true,
+        docs: {
+            sidebar: {
+                hideable: true,
+            },
+        },
         navbar: {
             title: 'YouTubeオンライン作業部屋',
             logo: {
