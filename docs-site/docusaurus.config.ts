@@ -91,7 +91,7 @@ const config: Config = {
                     items: [
                         {
                             label: 'コマンド一覧',
-                            to: '/docs/commands',
+                            to: '/docs/essential',
                         },
                         {
                             label: '公開資料',

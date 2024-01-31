@@ -17,7 +17,7 @@ function HomepageHeader() {
                 </Heading>
                 <p className='hero__subtitle'>{siteConfig.tagline}</p>
                 <div className={styles.buttons}>
-                    <Link className='button button--secondary button--lg' to='/docs/commands'>
+                    <Link className='button button--secondary button--lg' to='/docs/essential'>
                         コマンド一覧へ
                     </Link>
                 </div>
@@ -30,8 +30,8 @@ export default function Home(): JSX.Element {
     const { siteConfig } = useDocusaurusContext()
     return (
         <Layout
-            title={`Hello from ${siteConfig.title}`}
-            description='Description will go into a meta tag in <head />'
+            title={siteConfig.title}
+            description='YouTubeオンライン作業部屋のコマンドについて説明するサイトです。'
         >
             <HomepageHeader />
             <main>
