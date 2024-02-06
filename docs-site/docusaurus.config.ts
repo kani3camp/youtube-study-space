@@ -24,7 +24,7 @@ const config: Config = {
 
     i18n: {
         defaultLocale: 'ja',
-        locales: ['ja', 'en'],
+        locales: ['ja'], // TODO: Add more locales here
     },
 
     themes: ['@docusaurus/theme-mermaid'],
@@ -46,6 +46,10 @@ const config: Config = {
                 },
                 theme: {
                     customCss: './src/css/custom.css',
+                },
+                gtag: {
+                    trackingID: 'G-7CHFZXDRCT',
+                    anonymizeIP: true,
                 },
             } satisfies Preset.Options,
         ],
