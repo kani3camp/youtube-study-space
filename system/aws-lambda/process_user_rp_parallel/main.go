@@ -3,13 +3,14 @@ package main
 import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	"log"
+	"log/slog"
 	"strconv"
 )
 
@@ -19,7 +20,7 @@ type ProcessUserRPParallelResponseStruct struct {
 }
 
 func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUserRPParallelResponseStruct, error) {
-	log.Println("ProcessUserRPParallel()")
+	slog.Info(utils.NameOf(ProcessUserRPParallel))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -32,12 +33,8 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 	}
 	defer sys.CloseFirestoreClient()
 
-	log.Println("process index: " + strconv.Itoa(request.ProcessIndex))
-	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
-	if err != nil {
-		sys.MessageToOwnerWithError("failed to UpdateUserRPBatch", err)
-		return ProcessUserRPParallelResponseStruct{}, err
-	}
+	slog.Info("process index: " + strconv.Itoa(request.ProcessIndex))
+	remainingUserIds := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
 
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
@@ -68,7 +65,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
-		log.Println(resp)
+		slog.Info("lambda invoked.", "output", resp)
 	} else {
 		sys.MessageToOwner("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
 	}

@@ -3,9 +3,10 @@ package main
 import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
-	"log"
+	"log/slog"
 )
 
 type CheckLiveStreamResponse struct {
@@ -15,7 +16,7 @@ type CheckLiveStreamResponse struct {
 
 // CheckLiveStream checks the live stream status and, in case of an error, sends a message to the owner.
 func CheckLiveStream() (CheckLiveStreamResponse, error) {
-	log.Println("CheckLiveStream()")
+	slog.Info(utils.NameOf(CheckLiveStream))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

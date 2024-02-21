@@ -1,6 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const GLAkihabaraLayout: RoomLayout = {
+export const GLAkihabaraRoom: RoomLayout = {
     floor_image: '/images/GL_inAKIHABRA.png',
     font_size_ratio: 0.015,
     room_shape: {

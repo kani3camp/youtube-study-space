@@ -3,10 +3,11 @@ package main
 import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
-	"log"
+	"log/slog"
 )
 
 type SetMaxSeatsParams struct {
@@ -20,7 +21,7 @@ type SetMaxSeatsResponse struct {
 }
 
 func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) {
-	log.Println("SetDesiredMaxSeats()")
+	slog.Info(utils.NameOf(SetDesiredMaxSeats))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

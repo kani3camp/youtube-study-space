@@ -4,7 +4,8 @@ import (
 	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
-	"log"
+	"github.com/kr/pretty"
+	"log/slog"
 	"math"
 	"os"
 	"strconv"
@@ -32,18 +33,14 @@ func Init() (option.ClientOption, context.Context, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if creds.ProjectID == "youtube-study-space" || creds.ProjectID == "geek-library-space" {
-		fmt.Println("本番環境用のcredential (" + creds.ProjectID + ") が使われます。よろしいですか？(yes / no)")
-		var s string
-		_, _ = fmt.Scanln(&s)
-		if s != "yes" {
-			return nil, nil, errors.New("")
-		}
-	} else if creds.ProjectID == "test-youtube-study-space" {
-		log.Println("credential of test-youtube-study-space")
-	} else {
-		return nil, nil, errors.New("unknown project id on the credential.")
+	fmt.Printf("Project ID: %s\n", creds.ProjectID)
+	fmt.Println("Is this the correct project ID? (yes/no)")
+	var s string
+	_, _ = fmt.Scanln(&s)
+	if s != "yes" {
+		return nil, nil, errors.New("aborted")
 	}
+
 	return clientOption, ctx, nil
 }
 
@@ -94,7 +91,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	for {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
-			log.Println("checking desired max seats")
+			slog.Info("checking desired max seats")
 			constants, err := sys.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 			if err != nil {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
@@ -173,6 +170,10 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 		// process the command (includes not command)
 		for _, chatMessage := range chatMessages {
+			if youtubebot.IsFanFundingEvent(chatMessage) {
+				sys.MessageToOwner(fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
+			}
+
 			// only if chatMessage has text message content
 			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
 				continue
@@ -185,7 +186,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
-			log.Println(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
+			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
 			if err != nil {
 				sys.MessageToOwnerWithError("error in Command()", err)
@@ -196,7 +197,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(sys.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
-		log.Printf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds())
+		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
 }
@@ -204,8 +205,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 func main() {
 	clientOption, ctx, err := Init()
 	if err != nil {
-		log.Println(err.Error())
-		return
+		panic(err)
 	}
 
 	Bot(ctx, clientOption)

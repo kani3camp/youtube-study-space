@@ -1,6 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
-export const Chabio1Layout: RoomLayout = {
+export const Chabio1Room: RoomLayout = {
     floor_image: '/images/chabio1-room.png',
     font_size_ratio: 0.015,
     room_shape: {
