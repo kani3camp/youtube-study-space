@@ -17,8 +17,8 @@ type ConstantsConfigDoc struct {
 
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"` // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 
-	// 前回のdaily-work-historyの処理を行った対象日付（yyyy-mm-dd）
-	LastDailyWorkHistoryTargetDate string `firestore:"last-daily-work-history-target-date"`
+	// 前回のdaily-work-historyの作成を行った対象作業履歴期間の終端日時
+	LastDailyWorkHistoryTargetDateTime time.Time `firestore:"last-daily-work-history-target-datetime"`
 
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
@@ -215,4 +215,5 @@ type DailyWorkHistoryDoc struct {
 	Date      string    `json:"date" firestore:"date"` // yyyy-mm-dd
 	WorkSec   int       `json:"work_sec" firestore:"work-sec"`
 	CreatedAt time.Time `json:"created_at" firestore:"created-at"`
+	UpdatedAt time.Time `json:"updated_at" firestore:"updated-at"`
 }

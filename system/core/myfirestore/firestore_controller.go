@@ -51,6 +51,11 @@ func (c *FirestoreController) bulkCreate(bulkWriter *firestore.BulkWriter, ref *
 	return err
 }
 
+func (c *FirestoreController) bulkUpdate(bulkWriter *firestore.BulkWriter, ref *firestore.DocumentRef, data []firestore.Update) error {
+	_, err := bulkWriter.Update(ref, data)
+	return err
+}
+
 func (c *FirestoreController) set(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}, opts ...firestore.SetOption) error {
 	if tx != nil {
 		return tx.Set(ref, data, opts...)
@@ -287,26 +292,47 @@ func (c *FirestoreController) UpdateWorkHistoryEndedAt(ctx context.Context, tx *
 	})
 }
 
-func (c *FirestoreController) GetWorkHistoriesBetween(ctx context.Context, from, until time.Time) ([]WorkHistoryDoc, error) {
-	iter := c.workHistoryCollection().
-		Where(EndedAtDocProperty, ">=", from).
-		Where(StartedAtDocProperty, "<", until).
-		Documents(ctx)
+// GetWorkHistoriesByEndedAt endedAtFrom〜endedAtToの間に確定した全ての作業履歴を取得する
+func (c *FirestoreController) GetWorkHistoriesByEndedAt(ctx context.Context, endedAtFrom, endedAtTo time.Time) ([]WorkHistoryDoc, error) {
+	iter := c.workHistoryCollection().Where(EndedAtDocProperty, ">=", endedAtFrom).Where(EndedAtDocProperty, "<=", endedAtTo).Documents(ctx)
 	return getDocsFromIterator[WorkHistoryDoc](iter)
 }
 
-func (c *FirestoreController) CreateDailyWorkHistory(bulkWriter *firestore.BulkWriter, userId string, date time.Time, workDuration time.Duration, createdAt time.Time) error {
-	dateString := date.Format("2006-01-02")
-	workSec := int(workDuration.Seconds())
-
+func (c *FirestoreController) CreateOrUpdateDailyWorkHistory(ctx context.Context, bulkWriter *firestore.BulkWriter, dateString string, userId string, workSec int, updatedAt time.Time) error {
 	ref := c.dailyWorkHistoryCollection().Doc(dateString + "-" + userId)
-	doc := DailyWorkHistoryDoc{
-		UserId:    userId,
-		Date:      dateString,
-		WorkSec:   workSec,
-		CreatedAt: createdAt,
+	snapshot, err := ref.Get(ctx)
+	var exists bool
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			exists = false
+		} else {
+			return err
+		}
+	} else if snapshot.Exists() {
+		exists = true
+	} else {
+		exists = false
 	}
-	return c.bulkCreate(bulkWriter, ref, doc)
+	if exists {
+		var doc DailyWorkHistoryDoc
+		err := snapshot.DataTo(&doc)
+		if err != nil {
+			return fmt.Errorf("in snapshot.DataTo: %w", err)
+		}
+		return c.bulkUpdate(bulkWriter, ref, []firestore.Update{
+			{Path: WorkSecDocProperty, Value: doc.WorkSec + workSec},
+			{Path: UpdatedAtDocProperty, Value: updatedAt},
+		})
+	} else {
+		doc := DailyWorkHistoryDoc{
+			UserId:    userId,
+			Date:      dateString,
+			WorkSec:   workSec,
+			CreatedAt: updatedAt,
+			UpdatedAt: updatedAt,
+		}
+		return c.bulkCreate(bulkWriter, ref, doc)
+	}
 }
 
 func (c *FirestoreController) UpdateUserRankVisible(tx *firestore.Transaction, userId string,
@@ -452,10 +478,10 @@ func (c *FirestoreController) UpdateMemberMaxSeats(ctx context.Context, tx *fire
 	})
 }
 
-func (c *FirestoreController) UpdateLastDailyWorkHistoryTargetDate(ctx context.Context, tx *firestore.Transaction, dateStr string) error {
+func (c *FirestoreController) UpdateLastDailyWorkHistoryTargetDateTime(ctx context.Context, tx *firestore.Transaction, datetime time.Time) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
-		{Path: LastDailyWorkHistoryTargetDateDocProperty, Value: dateStr},
+		{Path: LastDailyWorkHistoryTargetDateDocProperty, Value: datetime},
 	})
 }
 

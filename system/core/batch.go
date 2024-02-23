@@ -335,46 +335,44 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 func (s *System) CreateDailyWorkHistoryUntilYesterday(ctx context.Context) error {
 	slog.Info(utils.NameOf(s.CreateDailyWorkHistoryUntilYesterday))
 
-	lastTargetDate, err := time.ParseInLocation("2006-01-02", s.Configs.Constants.LastDailyWorkHistoryTargetDate, utils.JapanLocation())
-	if err != nil {
-		return fmt.Errorf("in time.ParseInLocation(): %w", err)
+	// 対象とする作業履歴期間の終端と作成日時のマージン（分）（バッチとbotの時刻誤差を考慮）
+	const MarginMin = 3
+
+	to := utils.JstNow().Add(-1 * time.Minute * MarginMin)
+
+	from := s.Configs.Constants.LastDailyWorkHistoryTargetDateTime
+	if from.After(to) {
+		return fmt.Errorf("from is after to. from: %s, to: %s", from, to)
 	}
 
 	bulkWriter := s.FirestoreController.FirestoreClient.BulkWriter(ctx)
 
-	for _, targetDate := range utils.DateRange(lastTargetDate.AddDate(0, 0, 1), utils.JstNow()) {
-		from := time.Date(targetDate.Year(), targetDate.Month(), targetDate.Day(), 0, 0, 0, 0, targetDate.Location())
-		to := from.AddDate(0, 0, 1)
+	workHistoryCandidates, err := s.FirestoreController.GetWorkHistoriesByEndedAt(ctx, from, to)
+	if err != nil {
+		return fmt.Errorf("in GetWorkHistoriesByEndedAt(): %w", err)
+	}
 
-		// targetDateの0:00~23:59:59の間に入室していたユーザーの作業履歴を取得
-		workHistoryCandidates, err := s.FirestoreController.GetWorkHistoriesBetween(ctx, from, to)
-		if err != nil {
-			return fmt.Errorf("in GetWorkHistoriesBetween(): %w", err)
-		}
+	// ユーザーごとにグルーピング（単体テストできるように関数作る）
+	mapByUser := s.groupByUser(workHistoryCandidates)
 
-		// ユーザーごとにグルーピング（単体テストできるように関数作る）
-		mapByUser := s.groupByUser(workHistoryCandidates)
+	// ユーザーごとに集計し、日次作業時間履歴を作成
+	for userId, workHistories := range mapByUser {
+		dailyWorkSecList := myfirestore.CreateDailyWorkSecList(workHistories)
 
-		// ユーザーごとに集計し、日次作業時間履歴を作成
-		for userId, workHistories := range mapByUser {
-			// 0:00~23:59:59の区間に切り取る
-			var sumDuration time.Duration
-			for _, workHistory := range workHistories {
-				sumDuration += workHistory.WorkDurationOfDate(targetDate)
-			}
-
-			// 保存
-			err := s.FirestoreController.CreateDailyWorkHistory(bulkWriter, userId, targetDate, sumDuration, utils.JstNow())
+		// 保存
+		for _, dailyWorkSec := range dailyWorkSecList {
+			err := s.FirestoreController.CreateOrUpdateDailyWorkHistory(ctx, bulkWriter, dailyWorkSec.Date, userId, dailyWorkSec.WorkSec, utils.JstNow())
 			if err != nil {
-				return fmt.Errorf("in CreateDailyWorkHistory(): %w", err)
+				return fmt.Errorf("in CreateOrUpdateDailyWorkHistory(): %w", err)
 			}
-		}
-
-		err = s.FirestoreController.UpdateLastDailyWorkHistoryTargetDate(ctx, nil, targetDate.Format("2006-01-02"))
-		if err != nil {
-			return fmt.Errorf("in UpdateLastDailyWorkHistoryTargetDate(): %w", err)
 		}
 	}
+
+	err = s.FirestoreController.UpdateLastDailyWorkHistoryTargetDateTime(ctx, nil, to)
+	if err != nil {
+		return fmt.Errorf("in UpdateLastDailyWorkHistoryTargetDateTime(): %w", err)
+	}
+
 	bulkWriter.End()
 
 	return nil

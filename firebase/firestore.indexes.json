@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "daily-work-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "live-chat-history",
       "queryScope": "COLLECTION",
       "fields": [

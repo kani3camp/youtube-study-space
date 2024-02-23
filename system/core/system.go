@@ -750,7 +750,9 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 		yesterday := today.AddDate(0, 0, -1)
 		yesterdayWorkHistory, err := s.FirestoreController.ReadDailyWorkHistoryOfDate(ctx, tx, s.ProcessedUserId, yesterday)
 		if err != nil {
-			return fmt.Errorf("in ReadDailyWorkHistoryOfDate(): %w", err)
+			if status.Code(err) != codes.NotFound {
+				return fmt.Errorf("in ReadDailyWorkHistoryOfDate(): %w", err)
+			}
 		}
 
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
@@ -807,7 +809,7 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 		return nil
 	})
 	if err != nil {
-		replyMessage = i18n.T("command:error")
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
 	return err
