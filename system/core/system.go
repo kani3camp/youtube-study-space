@@ -1337,7 +1337,7 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 			}
 		}
 		if newSeat.WorkName != currentSeat.WorkName {
-			err := s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow)
+			err := s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow, jstNow)
 			if err != nil {
 				return fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
 			}
@@ -1508,7 +1508,7 @@ func (s *System) Break(ctx context.Context, command *utils.CommandDetails) error
 			dailyCumulativeWorkSec = currentSeat.DailyCumulativeWorkSec + workedSec
 		}
 		// 作業履歴を確定
-		err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow)
+		err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, currentSeat.WorkHistoryDocId, jstNow, jstNow)
 		if err != nil {
 			return fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
 		}
@@ -2000,7 +2000,7 @@ func (s *System) exitRoom(
 	}
 
 	// 作業履歴を確定
-	err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, previousSeat.WorkHistoryDocId, exitDate)
+	err = s.FirestoreController.UpdateWorkHistoryEndedAt(ctx, tx, previousSeat.WorkHistoryDocId, exitDate, exitDate)
 	if err != nil {
 		return 0, 0, fmt.Errorf("in UpdateWorkHistoryEndedAt: %w", err)
 	}

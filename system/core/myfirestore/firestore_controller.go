@@ -285,10 +285,11 @@ func (c *FirestoreController) CreateWorkHistory(ctx context.Context, tx *firesto
 	return ref.ID, c.create(ctx, tx, ref, doc)
 }
 
-func (c *FirestoreController) UpdateWorkHistoryEndedAt(ctx context.Context, tx *firestore.Transaction, workHistoryId string, endedAt time.Time) error {
+func (c *FirestoreController) UpdateWorkHistoryEndedAt(ctx context.Context, tx *firestore.Transaction, workHistoryId string, endedAt, updatedAt time.Time) error {
 	ref := c.workHistoryCollection().Doc(workHistoryId)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: EndedAtDocProperty, Value: endedAt},
+		{Path: UpdatedAtDocProperty, Value: updatedAt},
 	})
 }
 
