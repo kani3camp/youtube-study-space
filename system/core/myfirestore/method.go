@@ -31,10 +31,10 @@ type DailyWorkSec struct {
 	WorkSec int
 }
 
-func (w *WorkHistoryDoc) DivideToDailyWorkSecList() []DailyWorkSec {
+func (w *WorkHistoryDoc) DivideToDailyWorkSecList(location *time.Location) []DailyWorkSec {
 	var dailyWorkSecList []DailyWorkSec
-	targetDay := w.StartedAt
-	endedAt := w.EndedAt
+	targetDay := w.StartedAt.In(location)
+	endedAt := w.EndedAt.In(location)
 	for targetDay.Before(endedAt) {
 		nextDay := time.Date(targetDay.Year(), targetDay.Month(), targetDay.Day(), 0, 0, 0, 0, targetDay.Location()).AddDate(0, 0, 1)
 		dailyWorkUntil := endedAt
@@ -69,10 +69,10 @@ func SumEachDate(wl DailyWorkSecList) []DailyWorkSec {
 
 type WorkHistoryDocList []WorkHistoryDoc
 
-func CreateDailyWorkSecList(wl WorkHistoryDocList) []DailyWorkSec {
+func CreateDailyWorkSecList(wl WorkHistoryDocList, location *time.Location) []DailyWorkSec {
 	var dailyWorkSecList []DailyWorkSec
 	for _, wh := range wl {
-		dailyWorkSecList = append(dailyWorkSecList, wh.DivideToDailyWorkSecList()...)
+		dailyWorkSecList = append(dailyWorkSecList, wh.DivideToDailyWorkSecList(location)...)
 	}
 	return SumEachDate(dailyWorkSecList)
 }

@@ -9,6 +9,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestTimezoneOffsetStringOf(t *testing.T) {
+	type TestCase struct {
+		Input    time.Time
+		Expected string
+	}
+	testCases := []TestCase{
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
+			Expected: "+09:00",
+		},
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
+			Expected: "+00:00",
+		},
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC+9", 9*60*60)),
+			Expected: "+09:00",
+		},
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC-9", -9*60*60)),
+			Expected: "-09:00",
+		},
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC+9:30", 9*60*60+30*60)),
+			Expected: "+09:30",
+		},
+		{
+			Input:    time.Date(2021, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC-9:30", -9*60*60-30*60)),
+			Expected: "-09:30",
+		},
+	}
+	for _, testCase := range testCases {
+		offset := TimezoneOffsetStringOf(testCase.Input)
+		assert.Equal(t, testCase.Expected, offset)
+	}
+}
+
 func TestTodaySeconds(t *testing.T) {
 	type TestCase struct {
 		T               time.Time

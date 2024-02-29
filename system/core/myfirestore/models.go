@@ -211,9 +211,10 @@ type WorkHistoryDoc struct {
 }
 
 type DailyWorkHistoryDoc struct {
-	UserId    string    `json:"user_id" firestore:"user-id"`
-	Date      string    `json:"date" firestore:"date"` // yyyy-mm-dd
-	WorkSec   int       `json:"work_sec" firestore:"work-sec"`
-	CreatedAt time.Time `json:"created_at" firestore:"created-at"`
-	UpdatedAt time.Time `json:"updated_at" firestore:"updated-at"`
+	UserId         string    `json:"user_id" firestore:"user-id"`
+	Date           string    `json:"date" firestore:"date"` // yyyy-mm-dd
+	WorkSec        int       `json:"work_sec" firestore:"work-sec"`
+	TimezoneOffset string    `json:"timezone_offset" firestore:"timezone-offset"` // ex. "+09:00"
+	CreatedAt      time.Time `json:"created_at" firestore:"created-at"`
+	UpdatedAt      time.Time `json:"updated_at" firestore:"updated-at"`
 }

@@ -299,7 +299,7 @@ func (c *FirestoreController) GetWorkHistoriesByEndedAt(ctx context.Context, end
 	return getDocsFromIterator[WorkHistoryDoc](iter)
 }
 
-func (c *FirestoreController) CreateOrUpdateDailyWorkHistory(ctx context.Context, bulkWriter *firestore.BulkWriter, dateString string, userId string, workSec int, updatedAt time.Time) error {
+func (c *FirestoreController) CreateOrUpdateDailyWorkHistory(ctx context.Context, bulkWriter *firestore.BulkWriter, dateString string, userId string, workSec int, timeZoneOffset string, updatedAt time.Time) error {
 	ref := c.dailyWorkHistoryCollection().Doc(dateString + "-" + userId)
 	snapshot, err := ref.Get(ctx)
 	var exists bool
@@ -322,15 +322,17 @@ func (c *FirestoreController) CreateOrUpdateDailyWorkHistory(ctx context.Context
 		}
 		return c.bulkUpdate(bulkWriter, ref, []firestore.Update{
 			{Path: WorkSecDocProperty, Value: doc.WorkSec + workSec},
+			{Path: TimezoneOffsetDocProperty, Value: timeZoneOffset},
 			{Path: UpdatedAtDocProperty, Value: updatedAt},
 		})
 	} else {
 		doc := DailyWorkHistoryDoc{
-			UserId:    userId,
-			Date:      dateString,
-			WorkSec:   workSec,
-			CreatedAt: updatedAt,
-			UpdatedAt: updatedAt,
+			UserId:         userId,
+			Date:           dateString,
+			WorkSec:        workSec,
+			TimezoneOffset: timeZoneOffset,
+			CreatedAt:      updatedAt,
+			UpdatedAt:      updatedAt,
 		}
 		return c.bulkCreate(bulkWriter, ref, doc)
 	}

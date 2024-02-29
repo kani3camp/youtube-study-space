@@ -56,6 +56,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	EndedAtDocProperty                     = "ended-at"
 	DateDocProperty                        = "date"
 	WorkSecDocProperty                     = "work-sec"
+	TimezoneOffsetDocProperty              = "timezone-offset"
 	UpdatedAtDocProperty                   = "updated-at"
 
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている

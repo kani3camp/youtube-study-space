@@ -307,9 +307,9 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	var resultMessage string
 
 	slog.Info("作業履歴を日次集計")
-	err := s.CreateDailyWorkHistoryUntilYesterday(ctx)
+	err := s.CreateDailyWorkHistory(ctx)
 	if err != nil {
-		return []string{}, fmt.Errorf("in CreateDailyWorkHistoryUntilYesterday(): %w", err)
+		return []string{}, fmt.Errorf("in CreateDailyWorkHistory(): %w", err)
 	}
 
 	slog.Info("一時的累計作業時間をリセット")
@@ -332,8 +332,8 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	return userIdsToProcessRP, nil
 }
 
-func (s *System) CreateDailyWorkHistoryUntilYesterday(ctx context.Context) error {
-	slog.Info(utils.NameOf(s.CreateDailyWorkHistoryUntilYesterday))
+func (s *System) CreateDailyWorkHistory(ctx context.Context) error {
+	slog.Info(utils.NameOf(s.CreateDailyWorkHistory))
 
 	// 対象とする作業履歴期間の終端と作成日時のマージン（分）（バッチとbotの時刻誤差を考慮）
 	const MarginMin = 3
@@ -346,6 +346,7 @@ func (s *System) CreateDailyWorkHistoryUntilYesterday(ctx context.Context) error
 	}
 
 	bulkWriter := s.FirestoreController.FirestoreClient.BulkWriter(ctx)
+	timezoneOffsetString := utils.TimezoneOffsetStringOf(utils.JstNow())
 
 	workHistoryCandidates, err := s.FirestoreController.GetWorkHistoriesByEndedAt(ctx, from, to)
 	if err != nil {
@@ -357,11 +358,11 @@ func (s *System) CreateDailyWorkHistoryUntilYesterday(ctx context.Context) error
 
 	// ユーザーごとに集計し、日次作業時間履歴を作成
 	for userId, workHistories := range mapByUser {
-		dailyWorkSecList := myfirestore.CreateDailyWorkSecList(workHistories)
+		dailyWorkSecList := myfirestore.CreateDailyWorkSecList(workHistories, utils.JapanLocation())
 
 		// 保存
 		for _, dailyWorkSec := range dailyWorkSecList {
-			err := s.FirestoreController.CreateOrUpdateDailyWorkHistory(ctx, bulkWriter, dailyWorkSec.Date, userId, dailyWorkSec.WorkSec, utils.JstNow())
+			err := s.FirestoreController.CreateOrUpdateDailyWorkHistory(ctx, bulkWriter, dailyWorkSec.Date, userId, dailyWorkSec.WorkSec, timezoneOffsetString, utils.JstNow())
 			if err != nil {
 				return fmt.Errorf("in CreateOrUpdateDailyWorkHistory(): %w", err)
 			}

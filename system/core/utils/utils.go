@@ -30,6 +30,12 @@ func JstNow() time.Time {
 	return time.Now().UTC().In(JapanLocation())
 }
 
+func TimezoneOffsetStringOf(t time.Time) string {
+	_, seconds := t.Zone()
+	duration := time.Duration(seconds) * time.Second
+	return fmt.Sprintf("%+03d:%02d", int(duration.Hours()), int(duration.Abs().Minutes())%60)
+}
+
 // SecondsOfDay tの0時0分からの経過時間（秒）
 func SecondsOfDay(t time.Time) int {
 	return t.Second() + int(time.Minute.Seconds())*t.Minute() + int(time.Hour.Seconds())*t.Hour()
