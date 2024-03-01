@@ -7,42 +7,39 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	USERS                     = "users"
 	LiveChatHistory           = "live-chat-history"
 	UserActivities            = "user-activities"
+	WorkHistory               = "work-history"
+	DailyWorkHistory          = "daily-work-history"
 	SeatLimitsBlackList       = "seat-limits-black-list"
 	SeatLimitsWhiteList       = "seat-limits-white-list"
 	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
 	MemberSeatLimitsWhiteList = "member-seat-limits-white-list"
-	
+
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
 	PublishedAtDocProperty       = "published-at"
 	TakenAtDocProperty           = "taken-at"
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
-	
-	CreatedAtDocProperty = "created-at"
-	UntilDocProperty     = "until"
-	
+
+	UntilDocProperty = "until"
+
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"
-	
+
 	ActivityTypeDocProperty = "activity-type"
-	
+
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MemberMaxSeatsDocProperty                        = "member-max-seats"
-	MinVacancyRateDocProperty                        = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
-	
-	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	LiveChatIdDocProperty                = "youtube-live-chat-id"
-	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
-	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"
-	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"
-	YoutubeChannelExpirationDate         = "youtube-channel-expiration-date"
-	
+	LastDailyWorkHistoryTargetDateDocProperty        = "last-daily-work-history-target-datetime"
+
+	NextPageTokenDocProperty = "youtube-live-chat-next-page-token"
+	LiveChatIdDocProperty    = "youtube-live-chat-id"
+
 	LastEnteredDocProperty                 = "last-entered"
 	LastExitedDocProperty                  = "last-exited"
 	DailyTotalStudySecDocProperty          = "daily-total-study-sec"
@@ -56,6 +53,11 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CurrentActivityStateStartedDocProperty = "current-activity-state-started"
 	LastPenaltyImposedDaysDocProperty      = "last-penalty-imposed-days"
 	IsMemberSeatDocProperty                = "is-member-seat"
-	
+	EndedAtDocProperty                     = "ended-at"
+	DateDocProperty                        = "date"
+	WorkSecDocProperty                     = "work-sec"
+	TimezoneOffsetDocProperty              = "timezone-offset"
+	UpdatedAtDocProperty                   = "updated-at"
+
 	FirestoreWritesLimitPerRequest = 500 // Firestoreの仕様として決まっている
 )

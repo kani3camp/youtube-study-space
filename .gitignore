@@ -8,6 +8,8 @@ system/bootstrap
 system/.env
 system/aws-lambda/main
 system/aws-lambda/main.zip
+system/aws-lambda/bootstrap.exe
+system/aws-lambda/bootstrap
 
 system/.serverless/youtubeStudySpace.zip
 

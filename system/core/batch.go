@@ -159,6 +159,13 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 					dailyCumulativeWorkSec = 0
 				}
 
+				// 作業履歴を作成
+				newWorkHistoryId, err := s.FirestoreController.CreateWorkHistory(ctx, tx, seatSnapshot.UserId, seatSnapshot.SeatId, isMemberRoom, jstNow, seatSnapshot.WorkName, jstNow)
+				if err != nil {
+					return fmt.Errorf("in CreateWorkHistory(): %w", err)
+				}
+
+				seat.WorkHistoryDocId = newWorkHistoryId
 				seat.State = myfirestore.WorkState
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
@@ -297,14 +304,20 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 
 func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	slog.Info(utils.NameOf(s.DailyOrganizeDB))
-	var lineMessage string
+	var resultMessage string
+
+	slog.Info("作業履歴を日次集計")
+	err := s.CreateDailyWorkHistory(ctx)
+	if err != nil {
+		return []string{}, fmt.Errorf("in CreateDailyWorkHistory(): %w", err)
+	}
 
 	slog.Info("一時的累計作業時間をリセット")
 	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		return []string{}, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 	}
-	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
+	resultMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 
 	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
 	userIdsToProcessRP, err := s.GetUserIdsToProcessRP(ctx)
@@ -312,11 +325,66 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 		return []string{}, fmt.Errorf("in GetUserIdsToProcessRP(): %w", err)
 	}
 
-	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
-	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
-	s.MessageToOwner(lineMessage)
+	resultMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
+	resultMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
+	s.MessageToOwner(resultMessage)
 	slog.Info("finished " + utils.NameOf(s.DailyOrganizeDB))
 	return userIdsToProcessRP, nil
+}
+
+func (s *System) CreateDailyWorkHistory(ctx context.Context) error {
+	slog.Info(utils.NameOf(s.CreateDailyWorkHistory))
+
+	// 対象とする作業履歴期間の終端と作成日時のマージン（分）（バッチとbotの時刻誤差を考慮）
+	const MarginMin = 3
+
+	to := utils.JstNow().Add(-1 * time.Minute * MarginMin)
+
+	from := s.Configs.Constants.LastDailyWorkHistoryTargetDateTime
+	if from.After(to) {
+		return fmt.Errorf("from is after to. from: %s, to: %s", from, to)
+	}
+
+	bulkWriter := s.FirestoreController.FirestoreClient.BulkWriter(ctx)
+	timezoneOffsetString := utils.TimezoneOffsetStringOf(utils.JstNow())
+
+	workHistoryCandidates, err := s.FirestoreController.GetWorkHistoriesByEndedAt(ctx, from, to)
+	if err != nil {
+		return fmt.Errorf("in GetWorkHistoriesByEndedAt(): %w", err)
+	}
+
+	// ユーザーごとにグルーピング（単体テストできるように関数作る）
+	mapByUser := s.groupByUser(workHistoryCandidates)
+
+	// ユーザーごとに集計し、日次作業時間履歴を作成
+	for userId, workHistories := range mapByUser {
+		dailyWorkSecList := myfirestore.CreateDailyWorkSecList(workHistories, utils.JapanLocation())
+
+		// 保存
+		for _, dailyWorkSec := range dailyWorkSecList {
+			err := s.FirestoreController.CreateOrUpdateDailyWorkHistory(ctx, bulkWriter, dailyWorkSec.Date, userId, dailyWorkSec.WorkSec, timezoneOffsetString, utils.JstNow())
+			if err != nil {
+				return fmt.Errorf("in CreateOrUpdateDailyWorkHistory(): %w", err)
+			}
+		}
+	}
+
+	err = s.FirestoreController.UpdateLastDailyWorkHistoryTargetDateTime(ctx, nil, to)
+	if err != nil {
+		return fmt.Errorf("in UpdateLastDailyWorkHistoryTargetDateTime(): %w", err)
+	}
+
+	bulkWriter.End()
+
+	return nil
+}
+
+func (s *System) groupByUser(historyDocs []myfirestore.WorkHistoryDoc) map[string][]myfirestore.WorkHistoryDoc {
+	mapByUser := make(map[string][]myfirestore.WorkHistoryDoc)
+	for _, workHistory := range historyDocs {
+		mapByUser[workHistory.UserId] = append(mapByUser[workHistory.UserId], workHistory)
+	}
+	return mapByUser
 }
 
 func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
