@@ -322,15 +322,3 @@ func SeatIdStr(seatId int, isMemberSeat bool) string {
 		return strconv.Itoa(seatId)
 	}
 }
-
-// DateRange startからendの前日までの日付を返す。時間は無視する。
-// start = endなら空のsliceを返す。
-func DateRange(start, end time.Time) []time.Time {
-	start0 := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
-	end0 := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
-	dates := make([]time.Time, 0)
-	for d := start0; d.Before(end0); d = d.AddDate(0, 0, 1) {
-		dates = append(dates, d)
-	}
-	return dates
-}
