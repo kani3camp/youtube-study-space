@@ -1,5 +1,5 @@
 {
-    "cSpell.words": [
-        "tailwindcss"
-    ]
+    "cSpell.words": ["tailwindcss"],
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
 }
