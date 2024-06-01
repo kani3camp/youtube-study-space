@@ -2437,7 +2437,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 
 	// 片方しかなければチェックは不要
 	if len(whiteListForUserAndSeat) > 1 {
-		return false, errors.New("len(whiteListForUserAndSeat) > 1")
+		return false, errors.New(fmt.Sprintf("len(whiteListForUserAndSeat) > 1, seatId=%d, userId=%s", seatId, userId))
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in white list. skipping.")
@@ -2446,7 +2446,7 @@ func (s *System) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId st
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
 	}
 	if len(blackListForUserAndSeat) > 1 {
-		return false, errors.New("len(blackListForUserAndSeat) > 1")
+		return false, errors.New(fmt.Sprintf("len(blackListForUserAndSeat) > 1, seatId=%d, userId=%s", seatId, userId))
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in black list. skipping.")
