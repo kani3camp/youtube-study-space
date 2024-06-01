@@ -1,4 +1,4 @@
-import Wave from '@foobar404/wave'
+import { Wave } from '@foobar404/wave'
 import { FC, useEffect, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
@@ -103,14 +103,16 @@ const BgmPlayer: FC = () => {
         if (!initialized) {
             setInitialized(true)
 
-            const wave = new Wave()
-            const waveOptions = {
-                type: 'wave',
-                colors: ['#000', '#111'],
-                stroke: 0,
-            }
-            wave.fromElement(audioDivId, audioCanvasId, waveOptions)
-
+            const audioElement = document.getElementById(audioDivId) as HTMLAudioElement
+            const canvasElement = document.getElementById(audioCanvasId) as HTMLCanvasElement
+            const wave = new Wave(audioElement, canvasElement)
+            wave.addAnimation(
+                new wave.animations.Wave({
+                    fillColor: '#111',
+                    rounded: true,
+                    count: 15,
+                })
+            )
             audioStart()
         }
         const intervalId = setInterval(() => updateState(), 1000)

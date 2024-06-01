@@ -87,7 +87,7 @@ type SeatState string
 
 const (
 	WorkState  SeatState = "work"
-	BreakState           = "break"
+	BreakState SeatState = "break"
 )
 
 type SeatAppearance struct {
@@ -182,9 +182,9 @@ type UserActivityType string
 
 const (
 	EnterRoomActivity  UserActivityType = "enter-room"
-	ExitRoomActivity                    = "exit-room"
-	StartBreakActivity                  = "start-break"
-	EndBreakActivity                    = "end-break"
+	ExitRoomActivity   UserActivityType = "exit-room"
+	StartBreakActivity UserActivityType = "start-break"
+	EndBreakActivity   UserActivityType = "end-break"
 	// TODO: add others
 )
 
