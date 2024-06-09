@@ -1,10 +1,14 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback } from 'react'
+import Link from 'next/link'
 
 export default function Home() {
+    const router = useRouter()
+
     const onClickLogin = useCallback(() => {
-        alert('clicked')
+        router.push('/sign-in')
     }, [])
 
     return (
@@ -22,6 +26,10 @@ export default function Home() {
                     >
                         ログイン
                     </button>
+                </div>
+
+                <div>
+                    <Link href="/userinfo">ユーザー情報を見る</Link>
                 </div>
             </div>
         </main>

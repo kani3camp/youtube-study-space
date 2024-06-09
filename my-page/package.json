@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "googleapis": "^140.0.0",
     "next": "14.0.3",
+    "next-auth": "^5.0.0-beta.19",
     "react": "^18",
     "react-dom": "^18"
   },

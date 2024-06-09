@@ -1,0 +1,32 @@
+import { auth } from '@/app/auth'
+import { google, youtube_v3 } from 'googleapis'
+
+export default async function UserInfoPage() {
+    const session = await auth()
+    const user = session?.user as any
+
+    const oauth2Client = new google.auth.OAuth2({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        // TODO: GCPコンソールで設定したredirect URI
+        redirectUri: 'http://localhost:3000/api/auth/callback/google',
+    })
+
+    const accessToken = user?.accessToken
+    if (!accessToken) {
+        return <div>accessToken is null</div>
+    }
+
+    // トークンを設定。refresh_tokenも渡せます。
+    oauth2Client.setCredentials({ access_token: accessToken })
+
+    const youtube: youtube_v3.Youtube = google.youtube({
+        version: 'v3',
+        auth: oauth2Client,
+    })
+
+    const response = await youtube.channels.list({ part: ['id'], mine: true })
+    const channelId = response.data.items?.at(0)?.id
+
+    return <>your channel id is {channelId}</>
+}
