@@ -9,8 +9,7 @@ export default async function UserInfoPage() {
     const oauth2Client = new google.auth.OAuth2({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        // TODO: GCPコンソールで設定したredirect URI
-        redirectUri: 'http://localhost:3000/api/auth/callback/google',
+        // redirectUri: 'http://localhost:3000/api/auth/callback/google',
     })
 
     const accessToken = user?.accessToken
