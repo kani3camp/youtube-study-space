@@ -1,5 +1,6 @@
 import { auth } from '@/app/auth'
 import { google, youtube_v3 } from 'googleapis'
+import Link from 'next/link'
 
 export default async function UserInfoPage() {
     const session = await auth()
@@ -28,5 +29,16 @@ export default async function UserInfoPage() {
     const response = await youtube.channels.list({ part: ['id'], mine: true })
     const channelId = response.data.items?.at(0)?.id
 
-    return <>your channel id is {channelId}</>
+    return (
+        <>
+            <div>あなたのチャンネルID： {channelId}</div>
+
+            <Link
+                href="/"
+                className="mx-3 my-5 rounded-full bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-700"
+            >
+                Homeに戻る
+            </Link>
+        </>
+    )
 }

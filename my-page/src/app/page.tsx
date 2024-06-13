@@ -1,15 +1,10 @@
-'use client'
-
-import { useRouter } from 'next/navigation'
-import { useCallback } from 'react'
 import Link from 'next/link'
+import { SignIn } from './components/sign-in'
+import { auth } from './auth'
+import { SignOut } from './components/sign-out'
 
-export default function Home() {
-    const router = useRouter()
-
-    const onClickLogin = useCallback(() => {
-        router.push('/sign-in')
-    }, [])
+export default async function Home() {
+    const session = await auth()
 
     return (
         <main>
@@ -18,19 +13,20 @@ export default function Home() {
                     <h1 className="text-xl font-semibold">Home</h1>
                 </div>
 
-                <div>
-                    <button
-                        type="button"
-                        onClick={onClickLogin}
-                        className="rounded-full bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-700"
-                    >
-                        ログイン
-                    </button>
-                </div>
+                {!session && <SignIn></SignIn>}
 
-                <div>
-                    <Link href="/userinfo">ユーザー情報を見る</Link>
-                </div>
+                {session && (
+                    <div>
+                        <Link
+                            href="/userinfo"
+                            className="mx-3 my-5 rounded-full bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-700"
+                        >
+                            ユーザー情報を見る
+                        </Link>
+                    </div>
+                )}
+
+                {session && <SignOut></SignOut>}
             </div>
         </main>
     )
