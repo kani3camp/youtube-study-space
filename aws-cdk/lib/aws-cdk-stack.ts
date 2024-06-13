@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url';
 import { aws_apigateway } from 'aws-cdk-lib';
 import * as events from 'aws-cdk-lib/aws-events'
 import * as targets from 'aws-cdk-lib/aws-events-targets'
+import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
+import * as logs from 'aws-cdk-lib/aws-logs';
 
 export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -107,11 +109,26 @@ export class AwsCdkStack extends cdk.Stack {
     });
     (processUserRPParallelFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
     
+    // API Gateway用ロググループ
+    const restApiLogAccessLogGroup = new logs.LogGroup(
+      this,
+      'RestApiLogAccessLogGroup',
+      {
+        logGroupName: `/aws/apigateway/rest-api-access-log`,
+        retention: logs.RetentionDays.INFINITE,
+      },
+    );
     
     // API Gateway
     const restApi = new aws_apigateway.RestApi(this, 'youtube-study-space-rest-api', {
       deployOptions: {
-        stageName: 'default'
+        stageName: 'default',
+        dataTraceEnabled: true,
+        loggingLevel: aws_apigateway.MethodLoggingLevel.INFO,
+        accessLogDestination: new aws_apigateway.LogGroupLogDestination(
+          restApiLogAccessLogGroup,
+        ),
+        accessLogFormat: aws_apigateway.AccessLogFormat.clf(),
       },
       restApiName: 'youtube-study-space-rest-api',
       defaultMethodOptions: { apiKeyRequired: true },
@@ -120,7 +137,8 @@ export class AwsCdkStack extends cdk.Stack {
         allowMethods: aws_apigateway.Cors.ALL_METHODS,
         allowHeaders: aws_apigateway.Cors.DEFAULT_HEADERS,
         statusCode: 200,
-      }
+      },
+      cloudWatchRole: true
     });
     
     const apiKey = restApi.addApiKey('youtube-study-space-api-key', { apiKeyName: `youtube-study-space-api-key` });
@@ -131,7 +149,22 @@ export class AwsCdkStack extends cdk.Stack {
     const apiSetDesiredMaxSeats = restApi.root.addResource('set_desired_max_seats')
     apiSetDesiredMaxSeats.addMethod(
       "POST", 
-      new aws_apigateway.LambdaIntegration(setDesiredMaxSeatsFunction)
+      new aws_apigateway.LambdaIntegration(setDesiredMaxSeatsFunction, {
+        passthroughBehavior: PassthroughBehavior.WHEN_NO_MATCH,
+      }),
+      {
+        methodResponses: [
+          {
+            statusCode: '200',
+            responseModels: {
+              'application/json': aws_apigateway.Model.EMPTY_MODEL,
+            },
+            responseParameters: {
+              'method.response.header.Access-Control-Allow-Origin': true,
+            }
+          }
+        ]
+      }
     )
     
     // EventBridge
