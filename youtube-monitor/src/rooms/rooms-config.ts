@@ -57,8 +57,8 @@ const testAllRooms: AllRoomsConfig = {
         Freepik5Room,
         SeaOfSeatRoom,
     ],
-    memberBasicRooms: [MemberIllustratedRoom1, MemberIllustratedRoomSpring],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberIllustratedRoomSpring],
+    memberBasicRooms: [],
+    memberTemporaryRooms: [],
 }
 
 const glRooms: AllRoomsConfig = {

@@ -1,6 +1,9 @@
 if (process.env.NEXT_PUBLIC_DEBUG !== 'true' && process.env.NEXT_PUBLIC_DEBUG !== 'false') {
     throw Error(`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`)
 }
+if (process.env.NEXT_PUBLIC_CHANNEL_GL !== 'true' && process.env.NEXT_PUBLIC_CHANNEL_GL !== 'false') {
+    throw Error(`invalid NEXT_PUBLIC_CHANNEL_GL: ${process.env.NEXT_PUBLIC_CHANNEL_GL?.toString()}`)
+}
 export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
 export const CHANNEL_GL = process.env.NEXT_PUBLIC_CHANNEL_GL === 'true'
 
