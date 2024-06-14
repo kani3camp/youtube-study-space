@@ -5,9 +5,12 @@ import (
 	"app.modules/core"
 	"app.modules/core/utils"
 	"context"
+	"encoding/json"
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
 	"log/slog"
+	"net/http"
 )
 
 type SetMaxSeatsParams struct {
@@ -20,45 +23,59 @@ type SetMaxSeatsResponse struct {
 	Message string `json:"message"`
 }
 
-func SetDesiredMaxSeats(request SetMaxSeatsParams) (SetMaxSeatsResponse, error) {
+func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	slog.Info(utils.NameOf(SetDesiredMaxSeats))
 
-	ctx := context.Background()
+	var params SetMaxSeatsParams
+	err := json.Unmarshal([]byte(request.Body), &params)
+	if err != nil {
+		return events.APIGatewayProxyResponse{}, err
+	}
+
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return SetMaxSeatsResponse{}, err
+		return events.APIGatewayProxyResponse{}, err
 	}
 	system, err := core.NewSystem(ctx, false, clientOption)
 	if err != nil {
-		return SetMaxSeatsResponse{}, err
+		return events.APIGatewayProxyResponse{}, err
 	}
 	defer system.CloseFirestoreClient()
 
 	if system.Configs.Constants.YoutubeMembershipEnabled {
-		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats <= 0 {
-			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats <= 0 {
+			return events.APIGatewayProxyResponse{}, errors.New("invalid parameter")
 		}
 	} else {
-		if request.DesiredMaxSeats <= 0 || request.DesiredMemberMaxSeats != 0 {
-			return SetMaxSeatsResponse{}, errors.New("invalid parameter")
+		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats != 0 {
+			return events.APIGatewayProxyResponse{}, errors.New("invalid parameter")
 		}
 	}
 
 	// transaction not necessary
-	err = system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, request.DesiredMaxSeats)
+	err = system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats)
 	if err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
-		return SetMaxSeatsResponse{}, err
+		return events.APIGatewayProxyResponse{}, err
 	}
-	err = system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, request.DesiredMemberMaxSeats)
+	err = system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats)
 	if err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
-		return SetMaxSeatsResponse{}, err
+		return events.APIGatewayProxyResponse{}, err
 	}
 
-	return SetMaxSeatsResponse{
+	body, _ := json.Marshal(SetMaxSeatsResponse{
 		Result:  lambdautils.OK,
 		Message: "",
+	})
+
+	return events.APIGatewayProxyResponse{
+		StatusCode: http.StatusOK,
+		Headers: map[string]string{
+			"Access-Control-Allow-Origin": "*",
+		},
+		Body:            string(body),
+		IsBase64Encoded: false,
 	}, nil
 }
 
