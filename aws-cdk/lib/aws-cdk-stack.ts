@@ -15,15 +15,15 @@ export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
     
-    // カスタムポリシー
-    const customPolicyDynamoDB = new iam.PolicyStatement({
+    const dynamoDBAccessPolicy = new iam.PolicyStatement({
       actions: ['dynamodb:GetItem'],
       effect: iam.Effect.ALLOW,
       resources: [
         'arn:aws:dynamodb:*:*:table/secrets'
       ]
     })
-    
+
+
     // Lambda function
     const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(this, 'set_desired_max_seats', {
       functionName: 'set_desired_max_seats',
@@ -37,8 +37,8 @@ export class AwsCdkStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(20),
       reservedConcurrentExecutions: undefined,
     });
-    (setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
-    
+    (setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+
     const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(this, 'youtube_organize_database', {
       functionName: 'youtube_organize_database',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
@@ -51,7 +51,21 @@ export class AwsCdkStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(50),
       reservedConcurrentExecutions: 1,
     });
-    (youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
+    (youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+
+    const processUserRPParallelFunction = new lambda.DockerImageFunction(this, 'process_user_rp_parallel', {
+      functionName: 'process_user_rp_parallel',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
+        buildArgs: {
+          HANDLER: 'main',
+        },
+        platform: Platform.LINUX_AMD64,
+        entrypoint: ['/app/process_user_rp_parallel'],
+      }),
+      timeout: cdk.Duration.minutes(15),
+      reservedConcurrentExecutions: undefined,
+    });
+    (processUserRPParallelFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
 
     const dailyOrganizeDatabaseFunction = new lambda.DockerImageFunction(this, 'daily_organize_database', {
       functionName: 'daily_organize_database',
@@ -65,8 +79,14 @@ export class AwsCdkStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(15),
       reservedConcurrentExecutions: 1,
     });
-    (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
-    
+    (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+    const invokeLambdaPolicy = new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
+      effect: iam.Effect.ALLOW,
+      resources: [processUserRPParallelFunction.functionArn]
+    });
+    (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(invokeLambdaPolicy);
+
     const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(this, 'check_live_stream_status', {
       functionName: 'check_live_stream_status',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
@@ -79,8 +99,8 @@ export class AwsCdkStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(10),
       reservedConcurrentExecutions: undefined,
     });
-    (checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
-    
+    (checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+
     const transferCollectionHistoryBigqueryFunction = new lambda.DockerImageFunction(this, 'transfer_collection_history_bigquery', {
       functionName: 'transfer_collection_history_bigquery',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
@@ -93,21 +113,8 @@ export class AwsCdkStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(15),
       reservedConcurrentExecutions: 1,
     });
-    (transferCollectionHistoryBigqueryFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
-    
-    const processUserRPParallelFunction = new lambda.DockerImageFunction(this, 'process_user_rp_parallel', {
-      functionName: 'process_user_rp_parallel',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
-        buildArgs: {
-          HANDLER: 'main',
-        },
-        platform: Platform.LINUX_AMD64,
-        entrypoint: ['/app/process_user_rp_parallel'],
-      }),
-      timeout: cdk.Duration.minutes(15),
-      reservedConcurrentExecutions: undefined,
-    });
-    (processUserRPParallelFunction.role as iam.Role).addToPolicy(customPolicyDynamoDB);
+    (transferCollectionHistoryBigqueryFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+
     
     // API Gateway用ロググループ
     const restApiLogAccessLogGroup = new logs.LogGroup(
