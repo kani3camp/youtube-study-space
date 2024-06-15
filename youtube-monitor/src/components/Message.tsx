@@ -2,7 +2,7 @@ import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import * as styles from '../styles/Message.styles'
 import { Seat } from '../types/api'
-import { componentBackground } from '../styles/common.style'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 type Props = {
     currentPageIndex: number
@@ -36,7 +36,7 @@ const Message: FC<Props> = (props) => {
     }
     return (
         <div css={[styles.shape, componentBackground]}>
-            <div css={styles.message}>{content}</div>
+            <div css={[styles.message, componentStyle]}>{content}</div>
         </div>
     )
 }

@@ -3,7 +3,7 @@ import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { getCurrentSection, getNextSection, remainingTime, SectionType } from '../lib/time-table'
 import * as styles from '../styles/Timer.styles'
-import { componentBackground } from '../styles/common.style'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
 
@@ -63,7 +63,7 @@ const Timer: FC = () => {
 
     return (
         <div css={[styles.shape, componentBackground]}>
-            <div css={styles.timer}>
+            <div css={[styles.timer, componentStyle]}>
                 <div css={styles.timerTitle}>
                     <div
                         css={[
@@ -82,7 +82,7 @@ const Timer: FC = () => {
                     {currentSectionId !== 0 ? t('section', { value: currentSectionId }) : ''}
                 </span>
                 <div css={styles.spacer} />
-                <div css={styles.nextDescription}>
+                <div>
                     <span>{`${t('next')} `}</span>
                     <span>{nextSectionDuration}</span>
                     <span>{`${t('minutes')} `}</span>

@@ -12,16 +12,11 @@ export const shape = css`
 export const message = css`
     height: 90%;
     width: 85%;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin: auto;
     text-align: center;
     font-size: 1.6rem;
     display: flex;
     flex-direction: row;
+    color: ${Constants.primaryTextColor};
 `
 
 export const pageInfo = css`

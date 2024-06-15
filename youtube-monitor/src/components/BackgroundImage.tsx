@@ -28,6 +28,7 @@ const BackgroundImage: FC = () => {
                     currentTarget.src = BACKGROUND_IMAGE_URL
                 }}
             />
+            <div css={styles.blurLayer}></div>
         </div>
     )
 }

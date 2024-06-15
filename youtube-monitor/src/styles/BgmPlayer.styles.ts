@@ -2,11 +2,14 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: calc(1080px - 200px - 350px - 300px);
+    height: ${Constants.screenHeight -
+    Constants.clockHeight -
+    Constants.usageHeight -
+    Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
     right: 0;
-    bottom: 300px;
+    bottom: ${Constants.timerHeight}px;
 `
 
 export const bgmPlayer = css`
@@ -15,23 +18,17 @@ export const bgmPlayer = css`
     background-color: rgba(53, 49, 49, 0.3);
     position: absolute;
     text-align: center;
-    color: white;
+    color: ${Constants.secondaryTextColor};
     word-break: break-all;
     z-index: 20;
     border-radius: 0.6rem;
 
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin: auto;
     overflow: hidden;
 
     & h4 {
         text-align: right;
         margin-inline-end: 1rem;
-        font-size: 0.9rem;
+        font-size: 0.6rem;
     }
 `
 

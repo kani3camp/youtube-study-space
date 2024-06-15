@@ -4,7 +4,7 @@ import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
-import { componentBackground } from '../styles/common.style'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 const BgmPlayer: FC = () => {
     const [lastSectionType, setLastSectionType] = useState('')
@@ -127,7 +127,7 @@ const BgmPlayer: FC = () => {
 
     return (
         <div css={[styles.shape, componentBackground]}>
-            <div css={styles.bgmPlayer}>
+            <div css={[styles.bgmPlayer, componentStyle]}>
                 <audio autoPlay id={audioDivId}></audio>
 
                 <audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}></audio>

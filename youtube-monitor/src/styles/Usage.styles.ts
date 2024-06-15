@@ -2,17 +2,17 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: 390px;
+    height: ${Constants.usageHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
-    top: 160px;
+    top: ${Constants.clockHeight}px;
     right: 0;
 `
 
 export const usage = css`
     font-size: 1rem;
     text-align: center;
-    color: #383838;
+    color: ${Constants.primaryTextColor};
     box-sizing: border-box;
     height: 95%;
     width: 85%;
@@ -20,12 +20,6 @@ export const usage = css`
     border-radius: 0.6rem;
     background-color: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(0.5rem);
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    bottom: 0;
-    margin: auto;
 `
 
 export const seatId = css`
@@ -39,7 +33,7 @@ export const description = css`
 `
 
 export const seat = css`
-    border: solid #3a3a3a 0.09rem;
+    background-color: rgba(243, 236, 236, 0.523);
     width: 7.1rem;
     height: 3.5rem;
     margin: 0.2rem auto;

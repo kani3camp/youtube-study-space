@@ -2,7 +2,7 @@ import { useTranslation } from 'next-i18next'
 import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import * as styles from '../styles/Clock.styles'
-import { componentBackground } from '../styles/common.style'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 const Clock: FC = () => {
     const { t } = useTranslation()
@@ -17,7 +17,7 @@ const Clock: FC = () => {
 
     return (
         <div css={[styles.shape, componentBackground]}>
-            <div css={styles.clockStyle}>
+            <div css={[styles.clockStyle, componentStyle]}>
                 <div css={styles.dateStringStyle}>
                     {`${now.getFullYear()}${t('year')}${now.getMonth() + 1}${t(
                         'month'

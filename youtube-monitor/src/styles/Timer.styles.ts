@@ -2,7 +2,7 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: 300px;
+    height: ${Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
     bottom: 0;
@@ -13,15 +13,9 @@ export const timer = css`
     height: 90%;
     width: 83%;
     border-radius: 0.6rem;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    top: 0;
-    left: 0;
-    margin: auto;
     font-size: 0.9rem;
     text-align: center;
-    color: #2d2b28;
+    color: ${Constants.primaryTextColor};
     background-color: rgba(255, 255, 255, 0.3);
 `
 
@@ -38,7 +32,7 @@ export const sectionColor = css`
 `
 
 export const spacer = css`
-    margin: 0.1rem;
+    margin: 0.2rem;
 `
 
 export const remaining = css`
@@ -47,13 +41,23 @@ export const remaining = css`
     font-weight: bold;
 `
 export const studyMode = css`
-    background-color: #f869a5e7;
+    background: rgb(253, 225, 254);
+    background: linear-gradient(
+        60deg,
+        rgba(255, 130, 255, 0.6) 0%,
+        rgba(253, 225, 254, 0.6) 40%,
+        rgba(253, 225, 254, 0.6) 60%,
+        rgba(255, 130, 255, 0.6) 100%
+    );
 `
 
 export const breakMode = css`
-    background-color: #5af87fe7;
-`
-
-export const nextDescription = css`
-    color: #2d2b28;
+    background: rgb(227, 254, 225);
+    background: linear-gradient(
+        60deg,
+        rgba(130, 255, 165, 0.6) 0%,
+        rgba(227, 255, 225, 0.6) 40%,
+        rgba(227, 255, 225, 0.6) 60%,
+        rgba(130, 255, 165, 0.6) 100%
+    );
 `

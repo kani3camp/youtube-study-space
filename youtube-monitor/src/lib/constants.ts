@@ -15,6 +15,9 @@ export const Constants = {
     screenHeight: 1080,
     sideBarWidth: 400,
     messageBarHeight: 80,
+    clockHeight: 160,
+    usageHeight: 390,
+    timerHeight: 330,
     fontFamily: "'M PLUS Rounded 1c', sans-serif",
     breakBadgeZIndex: 10,
     seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
@@ -24,6 +27,8 @@ export const Constants = {
     chimeDoubleFilePath: '/chime/chime2.mp3',
     pagingIntervalSeconds: 8,
     emptySeatColor: '#F3E8DC',
+    primaryTextColor: '#3a1e86',
+    secondaryTextColor: '#f1e8f2',
     memberSeatWorkNameWidthPercent: 60,
 }
 
