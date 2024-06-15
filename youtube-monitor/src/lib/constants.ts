@@ -1,7 +1,10 @@
 if (process.env.NEXT_PUBLIC_DEBUG !== 'true' && process.env.NEXT_PUBLIC_DEBUG !== 'false') {
     throw Error(`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`)
 }
-if (process.env.NEXT_PUBLIC_CHANNEL_GL !== 'true' && process.env.NEXT_PUBLIC_CHANNEL_GL !== 'false') {
+if (
+    process.env.NEXT_PUBLIC_CHANNEL_GL !== 'true' &&
+    process.env.NEXT_PUBLIC_CHANNEL_GL !== 'false'
+) {
     throw Error(`invalid NEXT_PUBLIC_CHANNEL_GL: ${process.env.NEXT_PUBLIC_CHANNEL_GL?.toString()}`)
 }
 export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
@@ -12,7 +15,7 @@ export const Constants = {
     screenHeight: 1080,
     sideBarWidth: 400,
     messageBarHeight: 80,
-    fontFamily: "'Zen Maru Gothic', sans-serif",
+    fontFamily: "'M PLUS Rounded 1c', sans-serif",
     breakBadgeZIndex: 10,
     seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
     bgmVolume: DEBUG ? 0.1 : 0.3,

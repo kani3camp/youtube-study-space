@@ -1,12 +1,13 @@
 import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import * as styles from '../styles/Usage.styles'
+import { componentBackground } from '../styles/common.style'
 
 const Usage: FC = () => {
     const { t } = useTranslation()
 
     return (
-        <div css={styles.background}>
+        <div css={[styles.shape, componentBackground]}>
             <div css={styles.usage}>
                 <h3 css={styles.description}>{t('usage.description')}</h3>
 
