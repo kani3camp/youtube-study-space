@@ -177,7 +177,10 @@ export class AwsCdkStack extends cdk.Stack {
     // EventBridge
     new events.Rule(this, '1minute', {
       schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
-      targets: [new targets.LambdaFunction(youtubeOrganizeDatabaseFunction)]
+      targets: [
+        new targets.LambdaFunction(youtubeOrganizeDatabaseFunction), 
+        new targets.LambdaFunction(checkLiveStreamStatusFunction)
+      ]
     })
     new events.Rule(this, 'daily0am-JST', {
       schedule: events.Schedule.cron({ minute: '0', hour: '15' }),
