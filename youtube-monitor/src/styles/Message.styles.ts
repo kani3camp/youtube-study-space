@@ -10,7 +10,7 @@ export const shape = css`
 `
 
 export const message = css`
-    height: 90%;
+    height: 80%;
     width: 85%;
     text-align: center;
     font-size: 1.6rem;
