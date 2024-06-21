@@ -3,6 +3,7 @@ import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { getCurrentSection, getNextSection, remainingTime, SectionType } from '../lib/time-table'
 import * as styles from '../styles/Timer.styles'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
 
@@ -61,28 +62,32 @@ const Timer: FC = () => {
     }, TIME_UPDATE_INTERVAL_MILLI_SEC)
 
     return (
-        <div css={styles.timer}>
-            <div css={styles.timerTitle}>
-                <div
-                    css={[
-                        styles.sectionColor,
-                        sectionType === SectionType.Study ? styles.studyMode : styles.breakMode,
-                    ]}
-                >
-                    {sectionMessage}
+        <div css={[styles.shape, componentBackground]}>
+            <div css={[styles.timer, componentStyle]}>
+                <div css={styles.timerTitle}>
+                    <div
+                        css={[
+                            styles.sectionColor,
+                            sectionType === SectionType.Study ? styles.studyMode : styles.breakMode,
+                        ]}
+                    >
+                        {sectionMessage}
+                    </div>
                 </div>
-            </div>
-            <div css={styles.remaining}>
-                {remainingMin}：{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
-            </div>
-            <span>{`${currentPartName}` + ' '}</span>
-            <span>{currentSectionId !== 0 ? t('section', { value: currentSectionId }) : ''}</span>
-            <div css={styles.spacer} />
-            <div css={styles.nextDescription}>
-                <span>{`${t('next')} `}</span>
-                <span>{nextSectionDuration}</span>
-                <span>{`${t('minutes')} `}</span>
-                <span>{nextSection}</span>
+                <div css={styles.remaining}>
+                    {remainingMin}：{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
+                </div>
+                <span>{`${currentPartName}` + ' '}</span>
+                <span>
+                    {currentSectionId !== 0 ? t('section', { value: currentSectionId }) : ''}
+                </span>
+                <div css={styles.spacer} />
+                <div>
+                    <span>{`${t('next')} `}</span>
+                    <span>{nextSectionDuration}</span>
+                    <span>{`${t('minutes')} `}</span>
+                    <span>{nextSection}</span>
+                </div>
             </div>
         </div>
     )
