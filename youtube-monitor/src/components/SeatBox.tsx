@@ -200,6 +200,7 @@ const SeatBox: FC<SeatProps> = (props) => {
             {/* profile image */}
             {props.isUsed && props.memberOnly && (
                 <img
+                    alt='profile image'
                     css={
                         (isBreak ? breakWorkName : workName !== '')
                             ? styles.profileImageMemberWithWorkName
