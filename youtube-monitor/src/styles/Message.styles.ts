@@ -1,17 +1,22 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
-export const message = css`
+export const shape = css`
     height: ${Constants.messageBarHeight}px;
     width: calc(${Constants.screenWidth}px - ${Constants.sideBarWidth}px);
     position: absolute;
     bottom: 0;
     left: 0;
+`
+
+export const message = css`
+    height: 80%;
+    width: 85%;
     text-align: center;
     font-size: 1.6rem;
-    background-color: #ffffff60;
     display: flex;
     flex-direction: row;
+    color: ${Constants.primaryTextColor};
 `
 
 export const pageInfo = css`
@@ -42,6 +47,6 @@ export const numStudyingPeople = css`
     width: 70%;
     height: 100%;
     display: inline-block;
-    background-color: rgba(255, 241, 221, 0.9);
-    border-radius: 1rem 0 0 0;
+    background-color: rgba(255, 255, 255, 0.472);
+    border-radius: 0.6rem;
 `

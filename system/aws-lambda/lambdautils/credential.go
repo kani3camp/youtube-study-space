@@ -2,6 +2,7 @@ package lambdautils
 
 import (
 	"app.modules/aws-lambda/mydynamodb"
+	"fmt"
 	"google.golang.org/api/option"
 )
 
@@ -10,7 +11,7 @@ import (
 func FirestoreClientOption() (option.ClientOption, error) {
 	credentialBytes, err := mydynamodb.FetchFirebaseCredentialsAsBytes()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("in FetchFirebaseCredentialsAsBytes: %w", err)
 	}
 	return option.WithCredentialsJSON(credentialBytes), nil
 }

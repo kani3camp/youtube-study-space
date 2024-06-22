@@ -11,5 +11,5 @@ tasks:
       CGO_ENABLED: 0
     cmds:
       - echo "Building function {{.FUNCTION_NAME}}"
-      - go build -o main {{.FUNCTION_NAME}}/main.go
-      - ~/Go/bin/build-lambda-zip.exe -o main.zip main
+      - go build -tags lambda.norpc -o bootstrap {{.FUNCTION_NAME}}/main.go
+      - ~/Go/bin/build-lambda-zip.exe -o main.zip bootstrap

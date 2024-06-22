@@ -5,17 +5,20 @@ import (
 )
 
 const (
-	TextMessageEventString   = "textMessageEvent"
-	SuperChatEventString     = "superChatEvent"
+	TextMessageEvent         = "textMessageEvent"
+	NewSponsorEvent          = "newSponsorEvent"
+	SuperChatEvent           = "superChatEvent"
+	SuperStickerEvent        = "superStickerEvent"
 	MemberMilestoneChatEvent = "memberMilestoneChatEvent"
+	MembershipGiftingEvent   = "membershipGiftingEvent"
 )
 
 // HasTextMessageByAuthor HasTextMessageContent returns true when the chatMessage has a text message content by the author.
 func HasTextMessageByAuthor(chat *youtube.LiveChatMessage) bool {
-	if chat.Snippet.Type == TextMessageEventString && chat.Snippet.TextMessageDetails != nil {
+	if chat.Snippet.Type == TextMessageEvent && chat.Snippet.TextMessageDetails != nil {
 		return true
 	}
-	if chat.Snippet.Type == SuperChatEventString && chat.Snippet.SuperChatDetails != nil {
+	if chat.Snippet.Type == SuperChatEvent && chat.Snippet.SuperChatDetails != nil {
 		return true
 	}
 	if chat.Snippet.Type == MemberMilestoneChatEvent && chat.Snippet.MemberMilestoneChatDetails != nil {
@@ -24,11 +27,19 @@ func HasTextMessageByAuthor(chat *youtube.LiveChatMessage) bool {
 	return false
 }
 
+func IsFanFundingEvent(chat *youtube.LiveChatMessage) bool {
+	return chat.Snippet.Type == NewSponsorEvent ||
+		chat.Snippet.Type == SuperChatEvent ||
+		chat.Snippet.Type == SuperStickerEvent ||
+		chat.Snippet.Type == MemberMilestoneChatEvent ||
+		chat.Snippet.Type == MembershipGiftingEvent
+}
+
 func ExtractTextMessageByAuthor(chat *youtube.LiveChatMessage) string {
-	if chat.Snippet.Type == TextMessageEventString && chat.Snippet.TextMessageDetails != nil {
+	if chat.Snippet.Type == TextMessageEvent && chat.Snippet.TextMessageDetails != nil {
 		return chat.Snippet.TextMessageDetails.MessageText
 	}
-	if chat.Snippet.Type == SuperChatEventString && chat.Snippet.SuperChatDetails != nil {
+	if chat.Snippet.Type == SuperChatEvent && chat.Snippet.SuperChatDetails != nil {
 		return chat.Snippet.SuperChatDetails.UserComment
 	}
 	if chat.Snippet.Type == MemberMilestoneChatEvent && chat.Snippet.MemberMilestoneChatDetails != nil {
