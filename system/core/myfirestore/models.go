@@ -17,6 +17,9 @@ type ConstantsConfigDoc struct {
 
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"` // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 
+	// 前回のdaily-work-historyの作成を行った対象作業履歴期間の終端日時
+	LastDailyWorkHistoryTargetDateTime time.Time `firestore:"last-daily-work-history-target-datetime"`
+
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
 	LastResetDailyTotalStudySec time.Time `firestore:"last-reset-daily-total-study-sec" json:"last_reset_daily_total_study_sec"`
 
@@ -112,6 +115,7 @@ type SeatDoc struct {
 	CumulativeWorkSec      int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
 	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
 	UserProfileImageUrl    string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
+	WorkHistoryDocId       string         `json:"work_history_doc_id" firestore:"work-history-doc-id"`
 }
 
 // SeatLimitDoc defines limitations of a seat.
@@ -185,7 +189,6 @@ const (
 	ExitRoomActivity   UserActivityType = "exit-room"
 	StartBreakActivity UserActivityType = "start-break"
 	EndBreakActivity   UserActivityType = "end-break"
-	// TODO: add others
 )
 
 type UserActivityDoc struct {
@@ -194,4 +197,24 @@ type UserActivityDoc struct {
 	SeatId       int              `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool             `json:"is_member_seat" firestore:"is-member-seat"`
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
+}
+
+type WorkHistoryDoc struct {
+	SeatId       int       `json:"seat_id" firestore:"seat-id"`
+	IsMemberSeat bool      `json:"is_member_seat" firestore:"is-member-seat"`
+	UserId       string    `json:"user_id" firestore:"user-id"`
+	StartedAt    time.Time `json:"started_at" firestore:"started-at"`
+	EndedAt      time.Time `json:"ended_at" firestore:"ended-at"`
+	WorkName     string    `json:"work_name" firestore:"work-name"`
+	CreatedAt    time.Time `json:"created_at" firestore:"created-at"`
+	UpdatedAt    time.Time `json:"updated_at" firestore:"updated-at"`
+}
+
+type DailyWorkHistoryDoc struct {
+	UserId         string    `json:"user_id" firestore:"user-id"`
+	Date           string    `json:"date" firestore:"date"` // yyyy-mm-dd
+	WorkSec        int       `json:"work_sec" firestore:"work-sec"`
+	TimezoneOffset string    `json:"timezone_offset" firestore:"timezone-offset"` // ex. "+09:00"
+	CreatedAt      time.Time `json:"created_at" firestore:"created-at"`
+	UpdatedAt      time.Time `json:"updated_at" firestore:"updated-at"`
 }

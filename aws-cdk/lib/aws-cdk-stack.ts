@@ -23,7 +23,7 @@ export class AwsCdkStack extends cdk.Stack {
       ]
     })
 
-    
+
     // Lambda function
     const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(this, 'set_desired_max_seats', {
       functionName: 'set_desired_max_seats',
@@ -38,7 +38,7 @@ export class AwsCdkStack extends cdk.Stack {
       reservedConcurrentExecutions: undefined,
     });
     (setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
-    
+
     const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(this, 'youtube_organize_database', {
       functionName: 'youtube_organize_database',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
@@ -100,7 +100,7 @@ export class AwsCdkStack extends cdk.Stack {
       reservedConcurrentExecutions: undefined,
     });
     (checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
-    
+
     const transferCollectionHistoryBigqueryFunction = new lambda.DockerImageFunction(this, 'transfer_collection_history_bigquery', {
       functionName: 'transfer_collection_history_bigquery',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
@@ -114,7 +114,7 @@ export class AwsCdkStack extends cdk.Stack {
       reservedConcurrentExecutions: 1,
     });
     (transferCollectionHistoryBigqueryFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
-    
+
     
     // API Gateway用ロググループ
     const restApiLogAccessLogGroup = new logs.LogGroup(
