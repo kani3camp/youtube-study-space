@@ -3,7 +3,7 @@ import { CHANNEL_GL, DEBUG } from './constants'
 // TODO: read url from .env
 const prodApi = {
     setDesiredMaxSeats:
-        'https://1wzzml51kl.execute-api.ap-northeast-1.amazonaws.com/default/set_desired_max_seats',
+        'https://r2zodj0jb4.execute-api.ap-northeast-1.amazonaws.com/default/set_desired_max_seats',
 }
 
 const testApi = {
