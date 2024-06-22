@@ -4,6 +4,7 @@ import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 const BgmPlayer: FC = () => {
     const [lastSectionType, setLastSectionType] = useState('')
@@ -108,9 +109,12 @@ const BgmPlayer: FC = () => {
             const wave = new Wave(audioElement, canvasElement)
             wave.addAnimation(
                 new wave.animations.Wave({
-                    fillColor: '#111',
+                    fillColor: '#27272787',
+
+                    lineColor: '#0000', // NOTE: alpha=0 が目的。lineWidth: 0が意味なさそうだったので
                     rounded: true,
-                    count: 15,
+                    bottom: true,
+                    count: 30,
                 })
             )
             audioStart()
@@ -122,19 +126,20 @@ const BgmPlayer: FC = () => {
     }, [updateState, audioStart, audioNext, stop])
 
     return (
-        <>
-            <div css={styles.bgmPlayer}>
+        <div css={[styles.shape, componentBackground]}>
+            <div css={[styles.bgmPlayer, componentStyle]}>
                 <audio autoPlay id={audioDivId}></audio>
 
                 <audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}></audio>
                 <audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath}></audio>
                 <h4>♪ {audioTitle}</h4>
                 <h4>by {audioArtist}</h4>
+
+                <div css={styles.audioCanvasDiv}>
+                    <canvas id={audioCanvasId} css={styles.audioCanvas}></canvas>
+                </div>
             </div>
-            <div css={styles.audioCanvasDiv}>
-                <canvas id={audioCanvasId} css={styles.audioCanvas}></canvas>
-            </div>
-        </>
+        </div>
     )
 }
 
