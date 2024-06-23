@@ -1,15 +1,20 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
-export const clockStyle = css`
-    height: 160px;
+export const shape = css`
+    height: ${Constants.clockHeight}px;
     width: ${Constants.sideBarWidth}px;
-    background-color: rgba(255, 241, 221, 1);
-    backdrop-filter: blur(3px);
     position: absolute;
     top: 0;
     right: 0;
-    color: #2d2b28;
+`
+
+export const clockStyle = css`
+    height: 85%;
+    width: 85%;
+    border-radius: 0.6rem;
+    background-color: rgba(255, 255, 255, 0.4);
+    color: ${Constants.primaryTextColor};
 `
 
 export const dateStringStyle = css`
@@ -21,4 +26,5 @@ export const timeStringStyle = css`
     font-size: 2rem;
     text-align: center;
     font-weight: bold;
+    line-height: 2rem;
 `

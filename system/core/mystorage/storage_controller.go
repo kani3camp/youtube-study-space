@@ -2,7 +2,8 @@ package mystorage
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -22,7 +23,7 @@ func NewStorageClient(ctx context.Context, clientOption option.ClientOption,
 	workingRegion string) (*StorageController, error) {
 	client, err := storage.NewClient(ctx, clientOption)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("in storage.NewClient: %w", err)
 	}
 	return &StorageController{
 		Client:        client,
@@ -33,9 +34,9 @@ func NewStorageClient(ctx context.Context, clientOption option.ClientOption,
 func (controller *StorageController) CloseClient() {
 	err := controller.Client.Close()
 	if err != nil {
-		log.Println("failed to close cloud storage client.")
+		slog.Error("failed to close cloud storage client.")
 	} else {
-		log.Println("successfully closed cloud storage client.")
+		slog.Info("successfully closed cloud storage client.")
 	}
 }
 
@@ -50,11 +51,11 @@ func (controller *StorageController) GetGcsYesterdayExportFolderName(ctx context
 	bucket := controller.Client.Bucket(bucketName)
 	it := bucket.Objects(ctx, query)
 	obj, err := it.Next()
-	if err == iterator.Done {
+	if errors.Is(err, iterator.Done) {
 		return "", errors.New("there is no object whose name begins with " + searchPrefix)
 	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("in it.Next: %w", err)
 	}
 	return strings.Split(obj.Name, "/")[0], nil
 }

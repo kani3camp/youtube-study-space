@@ -10,5 +10,5 @@ tasks:
       GOARCH: amd64
     cmds:
       - echo "Building function {{.FUNCTION_NAME}}"
-      - go build -o main {{.FUNCTION_NAME}}/main.go
-      - zip main.zip main
+      - go build -tags lambda.norpc -o bootstrap {{.FUNCTION_NAME}}/main.go
+      - zip main.zip bootstrap

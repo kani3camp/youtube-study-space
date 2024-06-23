@@ -2,9 +2,11 @@ import { FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { getCurrentSection } from '../lib/time-table'
 import * as styles from '../styles/BackgroundImage.styles'
+import Image from 'next/image'
+import { Constants } from '../lib/constants'
 
 const BACKGROUND_UPDATE_INTERVAL_SEC = 1000
-const BACKGROUND_IMAGE_URL = '/images/background/13223498_5160549.jpg'
+const BACKGROUND_IMAGE_URL = '/images/background/7290504_3601460.jpg'
 
 const BackgroundImage: FC = () => {
     const [lastPartName, setLastPartName] = useState<string>('')
@@ -19,7 +21,7 @@ const BackgroundImage: FC = () => {
 
     return (
         <div>
-            <img
+            <Image
                 src={BACKGROUND_IMAGE_URL}
                 css={styles.backgroundImage}
                 alt='background image'
@@ -27,7 +29,10 @@ const BackgroundImage: FC = () => {
                     currentTarget.onerror = null // prevents looping
                     currentTarget.src = BACKGROUND_IMAGE_URL
                 }}
+                width={Constants.screenWidth}
+                height={Constants.screenHeight}
             />
+            <div css={styles.blurLayer}></div>
         </div>
     )
 }

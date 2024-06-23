@@ -1,6 +1,12 @@
 if (process.env.NEXT_PUBLIC_DEBUG !== 'true' && process.env.NEXT_PUBLIC_DEBUG !== 'false') {
     throw Error(`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`)
 }
+if (
+    process.env.NEXT_PUBLIC_CHANNEL_GL !== 'true' &&
+    process.env.NEXT_PUBLIC_CHANNEL_GL !== 'false'
+) {
+    throw Error(`invalid NEXT_PUBLIC_CHANNEL_GL: ${process.env.NEXT_PUBLIC_CHANNEL_GL?.toString()}`)
+}
 export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
 export const CHANNEL_GL = process.env.NEXT_PUBLIC_CHANNEL_GL === 'true'
 
@@ -9,7 +15,10 @@ export const Constants = {
     screenHeight: 1080,
     sideBarWidth: 400,
     messageBarHeight: 80,
-    fontFamily: "'Zen Maru Gothic', sans-serif",
+    clockHeight: 160,
+    usageHeight: 390,
+    timerHeight: 330,
+    fontFamily: "'M PLUS Rounded 1c', sans-serif",
     breakBadgeZIndex: 10,
     seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
     bgmVolume: DEBUG ? 0.1 : 0.3,
@@ -18,6 +27,8 @@ export const Constants = {
     chimeDoubleFilePath: '/chime/chime2.mp3',
     pagingIntervalSeconds: 8,
     emptySeatColor: '#F3E8DC',
+    primaryTextColor: '#3a1e86',
+    secondaryTextColor: '#f1e8f2',
     memberSeatWorkNameWidthPercent: 60,
 }
 

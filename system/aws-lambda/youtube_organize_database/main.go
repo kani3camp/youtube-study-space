@@ -3,9 +3,10 @@ package main
 import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
+	"app.modules/core/utils"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
-	"log"
+	"log/slog"
 )
 
 type OrganizeDatabaseResponse struct {
@@ -14,7 +15,7 @@ type OrganizeDatabaseResponse struct {
 }
 
 func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
-	log.Println("OrganizeDatabase()")
+	slog.Info(utils.NameOf(OrganizeDatabase))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

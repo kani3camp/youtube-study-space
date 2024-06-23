@@ -1,15 +1,15 @@
 package guardians
 
 import (
-	"context"
-	"fmt"
-
 	"app.modules/core/discordbot"
 	"app.modules/core/myfirestore"
 	"app.modules/core/youtubebot"
+	"context"
+	"fmt"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
+	"log/slog"
 )
 
 type LiveStreamsListResponse struct {
@@ -57,21 +57,18 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	channelClientOption := option.WithTokenSource(config.TokenSource(ctx, channelOauthToken))
 	service, err := youtube.NewService(ctx, channelClientOption)
 	if err != nil {
-		fmt.Println(err.Error())
-		return err
+		return fmt.Errorf("in youtube.NewService: %w", err)
 	}
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
 	if err != nil {
-		fmt.Println(err.Error())
-		return err
+		return fmt.Errorf("in streamsService.List: %w", err)
 	}
 
 	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
 	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status
 
-	fmt.Println(streamStatus)
-	fmt.Println(healthStatus)
+	slog.Info("live stream status.", "streamStatus", streamStatus, "healthStatus", healthStatus)
 
 	if streamStatus != "active" && streamStatus != "ready" {
 		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)

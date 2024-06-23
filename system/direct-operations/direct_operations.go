@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"google.golang.org/api/option"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 )
@@ -30,7 +30,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 
 	sys.MessageToOwner("direct op: ExitAllUsersInRoom")
 
-	log.Println("全ルームの全ユーザーを退室させます。")
+	slog.Info("全ルームの全ユーザーを退室させます。")
 	err = sys.ExitAllUsersInRoom(ctx, true)
 	if err != nil {
 		panic(err)
@@ -40,7 +40,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 		panic(err)
 	}
 
-	log.Println("全ルームの全ユーザーを退室させました。")
+	slog.Info("全ルームの全ユーザーを退室させました。")
 }
 
 func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
@@ -97,7 +97,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	if err != nil {
 		panic(err)
 	}
-	log.Println("finished exporting json.")
+	slog.Info("finished exporting json.")
 }
 
 func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
@@ -108,18 +108,13 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 
 	sys.MessageToOwner("direct op: UpdateUsersRP")
 
-	err, userIdsToProcessRP := sys.GetUserIdsToProcessRP(ctx)
+	userIdsToProcessRP, err := sys.GetUserIdsToProcessRP(ctx)
 	if err != nil {
-		log.Println("failed to GetUserIdsToProcessRP", err)
+		slog.Error("in GetUserIdsToProcessRP: ", err)
 		panic(err)
 	}
 
-	remainingUserIds, err := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
-	if err != nil {
-		log.Println("failed to UpdateUserRPBatch", err)
-		panic(err)
-	}
+	remainingUserIds := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
 
-	log.Println("remaining user ids:")
-	log.Println(remainingUserIds)
+	slog.Info("", "remaining user ids", remainingUserIds)
 }
