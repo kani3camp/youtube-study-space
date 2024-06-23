@@ -30,6 +30,8 @@ export const Constants = {
     primaryTextColor: '#3a1e86',
     secondaryTextColor: '#f1e8f2',
     memberSeatWorkNameWidthPercent: 60,
+    memberBigIconSize: 57.598,
+    memberSmallIconSize: 38.391,
 }
 
 export const debug = false

@@ -4,6 +4,7 @@ import { css, keyframes } from '@emotion/react'
 import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
 import { SeatState } from './SeatsPage'
+import Image from 'next/image'
 
 type SeatProps = {
     globalSeatId: number
@@ -199,7 +200,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 
             {/* profile image */}
             {props.isUsed && props.memberOnly && (
-                <img
+                <Image
                     alt='profile image'
                     css={
                         (isBreak ? breakWorkName : workName !== '')
@@ -207,7 +208,18 @@ const SeatBox: FC<SeatProps> = (props) => {
                             : styles.profileImageMemberNoWorkName
                     }
                     src={profileImageUrl}
+                    width={
+                        (isBreak ? breakWorkName : workName !== '')
+                            ? Constants.memberSmallIconSize
+                            : Constants.memberBigIconSize
+                    }
+                    height={
+                        (isBreak ? breakWorkName : workName !== '')
+                            ? Constants.memberSmallIconSize
+                            : Constants.memberBigIconSize
+                    }
                     onError={(event) => reloadImage(event, profileImageUrl)}
+                    priority={true}
                 />
             )}
 
