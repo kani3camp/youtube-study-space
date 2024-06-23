@@ -20,7 +20,7 @@ export const message = css`
 `
 
 export const pageInfo = css`
-    width: 30%;
+    width: 40%;
     height: 100%;
     display: flex;
     align-items: center;
@@ -44,7 +44,7 @@ export const memberOnly = css`
 `
 
 export const numStudyingPeople = css`
-    width: 70%;
+    width: 60%;
     height: 100%;
     display: inline-block;
     background-color: rgba(255, 255, 255, 0.472);
