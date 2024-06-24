@@ -1,10 +1,12 @@
 {
-    "usage.description": "座席の見方",
+    "usage.description": "使い方",
     "usage.seat.id": "座席 No.",
     "usage.seat.work_name": "作業内容",
     "usage.seat.user_display_name": "名前",
     "usage.in": "入室する：",
     "usage.out": "退室する：",
+    "shout.description": "みんなの!shout",
+    "shout.username": "by {{name}}さん",
     "break": "休憩",
     "study": "作業",
     "section": "セクション{{value}}",

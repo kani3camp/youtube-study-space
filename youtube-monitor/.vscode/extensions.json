@@ -11,6 +11,7 @@
         "antiantisepticeye.vscode-color-picker",
         "styled-components.vscode-styled-components",
         "orta.vscode-jest",
-        "firsttris.vscode-jest-runner"
+        "firsttris.vscode-jest-runner",
+        "markosth09.color-picker"
     ]
 }

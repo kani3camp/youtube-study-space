@@ -1,10 +1,12 @@
 {
-    "usage.description": "Seat Usage",
+    "usage.description": "Usage",
     "usage.seat.id": "Seat No.",
     "usage.seat.work_name": "Work Name",
     "usage.seat.user_display_name": "Name",
     "usage.in": "Join: ",
     "usage.out": "Leave: ",
+    "shout.description": "Everyone's !shout",
+    "shout.username": "by {{name}}",
     "break": "Break",
     "study": "Work",
     "section": "#{{value}}",

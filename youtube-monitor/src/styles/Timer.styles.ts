@@ -32,7 +32,7 @@ export const sectionColor = css`
 `
 
 export const spacer = css`
-    margin: 0.2rem;
+    margin: 0.1rem;
 `
 
 export const remaining = css`

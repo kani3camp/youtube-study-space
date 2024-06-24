@@ -2,14 +2,14 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: ${Constants.usageHeight}px;
+    height: ${Constants.shoutHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
-    top: ${Constants.clockHeight}px;
+    top: ${Constants.clockHeight + Constants.usageHeight}px;
     right: 0;
 `
 
-export const usage = css`
+export const shout = css`
     font-size: 1rem;
     text-align: center;
     color: ${Constants.primaryTextColor};
@@ -20,12 +20,8 @@ export const usage = css`
     border-radius: 0.6rem;
     background-color: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(0.5rem);
-`
-
-export const seatId = css`
-    margin: 0 auto;
-    font-size: 0.7em;
-    color: #414141;
+    display: flex;
+    flex-direction: column;
 `
 
 export const description = css`
@@ -33,15 +29,19 @@ export const description = css`
     line-height: 1.2rem;
 `
 
-export const item = css`
-    font-size: 0.9rem;
+export const shoutContent = css`
+    background-color: #d5c3c3a5;
+    border-radius: 0.3rem;
+    flex-grow: 1;
 `
 
-export const commandString = css`
-    font-weight: bold;
-    display: inline-block;
-    background-color: #e2e2e2;
-    border-radius: 0.15rem;
-    padding: 0 0.4rem;
-    margin: 0.1rem;
+export const messageText = css`
+    font-size: 0.8rem;
+    text-align: left;
+`
+
+export const userName = css`
+    font-size: 0.7rem;
+    text-align: right;
+    overflow: hidden;
 `
