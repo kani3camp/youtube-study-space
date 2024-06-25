@@ -4,7 +4,7 @@ const (
 	CommandPrefix       = "!"
 	WrongCommandPrefix  = "！"
 	MemberCommandPrefix = "/"
-	
+
 	InCommand      = "!in"
 	OutCommand     = "!out"
 	InfoCommand    = "!info"
@@ -19,17 +19,18 @@ const (
 	RestCommand    = "!rest"
 	ChillCommand   = "!chill"
 	ResumeCommand  = "!resume"
-	
+	ShoutCommand   = "!shout"
+
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
 	BlockCommand = "!block"
-	
+
 	MemberInCommand = "/in"
-	
+
 	MemberKickCommand  = "/kick"
 	MemberCheckCommand = "/check"
 	MemberBlockCommand = "/block"
-	
+
 	EmojiSide          = ":"
 	EmojiCommandPrefix = EmojiSide + "_command"
 	InString           = "In"
@@ -44,31 +45,32 @@ const (
 	MoreString         = "More"
 	BreakString        = "Break"
 	ResumeString       = "Resume"
+	ShoutString        = "Shout"
 	WorkString         = "Work"
 	MinString          = "Min"
 	ColorString        = "Color"
 	RankOnString       = "RankOn"
 	RankOffString      = "RankOff"
 	MemberInString     = "MemberIn"
-	
+
 	WorkNameOptionPrefix            = "work="
 	WorkNameOptionShortPrefix       = "w="
 	WorkNameOptionPrefixLegacy      = "work-"
 	WorkNameOptionShortPrefixLegacy = "w-"
-	
+
 	TimeOptionPrefix            = "min="
 	TimeOptionShortPrefix       = "m="
 	TimeOptionPrefixLegacy      = "min-"
 	TimeOptionShortPrefixLegacy = "m-"
-	
+
 	ShowDetailsOption = "d"
-	
+
 	RankVisibleMyOptionPrefix = "rank="
 	RankVisibleMyOptionOn     = "on"
 	RankVisibleMyOptionOff    = "off"
-	
+
 	FavoriteColorMyOptionPrefix = "color="
-	
+
 	FullWidthSpace     = "　"
 	HalfWidthSpace     = " "
 	FullWidthEqualSign = "＝"
@@ -90,8 +92,9 @@ const (
 	EmojiMore
 	EmojiBreak
 	EmojiResume
+	EmojiShout
 	EmojiMemberIn
-	
+
 	EmojiWork
 	EmojiMin
 	EmojiColor

@@ -36,6 +36,8 @@ func (s *System) ValidateCommand(command utils.CommandDetails) string {
 		return s.ValidateBreak(command)
 	case utils.Resume:
 		return s.ValidateResume(command)
+	case utils.Shout:
+		return s.ValidateShout(command)
 	case utils.Rank:
 		return ""
 	default:
@@ -216,6 +218,15 @@ func (s *System) ValidateBreak(command utils.CommandDetails) string {
 func (s *System) ValidateResume(_ utils.CommandDetails) string {
 	// 作業名
 	// pass
+
+	return ""
+}
+
+func (s *System) ValidateShout(command utils.CommandDetails) string {
+	// 空欄でないか
+	if command.ShoutOption.MessageText == "" {
+		return i18n.T("validate:parse:missing-message", utils.ShoutCommand)
+	} // TODO: !shoutの説明文
 
 	return ""
 }

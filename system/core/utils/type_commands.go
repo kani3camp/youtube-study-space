@@ -14,6 +14,7 @@ type CommandDetails struct {
 	MoreOption   MoreOption
 	BreakOption  MinutesAndWorkNameOption
 	ResumeOption WorkNameOption
+	ShoutOption  ShoutOption
 }
 
 type CommandType uint
@@ -35,6 +36,7 @@ const (
 	Rank   // !rank
 	Break  // !break
 	Resume // !resume
+	Shout
 )
 
 type InfoOption struct {
@@ -88,6 +90,10 @@ type ReportOption struct {
 
 type MoreOption struct {
 	DurationMin int
+}
+
+type ShoutOption struct {
+	MessageText string
 }
 
 type WorkNameOption struct {

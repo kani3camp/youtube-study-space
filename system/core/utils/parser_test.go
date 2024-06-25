@@ -18,6 +18,7 @@ const (
 	TestEmojiChange0   = ":_commandChange0:"
 	TestEmojiBreak0    = ":_commandBreak0:"
 	TestEmojiResume0   = ":_commandResume0:"
+	TestEmojiShout0    = ":_commandShout0:"
 	TestEmojiMore0     = ":_commandMore0:"
 	TestEmojiMy0       = ":_commandMy0:"
 	TestEmojiRank0     = ":_commandRank0:"
@@ -1080,6 +1081,62 @@ func TestParseCommand(t *testing.T) {
 					WorkName:      "再開",
 				},
 			},
+		},
+
+		{
+			Input:    "!shout １年間毎日継続します！",
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: "１年間毎日継続します！",
+				},
+			},
+		},
+		{
+			Input:    "!shout 空白ありの 文章です。",
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: "空白ありの 文章です。",
+				},
+			},
+		},
+		{
+			Input:    TestEmojiShout0 + "１年間毎日継続します！",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: "１年間毎日継続します！",
+				},
+			},
+		},
+		{
+			Input:    TestEmojiShout0 + " １年間毎日継続します！",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: "１年間毎日継続します！",
+				},
+			},
+		},
+		{
+			Input:    TestEmojiShout0 + "空白ありの 文章です。",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: "空白ありの 文章です。",
+				},
+			},
+		},
+		{
+			Input:    TestEmojiShout0,
+			IsMember: false,
+			Output:   &CommandDetails{CommandType: NotCommand},
 		},
 
 		{

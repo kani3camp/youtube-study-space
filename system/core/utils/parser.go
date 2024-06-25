@@ -62,6 +62,8 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 
 		case ResumeCommand:
 			return ParseResume(emojiExcludedString, fullString, isMember, emojis)
+		case ShoutCommand:
+			return ParseShout(emojiExcludedString, isMember, emojis)
 		case RankCommand:
 			return &CommandDetails{
 				CommandType: Rank,
@@ -119,6 +121,8 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiResume:
 				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
+			case EmojiShout:
+				return ParseShout(emojiExcludedString, isMember, emojis)
 			default:
 			}
 		}
@@ -159,6 +163,8 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 			m = EmojiBreak
 		case MatchEmojiCommand(s, ResumeString):
 			m = EmojiResume
+		case MatchEmojiCommand(s, ShoutString):
+			m = EmojiShout
 		case MatchEmojiCommand(s, WorkString):
 			m = EmojiWork
 		case MatchEmojiCommand(s, MinString):
@@ -559,6 +565,34 @@ func ParseResume(commandString string, fullString string, isMember bool, emojis 
 	return &CommandDetails{
 		CommandType:  Resume,
 		ResumeOption: option,
+	}, ""
+}
+
+func ParseShout(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
+	if isMember {
+		if ContainsEmojiElement(emojis, EmojiShout) {
+			return &CommandDetails{
+				CommandType: Shout,
+				ShoutOption: ShoutOption{
+					MessageText: commandString,
+				},
+			}, ""
+		}
+	}
+
+	slice := strings.SplitN(commandString, HalfWidthSpace, 2)
+	var shoutMessage string
+	if len(slice) == 1 {
+		return nil, i18n.T("parse:missing-message", ShoutCommand)
+	} else {
+		shoutMessage = slice[1]
+	}
+
+	return &CommandDetails{
+		CommandType: Shout,
+		ShoutOption: ShoutOption{
+			MessageText: shoutMessage,
+		},
 	}, ""
 }
 
