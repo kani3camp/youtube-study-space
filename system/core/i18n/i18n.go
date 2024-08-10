@@ -157,7 +157,7 @@ func t(lang, fallback Language, namespace, key string, args ...interface{}) stri
 	if namespace == "" {
 		splited := strings.Split(key, ":")
 		if len(splited) != 2 {
-			return "wrong name"
+			return "[i18n error] key=" + key
 		}
 		namespace = splited[0]
 		key = splited[1]

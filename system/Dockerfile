@@ -4,6 +4,7 @@ COPY . .
 ENV GOCACHE=/root/.cache/go-build
 
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o display_shout_message aws-lambda/display_shout_message/main.go
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o daily_organize_database aws-lambda/daily_organize_database/main.go
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
@@ -15,6 +16,7 @@ FROM public.ecr.aws/lambda/provided:al2023
 WORKDIR /app
 
 COPY --from=build /var/task/set_desired_max_seats ./set_desired_max_seats
+COPY --from=build /var/task/display_shout_message ./display_shout_message
 COPY --from=build /var/task/youtube_organize_database ./youtube_organize_database
 COPY --from=build /var/task/daily_organize_database ./daily_organize_database
 COPY --from=build /var/task/check_live_stream_status ./check_live_stream_status

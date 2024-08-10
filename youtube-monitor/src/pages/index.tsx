@@ -22,7 +22,7 @@ const Home: FC = () => (
         <BgmPlayer></BgmPlayer>
         <Clock />
         <Usage />
-        <Shout />
+        <Shout updateShoutMessageIntervalMinutes={0.3} />
         <Timer />
         <Seats />
     </div>

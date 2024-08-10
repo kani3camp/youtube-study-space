@@ -357,7 +357,7 @@ const Seats: FC = () => {
                 desired_member_max_seats: desiredMemberMaxSeats,
             }),
         }).then(async () => {
-            console.log('request succeeded')
+            console.log('requestMaxSeatsUpdate succeeded')
         })
     }
 

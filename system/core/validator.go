@@ -223,10 +223,7 @@ func (s *System) ValidateResume(_ utils.CommandDetails) string {
 }
 
 func (s *System) ValidateShout(command utils.CommandDetails) string {
-	// 空欄でないか
-	if command.ShoutOption.MessageText == "" {
-		return i18n.T("validate:parse:missing-message", utils.ShoutCommand)
-	} // TODO: !shoutの説明文
+	// pass: !shoutだけでも有効
 
 	return ""
 }

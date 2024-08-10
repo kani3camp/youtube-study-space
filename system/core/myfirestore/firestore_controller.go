@@ -37,6 +37,27 @@ func (c *FirestoreController) get(ctx context.Context, tx *firestore.Transaction
 	}
 }
 
+func getOrNil[T any](ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef) (*T, error) {
+	var snapshot *firestore.DocumentSnapshot
+	var err error
+	if tx != nil {
+		snapshot, err = tx.Get(ref)
+	} else {
+		snapshot, err = ref.Get(ctx)
+	}
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var doc T
+	if err := snapshot.DataTo(&doc); err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
 func (c *FirestoreController) create(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef, data interface{}) error {
 	if tx != nil {
 		return tx.Create(ref, data)
@@ -74,6 +95,14 @@ func (c *FirestoreController) delete(ctx context.Context, tx *firestore.Transact
 	}
 }
 
+func (c *FirestoreController) query(ctx context.Context, tx *firestore.Transaction, query *firestore.Query) *firestore.DocumentIterator {
+	if tx != nil {
+		return tx.Documents(query)
+	} else {
+		return query.Documents(ctx)
+	}
+}
+
 func (c *FirestoreController) configCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(CONFIG)
 }
@@ -103,6 +132,10 @@ func (c *FirestoreController) liveChatHistoryCollection() *firestore.CollectionR
 
 func (c *FirestoreController) userActivitiesCollection() *firestore.CollectionRef {
 	return c.FirestoreClient.Collection(UserActivities)
+}
+
+func (c *FirestoreController) shoutHistoryCollection() *firestore.CollectionRef {
+	return c.FirestoreClient.Collection(SHOUTS)
 }
 
 func (c *FirestoreController) generalSeatLimitsBLACKListCollection() *firestore.CollectionRef {
@@ -520,6 +553,102 @@ func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActi
 		activityList = append(activityList, activity)
 	}
 	return activityList, nil
+}
+
+func getDocsFromIterator[T any](iter *firestore.DocumentIterator) ([]DocWithDocId[T], error) {
+	var docList []DocWithDocId[T]
+	for {
+		snapshot, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("in iter.Next(): %w", err)
+		}
+		var doc T
+		err = snapshot.DataTo(&doc)
+		if err != nil {
+			return nil, fmt.Errorf("in snapshot.DataTo: %w", err)
+		}
+		docList = append(
+			docList,
+			DocWithDocId[T]{
+				DocId: snapshot.Ref.ID,
+				Doc:   doc,
+			},
+		)
+	}
+	return docList, nil
+}
+
+func (c *FirestoreController) ReadShoutByUser(ctx context.Context, tx *firestore.Transaction, userId string) (*ShoutDoc, error) {
+	ref := c.shoutHistoryCollection().Doc(userId)
+	return getOrNil[ShoutDoc](ctx, tx, ref)
+}
+
+func (c *FirestoreController) ReadLastDisplayedAtOfShouts(ctx context.Context, tx *firestore.Transaction, lastDisplayedAtAfter time.Time) (*DocWithDocId[ShoutDoc], error) {
+	query := c.shoutHistoryCollection().
+		Where(LastDisplayedAtDocProperty, ">=", lastDisplayedAtAfter).
+		OrderBy(LastDisplayedAtDocProperty, firestore.Desc).
+		Limit(1)
+	iter := c.query(ctx, tx, &query)
+	docs, err := getDocsFromIterator[ShoutDoc](iter)
+	if err != nil {
+		return nil, err
+	}
+	if len(docs) == 0 {
+		return nil, nil
+	} else {
+		return &docs[0], nil
+	}
+}
+
+// ReadNextShoutMessageToDisplay 次に表示するshoutメッセージを取得する。
+// updated-atが指定した値よりも後で、last-updated-atまたはcreated-atが最も古いものを取得する。
+func (c *FirestoreController) ReadNextShoutMessageToDisplay(ctx context.Context, tx *firestore.Transaction, updatedAt time.Time) (*DocWithDocId[ShoutDoc], error) {
+	query := c.shoutHistoryCollection().
+		Where(UpdatedAtDocProperty, ">=", updatedAt).
+		Where(MessageDocProperty, "!=", "").
+		OrderBy(LastDisplayedAtDocProperty, firestore.Asc).
+		OrderBy(CreatedAtDocProperty, firestore.Asc).
+		Limit(1)
+	iter := c.query(ctx, tx, &query)
+	docs, err := getDocsFromIterator[ShoutDoc](iter)
+	if err != nil {
+		return nil, err
+	}
+	if len(docs) == 0 {
+		return nil, nil
+	} else {
+		return &docs[0], nil
+	}
+}
+
+func (c *FirestoreController) CreateShoutMessage(ctx context.Context, tx *firestore.Transaction, userId string, message string, now time.Time) error {
+	ref := c.shoutHistoryCollection().Doc(userId)
+	return c.create(ctx, tx, ref, ShoutDoc{
+		UserId:          userId,
+		Message:         message,
+		LastDisplayedAt: time.Time{},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	})
+}
+
+func (c *FirestoreController) UpdateShoutMessage(ctx context.Context, tx *firestore.Transaction, userId string, message string, now time.Time) error {
+	ref := c.shoutHistoryCollection().Doc(userId)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: MessageDocProperty, Value: message},
+		{Path: UpdatedAtDocProperty, Value: now},
+	})
+}
+
+func (c *FirestoreController) UpdateShoutLastDisplayedAt(ctx context.Context, tx *firestore.Transaction, userId string, now time.Time) error {
+	ref := c.shoutHistoryCollection().Doc(userId)
+	return c.update(ctx, tx, ref, []firestore.Update{
+		{Path: LastDisplayedAtDocProperty, Value: now},
+		{Path: UpdatedAtDocProperty, Value: now},
+	})
 }
 
 // GetUsersActiveAfterDate date以後に入室したことのあるuserを全て取得

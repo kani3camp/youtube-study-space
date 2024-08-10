@@ -582,9 +582,7 @@ func ParseShout(commandString string, isMember bool, emojis []EmojiElement) (*Co
 
 	slice := strings.SplitN(commandString, HalfWidthSpace, 2)
 	var shoutMessage string
-	if len(slice) == 1 {
-		return nil, i18n.T("parse:missing-message", ShoutCommand)
-	} else {
+	if len(slice) > 1 {
 		shoutMessage = slice[1]
 	}
 

@@ -30,7 +30,7 @@ export const description = css`
 `
 
 export const shoutContent = css`
-    background-color: #d5c3c3a5;
+    background-color: #e1d7d74e;
     border-radius: 0.3rem;
     flex-grow: 1;
 `
