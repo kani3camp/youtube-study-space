@@ -507,6 +507,8 @@ func (s *System) Command(
 		return s.Break(ctx, commandDetails)
 	case utils.Resume:
 		return s.Resume(ctx, commandDetails)
+	case utils.Shout:
+		return s.Shout(ctx, commandDetails)
 	case utils.Rank:
 		return s.Rank(commandDetails, ctx)
 	default:
@@ -1597,6 +1599,47 @@ func (s *System) Resume(ctx context.Context, command *utils.CommandDetails) erro
 	return err
 }
 
+func (s *System) Shout(ctx context.Context, command *utils.CommandDetails) error {
+	replyMessage := ""
+	now := utils.JstNow()
+	t := i18n.GetTFunc("command-shout")
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		shout, err := s.FirestoreController.ReadShoutByUser(ctx, tx, s.ProcessedUserId)
+		if err != nil {
+			return fmt.Errorf("in s.FirestoreController.ReadShoutByUser: %w", err)
+		}
+
+		// これ以降書き込みOK、読み込みNG
+
+		// 既存データがあるなら更新、ないなら新規作成
+		if shout != nil {
+			err := s.FirestoreController.UpdateShoutMessage(ctx, tx, s.ProcessedUserId, command.ShoutOption.MessageText, now)
+			if err != nil {
+				return fmt.Errorf("in s.FirestoreController.UpdateShoutMessage: %w", err)
+			}
+		} else {
+			err := s.FirestoreController.CreateShoutMessage(ctx, tx, s.ProcessedUserId, command.ShoutOption.MessageText, now)
+			if err != nil {
+				return fmt.Errorf("in s.FirestoreController.CreateShoutMessage: %w", err)
+			}
+		}
+
+		// 既存データなくてオプションもなしならヘルプメッセージ
+		if command.ShoutOption.MessageText == "" {
+			replyMessage += t("cleared", s.ProcessedUserDisplayName, utils.ShoutCommand)
+		} else {
+			replyMessage += t("set", s.ProcessedUserDisplayName)
+		}
+
+		return nil
+	})
+	if err != nil {
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+	}
+	s.MessageToLiveChat(ctx, replyMessage)
+	return err
+}
+
 func (s *System) Rank(_ *utils.CommandDetails, ctx context.Context) error {
 	replyMessage := ""
 	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -2543,4 +2586,46 @@ func (s *System) BanUser(ctx context.Context, userId string) error {
 		return fmt.Errorf("in BanUser: %w", err)
 	}
 	return nil
+}
+
+// GetShoutMessage monitor表示用のshoutメッセージを、表示アルゴリズムにしたがって取得する
+func (s *System) GetShoutMessage(ctx context.Context) (myfirestore.DocWithDocId[myfirestore.ShoutDoc], error) {
+	scanActiveShoutFrom := utils.JstNow().Add(-1 * time.Minute * time.Duration(s.Configs.Constants.ShoutMessageDisplayIntervalMinutes))
+	scanAllShoutFrom := utils.JstNow().Add(-1 * 24 * time.Hour * time.Duration(s.Configs.Constants.ShoutMessageRetentionDays))
+	var displayShout myfirestore.DocWithDocId[myfirestore.ShoutDoc]
+	err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		activeShout, err := s.FirestoreController.ReadLastDisplayedAtOfShouts(ctx, tx, scanActiveShoutFrom)
+		if err != nil {
+			return fmt.Errorf("in s.FirestoreController.ReadLastDisplayedAtOfShouts: %w", err)
+		}
+		if activeShout != nil && activeShout.Doc.Message != "" {
+			displayShout = *activeShout
+			return nil
+		}
+
+		nextShout, err := s.FirestoreController.ReadNextShoutMessageToDisplay(ctx, tx, scanAllShoutFrom)
+		if err != nil {
+			return fmt.Errorf("in s.FirestoreController.ReadNextShoutMessageToDisplay: %w", err)
+		}
+		if nextShout != nil {
+			displayShout = *nextShout
+			err := s.FirestoreController.UpdateShoutLastDisplayedAt(ctx, tx, nextShout.DocId, utils.JstNow())
+			if err != nil {
+				return fmt.Errorf("in s.FirestoreController.UpdateShoutLastDisplayedAt: %w", err)
+			}
+		}
+		return nil
+	})
+	return displayShout, err
+}
+
+func (s *System) GetYoutubeUserDisplayName(ctx context.Context, userId string) (string, error) {
+	response, err := s.liveChatBot.ChannelYoutubeService.Channels.List([]string{"snippet"}).Id(userId).Do()
+	if err != nil {
+		return "", fmt.Errorf("in GetYoutubeUserDisplayName: %w", err)
+	}
+	if len(response.Items) == 0 {
+		return "", nil // TODO: nilでOK?
+	}
+	return response.Items[0].Snippet.Title, nil
 }

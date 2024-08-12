@@ -4,6 +4,11 @@ import (
 	"time"
 )
 
+type DocWithDocId[T any] struct {
+	DocId string `json:"doc_id" firestore:"doc-id"`
+	Doc   T      `json:"doc" firestore:"doc"`
+}
+
 // ConstantsConfigDoc defines constants for the configuration of the system.
 type ConstantsConfigDoc struct {
 	MaxWorkTimeMin     int `firestore:"max-work-time-min"`     // 指定可能な最大入室時間（分）
@@ -59,6 +64,9 @@ type ConstantsConfigDoc struct {
 	YoutubeMembershipEnabled bool `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
 
 	FixedMaxSeatsEnabled bool `firestore:"fixed-max-seats-enabled" json:"fixed_max_seats_enabled"`
+
+	ShoutMessageDisplayIntervalMinutes int `firestore:"shout-message-display-interval-minutes"`
+	ShoutMessageRetentionDays          int `firestore:"shout-message-expire-days"`
 }
 
 // CredentialsConfigDoc defines credentials for various services.
@@ -194,4 +202,12 @@ type UserActivityDoc struct {
 	SeatId       int              `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool             `json:"is_member_seat" firestore:"is-member-seat"`
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
+}
+
+type ShoutDoc struct {
+	UserId          string    `json:"user_id" firestore:"user-id"`
+	Message         string    `json:"message" firestore:"message"`
+	LastDisplayedAt time.Time `json:"last_displayed_at" firestore:"last-displayed-at"`
+	CreatedAt       time.Time `json:"created_at" firestore:"created-at"`
+	UpdatedAt       time.Time `json:"updated_at" firestore:"updated-at"`
 }

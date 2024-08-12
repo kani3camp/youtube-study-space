@@ -48,5 +48,5 @@ export const numStudyingPeople = css`
     height: 100%;
     display: inline-block;
     background-color: rgba(255, 255, 255, 0.472);
-    border-radius: 0.6rem;
+    border-radius: 0.4rem;
 `

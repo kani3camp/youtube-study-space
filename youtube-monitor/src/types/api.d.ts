@@ -28,3 +28,9 @@ export type SetDesiredMaxSeatsResponse = {
     result: string
     message: string
 }
+
+export type DisplayShoutMessageResponse = {
+    user_id: string
+    shout_message: string
+    user_display_name: string
+}

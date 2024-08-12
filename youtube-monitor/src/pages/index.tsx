@@ -7,6 +7,7 @@ import Clock from '../components/Clock'
 import Seats from '../components/MainContent'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
+import Shout from '../components/Shout'
 
 const Home: FC = () => (
     <div
@@ -21,6 +22,7 @@ const Home: FC = () => (
         <BgmPlayer></BgmPlayer>
         <Clock />
         <Usage />
+        <Shout updateShoutMessageIntervalMinutes={0.3} />
         <Timer />
         <Seats />
     </div>
