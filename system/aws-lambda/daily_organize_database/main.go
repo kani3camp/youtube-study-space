@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	"log"
+	"log/slog"
 	"strconv"
 )
 
@@ -20,7 +20,7 @@ type DailyOrganizeDatabaseResponse struct {
 }
 
 func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
-	log.Println("DailyOrganizeDatabase()")
+	slog.Info(utils.NameOf(DailyOrganizeDatabase))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -49,8 +49,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	allBatch := utils.DivideStringEqually(system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
 	system.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
 	for i, batch := range allBatch {
-		log.Println("batch No. " + strconv.Itoa(i+1))
-		log.Println(batch)
+		slog.Info("batch No. "+strconv.Itoa(i+1)+".", "batch", batch)
 
 		payload := lambdautils.UserRPParallelRequest{
 			ProcessIndex: i,
@@ -71,7 +70,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 			system.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponse{}, err
 		}
-		log.Println(resp)
+		slog.Info("lambda invoked.", "output", resp)
 	}
 
 	return DailyOrganizeDatabaseResponse{

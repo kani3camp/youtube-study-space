@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
-	"log"
+	"log/slog"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -53,8 +53,8 @@ func Get7daysBefore(date time.Time) time.Time {
 func LoadEnv(relativeEnvPath string) {
 	err := godotenv.Load(relativeEnvPath)
 	if err != nil {
-		log.Println(err.Error())
-		log.Fatal("Error loading .env file")
+		slog.Error("Error loading .env file")
+		panic(err)
 	}
 }
 
@@ -343,7 +343,7 @@ func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
 	return r.ReplaceAllString(text, HalfWidthSpace)
 }
 
-func FuncNameOf(i interface{}) string {
+func NameOf(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 

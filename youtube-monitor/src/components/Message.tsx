@@ -2,6 +2,7 @@ import { useTranslation } from 'next-i18next'
 import { FC } from 'react'
 import * as styles from '../styles/Message.styles'
 import { Seat } from '../types/api'
+import { componentBackground, componentStyle } from '../styles/common.style'
 
 type Props = {
     currentPageIndex: number
@@ -13,10 +14,11 @@ type Props = {
 const Message: FC<Props> = (props) => {
     const { t } = useTranslation()
 
+    let content = <></>
     if (props.seats) {
         const numWorkers = props.seats.length
-        return (
-            <div css={styles.message}>
+        content = (
+            <>
                 <div css={styles.pageInfo}>
                     <div css={styles.pageIndex}>
                         {t('message.room', {
@@ -29,11 +31,14 @@ const Message: FC<Props> = (props) => {
                 <div css={styles.numStudyingPeople}>
                     {t('message.num_studying_people', { value: numWorkers })} 🫧
                 </div>
-            </div>
+            </>
         )
-    } else {
-        return <div css={styles.message} />
     }
+    return (
+        <div css={[styles.shape, componentBackground]}>
+            <div css={[styles.message, componentStyle]}>{content}</div>
+        </div>
+    )
 }
 
 export default Message

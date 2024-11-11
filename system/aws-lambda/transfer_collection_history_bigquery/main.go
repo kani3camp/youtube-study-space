@@ -1,8 +1,9 @@
 package main
 
 import (
+	"app.modules/core/utils"
 	"context"
-	"log"
+	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
@@ -15,7 +16,7 @@ type TransferCollectionHistoryBigqueryResponse struct {
 }
 
 func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryResponse, error) {
-	log.Println("TransferCollectionHistoryBigquery()")
+	slog.Info(utils.NameOf(TransferCollectionHistoryBigquery))
 
 	ctx := context.Background()
 	clientOption, err := lambdautils.FirestoreClientOption()

@@ -79,12 +79,12 @@ func validateFileName(name string) (Language, error) {
 func LoadLocaleFile(name string) error {
 	lang, err := validateFileName(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("in validateFileName: %w", err)
 	}
 
 	var decoded LocaleFile
 	if _, err := toml.DecodeFile(name, &decoded); err != nil {
-		return err
+		return fmt.Errorf("in toml.DecodeFile: %w", err)
 	}
 
 	localeData[lang] = LocaleData(decoded)
@@ -95,12 +95,12 @@ func LoadLocaleFile(name string) error {
 func LoadLocaleFileFS(f embed.FS, name string) error {
 	lang, err := validateFileName(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("in validateFileName: %w", err)
 	}
 
 	var decoded LocaleFile
 	if _, err := toml.DecodeFS(f, name, &decoded); err != nil {
-		return err
+		return fmt.Errorf("in toml.DecodeFS: %w", err)
 	}
 
 	localeData[lang] = LocaleData(decoded)
@@ -110,7 +110,7 @@ func LoadLocaleFileFS(f embed.FS, name string) error {
 func LoadLocaleFolder(name string) error {
 	files, err := os.ReadDir(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("in os.ReadDir: %w", err)
 	}
 
 	for _, file := range files {
@@ -118,7 +118,7 @@ func LoadLocaleFolder(name string) error {
 			return ErrLocaleFile
 		}
 		if err := LoadLocaleFile(path.Join(name, file.Name())); err != nil {
-			return err
+			return fmt.Errorf("in LoadLocaleFile: %w", err)
 		}
 	}
 	return nil
@@ -127,7 +127,7 @@ func LoadLocaleFolder(name string) error {
 func LoadLocaleFolderFS() error {
 	dir, err := fs.ReadDir(LocalesFolderName)
 	if err != nil {
-		return err
+		return fmt.Errorf("in fs.ReadDir: %w", err)
 	}
 
 	for _, file := range dir {
@@ -135,7 +135,7 @@ func LoadLocaleFolderFS() error {
 			return ErrLocaleFile
 		}
 		if err := LoadLocaleFileFS(fs, path.Join(LocalesFolderName, file.Name())); err != nil {
-			return err
+			return fmt.Errorf("in LoadLocaleFileFS: %w", err)
 		}
 	}
 	return nil

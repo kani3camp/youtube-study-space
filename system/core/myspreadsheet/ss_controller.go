@@ -2,6 +2,7 @@ package myspreadsheet
 
 import (
 	"context"
+	"fmt"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
@@ -24,14 +25,14 @@ func NewSpreadsheetController(
 ) (*SpreadsheetController, error) {
 	service, err := sheets.NewService(ctx, clientOption)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("in sheets.NewService: %w", err)
 	}
-	
+
 	ss, err := service.Spreadsheets.Get(spreadsheetId).Do()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("in service.Spreadsheets.Get: %w", err)
 	}
-	
+
 	var blockRegexSheetName string
 	var notificationRegexSheetName string
 	for _, sheet := range ss.Sheets {
@@ -48,7 +49,7 @@ func NewSpreadsheetController(
 	if notificationRegexSheetName == "" {
 		return nil, errors.New("failed to find notificationRegexSheetName")
 	}
-	
+
 	return &SpreadsheetController{
 		client:                     service,
 		spreadsheetId:              spreadsheetId,
@@ -59,12 +60,12 @@ func NewSpreadsheetController(
 
 func (sc *SpreadsheetController) GetRegexForBlock() ([]string, []string, error) {
 	readRange := sc.blockRegexSheetName + "!" + "A2:C999" // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	
+
 	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
-	
+
 	var regexListForChatMessage []string
 	var regexListForChannelName []string
 	var regex string
@@ -73,31 +74,31 @@ func (sc *SpreadsheetController) GetRegexForBlock() ([]string, []string, error) 
 		enabled = row[0] == "TRUE"
 		regex = row[1].(string)
 		applyForChannelName = row[2] == "TRUE"
-		
+
 		if regex == "" {
 			continue // skip vacant cell
 		}
 		if !enabled {
 			continue
 		}
-		
+
 		regexListForChatMessage = append(regexListForChatMessage, regex)
 		if applyForChannelName {
 			regexListForChannelName = append(regexListForChannelName, regex)
 		}
 	}
-	
+
 	return regexListForChatMessage, regexListForChannelName, nil
 }
 
 func (sc *SpreadsheetController) GetRegexForNotification() ([]string, []string, error) {
 	readRange := sc.notificationRegexSheetName + "!" + "A2:C999" // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	
+
 	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
-	
+
 	var regexListForChatMessage []string
 	var regexListForChannelName []string
 	var regex string
@@ -106,19 +107,19 @@ func (sc *SpreadsheetController) GetRegexForNotification() ([]string, []string, 
 		enabled = row[0] == "TRUE"
 		regex = row[1].(string)
 		applyForChannelName = row[2] == "TRUE"
-		
+
 		if regex == "" {
 			continue // skip vacant cell
 		}
 		if !enabled {
 			continue
 		}
-		
+
 		regexListForChatMessage = append(regexListForChatMessage, regex)
 		if applyForChannelName {
 			regexListForChannelName = append(regexListForChannelName, regex)
 		}
 	}
-	
+
 	return regexListForChatMessage, regexListForChannelName, nil
 }
