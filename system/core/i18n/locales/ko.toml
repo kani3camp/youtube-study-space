@@ -32,7 +32,7 @@
 "already-exit-with-last-exit-time" = "@{0}님, 이미 퇴장하셨습니다（마지막 퇴장 시간：{1}시 {2}분）" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
 
 [command-user-info]
-"base" = "@{0} 님 ［오늘의 작업 시간: {1}] ［총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
+"base" = "@{0}님 ［오늘의 작업 시간: {1}] ［총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
 "rank" = "［랭킹 포인트: {0} RP]" # 0: RP
 "rank-on" = "［🏆랭크 표시: ON］"
 "rank-on-continuous" = "［🏃연속 {0}일째（연속 일수: {1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
