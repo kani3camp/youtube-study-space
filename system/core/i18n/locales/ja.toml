@@ -3,38 +3,38 @@
 "break" = "休憩中です☕"
 "on" = "オン"
 "off" = "オフ"
-"sir" = "{0}さん、"
+"sir" = "@{0}さん、"
 "vip-seat-id" = "VIP{0}"    # 0: SeatId
 
 [command]
-"option-warn" = "{0}さん、オプションが正しく設定されているか確認してください" # 0: Username
-"error" = "{0}さん、エラーが発生しました。もう一度試してみてください" # 0: Username
+"option-warn" = "@{0}さん、オプションが正しく設定されているか確認してください" # 0: Username
+"error" = "@{0}さん、エラーが発生しました。もう一度試してみてください" # 0: Username
 "rp-earned" = "（+ {0} RP）" # 0: Earned
-"not-enter" = "{0}さんは入室していません。「{1}」コマンドで入室しましょう！" # 0: Username, 1: InCommand
-"enter-only" = "{0}さん、入室中のみ使えるコマンドです" # 0: Username
-"permission" = "{0}さんは「{1}」コマンドを使用できません" # 0: Username. 1: Command
-"exit"= "{0}さんが退室しました🚶🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "{0}さん、その番号の座席は誰も使用していません" # 0: UserName
-"sent" = "{0}さん、情報を送信しました" # 0: UserName
-"rank" = "{0}さんのランク表示を{1}にしました" # 0: UserName, 1: Value
+"not-enter" = "@{0}さんは入室していません。「{1}」コマンドで入室しましょう！" # 0: Username, 1: InCommand
+"enter-only" = "@{0}さん、入室中のみ使えるコマンドです" # 0: Username
+"permission" = "@{0}さんは「{1}」コマンドを使用できません" # 0: Username. 1: Command
+"exit"= "@{0}さんが退室しました🚶🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
+"unused" = "@{0}さん、その番号の座席は誰も使用していません" # 0: UserName
+"sent" = "@{0}さん、情報を送信しました" # 0: UserName
+"rank" = "@{0}さんのランク表示を{1}にしました" # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
-"no-seat" = "{0}さん、その番号の席は今は使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください"
-"no-availability" = "{0}さん、その番号の席は長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください"
-"already-seat" = "{0}さんはすでに{1}番の席に座っています。作業名と入室時間を更新しました"
+"no-seat" = "@{0}さん、その番号の席は今は使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください"
+"no-availability" = "@{0}さん、その番号の席は長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください"
+"already-seat" = "@{0}さんはすでに{1}番の席に座っています。作業名と入室時間を更新しました"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
-"seat-move" = "{0}さんが席を移動しました🚶（{1}→{2}番席）（+ {3}分）{4}（{5}分後に自動退室）"
-"start" = "{0}さんが作業を始めました🔥（最大{1}分、{2}番席）" # 0: Username, 1: Until Exit, 2: Seat
-"member-seat-forbidden" = "{0}さん、メンバー限定席に座るには、メンバー登録が必要です🍀"
-"membership-disabled" = "{0}さん、メンバーシップの機能は使えません"
+"seat-move" = "@{0}さんが席を移動しました🚶（{1}→{2}番席）（+ {3}分）{4}（{5}分後に自動退室）"
+"start" = "@{0}さんが作業を始めました🔥（最大{1}分、{2}番席）" # 0: Username, 1: Until Exit, 2: Seat
+"member-seat-forbidden" = "@{0}さん、メンバー限定席に座るには、メンバー登録が必要です🍀"
+"membership-disabled" = "@{0}さん、メンバーシップの機能は使えません"
 
 [command-out]
-"already-exit" = "{0}さん、すでに退室しています" # 0: Username
-"already-exit-with-last-exit-time" = "{0}さん、すでに退室しています（前回の退出時刻：{1}時{2}分）" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
+"already-exit" = "@{0}さん、すでに退室しています" # 0: Username
+"already-exit-with-last-exit-time" = "@{0}さん、すでに退室しています（前回の退出時刻：{1}時{2}分）" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
 
 [command-user-info]
-"base" = "{0} さん ［本日の作業時間：{1}] ［累計作業時間：{2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
+"base" = "@{0} さん ［本日の作業時間：{1}] ［累計作業時間：{2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
 "rank" = "［ランクポイント：{0} RP]" # 0: RP
 "rank-on" = "［🏆ランク表示：オン］"
 "rank-on-continuous" = "［🏃継続{0}日目（連続日数：{1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
@@ -48,23 +48,23 @@
 [command-seat-info]
 "break-until" = "作業再開まで{0}分です。" # 0: Value
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
-"base" = "{0}さんは{1}番の席で{2}現在{3}分入室中、作業時間は{4}分、自動退室まで残り{5}分です。{6}"
+"base" = "@{0}さんは{1}番の席で{2}現在{3}分入室中、作業時間は{4}分、自動退室まで残り{5}分です。{6}"
 # 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
 "details" = "過去{0}分以内に{1}番席に合計{2}分着席しています🪑"
 
 [command-report]
-"no-message" = "{0}さん、スペースを空けてメッセージを書いてください。" # 0: Username
+"no-message" = "@{0}さん、スペースを空けてメッセージを書いてください。" # 0: Username
 # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
 "owner" = "【{0}受信】\nチャンネルID: {1}\nチャンネル名: {2}\n\n{3}"
 # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
 "discord" = "【{0}受信】\nチャンネル名: `{1}`\nメッセージ: `{2}`"
-"alert" = "{0}さん、管理者へメッセージを送信しました⚠" # 0: UserName
+"alert" = "@{0}さん、管理者へメッセージを送信しました⚠" # 0: UserName
 
 [command-kick]
-"kick" = "{0}さん、{1}番席の{2}さんを退室させます。" # 0: Username, 1: SeatId, 2: seat user
+"kick" = "@{0}さん、{1}番席の{2}さんを退室させます。" # 0: Username, 1: SeatId, 2: seat user
 
 [command-block]
-"block" = "{0}さん、{1}番席の{2}さんをブロックします。"  # 0: UserName, 1: seatId, 2: TargetUserName
+"block" = "@{0}さん、{1}番席の{2}さんをブロックします。"  # 0: UserName, 1: seatId, 2: TargetUserName
 
 [command-my]
 "already-rank" = "ランク表示モードはすでに{0}です。" # 0: Status
@@ -92,16 +92,16 @@
 "reply" = "現在{0}分入室中。自動退室まで残り{1}分です" # 0: current, 1: remain
 
 [command-break]
-"work-only" = "{0}さん、作業中のみ使えるコマンドです。" # 0: Username
-"warn" = "{0}さん、作業を始めてから{1}分間は休憩できません。現在{2}分作業中" # 0: Username, 1: min break, 2: current
-"break" = "{0}さんが休憩します（最大{1}分、{2}番席）" # 0: Username, 1: min, 2: seatId
+"work-only" = "@{0}さん、作業中のみ使えるコマンドです。" # 0: Username
+"warn" = "@{0}さん、作業を始めてから{1}分間は休憩できません。現在{2}分作業中" # 0: Username, 1: min break, 2: current
+"break" = "@{0}さんが休憩します（最大{1}分、{2}番席）" # 0: Username, 1: min, 2: seatId
 
 [command-resume]
-"break-only" = "{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
-"work" =  "{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
+"break-only" = "@{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
+"work" =  "@{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
 
 [others]
-"force-move" = "{0}さんが{1}番席の入室時間の一時上限に達したため席移動します💨"   # 0: userName, 1:  seatId
+"force-move" = "@{0}さんが{1}番席の入室時間の一時上限に達したため席移動します💨"   # 0: userName, 1:  seatId
 
 [parse]
 "isolated-!" = "びっくりマークは隣の文字とくっつけてください"
