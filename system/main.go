@@ -97,8 +97,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
 			} else {
 				if constants.DesiredMaxSeats != constants.MaxSeats || constants.DesiredMemberMaxSeats != constants.MemberMaxSeats {
-					err := sys.AdjustMaxSeats(ctx)
-					if err != nil {
+					if err := sys.AdjustMaxSeats(ctx); err != nil {
 						sys.MessageToOwnerWithError("failed sys.AdjustMaxSeats()", err)
 					}
 				}
@@ -137,8 +136,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		lastChatFetched = utils.JstNow()
 
 		// save nextPageToken
-		err = sys.SaveNextPageToken(ctx, nextPageToken)
-		if err != nil {
+		if err := sys.SaveNextPageToken(ctx, nextPageToken); err != nil {
 			sys.MessageToOwnerWithError("(1回目) failed to save next page token", err)
 			// 少し待ってから再試行
 			time.Sleep(3 * time.Second)
@@ -156,12 +154,10 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				continue
 			}
 
-			err = sys.AddLiveChatHistoryDoc(ctx, chatMessage)
-			if err != nil {
+			if err = sys.AddLiveChatHistoryDoc(ctx, chatMessage); err != nil {
 				sys.MessageToOwnerWithError("(1回目) failed to add live chat history", err)
 				time.Sleep(2 * time.Second)
-				err2 := sys.AddLiveChatHistoryDoc(ctx, chatMessage)
-				if err2 != nil {
+				if err2 := sys.AddLiveChatHistoryDoc(ctx, chatMessage); err2 != nil {
 					sys.MessageToOwnerWithError("(2回目) failed to add live chat history", err2)
 					// pass
 				}
@@ -187,8 +183,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember)
-			if err != nil {
+			if err := sys.Command(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember); err != nil {
 				sys.MessageToOwnerWithError("error in Command()", err)
 			}
 		}

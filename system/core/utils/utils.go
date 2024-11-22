@@ -51,8 +51,7 @@ func Get7daysBefore(date time.Time) time.Time {
 
 // LoadEnv TODO さらに上の階層に書くべき
 func LoadEnv(relativeEnvPath string) {
-	err := godotenv.Load(relativeEnvPath)
-	if err != nil {
+	if err := godotenv.Load(relativeEnvPath); err != nil {
 		slog.Error("Error loading .env file")
 		panic(err)
 	}

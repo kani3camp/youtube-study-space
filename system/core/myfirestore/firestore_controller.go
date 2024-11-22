@@ -138,8 +138,7 @@ func (c *FirestoreController) ReadCredentialsConfig(ctx context.Context, tx *fir
 		return CredentialsConfigDoc{}, err
 	}
 	var credentialsData CredentialsConfigDoc
-	err = doc.DataTo(&credentialsData)
-	if err != nil {
+	if err := doc.DataTo(&credentialsData); err != nil {
 		return CredentialsConfigDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return credentialsData, nil
@@ -152,8 +151,7 @@ func (c *FirestoreController) ReadSystemConstantsConfig(ctx context.Context, tx 
 		return ConstantsConfigDoc{}, err
 	}
 	var constantsConfig ConstantsConfigDoc
-	err = doc.DataTo(&constantsConfig)
-	if err != nil {
+	if err := doc.DataTo(&constantsConfig); err != nil {
 		return ConstantsConfigDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return constantsConfig, nil
@@ -216,8 +214,7 @@ func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
 			return []SeatDoc{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var seatDoc SeatDoc
-		err = doc.DataTo(&seatDoc)
-		if err != nil {
+		if err := doc.DataTo(&seatDoc); err != nil {
 			return []SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		seats = append(seats, seatDoc)
@@ -232,8 +229,7 @@ func (c *FirestoreController) ReadSeat(ctx context.Context, tx *firestore.Transa
 		return SeatDoc{}, err // NotFoundの場合もerrに含まれる
 	}
 	var seatDoc SeatDoc
-	err = doc.DataTo(&seatDoc)
-	if err != nil {
+	if err := doc.DataTo(&seatDoc); err != nil {
 		return SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return seatDoc, nil
@@ -249,8 +245,7 @@ func (c *FirestoreController) ReadSeatWithUserId(ctx context.Context, userId str
 	}
 	if len(docs) == 1 {
 		var seatDoc SeatDoc
-		err := docs[0].DataTo(&seatDoc)
-		if err != nil {
+		if err := docs[0].DataTo(&seatDoc); err != nil {
 			return SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		return seatDoc, nil
@@ -301,8 +296,7 @@ func (c *FirestoreController) ReadUser(ctx context.Context, tx *firestore.Transa
 		return UserDoc{}, err
 	}
 	userData := UserDoc{}
-	err = doc.DataTo(&userData)
-	if err != nil {
+	if err = doc.DataTo(&userData); err != nil {
 		return UserDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return userData, nil
@@ -513,8 +507,7 @@ func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActi
 			return []UserActivityDoc{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var activity UserActivityDoc
-		err = doc.DataTo(&activity)
-		if err != nil {
+		if err := doc.DataTo(&activity); err != nil {
 			return []UserActivityDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		activityList = append(activityList, activity)
@@ -585,8 +578,7 @@ func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimi
 			return nil, fmt.Errorf("in iter.Next(): %w", err)
 		}
 		var seatLimitDoc SeatLimitDoc
-		err = doc.DataTo(&seatLimitDoc)
-		if err != nil {
+		if err := doc.DataTo(&seatLimitDoc); err != nil {
 			return nil, fmt.Errorf("in doc.DataTo: %w", err)
 		}
 		seatLimits = append(seatLimits, seatLimitDoc)

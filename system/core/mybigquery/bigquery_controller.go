@@ -33,8 +33,7 @@ func NewBigqueryClient(ctx context.Context, projectId string, clientOption optio
 }
 
 func (c *BigqueryController) CloseClient() {
-	err := c.Client.Close()
-	if err != nil {
+	if err := c.Client.Close(); err != nil {
 		slog.Error("failed to close bigquery client.")
 	} else {
 		slog.Info("successfully closed bigquery client.")
