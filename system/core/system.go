@@ -128,7 +128,7 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 }
 
 func (s *System) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
-	return s.FirestoreController.FirestoreClient.RunTransaction(ctx, f)
+	return s.FirestoreController.FirestoreClient().RunTransaction(ctx, f)
 }
 
 func (s *System) SetProcessedUser(userId string, userDisplayName string, userProfileImageUrl string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
@@ -140,7 +140,7 @@ func (s *System) SetProcessedUser(userId string, userDisplayName string, userPro
 }
 
 func (s *System) CloseFirestoreClient() {
-	if err := s.FirestoreController.FirestoreClient.Close(); err != nil {
+	if err := s.FirestoreController.FirestoreClient().Close(); err != nil {
 		slog.Error("failed close firestore client.")
 	} else {
 		slog.Info("successfully closed firestore client.")

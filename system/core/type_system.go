@@ -8,18 +8,18 @@ import (
 
 type System struct {
 	Configs             *SystemConfigs
-	FirestoreController *myfirestore.FirestoreController
+	FirestoreController myfirestore.FirestoreController
 	liveChatBot         *youtubebot.YoutubeLiveChatBot
 	discordOwnerBot     *discordbot.DiscordBot
 	discordSharedBot    *discordbot.DiscordBot
 	discordSharedLogBot *discordbot.DiscordBot
-	
+
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserProfileImageUrl    string
 	ProcessedUserIsModeratorOrOwner bool
 	ProcessedUserIsMember           bool
-	
+
 	blockRegexListForChatMessage        []string
 	blockRegexListForChannelName        []string
 	notificationRegexListForChatMessage []string
@@ -29,6 +29,6 @@ type System struct {
 // SystemConfigs System生成時に初期化すべきフィールド値
 type SystemConfigs struct {
 	Constants myfirestore.ConstantsConfigDoc
-	
+
 	LiveChatBotChannelId string
 }
