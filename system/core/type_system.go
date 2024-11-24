@@ -9,7 +9,7 @@ import (
 type System struct {
 	Configs             *SystemConfigs
 	FirestoreController myfirestore.FirestoreController
-	liveChatBot         *youtubebot.YoutubeLiveChatBot
+	LiveChatBot         youtubebot.YoutubeLiveChatBotInterface
 	discordOwnerBot     *discordbot.DiscordBot
 	discordSharedBot    *discordbot.DiscordBot
 	discordSharedLogBot *discordbot.DiscordBot

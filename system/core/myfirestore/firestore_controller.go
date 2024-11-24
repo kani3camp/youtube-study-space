@@ -15,7 +15,7 @@ import (
 )
 
 type FirestoreControllerImplements struct {
-	firestoreClient *firestore.Client
+	firestoreClient FirestoreClient
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
@@ -29,7 +29,7 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	}, nil
 }
 
-func (c *FirestoreControllerImplements) FirestoreClient() *firestore.Client {
+func (c *FirestoreControllerImplements) FirestoreClient() FirestoreClient {
 	return c.firestoreClient
 }
 

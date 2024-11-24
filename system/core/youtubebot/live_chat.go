@@ -24,7 +24,7 @@ type AccessTokenResponseStruct struct {
 	TokenType   string `json:"token_type"`
 }
 
-func NewYoutubeLiveChatBot(liveChatId string, controller myfirestore.FirestoreController, ctx context.Context) (*YoutubeLiveChatBot, error) {
+func NewYoutubeLiveChatBot(liveChatId string, controller myfirestore.FirestoreController, ctx context.Context) (YoutubeLiveChatBotInterface, error) {
 	var channelYoutubeService *youtube.Service
 	var botYoutubeService *youtube.Service
 

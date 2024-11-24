@@ -50,7 +50,7 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
 	}
 
-	// discord bot for system owner
+	// discord bot for System owner
 	discordOwnerBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelId)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
@@ -116,7 +116,7 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 	return &System{
 		Configs:                             &configs,
 		FirestoreController:                 fsController,
-		liveChatBot:                         liveChatBot,
+		LiveChatBot:                         liveChatBot,
 		discordOwnerBot:                     discordOwnerBot,
 		discordSharedBot:                    discordSharedBot,
 		discordSharedLogBot:                 discordSharedLogBot,
@@ -660,6 +660,7 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 		}
 	})
 	if txErr != nil {
+		slog.Error("txErr in In()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -732,6 +733,7 @@ func (s *System) Out(_ *utils.CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Out()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -788,6 +790,7 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in ShowUserInfo()", "txErr", txErr)
 		replyMessage = i18n.T("command:error")
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -849,6 +852,7 @@ func (s *System) ShowSeatInfo(command *utils.CommandDetails, ctx context.Context
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in ShowSeatInfo()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -942,6 +946,7 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Kick()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1000,6 +1005,7 @@ func (s *System) Check(command *utils.CommandDetails, ctx context.Context) error
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Check()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1083,6 +1089,7 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Block()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1225,6 +1232,7 @@ func (s *System) My(command *utils.CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in My()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1324,6 +1332,7 @@ func (s *System) Change(command *utils.CommandDetails, ctx context.Context) erro
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Change()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1415,6 +1424,7 @@ func (s *System) More(command *utils.CommandDetails, ctx context.Context) error 
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in More()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1507,6 +1517,7 @@ func (s *System) Break(ctx context.Context, command *utils.CommandDetails) error
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Break()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1586,6 +1597,7 @@ func (s *System) Resume(ctx context.Context, command *utils.CommandDetails) erro
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Resume()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1655,6 +1667,7 @@ func (s *System) Rank(_ *utils.CommandDetails, ctx context.Context) error {
 		return nil
 	})
 	if txErr != nil {
+		slog.Error("txErr in Rank()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)
@@ -1663,14 +1676,14 @@ func (s *System) Rank(_ *utils.CommandDetails, ctx context.Context) error {
 
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
 func (s *System) IsSeatExist(ctx context.Context, seatId int, isMemberSeat bool) (bool, error) {
-	constants, err := s.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
+	realtimeConstants, err := s.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("in ReadSystemConstantsConfig: %w", err)
 	}
 	if isMemberSeat {
-		return 1 <= seatId && seatId <= constants.MemberMaxSeats, nil
+		return 1 <= seatId && seatId <= realtimeConstants.MemberMaxSeats, nil
 	} else {
-		return 1 <= seatId && seatId <= constants.MaxSeats, nil
+		return 1 <= seatId && seatId <= realtimeConstants.MaxSeats, nil
 	}
 }
 
@@ -2166,11 +2179,11 @@ func (s *System) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) erro
 }
 
 func (s *System) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
-	return s.liveChatBot.ListMessages(ctx, pageToken)
+	return s.LiveChatBot.ListMessages(ctx, pageToken)
 }
 
 func (s *System) MessageToLiveChat(ctx context.Context, message string) {
-	if err := s.liveChatBot.PostMessage(ctx, message); err != nil {
+	if err := s.LiveChatBot.PostMessage(ctx, message); err != nil {
 		s.MessageToOwnerWithError("failed to send live chat message \""+message+"\"\n", err)
 	}
 }
@@ -2219,7 +2232,7 @@ func (s *System) CheckLongTimeSitting(ctx context.Context, isMemberRoom bool) er
 }
 
 func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
-	checker := guardians.NewLiveStreamChecker(s.FirestoreController, s.liveChatBot, s.discordOwnerBot)
+	checker := guardians.NewLiveStreamChecker(s.FirestoreController, s.LiveChatBot, s.discordOwnerBot)
 	return checker.Check(ctx)
 }
 
@@ -2515,7 +2528,7 @@ func (s *System) GetRecentUserSittingTimeForSeat(ctx context.Context, userId str
 }
 
 func (s *System) BanUser(ctx context.Context, userId string) error {
-	if err := s.liveChatBot.BanUser(ctx, userId); err != nil {
+	if err := s.LiveChatBot.BanUser(ctx, userId); err != nil {
 		return fmt.Errorf("in BanUser: %w", err)
 	}
 	return nil

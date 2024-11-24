@@ -6,8 +6,16 @@ import (
 	"time"
 )
 
+// FirestoreClient テストでfirestore.Clientをmockできるように定義
+type FirestoreClient interface {
+	Collection(path string) *firestore.CollectionRef
+	Doc(path string) *firestore.DocumentRef
+	RunTransaction(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) (err error)
+	Close() error
+}
+
 type FirestoreController interface {
-	FirestoreClient() *firestore.Client
+	FirestoreClient() FirestoreClient
 
 	// Document Operations
 	DeleteDocRef(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef) error
