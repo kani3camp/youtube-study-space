@@ -250,3 +250,80 @@ func TestSystem_In(t *testing.T) {
 		})
 	}
 }
+
+var outTestCases = []struct {
+	name                 string
+	constantsConfig      myfirestore.ConstantsConfigDoc
+	commandDetails       utils.CommandDetails
+	userIsMember         bool
+	expectedReplyMessage string
+}{
+	{
+		name: "一般席退室",
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Out,
+		},
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、1番席）",
+	},
+	{
+		name: "メンバー席退室",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			YoutubeMembershipEnabled: true,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Out,
+		},
+		userIsMember:         true,
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、VIP1番席）",
+	},
+}
+
+func TestSystem_Out(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	for _, tt := range outTestCases {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
+						tx := &firestore.Transaction{}
+						return f(ctx, tx)
+					},
+				).AnyTimes()
+			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{
+				SeatId: 1,
+				UserId: "test_user_id",
+			}, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+
+			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
+
+			system := core.System{
+				FirestoreController:      mockDB,
+				ProcessedUserId:          "test_user_id",
+				LiveChatBot:              mockLiveChatBot,
+				ProcessedUserDisplayName: "テストユーザー",
+			}
+
+			if err := i18n.LoadLocaleFolderFS(); err != nil {
+				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
+			}
+
+			// テスト対象の関数を実行
+			err := system.Out(&tt.commandDetails, context.Background())
+
+			assert.Nil(t, err)
+		})
+	}
+}
