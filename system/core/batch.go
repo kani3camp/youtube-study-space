@@ -26,24 +26,20 @@ import (
 // - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
 func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
 	slog.Info(utils.NameOf(s.OrganizeDB), "isMemberRoom", isMemberRoom)
-	var err error
 
 	slog.Info("自動退室")
 	// 全座席のスナップショットをとる（トランザクションなし）
-	err = s.OrganizeDBAutoExit(ctx, isMemberRoom)
-	if err != nil {
+	if err := s.OrganizeDBAutoExit(ctx, isMemberRoom); err != nil {
 		return fmt.Errorf("in OrganizeDBAutoExit(): %w", err)
 	}
 
 	slog.Info("作業再開")
-	err = s.OrganizeDBResume(ctx, isMemberRoom)
-	if err != nil {
+	if err := s.OrganizeDBResume(ctx, isMemberRoom); err != nil {
 		return fmt.Errorf("in OrganizeDBResume(): %w", err)
 	}
 
 	slog.Info("一時着席制限ブラックリスト・ホワイトリストのクリーニング")
-	err = s.OrganizeDBDeleteExpiredSeatLimits(ctx, isMemberRoom)
-	if err != nil {
+	if err := s.OrganizeDBDeleteExpiredSeatLimits(ctx, isMemberRoom); err != nil {
 		return fmt.Errorf("in OrganizeDBDeleteExpiredSeatLimits(): %w", err)
 	}
 
@@ -60,7 +56,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
-		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
@@ -107,9 +103,9 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 
 			return nil
 		})
-		if err != nil {
-			s.MessageToOwnerWithError("failed transaction", err)
-			continue // err != nil でもreturnではなく次に進む
+		if txErr != nil {
+			s.MessageToOwnerWithError("failed transaction", txErr)
+			continue // txErr != nil でもreturnではなく次に進む
 		}
 		if liveChatMessage != "" {
 			s.MessageToLiveChat(ctx, liveChatMessage)
@@ -128,7 +124,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
-		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
@@ -163,8 +159,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
 				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
-				err = s.FirestoreController.UpdateSeat(ctx, tx, seat, isMemberRoom)
-				if err != nil {
+				if err := s.FirestoreController.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)
 				}
 				// activityログ記録
@@ -175,8 +170,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 					IsMemberSeat: isMemberRoom,
 					TakenAt:      utils.JstNow(),
 				}
-				err = s.FirestoreController.CreateUserActivityDoc(ctx, tx, endBreakActivity)
-				if err != nil {
+				if err := s.FirestoreController.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
 				}
 				var seatIdStr string
@@ -190,9 +184,9 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 			}
 			return nil
 		})
-		if err != nil {
-			s.MessageToOwnerWithError("failed transaction", err)
-			continue // err != nil でもreturnではなく次に進む
+		if txErr != nil {
+			s.MessageToOwnerWithError("failed transaction", txErr)
+			continue // txErr != nil でもreturnではなく次に進む
 		}
 		if liveChatMessage != "" {
 			s.MessageToLiveChat(ctx, liveChatMessage)
@@ -233,7 +227,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 	slog.Info(utils.NameOf(s.OrganizeDBForceMove), "isMemberSeat", isMemberSeat, "len(seatsSnapshot)", len(seatsSnapshot))
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
-		err := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberSeat)
 
 			// 現在も存在しているか
@@ -250,18 +244,20 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 				return nil
 			}
 
-			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, seat.SeatId, isMemberSeat)
-			if err != nil {
-				return fmt.Errorf("%sさん（%s）の席移動処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
-			}
-			if ifSittingTooMuch {
-				forcedMove = true
+			{
+				ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, s.ProcessedUserId, seat.SeatId, isMemberSeat)
+				if err != nil {
+					return fmt.Errorf("%sさん（%s）の席移動処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
+				}
+				if ifSittingTooMuch {
+					forcedMove = true
+				}
 			}
 
 			return nil
 		})
-		if err != nil {
-			s.MessageToOwnerWithError("failed transaction in OrganizeDBForceMove", err)
+		if txErr != nil {
+			s.MessageToOwnerWithError("failed transaction in OrganizeDBForceMove", txErr)
 			continue
 		}
 		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
@@ -286,8 +282,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 					IsMemberSeat: isMemberSeat,
 				},
 			}
-			err = s.In(ctx, inCommandDetails)
-			if err != nil {
+			if err := s.In(ctx, inCommandDetails); err != nil {
 				return fmt.Errorf("%sさん（%s）の自動席移動処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
 			}
 		}
@@ -336,14 +331,12 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 			if err != nil {
 				return 0, fmt.Errorf("in userIter.Next(): %w", err)
 			}
-			err = s.FirestoreController.ResetDailyTotalStudyTime(ctx, doc.Ref)
-			if err != nil {
+			if err := s.FirestoreController.ResetDailyTotalStudyTime(ctx, doc.Ref); err != nil {
 				return 0, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 			}
 			count += 1
 		}
-		err := s.FirestoreController.UpdateLastResetDailyTotalStudyTime(ctx, now)
-		if err != nil {
+		if err := s.FirestoreController.UpdateLastResetDailyTotalStudyTime(ctx, now); err != nil {
 			return 0, fmt.Errorf("in UpdateLastResetDailyTotalStudyTime(): %w", err)
 		}
 		return count, nil
@@ -365,8 +358,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 		}
 
 		// 処理
-		err := s.UpdateUserRP(ctx, userId, jstNow)
-		if err != nil {
+		if err := s.UpdateUserRP(ctx, userId, jstNow); err != nil {
 			s.MessageToOwnerWithError("failed to UpdateUserRP, while processing "+userId, err)
 			// pass. mark user as done
 		}
@@ -407,26 +399,22 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 
 		// 変更項目がある場合のみ変更
 		if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
-			err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays)
-			if err != nil {
+			if err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays); err != nil {
 				return fmt.Errorf("in UpdateUserLastPenaltyImposedDays(): %w", err)
 			}
 		}
 		if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
-			err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted)
-			if err != nil {
+			if err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted); err != nil {
 				return fmt.Errorf("in UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(): %w", err)
 			}
 		}
 		if rankPoint != userDoc.RankPoint {
-			err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint)
-			if err != nil {
+			if err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint); err != nil {
 				return fmt.Errorf("in UpdateUserRankPoint(): %w", err)
 			}
 		}
 
-		err = s.FirestoreController.UpdateUserLastRPProcessed(tx, userId, jstNow)
-		if err != nil {
+		if err := s.FirestoreController.UpdateUserLastRPProcessed(tx, userId, jstNow); err != nil {
 			return fmt.Errorf("in UpdateUserLastRPProcessed(): %w", err)
 		}
 
@@ -462,9 +450,12 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			return fmt.Errorf("in GetGcsYesterdayExportFolderName(): %w", err)
 		}
 
-		err = bqClient.ReadCollectionsFromGcs(ctx, gcsTargetFolderName, s.Configs.Constants.GcsFirestoreExportBucketName,
-			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities})
-		if err != nil {
+		if err := bqClient.ReadCollectionsFromGcs(
+			ctx,
+			gcsTargetFolderName,
+			s.Configs.Constants.GcsFirestoreExportBucketName,
+			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities},
+		); err != nil {
 			return fmt.Errorf("in ReadCollectionsFromGcs(): %w", err)
 		}
 		slog.Info("successfully transfer yesterday's live chat history to bigquery.")
@@ -484,8 +475,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		slog.Info(strconv.Itoa(int(retentionFromDate.Month()))+"月"+strconv.Itoa(retentionFromDate.Day())+
 			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。", "削除したライブチャット件数", numRowsLiveChat, "削除したユーザー行動ログ件数", numRowsUserActivity)
 
-		err = s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now)
-		if err != nil {
+		if err := s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now); err != nil {
 			return fmt.Errorf("in UpdateLastTransferCollectionHistoryBigquery(): %w", err)
 		}
 	} else {

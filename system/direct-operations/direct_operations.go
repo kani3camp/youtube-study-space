@@ -31,12 +31,10 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	sys.MessageToOwner("direct op: ExitAllUsersInRoom")
 
 	slog.Info("全ルームの全ユーザーを退室させます。")
-	err = sys.ExitAllUsersInRoom(ctx, true)
-	if err != nil {
+	if err := sys.ExitAllUsersInRoom(ctx, true); err != nil {
 		panic(err)
 	}
-	err = sys.ExitAllUsersInRoom(ctx, false)
-	if err != nil {
+	if err := sys.ExitAllUsersInRoom(ctx, false); err != nil {
 		panic(err)
 	}
 
@@ -56,8 +54,7 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 		CommandType: utils.Out,
 	}
 
-	err = sys.Out(outCommandDetails, ctx)
-	if err != nil {
+	if err = sys.Out(outCommandDetails, ctx); err != nil {
 		panic(err)
 	}
 }
@@ -71,7 +68,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	sys.MessageToOwner("direct op: ExportUsersCollectionJson")
 
 	var allUsersTotalStudySecList []utils.UserIdTotalStudySecSet
-	err = sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
 		allUsersTotalStudySecList, err = sys.GetAllUsersTotalStudySecList(ctx)
 		if err != nil {
@@ -79,8 +76,8 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 		}
 		return nil
 	})
-	if err != nil {
-		panic(err)
+	if txErr != nil {
+		panic(txErr)
 	}
 
 	now := utils.JstNow()
@@ -93,8 +90,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 
 	jsonEnc := json.NewEncoder(f)
 	//jsonEnc.SetIndent("", "\t")
-	err = jsonEnc.Encode(allUsersTotalStudySecList)
-	if err != nil {
+	if err := jsonEnc.Encode(allUsersTotalStudySecList); err != nil {
 		panic(err)
 	}
 	slog.Info("finished exporting json.")
@@ -110,7 +106,7 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 
 	userIdsToProcessRP, err := sys.GetUserIdsToProcessRP(ctx)
 	if err != nil {
-		slog.Error("in GetUserIdsToProcessRP: ", err)
+		slog.Error("error in GetUserIdsToProcessRP.", "err", err)
 		panic(err)
 	}
 

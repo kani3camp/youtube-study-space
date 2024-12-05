@@ -112,8 +112,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 			fallthrough
 		case 404:
 			// live chat idが変わっている可能性があるため、更新して再試行
-			err := b.refreshLiveChatId(ctx)
-			if err != nil {
+			if err := b.refreshLiveChatId(ctx); err != nil {
 				return nil, "", 0, err
 			}
 		case 500:
@@ -163,8 +162,7 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) er
 		message = message[p:]
 	}
 	for _, m := range messages {
-		err := b.postMessage(ctx, m)
-		if err != nil {
+		if err := b.postMessage(ctx, m); err != nil {
 			return err
 		}
 	}
@@ -195,16 +193,17 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	if err != nil {
 		slog.Error("first post was failed", "err", err)
 		// second call
-		_, err := insertCall.Do()
-		if err == nil {
-			slog.Info("second post succeeded!")
-			return nil
+		{
+			_, err := insertCall.Do()
+			if err == nil {
+				slog.Info("second post succeeded!")
+				return nil
+			}
+			slog.Error("second post was failed", "err", err)
 		}
-		slog.Error("second post was failed", "err", err)
 
 		// live chat idが変わっている可能性があるため、更新して再試行
-		err = b.refreshLiveChatId(ctx)
-		if err != nil {
+		if err := b.refreshLiveChatId(ctx); err != nil {
 			return err
 		}
 
@@ -212,8 +211,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		liveChatMessage.Snippet.LiveChatId = b.LiveChatId
 		liveChatMessageService = youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 		insertCall = liveChatMessageService.Insert(part, &liveChatMessage)
-		_, err = insertCall.Do()
-		if err != nil {
+		if _, err := insertCall.Do(); err != nil {
 			slog.Error("third post was failed", "err", err)
 			return err
 		}
@@ -243,8 +241,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 	if len(response.Items) == 1 {
 		newLiveChatId := response.Items[0].Snippet.LiveChatId
 		slog.Info("new live chat id :" + newLiveChatId)
-		err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
-		if err != nil {
+		if err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId); err != nil {
 			return err
 		}
 		b.LiveChatId = newLiveChatId
@@ -270,8 +267,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 		if len(response.Items) == 1 {
 			newLiveChatId := response.Items[0].Snippet.LiveChatId
 			slog.Info("new live chat id :" + newLiveChatId)
-			err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId)
-			if err != nil {
+			if err := b.FirestoreController.UpdateLiveChatId(ctx, nil, newLiveChatId); err != nil {
 				return err
 			}
 			b.LiveChatId = newLiveChatId
@@ -288,20 +284,17 @@ func (b *YoutubeLiveChatBot) refreshLiveChatId(ctx context.Context) error {
 
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
 func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userId string) error {
-	err := b.banRequest(b.LiveChatId, userId)
 	// first call
-	if err != nil {
+	if err := b.banRequest(b.LiveChatId, userId); err != nil {
 		slog.Error("first banRequest was failed", "err", err)
 
 		// live chat idが変わっている可能性があるため、更新して再試行
-		err := b.refreshLiveChatId(ctx)
-		if err != nil {
+		if err := b.refreshLiveChatId(ctx); err != nil {
 			return err
 		}
 
 		// second call
-		err = b.banRequest(b.LiveChatId, userId)
-		if err != nil {
+		if err := b.banRequest(b.LiveChatId, userId); err != nil {
 			slog.Error("second banRequest was failed", "err", err)
 			return err
 		}

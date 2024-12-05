@@ -29,8 +29,7 @@ func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	}
 	defer system.CloseFirestoreClient()
 
-	err = system.CheckLiveStreamStatus(ctx)
-	if err != nil {
+	if err := system.CheckLiveStreamStatus(ctx); err != nil {
 		system.MessageToOwnerWithError("failed to check live stream status", err)
 		return CheckLiveStreamResponse{}, err
 	}

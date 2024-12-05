@@ -32,8 +32,7 @@ func NewStorageClient(ctx context.Context, clientOption option.ClientOption,
 }
 
 func (controller *StorageController) CloseClient() {
-	err := controller.Client.Close()
-	if err != nil {
+	if err := controller.Client.Close(); err != nil {
 		slog.Error("failed to close cloud storage client.")
 	} else {
 		slog.Info("successfully closed cloud storage client.")
