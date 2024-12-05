@@ -1,10 +1,12 @@
 {
-    "usage.description": "좌석 사용법",
+    "usage.description": "사용법",
     "usage.seat.id": "좌석 No.",
     "usage.seat.work_name": "작업 내용",
     "usage.seat.user_display_name": "이름",
     "usage.in": "입실하기：",
     "usage.out": "퇴실하기：",
+    "shout.description": "모두의!shout",
+    "shout.username": "by {{name}}님",
     "break": "휴식",
     "study": "작업",
     "section": "#{{value}}",

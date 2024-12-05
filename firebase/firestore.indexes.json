@@ -135,6 +135,46 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "shouts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`last-displayed-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`created-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`updated-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "shouts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`last-displayed-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`created-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "message",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`updated-at`",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -100,6 +100,10 @@
 "break-only" = "@{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
 "work" =  "@{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
 
+[command-shout]
+"cleared" = "@{0}さんのshoutメッセージをリセットしました。新しく登録するには、「{1} メッセージ内容」と書き込んでください。"  # 0: userName, 1: shoutCommand
+"set" = "@{0}さんのshoutメッセージを登録しました。"  # 0: userName
+
 [others]
 "force-move" = "@{0}さんが{1}番席の入室時間の一時上限に達したため席移動します💨"   # 0: userName, 1:  seatId
 

@@ -94,6 +94,10 @@
 "break-only" = "@{0}님, 휴식 중에만 사용할 수 있는 명령어입니다." # 0: Username
 "work" = "@{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분 남았습니다）" # 0: Username, 1: seatId, 2: until exit
 
+[command-shout]
+"cleared" = "@{0}さんのshoutメッセージをリセットしました。新しく登録するには、「{1} メッセージ内容」と書き込んでください。"  # TODO 0: userName, 1: shoutCommand
+"set" = "@{0}さんのshoutメッセージを登録しました。"  # TODO: 0: userName
+
 [others]
 "force-move" = "@{0}님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
 

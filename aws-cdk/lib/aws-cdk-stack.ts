@@ -4,10 +4,11 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { aws_apigateway } from 'aws-cdk-lib';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
-import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
+import { ApiKey, PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
 export class AwsCdkStack extends cdk.Stack {
@@ -44,7 +45,22 @@ export class AwsCdkStack extends cdk.Stack {
       dynamoDBAccessPolicy
     );
 
-    const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(
+      const displayShoutMessageFunction = new lambda.DockerImageFunction(this, 'display_shout_message', {
+          functionName: 'display_shout_message',
+          code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../system/'), {
+              buildArgs: {
+                  HANDLER: 'main',
+              },
+              platform: Platform.LINUX_AMD64,
+              entrypoint: ['/app/display_shout_message'],
+          }),
+          timeout: cdk.Duration.seconds(20),
+          reservedConcurrentExecutions: undefined,
+      });
+      (displayShoutMessageFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+
+
+      const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(
       this,
       'youtube_organize_database',
       {
@@ -245,7 +261,28 @@ export class AwsCdkStack extends cdk.Stack {
       exportName: 'YoutubeStudySpaceApiEndpointUrl',
     });
 
-    // EventBridge
+      const apiDisplayShoutMessage = restApi.root.addResource('display_shout_message')
+      apiDisplayShoutMessage.addMethod(
+          'GET',
+          new aws_apigateway.LambdaIntegration(displayShoutMessageFunction, {
+              passthroughBehavior: PassthroughBehavior.WHEN_NO_MATCH,
+          }),
+          {
+              methodResponses: [
+                  {
+                      statusCode: '200',
+                      responseModels: {
+                          'application/json': aws_apigateway.Model.EMPTY_MODEL,
+                      },
+                      responseParameters: {
+                          'method.response.header.Access-Control-Allow-Origin': true,
+                      }
+                  }
+              ]
+          }
+      )
+
+      // EventBridge
     new events.Rule(this, '1minute', {
       schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
       targets: [
