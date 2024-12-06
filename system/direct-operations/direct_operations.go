@@ -110,7 +110,7 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 
 	userIdsToProcessRP, err := sys.GetUserIdsToProcessRP(ctx)
 	if err != nil {
-		slog.Error("in GetUserIdsToProcessRP: ", err)
+		slog.Error("error in GetUserIdsToProcessRP.", "err", err)
 		panic(err)
 	}
 

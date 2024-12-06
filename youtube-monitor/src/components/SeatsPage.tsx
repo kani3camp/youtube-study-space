@@ -4,6 +4,7 @@ import * as styles from '../styles/SeatsPage.styles'
 import { Seat } from '../types/api'
 import { RoomLayout } from '../types/room-layout'
 import SeatBox from './SeatBox'
+import Image from 'next/image'
 
 export type LayoutPageProps = {
     roomLayout: RoomLayout
@@ -160,10 +161,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
                 }
             >
                 {propsMemo.roomLayout.floor_image && (
-                    <img
+                    <Image
+                        alt='room image'
                         src={propsMemo.roomLayout.floor_image}
                         width={roomShape.widthPx}
                         height={roomShape.heightPx}
+                        priority={true}
                     />
                 )}
 
