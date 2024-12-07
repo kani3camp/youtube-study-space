@@ -20,14 +20,14 @@ type LiveStreamsListResponse struct {
 }
 
 type LiveStreamChecker struct {
-	YoutubeLiveChatBot  *youtubebot.YoutubeLiveChatBot
+	YoutubeLiveChatBot  youtubebot.YoutubeLiveChatBotInterface
 	OwnerDiscordBot     *discordbot.DiscordBot
-	FirestoreController *myfirestore.FirestoreController
+	FirestoreController myfirestore.FirestoreController
 }
 
 func NewLiveStreamChecker(
-	controller *myfirestore.FirestoreController,
-	youtubeLiveChatBot *youtubebot.YoutubeLiveChatBot,
+	controller myfirestore.FirestoreController,
+	youtubeLiveChatBot youtubebot.YoutubeLiveChatBotInterface,
 	discordBot *discordbot.DiscordBot,
 ) *LiveStreamChecker {
 

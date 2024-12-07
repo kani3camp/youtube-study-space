@@ -27,7 +27,7 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [mazeRoom, Anonymous1Room, Freepik7Room, Freepik1Room, Freepik4Room],
+    generalBasicRooms: [mazeRoom, Freepik7Room, Freepik1Room, Freepik4Room],
     generalTemporaryRooms: [
         Chabio1Room,
         Freepik3Room,
@@ -38,8 +38,8 @@ const prodAllRooms: AllRoomsConfig = {
         Freepik5Room,
         SeaOfSeatRoom,
     ],
-    memberBasicRooms: [MemberBoxRooms2, MemberIllustratedRoomSpring],
-    memberTemporaryRooms: [MemberIllustratedRoom1, MemberBoxRooms2, MemberIllustratedRoomSpring],
+    memberBasicRooms: [MemberBoxRooms2, MemberIllustratedRoomSpring, MemberIllustratedRoom1],
+    memberTemporaryRooms: [MemberBoxRooms2, MemberIllustratedRoomSpring, MemberIllustratedRoom1],
 }
 
 const testAllRooms: AllRoomsConfig = {
