@@ -56,7 +56,7 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(clientErr)
 	}
 	system := System{
-		FirestoreController: &myfirestore.FirestoreController{FirestoreClient: client},
+		FirestoreController: &myfirestore.FirestoreControllerImplements{firestoreClient: client},
 	}
 	t.Cleanup(func() {
 		system.CloseFirestoreClient()
