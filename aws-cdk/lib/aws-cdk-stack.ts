@@ -173,7 +173,6 @@ export class AwsCdkStack extends cdk.Stack {
       this,
       'RestApiLogAccessLogGroup',
       {
-        logGroupName: `/aws/apigateway/rest-api-access-log`,
         retention: logs.RetentionDays.INFINITE,
       }
     );
