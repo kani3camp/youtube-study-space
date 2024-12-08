@@ -172,7 +172,7 @@ func t(lang, fallback Language, namespace, key string, args ...interface{}) stri
 		return formatText(value, args...)
 	}
 
-	return fmt.Sprintf("NO DATA[%s]: %s:%s", lang, namespace, key)
+	return fmt.Sprintf("TRANSLATION DATA NOT FOUND. [%s]: %s:%s", lang, namespace, key)
 }
 
 func T(key string, args ...interface{}) string {

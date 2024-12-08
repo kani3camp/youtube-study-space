@@ -76,6 +76,13 @@ type FirestoreController interface {
 	DeleteSeatLimitInWHITEList(ctx context.Context, docId string, isMemberSeat bool) error
 	DeleteSeatLimitInBLACKList(ctx context.Context, docId string, isMemberSeat bool) error
 
+	// Menu Operations
+	ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error)
+
+	// Order History Operations
+	ReadUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) ([]OrderHistoryDoc, error)
+	CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error
+
 	// General Operations
 	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)
 	GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator

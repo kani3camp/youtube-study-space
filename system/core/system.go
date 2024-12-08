@@ -113,6 +113,11 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		return nil, fmt.Errorf("in GetRegexForNotification(): %w", err)
 	}
 
+	sortedMenuItems, err := fsController.ReadAllMenuDocsOrderByCode(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("in ReadAllMenuDocsOrderByCode(): %w", err)
+	}
+
 	return &System{
 		Configs:                             &configs,
 		FirestoreController:                 fsController,
@@ -124,6 +129,7 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		blockRegexListForChatMessage:        blockRegexListForChatMessage,
 		notificationRegexListForChatMessage: notificationRegexListForChatMessage,
 		notificationRegexListForChannelName: notificationRegexListForChannelName,
+		sortedMenuItems:                     sortedMenuItems,
 	}, nil
 }
 
@@ -505,6 +511,8 @@ func (s *System) Command(
 		return s.Resume(ctx, commandDetails)
 	case utils.Rank:
 		return s.Rank(commandDetails, ctx)
+	case utils.Order:
+		return s.Order(ctx, commandDetails)
 	default:
 		return errors.New("Unknown command: " + commandString)
 	}
@@ -1674,6 +1682,86 @@ func (s *System) Rank(_ *utils.CommandDetails, ctx context.Context) error {
 	return txErr
 }
 
+func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error {
+	replyMessage := ""
+	t := i18n.GetTFunc("command-order") // TODO
+	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 入室しているか？
+		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
+		if err != nil {
+			return fmt.Errorf("failed IsUserInRoom: %w", err)
+		}
+		isInRoom := isInMemberRoom || isInGeneralRoom
+		if !isInRoom {
+			replyMessage = i18n.T("command:enter-only", s.ProcessedUserDisplayName)
+			return nil
+		}
+
+		// メンバーでないなら本日の注文回数をチェック
+		if !s.ProcessedUserIsMember {
+			todayOrders, err := s.FirestoreController.ReadUserOrdersOfTheDay(ctx, s.ProcessedUserId, utils.JstNow())
+			if err != nil {
+				return fmt.Errorf("in ReadUserOrdersOfTheDay: %w", err)
+			}
+			if len(todayOrders) > s.Configs.Constants.MaxDailyOrderCount {
+				replyMessage = t("too-many-orders", s.ProcessedUserDisplayName, s.Configs.Constants.MaxDailyOrderCount)
+				return nil
+			}
+		}
+
+		currentSeat, err := s.CurrentSeat(ctx, s.ProcessedUserId, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("failed s.CurrentSeat(): %w", err)
+		}
+
+		// これ以降は書き込みのみ
+
+		if command.OrderOption.ClearFlag {
+			// 食器を下げる（注文履歴は削除しない）
+			currentSeat.MenuCode = ""
+			err := s.FirestoreController.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom)
+			if err != nil {
+				return fmt.Errorf("in UpdateSeat: %w", err)
+			}
+			replyMessage = t("cleared", s.ProcessedUserDisplayName)
+			return nil
+		}
+
+		targetMenuItem, err := s.GetMenuItemByNumber(command.OrderOption.IntValue)
+		if err != nil {
+			return fmt.Errorf("in GetMenuItemByNumber: %w", err)
+		}
+
+		// 注文履歴を作成
+		orderHistoryDoc := myfirestore.OrderHistoryDoc{
+			UserId:       s.ProcessedUserId,
+			MenuCode:     targetMenuItem.Code,
+			SeatId:       currentSeat.SeatId,
+			IsMemberSeat: isInMemberRoom,
+			OrderedAt:    utils.JstNow(),
+		}
+		if err := s.FirestoreController.CreateOrderHistoryDoc(ctx, tx, orderHistoryDoc); err != nil {
+			return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
+		}
+
+		// 座席ドキュメントを更新
+		currentSeat.MenuCode = targetMenuItem.Code
+		err = s.FirestoreController.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("in UpdateSeat: %w", err)
+		}
+
+		replyMessage = t("ordered", s.ProcessedUserDisplayName, targetMenuItem.DisplayName)
+		return nil
+	})
+	if txErr != nil {
+		slog.Error("txErr in Order()", "txErr", txErr)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+	}
+	s.MessageToLiveChat(ctx, replyMessage)
+	return txErr
+}
+
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
 func (s *System) IsSeatExist(ctx context.Context, seatId int, isMemberSeat bool) (bool, error) {
 	realtimeConstants, err := s.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
@@ -2532,4 +2620,16 @@ func (s *System) BanUser(ctx context.Context, userId string) error {
 		return fmt.Errorf("in BanUser: %w", err)
 	}
 	return nil
+}
+
+func (s *System) NumOfMenuItems() int {
+	return len(s.sortedMenuItems)
+}
+
+// GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
+func (s *System) GetMenuItemByNumber(number int) (myfirestore.MenuDoc, error) {
+	if len(s.sortedMenuItems) < number {
+		return myfirestore.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(s.sortedMenuItems))
+	}
+	return s.sortedMenuItems[number-1], nil
 }
