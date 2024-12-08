@@ -37,7 +37,7 @@ export const spacer = css`
 
 export const remaining = css`
     font-family: 'M PLUS Rounded 1c';
-    font-size: 2.1rem;
+    font-size: 2rem;
     font-weight: bold;
 `
 export const studyMode = css`

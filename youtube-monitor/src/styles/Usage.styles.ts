@@ -37,7 +37,7 @@ export const seat = css`
     width: 7.1rem;
     height: 3.5rem;
     margin: 0.2rem auto;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     text-overflow: ellipsis;
     overflow: hidden;
     display: flex;

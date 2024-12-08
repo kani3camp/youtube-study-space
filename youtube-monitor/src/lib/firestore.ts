@@ -5,7 +5,7 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
-import { Seat } from '../types/api'
+import { Seat, Menu } from '../types/api'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
     if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
@@ -95,6 +95,22 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
             cumulative_work_sec: data['cumulative-work-sec'],
             daily_cumulative_work_sec: data['daily-cumulative-work-sec'],
             user_profile_image_url: data['user-profile-image-url'],
+        }
+    },
+}
+
+export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
+    toFirestore(menu: Menu): DocumentData {
+        return {
+            code: menu.code,
+            'display-name': menu.display_name,
+        }
+    },
+    fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Menu {
+        const data = snapshot.data(options)
+        return {
+            code: data.code,
+            display_name: data['display-name'],
         }
     },
 }

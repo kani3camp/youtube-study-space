@@ -24,6 +24,11 @@ export type Seat = {
     user_profile_image_url: string
 }
 
+export type Menu = {
+    code: string
+    display_name: string
+}
+
 export type SetDesiredMaxSeatsResponse = {
     result: string
     message: string

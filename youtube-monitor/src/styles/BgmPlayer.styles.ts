@@ -5,6 +5,7 @@ export const shape = css`
     height: ${Constants.screenHeight -
     Constants.clockHeight -
     Constants.usageHeight -
+    Constants.menuHeight -
     Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
