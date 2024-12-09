@@ -61,7 +61,7 @@ const MenuDisplay: FC = () => {
                 let imageUrl = `/images/menu/${item.code}.svg`
                 const imageExists = await checkImageExists(imageUrl)
                 if (!imageExists) {
-                    imageUrl = '/images/menu/default.svg'
+                    imageUrl = '/images/menu_default.svg'
                 }
                 return { item, imageUrl }
             })
