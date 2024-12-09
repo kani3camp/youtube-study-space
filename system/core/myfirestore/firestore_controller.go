@@ -98,6 +98,10 @@ func (c *FirestoreControllerImplements) menuCollection() *firestore.CollectionRe
 	return c.firestoreClient.Collection(MENU)
 }
 
+func (c *FirestoreControllerImplements) orderHistoryCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(OrderHistory)
+}
+
 func (c *FirestoreControllerImplements) generalSeatsCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(SEATS)
 }
@@ -619,7 +623,7 @@ func (c *FirestoreControllerImplements) ReadAllMenuDocsOrderByCode(ctx context.C
 func (c *FirestoreControllerImplements) ReadUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) ([]OrderHistoryDoc, error) {
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
 	end := start.AddDate(0, 0, 1)
-	iter := c.menuCollection().
+	iter := c.orderHistoryCollection().
 		Where(OrderedAtDocProperty, ">=", start).
 		Where(OrderedAtDocProperty, "<", end).
 		Documents(ctx)
@@ -627,7 +631,7 @@ func (c *FirestoreControllerImplements) ReadUserOrdersOfTheDay(ctx context.Conte
 }
 
 func (c *FirestoreControllerImplements) CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error {
-	ref := c.menuCollection().NewDoc()
+	ref := c.orderHistoryCollection().NewDoc()
 	return c.create(ctx, tx, ref, orderHistoryDoc)
 }
 
