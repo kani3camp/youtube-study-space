@@ -11,7 +11,7 @@ export const shape = css`
 
 export const timer = css`
     height: 90%;
-    width: 83%;
+    width: 90%;
     border-radius: 0.6rem;
     font-size: 0.9rem;
     text-align: center;
@@ -20,7 +20,7 @@ export const timer = css`
 `
 
 export const timerTitle = css`
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: bold;
 `
 
@@ -37,7 +37,8 @@ export const spacer = css`
 
 export const remaining = css`
     font-family: 'M PLUS Rounded 1c';
-    font-size: 2.1rem;
+    font-size: 1.8rem;
+    line-height: 2.4rem;
     font-weight: bold;
 `
 export const studyMode = css`
