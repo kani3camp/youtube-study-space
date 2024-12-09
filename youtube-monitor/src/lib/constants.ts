@@ -33,6 +33,7 @@ export const Constants = {
     memberSeatWorkNameWidthPercent: 60,
     memberBigIconSize: 57.598,
     memberSmallIconSize: 38.391,
+    menuIconSize: 45,
 }
 
 export const debug = false
