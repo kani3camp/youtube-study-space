@@ -1,14 +1,15 @@
 import { useTranslation } from 'next-i18next'
 import { FC, useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
 import * as styles from '../styles/Menu.styles'
 import { componentStyle, componentBackground } from '../styles/common.style'
 import { firestoreMenuConverter, getFirebaseConfig } from '../lib/firestore'
 import { collection, getFirestore, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { Menu } from '../types/api'
 import { initializeApp } from 'firebase/app'
+import MenuBox, { MenuBoxProps } from './MenuBox'
+import { useInterval } from '../lib/common'
 
-const checkImageExists = (url: string): Promise<boolean> =>
+export const checkImageExists = (url: string): Promise<boolean> =>
     new Promise((resolve) => {
         console.log('checkImageExists:', url)
         const img = new globalThis.Image()
@@ -17,19 +18,22 @@ const checkImageExists = (url: string): Promise<boolean> =>
         img.src = url
     })
 
-type MenuItemAndImage = {
+export type MenuItemAndImage = {
     item: Menu
     imageUrl: string
 }
 
 const MenuDisplay: FC = () => {
+    const PAGING_INTERVAL_SEC = 5
+
     const { t } = useTranslation()
 
     const app = initializeApp(getFirebaseConfig())
     const db = getFirestore(app)
 
     const [latestMenuItems, setLatestMenuItems] = useState<Menu[]>([])
-    const [menuItemAndImages, setMenuItems] = useState<MenuItemAndImage[]>([])
+    const [menuBoxList, setMenuBoxList] = useState<MenuBoxProps[]>([])
+    const [pageIndex, setPageIndex] = useState<number>(0)
     const menuConverter = firestoreMenuConverter
 
     const menuQuery = useMemo(
@@ -51,9 +55,17 @@ const MenuDisplay: FC = () => {
     }, [menuQuery])
 
     useEffect(() => {
-        console.log('MenuDisplay: useEffect')
         updateMenuItems()
     }, [latestMenuItems])
+
+    useInterval(() => {
+        refreshPageIndex()
+    }, PAGING_INTERVAL_SEC * 1000)
+
+    useEffect(() => {
+        console.log('[currentMenuPageIndex]:', pageIndex)
+        changePage(pageIndex)
+    }, [pageIndex])
 
     const updateMenuItems = async () => {
         const menuItemAndImages = await Promise.all(
@@ -66,40 +78,67 @@ const MenuDisplay: FC = () => {
                 return { item, imageUrl }
             })
         )
-        setMenuItems(menuItemAndImages)
+        const menuBoxList: MenuBoxProps[] = []
+        for (let i = 0; i < menuItemAndImages.length; i += 2) {
+            const first = menuItemAndImages[i]
+            const second = menuItemAndImages[i + 1] ? menuItemAndImages[i + 1] : null
+            const firstNumber = i + 1
+            const secondNumber = second ? i + 2 : null
+            const display = i === 0
+            menuBoxList.push({ first, firstNumber, second, secondNumber, display })
+        }
+        setMenuBoxList(menuBoxList)
+        console.log(menuBoxList)
     }
 
-    const imageList = menuItemAndImages.map((itemAndImage, i) => (
-        <Image
-            key={i}
-            src={itemAndImage.imageUrl}
-            alt='menu item'
-            width={90}
-            height={90}
-            css={[styles.listItem, styles.image]}
-        />
-    ))
+    const refreshPageIndex = () => {
+        if (latestMenuItems.length > 0) {
+            const newPageIndex = (pageIndex + 1) % Math.ceil(latestMenuItems.length / 2)
+            setPageIndex(newPageIndex)
+        }
+    }
 
-    const nameList = menuItemAndImages.map((itemAndImage, i) => (
-        <div key={i} css={[styles.listItem, styles.name]}>
-            {itemAndImage.item.display_name}
-        </div>
-    ))
-
-    const commandList = menuItemAndImages.map((itemAndImage, i) => (
-        <div key={i}>
-            <span css={[styles.listItem, styles.commandCode]}>!order {i + 1}</span>
-        </div>
-    ))
+    const changePage = (pageIndex: number) => {
+        const snapshotMenuBoxList = [...menuBoxList]
+        if (pageIndex + 1 > snapshotMenuBoxList.length) {
+            pageIndex = 0 // index out of range にならないように１ページ目に。
+        }
+        const newMenuBoxList: MenuBoxProps[] = snapshotMenuBoxList.map((box, index) => {
+            if (index === pageIndex) {
+                box.display = true
+            } else {
+                box.display = false
+            }
+            return box
+        })
+        setMenuBoxList(newMenuBoxList)
+    }
 
     return (
         <div css={[styles.shape, componentBackground]}>
             <div css={[styles.menu, componentStyle]}>
                 <h4 css={styles.menuTitle}>{t('menu.title')}</h4>
 
-                <div css={styles.list}>{imageList}</div>
-                <div css={styles.list}>{nameList}</div>
-                <div css={styles.list}>{commandList}</div>
+                <div
+                    id={'menuBoxContainer'}
+                    style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {menuBoxList.map((props) => (
+                        <MenuBox
+                            key={props.first.item.code}
+                            first={props.first}
+                            firstNumber={props.firstNumber}
+                            second={props.second}
+                            secondNumber={props.secondNumber}
+                            display={props.display}
+                        ></MenuBox>
+                    ))}
+                </div>
 
                 <div css={styles.notice}>{t('menu.notice')}</div>
             </div>
