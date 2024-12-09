@@ -647,6 +647,7 @@ func (s *System) In(ctx context.Context, command *utils.CommandDetails) error {
 				"",
 				inOption.MinutesAndWorkName.DurationMin,
 				seatAppearance,
+				"",
 				myfirestore.WorkState,
 				userDoc.IsContinuousActive,
 				time.Time{},
@@ -1697,8 +1698,8 @@ func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error
 			return nil
 		}
 
-		// メンバーでないなら本日の注文回数をチェック
-		if !s.ProcessedUserIsMember {
+		// メンバーでないなら本日の注文回数をチェック（下膳は除く）
+		if !s.ProcessedUserIsMember && !command.OrderOption.ClearFlag {
 			todayOrders, err := s.FirestoreController.ReadUserOrdersOfTheDay(ctx, s.ProcessedUserId, utils.JstNow())
 			if err != nil {
 				return fmt.Errorf("in ReadUserOrdersOfTheDay: %w", err)
@@ -1921,6 +1922,7 @@ func (s *System) enterRoom(
 	breakWorkName string,
 	workMin int,
 	seatAppearance myfirestore.SeatAppearance,
+	menuCode string,
 	state myfirestore.SeatState,
 	isContinuousActive bool,
 	breakStartedAt time.Time, // set when moving seat
@@ -1950,6 +1952,7 @@ func (s *System) enterRoom(
 		EnteredAt:              enterDate,
 		Until:                  exitDate,
 		Appearance:             seatAppearance,
+		MenuCode:               menuCode,
 		State:                  state,
 		CurrentStateStartedAt:  currentStateStartedAt,
 		CurrentStateUntil:      currentStateUntil,
@@ -2126,6 +2129,7 @@ func (s *System) moveSeat(
 		previousSeat.BreakWorkName,
 		workMin,
 		newSeatAppearance,
+		previousSeat.MenuCode,
 		previousSeat.State,
 		previousUserDoc.IsContinuousActive,
 		previousSeat.CurrentStateStartedAt,

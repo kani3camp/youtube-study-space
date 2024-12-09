@@ -620,7 +620,7 @@ func ParseOrder(commandString string, fullString string, isMember bool, emojis [
 }
 
 func ParseOrderOption(strSlice []string) (*OrderOption, string) {
-	if len(strSlice) == 0 {
+	if len(strSlice) < 2 {
 		return nil, i18n.T("parse:invalid-option")
 	}
 
