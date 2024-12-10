@@ -24,6 +24,7 @@ import {
     getFirebaseConfig,
     SystemConstants,
 } from '../lib/firestore'
+import assert from 'assert'
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
@@ -356,9 +357,13 @@ const Seats: FC = () => {
                 desired_max_seats: desiredGeneralMaxSeats,
                 desired_member_max_seats: desiredMemberMaxSeats,
             }),
-        }).then(async () => {
-            console.log('request succeeded')
         })
+            .then(async () => {
+                console.log('request succeeded')
+            })
+            .catch((e) => {
+                console.error('request failed', e)
+            })
     }
 
     /**
