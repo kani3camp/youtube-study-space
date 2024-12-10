@@ -454,7 +454,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			ctx,
 			gcsTargetFolderName,
 			s.Configs.Constants.GcsFirestoreExportBucketName,
-			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities},
+			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities, myfirestore.OrderHistory},
 		); err != nil {
 			return fmt.Errorf("in ReadCollectionsFromGcs(): %w", err)
 		}

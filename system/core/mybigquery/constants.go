@@ -5,4 +5,5 @@ const (
 	TemporaryTableName               = "tmp"
 	LiveChatHistoryMainTableName     = "live-chat-history"
 	UserActivityHistoryMainTableName = "user-activity-history"
+	OrderHistoryMainTableName        = "order-history"
 )
