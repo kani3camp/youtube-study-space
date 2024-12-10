@@ -147,7 +147,7 @@ type UserDoc struct {
 	// ランク表示をするかどうか
 	RankVisible bool `json:"rank_visible" firestore:"rank-visible"`
 
-	// そのユーザーのデフォルト入室時間（分）（今は使用されていない）
+	// そのユーザーのデフォルト入室時間（分）
 	DefaultStudyMin int `json:"default_study_min" firestore:"default-study-min"`
 
 	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
