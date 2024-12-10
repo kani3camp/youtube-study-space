@@ -1698,13 +1698,13 @@ func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error
 			return nil
 		}
 
-		// メンバーでないなら本日の注文回数をチェック（下膳は除く）
-		if !s.ProcessedUserIsMember && !command.OrderOption.ClearFlag {
-			todayOrders, err := s.FirestoreController.ReadUserOrdersOfTheDay(ctx, s.ProcessedUserId, utils.JstNow())
-			if err != nil {
-				return fmt.Errorf("in ReadUserOrdersOfTheDay: %w", err)
-			}
-			if len(todayOrders) > s.Configs.Constants.MaxDailyOrderCount {
+		// メンバーでないなら本日の注文回数をチェック
+		todayOrderCount, err := s.FirestoreController.CountUserOrdersOfTheDay(ctx, s.ProcessedUserId, utils.JstNow())
+		if err != nil {
+			return fmt.Errorf("in CountUserOrdersOfTheDay: %w", err)
+		}
+		if !s.ProcessedUserIsMember && !command.OrderOption.ClearFlag { // 下膳の場合はスキップ
+			if todayOrderCount > int64(s.Configs.Constants.MaxDailyOrderCount) {
 				replyMessage = t("too-many-orders", s.ProcessedUserDisplayName, s.Configs.Constants.MaxDailyOrderCount)
 				return nil
 			}
@@ -1752,7 +1752,7 @@ func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error
 			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
-		replyMessage = t("ordered", s.ProcessedUserDisplayName, targetMenuItem.DisplayName)
+		replyMessage = t("ordered", s.ProcessedUserDisplayName, targetMenuItem.DisplayName, todayOrderCount+1)
 		return nil
 	})
 	if txErr != nil {

@@ -80,7 +80,7 @@ type FirestoreController interface {
 	ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error)
 
 	// Order History Operations
-	ReadUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) ([]OrderHistoryDoc, error)
+	CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error)
 	CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error
 
 	// General Operations

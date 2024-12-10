@@ -135,6 +135,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "order-history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`ordered-at`",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -1,6 +1,7 @@
 package myfirestore
 
 import (
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"context"
 	"fmt"
 	"strconv"
@@ -620,14 +621,27 @@ func (c *FirestoreControllerImplements) ReadAllMenuDocsOrderByCode(ctx context.C
 	return getDocDataFromIterator[MenuDoc](iter)
 }
 
-func (c *FirestoreControllerImplements) ReadUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) ([]OrderHistoryDoc, error) {
+func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error) {
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
 	end := start.AddDate(0, 0, 1)
-	iter := c.orderHistoryCollection().
+	query := c.orderHistoryCollection().
+		Where(UserIdDocProperty, "==", userId).
 		Where(OrderedAtDocProperty, ">=", start).
-		Where(OrderedAtDocProperty, "<", end).
-		Documents(ctx)
-	return getDocDataFromIterator[OrderHistoryDoc](iter)
+		Where(OrderedAtDocProperty, "<", end)
+	aggregationQuery := query.NewAggregationQuery().WithCount("all")
+	results, err := aggregationQuery.Get(ctx)
+	if err != nil {
+		return -1, err
+	}
+
+	count, ok := results["all"]
+	if !ok {
+		return -1, errors.New("firestore: couldn't get alias for COUNT from results")
+	}
+
+	countValue := count.(*firestorepb.Value)
+
+	return countValue.GetIntegerValue(), nil
 }
 
 func (c *FirestoreControllerImplements) CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error {
