@@ -6,6 +6,7 @@ import {
     SnapshotOptions,
 } from 'firebase/firestore'
 import { Seat } from '../types/api'
+import { validateString } from './common'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
     if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
@@ -19,9 +20,6 @@ export const getFirebaseConfig = (): FirebaseOptions => {
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     }
 }
-
-const validateString = (value: string | undefined | null): boolean =>
-    value !== undefined && value !== null && value !== ''
 
 export type SystemConstants = {
     max_seats: number
