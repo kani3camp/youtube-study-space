@@ -9,18 +9,20 @@ import { Seat, Menu } from '../types/api'
 import { m } from 'framer-motion'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
-    if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
-        alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not defined.')
+    if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
+        alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not valid.')
     }
-    if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY === undefined) {
-        alert('NEXT_PUBLIC_FIREBASE_API_KEY is not defined.')
+    if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
+        alert('NEXT_PUBLIC_FIREBASE_API_KEY is not valid.')
     }
-
     return {
         apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     }
 }
+
+const validateString = (value: string | undefined | null): boolean =>
+    value !== undefined && value !== null && value !== ''
 
 export type SystemConstants = {
     max_seats: number
@@ -45,7 +47,7 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
         return {
             max_seats: data['max-seats'],
             member_max_seats: data['member-max-seats'],
-            min_vacancy_rate: data['min-vacancy-rate'],
+            min_vacancy_rate: data['min-vacancy-rate']!,
             youtube_membership_enabled: data['youtube-membership-enabled'],
             fixed_max_seats_enabled: data['fixed-max-seats-enabled'],
         }
