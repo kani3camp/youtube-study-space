@@ -24,7 +24,6 @@ import {
     getFirebaseConfig,
     SystemConstants,
 } from '../lib/firestore'
-import assert from 'assert'
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
