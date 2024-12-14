@@ -449,6 +449,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return fmt.Errorf("in GetGcsYesterdayExportFolderName(): %w", err)
 		}
+		slog.Info("GCS folder name: " + gcsTargetFolderName)
 
 		if err := bqClient.ReadCollectionsFromGcs(
 			ctx,
