@@ -105,14 +105,14 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
     toFirestore(menu: Menu): DocumentData {
         return {
             code: menu.code,
-            'display-name': menu.display_name,
+            name: menu.name,
         }
     },
     fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Menu {
         const data = snapshot.data(options)
         return {
             code: data.code,
-            display_name: data['display-name'],
+            name: data.name,
         }
     },
 }

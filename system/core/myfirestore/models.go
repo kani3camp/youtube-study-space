@@ -200,8 +200,8 @@ type UserActivityDoc struct {
 }
 
 type MenuDoc struct {
-	Code        string `json:"code" firestore:"code"`
-	DisplayName string `json:"display_name" firestore:"display-name"`
+	Code string `json:"code" firestore:"code"`
+	Name string `json:"name" firestore:"name"`
 }
 
 type OrderHistoryDoc struct {

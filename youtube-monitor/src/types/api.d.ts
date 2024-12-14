@@ -28,7 +28,7 @@ export type Seat = {
 
 export type Menu = {
     code: string
-    display_name: string
+    name: string
 }
 
 export type SetDesiredMaxSeatsResponse = {

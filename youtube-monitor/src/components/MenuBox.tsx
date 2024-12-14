@@ -32,7 +32,7 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
         (itemAndImage, i) =>
             itemAndImage && (
                 <div key={i} css={[styles.listItem, styles.name]}>
-                    {itemAndImage.item.display_name}
+                    {itemAndImage.item.name}
                 </div>
             )
     )

@@ -1753,7 +1753,7 @@ func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error
 			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
-		replyMessage = t("ordered", s.ProcessedUserDisplayName, targetMenuItem.DisplayName, todayOrderCount+1)
+		replyMessage = t("ordered", s.ProcessedUserDisplayName, targetMenuItem.Name, todayOrderCount+1)
 		return nil
 	})
 	if txErr != nil {
