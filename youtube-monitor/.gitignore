@@ -2,6 +2,6 @@
 .next/
 node_modules/
 out/
-public/audio/lofigirl/*
+public/audio/*
 public/chime/*
 public/images/*

@@ -28,13 +28,11 @@ func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 	}
 	defer system.CloseFirestoreClient()
 
-	err = system.OrganizeDB(ctx, true)
-	if err != nil {
+	if err := system.OrganizeDB(ctx, true); err != nil {
 		system.MessageToOwnerWithError("failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
-	err = system.OrganizeDB(ctx, false)
-	if err != nil {
+	if err := system.OrganizeDB(ctx, false); err != nil {
 		system.MessageToOwnerWithError("failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}

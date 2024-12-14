@@ -32,8 +32,7 @@ func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
 		return nil, fmt.Errorf("in db.GetItem: %w", err)
 	}
 	secretData := SecretData{}
-	err = dynamodbattribute.UnmarshalMap(result.Item, &secretData)
-	if err != nil {
+	if err := dynamodbattribute.UnmarshalMap(result.Item, &secretData); err != nil {
 		return nil, fmt.Errorf("in dynamodbattribute.UnmarshalMap: %w", err)
 	}
 	return []byte(secretData.SecretData), nil

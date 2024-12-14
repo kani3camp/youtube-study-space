@@ -1,12 +1,13 @@
 import { Wave } from '@foobar404/wave'
-import { FC, useEffect, useState } from 'react'
-import { getCurrentRandomBgm } from '../lib/bgm'
+import React, { useEffect, useState } from 'react'
 import { Constants } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+import { getCurrentRandomBgm } from '../lib/bgm'
+import jsmediatags from 'jsmediatags'
 
-const BgmPlayer: FC = () => {
+const BgmPlayer: React.FC = () => {
     const [lastSectionType, setLastSectionType] = useState('')
     const [audioTitle, setAudioTitle] = useState('BGM TITLE')
     const [audioArtist, setAudioArtist] = useState('BGM ARTIST')
@@ -70,14 +71,31 @@ const BgmPlayer: FC = () => {
         audioNext()
     }
 
-    const audioNext = () => {
+    type ID3Tag = {
+        tags: {
+            title: string | null
+            artist: string | null
+        }
+    }
+
+    const audioNext = async () => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
-        const currentSection = getCurrentSection()
-        const bgm = getCurrentRandomBgm(currentSection.partType)
-        audio.src = bgm.file
-        setAudioTitle(bgm.title)
-        setAudioArtist(bgm.artist)
+
+        const bgm = await getCurrentRandomBgm()
+        audio.src = bgm
+        jsmediatags.read(audio.src, {
+            onSuccess(tag: ID3Tag) {
+                const title = tag.tags.title
+                const artist = tag.tags.artist
+                setAudioTitle(title !== null && title !== undefined ? title : 'BGM TITLE')
+                setAudioArtist(artist !== null && artist !== undefined ? artist : 'BGM ARTIST')
+            },
+            onError(error: Error) {
+                console.error(error)
+            },
+        })
         audio.volume = Constants.bgmVolume
+
         audio.play()
     }
 

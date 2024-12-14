@@ -56,7 +56,7 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(clientErr)
 	}
 	system := System{
-		FirestoreController: &myfirestore.FirestoreController{FirestoreClient: client},
+		FirestoreController: &myfirestore.FirestoreControllerImplements{firestoreClient: client},
 	}
 	t.Cleanup(func() {
 		system.CloseFirestoreClient()
@@ -69,8 +69,7 @@ func TestEnterRoom(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		userRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.USERS).Doc(userId)
-		err := system.FirestoreController.DeleteDocRef(ctx, nil, userRef)
-		if err != nil {
+		if err := system.FirestoreController.DeleteDocRef(ctx, nil, userRef); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -105,8 +104,7 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(txErr)
 	}
 	t.Cleanup(func() {
-		err := system.FirestoreController.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
-		if err != nil {
+		if err := system.FirestoreController.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -151,8 +149,7 @@ func TestEnterRoom(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			userActivityRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.UserActivities).Doc(doc.Ref.ID)
-			err := system.FirestoreController.DeleteDocRef(ctx, nil, userActivityRef)
-			if err != nil {
+			if err := system.FirestoreController.DeleteDocRef(ctx, nil, userActivityRef); err != nil {
 				t.Fatal(err)
 			}
 		})

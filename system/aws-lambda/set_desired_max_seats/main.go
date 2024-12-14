@@ -27,8 +27,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	slog.Info(utils.NameOf(SetDesiredMaxSeats))
 
 	var params SetMaxSeatsParams
-	err := json.Unmarshal([]byte(request.Body), &params)
-	if err != nil {
+	if err := json.Unmarshal([]byte(request.Body), &params); err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
 
@@ -53,13 +52,11 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	}
 
 	// transaction not necessary
-	err = system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats)
-	if err != nil {
+	if err := system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
-	err = system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats)
-	if err != nil {
+	if err := system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
