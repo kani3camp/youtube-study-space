@@ -774,12 +774,13 @@ func (s *System) ShowUserInfo(command *utils.CommandDetails, ctx context.Context
 			switch userDoc.RankVisible {
 			case true:
 				replyMessage += t("rank-on")
-				if userDoc.IsContinuousActive {
-					continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
-					replyMessage += t("rank-on-continuous", continuousActiveDays+1, continuousActiveDays)
-				}
 			case false:
 				replyMessage += t("rank-off")
+			}
+
+			if userDoc.IsContinuousActive {
+				continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
+				replyMessage += t("rank-on-continuous", continuousActiveDays+1, continuousActiveDays)
 			}
 
 			if userDoc.DefaultStudyMin == 0 {
