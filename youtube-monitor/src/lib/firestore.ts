@@ -5,7 +5,7 @@ import {
     QueryDocumentSnapshot,
     SnapshotOptions,
 } from 'firebase/firestore'
-import { Seat } from '../types/api'
+import { Seat, Menu } from '../types/api'
 import { validateString } from './common'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
@@ -66,6 +66,7 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
                 'num-stars': seat.appearance.num_stars,
                 'glow-animation': seat.appearance.color_gradient_enabled,
             },
+            'menu-code': seat.menu_code,
             state: seat.state,
             'current-state-started-at': seat.current_state_started_at,
             'current-state-until': seat.current_state_until,
@@ -89,12 +90,29 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
                 num_stars: data.appearance['num-stars'],
                 color_gradient_enabled: data.appearance['color-gradient-enabled'],
             },
+            menu_code: data['menu-code'],
             state: data.state,
             current_state_started_at: data['current-state-started-at'],
             current_state_until: data['current-state-until'],
             cumulative_work_sec: data['cumulative-work-sec'],
             daily_cumulative_work_sec: data['daily-cumulative-work-sec'],
             user_profile_image_url: data['user-profile-image-url'],
+        }
+    },
+}
+
+export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
+    toFirestore(menu: Menu): DocumentData {
+        return {
+            code: menu.code,
+            name: menu.name,
+        }
+    },
+    fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Menu {
+        const data = snapshot.data(options)
+        return {
+            code: data.code,
+            name: data.name,
         }
     },
 }

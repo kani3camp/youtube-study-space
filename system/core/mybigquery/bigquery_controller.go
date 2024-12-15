@@ -66,10 +66,10 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return err
 		}
 		if status.State == bigquery.Done {
-			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了")
+			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了", "collection", collectionName)
 		} else {
-			slog.Info("GCSからbqの一時テーブルまでデータの読込: %v", "state", status.State)
-			return errors.New("failed transfer data from gcs to bigquery temporary table.")
+			slog.Info("GCSからbqの一時テーブルまでデータの読込: %v", "state", status.State, "collection", collectionName)
+			return errors.Errorf("failed transfer data from gcs to bigquery temporary table. collection: %s", collectionName)
 		}
 
 		// 取得する始まりと終わりの日時を求める
@@ -92,7 +92,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return fmt.Errorf("in iteratorSize: %w", err)
 		}
 		if numRows == 0 {
-			slog.Info("number of loaded rows is zero.")
+			slog.Info("number of loaded rows is zero.", "collection", collectionName)
 			continue
 		}
 
@@ -107,6 +107,11 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', taken_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
+		case myfirestore.OrderHistory:
+			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
+				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', ordered_at, '+09:00') " +
+				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
+				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
 		}
 		query.Location = c.WorkingRegion
 		query.WriteDisposition = bigquery.WriteAppend // 追加
@@ -115,6 +120,8 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName)
 		case myfirestore.UserActivities:
 			query.QueryConfig.Dst = dataset.Table(UserActivityHistoryMainTableName)
+		case myfirestore.OrderHistory:
+			query.QueryConfig.Dst = dataset.Table(OrderHistoryMainTableName)
 		}
 		job, err = query.Run(ctx)
 		if err != nil {
@@ -128,13 +135,13 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return fmt.Errorf("in status.Err: %w", err)
 		}
 		if status.State == bigquery.Done {
-			slog.Info("bqの一時テーブルからメインテーブルまでデータの移行が完了")
+			slog.Info("bqの一時テーブルからメインテーブルまでデータの移行が完了", "collection", collectionName)
 		} else {
-			slog.Error("bqの一時テーブルからメインテーブルまでデータの移行結果", "state", status.State)
-			return errors.New("failed transfer data from bigquery temporary table to main table.")
+			slog.Error("bqの一時テーブルからメインテーブルまでデータの移行結果", "state", status.State, "collection", collectionName)
+			return errors.Errorf("failed transfer data from bigquery temporary table to main table. collection: %s", collectionName)
 		}
 	}
-	slog.Info("finished all collection's processes.")
+	slog.Info("finished all collection's processes.", "collections", collections)
 	return nil
 }
 

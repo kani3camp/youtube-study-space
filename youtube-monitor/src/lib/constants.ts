@@ -23,8 +23,9 @@ export const Constants = {
     sideBarWidth: 400,
     messageBarHeight: 80,
     clockHeight: 160,
-    usageHeight: 390,
-    timerHeight: 330,
+    usageHeight: 315,
+    menuHeight: 310,
+    timerHeight: 210,
     fontFamily: "'M PLUS Rounded 1c', sans-serif",
     breakBadgeZIndex: 10,
     seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
@@ -39,6 +40,7 @@ export const Constants = {
     memberSeatWorkNameWidthPercent: 60,
     memberBigIconSize: 57.598,
     memberSmallIconSize: 38.391,
+    menuIconSize: 45,
 }
 
 export const debug = false

@@ -38,6 +38,7 @@ const SeatBox: FC<SeatProps> = (props) => {
         ? props.processingSeat.appearance.color_code1
         : Constants.emptySeatColor
     const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
+    const menuCode = props.isUsed ? props.processingSeat.menu_code : ''
     const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
     const profileImageUrl = props.isUsed ? props.processingSeat.user_profile_image_url : ''
 
@@ -184,6 +185,17 @@ const SeatBox: FC<SeatProps> = (props) => {
                 >
                     休み
                 </div>
+            )}
+
+            {/* menu item */}
+            {props.isUsed && !isBreak && menuCode !== '' && (
+                <Image
+                    alt='menu item'
+                    src={`/images/menu/${menuCode}.svg`}
+                    css={styles.menuItem}
+                    width={Constants.menuIconSize}
+                    height={Constants.menuIconSize}
+                ></Image>
             )}
 
             {/* ★Mark */}

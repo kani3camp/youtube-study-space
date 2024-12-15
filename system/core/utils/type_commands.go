@@ -14,6 +14,7 @@ type CommandDetails struct {
 	MoreOption   MoreOption
 	BreakOption  MinutesAndWorkNameOption
 	ResumeOption WorkNameOption
+	OrderOption  OrderOption
 }
 
 type CommandType uint
@@ -35,6 +36,7 @@ const (
 	Rank   // !rank
 	Break  // !break
 	Resume // !resume
+	Order
 )
 
 type InfoOption struct {
@@ -100,6 +102,11 @@ type MinutesAndWorkNameOption struct {
 	IsDurationMinSet bool
 	WorkName         string
 	DurationMin      int
+}
+
+type OrderOption struct {
+	IntValue  int
+	ClearFlag bool
 }
 
 func (o *MinutesAndWorkNameOption) NumOptionsSet() int {
