@@ -108,6 +108,8 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 			return nil, "", 0, errors.New("failed to cast error to googleapi.Error")
 		}
 		switch errGoogle.Code {
+		case 400:
+			fallthrough
 		case 403:
 			fallthrough
 		case 404:

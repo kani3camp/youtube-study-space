@@ -6,15 +6,15 @@ import {
     SnapshotOptions,
 } from 'firebase/firestore'
 import { Seat } from '../types/api'
+import { validateString } from './common'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
-    if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === undefined) {
-        alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not defined.')
+    if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
+        alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not valid.')
     }
-    if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY === undefined) {
-        alert('NEXT_PUBLIC_FIREBASE_API_KEY is not defined.')
+    if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
+        alert('NEXT_PUBLIC_FIREBASE_API_KEY is not valid.')
     }
-
     return {
         apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
