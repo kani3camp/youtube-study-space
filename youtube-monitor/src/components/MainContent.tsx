@@ -356,9 +356,13 @@ const Seats: FC = () => {
                 desired_max_seats: desiredGeneralMaxSeats,
                 desired_member_max_seats: desiredMemberMaxSeats,
             }),
-        }).then(async () => {
-            console.log('request succeeded')
         })
+            .then(async () => {
+                console.log('request succeeded')
+            })
+            .catch((e) => {
+                console.error('request failed', e)
+            })
     }
 
     /**

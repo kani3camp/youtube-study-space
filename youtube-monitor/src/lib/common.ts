@@ -32,3 +32,6 @@ export const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
     }
     return count
 }
+
+export const validateString = (value: string | undefined | null): boolean =>
+    value !== undefined && value !== null && value !== ''
