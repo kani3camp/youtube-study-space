@@ -44,7 +44,7 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
         return {
             max_seats: data['max-seats'],
             member_max_seats: data['member-max-seats'],
-            min_vacancy_rate: data['min-vacancy-rate']!,
+            min_vacancy_rate: data['min-vacancy-rate'],
             youtube_membership_enabled: data['youtube-membership-enabled'],
             fixed_max_seats_enabled: data['fixed-max-seats-enabled'],
         }
