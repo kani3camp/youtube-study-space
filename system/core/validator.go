@@ -38,6 +38,8 @@ func (s *System) ValidateCommand(command utils.CommandDetails) string {
 		return s.ValidateResume(command)
 	case utils.Rank:
 		return ""
+	case utils.Order:
+		return s.ValidateOrder(command)
 	default:
 		return ""
 	}
@@ -216,6 +218,18 @@ func (s *System) ValidateBreak(command utils.CommandDetails) string {
 func (s *System) ValidateResume(_ utils.CommandDetails) string {
 	// 作業名
 	// pass
+
+	return ""
+}
+
+func (s *System) ValidateOrder(command utils.CommandDetails) string {
+	if !command.OrderOption.ClearFlag {
+		num := command.OrderOption.IntValue
+		expect := 0 < num && num <= s.NumOfMenuItems()
+		if !expect {
+			return i18n.T("validate:invalid-menu-number-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin)
+		}
+	}
 
 	return ""
 }

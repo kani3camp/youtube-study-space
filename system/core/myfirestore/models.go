@@ -15,6 +15,8 @@ type ConstantsConfigDoc struct {
 	MaxBreakDurationMin     int `firestore:"max-break-duration-min"`     // 休憩できる最大時間（分）
 	DefaultBreakDurationMin int `firestore:"default-break-duration-min"` // デフォルト休憩時間（分）
 
+	MaxDailyOrderCount int `firestore:"max-daily-order-count"` // 1日の最大注文数（メンバーシップは上限なし）
+
 	SleepIntervalMilli int `firestore:"sleep-interval-milli"` // Botプログラムにおいて次のライブチャットを読み込むまでの最小インターバル（ミリ秒）
 
 	// 前回のデイリー累計作業時間のリセット日時（1日に2回以上リセット処理を走らせてしまっても大丈夫なように）
@@ -106,6 +108,7 @@ type SeatDoc struct {
 	EnteredAt              time.Time      `json:"entered_at" firestore:"entered-at"`           // 入室日時
 	Until                  time.Time      `json:"until" firestore:"until"`                     // 自動退室予定時刻
 	Appearance             SeatAppearance `json:"appearance" firestore:"appearance"`           // 席の見え方
+	MenuCode               string         `json:"menu_code" firestore:"menu-code"`             // メニューコード
 	State                  SeatState      `json:"state" firestore:"state"`
 	CurrentStateStartedAt  time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
 	CurrentStateUntil      time.Time      `json:"current_state_until" firestore:"current-state-until"`
@@ -144,7 +147,7 @@ type UserDoc struct {
 	// ランク表示をするかどうか
 	RankVisible bool `json:"rank_visible" firestore:"rank-visible"`
 
-	// そのユーザーのデフォルト入室時間（分）（今は使用されていない）
+	// そのユーザーのデフォルト入室時間（分）
 	DefaultStudyMin int `json:"default_study_min" firestore:"default-study-min"`
 
 	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
@@ -194,4 +197,17 @@ type UserActivityDoc struct {
 	SeatId       int              `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool             `json:"is_member_seat" firestore:"is-member-seat"`
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
+}
+
+type MenuDoc struct {
+	Code string `json:"code" firestore:"code"`
+	Name string `json:"name" firestore:"name"`
+}
+
+type OrderHistoryDoc struct {
+	UserId       string    `json:"user_id" firestore:"user-id"`
+	MenuCode     string    `json:"menu_code" firestore:"menu-code"`
+	SeatId       int       `json:"seat_id" firestore:"seat-id"`
+	IsMemberSeat bool      `json:"is_member_seat" firestore:"is-member-seat"`
+	OrderedAt    time.Time `json:"ordered_at" firestore:"ordered-at"`
 }

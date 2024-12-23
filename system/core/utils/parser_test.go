@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"app.modules/core/i18n"
 	"github.com/kr/pretty"
 	"reflect"
 	"testing"
@@ -22,6 +23,7 @@ const (
 	TestEmojiMy0       = ":_commandMy0:"
 	TestEmojiRank0     = ":_commandRank0:"
 	TestEmojiMemberIn0 = ":_commandMemberIn0:"
+	TestEmojiOrder0    = ":_commandOrder0:"
 
 	TestEmojiMin0     = ":_commandMin0:"
 	TestEmoji360Min0  = ":_command360Min0:"
@@ -1169,6 +1171,34 @@ func TestParseCommand(t *testing.T) {
 		},
 
 		{
+			Input: "!order 22",
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					IntValue: 22,
+				},
+			},
+		},
+		{
+			Input: "!order -",
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					ClearFlag: true,
+				},
+			},
+		},
+		{
+			Input: "!order　8",
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					IntValue: 8,
+				},
+			},
+		},
+
+		{
 			Input: "!report めっせーじ",
 			Output: &CommandDetails{
 				CommandType: Report,
@@ -1186,6 +1216,10 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	if err := i18n.LoadLocaleFolderFS(); err != nil {
+		panic(err)
 	}
 
 	for _, testCase := range testCases {

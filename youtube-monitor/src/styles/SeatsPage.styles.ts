@@ -124,6 +124,12 @@ export const breakBadge = css`
     border: solid;
 `
 
+export const menuItem = css`
+    position: absolute;
+    top: 0.1rem;
+    left: 0.2rem;
+`
+
 export const starsBadge = css`
     color: black;
     position: absolute;

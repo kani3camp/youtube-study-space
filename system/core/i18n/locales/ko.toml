@@ -94,6 +94,11 @@
 "break-only" = "@{0}님, 휴식 중에만 사용할 수 있는 명령어입니다." # 0: Username
 "work" = "@{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분 남았습니다）" # 0: Username, 1: seatId, 2: until exit
 
+[command-order]
+"too-many-orders" = "@{0}さん、本日の注文回数が上限({1}回)を超えています"   # 0: userName, 1: maxOrderCount
+"ordered" = "@{0}さん、{1}の注文を受け付けました🍽️本日{2}回目" # 0: userName, 1: menuName
+"cleared" = "@{0}さん、食器を下げました🍽️" # 0: userName
+
 [others]
 "force-move" = "@{0}님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
 
@@ -117,3 +122,4 @@
 "missing-option" = "옵션을 지정하세요."
 "invalid-break-time-range" = "휴식 시간(분)은 {0}에서 {1} 사이여야 합니다."    # 0: minMin, 1: maxMin
 "non-one-or-more-extended-time" = "연장 시간(분)은 1 이상이어야 합니다."
+"invalid-menu-number-range" = "メニュー番号は1〜{0}の値にしてください。"    # 0: maxMenuNumber  TODO Translate
