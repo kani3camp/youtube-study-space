@@ -6,3 +6,4 @@ public/audio/*
 public/chime/*
 public/images/*
 !public/images/menu_default.svg
+*storybook.log
