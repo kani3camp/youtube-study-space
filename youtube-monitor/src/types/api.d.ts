@@ -1,4 +1,3 @@
-import { menu } from './../styles/Menu.styles'
 import { Timestamp } from 'firebase/firestore'
 
 export type SeatAppearance = {
