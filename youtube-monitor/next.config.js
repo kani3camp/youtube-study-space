@@ -13,6 +13,15 @@ const nextConfig = {
             },
         ],
     },
+    reactStrictMode: true,
+    compiler: {
+        emotion: {
+            sourceMap: true,
+            autoLabel: 'dev-only',
+            labelFormat: '[filename]--[local]',
+            cssPropOptimization: true,
+        },
+    },
 }
 
 module.exports = nextConfig
