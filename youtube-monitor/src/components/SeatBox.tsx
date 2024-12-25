@@ -6,7 +6,7 @@ import { Constants } from '../lib/constants'
 import { SeatState } from './SeatsPage'
 import Image from 'next/image'
 
-type SeatProps = {
+export type SeatProps = {
     globalSeatId: number
     isUsed: boolean
     memberOnly: boolean
