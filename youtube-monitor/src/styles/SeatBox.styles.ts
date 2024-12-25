@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { fontFamily } from '../lib/common'
 
 export const emptySeatNum = css`
     margin: 0;
@@ -14,7 +15,7 @@ export const seat = css`
     justify-content: center;
     align-items: center;
     transform-origin: top left;
-    font-family: ${Constants.seatFontFamily};
+    font-family: ${fontFamily};
 `
 
 export const seatId = css`

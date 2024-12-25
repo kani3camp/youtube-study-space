@@ -6,6 +6,7 @@ import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
 import { SeatState } from './SeatsPage'
 import Image from 'next/image'
+import { fontFamily } from '../lib/common'
 
 export type SeatProps = {
     globalSeatId: number
@@ -100,7 +101,7 @@ const SeatBox: FC<SeatProps> = (props) => {
         const canvas: HTMLCanvasElement = document.createElement('canvas')
         const context = canvas.getContext('2d')
         if (context) {
-            context.font = `${workNameFontSizePx.toString()}px ${Constants.seatFontFamily}`
+            context.font = `${workNameFontSizePx.toString()}px ${fontFamily}`
             const metrics = context.measureText(isBreak ? breakWorkName : workName)
             let actualSeatWidth = (props.roomShape.widthPx * props.seatShape.widthPercent) / 100
             if (props.memberOnly) {

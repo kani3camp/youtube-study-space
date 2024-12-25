@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { fontFamily } from '../lib/common'
 
 export const shape = css`
     height: ${Constants.timerHeight}px;
@@ -36,7 +37,7 @@ export const spacer = css`
 `
 
 export const remaining = css`
-    font-family: 'M PLUS Rounded 1c';
+    font-family: ${fontFamily};
     font-size: 1.8rem;
     line-height: 2.4rem;
     font-weight: bold;
