@@ -8,7 +8,7 @@ const meta = {
     title: 'SeatBox',
     component: SeatBox,
     parameters: {},
-    tags: [],
+    tags: ['autodocs'],
     argTypes: {},
 } satisfies Meta<typeof SeatBox>
 
