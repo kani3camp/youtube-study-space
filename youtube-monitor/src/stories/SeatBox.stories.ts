@@ -15,8 +15,8 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof SeatBox>
 
-const GENERAL_SEAT_FONT_SIZE = 20
-const MEMBER_SEAT_FONT_SIZE = 25
+const GENERAL_SEAT_FONT_SIZE = 22.8
+const MEMBER_SEAT_FONT_SIZE = 25.84
 const seatPosition = {
     x: 3,
     y: 3,
