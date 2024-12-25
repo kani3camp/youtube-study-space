@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { sourceCodeProFontFamily } from '../lib/common'
 
 export const shape = css`
     height: ${Constants.usageHeight}px;
@@ -79,4 +80,5 @@ export const commandCode = css`
     border-radius: 0.15rem;
     padding: 0 0.3rem;
     margin: 0.07rem;
+    font-family: ${sourceCodeProFontFamily};
 `

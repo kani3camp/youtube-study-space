@@ -6,6 +6,11 @@ jest.mock('next/font/google', () => ({
             fontFamily: 'mock-font-name',
         },
     })),
+    Source_Code_Pro: jest.fn(() => ({
+        style: {
+            fontFamily: 'mock-font-name',
+        },
+    })),
 }))
 
 test('numSeatsOfRoomLayouts', () => {

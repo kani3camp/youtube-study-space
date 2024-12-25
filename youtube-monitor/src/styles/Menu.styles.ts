@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { sourceCodeProFontFamily } from '../lib/common'
 
 export const shape = css`
     height: ${Constants.menuHeight}px;
@@ -62,7 +63,7 @@ export const commandCode = css`
     border-radius: 0.2rem;
     font-size: 0.75em;
     font-weight: bold;
-    /* color: #28292d; */
+    font-family: ${sourceCodeProFontFamily};
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;

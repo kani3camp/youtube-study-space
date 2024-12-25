@@ -36,7 +36,7 @@ export const numSeatsOfRoomLayouts = (layouts: RoomLayout[]) => {
 export const validateString = (value: string | undefined | null): boolean =>
     value !== undefined && value !== null && value !== ''
 
-import { M_PLUS_Rounded_1c } from 'next/font/google'
+import { M_PLUS_Rounded_1c, Source_Code_Pro } from 'next/font/google'
 
 const mPlusRounded1c = M_PLUS_Rounded_1c({
     subsets: ['latin'],
@@ -47,3 +47,11 @@ const fontFamilyString = mPlusRounded1c.style.fontFamily
 export const fontFamily = fontFamilyString.includes(' ')
     ? `'${fontFamilyString}'`
     : fontFamilyString
+
+const sourceCodePro = Source_Code_Pro({
+    subsets: ['latin'],
+    weight: ['200', '300', '400', '500', '600', '700', '800', '900'],
+    display: 'swap',
+})
+const sourceCodeProFontFamilyString = sourceCodePro.style.fontFamily
+export const sourceCodeProFontFamily = sourceCodeProFontFamilyString
