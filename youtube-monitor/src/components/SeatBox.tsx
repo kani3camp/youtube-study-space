@@ -24,8 +24,8 @@ export type SeatProps = {
         rotate: number
     }
     seatShape: {
-        widthPercent: number
-        heightPercent: number
+        widthPx: number
+        heightPx: number
     }
     roomShape: {
         widthPx: number
@@ -103,7 +103,7 @@ const SeatBox: FC<SeatProps> = (props) => {
         if (context) {
             context.font = `${workNameFontSizePx.toString()}px ${fontFamily}`
             const metrics = context.measureText(isBreak ? breakWorkName : workName)
-            let actualSeatWidth = (props.roomShape.widthPx * props.seatShape.widthPercent) / 100
+            let actualSeatWidth = props.seatShape.widthPx
             if (props.memberOnly) {
                 actualSeatWidth = (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
             }
@@ -156,8 +156,8 @@ const SeatBox: FC<SeatProps> = (props) => {
                 left: `${props.seatPosition.x}%`,
                 top: `${props.seatPosition.y}%`,
                 transform: `rotate(${props.seatPosition.rotate}deg)`,
-                width: `${props.seatShape.widthPercent}%`,
-                height: `${props.seatShape.heightPercent}%`,
+                width: `${props.seatShape.widthPx}px`,
+                height: `${props.seatShape.heightPx}px`,
                 fontSize: props.isUsed
                     ? `${props.seatFontSizePx}px`
                     : `${props.seatFontSizePx * 2}px`,

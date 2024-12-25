@@ -15,6 +15,8 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof SeatBox>
 
+const GENERAL_SEAT_FONT_SIZE = 20
+const MEMBER_SEAT_FONT_SIZE = 25
 const seatPosition = {
     x: 3,
     y: 3,
@@ -26,12 +28,12 @@ const roomShape = {
 }
 
 const generalSeatShape = {
-    widthPercent: (140 * 100) / 1520,
-    heightPercent: (100 * 100) / 1000,
+    widthPx: 140,
+    heightPx: 100,
 }
 const memberSeatShape = {
-    widthPercent: (230 * 100) / 1520,
-    heightPercent: (150 * 100) / 1000,
+    widthPx: 230,
+    heightPx: 150,
 }
 
 export const Vacant: Story = {
@@ -40,7 +42,7 @@ export const Vacant: Story = {
         globalSeatId: 123,
         isUsed: false,
         memberOnly: false,
-        seatFontSizePx: 20,
+        seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
         seatPosition,
         seatShape: generalSeatShape,
         roomShape,
@@ -53,7 +55,7 @@ export const VacantMember: Story = {
         globalSeatId: 123,
         isUsed: false,
         memberOnly: true,
-        seatFontSizePx: 22,
+        seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
         seatPosition,
         seatShape: memberSeatShape,
         roomShape,
@@ -66,7 +68,7 @@ export const InUse: Story = {
         globalSeatId: 123,
         isUsed: true,
         memberOnly: false,
-        seatFontSizePx: 20,
+        seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
         processingSeat: {
             seat_id: 1,
             user_id: 'user1',
@@ -97,7 +99,7 @@ export const InUseMember: Story = {
         minutesRemaining: 10,
         hoursElapsed: 1,
         minutesElapsed: 3,
-        seatFontSizePx: 22,
+        seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
         processingSeat: {
             seat_id: 1,
             user_id: 'user1',
@@ -127,7 +129,7 @@ export const InUseWithMenu: Story = {
         globalSeatId: 123,
         isUsed: true,
         memberOnly: false,
-        seatFontSizePx: 20,
+        seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
         processingSeat: {
             seat_id: 1,
             user_id: 'user1',
@@ -149,13 +151,47 @@ export const InUseWithMenu: Story = {
     } as SeatProps,
 }
 
+export const InUseMemberWithMenu: Story = {
+    name: 'メンバー席 メニューアイテム',
+    args: {
+        globalSeatId: 123,
+        isUsed: true,
+        memberOnly: true,
+        hoursRemaining: 0,
+        minutesRemaining: 10,
+        hoursElapsed: 1,
+        minutesElapsed: 3,
+        seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+        processingSeat: {
+            seat_id: 1,
+            user_id: 'user1',
+            user_display_name: 'ユーザー名',
+            work_name: '作業内容は２行までOK',
+            break_work_name: '',
+            appearance: {
+                color_code1: '#5bd27d',
+                color_code2: '#008cff',
+                num_stars: 5,
+                color_gradient_enabled: false,
+            },
+            menu_code: 'coffee',
+            state: SeatState.Work,
+            user_profile_image_url:
+                'https://yt3.ggpht.com/exjUpNy_ufpwI6oAdz-UVAp17C67z9ObW8j_QK-wMlXVEI4eXq0736r3VeWf6Kyd5zjljD1PozQ=s108-c-k-c0x00ffffff-no-rj',
+        } as Seat,
+        seatPosition,
+        seatShape: memberSeatShape,
+        roomShape,
+    } as SeatProps,
+}
+
 export const InBreak: Story = {
     name: '一般席 休憩中',
     args: {
         globalSeatId: 123,
         isUsed: true,
         memberOnly: false,
-        seatFontSizePx: 20,
+        seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
         processingSeat: {
             seat_id: 1,
             user_id: 'user1',
