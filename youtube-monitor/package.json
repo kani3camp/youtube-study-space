@@ -11,7 +11,7 @@
     "lint:fix": "eslint --fix 'src/**/*.{ts,tsx}' && tsc --noEmit",
     "stylelint": "stylelint 'src/**/*.scss'",
     "stylelint:fix": "stylelint --fix 'src/**/*.scss'",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "storybook build",
     "test": "jest"
   },

@@ -6,7 +6,7 @@ import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
 import { SeatState } from './SeatsPage'
 import Image from 'next/image'
-import { fontFamily } from '../lib/common'
+import { fontFamily, validateString } from '../lib/common'
 
 export type SeatProps = {
     globalSeatId: number
@@ -190,13 +190,13 @@ const SeatBox: FC<SeatProps> = (props) => {
             )}
 
             {/* menu item */}
-            {props.isUsed && !isBreak && menuCode !== '' && (
+            {props.isUsed && !isBreak && validateString(menuCode) && (
                 <Image
                     alt='menu item'
                     src={`/images/menu/${menuCode}.svg`}
                     css={styles.menuItem}
-                    width={Constants.menuIconSize}
-                    height={Constants.menuIconSize}
+                    width={props.seatFontSizePx * 1.6}
+                    height={props.seatFontSizePx * 1.6}
                 ></Image>
             )}
 
