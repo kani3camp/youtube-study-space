@@ -1,5 +1,6 @@
 import { FC } from 'react'
-import * as styles from '../styles/SeatsPage.styles'
+import * as styles from '../styles/SeatBox.styles'
+/** @jsxImportSource @emotion/react */
 import { css, keyframes } from '@emotion/react'
 import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
