@@ -129,7 +129,7 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		blockRegexListForChatMessage:        blockRegexListForChatMessage,
 		notificationRegexListForChatMessage: notificationRegexListForChatMessage,
 		notificationRegexListForChannelName: notificationRegexListForChannelName,
-		sortedMenuItems:                     sortedMenuItems,
+		SortedMenuItems:                     sortedMenuItems,
 	}, nil
 }
 
@@ -1705,7 +1705,7 @@ func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error
 			return fmt.Errorf("in CountUserOrdersOfTheDay: %w", err)
 		}
 		if !s.ProcessedUserIsMember && !command.OrderOption.ClearFlag { // 下膳の場合はスキップ
-			if todayOrderCount > int64(s.Configs.Constants.MaxDailyOrderCount) {
+			if todayOrderCount >= int64(s.Configs.Constants.MaxDailyOrderCount) {
 				replyMessage = t("too-many-orders", s.ProcessedUserDisplayName, s.Configs.Constants.MaxDailyOrderCount)
 				return nil
 			}
@@ -2628,13 +2628,13 @@ func (s *System) BanUser(ctx context.Context, userId string) error {
 }
 
 func (s *System) NumOfMenuItems() int {
-	return len(s.sortedMenuItems)
+	return len(s.SortedMenuItems)
 }
 
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
 func (s *System) GetMenuItemByNumber(number int) (myfirestore.MenuDoc, error) {
-	if len(s.sortedMenuItems) < number {
-		return myfirestore.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(s.sortedMenuItems))
+	if len(s.SortedMenuItems) < number {
+		return myfirestore.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(s.SortedMenuItems))
 	}
-	return s.sortedMenuItems[number-1], nil
+	return s.SortedMenuItems[number-1], nil
 }

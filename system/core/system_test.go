@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"sort"
 	"testing"
 	"time"
 )
@@ -1336,6 +1337,209 @@ func TestSystem_My(t *testing.T) {
 
 			// テスト対象の関数を実行
 			err := system.My(&tt.commandDetails, context.Background())
+
+			assert.Nil(t, err)
+		})
+	}
+}
+
+var orderTestCases = []struct {
+	name                     string
+	constantsConfig          myfirestore.ConstantsConfigDoc
+	commandDetails           utils.CommandDetails
+	userIsMember             bool
+	currentSeatDoc           *myfirestore.SeatDoc
+	alreadyOrderedCountToday int64
+	newOrderHistory          *myfirestore.OrderHistoryDoc
+	expectedReplyMessage     string
+}{
+	{
+		name: "メニュー注文（一般席）",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 0,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽️本日1回目",
+	},
+	{
+		name: "メニュー注文（メンバー席）",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: true,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 0,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽️本日1回目",
+	},
+	{
+		name: "入室してないなら注文できない",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember:         false,
+		currentSeatDoc:       nil,
+		expectedReplyMessage: "@テストユーザーさん、入室中のみ使えるコマンドです",
+	},
+	{
+		name: "非メンバーは注文回数に上限あり",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 5,
+		expectedReplyMessage:     "@テストユーザーさん、本日の注文回数が上限(5回)を超えています",
+	},
+	{
+		name: "メンバーは注文回数に上限なし",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: true,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 5,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽️本日6回目",
+	},
+}
+
+func TestSystem_Order(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	menuDocs := []myfirestore.MenuDoc{
+		{
+			Code: "black-tea",
+			Name: "紅茶",
+		},
+		{
+			Code: "coffee",
+			Name: "コーヒー",
+		},
+	}
+	// メニューコードで昇順ソート
+	sort.Slice(menuDocs, func(i, j int) bool {
+		return menuDocs[i].Code < menuDocs[j].Code
+	})
+
+	for _, tt := range orderTestCases {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
+						tx := &firestore.Transaction{}
+						return f(ctx, tx)
+					},
+				).AnyTimes()
+			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+
+			if tt.currentSeatDoc != nil {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			} else {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			}
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+
+			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().ReadAllMenuDocsOrderByCode(gomock.Any()).Return(menuDocs, nil).AnyTimes()
+			mockDB.EXPECT().CountUserOrdersOfTheDay(gomock.Any(), "test_user_id", gomock.Any()).Return(tt.alreadyOrderedCountToday, nil).AnyTimes()
+			mockDB.EXPECT().CreateOrderHistoryDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
+				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.NotNil(t, tt.currentSeatDoc.MenuCode)
+				return nil
+			}).MaxTimes(1)
+
+			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
+
+			system := core.System{
+				FirestoreController:      mockDB,
+				ProcessedUserId:          "test_user_id",
+				ProcessedUserIsMember:    tt.userIsMember,
+				LiveChatBot:              mockLiveChatBot,
+				ProcessedUserDisplayName: "テストユーザー",
+				Configs: &core.SystemConfigs{
+					Constants: tt.constantsConfig,
+				},
+				SortedMenuItems: menuDocs,
+			}
+
+			if err := i18n.LoadLocaleFolderFS(); err != nil {
+				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
+			}
+
+			// テスト対象の関数を実行
+			err := system.Order(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
