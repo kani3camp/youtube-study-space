@@ -8,3 +8,4 @@ public/images/*
 !public/images/menu_default.svg
 *storybook.log
 storybook-static/
+doctor-storybook.log
