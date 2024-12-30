@@ -1,6 +1,6 @@
 import { FC, useMemo } from 'react'
 import Image from 'next/image'
-import { MenuItemAndImage } from './Menu'
+import { MenuItemAndImage } from './MenuDisplay'
 import * as styles from '../styles/Menu.styles'
 
 export type MenuBoxProps = {

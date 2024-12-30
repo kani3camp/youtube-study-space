@@ -225,7 +225,7 @@ func (s *System) ValidateResume(_ utils.CommandDetails) string {
 func (s *System) ValidateOrder(command utils.CommandDetails) string {
 	if !command.OrderOption.ClearFlag {
 		num := command.OrderOption.IntValue
-		expect := 0 < num && num <= s.NumOfMenuItems()
+		expect := 0 < num && num <= len(s.SortedMenuItems)
 		if !expect {
 			return i18n.T("validate:invalid-menu-number-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin)
 		}

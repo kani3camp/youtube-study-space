@@ -7,7 +7,7 @@ import Clock from '../components/Clock'
 import Seats from '../components/MainContent'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
-import MenuDisplay from '../components/Menu'
+import MenuDisplay from '../components/MenuDisplay'
 
 const Home: FC = () => (
     <div

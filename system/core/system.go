@@ -1686,7 +1686,7 @@ func (s *System) Rank(_ *utils.CommandDetails, ctx context.Context) error {
 
 func (s *System) Order(ctx context.Context, command *utils.CommandDetails) error {
 	replyMessage := ""
-	t := i18n.GetTFunc("command-order") // TODO
+	t := i18n.GetTFunc("command-order")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
@@ -2639,10 +2639,6 @@ func (s *System) BanUser(ctx context.Context, userId string) error {
 		return fmt.Errorf("in BanUser: %w", err)
 	}
 	return nil
-}
-
-func (s *System) NumOfMenuItems() int {
-	return len(s.SortedMenuItems)
 }
 
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
