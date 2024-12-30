@@ -458,6 +458,12 @@ func (c *FirestoreControllerImplements) Get500UserActivityDocIdsBeforeDate(ctx c
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
+func (c *FirestoreControllerImplements) Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time,
+) *firestore.DocumentIterator {
+	return c.orderHistoryCollection().Where(OrderedAtDocProperty, "<",
+		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
+}
+
 func (c *FirestoreControllerImplements) GetAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time,
 ) *firestore.DocumentIterator {
 	return c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Documents(ctx)

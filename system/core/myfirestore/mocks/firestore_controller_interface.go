@@ -325,6 +325,20 @@ func (mr *MockFirestoreControllerMockRecorder) Get500LiveChatHistoryDocIdsBefore
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500LiveChatHistoryDocIdsBeforeDate", reflect.TypeOf((*MockFirestoreController)(nil).Get500LiveChatHistoryDocIdsBeforeDate), ctx, date)
 }
 
+// Get500OrderHistoryDocIdsBeforeDate mocks base method.
+func (m *MockFirestoreController) Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get500OrderHistoryDocIdsBeforeDate", ctx, date)
+	ret0, _ := ret[0].(*firestore.DocumentIterator)
+	return ret0
+}
+
+// Get500OrderHistoryDocIdsBeforeDate indicates an expected call of Get500OrderHistoryDocIdsBeforeDate.
+func (mr *MockFirestoreControllerMockRecorder) Get500OrderHistoryDocIdsBeforeDate(ctx, date any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500OrderHistoryDocIdsBeforeDate", reflect.TypeOf((*MockFirestoreController)(nil).Get500OrderHistoryDocIdsBeforeDate), ctx, date)
+}
+
 // Get500SeatLimitsAfterUntilInBLACKList mocks base method.
 func (m *MockFirestoreController) Get500SeatLimitsAfterUntilInBLACKList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator {
 	m.ctrl.T.Helper()

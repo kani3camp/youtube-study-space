@@ -62,6 +62,7 @@ type FirestoreController interface {
 	CreateUserActivityDoc(ctx context.Context, tx *firestore.Transaction, activity UserActivityDoc) error
 	Get500UserActivityDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	GetAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
+	Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetUsersActiveAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator

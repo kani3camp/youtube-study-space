@@ -2445,9 +2445,9 @@ func (s *System) AddLiveChatHistoryDoc(ctx context.Context, chatMessage *youtube
 	return s.FirestoreController.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc)
 }
 
-func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) (int, int, error) {
+func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) (int, int, int, error) {
 	// Firestoreでは1回のトランザクションで500件までしか削除できないため、500件ずつ回す
-	var numRowsLiveChat, numRowsUserActivity int
+	var numRowsLiveChat, numRowsUserActivity, numRowsOrderHistory int
 
 	// date以前の全てのlive chat history docsをクエリで取得
 	for {
@@ -2455,7 +2455,7 @@ func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date tim
 		count, err := s.DeleteIteratorDocs(ctx, iter)
 		numRowsLiveChat += count
 		if err != nil {
-			return 0, 0, fmt.Errorf("in DeleteIteratorDocs(): %w", err)
+			return 0, 0, 0, fmt.Errorf("in DeleteIteratorDocs(): %w", err)
 		}
 		if count == 0 {
 			break
@@ -2468,13 +2468,27 @@ func (s *System) DeleteCollectionHistoryBeforeDate(ctx context.Context, date tim
 		count, err := s.DeleteIteratorDocs(ctx, iter)
 		numRowsUserActivity += count
 		if err != nil {
-			return 0, 0, fmt.Errorf("in DeleteIteratorDocs(): %w", err)
+			return 0, 0, 0, fmt.Errorf("in DeleteIteratorDocs(): %w", err)
 		}
 		if count == 0 {
 			break
 		}
 	}
-	return numRowsLiveChat, numRowsUserActivity, nil
+
+	// date以前の全てのorder history docをクエリで取得
+	for {
+		iter := s.FirestoreController.Get500OrderHistoryDocIdsBeforeDate(ctx, date)
+		count, err := s.DeleteIteratorDocs(ctx, iter)
+		numRowsOrderHistory += count
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("in DeleteIteratorDocs(): %w", err)
+		}
+		if count == 0 {
+			break
+		}
+	}
+
+	return numRowsLiveChat, numRowsUserActivity, numRowsOrderHistory, nil
 }
 
 // DeleteIteratorDocs iterは最大500件とすること。
