@@ -11,7 +11,6 @@ import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik4Room } from './layouts/freepik4-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
-import { mazeRoom } from './layouts/maze-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberIllustratedRoomChristmas } from './layouts/member-illustrated-room-christmas'
 import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
@@ -28,7 +27,7 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [mazeRoom, Freepik7Room, Freepik1Room, Freepik4Room],
+    generalBasicRooms: [Chabio2Room, Freepik7Room, Freepik1Room, Freepik4Room],
     generalTemporaryRooms: [
         Chabio1Room,
         Freepik3Room,
