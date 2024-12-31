@@ -14,6 +14,7 @@ export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // NOTE: 現状、DynamoDBのテーブルは別途作成しておく必要がある
     const dynamoDBAccessPolicy = new iam.PolicyStatement({
       actions: ['dynamodb:GetItem'],
       effect: iam.Effect.ALLOW,
