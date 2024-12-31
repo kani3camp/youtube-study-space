@@ -1,12 +1,14 @@
 import { FC } from 'react'
-import * as styles from '../styles/SeatsPage.styles'
+import * as styles from '../styles/SeatBox.styles'
+/** @jsxImportSource @emotion/react */
 import { css, keyframes } from '@emotion/react'
 import { Seat } from '../types/api'
 import { Constants } from '../lib/constants'
 import { SeatState } from './SeatsPage'
 import Image from 'next/image'
+import { fontFamily, validateString } from '../lib/common'
 
-type SeatProps = {
+export type SeatProps = {
     globalSeatId: number
     isUsed: boolean
     memberOnly: boolean
@@ -22,8 +24,8 @@ type SeatProps = {
         rotate: number
     }
     seatShape: {
-        widthPercent: number
-        heightPercent: number
+        widthPx: number
+        heightPx: number
     }
     roomShape: {
         widthPx: number
@@ -38,6 +40,7 @@ const SeatBox: FC<SeatProps> = (props) => {
         ? props.processingSeat.appearance.color_code1
         : Constants.emptySeatColor
     const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
+    const menuCode = props.isUsed ? props.processingSeat.menu_code : ''
     const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
     const profileImageUrl = props.isUsed ? props.processingSeat.user_profile_image_url : ''
 
@@ -98,9 +101,9 @@ const SeatBox: FC<SeatProps> = (props) => {
         const canvas: HTMLCanvasElement = document.createElement('canvas')
         const context = canvas.getContext('2d')
         if (context) {
-            context.font = `${workNameFontSizePx.toString()}px ${Constants.seatFontFamily}`
+            context.font = `${workNameFontSizePx.toString()}px ${fontFamily}`
             const metrics = context.measureText(isBreak ? breakWorkName : workName)
-            let actualSeatWidth = (props.roomShape.widthPx * props.seatShape.widthPercent) / 100
+            let actualSeatWidth = props.seatShape.widthPx
             if (props.memberOnly) {
                 actualSeatWidth = (Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
             }
@@ -153,8 +156,8 @@ const SeatBox: FC<SeatProps> = (props) => {
                 left: `${props.seatPosition.x}%`,
                 top: `${props.seatPosition.y}%`,
                 transform: `rotate(${props.seatPosition.rotate}deg)`,
-                width: `${props.seatShape.widthPercent}%`,
-                height: `${props.seatShape.heightPercent}%`,
+                width: `${props.seatShape.widthPx}px`,
+                height: `${props.seatShape.heightPx}px`,
                 fontSize: props.isUsed
                     ? `${props.seatFontSizePx}px`
                     : `${props.seatFontSizePx * 2}px`,
@@ -184,6 +187,17 @@ const SeatBox: FC<SeatProps> = (props) => {
                 >
                     休み
                 </div>
+            )}
+
+            {/* menu item */}
+            {props.isUsed && !isBreak && validateString(menuCode) && (
+                <Image
+                    alt='menu item'
+                    src={`/images/menu/${menuCode}.svg`}
+                    css={styles.menuItem}
+                    width={props.seatFontSizePx * 1.55}
+                    height={props.seatFontSizePx * 1.55}
+                ></Image>
             )}
 
             {/* ★Mark */}

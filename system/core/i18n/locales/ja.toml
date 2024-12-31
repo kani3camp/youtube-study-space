@@ -54,10 +54,8 @@
 
 [command-report]
 "no-message" = "@{0}さん、スペースを空けてメッセージを書いてください。" # 0: Username
-# 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
-"owner" = "【{0}受信】\nチャンネルID: {1}\nチャンネル名: {2}\n\n{3}"
-# 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
-"discord" = "【{0}受信】\nチャンネル名: `{1}`\nメッセージ: `{2}`"
+"owner" = "【{0}受信】\nチャンネルID: {1}\nチャンネル名: {2}\n\n{3}"   # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
+"discord" = "【{0}受信】\nチャンネル名: `{1}`\nメッセージ: `{2}`"  # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
 "alert" = "@{0}さん、管理者へメッセージを送信しました⚠" # 0: UserName
 
 [command-kick]
@@ -100,6 +98,11 @@
 "break-only" = "@{0}さん、座席で休憩中のみ使えるコマンドです。" # 0: Username
 "work" =  "@{0}さんが作業を再開します（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
 
+[command-order]
+"too-many-orders" = "@{0}さん、本日の注文回数が上限({1}回)に達しています"   # 0: userName, 1: maxOrderCount
+"ordered" = "@{0}さん、{1}の注文を受け付けました🍽（本日{2}回目）" # 0: userName, 1: menuName
+"cleared" = "@{0}さん、食器を下げました🍽️" # 0: userName
+
 [others]
 "force-move" = "@{0}さんが{1}番席の入室時間の一時上限に達したため席移動します💨"   # 0: userName, 1:  seatId
 
@@ -123,3 +126,4 @@
 "missing-option" = "オプションを指定してください"
 "invalid-break-time-range" = "休憩時間（分）は{0}〜{1}の値にしてください。"    # 0: minMin, 1: maxMin
 "non-one-or-more-extended-time" = "延長時間（分）は1以上の値にしてください。"
+"invalid-menu-number-range" = "メニュー番号は1〜{0}の値にしてください。"    # 0: maxMenuNumber

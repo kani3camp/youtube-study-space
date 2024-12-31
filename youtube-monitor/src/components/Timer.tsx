@@ -14,8 +14,6 @@ const Timer: FC = () => {
     const [sectionMessage, setSectionMessage] = useState<string>('')
     const [remainingMin, setRemainingMin] = useState<number>(0)
     const [remainingSec, setRemainingSec] = useState<number>(0)
-    const [currentPartName, setCurrentPartName] = useState<string>('')
-    const [currentSectionId, setCurrentSectionId] = useState<number>(0)
     const [nextSectionDuration, setNextSectionDuration] = useState<number>(0)
     const [nextSection, setNextSection] = useState<string>('')
 
@@ -38,8 +36,6 @@ const Timer: FC = () => {
             if (nextSection !== null) {
                 setRemainingMin(remaining_min)
                 setRemainingSec(remaining_sec)
-                setCurrentPartName(t(currentSection.partType))
-                setCurrentSectionId(currentSection.sectionId)
                 setNextSectionDuration(
                     remainingTime(
                         nextSection.starts.h,
@@ -77,11 +73,6 @@ const Timer: FC = () => {
                 <div css={styles.remaining}>
                     {remainingMin}：{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
                 </div>
-                <span>{`${currentPartName}` + ' '}</span>
-                <span>
-                    {currentSectionId !== 0 ? t('section', { value: currentSectionId }) : ''}
-                </span>
-                <div css={styles.spacer} />
                 <div>
                     <span>{`${t('next')} `}</span>
                     <span>{nextSectionDuration}</span>

@@ -47,25 +47,24 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 			return ParseBlock(emojiExcludedString, false)
 		case MemberBlockCommand:
 			return ParseBlock(emojiExcludedString, true)
-
 		case OkawariCommand:
 			fallthrough
 		case MoreCommand:
 			return ParseMore(emojiExcludedString, fullString, isMember, emojis)
-
 		case RestCommand:
 			fallthrough
 		case ChillCommand:
 			fallthrough
 		case BreakCommand:
 			return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
-
 		case ResumeCommand:
 			return ParseResume(emojiExcludedString, fullString, isMember, emojis)
 		case RankCommand:
 			return &CommandDetails{
 				CommandType: Rank,
 			}, ""
+		case OrderCommand:
+			return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return nil, i18n.T("parse:isolated-!")
 		default: // !席番号 or 間違いコマンド
@@ -119,6 +118,10 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiResume:
 				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
+			case EmojiOrder:
+				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
+			case EmojiOrderCancel:
+				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
 			default:
 			}
 		}
@@ -171,6 +174,8 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 			m = EmojiRankOff
 		case MatchEmojiCommand(s, MemberInString):
 			m = EmojiMemberIn
+		case MatchEmojiCommand(s, OrderString):
+			m = EmojiOrder
 		default:
 			continue
 		}
@@ -559,6 +564,80 @@ func ParseResume(commandString string, fullString string, isMember bool, emojis 
 	return &CommandDetails{
 		CommandType:  Resume,
 		ResumeOption: option,
+	}, ""
+}
+
+func ParseOrder(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
+	slice := strings.Split(commandString, HalfWidthSpace)
+
+	// NOTE: オプションは番号か文字列のどちらかのみ
+
+	if isMember {
+		if ContainsEmojiElement(emojis, EmojiOrderCancel) {
+			return &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					ClearFlag: true,
+				},
+			}, ""
+		}
+		if ContainsEmojiElement(emojis, EmojiOrder) {
+			if len(slice) < 2 {
+				return nil, i18n.T("parse:invalid-option")
+			}
+			for _, str := range slice[1:] {
+				if str == OrderCancelOption {
+					return &CommandDetails{
+						CommandType: Order,
+						OrderOption: OrderOption{
+							ClearFlag: true,
+						},
+					}, ""
+				}
+				num, err := strconv.Atoi(str)
+				if err == nil {
+					return &CommandDetails{
+						CommandType: Order,
+						OrderOption: OrderOption{
+							IntValue: num,
+						},
+					}, ""
+				}
+			}
+			return nil, i18n.T("parse:invalid-option")
+		}
+	}
+
+	option, message := ParseOrderOption(slice)
+	if message != "" {
+		return nil, message
+	}
+
+	return &CommandDetails{
+		CommandType: Order,
+		OrderOption: *option,
+	}, ""
+}
+
+func ParseOrderOption(strSlice []string) (*OrderOption, string) {
+	if len(strSlice) < 2 {
+		return nil, i18n.T("parse:invalid-option")
+	}
+
+	// cancel flag?
+	if strSlice[1] == OrderCancelOption {
+		return &OrderOption{
+			ClearFlag: true,
+		}, ""
+	}
+
+	num, err := strconv.Atoi(strSlice[1])
+	if err != nil {
+		return nil, i18n.T("parse:invalid-option")
+	}
+
+	return &OrderOption{
+		IntValue: num,
 	}, ""
 }
 

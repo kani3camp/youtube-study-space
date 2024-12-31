@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Constants } from '../lib/constants'
 
 const BACKGROUND_UPDATE_INTERVAL_SEC = 1000
-const BACKGROUND_IMAGE_URL = '/images/background/7290504_3601460.jpg'
+const BACKGROUND_IMAGE_URL = '/images/background/16327104_rm335-mynt-07.jpg'
 
 const BackgroundImage: FC = () => {
     const [lastPartName, setLastPartName] = useState<string>('')

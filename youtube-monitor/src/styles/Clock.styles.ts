@@ -11,7 +11,7 @@ export const shape = css`
 
 export const clockStyle = css`
     height: 85%;
-    width: 85%;
+    width: 90%;
     border-radius: 0.6rem;
     background-color: rgba(255, 255, 255, 0.4);
     color: ${Constants.primaryTextColor};

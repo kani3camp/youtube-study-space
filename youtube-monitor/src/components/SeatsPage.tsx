@@ -41,10 +41,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
     const seatFontSizePx = roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
     const seatShape = {
-        widthPercent:
-            (100 * propsMemo.roomLayout.seat_shape.width) / propsMemo.roomLayout.room_shape.width,
-        heightPercent:
-            (100 * propsMemo.roomLayout.seat_shape.height) / propsMemo.roomLayout.room_shape.height,
+        widthPx: propsMemo.roomLayout.seat_shape.width,
+        heightPx: propsMemo.roomLayout.seat_shape.height,
     }
 
     const seatPositions = propsMemo.roomLayout.seats.map((seat) => ({

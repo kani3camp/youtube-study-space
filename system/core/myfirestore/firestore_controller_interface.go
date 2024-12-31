@@ -62,6 +62,7 @@ type FirestoreController interface {
 	CreateUserActivityDoc(ctx context.Context, tx *firestore.Transaction, activity UserActivityDoc) error
 	Get500UserActivityDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	GetAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
+	Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetUsersActiveAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
@@ -75,6 +76,13 @@ type FirestoreController interface {
 	Get500SeatLimitsAfterUntilInBLACKList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator
 	DeleteSeatLimitInWHITEList(ctx context.Context, docId string, isMemberSeat bool) error
 	DeleteSeatLimitInBLACKList(ctx context.Context, docId string, isMemberSeat bool) error
+
+	// Menu Operations
+	ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error)
+
+	// Order History Operations
+	CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error)
+	CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error
 
 	// General Operations
 	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)
