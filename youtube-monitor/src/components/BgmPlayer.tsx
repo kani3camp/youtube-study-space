@@ -1,5 +1,5 @@
 import { Wave } from '@foobar404/wave'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Constants } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
@@ -11,12 +11,13 @@ const BgmPlayer: React.FC = () => {
     const [lastSectionType, setLastSectionType] = useState('')
     const [audioTitle, setAudioTitle] = useState('BGM TITLE')
     const [audioArtist, setAudioArtist] = useState('BGM ARTIST')
-    const [initialized, setInitialized] = useState(false)
 
     const audioDivId = 'music'
     const audioCanvasId = 'audioCanvas'
     const chimeSingleDivId = 'chimeSingle'
     const chimeDoubleDivId = 'chimeDouble'
+
+    const waveRef = useRef<Wave | null>(null)
 
     useEffect(() => {
         checkChimeCanPlay()
@@ -119,11 +120,10 @@ const BgmPlayer: React.FC = () => {
     }
 
     useEffect(() => {
-        if (!initialized) {
-            setInitialized(true)
-
+        if (!waveRef.current) {
             const audioElement = document.getElementById(audioDivId) as HTMLAudioElement
             const canvasElement = document.getElementById(audioCanvasId) as HTMLCanvasElement
+
             const wave = new Wave(audioElement, canvasElement)
             wave.addAnimation(
                 new wave.animations.Wave({
@@ -136,7 +136,12 @@ const BgmPlayer: React.FC = () => {
                 })
             )
             audioStart()
+
+            waveRef.current = wave
         }
+    }, [])
+
+    useEffect(() => {
         const intervalId = setInterval(() => updateState(), 1000)
         return () => {
             clearInterval(intervalId)

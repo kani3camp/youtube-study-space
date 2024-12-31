@@ -19,5 +19,10 @@ service cloud.firestore {
     	allow read: if true;
       allow write: if false;
     }
+
+    match /menu/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

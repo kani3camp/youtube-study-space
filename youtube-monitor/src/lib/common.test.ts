@@ -1,5 +1,18 @@
 import { numSeatsOfRoomLayouts } from './common'
 
+jest.mock('next/font/google', () => ({
+    M_PLUS_Rounded_1c: jest.fn(() => ({
+        style: {
+            fontFamily: 'mock-font-name',
+        },
+    })),
+    Source_Code_Pro: jest.fn(() => ({
+        style: {
+            fontFamily: 'mock-font-name',
+        },
+    })),
+}))
+
 test('numSeatsOfRoomLayouts', () => {
     expect(numSeatsOfRoomLayouts([])).toBe(0)
     expect(

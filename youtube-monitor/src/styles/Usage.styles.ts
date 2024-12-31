@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { sourceCodeProFontFamily } from '../lib/common'
 
 export const shape = css`
     height: ${Constants.usageHeight}px;
@@ -15,7 +16,7 @@ export const usage = css`
     color: ${Constants.primaryTextColor};
     box-sizing: border-box;
     height: 95%;
-    width: 85%;
+    width: 90%;
     padding: 0.4rem;
     border-radius: 0.6rem;
     background-color: rgba(255, 255, 255, 0.3);
@@ -34,10 +35,10 @@ export const description = css`
 
 export const seat = css`
     background-color: rgba(243, 236, 236, 0.523);
-    width: 7.1rem;
+    width: 6rem;
     height: 3.5rem;
     margin: 0.2rem auto;
-    margin-bottom: 1rem;
+    margin-bottom: 0.3rem;
     text-overflow: ellipsis;
     overflow: hidden;
     display: flex;
@@ -67,11 +68,17 @@ export const userDisplayName = css`
     color: #202020;
 `
 
-export const commandString = css`
+export const command = css`
+    margin: 0.2rem;
+    font-size: 0.85rem;
+`
+
+export const commandCode = css`
     font-weight: bold;
     display: inline-block;
-    background-color: #fff;
+    background-color: #eee;
     border-radius: 0.15rem;
-    padding: 0 0.4rem;
-    margin: 0.1rem;
+    padding: 0 0.3rem;
+    margin: 0.07rem;
+    font-family: ${sourceCodeProFontFamily};
 `
