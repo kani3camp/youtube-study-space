@@ -1,5 +1,6 @@
 import { RoomLayout } from '../../types/room-layout'
 
+// FIXME: 表示バグあり
 export const circleRoom: RoomLayout = {
     font_size_ratio: 0.018,
     floor_image: '',

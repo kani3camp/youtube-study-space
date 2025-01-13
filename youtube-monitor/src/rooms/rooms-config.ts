@@ -11,13 +11,16 @@ import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik4Room } from './layouts/freepik4-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
+import { HimajinRoom } from './layouts/himajin-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberIllustratedRoomChristmas } from './layouts/member-illustrated-room-christmas'
-import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
+import { oneSeatRoom } from './layouts/one-seat-room'
 import { OtomeGameCafeRoom1 } from './layouts/otome-game-cafe-room-1'
 import { OtomeGameCafeRoom2 } from './layouts/otome-game-cafe-room-2'
 import { SeaOfSeatRoom } from './layouts/sea-of-seat-room'
+import { takochanRoom } from './layouts/takochan-room'
+import { ver2Room } from './layouts/ver2'
 
 type AllRoomsConfig = {
     generalBasicRooms: RoomLayout[]
@@ -28,27 +31,24 @@ type AllRoomsConfig = {
 
 const prodAllRooms: AllRoomsConfig = {
     generalBasicRooms: [Chabio2Room, Freepik7Room, Freepik1Room, Freepik4Room],
-    generalTemporaryRooms: [
-        Chabio1Room,
-        Freepik3Room,
-        classRoom,
-        Freepik2Room,
-        Chabio2Room,
-        circleRoom,
-        Freepik5Room,
-        SeaOfSeatRoom,
-    ],
+    generalTemporaryRooms: [Chabio1Room, Freepik3Room, Freepik2Room, Chabio2Room, Freepik5Room],
     memberBasicRooms: [MemberBoxRooms2, MemberIllustratedRoomChristmas, MemberIllustratedRoom1],
     memberTemporaryRooms: [MemberBoxRooms2, MemberIllustratedRoomChristmas, MemberIllustratedRoom1],
 }
 
 const testAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [Freepik7Room, MemberBoxRooms2, MemberIllustratedRoomSpring],
+    generalBasicRooms: [
+        circleRoom,
+        HimajinRoom,
+        classRoom,
+        ver2Room,
+        takochanRoom,
+        SeaOfSeatRoom,
+        oneSeatRoom,
+        SeaOfSeatRoom,
+    ],
     generalTemporaryRooms: [
-        Anonymous1Room,
         Chabio1Room,
-        Freepik1Room,
-        Freepik4Room,
         Freepik3Room,
         classRoom,
         Freepik2Room,
@@ -69,12 +69,9 @@ const otomeGameCafeRooms: AllRoomsConfig = {
         Freepik1Room,
         Freepik4Room,
         Freepik3Room,
-        classRoom,
         Freepik2Room,
         Chabio2Room,
-        circleRoom,
         Freepik5Room,
-        SeaOfSeatRoom,
     ],
     memberBasicRooms: [],
     memberTemporaryRooms: [],
