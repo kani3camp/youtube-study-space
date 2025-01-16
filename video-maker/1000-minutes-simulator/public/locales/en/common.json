@@ -4,7 +4,7 @@
     "tips.poster_footer": "",
     "tips.comment": "Comment",
     "gauge.title": "Elapsed Time",
-    "gauge.unit": "[Unit : Hur]",
+    "gauge.unit": "[Unit : Hour]",
     "elapsed.title": "Elapsed Time Chart",
     "elapsed.time_subscript": "M",
     "elapsed.hour": "H",
