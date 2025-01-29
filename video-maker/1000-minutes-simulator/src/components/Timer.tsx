@@ -24,6 +24,11 @@ type Props = {
 const Timer: FC<Props> = (props) => {
     const { t } = useTranslation()
 
+    const AUDIO_FILES = {
+        CHIME1: '/audio/chime/chime1.mp3',
+        CHIME2: '/audio/chime/chime2.mp3',
+    } as const
+
     const chime1DivId = 'chime1'
     const chime2DivId = 'chime2'
 
@@ -77,6 +82,27 @@ const Timer: FC<Props> = (props) => {
             chime2Play()
         }
     }, [isStudyingState])
+
+    useEffect(() => {
+        const checkFile = async () => {
+            try {
+                const response1 = await fetch(AUDIO_FILES.CHIME1)
+                const response2 = await fetch(AUDIO_FILES.CHIME2)
+
+                if (!response1.ok) {
+                    alert(`${AUDIO_FILES.CHIME1} not found`)
+                }
+                if (!response2.ok) {
+                    alert(`${AUDIO_FILES.CHIME2} not found`)
+                }
+            } catch (error: unknown) {
+                alert('Failed to load audio files')
+                console.error('Failed to load audio files:', error)
+            }
+        }
+
+        checkFile()
+    }, [])
 
     const chime1Play = () => {
         console.log(chime1Play.name)
@@ -138,8 +164,8 @@ const Timer: FC<Props> = (props) => {
                 </div>
             </div>
 
-            <audio id={chime1DivId} src='/audio/chime/chime1.mp3'></audio>
-            <audio id={chime2DivId} src='/audio/chime/chime2.mp3'></audio>
+            <audio id={chime1DivId} src={AUDIO_FILES.CHIME1}></audio>
+            <audio id={chime2DivId} src={AUDIO_FILES.CHIME2}></audio>
         </div>
     )
 }
