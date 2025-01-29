@@ -38,6 +38,8 @@ const prodAllRooms: AllRoomsConfig = {
 
 const testAllRooms: AllRoomsConfig = {
     generalBasicRooms: [
+        Chabio2Room,
+        Freepik7Room,
         circleRoom,
         HimajinRoom,
         classRoom,
@@ -45,7 +47,6 @@ const testAllRooms: AllRoomsConfig = {
         takochanRoom,
         SeaOfSeatRoom,
         oneSeatRoom,
-        SeaOfSeatRoom,
     ],
     generalTemporaryRooms: [
         Chabio1Room,
