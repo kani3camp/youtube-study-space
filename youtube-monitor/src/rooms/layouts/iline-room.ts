@@ -1,6 +1,5 @@
 import { RoomLayout } from '../../types/room-layout'
 
-// FIXME: 表示バグあり
 export const iLineRoom: RoomLayout = {
     floor_image: '',
     font_size_ratio: 0.013,
