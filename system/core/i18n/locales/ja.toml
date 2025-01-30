@@ -14,13 +14,13 @@
 "enter-only" = "@{0}さん、入室中のみ使えるコマンドです🚪" # 0: Username
 "permission" = "@{0}さんは「{1}」コマンドを使用できません🔒" # 0: Username. 1: Command
 "exit"= "@{0}さんが退室しました🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "@{0}さん、その番号の座席は誰も使用していません💺" # 0: UserName
+"unused" = "@{0}さん、その番号の座席は誰も使用していません🪑" # 0: UserName
 "sent" = "@{0}さん、情報を送信しました📨" # 0: UserName
 "rank" = "@{0}さんのランク表示を{1}にしました🎯" # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
-"no-seat" = "@{0}さん、その番号の席は今は使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください💺"
+"no-seat" = "@{0}さん、その番号の席は今は使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください🪑"
 "no-availability" = "@{0}さん、その番号の席は長時間入室制限のためしばらく使えません。他の空いている席を選ぶか、「{1}」で席を指定せずに入室してください⏳"
 "already-seat" = "@{0}さんはすでに{1}番の席に座っています。作業名と入室時間を更新しました✨"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
@@ -99,7 +99,7 @@
 "work" = "@{0}さんが作業を再開します🔥（{1}番席、自動退室まで{2}分）" # 0: Username, 1: seatId, 2: until exit
 
 [command-order]
-"too-many-orders" = "@{0}さん、本日の注文回数が上限({1}回)に達しています⚠️" # 0: userName, 1: maxOrderCount
+"too-many-orders" = "@{0}さん、本日の注文回数が上限({1}回)に達しています😔" # 0: userName, 1: maxOrderCount
 "ordered" = "@{0}さん、{1}の注文を受け付けました🍽（本日{2}回目）" # 0: userName, 1: menuName
 "cleared" = "@{0}さん、食器を下げました🍽️" # 0: userName
 
@@ -115,7 +115,7 @@
 "missing-more-option" = "オプションに延長時間（分）を指定してください⏰"
 "check-option" = "{0}の値を確認してください🔍"   # 0: optionName
 "non-half-width-digit-option" = "{0}の値は半角数字にしてください🔢"    # 0: optionPrefix
-"invalid-option" = "オプションが正しく設定されているか確認してください⚠️"
+"invalid-option" = "オプションが正しく設定されているか確認してください🙏"
 "missing-time-option" = "{0}で時間（分）を指定してください⏰"    # 0: timeOptionPrefix
 
 [validate]

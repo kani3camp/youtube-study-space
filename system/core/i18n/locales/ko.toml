@@ -14,13 +14,13 @@
 "enter-only" = "@{0}님, 입장 중에만 사용할 수 있는 명령어입니다🚪" # 0: Username
 "permission" = "@{0}님은 「{1}」 명령어를 사용할 수 없습니다🔒" # 0: Username, 1: Command
 "exit"= "@{0}님이 퇴장하셨습니다🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다💺" # 0: UserName
+"unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다🪑" # 0: UserName
 "sent" = "@{0}님, 정보를 전송하였습니다📨" # 0: UserName
 "rank" = "@{0}님의 순위 표시가 {1}로 설정되었습니다🎯" # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
-"no-seat" = "@{0}님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요💺"
+"no-seat" = "@{0}님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요🪑"
 "no-availability" = "@{0}님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요⏳"
 "already-seat" = "@{0}님은 이미 {1}번 좌석에 앉아 계십니다. 작업명과 입장 시간을 업데이트했습니다✨"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
@@ -99,7 +99,7 @@
 "work" = "@{0}님이 작업을 재개합니다🔥（{1}번석, 자동 퇴실까지 {2}분 남았습니다）"
 
 [command-order]
-"too-many-orders" = "@{0}님, 본일의 주문 횟수가 상한({1}회)에 도달했습니다 ⚠️"   # 0: userName, 1: maxOrderCount
+"too-many-orders" = "@{0}님, 본일의 주문 횟수가 상한({1}회)에 도달했습니다😔"   # 0: userName, 1: maxOrderCount
 "ordered" = "@{0}님, {1}의 주문을 접수했습니다🍽（오늘 {2}회째）" # 0: userName, 1: menuName
 "cleared" = "@{0}님, 식기를 치웠습니다🍽️" # 0: userName
 
@@ -115,7 +115,7 @@
 "missing-more-option" = "옵션에 연장 시간(분)을 입력하세요 ⏰"
 "check-option" = "{0}의 값을 확인하세요 🔍"   # 0: optionName
 "non-half-width-digit-option" = "{0}의 값은 반각 숫자여야 합니다 🔢"    # 0: optionPrefix
-"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하세요 ⚠️"
+"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하세요🙏"
 "missing-time-option" = "{0}에서 시간을(분) 지정하세요 ⏰"    # 0: timeOptionPrefix
 
 [validate]

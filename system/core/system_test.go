@@ -134,7 +134,7 @@ var inTestCases = []struct {
 			SeatId: 1,
 			UserId: "test_user_id",
 		},
-		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください💺",
+		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
 	},
 	{
 		name: "一般席：座席が存在しない",
@@ -151,7 +151,7 @@ var inTestCases = []struct {
 		},
 		userIsMember:         false,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください💺",
+		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
 	},
 	{
 		name: "メンバー席：座席指定なし",
@@ -1438,7 +1438,7 @@ var orderTestCases = []struct {
 			MenuCode: "",
 		},
 		alreadyOrderedCountToday: 5,
-		expectedReplyMessage:     "@テストユーザーさん、本日の注文回数が上限(5回)に達しています⚠️",
+		expectedReplyMessage:     "@テストユーザーさん、本日の注文回数が上限(5回)に達しています😔",
 	},
 	{
 		name: "メンバーは注文回数に上限なし",
