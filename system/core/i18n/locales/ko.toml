@@ -7,22 +7,22 @@
 "vip-seat-id" = "VIP{0}"    # 0: SeatId
 
 [command]
-"option-warn" = "@{0}님, 옵션이 올바르게 설정되어 있는지 확인해주세요." # 0: Username
-"error" = "@{0}님, 오류가 발생하였습니다. 다시 시도해주세요." # 0: Username
-"rp-earned" = "（+ {0} RP）" # 0: Earned
-"not-enter" = "@{0}님은 아직 입장하지 않으셨습니다. 「{1}」 명령어로 입장해주세요!" # 0: Username, 1: InCommand
-"enter-only" = "@{0}님, 입장 중에만 사용할 수 있는 명령어입니다." # 0: Username
-"permission" = "@{0}님은 「{1}」 명령어를 사용할 수 없습니다." # 0: Username, 1: Command
-"exit"= "@{0}님이 퇴장하셨습니다🚶🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다." # 0: UserName
-"sent" = "@{0}님, 정보를 전송하였습니다." # 0: UserName
-"rank" = "@{0}님의 순위 표시가 {1}로 설정되었습니다." # 0: UserName, 1: Value
+"option-warn" = "@{0}님, 옵션이 올바르게 설정되어 있는지 확인해주세요🙏" # 0: Username
+"error" = "@{0}님, 오류가 발생하였습니다. 다시 시도해주세요🔄" # 0: Username
+"rp-earned" = "（+ {0} RP✨）" # 0: Earned
+"not-enter" = "@{0}님은 아직 입장하지 않으셨습니다. 「{1}」 명령어로 입장해주세요!📝" # 0: Username, 1: InCommand
+"enter-only" = "@{0}님, 입장 중에만 사용할 수 있는 명령어입니다🚪" # 0: Username
+"permission" = "@{0}님은 「{1}」 명령어를 사용할 수 없습니다🔒" # 0: Username, 1: Command
+"exit"= "@{0}님이 퇴장하셨습니다🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
+"unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다🪑" # 0: UserName
+"sent" = "@{0}님, 정보를 전송하였습니다📨" # 0: UserName
+"rank" = "@{0}님의 순위 표시가 {1}로 설정되었습니다🎯" # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
-"no-seat" = "@{0}님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요."
-"no-availability" = "@{0}님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요."
-"already-seat" = "@{0}님은 이미 {1}번 좌석에 앉아 계십니다. 작업명과 입장 시간을 업데이트했습니다."
+"no-seat" = "@{0}님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요🪑"
+"no-availability" = "@{0}님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요⏳"
+"already-seat" = "@{0}님은 이미 {1}번 좌석에 앉아 계십니다. 작업명과 입장 시간을 업데이트했습니다✨"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
 "seat-move" = "@{0}님이 좌석을 이동하였습니다🚶（{1}→{2}번 좌석）（+ {3}분）{4}（{5}분 후 자동 퇴장）"
 "start" = "@{0}님이 작업을 시작했습니다🔥（최대 {1}분, {2}번 좌석）" # 0: Username, 1: Until Exit, 2: Seat
@@ -30,25 +30,25 @@
 "membership-disabled" = "@{0}님, 멤버십 기능은 사용할 수 없습니다."
 
 [command-out]
-"already-exit" = "@{0}님, 이미 퇴장하셨습니다." # 0: Username
-"already-exit-with-last-exit-time" = "@{0}님, 이미 퇴장하셨습니다（마지막 퇴장 시간：{1}시 {2}분）" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
+"already-exit" = "@{0}님, 이미 퇴장하셨습니다 🚶" # 0: Username
+"already-exit-with-last-exit-time" = "@{0}님, 이미 퇴장하셨습니다（마지막 퇴장 시간：{1}시 {2}분）⏰" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
 
 [command-user-info]
-"base" = "@{0}님 ［오늘의 작업 시간: {1}] ［총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
-"rank" = "［랭킹 포인트: {0} RP]" # 0: RP
+"base" = "@{0}님 ［⏱️오늘의 작업 시간: {1}] ［📊총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
+"rank" = "［🎯랭킹 포인트: {0} RP]" # 0: RP
 "rank-on" = "［🏆랭크 표시: ON］"
 "rank-on-continuous" = "［🏃연속 {0}일째（연속 일수: {1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
 "rank-off" = "［🏆랭크 표시: OFF］"
-"default-work-off" = "［기본 작업 시간: 없음］"
-"default-work" = "［기본 작업 시간: {0}분］" # 0: Value
+"default-work-off" = "［⏱️기본 작업 시간: 없음］"
+"default-work" = "［⏱️기본 작업 시간: {0}분］" # 0: Value
 "favorite-color-off" = "［🎨좋아하는 색상: 없음］"
 "favorite-color" = "［🎨좋아하는 색상: {0}］" # 0: Value
 "register-date" = "［📅가입일: {0}］" # 0: Value
 
 [command-seat-info]
-"break-until" = "작업 재개까지 {0}분 남았습니다." # 0: Value
+"break-until" = "작업 재개까지 {0}분 남았습니다 ⏳" # 0: Value
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
-"base" = "@{0}님은 {1}번 좌석에서 {2} 상태로 {3}분째 입장 중이며, 작업 시간은 {4}분, 자동 퇴장까지 {5}분 남았습니다。{6}"
+"base" = "@{0}님은 {1}번 좌석에서 {2} 상태로 {3}분째 입장 중이며, 작업 시간은 {4}분, 자동 퇴장까지 {5}분 남았습니다📊 {6}"
 # 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
 "details" = "최근 {0}분 이내에 {1}번 좌석에 총 {2}분 앉아 있었습니다🪑"
 
@@ -59,71 +59,71 @@
 "alert" = "@{0}님, 관리자에게 메시지를 전송하였습니다⚠" # 0: UserName
 
 [command-kick]
-"kick" = "@{0}님, {1}번 좌석의 {2}님을 퇴장시킵니다." # 0: Username, 1: SeatId, 2: seat user
+"kick" = "@{0}님, {1}번 좌석의 {2}님을 퇴장시킵니다 🚫" # 0: Username, 1: SeatId, 2: seat user
 
 [command-block]
-"block" = "@{0}님, {1}번 좌석의 {2}님을 차단합니다."  # 0: UserName, 1: seatId, 2: TargetUserName
+"block" = "@{0}님, {1}번 좌석의 {2}님을 차단합니다 🚫"  # 0: UserName, 1: seatId, 2: TargetUserName
 
 [command-my]
-"already-rank" = "랭크 표시 모드는 이미 {0}입니다." # 0: Status
-"set-rank" = "랭크 표시 모드를 {0}로 설정했습니다." # 0: Status
-"reset-default-work" = "기본 작업 시간을 리셋했습니다."
-"set-default-work" = "기본 작업 시간을 {0}분으로 설정했습니다." # 0: Status
-"reset-favorite-color" = "선호 색상을 리셋했습니다."
-"set-favorite-color" = "선호 색상을 업데이트했습니다."
+"already-rank" = "랭크 표시 모드는 이미 {0}입니다 🎯" # 0: Status
+"set-rank" = "랭크 표시 모드를 {0}로 설정했습니다 🎯" # 0: Status
+"reset-default-work" = "기본 작업 시간을 리셋했습니다 🔄"
+"set-default-work" = "기본 작업 시간을 {0}분으로 설정했습니다 ⏱️" # 0: Status
+"reset-favorite-color" = "선호 색상을 리셋했습니다 🎨"
+"set-favorite-color" = "선호 색상을 업데이트했습니다 🎨"
 "alert-favorite-color" = "（총 작업 시간이 {0}시간을 초과하면 선호 색상을 사용할 수 있습니다）" # 0: Hour
 
 [command-change]
-"update-work" = "작업 내용을 업데이트했습니다（{0}번 좌석）" # 0: Seat
-"update-break" = "휴식 내용을 업데이트했습니다（{0}번 좌석）" # 0: Seat
-"work-duration-before" = "이미 {0}분 이상 입장 중입니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다." # 0: duration, 1: current, 2: remain
-"work-duration-after" = "자동 퇴장 시간은 현재 시점에서 {0}분 후까지 설정할 수 있습니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다." # 0: max work time, 1: current, 2: remain
-"work-duration" = "입장 시간을 {0}분으로 변경했습니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다." # 0: duration, 1: current, 3: remain
-"break-duration-before" = "이미 {0}분 이상 휴식 중입니다. 현재 {1}분 휴식 중, 작업 재개까지 {2}분 남았습니다." # 0: duration, 1: current, 3: remain
-"break-duration" = "휴식 시간을 {0}분으로 변경했습니다. 현재 {1}분 휴식 중, 작업 재개까지 {2}분 남았습니다." # 0: duration, 1: current, 3: remain
+"update-work" = "작업 내용을 업데이트했습니다✍️（{0}번 좌석）"
+"update-break" = "휴식 내용을 업데이트했습니다✍️（{0}번 좌석）"
+"work-duration-before" = "이미 {0}분 이상 입장 중입니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다⏱️"
+"work-duration-after" = "자동 퇴장 시간은 현재 시점에서 {0}분 후까지 설정할 수 있습니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다⏱️"
+"work-duration" = "입장 시간을 {0}분으로 변경했습니다. 현재 {1}분 입장 중, 자동 퇴장까지 {2}분 남았습니다⏱️"
+"break-duration-before" = "이미 {0}분 이상 휴식 중입니다. 현재 {1}분 휴식 중, 작업 재개까지 {2}분 남았습니다☕"
+"break-duration" = "휴식 시간을 {0}분으로 변경했습니다. 현재 {1}분 휴식 중, 작업 재개까지 {2}분 남았습니다☕"
 
 [command-more]
-"max-work" = "현재 시간부터 {0}분 후까지만 작업 시간을 연장할 수 있습니다. 연장 가능한 최대 시간으로 설정합니다." # 0: Max time
-"max-break" = "현재 시간부터 {0}분 후까지만 휴식 시간을 연장할 수 있습니다. 연장 가능한 최대 시간으로 설정합니다." # 0: Max time
-"reply-work" = "자동 퇴실까지의 시간을 {0}분 연장했습니다." # 0: added min
-"reply-break" = "휴식 시간을 {0}분 연장했습니다. 작업 시작까지 {1}분 남았습니다." # 0: added min, 1: remain
-"reply" = "현재 {0}분째 입실 중이며, 자동 퇴실까지 {1}분 남았습니다." # 0: current, 1: remain
+"max-work" = "현재 시간부터 {0}분 후까지만 작업 시간을 연장할 수 있습니다. 연장 가능한 최대 시간으로 설정합니다⏱️"
+"max-break" = "현재 시간부터 {0}분 후까지만 휴식 시간을 연장할 수 있습니다. 연장 가능한 최대 시간으로 설정합니다☕"
+"reply-work" = "자동 퇴실까지의 시간을 {0}분 연장했습니다⏱️"
+"reply-break" = "휴식 시간을 {0}분 연장했습니다. 작업 시작까지 {1}분 남았습니다☕"
+"reply" = "현재 {0}분째 입실 중이며, 자동 퇴실까지 {1}분 남았습니다⏳"
 
 [command-break]
-"work-only" = "@{0}님, 작업 중에만 사용할 수 있는 명령어입니다." # 0: Username
-"warn" = "@{0}님, 작업 시작 후 {1}분 동안은 휴식을 할 수 없습니다. 현재 {2}분 작업 중입니다." # 0: Username, 1: min break, 2: current
-"break" = "@{0}님이 휴식에 들어갑니다（최대 {1}분, {2}번석）" # 0: Username, 1: min, 2: seatId
+"work-only" = "@{0}님, 작업 중에만 사용할 수 있는 명령어입니다🙏"
+"warn" = "@{0}님, 작업 시작 후 {1}분 동안은 휴식을 할 수 없습니다⚠️ 현재 {2}분 작업 중입니다"
+"break" = "@{0}님이 휴식에 들어갑니다☕（최대 {1}분, {2}번석）"
 
 [command-resume]
-"break-only" = "@{0}님, 휴식 중에만 사용할 수 있는 명령어입니다." # 0: Username
-"work" = "@{0}님이 작업을 재개합니다（{1}번석, 자동 퇴실까지 {2}분 남았습니다）" # 0: Username, 1: seatId, 2: until exit
+"break-only" = "@{0}님, 휴식 중에만 사용할 수 있는 명령어입니다🙏"
+"work" = "@{0}님이 작업을 재개합니다🔥（{1}번석, 자동 퇴실까지 {2}분 남았습니다）"
 
 [command-order]
-"too-many-orders" = "@{0}さん、本日の注文回数が上限({1}回)に達しています"   # 0: userName, 1: maxOrderCount
-"ordered" = "@{0}さん、{1}の注文を受け付けました🍽（本日{2}回目）" # 0: userName, 1: menuName
-"cleared" = "@{0}さん、食器を下げました🍽️" # 0: userName
+"too-many-orders" = "@{0}님, 본일의 주문 횟수가 상한({1}회)에 도달했습니다😔"   # 0: userName, 1: maxOrderCount
+"ordered" = "@{0}님, {1}의 주문을 접수했습니다🍽（오늘 {2}회째）" # 0: userName, 1: menuName
+"cleared" = "@{0}님, 식기를 치웠습니다🍽️" # 0: userName
 
 [others]
 "force-move" = "@{0}님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
 
 [parse]
-"isolated-!" = "느낌표는 옆 문자와 붙여서 사용하세요."
-"non-half-width-!" = "느낌표는 반각 문자로 사용하세요."
-"invalid-seat-id" = "유효한 좌석 번호를 지정하세요."
-"missing-seat-id" = "좌석 번호를 입력하세요."
-"missing-message" = "{0} 오른쪽에 공백을 두고 메시지를 입력하세요." # 0: command
-"missing-more-option" = "옵션에 연장 시간(분)을 입력하세요."
-"check-option" = "{0}의 값을 확인하세요."   # 0: optionName
-"non-half-width-digit-option" = "{0}의 값은 반각 숫자여야 합니다."    # 0: optionPrefix
-"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하세요."
-"missing-time-option" = "{0}에서 시간을(분) 지정하세요."    # 0: timeOptionPrefix
+"isolated-!" = "느낌표는 옆 문자와 붙여서 사용하세요 ✍️"
+"non-half-width-!" = "느낌표는 반각 문자로 사용하세요 ✍️"
+"invalid-seat-id" = "유효한 좌석 번호를 지정하세요 🔢"
+"missing-seat-id" = "좌석 번호를 입력하세요 🪑"
+"missing-message" = "{0} 오른쪽에 공백을 두고 메시지를 입력하세요📝" # 0: command
+"missing-more-option" = "옵션에 연장 시간(분)을 입력하세요 ⏰"
+"check-option" = "{0}의 값을 확인하세요 🔍"   # 0: optionName
+"non-half-width-digit-option" = "{0}의 값은 반각 숫자여야 합니다 🔢"    # 0: optionPrefix
+"invalid-option" = "옵션이 올바르게 설정되어 있는지 확인하세요🙏"
+"missing-time-option" = "{0}에서 시간을(분) 지정하세요 ⏰"    # 0: timeOptionPrefix
 
 [validate]
-"invalid-work-time-range" = "작업 시간(분)은 {0}에서 {1} 사이여야 합니다." # 0: minMin, 1: maxMin
-"negative-seat-id" = "좌석 번호는 0 이상의 값이어야 합니다."
-"invalid-favorite-color-option" = "{0}의 값은 설정할 색상의 이름이어야 합니다. 리셋하려면 공란으로 남겨주세요. 설정 가능한 색상 이름은 https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f 에서 확인하세요." # 0: favoriteColorOptionPrefix
-"non-one-or-more-seat-id" = "좌석 번호는 1 이상이어야 합니다."
-"missing-option" = "옵션을 지정하세요."
-"invalid-break-time-range" = "휴식 시간(분)은 {0}에서 {1} 사이여야 합니다."    # 0: minMin, 1: maxMin
-"non-one-or-more-extended-time" = "연장 시간(분)은 1 이상이어야 합니다."
-"invalid-menu-number-range" = "メニュー番号は1〜{0}の値にしてください。"    # 0: maxMenuNumber  TODO Translate
+"invalid-work-time-range" = "작업 시간(분)은 {0}에서 {1} 사이여야 합니다 ⏱️" # 0: minMin, 1: maxMin
+"negative-seat-id" = "좌석 번호는 0 이상의 값이어야 합니다 🪑"
+"invalid-favorite-color-option" = "{0}의 값은 설정할 색상의 이름이어야 합니다. 리셋하려면 공란으로 남겨주세요. 설정 가능한 색상 이름은 https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f 에서 확인하세요 🎨" # 0: favoriteColorOptionPrefix
+"non-one-or-more-seat-id" = "좌석 번호는 1 이상이어야 합니다 🪑"
+"missing-option" = "옵션을 지정하세요 ✏️"
+"invalid-break-time-range" = "휴식 시간(분)은 {0}에서 {1} 사이여야 합니다 ⏰"    # 0: minMin, 1: maxMin
+"non-one-or-more-extended-time" = "연장 시간(분)은 1 이상이어야 합니다 ⏱️"
+"invalid-menu-number-range" = "메뉴 번호는 1~{0} 사이의 값이어야 합니다 📋"    # 0: maxMenuNumber
