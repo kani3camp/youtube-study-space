@@ -13,7 +13,7 @@
 "not-enter" = "@{0}さんは入室していません。「{1}」コマンドで入室しましょう！📝" # 0: Username, 1: InCommand
 "enter-only" = "@{0}さん、入室中のみ使えるコマンドです🚪" # 0: Username
 "permission" = "@{0}さんは「{1}」コマンドを使用できません🔒" # 0: Username. 1: Command
-"exit"= "@{0}さんが退室しました🚶🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
+"exit"= "@{0}さんが退室しました🚪 （+ {1}分、{2}番席）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
 "unused" = "@{0}さん、その番号の座席は誰も使用していません💺" # 0: UserName
 "sent" = "@{0}さん、情報を送信しました📨" # 0: UserName
 "rank" = "@{0}さんのランク表示を{1}にしました🎯" # 0: UserName, 1: Value

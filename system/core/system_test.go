@@ -265,7 +265,7 @@ var outTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Out,
 		},
-		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、1番席）",
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚪 （+ 0分、1番席）",
 	},
 	{
 		name: "メンバー席退室",
@@ -276,7 +276,7 @@ var outTestCases = []struct {
 			CommandType: utils.Out,
 		},
 		userIsMember:         true,
-		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、VIP1番席）",
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚪 （+ 0分、VIP1番席）",
 	},
 }
 
