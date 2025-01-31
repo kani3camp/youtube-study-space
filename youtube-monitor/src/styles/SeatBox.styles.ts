@@ -1,6 +1,6 @@
 import { css } from '@emotion/react'
-import { Constants } from '../lib/constants'
 import { fontFamily } from '../lib/common'
+import { Constants } from '../lib/constants'
 
 export const emptySeatNum = css`
     margin: 0;
