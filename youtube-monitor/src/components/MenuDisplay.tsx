@@ -52,9 +52,9 @@ const MenuDisplay: FC = () => {
 	useEffect(() => {
 		const unsubscribe = onSnapshot(menuQuery, (querySnapshot) => {
 			const menuItems: Menu[] = []
-			querySnapshot.forEach((doc) => {
+			for (const doc of querySnapshot.docs) {
 				menuItems.push(doc.data())
-			})
+			}
 			setLatestMenuItems(menuItems)
 		})
 
@@ -110,12 +110,11 @@ const MenuDisplay: FC = () => {
 
 	const changePage = (pageIndex: number) => {
 		const snapshotMenuBoxList = [...menuBoxList]
-		if (pageIndex + 1 > snapshotMenuBoxList.length) {
-			pageIndex = 0 // index out of range にならないように１ページ目に。
-		}
+		const currentPageIndex =
+			pageIndex + 1 > snapshotMenuBoxList.length ? 0 : pageIndex
 		const newMenuBoxList: MenuBoxProps[] = snapshotMenuBoxList.map(
 			(box, index) => {
-				if (index === pageIndex) {
+				if (index === currentPageIndex) {
 					box.display = true
 				} else {
 					box.display = false

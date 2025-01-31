@@ -27,7 +27,7 @@ const BgmPlayer: React.FC = () => {
 	const checkChimeCanPlay = async () => {
 		console.log('checking chime audio files.')
 		const chimeDivIdList = [chimeSingleDivId, chimeDoubleDivId]
-		chimeDivIdList.forEach((divId) => {
+		for (const divId of chimeDivIdList) {
 			const chime = document.getElementById(divId) as HTMLAudioElement
 			chime.addEventListener('error', () => {
 				alert(`error loading: ${chime.src}`)
@@ -36,7 +36,7 @@ const BgmPlayer: React.FC = () => {
 				alert(`invalid chime src: ${chime.src}`)
 			}
 			chime.load()
-		})
+		}
 	}
 
 	const updateState = () => {
@@ -164,10 +164,16 @@ const BgmPlayer: React.FC = () => {
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.bgmPlayer, componentStyle]}>
-				<audio autoPlay id={audioDivId} />
+				<audio autoPlay id={audioDivId}>
+					<track kind="captions" />
+				</audio>
 
-				<audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath} />
-				<audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath} />
+				<audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}>
+					<track kind="captions" />
+				</audio>
+				<audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath}>
+					<track kind="captions" />
+				</audio>
 				<h4>♪ {audioTitle}</h4>
 				<h4>by {audioArtist}</h4>
 

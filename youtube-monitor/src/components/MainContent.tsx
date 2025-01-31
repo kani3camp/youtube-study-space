@@ -159,9 +159,9 @@ const Seats: FC = () => {
 		)
 		onSnapshot(generalSeatsQuery, (querySnapshot) => {
 			const seats: Seat[] = []
-			querySnapshot.forEach((doc) => {
+			for (const doc of querySnapshot.docs) {
 				seats.push(doc.data())
-			})
+			}
 			setLatestGeneralSeats(seats)
 		})
 		const memberSeatsQuery = query(
@@ -169,9 +169,9 @@ const Seats: FC = () => {
 		).withConverter(seatConverter)
 		onSnapshot(memberSeatsQuery, (querySnapshot) => {
 			const seats: Seat[] = []
-			querySnapshot.forEach((doc) => {
+			for (const doc of querySnapshot.docs) {
 				seats.push(doc.data())
-			})
+			}
 			setLatestMemberSeats(seats)
 		})
 
@@ -200,12 +200,11 @@ const Seats: FC = () => {
 	 */
 	const changePage = (pageIndex: number) => {
 		const snapshotPageProps = [...pageProps]
-		if (pageIndex + 1 > snapshotPageProps.length) {
-			pageIndex = 0 // index out of range にならないように１ページ目に。
-		}
+		const currentPageIndex =
+			pageIndex + 1 > snapshotPageProps.length ? 0 : pageIndex
 		const newPageProps: LayoutPageProps[] = snapshotPageProps.map(
 			(page, index) => {
-				if (index === pageIndex) {
+				if (index === currentPageIndex) {
 					page.display = true
 				} else {
 					page.display = false
@@ -218,9 +217,9 @@ const Seats: FC = () => {
 
 	const layoutPagesMemo = useMemo(
 		() =>
-			pageProps.map((pageProp, index) => (
+			pageProps.map((pageProp) => (
 				<SeatsPage
-					key={index}
+					key={pageProp.firstSeatId}
 					firstSeatId={pageProp.firstSeatId}
 					roomLayout={pageProp.roomLayout}
 					usedSeats={pageProp.usedSeats}

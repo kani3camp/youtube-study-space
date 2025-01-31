@@ -15,10 +15,10 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
 	const propsMemo = useMemo(() => props, [props])
 
 	const imageList = [propsMemo.first, propsMemo.second].map(
-		(itemAndImage, i) =>
+		(itemAndImage) =>
 			itemAndImage && (
 				<Image
-					key={i}
+					key={itemAndImage.item.code}
 					src={itemAndImage.imageUrl}
 					alt="menu item"
 					width={90}
@@ -29,18 +29,18 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
 	)
 
 	const nameList = [propsMemo.first, propsMemo.second].map(
-		(itemAndImage, i) =>
+		(itemAndImage) =>
 			itemAndImage && (
-				<div key={i} css={[styles.listItem, styles.name]}>
+				<div key={itemAndImage.item.code} css={[styles.listItem, styles.name]}>
 					{itemAndImage.item.name}
 				</div>
 			),
 	)
 
 	const commandList = [propsMemo.firstNumber, propsMemo.secondNumber].map(
-		(number, i) =>
+		(number) =>
 			number && (
-				<div key={i}>
+				<div key={`order-${number}`}>
 					<span css={[styles.listItem, styles.commandCode]}>
 						!order {number}
 					</span>

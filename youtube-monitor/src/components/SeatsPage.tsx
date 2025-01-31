@@ -66,8 +66,8 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 			propsMemo.roomLayout.partitions.map((partition) => {
 				const partitionShapes = propsMemo.roomLayout.partition_shapes
 				const shapeType = partition.shape_type
-				let widthPercent
-				let heightPercent
+				let widthPercent = 0
+				let heightPercent = 0
 				for (let i = 0; i < partitionShapes.length; i++) {
 					if (partitionShapes[i].name === shapeType) {
 						widthPercent =
@@ -91,13 +91,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 	)
 
 	const seatWithSeatId = (seatId: number, seats: Seat[]) => {
-		let targetSeat: Seat = seats[0]
-		seats.forEach((seat) => {
-			if (seat.seat_id === seatId) {
-				targetSeat = seat
-			}
-		})
-		return targetSeat
+		return seats.find((seat) => seat.seat_id === seatId) ?? seats[0]
 	}
 
 	const partitionPositions = propsMemo.roomLayout.partitions.map(
