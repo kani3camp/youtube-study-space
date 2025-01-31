@@ -209,7 +209,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 					css={styles.menuItem}
 					width={props.seatFontSizePx * 1.55}
 					height={props.seatFontSizePx * 1.55}
-				></Image>
+				/>
 			)}
 
 			{/* ★Mark */}

@@ -148,7 +148,7 @@ const MenuDisplay: FC = () => {
 							second={props.second}
 							secondNumber={props.secondNumber}
 							display={props.display}
-						></MenuBox>
+						/>
 					))}
 				</div>
 

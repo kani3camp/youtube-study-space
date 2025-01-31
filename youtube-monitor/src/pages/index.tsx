@@ -18,8 +18,8 @@ const Home: FC = () => (
 			position: 'relative',
 		}}
 	>
-		<BackgroundImage></BackgroundImage>
-		<BgmPlayer></BgmPlayer>
+		<BackgroundImage />
+		<BgmPlayer />
 		<Clock />
 		<Usage />
 		<MenuDisplay />

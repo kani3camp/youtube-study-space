@@ -13,6 +13,7 @@
 		"format:fix": "biome format --write .",
 		"check": "biome check .",
 		"check:fix": "biome check --write .",
+		"check:fix:unsafe": "biome check --write --unsafe .",
 		"storybook": "storybook dev -p 6006 --no-open",
 		"build-storybook": "storybook build",
 		"test": "jest"

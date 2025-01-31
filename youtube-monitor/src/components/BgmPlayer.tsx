@@ -164,21 +164,15 @@ const BgmPlayer: React.FC = () => {
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.bgmPlayer, componentStyle]}>
-				<audio autoPlay id={audioDivId}></audio>
+				<audio autoPlay id={audioDivId} />
 
-				<audio
-					id={chimeSingleDivId}
-					src={Constants.chimeSingleFilePath}
-				></audio>
-				<audio
-					id={chimeDoubleDivId}
-					src={Constants.chimeDoubleFilePath}
-				></audio>
+				<audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath} />
+				<audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath} />
 				<h4>♪ {audioTitle}</h4>
 				<h4>by {audioArtist}</h4>
 
 				<div css={styles.audioCanvasDiv}>
-					<canvas id={audioCanvasId} css={styles.audioCanvas}></canvas>
+					<canvas id={audioCanvasId} css={styles.audioCanvas} />
 				</div>
 			</div>
 		</div>

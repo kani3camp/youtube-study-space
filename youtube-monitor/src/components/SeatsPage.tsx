@@ -150,7 +150,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						minutesRemaining={minutesRemaining}
 						hoursRemaining={hoursRemaining}
 						roomShape={roomShape}
-					></SeatBox>
+					/>
 				)
 			}),
 		[

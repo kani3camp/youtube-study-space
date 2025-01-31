@@ -33,7 +33,7 @@ const BackgroundImage: FC = () => {
 				height={Constants.screenHeight}
 				priority={true}
 			/>
-			<div css={styles.blurLayer}></div>
+			<div css={styles.blurLayer} />
 		</div>
 	)
 }

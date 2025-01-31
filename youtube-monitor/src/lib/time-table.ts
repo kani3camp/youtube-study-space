@@ -47,7 +47,7 @@ export function getCurrentSection(): TimeSection {
 		} else {
 			// 日付またがる時の場合
 			if (
-				(starts.h == now.getHours() && starts.m <= now.getMinutes()) ||
+				(starts.h === now.getHours() && starts.m <= now.getMinutes()) ||
 				starts.h < now.getHours()
 			) {
 				startsDate = new Date(
@@ -66,7 +66,7 @@ export function getCurrentSection(): TimeSection {
 				)
 			} else if (
 				now.getHours() < ends.h ||
-				(now.getHours() == ends.h && now.getMinutes() < ends.m)
+				(now.getHours() === ends.h && now.getMinutes() < ends.m)
 			) {
 				startsDate = new Date(
 					now.getFullYear(),
@@ -116,18 +116,18 @@ export function remainingTime(
 ): number {
 	if (currentHours === destHours) {
 		return destMinutes - currentMinutes
-	} else if (currentHours < destHours) {
+	}
+	if (currentHours < destHours) {
 		const diffHours: number = destHours - currentHours
 		return 60 * (diffHours - 1) + (60 - currentMinutes) + destMinutes
-	} else {
-		// 日付を跨いでいる
-		return (
-			60 * (23 - currentHours) +
-			(60 - currentMinutes) +
-			60 * destHours +
-			destMinutes
-		)
 	}
+	// 日付を跨いでいる
+	return (
+		60 * (23 - currentHours) +
+		(60 - currentMinutes) +
+		60 * destHours +
+		destMinutes
+	)
 }
 
 export const PartType = {

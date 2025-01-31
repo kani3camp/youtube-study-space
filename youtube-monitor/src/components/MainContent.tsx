@@ -131,9 +131,8 @@ const Seats: FC = () => {
 			Number(queryPageNum) <= pageProps.length
 		) {
 			return Number(queryPageNum) - 1
-		} else {
-			return undefined
 		}
+		return undefined
 	}
 
 	const refreshPageIndex = () => {
@@ -227,7 +226,7 @@ const Seats: FC = () => {
 					usedSeats={pageProp.usedSeats}
 					display={pageProp.display}
 					memberOnly={pageProp.memberOnly}
-				></SeatsPage>
+				/>
 			)),
 		[pageProps],
 	)
@@ -492,7 +491,7 @@ const Seats: FC = () => {
 						: false
 				}
 				seats={latestGeneralSeats.concat(latestMemberSeats)}
-			></Message>
+			/>
 		),
 		[
 			currentPageIndex,
@@ -512,9 +511,8 @@ const Seats: FC = () => {
 				</div>
 			</>
 		)
-	} else {
-		return <CenterLoading></CenterLoading>
 	}
+	return <CenterLoading />
 }
 
 export default Seats
