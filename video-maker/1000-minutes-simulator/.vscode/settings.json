@@ -5,8 +5,7 @@
 		"source.organizeImports.biome": "explicit",
 		"quickfix.biome": "explicit"
 	},
-	"prettier.configPath": ".prettierrc.yaml",
-	"cSpell.words": ["Lofi", "Milli", "pomodoro", "stylelint"],
+	"cSpell.words": ["Lofi", "Milli", "pomodoro"],
 	"github.copilot.enable": {
 		"*": true
 	}
