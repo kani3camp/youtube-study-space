@@ -24,6 +24,8 @@ type System struct {
 	blockRegexListForChannelName        []string
 	notificationRegexListForChatMessage []string
 	notificationRegexListForChannelName []string
+
+	SortedMenuItems []myfirestore.MenuDoc // メニューコードで昇順ソートして格納
 }
 
 // SystemConfigs System生成時に初期化すべきフィールド値

@@ -1,6 +1,7 @@
 package myfirestore
 
 import (
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"context"
 	"fmt"
 	"strconv"
@@ -92,6 +93,14 @@ func (c *FirestoreControllerImplements) seatsCollection(isMemberSeat bool) *fire
 	} else {
 		return c.generalSeatsCollection()
 	}
+}
+
+func (c *FirestoreControllerImplements) menuCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(MENU)
+}
+
+func (c *FirestoreControllerImplements) orderHistoryCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(OrderHistory)
 }
 
 func (c *FirestoreControllerImplements) generalSeatsCollection() *firestore.CollectionRef {
@@ -190,40 +199,21 @@ func (c *FirestoreControllerImplements) UpdateNextPageToken(ctx context.Context,
 
 func (c *FirestoreControllerImplements) ReadGeneralSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.generalSeatsCollection().Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocDataFromIterator[SeatDoc](iter)
 }
 func (c *FirestoreControllerImplements) ReadMemberSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.memberSeatsCollection().Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocDataFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) ReadSeatsExpiredUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
 	iter := c.seatsCollection(isMemberSeat).Where(UntilDocProperty, "<", thresholdTime).Documents(ctx)
-	return GetSeatsFromIterator(iter)
+	return getDocDataFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error) {
 	iter := c.seatsCollection(isMemberSeat).Where(StateDocProperty, "==", BreakState).Where(CurrentStateUntilDocProperty, "<", thresholdTime).Documents(ctx)
-	return GetSeatsFromIterator(iter)
-}
-
-func GetSeatsFromIterator(iter *firestore.DocumentIterator) ([]SeatDoc, error) {
-	seats := make([]SeatDoc, 0) // jsonになったときにnullとならないように。
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return []SeatDoc{}, fmt.Errorf("in iter.Next(): %w", err)
-		}
-		var seatDoc SeatDoc
-		if err := doc.DataTo(&seatDoc); err != nil {
-			return []SeatDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
-		}
-		seats = append(seats, seatDoc)
-	}
-	return seats, nil
+	return getDocDataFromIterator[SeatDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (SeatDoc, error) {
@@ -468,6 +458,12 @@ func (c *FirestoreControllerImplements) Get500UserActivityDocIdsBeforeDate(ctx c
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
 }
 
+func (c *FirestoreControllerImplements) Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time,
+) *firestore.DocumentIterator {
+	return c.orderHistoryCollection().Where(OrderedAtDocProperty, "<",
+		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
+}
+
 func (c *FirestoreControllerImplements) GetAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time,
 ) *firestore.DocumentIterator {
 	return c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Documents(ctx)
@@ -479,7 +475,7 @@ func (c *FirestoreControllerImplements) GetAllUserActivityDocIdsAfterDateForUser
 		date).Where(UserIdDocProperty, "==", userId).Where(SeatIdDocProperty, "==", seatId).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).OrderBy(TakenAtDocProperty,
 		firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
+	return getDocDataFromIterator[UserActivityDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
@@ -488,7 +484,7 @@ func (c *FirestoreControllerImplements) GetEnterRoomUserActivityDocIdsAfterDateF
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", EnterRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
+	return getDocDataFromIterator[UserActivityDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context,
@@ -497,26 +493,7 @@ func (c *FirestoreControllerImplements) GetExitRoomUserActivityDocIdsAfterDateFo
 		Where(SeatIdDocProperty, "==", seatId).Where(ActivityTypeDocProperty, "==", ExitRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
 		OrderBy(TakenAtDocProperty, firestore.Asc).Documents(ctx)
-	return getUserActivitiesFromIterator(iter)
-}
-
-func getUserActivitiesFromIterator(iter *firestore.DocumentIterator) ([]UserActivityDoc, error) {
-	var activityList []UserActivityDoc
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return []UserActivityDoc{}, fmt.Errorf("in iter.Next(): %w", err)
-		}
-		var activity UserActivityDoc
-		if err := doc.DataTo(&activity); err != nil {
-			return []UserActivityDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
-		}
-		activityList = append(activityList, activity)
-	}
-	return activityList, nil
+	return getDocDataFromIterator[UserActivityDoc](iter)
 }
 
 // GetUsersActiveAfterDate date以後に入室したことのあるuserを全て取得
@@ -557,7 +534,7 @@ func (c *FirestoreControllerImplements) ReadSeatLimitsWHITEListWithSeatIdAndUser
 		collection = c.generalSeatLimitsWHITEListCollection()
 	}
 	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return getSeatLimitsDocsFromIterator(iter)
+	return getDocDataFromIterator[SeatLimitDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error) {
@@ -568,26 +545,7 @@ func (c *FirestoreControllerImplements) ReadSeatLimitsBLACKListWithSeatIdAndUser
 		collection = c.generalSeatLimitsBLACKListCollection()
 	}
 	iter := collection.Where(SeatIdDocProperty, "==", seatId).Where(UserIdDocProperty, "==", userId).Documents(ctx)
-	return getSeatLimitsDocsFromIterator(iter)
-}
-
-func getSeatLimitsDocsFromIterator(iter *firestore.DocumentIterator) ([]SeatLimitDoc, error) {
-	var seatLimits []SeatLimitDoc
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("in iter.Next(): %w", err)
-		}
-		var seatLimitDoc SeatLimitDoc
-		if err := doc.DataTo(&seatLimitDoc); err != nil {
-			return nil, fmt.Errorf("in doc.DataTo: %w", err)
-		}
-		seatLimits = append(seatLimits, seatLimitDoc)
-	}
-	return seatLimits, nil
+	return getDocDataFromIterator[SeatLimitDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) CreateSeatLimitInWHITEList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
@@ -662,4 +620,56 @@ func (c *FirestoreControllerImplements) DeleteSeatLimitInBLACKList(ctx context.C
 	}
 	ref := collection.Doc(docId)
 	return c.delete(ctx, nil, ref)
+}
+
+func (c *FirestoreControllerImplements) ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error) {
+	iter := c.menuCollection().OrderBy(CodeDocProperty, firestore.Asc).Documents(ctx)
+	return getDocDataFromIterator[MenuDoc](iter)
+}
+
+func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error) {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
+	end := start.AddDate(0, 0, 1)
+	query := c.orderHistoryCollection().
+		Where(UserIdDocProperty, "==", userId).
+		Where(OrderedAtDocProperty, ">=", start).
+		Where(OrderedAtDocProperty, "<", end)
+	aggregationQuery := query.NewAggregationQuery().WithCount("all")
+	results, err := aggregationQuery.Get(ctx)
+	if err != nil {
+		return -1, err
+	}
+
+	count, ok := results["all"]
+	if !ok {
+		return -1, errors.New("firestore: couldn't get alias for COUNT from results")
+	}
+
+	countValue := count.(*firestorepb.Value)
+
+	return countValue.GetIntegerValue(), nil
+}
+
+func (c *FirestoreControllerImplements) CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error {
+	ref := c.orderHistoryCollection().NewDoc()
+	return c.create(ctx, tx, ref, orderHistoryDoc)
+}
+
+func getDocDataFromIterator[T any](iter *firestore.DocumentIterator) ([]T, error) {
+	docs := make([]T, 0) // jsonになったときにnullとならないように。
+	for {
+		doc, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return []T{}, fmt.Errorf("in iter.Next(): %w", err)
+		}
+		var data T
+		if err := doc.DataTo(&data); err != nil {
+			return []T{}, fmt.Errorf("in doc.DataTo: %w", err)
+		}
+		docs = append(docs, data)
+	}
+	return docs, nil
 }

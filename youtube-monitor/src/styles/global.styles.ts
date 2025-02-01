@@ -1,9 +1,9 @@
-import { css } from '@emotion/react'
-import { Constants } from '../lib/constants'
+import { css as globalStyles } from '@emotion/react'
+import { fontFamily } from '../lib/common'
 
-export const globalStyle = css`
+export const globalStyle = globalStyles`
   html {
-    font-family: ${Constants.fontFamily};
+    font-family: ${fontFamily};
     font-size: xx-large;
   }
 

@@ -16,12 +16,18 @@ export type Seat = {
     entered_at: Timestamp
     until: Timestamp
     appearance: SeatAppearance
+    menu_code: string
     state: SeatState
     current_state_started_at: Timestamp
     current_state_until: Timestamp
     cumulative_work_sec: number
     daily_cumulative_work_sec: number
     user_profile_image_url: string
+}
+
+export type Menu = {
+    code: string
+    name: string
 }
 
 export type SetDesiredMaxSeatsResponse = {

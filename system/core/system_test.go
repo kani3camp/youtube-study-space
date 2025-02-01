@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"sort"
 	"testing"
 	"time"
 )
@@ -133,7 +134,7 @@ var inTestCases = []struct {
 			SeatId: 1,
 			UserId: "test_user_id",
 		},
-		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください",
+		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
 	},
 	{
 		name: "一般席：座席が存在しない",
@@ -150,7 +151,7 @@ var inTestCases = []struct {
 		},
 		userIsMember:         false,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください",
+		expectedReplyMessage: "@テストユーザーさん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
 	},
 	{
 		name: "メンバー席：座席指定なし",
@@ -264,7 +265,7 @@ var outTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Out,
 		},
-		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、1番席）",
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚪 （+ 0分、1番席）",
 	},
 	{
 		name: "メンバー席退室",
@@ -275,7 +276,7 @@ var outTestCases = []struct {
 			CommandType: utils.Out,
 		},
 		userIsMember:         true,
-		expectedReplyMessage: "@テストユーザーさんが退室しました🚶🚪 （+ 0分、VIP1番席）",
+		expectedReplyMessage: "@テストユーザーさんが退室しました🚪 （+ 0分、VIP1番席）",
 	},
 }
 
@@ -344,7 +345,7 @@ var showUserInfoTestCases = []struct {
 		},
 		userIsMember:         false,
 		currentSeatDoc:       nil,
-		expectedReplyMessage: "@テストユーザーさん ［本日の作業時間：0分] ［累計作業時間：0分]",
+		expectedReplyMessage: "@テストユーザーさん ［⏱️本日の作業時間：0分] ［📊累計作業時間：0分]",
 	},
 	{
 		name: "ユーザー情報表示（入室時）",
@@ -359,7 +360,7 @@ var showUserInfoTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん ［本日の作業時間：10分] ［累計作業時間：10分]",
+		expectedReplyMessage: "@テストユーザーさん ［⏱️本日の作業時間：10分] ［📊累計作業時間：10分]",
 	},
 }
 
@@ -432,7 +433,7 @@ var showSeatInfoTestCases = []struct {
 		currentSeatDoc:       nil,
 		generalSeats:         []myfirestore.SeatDoc{},
 		memberSeats:          []myfirestore.SeatDoc{},
-		expectedReplyMessage: "@テストユーザーさんは入室していません。「!in」コマンドで入室しましょう！",
+		expectedReplyMessage: "@テストユーザーさんは入室していません。「!in」コマンドで入室しましょう！📝",
 	},
 	{
 		name: "座席表示（一般席）",
@@ -459,7 +460,7 @@ var showSeatInfoTestCases = []struct {
 			},
 		},
 		memberSeats:          []myfirestore.SeatDoc{},
-		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です。",
+		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
 	},
 	{
 		name: "座席表示（メンバー席）",
@@ -487,7 +488,7 @@ var showSeatInfoTestCases = []struct {
 				State:  myfirestore.WorkState,
 			},
 		},
-		expectedReplyMessage: "@テストユーザーさんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です。",
+		expectedReplyMessage: "@テストユーザーさんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
 	},
 	{
 		name: "座席表示（一般席：詳細あり）",
@@ -518,7 +519,7 @@ var showSeatInfoTestCases = []struct {
 			},
 		},
 		memberSeats:          []myfirestore.SeatDoc{},
-		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です。過去1440分以内に3番席に合計0分着席しています🪑",
+		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊過去1440分以内に3番席に合計0分着席しています🪑",
 	},
 }
 
@@ -611,7 +612,7 @@ var changeTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました（5番席）。入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です。",
+		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
 	{
 		name: "作業内容・入室時間変更（メンバー席）",
@@ -639,7 +640,7 @@ var changeTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました（VIP7番席）。入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です。",
+		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
 }
 
@@ -726,7 +727,7 @@ var moreTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました。現在10分入室中。自動退室まで残り119分です",
+		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
 	},
 	{
 		name: "作業時間延長（メンバー席）",
@@ -751,7 +752,7 @@ var moreTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました。現在10分入室中。自動退室まで残り119分です",
+		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
 	},
 }
 
@@ -834,7 +835,7 @@ var breakTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します（最大30分、5番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、5番席）",
 	},
 	{
 		name: "休憩開始（メンバー席）",
@@ -855,7 +856,7 @@ var breakTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します（最大30分、VIP7番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、VIP7番席）",
 	},
 	{
 		name: "休憩開始（一般席：休憩中）",
@@ -875,7 +876,7 @@ var breakTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、作業中のみ使えるコマンドです。",
+		expectedReplyMessage: "@テストユーザーさん、作業中のみ使えるコマンドです🙏",
 	},
 }
 
@@ -957,7 +958,7 @@ var resumeTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが作業を再開します（5番席、自動退室まで89分）",
+		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
 	{
 		name: "作業再開（メンバー席）",
@@ -977,7 +978,7 @@ var resumeTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが作業を再開します（VIP7番席、自動退室まで89分）",
+		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（VIP7番席、自動退室まで89分）",
 	},
 	{
 		name: "作業再開（一般席：作業中）",
@@ -996,7 +997,7 @@ var resumeTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、座席で休憩中のみ使えるコマンドです。",
+		expectedReplyMessage: "@テストユーザーさん、座席で休憩中のみ使えるコマンドです🙏",
 	},
 }
 
@@ -1073,7 +1074,7 @@ var rankTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさんのランク表示をオンにしました",
+		expectedReplyMessage: "@テストユーザーさんのランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モード切り替え（オフ）",
@@ -1087,7 +1088,7 @@ var rankTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさんのランク表示をオフにしました",
+		expectedReplyMessage: "@テストユーザーさんのランク表示をオフにしました🎯",
 	},
 }
 
@@ -1166,7 +1167,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示をオンにしました。",
+		expectedReplyMessage: "@テストユーザーさん、ランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モードオフ",
@@ -1186,7 +1187,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示をオフにしました。",
+		expectedReplyMessage: "@テストユーザーさん、ランク表示をオフにしました🎯",
 	},
 	{
 		name: "ランク表示モードオン（すでにオン）",
@@ -1206,7 +1207,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオンです。",
+		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオンです🎯",
 	},
 	{
 		name: "ランク表示モードオフ（すでにオフ）",
@@ -1226,7 +1227,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオフです。",
+		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオフです🎯",
 	},
 	{
 		name: "お気に入り作業時間設定",
@@ -1246,7 +1247,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			DefaultStudyMin: 30,
 		},
-		expectedReplyMessage: "@テストユーザーさん、デフォルトの作業時間を60分に設定しました。",
+		expectedReplyMessage: "@テストユーザーさん、デフォルトの作業時間を60分に設定しました⏱️",
 	},
 	{
 		name: "お気に入りカラーを設定（まだ使用不可）",
@@ -1266,7 +1267,7 @@ var myTestCases = []struct {
 		currentUserDoc: myfirestore.UserDoc{
 			FavoriteColor: "000000",
 		},
-		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました。（累計作業時間が1000時間を超えるとお気に入りカラーが使えるようになります）",
+		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました🎨（累計作業時間が1000時間を超えるとお気に入りカラーが使えるようになります）",
 	},
 	{
 		name: "お気に入りカラー設定（使用可能）",
@@ -1287,7 +1288,7 @@ var myTestCases = []struct {
 			FavoriteColor: "",
 			TotalStudySec: int(1000 * time.Hour),
 		},
-		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました。",
+		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました🎨",
 	},
 }
 
@@ -1336,6 +1337,209 @@ func TestSystem_My(t *testing.T) {
 
 			// テスト対象の関数を実行
 			err := system.My(&tt.commandDetails, context.Background())
+
+			assert.Nil(t, err)
+		})
+	}
+}
+
+var orderTestCases = []struct {
+	name                     string
+	constantsConfig          myfirestore.ConstantsConfigDoc
+	commandDetails           utils.CommandDetails
+	userIsMember             bool
+	currentSeatDoc           *myfirestore.SeatDoc
+	alreadyOrderedCountToday int64
+	newOrderHistory          *myfirestore.OrderHistoryDoc
+	expectedReplyMessage     string
+}{
+	{
+		name: "メニュー注文（一般席）",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 0,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽（本日1回目）",
+	},
+	{
+		name: "メニュー注文（メンバー席）",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: true,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 0,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽（本日1回目）",
+	},
+	{
+		name: "入室してないなら注文できない",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember:         false,
+		currentSeatDoc:       nil,
+		expectedReplyMessage: "@テストユーザーさん、入室中のみ使えるコマンドです🚪",
+	},
+	{
+		name: "非メンバーは注文回数に上限あり",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 5,
+		expectedReplyMessage:     "@テストユーザーさん、本日の注文回数が上限(5回)に達しています😔",
+	},
+	{
+		name: "メンバーは注文回数に上限なし",
+		constantsConfig: myfirestore.ConstantsConfigDoc{
+			MaxDailyOrderCount: 5,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Order,
+			OrderOption: utils.OrderOption{
+				IntValue:  1,
+				ClearFlag: false,
+			},
+		},
+		userIsMember: true,
+		currentSeatDoc: &myfirestore.SeatDoc{
+			SeatId:   1,
+			UserId:   "test_user_id",
+			MenuCode: "",
+		},
+		alreadyOrderedCountToday: 5,
+		newOrderHistory: &myfirestore.OrderHistoryDoc{
+			UserId:   "test_user_id",
+			MenuCode: "black-tea",
+		},
+		expectedReplyMessage: "@テストユーザーさん、紅茶の注文を受け付けました🍽（本日6回目）",
+	},
+}
+
+func TestSystem_Order(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	menuDocs := []myfirestore.MenuDoc{
+		{
+			Code: "black-tea",
+			Name: "紅茶",
+		},
+		{
+			Code: "coffee",
+			Name: "コーヒー",
+		},
+	}
+	// メニューコードで昇順ソート
+	sort.Slice(menuDocs, func(i, j int) bool {
+		return menuDocs[i].Code < menuDocs[j].Code
+	})
+
+	for _, tt := range orderTestCases {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
+				DoAndReturn(
+					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
+						tx := &firestore.Transaction{}
+						return f(ctx, tx)
+					},
+				).AnyTimes()
+			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+
+			if tt.currentSeatDoc != nil {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			} else {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			}
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+
+			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().ReadAllMenuDocsOrderByCode(gomock.Any()).Return(menuDocs, nil).AnyTimes()
+			mockDB.EXPECT().CountUserOrdersOfTheDay(gomock.Any(), "test_user_id", gomock.Any()).Return(tt.alreadyOrderedCountToday, nil).AnyTimes()
+			mockDB.EXPECT().CreateOrderHistoryDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
+				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.NotNil(t, tt.currentSeatDoc.MenuCode)
+				return nil
+			}).MaxTimes(1)
+
+			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
+
+			system := core.System{
+				FirestoreController:      mockDB,
+				ProcessedUserId:          "test_user_id",
+				ProcessedUserIsMember:    tt.userIsMember,
+				LiveChatBot:              mockLiveChatBot,
+				ProcessedUserDisplayName: "テストユーザー",
+				Configs: &core.SystemConfigs{
+					Constants: tt.constantsConfig,
+				},
+				SortedMenuItems: menuDocs,
+			}
+
+			if err := i18n.LoadLocaleFolderFS(); err != nil {
+				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
+			}
+
+			// テスト対象の関数を実行
+			err := system.Order(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})

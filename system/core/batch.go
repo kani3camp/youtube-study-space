@@ -292,14 +292,14 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 
 func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	slog.Info(utils.NameOf(s.DailyOrganizeDB))
-	var lineMessage string
+	var ownerMessage string
 
 	slog.Info("一時的累計作業時間をリセット")
 	dailyResetCount, err := s.ResetDailyTotalStudyTime(ctx)
 	if err != nil {
 		return []string{}, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 	}
-	lineMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
+	ownerMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 
 	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
 	userIdsToProcessRP, err := s.GetUserIdsToProcessRP(ctx)
@@ -307,9 +307,9 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 		return []string{}, fmt.Errorf("in GetUserIdsToProcessRP(): %w", err)
 	}
 
-	lineMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
-	lineMessage += "\n本日のDailyOrganizeDatabase()処理が完了しました（RP更新処理以外）。"
-	s.MessageToOwner(lineMessage)
+	ownerMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
+	ownerMessage += "\n本日のDailyOrganizeDB()処理が完了しました（RP更新処理以外）。"
+	s.MessageToOwner(ownerMessage)
 	slog.Info("finished " + utils.NameOf(s.DailyOrganizeDB))
 	return userIdsToProcessRP, nil
 }
@@ -449,12 +449,13 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 		if err != nil {
 			return fmt.Errorf("in GetGcsYesterdayExportFolderName(): %w", err)
 		}
+		slog.Info("GCS folder name: " + gcsTargetFolderName)
 
 		if err := bqClient.ReadCollectionsFromGcs(
 			ctx,
 			gcsTargetFolderName,
 			s.Configs.Constants.GcsFirestoreExportBucketName,
-			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities},
+			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities, myfirestore.OrderHistory},
 		); err != nil {
 			return fmt.Errorf("in ReadCollectionsFromGcs(): %w", err)
 		}
@@ -468,12 +469,15 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			0, 0, 0, 0, retentionFromDate.Location())
 
 		// ライブチャット・ユーザー行動ログ削除
-		numRowsLiveChat, numRowsUserActivity, err := s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
+		numRowsLiveChat, numRowsUserActivity, numRowsOrderHistory, err := s.DeleteCollectionHistoryBeforeDate(ctx, retentionFromDate)
 		if err != nil {
 			return fmt.Errorf("in DeleteCollectionHistoryBeforeDate(): %w", err)
 		}
 		slog.Info(strconv.Itoa(int(retentionFromDate.Month()))+"月"+strconv.Itoa(retentionFromDate.Day())+
-			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。", "削除したライブチャット件数", numRowsLiveChat, "削除したユーザー行動ログ件数", numRowsUserActivity)
+			"日より前の日付のライブチャット履歴およびユーザー行動ログをFirestoreから削除しました。",
+			"削除したライブチャット件数", numRowsLiveChat,
+			"削除したユーザー行動ログ件数", numRowsUserActivity,
+			"削除した注文履歴件数", numRowsOrderHistory)
 
 		if err := s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now); err != nil {
 			return fmt.Errorf("in UpdateLastTransferCollectionHistoryBigquery(): %w", err)

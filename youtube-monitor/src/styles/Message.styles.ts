@@ -1,5 +1,6 @@
 import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
+import { fontFamily } from '../lib/common'
 
 export const shape = css`
     height: ${Constants.messageBarHeight}px;
@@ -32,7 +33,7 @@ export const pageIndex = css`
 `
 
 export const memberOnly = css`
-    font-family: ${Constants.seatFontFamily};
+    font-family: ${fontFamily};
     width: 2.5rem;
     margin-left: 1rem;
     padding: 0.1rem;

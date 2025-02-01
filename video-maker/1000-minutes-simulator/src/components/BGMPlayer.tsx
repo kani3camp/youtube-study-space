@@ -1,9 +1,10 @@
+import jsmediatags from 'jsmediatags'
 import { useTranslation } from 'next-i18next'
 import { FC, useEffect, useState } from 'react'
 import { BsFillPersonFill } from 'react-icons/bs'
 import { IoMdMusicalNotes } from 'react-icons/io'
 import { MdQueueMusic } from 'react-icons/md'
-import { getRandomBgm } from '../lib/common'
+import { getCurrentRandomBgm } from '../lib/bgm'
 import { OffsetSec } from '../pages'
 import * as styles from '../styles/BGMPlayer.styles'
 import * as common from '../styles/common.styles'
@@ -15,8 +16,8 @@ type Props = {
 const BGMPlayer: FC<Props> = (props) => {
     const { t } = useTranslation()
 
-    const [audioTitle, setAudioTitle] = useState('BGM Title')
-    const [audioArtist, setAudioArtist] = useState('BGM Artist')
+    const [audioTitle, setAudioTitle] = useState<string>(t('bgm.title'))
+    const [audioArtist, setAudioArtist] = useState<string>(t('bgm.artist'))
 
     const audioDivId = 'music'
 
@@ -28,7 +29,7 @@ const BGMPlayer: FC<Props> = (props) => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
         audio.addEventListener('ended', () => {
             setAudioTitle(t('bgm.title'))
-            setAudioArtist(t('bgm.title'))
+            setAudioArtist(t('bgm.artist'))
             audioNext()
         })
         audio.addEventListener('error', (event) => {
@@ -42,12 +43,30 @@ const BGMPlayer: FC<Props> = (props) => {
         }, OffsetSec * 1000)
     }
 
-    const audioNext = () => {
+    const audioNext = async () => {
         const audio = document.getElementById(audioDivId) as HTMLAudioElement
-        const bgm = getRandomBgm()
-        audio.src = bgm.file
-        setAudioTitle(bgm.title)
-        setAudioArtist(bgm.artist)
+        const bgm = await getCurrentRandomBgm()
+
+        audio.src = bgm
+        jsmediatags.read(audio.src, {
+            onSuccess(tag) {
+                const title = tag.tags.title
+                const artist = tag.tags.artist
+                setAudioTitle(
+                    title !== null && title !== undefined
+                        ? title
+                        : t('bgm.title')
+                )
+                setAudioArtist(
+                    artist !== null && artist !== undefined
+                        ? artist
+                        : t('bgm.artist')
+                )
+            },
+            onError(error) {
+                console.error(error)
+            },
+        })
         audio.volume = 0.3
         audio.addEventListener('loadeddata', () => {
             audio.play()

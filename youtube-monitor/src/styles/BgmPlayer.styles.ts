@@ -5,6 +5,7 @@ export const shape = css`
     height: ${Constants.screenHeight -
     Constants.clockHeight -
     Constants.usageHeight -
+    Constants.menuHeight -
     Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
@@ -14,7 +15,7 @@ export const shape = css`
 
 export const bgmPlayer = css`
     height: 90%;
-    width: 85%;
+    width: 90%;
     background-color: rgba(53, 49, 49, 0.3);
     position: absolute;
     text-align: center;
@@ -27,8 +28,11 @@ export const bgmPlayer = css`
 
     & h4 {
         text-align: right;
-        margin-inline-end: 1rem;
-        font-size: 0.6rem;
+        margin-inline-end: 0.5rem;
+        margin-block-start: 0.2rem;
+        margin-block-end: 0.2rem;
+        font-size: 0.5rem;
+        font-weight: lighter;
     }
 `
 

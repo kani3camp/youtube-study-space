@@ -23,11 +23,10 @@ export const Constants = {
     sideBarWidth: 400,
     messageBarHeight: 80,
     clockHeight: 160,
-    usageHeight: 390,
-    timerHeight: 330,
-    fontFamily: "'M PLUS Rounded 1c', sans-serif",
+    usageHeight: 315,
+    menuHeight: 310,
+    timerHeight: 210,
     breakBadgeZIndex: 10,
-    seatFontFamily: "'M PLUS Rounded 1c', sans-serif",
     bgmVolume: DEBUG ? 0.1 : 0.3,
     chimeVolume: 0.7,
     chimeSingleFilePath: '/chime/chime1.mp3',
@@ -39,6 +38,7 @@ export const Constants = {
     memberSeatWorkNameWidthPercent: 60,
     memberBigIconSize: 57.598,
     memberSmallIconSize: 38.391,
+    menuIconSize: 45,
 }
 
 export const debug = false

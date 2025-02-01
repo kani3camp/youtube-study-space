@@ -9,7 +9,7 @@ const Usage: FC = () => {
     return (
         <div css={[styles.shape, componentBackground]}>
             <div css={[styles.usage, componentStyle]}>
-                <h3 css={styles.description}>{t('usage.description')}</h3>
+                <h4 css={styles.description}>{t('usage.description')}</h4>
 
                 <div css={styles.seat}>
                     <div css={styles.seatId}>{t('usage.seat.id')}</div>
@@ -18,13 +18,13 @@ const Usage: FC = () => {
                 </div>
 
                 <div>
-                    <div>
+                    <div css={styles.command}>
+                        <span css={styles.commandCode}>!in</span>
                         <span>{t('usage.in')}</span>
-                        <span css={styles.commandString}>!in</span>
                     </div>
-                    <div>
+                    <div css={styles.command}>
+                        <span css={styles.commandCode}>!out</span>
                         <span>{t('usage.out')}</span>
-                        <span css={styles.commandString}>!out</span>
                     </div>
                 </div>
             </div>
