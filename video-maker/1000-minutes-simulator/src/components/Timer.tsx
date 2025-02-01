@@ -17,17 +17,17 @@ import * as styles from '../styles/Timer.styles'
 import * as common from '../styles/common.styles'
 import 'react-circular-progressbar/dist/styles.css'
 
+const AUDIO_FILES = {
+	CHIME1: '/audio/chime/chime1.mp3',
+	CHIME2: '/audio/chime/chime2.mp3',
+} as const
+
 type Props = {
 	elapsedSeconds: number
 }
 
 const Timer: FC<Props> = (props) => {
 	const { t } = useTranslation()
-
-	const AUDIO_FILES = {
-		CHIME1: '/audio/chime/chime1.mp3',
-		CHIME2: '/audio/chime/chime2.mp3',
-	} as const
 
 	const chime1DivId = 'chime1'
 	const chime2DivId = 'chime2'

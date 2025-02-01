@@ -14,14 +14,14 @@ const CurrentColor: FC<Props> = (props) => {
 	const { t } = useTranslation()
 
 	let currentColorCode = 'inherit'
-	ranks.forEach((rank: Rank) => {
+	for (const rank of ranks) {
 		if (
 			rank.FromHours <= props.elapsedMinutes &&
 			props.elapsedMinutes < rank.ToHours
 		) {
 			currentColorCode = rank.ColorCode
 		}
-	})
+	}
 
 	return (
 		<div css={styles.currentColor}>
