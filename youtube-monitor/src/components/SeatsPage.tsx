@@ -46,10 +46,13 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 	const seatFontSizePx =
 		roomShape.widthPx * propsMemo.roomLayout.font_size_ratio
 
-	const seatShape = {
-		widthPx: propsMemo.roomLayout.seat_shape.width * scale,
-		heightPx: propsMemo.roomLayout.seat_shape.height * scale,
-	}
+	const seatShape = useMemo(
+		() => ({
+			widthPx: propsMemo.roomLayout.seat_shape.width * scale,
+			heightPx: propsMemo.roomLayout.seat_shape.height * scale,
+		}),
+		[propsMemo.roomLayout.seat_shape, scale],
+	)
 
 	const seatPositions = useMemo(
 		() =>
@@ -90,9 +93,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 		],
 	)
 
-	const seatWithSeatId = (seatId: number, seats: Seat[]) => {
-		return seats.find((seat) => seat.seat_id === seatId) ?? seats[0]
-	}
+	const seatWithSeatId = useMemo(
+		() => (seatId: number, seats: Seat[]) => {
+			return seats.find((seat) => seat.seat_id === seatId) ?? seats[0]
+		},
+		[],
+	)
 
 	const partitionPositions = propsMemo.roomLayout.partitions.map(
 		(partition) => ({
@@ -134,7 +140,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						key={globalSeatId}
 						globalSeatId={globalSeatId}
 						isUsed={isUsed}
-						memberOnly={props.memberOnly}
+						memberOnly={propsMemo.memberOnly}
 						processingSeat={processingSeat}
 						seatPosition={seatPositions[index]}
 						seatShape={seatShape}
@@ -153,6 +159,11 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 			propsMemo.firstSeatId,
 			seatPositions,
 			roomShape,
+			propsMemo.memberOnly,
+			seatShape,
+			usedSeatIds,
+			seatFontSizePx,
+			seatWithSeatId,
 		],
 	)
 

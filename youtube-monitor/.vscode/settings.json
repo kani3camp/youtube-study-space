@@ -2,7 +2,6 @@
 	"editor.defaultFormatter": "biomejs.biome",
 	"editor.formatOnPaste": false,
 	"editor.formatOnSave": true,
-	"eslint.format.enable": false,
 	"files.eol": "\n",
 	"editor.tabSize": 4,
 	"typescript.suggest.autoImports": true,

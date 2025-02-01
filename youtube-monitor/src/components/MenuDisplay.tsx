@@ -7,7 +7,7 @@ import {
 	query,
 } from 'firebase/firestore'
 import { useTranslation } from 'next-i18next'
-import { type FC, useEffect, useMemo, useState } from 'react'
+import { type FC, useEffect, useMemo, useState, useCallback } from 'react'
 import { useInterval } from '../lib/common'
 import { firestoreMenuConverter, getFirebaseConfig } from '../lib/firestore'
 import * as styles from '../styles/Menu.styles'
@@ -63,20 +63,7 @@ const MenuDisplay: FC = () => {
 		}
 	}, [menuQuery])
 
-	useEffect(() => {
-		updateMenuItems()
-	}, [latestMenuItems])
-
-	useInterval(() => {
-		refreshPageIndex()
-	}, PAGING_INTERVAL_SEC * 1000)
-
-	useEffect(() => {
-		console.log('[currentMenuPageIndex]:', pageIndex)
-		changePage(pageIndex)
-	}, [pageIndex])
-
-	const updateMenuItems = async () => {
+	const updateMenuItems = useCallback(async () => {
 		const menuItemAndImages = await Promise.all(
 			latestMenuItems.map(async (item: Menu) => {
 				let imageUrl = `/images/menu/${item.code}.svg`
@@ -98,7 +85,20 @@ const MenuDisplay: FC = () => {
 		}
 		setMenuBoxList(menuBoxList)
 		console.log(menuBoxList)
-	}
+	}, [latestMenuItems])
+
+	useEffect(() => {
+		updateMenuItems()
+	}, [updateMenuItems])
+
+	useInterval(() => {
+		refreshPageIndex()
+	}, PAGING_INTERVAL_SEC * 1000)
+
+	useEffect(() => {
+		console.log('[currentMenuPageIndex]:', pageIndex)
+		changePage(pageIndex)
+	}, [pageIndex])
 
 	const refreshPageIndex = () => {
 		if (latestMenuItems.length > 0) {

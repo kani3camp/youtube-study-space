@@ -79,11 +79,12 @@ const Seats: FC = () => {
 				}
 			}
 		}
-	}, [router.query.page, pageProps.length])
+	}, [router, pageProps.length])
 
 	/**
 	 * 入室状況もしくはレイアウト編成に変更があったら、全ページを更新する。
 	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定しています
 	useEffect(() => {
 		updatePageProps()
 	}, [
@@ -94,27 +95,15 @@ const Seats: FC = () => {
 	])
 
 	/**
-	 * 入室状況に変更があったら、座席数を見直す。
+	 * 入室状況やシステム設定が変更されたら、座席数を見直す。
+	 * システム設定（max_seats, min_vacancy_rate等）は、システム管理者が手動で更新しない限り初期化時のみ変更される。
 	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定しています
 	useEffect(() => {
-		reviewMaxSeats(
-			latestMinVacancyRate,
-			latestYoutubeMembershipEnabled,
-			latestFixedMaxSeatsEnabled,
-		)
-	}, [latestGeneralSeats, latestMemberSeats])
-
-	/**
-	 * 許容空席率もしくはmax_seatsが変更されたら、座席数の見直しを行う。
-	 * システム管理者が手動で更新しない限り、各変数の初期化時のみ実行される。
-	 */
-	useEffect(() => {
-		reviewMaxSeats(
-			latestMinVacancyRate,
-			latestYoutubeMembershipEnabled,
-			latestFixedMaxSeatsEnabled,
-		)
+		reviewMaxSeats()
 	}, [
+		latestGeneralSeats,
+		latestMemberSeats,
 		latestGeneralMaxSeats,
 		latestMemberMaxSeats,
 		latestMinVacancyRate,
@@ -234,26 +223,26 @@ const Seats: FC = () => {
 	 * 座席数の見直しを行う。
 	 * 座席数の増減が必要な場合は、APIにリクエストを送信し、ルーム数を調整する。
 	 */
-	const reviewMaxSeats = async (
-		min_vacancy_rate: number | undefined,
-		membership_enabled: boolean,
-		fixed_max_seats_enabled: boolean | undefined,
-	) => {
+	const reviewMaxSeats = async () => {
+		// 関数の開始時に全ての状態のスナップショットを取る
 		const snapshotGeneralMaxSeats = latestGeneralMaxSeats
 		const snapshotGeneralSeats = [...latestGeneralSeats]
 		const snapshotMemberMaxSeats = latestMemberMaxSeats
 		const snapshotMemberSeats = [...latestMemberSeats]
+		const snapshotMinVacancyRate = latestMinVacancyRate
+		const snapshotMembershipEnabled = latestYoutubeMembershipEnabled
+		const snapshotFixedMaxSeatsEnabled = latestFixedMaxSeatsEnabled
 
 		if (
 			snapshotGeneralMaxSeats === undefined ||
 			snapshotMemberMaxSeats === undefined ||
-			min_vacancy_rate === undefined ||
-			fixed_max_seats_enabled === undefined
+			snapshotMinVacancyRate === undefined ||
+			snapshotFixedMaxSeatsEnabled === undefined
 		) {
 			return
 		}
 
-		if (fixed_max_seats_enabled) {
+		if (snapshotFixedMaxSeatsEnabled) {
 			const numSeatsGeneralBasicRooms = numSeatsInGeneralAllBasicRooms()
 			const numSeatsMemberBasicRooms = numSeatsInMemberAllBasicRooms()
 			if (
@@ -277,7 +266,7 @@ const Seats: FC = () => {
 			// まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
 			let finalDesiredGeneralMaxSeats: number
 			const generalMinSeatsByVacancyRate = Math.ceil(
-				snapshotGeneralSeats.length / (1 - min_vacancy_rate),
+				snapshotGeneralSeats.length / (1 - snapshotMinVacancyRate),
 			)
 			// もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
 			if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
@@ -299,9 +288,9 @@ const Seats: FC = () => {
 
 			// MEMBER
 			let finalDesiredMemberMaxSeats: number
-			if (membership_enabled) {
+			if (snapshotMembershipEnabled) {
 				const memberMinSeatsByVacancyRate = Math.ceil(
-					snapshotMemberSeats.length / (1 - min_vacancy_rate),
+					snapshotMemberSeats.length / (1 - snapshotMinVacancyRate),
 				)
 				// もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
 				if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
@@ -347,7 +336,7 @@ const Seats: FC = () => {
 		// 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
 		const nextGeneralLayouts: RoomLayout[] = [...allRooms.generalBasicRooms] // まずは基本ルームを設定
 		if (
-			!fixed_max_seats_enabled &&
+			!snapshotFixedMaxSeatsEnabled &&
 			snapshotGeneralMaxSeats > numSeatsInGeneralAllBasicRooms()
 		) {
 			let currentAddingLayoutIndex = 0
@@ -363,10 +352,10 @@ const Seats: FC = () => {
 		}
 		setGeneralLayouts(nextGeneralLayouts)
 
-		if (membership_enabled) {
+		if (snapshotMembershipEnabled) {
 			const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
 			if (
-				!fixed_max_seats_enabled &&
+				!snapshotFixedMaxSeatsEnabled &&
 				snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()
 			) {
 				let currentAddingLayoutIndex = 0
@@ -414,6 +403,7 @@ const Seats: FC = () => {
 		const snapshotGeneralSeats = [...latestGeneralSeats]
 		const snapshotMemberSeats = [...latestMemberSeats]
 		const snapshotCurrentPageIndex = currentPageIndex
+		const snapshotYoutubeMembershipEnabled = latestYoutubeMembershipEnabled
 
 		let sumSeatsGeneral = 0
 		let sumSeatsMember = 0
@@ -454,7 +444,7 @@ const Seats: FC = () => {
 		)
 
 		let newPageProps: LayoutPageProps[] = [...newGeneralPageProps]
-		if (latestYoutubeMembershipEnabled) {
+		if (snapshotYoutubeMembershipEnabled) {
 			const newMemberPageProps: LayoutPageProps[] = snapshotMemberLayouts.map(
 				mapFunc(true),
 			)
@@ -492,13 +482,7 @@ const Seats: FC = () => {
 				seats={latestGeneralSeats.concat(latestMemberSeats)}
 			/>
 		),
-		[
-			currentPageIndex,
-			latestGeneralLayouts,
-			latestGeneralSeats,
-			latestMemberSeats,
-			pageProps,
-		],
+		[currentPageIndex, latestGeneralSeats, latestMemberSeats, pageProps],
 	)
 
 	if (pageProps.length > 0) {

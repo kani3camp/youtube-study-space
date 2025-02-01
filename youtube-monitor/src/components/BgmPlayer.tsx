@@ -1,7 +1,7 @@
 import { Wave } from '@foobar404/wave'
 import jsmediatags from 'jsmediatags'
 import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
 import { SectionType, getCurrentSection } from '../lib/time-table'
@@ -39,7 +39,7 @@ const BgmPlayer: React.FC = () => {
 		}
 	}
 
-	const updateState = () => {
+	const updateState = useCallback(() => {
 		const currentSection = getCurrentSection()
 
 		// 休憩時間から作業時間に変わるタイミングでチャイムを再生
@@ -57,21 +57,7 @@ const BgmPlayer: React.FC = () => {
 			playChimeDouble()
 		}
 		setLastSectionType(currentSection.sectionType)
-	}
-
-	const audioStart = () => {
-		const audio = document.getElementById(audioDivId) as HTMLAudioElement
-		audio.addEventListener('ended', () => {
-			setAudioTitle('BGM TITLE')
-			setAudioArtist('BGM ARTIST')
-			audioNext()
-		})
-		audio.addEventListener('error', () => {
-			console.error(`Error loading audio file: ${audio.src}`)
-			audioNext()
-		})
-		audioNext()
-	}
+	}, [lastSectionType])
 
 	type ID3Tag = {
 		tags: {
@@ -80,7 +66,7 @@ const BgmPlayer: React.FC = () => {
 		}
 	}
 
-	const audioNext = async () => {
+	const audioNext = useCallback(async () => {
 		const audio = document.getElementById(audioDivId) as HTMLAudioElement
 
 		const bgm = await getCurrentRandomBgm()
@@ -103,7 +89,21 @@ const BgmPlayer: React.FC = () => {
 		audio.volume = Constants.bgmVolume
 
 		audio.play()
-	}
+	}, [])
+
+	const audioStart = useCallback(() => {
+		const audio = document.getElementById(audioDivId) as HTMLAudioElement
+		audio.addEventListener('ended', () => {
+			setAudioTitle('BGM TITLE')
+			setAudioArtist('BGM ARTIST')
+			audioNext()
+		})
+		audio.addEventListener('error', () => {
+			console.error(`Error loading audio file: ${audio.src}`)
+			audioNext()
+		})
+		audioNext()
+	}, [audioNext])
 
 	const stop = () => {
 		const audio = document.getElementById(audioDivId) as HTMLAudioElement
@@ -152,14 +152,14 @@ const BgmPlayer: React.FC = () => {
 
 			waveRef.current = wave
 		}
-	}, [])
+	}, [audioStart])
 
 	useEffect(() => {
 		const intervalId = setInterval(() => updateState(), 1000)
 		return () => {
 			clearInterval(intervalId)
 		}
-	}, [updateState, audioStart, audioNext, stop])
+	}, [updateState])
 
 	return (
 		<div css={[styles.shape, componentBackground]}>
