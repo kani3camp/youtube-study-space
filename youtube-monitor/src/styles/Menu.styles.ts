@@ -40,7 +40,7 @@ export const listItem = css`
 export const itemImage = css``
 
 export const image = css`
-    aspect-ratio: 1/1;
+    position: relative;
 `
 
 export const name = css`

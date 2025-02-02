@@ -17,14 +17,18 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
 	const imageList = [propsMemo.first, propsMemo.second].map(
 		(itemAndImage) =>
 			itemAndImage && (
-				<Image
+				<div
 					key={itemAndImage.item.code}
-					src={itemAndImage.imageUrl}
-					alt="menu item"
-					width={90}
-					height={90}
 					css={[styles.listItem, styles.image]}
-				/>
+					style={{ width: '90px', height: '90px' }}
+				>
+					<Image
+						src={itemAndImage.imageUrl}
+						alt="menu item"
+						fill
+						style={{ objectFit: 'contain' }}
+					/>
+				</div>
 			),
 	)
 
