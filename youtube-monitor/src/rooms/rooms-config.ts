@@ -1,5 +1,5 @@
 import { ROOM_CONFIG } from '../lib/constants'
-import { RoomLayout } from '../types/room-layout'
+import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
@@ -23,85 +23,99 @@ import { takochanRoom } from './layouts/takochan-room'
 import { ver2Room } from './layouts/ver2'
 
 type AllRoomsConfig = {
-    generalBasicRooms: RoomLayout[]
-    generalTemporaryRooms: RoomLayout[]
-    memberBasicRooms: RoomLayout[]
-    memberTemporaryRooms: RoomLayout[]
+	generalBasicRooms: RoomLayout[]
+	generalTemporaryRooms: RoomLayout[]
+	memberBasicRooms: RoomLayout[]
+	memberTemporaryRooms: RoomLayout[]
 }
 
 const prodAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [Chabio2Room, Freepik7Room, Freepik1Room, Freepik4Room],
-    generalTemporaryRooms: [Chabio1Room, Freepik3Room, Freepik2Room, Chabio2Room, Freepik5Room],
-    memberBasicRooms: [MemberBoxRooms2, MemberIllustratedRoomChristmas, MemberIllustratedRoom1],
-    memberTemporaryRooms: [MemberBoxRooms2, MemberIllustratedRoomChristmas, MemberIllustratedRoom1],
+	generalBasicRooms: [Chabio2Room, Freepik7Room, Freepik1Room, Freepik4Room],
+	generalTemporaryRooms: [
+		Chabio1Room,
+		Freepik3Room,
+		Freepik2Room,
+		Chabio2Room,
+		Freepik5Room,
+	],
+	memberBasicRooms: [
+		MemberBoxRooms2,
+		MemberIllustratedRoomChristmas,
+		MemberIllustratedRoom1,
+	],
+	memberTemporaryRooms: [
+		MemberBoxRooms2,
+		MemberIllustratedRoomChristmas,
+		MemberIllustratedRoom1,
+	],
 }
 
 const testAllRooms: AllRoomsConfig = {
-    generalBasicRooms: [
-        Chabio2Room,
-        Freepik7Room,
-        circleRoom,
-        HimajinRoom,
-        classRoom,
-        ver2Room,
-        takochanRoom,
-        SeaOfSeatRoom,
-        oneSeatRoom,
-    ],
-    generalTemporaryRooms: [
-        Chabio1Room,
-        Freepik3Room,
-        classRoom,
-        Freepik2Room,
-        Chabio2Room,
-        circleRoom,
-        Freepik5Room,
-        SeaOfSeatRoom,
-    ],
-    memberBasicRooms: [],
-    memberTemporaryRooms: [],
+	generalBasicRooms: [
+		Chabio2Room,
+		Freepik7Room,
+		circleRoom,
+		HimajinRoom,
+		classRoom,
+		ver2Room,
+		takochanRoom,
+		SeaOfSeatRoom,
+		oneSeatRoom,
+	],
+	generalTemporaryRooms: [
+		Chabio1Room,
+		Freepik3Room,
+		classRoom,
+		Freepik2Room,
+		Chabio2Room,
+		circleRoom,
+		Freepik5Room,
+		SeaOfSeatRoom,
+	],
+	memberBasicRooms: [],
+	memberTemporaryRooms: [],
 }
 
 const otomeGameCafeRooms: AllRoomsConfig = {
-    generalBasicRooms: [OtomeGameCafeRoom1, OtomeGameCafeRoom2],
-    generalTemporaryRooms: [
-        Anonymous1Room,
-        Chabio1Room,
-        Freepik1Room,
-        Freepik4Room,
-        Freepik3Room,
-        Freepik2Room,
-        Chabio2Room,
-        Freepik5Room,
-    ],
-    memberBasicRooms: [],
-    memberTemporaryRooms: [],
+	generalBasicRooms: [OtomeGameCafeRoom1, OtomeGameCafeRoom2],
+	generalTemporaryRooms: [
+		Anonymous1Room,
+		Chabio1Room,
+		Freepik1Room,
+		Freepik4Room,
+		Freepik3Room,
+		Freepik2Room,
+		Chabio2Room,
+		Freepik5Room,
+	],
+	memberBasicRooms: [],
+	memberTemporaryRooms: [],
 }
 
 export const allRooms: AllRoomsConfig = (function getAllRooms() {
-    switch (ROOM_CONFIG) {
-        case 'PROD':
-            return prodAllRooms
-        case 'DEV':
-            return testAllRooms
-        case 'OTOME-GAME-CAFE':
-            return otomeGameCafeRooms
-        default:
-            throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
-    }
+	switch (ROOM_CONFIG) {
+		case 'PROD':
+			return prodAllRooms
+		case 'DEV':
+			return testAllRooms
+		case 'OTOME-GAME-CAFE':
+			return otomeGameCafeRooms
+		default:
+			throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
+	}
 })()
 
 export const numSeatsInGeneralAllBasicRooms = (): number => {
-    let numSeatsBasicRooms = 0
-    for (const room of allRooms.generalBasicRooms) {
-        numSeatsBasicRooms += room.seats.length
-    }
-    return numSeatsBasicRooms
+	let numSeatsBasicRooms = 0
+	for (const room of allRooms.generalBasicRooms) {
+		numSeatsBasicRooms += room.seats.length
+	}
+	return numSeatsBasicRooms
 }
 export const numSeatsInMemberAllBasicRooms = (): number => {
-    let numSeatsBasicRooms = 0
-    for (const room of allRooms.memberBasicRooms) {
-        numSeatsBasicRooms += room.seats.length
-    }
-    return numSeatsBasicRooms
+	let numSeatsBasicRooms = 0
+	for (const room of allRooms.memberBasicRooms) {
+		numSeatsBasicRooms += room.seats.length
+	}
+	return numSeatsBasicRooms
 }

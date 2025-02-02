@@ -1,12 +1,12 @@
 import { css } from '@emotion/react'
 import {
-    TimerHeight,
-    TimerWidth,
-    basicCell,
-    basicInnerCell,
-    OuterMargin,
-    InnerMargin,
-    iconBase,
+	InnerMargin,
+	OuterMargin,
+	TimerHeight,
+	TimerWidth,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 const stateFontSize = 40

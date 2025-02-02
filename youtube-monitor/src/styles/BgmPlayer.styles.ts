@@ -2,11 +2,13 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: ${Constants.screenHeight -
-    Constants.clockHeight -
-    Constants.usageHeight -
-    Constants.menuHeight -
-    Constants.timerHeight}px;
+    height: ${
+			Constants.screenHeight -
+			Constants.clockHeight -
+			Constants.usageHeight -
+			Constants.menuHeight -
+			Constants.timerHeight
+		}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
     right: 0;
