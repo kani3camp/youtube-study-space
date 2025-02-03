@@ -34,7 +34,7 @@ export const bgmPlayer = css`
         margin-block-start: 0.2rem;
         margin-block-end: 0.2rem;
         font-size: 0.5rem;
-        font-weight: lighter;
+        font-weight: normal;
     }
 `
 
