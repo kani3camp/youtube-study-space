@@ -3,24 +3,19 @@ import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
-import { circleRoom } from './layouts/circle-room'
-import { classRoom } from './layouts/classroom'
 import { Freepik1Room } from './layouts/freepik1-room'
 import { Freepik2Room } from './layouts/freepik2-room'
 import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik4Room } from './layouts/freepik4-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
-import { HimajinRoom } from './layouts/himajin-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
+import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
 import { MemberIllustratedRoomChristmas } from './layouts/member-illustrated-room-christmas'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
-import { oneSeatRoom } from './layouts/one-seat-room'
 import { OtomeGameCafeRoom1 } from './layouts/otome-game-cafe-room-1'
 import { OtomeGameCafeRoom2 } from './layouts/otome-game-cafe-room-2'
 import { SeaOfSeatRoom } from './layouts/sea-of-seat-room'
-import { takochanRoom } from './layouts/takochan-room'
-import { ver2Room } from './layouts/ver2'
 
 type AllRoomsConfig = {
 	generalBasicRooms: RoomLayout[]
@@ -51,27 +46,8 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [
-		Chabio2Room,
-		Freepik7Room,
-		circleRoom,
-		HimajinRoom,
-		classRoom,
-		ver2Room,
-		takochanRoom,
-		SeaOfSeatRoom,
-		oneSeatRoom,
-	],
-	generalTemporaryRooms: [
-		Chabio1Room,
-		Freepik3Room,
-		classRoom,
-		Freepik2Room,
-		Chabio2Room,
-		circleRoom,
-		Freepik5Room,
-		SeaOfSeatRoom,
-	],
+	generalBasicRooms: [MemberBoxRooms3],
+	generalTemporaryRooms: [SeaOfSeatRoom],
 	memberBasicRooms: [],
 	memberTemporaryRooms: [],
 }
