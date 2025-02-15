@@ -1,12 +1,12 @@
 import { css } from '@emotion/react'
 import {
-    iconBase,
-    basicCell,
-    basicInnerCell,
-    BGMPlayerHeight,
-    BGMPlayerWidth,
-    InnerMargin,
-    OuterMargin,
+	BGMPlayerHeight,
+	BGMPlayerWidth,
+	InnerMargin,
+	OuterMargin,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 export const bgmPlayer = css`

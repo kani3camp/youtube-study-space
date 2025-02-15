@@ -1,10 +1,10 @@
 import { css } from '@emotion/react'
 import {
-    basicCell,
-    basicInnerCell,
-    InnerMargin,
-    OuterMargin,
-    iconBase,
+	InnerMargin,
+	OuterMargin,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 export const elapsed = css`

@@ -1,12 +1,12 @@
 import { css } from '@emotion/react'
 import {
-    basicCell,
-    ColorBoxHeight,
-    ColorBoxWidth,
-    basicInnerCell,
-    OuterMargin,
-    InnerMargin,
-    iconBase,
+	ColorBoxHeight,
+	ColorBoxWidth,
+	InnerMargin,
+	OuterMargin,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 export const currentColor = css`

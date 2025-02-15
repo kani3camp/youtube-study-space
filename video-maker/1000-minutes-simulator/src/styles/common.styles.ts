@@ -28,7 +28,7 @@ export const ElapsedLeft = TimerWidth
 
 export const CurrentColorHeight = TimerHeight
 export const CurrentColorWidth =
-    ScreenWidth - TimerWidth - ElapsedWidth - GaugeWidth
+	ScreenWidth - TimerWidth - ElapsedWidth - GaugeWidth
 export const CurrentColorLeft = TimerWidth + ElapsedWidth
 export const ColorBoxHeight = 150
 export const ColorBoxWidth = 150

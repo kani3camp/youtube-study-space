@@ -2,11 +2,13 @@ import { css } from '@emotion/react'
 import { Constants } from '../lib/constants'
 
 export const shape = css`
-    height: ${Constants.screenHeight -
-    Constants.clockHeight -
-    Constants.usageHeight -
-    Constants.menuHeight -
-    Constants.timerHeight}px;
+    height: ${
+			Constants.screenHeight -
+			Constants.clockHeight -
+			Constants.usageHeight -
+			Constants.menuHeight -
+			Constants.timerHeight
+		}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
     right: 0;
@@ -32,7 +34,7 @@ export const bgmPlayer = css`
         margin-block-start: 0.2rem;
         margin-block-end: 0.2rem;
         font-size: 0.5rem;
-        font-weight: lighter;
+        font-weight: normal;
     }
 `
 

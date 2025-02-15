@@ -1,7 +1,7 @@
 [
-    {
-        "tips": "첫번째 팁",
-        "name": "이름 칸",
-        "annotation": "코멘트 란 lorem ipsum ...."
-    }
+	{
+		"tips": "첫번째 팁",
+		"name": "이름 칸",
+		"annotation": "코멘트 란 lorem ipsum ...."
+	}
 ]

@@ -1,16 +1,14 @@
 {
-    "recommendations": [
-        "dbaeumer.vscode-eslint",
-        "ms-azuretools.vscode-docker",
-        "christian-kohler.npm-intellisense",
-        "esbenp.prettier-vscode",
-        "mechatroner.rainbow-csv",
-        "stylelint.vscode-stylelint",
-        "redhat.vscode-yaml",
-        "streetsidesoftware.code-spell-checker",
-        "antiantisepticeye.vscode-color-picker",
-        "styled-components.vscode-styled-components",
-        "orta.vscode-jest",
-        "firsttris.vscode-jest-runner"
-    ]
+	"recommendations": [
+		"ms-azuretools.vscode-docker",
+		"christian-kohler.npm-intellisense",
+		"mechatroner.rainbow-csv",
+		"redhat.vscode-yaml",
+		"streetsidesoftware.code-spell-checker",
+		"antiantisepticeye.vscode-color-picker",
+		"styled-components.vscode-styled-components",
+		"firsttris.vscode-jest-runner",
+		"biomejs.biome",
+		"wakatime.vscode-wakatime"
+	]
 }

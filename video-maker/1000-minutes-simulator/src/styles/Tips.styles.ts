@@ -1,11 +1,11 @@
 import { css } from '@emotion/react'
 import {
-    basicCell,
-    basicInnerCell,
-    InnerMargin,
-    OuterMargin,
-    iconBase,
-    TipsTextFontFamily,
+	InnerMargin,
+	OuterMargin,
+	TipsTextFontFamily,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 const TipsTextFontSize = 35
