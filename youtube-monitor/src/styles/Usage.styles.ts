@@ -1,6 +1,6 @@
 import { css } from '@emotion/react'
-import { Constants } from '../lib/constants'
 import { sourceCodeProFontFamily } from '../lib/common'
+import { Constants } from '../lib/constants'
 
 export const shape = css`
     height: ${Constants.usageHeight}px;
