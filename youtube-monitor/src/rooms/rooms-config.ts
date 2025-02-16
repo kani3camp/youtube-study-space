@@ -33,14 +33,10 @@ const prodAllRooms: AllRoomsConfig = {
 		Chabio2Room,
 		Freepik5Room,
 	],
-	memberBasicRooms: [
-		MemberBoxRooms2,
-		MemberIllustratedRoomChristmas,
-		MemberIllustratedRoom1,
-	],
+	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, MemberIllustratedRoom1],
 	memberTemporaryRooms: [
 		MemberBoxRooms2,
-		MemberIllustratedRoomChristmas,
+		MemberBoxRooms3,
 		MemberIllustratedRoom1,
 	],
 }
