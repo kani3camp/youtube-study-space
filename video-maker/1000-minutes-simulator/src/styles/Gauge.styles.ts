@@ -1,12 +1,12 @@
 import { css } from '@emotion/react'
 import {
-    basicCell,
-    basicInnerCell,
-    GaugeHeight,
-    GaugeWidth,
-    InnerMargin,
-    OuterMargin,
-    iconBase,
+	GaugeHeight,
+	GaugeWidth,
+	InnerMargin,
+	OuterMargin,
+	basicCell,
+	basicInnerCell,
+	iconBase,
 } from './common.styles'
 
 export const gauge = css`

@@ -227,7 +227,7 @@ func (s *System) ValidateOrder(command utils.CommandDetails) string {
 		num := command.OrderOption.IntValue
 		expect := 0 < num && num <= len(s.SortedMenuItems)
 		if !expect {
-			return i18n.T("validate:invalid-menu-number-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin)
+			return i18n.T("validate:invalid-menu-number-range", len(s.SortedMenuItems))
 		}
 	}
 
