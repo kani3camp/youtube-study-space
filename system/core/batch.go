@@ -3,8 +3,8 @@ package core
 import (
 	"app.modules/core/i18n"
 	"app.modules/core/mybigquery"
-	"app.modules/core/myfirestore"
 	"app.modules/core/mystorage"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
@@ -48,7 +48,7 @@ func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
 
 func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) error {
 	jstNow := utils.JstNow()
-	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredUntil(ctx, jstNow, isMemberRoom)
+	candidateSeatsSnapshot, err := s.Repository.ReadSeatsExpiredUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredUntil(): %w", err)
 	}
@@ -60,7 +60,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
-			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
+			seat, err := s.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -73,7 +73,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 				return nil
 			}
 
-			userDoc, err := s.FirestoreController.ReadUser(ctx, tx, s.ProcessedUserId)
+			userDoc, err := s.Repository.ReadUser(ctx, tx, s.ProcessedUserId)
 			if err != nil {
 				return fmt.Errorf("in ReadUser(): %w", err)
 			}
@@ -116,7 +116,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 
 func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error {
 	jstNow := utils.JstNow()
-	candidateSeatsSnapshot, err := s.FirestoreController.ReadSeatsExpiredBreakUntil(ctx, jstNow, isMemberRoom)
+	candidateSeatsSnapshot, err := s.Repository.ReadSeatsExpiredBreakUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredBreakUntil(): %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
-			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
+			seat, err := s.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -141,7 +141,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 				return nil
 			}
 
-			resume := seat.State == myfirestore.BreakState && seat.CurrentStateUntil.Before(utils.JstNow())
+			resume := seat.State == repository.BreakState && seat.CurrentStateUntil.Before(utils.JstNow())
 
 			// 以下書き込みのみ
 
@@ -155,22 +155,22 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 					dailyCumulativeWorkSec = 0
 				}
 
-				seat.State = myfirestore.WorkState
+				seat.State = repository.WorkState
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
 				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
-				if err := s.FirestoreController.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
+				if err := s.Repository.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)
 				}
 				// activityログ記録
-				endBreakActivity := myfirestore.UserActivityDoc{
+				endBreakActivity := repository.UserActivityDoc{
 					UserId:       s.ProcessedUserId,
-					ActivityType: myfirestore.EndBreakActivity,
+					ActivityType: repository.EndBreakActivity,
 					SeatId:       seat.SeatId,
 					IsMemberSeat: isMemberRoom,
 					TakenAt:      utils.JstNow(),
 				}
-				if err := s.FirestoreController.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
+				if err := s.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
 				}
 				var seatIdStr string
@@ -199,7 +199,7 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 	jstNow := utils.JstNow()
 	// white list
 	for {
-		iter := s.FirestoreController.Get500SeatLimitsAfterUntilInWHITEList(ctx, jstNow, isMemberRoom)
+		iter := s.Repository.Get500SeatLimitsAfterUntilInWHITEList(ctx, jstNow, isMemberRoom)
 		count, err := s.DeleteIteratorDocs(ctx, iter)
 		if err != nil {
 			return fmt.Errorf("in DeleteIteratorDocs(): %w", err)
@@ -211,7 +211,7 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 
 	// black list
 	for {
-		iter := s.FirestoreController.Get500SeatLimitsAfterUntilInBLACKList(ctx, jstNow, isMemberRoom)
+		iter := s.Repository.Get500SeatLimitsAfterUntilInBLACKList(ctx, jstNow, isMemberRoom)
 		count, err := s.DeleteIteratorDocs(ctx, iter)
 		if err != nil {
 			return fmt.Errorf("in DeleteIteratorDocs(): %w", err)
@@ -223,7 +223,7 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 	return nil
 }
 
-func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfirestore.SeatDoc, isMemberSeat bool) error {
+func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []repository.SeatDoc, isMemberSeat bool) error {
 	slog.Info(utils.NameOf(s.OrganizeDBForceMove), "isMemberSeat", isMemberSeat, "len(seatsSnapshot)", len(seatsSnapshot))
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
@@ -231,7 +231,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []myfire
 			s.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberSeat)
 
 			// 現在も存在しているか
-			seat, err := s.FirestoreController.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberSeat)
+			seat, err := s.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberSeat)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -321,7 +321,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	now := utils.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !utils.DateEqualJST(now, previousDate)
 	if isDifferentDay && now.After(previousDate) {
-		userIter := s.FirestoreController.GetAllNonDailyZeroUserDocs(ctx)
+		userIter := s.Repository.GetAllNonDailyZeroUserDocs(ctx)
 		count := 0
 		for {
 			doc, err := userIter.Next()
@@ -331,12 +331,12 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 			if err != nil {
 				return 0, fmt.Errorf("in userIter.Next(): %w", err)
 			}
-			if err := s.FirestoreController.ResetDailyTotalStudyTime(ctx, doc.Ref); err != nil {
+			if err := s.Repository.ResetDailyTotalStudyTime(ctx, doc.Ref); err != nil {
 				return 0, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
 			}
 			count += 1
 		}
-		if err := s.FirestoreController.UpdateLastResetDailyTotalStudyTime(ctx, now); err != nil {
+		if err := s.Repository.UpdateLastResetDailyTotalStudyTime(ctx, now); err != nil {
 			return 0, fmt.Errorf("in UpdateLastResetDailyTotalStudyTime(): %w", err)
 		}
 		return count, nil
@@ -379,7 +379,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
 	slog.Info("processing RP.", "userId", userId)
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		userDoc, err := s.FirestoreController.ReadUser(ctx, tx, userId)
+		userDoc, err := s.Repository.ReadUser(ctx, tx, userId)
 		if err != nil {
 			return fmt.Errorf("in ReadUser(): %w", err)
 		}
@@ -399,22 +399,22 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 
 		// 変更項目がある場合のみ変更
 		if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
-			if err := s.FirestoreController.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays); err != nil {
+			if err := s.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays); err != nil {
 				return fmt.Errorf("in UpdateUserLastPenaltyImposedDays(): %w", err)
 			}
 		}
 		if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
-			if err := s.FirestoreController.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted); err != nil {
+			if err := s.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted); err != nil {
 				return fmt.Errorf("in UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(): %w", err)
 			}
 		}
 		if rankPoint != userDoc.RankPoint {
-			if err := s.FirestoreController.UpdateUserRankPoint(tx, userId, rankPoint); err != nil {
+			if err := s.Repository.UpdateUserRankPoint(tx, userId, rankPoint); err != nil {
 				return fmt.Errorf("in UpdateUserRankPoint(): %w", err)
 			}
 		}
 
-		if err := s.FirestoreController.UpdateUserLastRPProcessed(tx, userId, jstNow); err != nil {
+		if err := s.Repository.UpdateUserLastRPProcessed(tx, userId, jstNow); err != nil {
 			return fmt.Errorf("in UpdateUserLastRPProcessed(): %w", err)
 		}
 
@@ -455,7 +455,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			ctx,
 			gcsTargetFolderName,
 			s.Configs.Constants.GcsFirestoreExportBucketName,
-			[]string{myfirestore.LiveChatHistory, myfirestore.UserActivities, myfirestore.OrderHistory},
+			[]string{repository.LiveChatHistory, repository.UserActivities, repository.OrderHistory},
 		); err != nil {
 			return fmt.Errorf("in ReadCollectionsFromGcs(): %w", err)
 		}
@@ -479,7 +479,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			"削除したユーザー行動ログ件数", numRowsUserActivity,
 			"削除した注文履歴件数", numRowsOrderHistory)
 
-		if err := s.FirestoreController.UpdateLastTransferCollectionHistoryBigquery(ctx, now); err != nil {
+		if err := s.Repository.UpdateLastTransferCollectionHistoryBigquery(ctx, now); err != nil {
 			return fmt.Errorf("in UpdateLastTransferCollectionHistoryBigquery(): %w", err)
 		}
 	} else {

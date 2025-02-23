@@ -92,7 +92,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		// max_seatsを変えるか確認
 		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			slog.Info("checking desired max seats")
-			constants, err := sys.FirestoreController.ReadSystemConstantsConfig(ctx, nil)
+			constants, err := sys.Repository.ReadSystemConstantsConfig(ctx, nil)
 			if err != nil {
 				sys.MessageToOwnerWithError("sys.firestoreController.ReadSystemConstantsConfig(ctx)でエラー", err)
 			} else {

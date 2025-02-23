@@ -1,4 +1,4 @@
-package myfirestore
+package repository
 
 const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CONFIG                    = "config"

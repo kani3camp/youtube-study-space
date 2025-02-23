@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -177,14 +177,14 @@ func TestDurationToString(t *testing.T) {
 
 func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 	type TestCase struct {
-		Seat             myfirestore.SeatDoc
+		Seat             repository.SeatDoc
 		Now              time.Time
 		ExpectedDuration time.Duration
 	}
 	testCases := [...]TestCase{
 		{
-			Seat: myfirestore.SeatDoc{
-				State:                  myfirestore.WorkState,
+			Seat: repository.SeatDoc{
+				State:                  repository.WorkState,
 				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
 				DailyCumulativeWorkSec: 0,
 			},
@@ -192,8 +192,8 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 			ExpectedDuration: 0,
 		},
 		{
-			Seat: myfirestore.SeatDoc{
-				State:                  myfirestore.WorkState,
+			Seat: repository.SeatDoc{
+				State:                  repository.WorkState,
 				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
 				DailyCumulativeWorkSec: 0,
 			},
@@ -201,8 +201,8 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 			ExpectedDuration: 1*time.Hour + 1*time.Minute + 1*time.Second,
 		},
 		{
-			Seat: myfirestore.SeatDoc{
-				State:                  myfirestore.WorkState,
+			Seat: repository.SeatDoc{
+				State:                  repository.WorkState,
 				CurrentStateStartedAt:  time.Date(2021, 1, 1, 0, 0, 0, 0, JapanLocation()),
 				DailyCumulativeWorkSec: 0,
 			},
@@ -211,8 +211,8 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 		},
 
 		{
-			Seat: myfirestore.SeatDoc{
-				State:                  myfirestore.WorkState,
+			Seat: repository.SeatDoc{
+				State:                  repository.WorkState,
 				CurrentStateStartedAt:  time.Date(2021, 1, 1, 12, 0, 0, 0, JapanLocation()),
 				DailyCumulativeWorkSec: int((time.Hour).Seconds()),
 			},
