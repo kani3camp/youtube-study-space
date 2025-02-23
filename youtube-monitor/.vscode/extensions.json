@@ -9,6 +9,7 @@
 		"styled-components.vscode-styled-components",
 		"firsttris.vscode-jest-runner",
 		"biomejs.biome",
-		"wakatime.vscode-wakatime"
+		"wakatime.vscode-wakatime",
+		"pkief.material-icon-theme"
 	]
 }
