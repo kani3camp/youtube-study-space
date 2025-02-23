@@ -1,20 +1,20 @@
 package core
 
 import (
-	"app.modules/core/discordbot"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
 )
 
 type System struct {
-	Configs             *SystemConfigs
-	Repository          repository.Repository
-	WordsReader         wordsreader.WordsReader
-	LiveChatBot         youtubebot.LiveChatBot
-	discordOwnerBot     *discordbot.DiscordBot
-	discordSharedBot    *discordbot.DiscordBot
-	discordSharedLogBot *discordbot.DiscordBot
+	Configs            *SystemConfigs
+	Repository         repository.Repository
+	WordsReader        wordsreader.WordsReader
+	LiveChatBot        youtubebot.LiveChatBot
+	alertOwnerBot      moderatorbot.MessageBot
+	alertModeratorsBot moderatorbot.MessageBot
+	logModeratorsBot   moderatorbot.MessageBot
 
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string

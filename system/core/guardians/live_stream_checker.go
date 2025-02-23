@@ -1,7 +1,7 @@
 package guardians
 
 import (
-	"app.modules/core/discordbot"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/youtubebot"
 	"context"
@@ -21,19 +21,19 @@ type LiveStreamsListResponse struct {
 
 type LiveStreamChecker struct {
 	YoutubeLiveChatBot  youtubebot.LiveChatBot
-	OwnerDiscordBot     *discordbot.DiscordBot
+	alertOwnerBot       moderatorbot.MessageBot
 	FirestoreController repository.Repository
 }
 
 func NewLiveStreamChecker(
 	controller repository.Repository,
 	youtubeLiveChatBot youtubebot.LiveChatBot,
-	discordBot *discordbot.DiscordBot,
+	messageBot moderatorbot.MessageBot,
 ) *LiveStreamChecker {
 
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
-		OwnerDiscordBot:     discordBot,
+		alertOwnerBot:       messageBot,
 		FirestoreController: controller,
 	}
 }
@@ -71,10 +71,10 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	slog.Info("live stream status.", "streamStatus", streamStatus, "healthStatus", healthStatus)
 
 	if streamStatus != "active" && streamStatus != "ready" {
-		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)
+		_ = checker.alertOwnerBot.SendMessage("stream status is now : " + streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
-		_ = checker.OwnerDiscordBot.SendMessage("stream HEALTH status is now : " + healthStatus)
+		_ = checker.alertOwnerBot.SendMessage("stream HEALTH status is now : " + healthStatus)
 	}
 
 	return nil

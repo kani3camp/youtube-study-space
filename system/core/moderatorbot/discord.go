@@ -1,4 +1,4 @@
-package discordbot
+package moderatorbot
 
 import (
 	"fmt"
