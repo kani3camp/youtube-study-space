@@ -1,7 +1,7 @@
 import type { RoomLayout } from '../../types/room-layout'
 
 export const MemberIllustratedRoomSpring: RoomLayout = {
-	floor_image: '/images/member_illustrated_room_spring.png',
+	floor_image: '/images/rooms/member_illustrated_room_spring.png',
 	font_size_ratio: 0.017,
 	room_shape: {
 		width: 1520,
