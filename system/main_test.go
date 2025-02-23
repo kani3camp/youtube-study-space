@@ -12,7 +12,7 @@ import (
 func TestSetProcessedUser(t *testing.T) {
 	s := core.System{
 		Configs:                         nil,
-		FirestoreController:             nil,
+		Repository:                      nil,
 		ProcessedUserId:                 "",
 		ProcessedUserDisplayName:        "",
 		ProcessedUserProfileImageUrl:    "",

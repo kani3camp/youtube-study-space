@@ -52,11 +52,11 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	}
 
 	// transaction not necessary
-	if err := system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
+	if err := system.Repository.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
-	if err := system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
+	if err := system.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
 		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}

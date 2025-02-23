@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"app.modules/core/i18n"
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
@@ -177,13 +177,13 @@ func TrimTimeOptionPrefix(str string) string {
 	return str
 }
 
-func GetSeatByUserId(seats []myfirestore.SeatDoc, userId string) (myfirestore.SeatDoc, error) {
+func GetSeatByUserId(seats []repository.SeatDoc, userId string) (repository.SeatDoc, error) {
 	for _, seat := range seats {
 		if seat.UserId == userId {
 			return seat, nil
 		}
 	}
-	return myfirestore.SeatDoc{}, errors.New("no seat found with user id = " + userId)
+	return repository.SeatDoc{}, errors.New("no seat found with user id = " + userId)
 }
 
 func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (string, error) {
@@ -230,12 +230,12 @@ func ContainsEmojiElementWithIndex(s []EmojiElement, e EmojiElement) (bool, int)
 	return false, 0
 }
 
-func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc, now time.Time) (time.Duration, error) {
+func RealTimeTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (time.Duration, error) {
 	var duration time.Duration
 	switch seat.State {
-	case myfirestore.WorkState:
+	case repository.WorkState:
 		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
-	case myfirestore.BreakState:
+	case repository.BreakState:
 		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
 	default:
 		return 0, errors.New("unknown seat.State: " + string(seat.State))
@@ -243,36 +243,36 @@ func RealTimeTotalStudyDurationOfSeat(seat myfirestore.SeatDoc, now time.Time) (
 	return duration, nil
 }
 
-func RealTimeDailyTotalStudyDurationOfSeat(seat myfirestore.SeatDoc, now time.Time) (time.Duration, error) {
+func RealTimeDailyTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (time.Duration, error) {
 	var duration time.Duration
 	// 今のstateになってから日付が変っている可能性
 	if DateEqualJST(seat.CurrentStateStartedAt, now) { // 日付変わってない
 		switch seat.State {
-		case myfirestore.WorkState:
+		case repository.WorkState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
-		case myfirestore.BreakState:
+		case repository.BreakState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
 		default:
 			return 0, errors.New("unknown seat.State: " + string(seat.State))
 		}
 	} else { // 日付変わってる
 		switch seat.State {
-		case myfirestore.WorkState:
+		case repository.WorkState:
 			duration = time.Duration(SecondsOfDay(now)) * time.Second
-		case myfirestore.BreakState:
+		case repository.BreakState:
 			duration = time.Duration(0)
 		}
 	}
 	return duration, nil
 }
 
-func SortUserActivityByTakenAtAscending(docs []myfirestore.UserActivityDoc) {
+func SortUserActivityByTakenAtAscending(docs []repository.UserActivityDoc) {
 	sort.Slice(docs, func(i, j int) bool { return docs[i].TakenAt.Before(docs[j].TakenAt) })
 }
 
 // CheckEnterExitActivityOrder 入室と退室が交互に並んでいるか確認する。
-func CheckEnterExitActivityOrder(activityDocs []myfirestore.UserActivityDoc) bool {
-	var lastActivityType myfirestore.UserActivityType
+func CheckEnterExitActivityOrder(activityDocs []repository.UserActivityDoc) bool {
+	var lastActivityType repository.UserActivityType
 	for i, activity := range activityDocs {
 		if i == 0 {
 			lastActivityType = activity.ActivityType

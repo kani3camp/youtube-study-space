@@ -2,7 +2,7 @@ package guardians
 
 import (
 	"app.modules/core/discordbot"
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
@@ -20,14 +20,14 @@ type LiveStreamsListResponse struct {
 }
 
 type LiveStreamChecker struct {
-	YoutubeLiveChatBot  youtubebot.YoutubeLiveChatBotInterface
+	YoutubeLiveChatBot  youtubebot.LiveChatBot
 	OwnerDiscordBot     *discordbot.DiscordBot
-	FirestoreController myfirestore.FirestoreController
+	FirestoreController repository.Repository
 }
 
 func NewLiveStreamChecker(
-	controller myfirestore.FirestoreController,
-	youtubeLiveChatBot youtubebot.YoutubeLiveChatBotInterface,
+	controller repository.Repository,
+	youtubeLiveChatBot youtubebot.LiveChatBot,
 	discordBot *discordbot.DiscordBot,
 ) *LiveStreamChecker {
 

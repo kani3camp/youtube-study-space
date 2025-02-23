@@ -1,4 +1,4 @@
-package myfirestore
+package repository
 
 import (
 	"time"
@@ -188,7 +188,6 @@ const (
 	ExitRoomActivity   UserActivityType = "exit-room"
 	StartBreakActivity UserActivityType = "start-break"
 	EndBreakActivity   UserActivityType = "end-break"
-	// TODO: add others
 )
 
 type UserActivityDoc struct {

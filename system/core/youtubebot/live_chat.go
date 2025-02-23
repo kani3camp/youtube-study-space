@@ -1,7 +1,7 @@
 package youtubebot
 
 import (
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"context"
@@ -24,7 +24,7 @@ type AccessTokenResponseStruct struct {
 	TokenType   string `json:"token_type"`
 }
 
-func NewYoutubeLiveChatBot(liveChatId string, controller myfirestore.FirestoreController, ctx context.Context) (YoutubeLiveChatBotInterface, error) {
+func NewYoutubeLiveChatBot(liveChatId string, controller repository.Repository, ctx context.Context) (LiveChatBot, error) {
 	var channelYoutubeService *youtube.Service
 	var botYoutubeService *youtube.Service
 
