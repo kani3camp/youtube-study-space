@@ -11,9 +11,9 @@ import (
 
 	"google.golang.org/api/youtube/v3"
 
-	"app.modules/core/discordbot"
 	"app.modules/core/guardians"
 	"app.modules/core/i18n"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
@@ -50,20 +50,18 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
 	}
 
-	// discord bot for System owner
-	discordOwnerBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelId)
+	discordOwnerBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelId)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
 
-	// discord bot for sharing with moderators
-	discordSharedBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotTextChannelId)
+	discordSharedBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotTextChannelId)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
 
 	// discord bot for logging
-	discordSharedLogBot, err := discordbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelId)
+	discordSharedLogBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelId)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
@@ -123,9 +121,9 @@ func NewSystem(ctx context.Context, interactive bool, clientOption option.Client
 		Repository:                        firestoreController,
 		WordsReader:                       wordsReader,
 		LiveChatBot:                       liveChatBot,
-		discordOwnerBot:                   discordOwnerBot,
-		discordSharedBot:                  discordSharedBot,
-		discordSharedLogBot:               discordSharedLogBot,
+		alertOwnerBot:                     discordOwnerBot,
+		alertModeratorsBot:                discordSharedBot,
+		logModeratorsBot:                  discordSharedLogBot,
 		blockRegexesForChannelName:        blockRegexesForChannelName,
 		blockRegexesForChatMessage:        blockRegexesForChatMessage,
 		notificationRegexesForChatMessage: notificationRegexesForChatMessage,
@@ -197,7 +195,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err := s.BanUser(ctx, userId); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, s.LogToSharedDiscord("発言から禁止ワードを検出、ユーザーをブロックしました。" +
+		return true, s.LogToModerators("発言から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexesForChatMessage[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -212,7 +210,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err := s.BanUser(ctx, userId); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, s.LogToSharedDiscord("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
+		return true, s.LogToModerators("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
 			"\n禁止ワード: `" + s.blockRegexesForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -226,7 +224,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
-		return false, s.MessageToSharedDiscord("発言から禁止ワードを検出しました。（通知のみ）" +
+		return false, s.MessageToModerators("発言から禁止ワードを検出しました。（通知のみ）" +
 			"\n禁止ワード: `" + s.notificationRegexesForChatMessage[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -238,7 +236,7 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
-		return false, s.MessageToSharedDiscord("チャンネルから禁止ワードを検出しました。（通知のみ）" +
+		return false, s.MessageToModerators("チャンネルから禁止ワードを検出しました。（通知のみ）" +
 			"\n禁止ワード: `" + s.notificationRegexesForChannelName[index] + "`" +
 			"\nチャンネル名: `" + channelName + "`" +
 			"\nチャンネルURL: https://youtube.com/channel/" + userId +
@@ -880,9 +878,9 @@ func (s *System) Report(command *utils.CommandDetails, ctx context.Context) erro
 	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
 	s.MessageToOwner(ownerMessage)
 
-	discordMessage := t("discord", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	if err := s.MessageToSharedDiscord(discordMessage); err != nil {
-		s.MessageToOwnerWithError("モデレーターへメッセージが送信できませんでした: \""+discordMessage+"\"", err)
+	messageForModerators := t("moderators", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
+	if err := s.MessageToModerators(messageForModerators); err != nil {
+		s.MessageToOwnerWithError("モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
 	}
 
 	s.MessageToLiveChat(ctx, t("alert", s.ProcessedUserDisplayName))
@@ -944,14 +942,14 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		{
-			err := s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+			err := s.LogToModerators(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
 				SeatId) + "番席のユーザーをkickしました。\n" +
 				"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
 				"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
 				"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
 				"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
 			if err != nil {
-				return fmt.Errorf("failed LogToSharedDiscord(): %w", err)
+				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}
 		}
 		return nil
@@ -1009,8 +1007,8 @@ func (s *System) Check(command *utils.CommandDetails, ctx context.Context) error
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserId
-		if err := s.LogToSharedDiscord(message); err != nil {
-			return fmt.Errorf("failed LogToSharedDiscord(): %w", err)
+		if err := s.LogToModerators(message); err != nil {
+			return fmt.Errorf("failed LogToModerators(): %w", err)
 		}
 		replyMessage = i18n.T("command:sent", s.ProcessedUserDisplayName)
 		return nil
@@ -1087,14 +1085,14 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 		}
 
 		{
-			err := s.LogToSharedDiscord(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+			err := s.LogToModerators(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
 				SeatId) + "番席のユーザーをblockしました。\n" +
 				"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
 				"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
 				"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
 				"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
 			if err != nil {
-				return fmt.Errorf("failed LogToSharedDiscord(): %w", err)
+				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}
 		}
 		return nil
@@ -2283,25 +2281,25 @@ func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 }
 
 func (s *System) MessageToOwner(message string) {
-	if err := s.discordOwnerBot.SendMessage(message); err != nil {
+	if err := s.alertOwnerBot.SendMessage(message); err != nil {
 		slog.Error("failed to send message to owner.", "err", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
 func (s *System) MessageToOwnerWithError(message string, argErr error) {
-	if err := s.discordOwnerBot.SendMessageWithError(message, argErr); err != nil {
+	if err := s.alertOwnerBot.SendMessageWithError(message, argErr); err != nil {
 		slog.Error("failed to send message to owner.", "err", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
-func (s *System) MessageToSharedDiscord(message string) error {
-	return s.discordSharedBot.SendMessage(message)
+func (s *System) MessageToModerators(message string) error {
+	return s.alertModeratorsBot.SendMessage(message)
 }
 
-func (s *System) LogToSharedDiscord(logMessage string) error {
-	return s.discordSharedLogBot.SendMessage(logMessage)
+func (s *System) LogToModerators(logMessage string) error {
+	return s.logModeratorsBot.SendMessage(logMessage)
 }
 
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
@@ -2326,7 +2324,7 @@ func (s *System) CheckLongTimeSitting(ctx context.Context, isMemberRoom bool) er
 }
 
 func (s *System) CheckLiveStreamStatus(ctx context.Context) error {
-	checker := guardians.NewLiveStreamChecker(s.Repository, s.LiveChatBot, s.discordOwnerBot)
+	checker := guardians.NewLiveStreamChecker(s.Repository, s.LiveChatBot, s.alertOwnerBot)
 	return checker.Check(ctx)
 }
 
