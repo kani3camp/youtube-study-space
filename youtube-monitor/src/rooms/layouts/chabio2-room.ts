@@ -1,7 +1,7 @@
 import type { RoomLayout } from '../../types/room-layout'
 
 export const Chabio2Room: RoomLayout = {
-	floor_image: '/images/chabio2-room.png',
+	floor_image: '/images/rooms/chabio2-room.png',
 	font_size_ratio: 0.015,
 	room_shape: {
 		width: 1520,

@@ -11,7 +11,6 @@ import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
-import { MemberIllustratedRoomChristmas } from './layouts/member-illustrated-room-christmas'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
 import { OtomeGameCafeRoom1 } from './layouts/otome-game-cafe-room-1'
 import { OtomeGameCafeRoom2 } from './layouts/otome-game-cafe-room-2'
@@ -42,7 +41,7 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [MemberBoxRooms3],
+	generalBasicRooms: [Chabio2Room, Freepik7Room],
 	generalTemporaryRooms: [SeaOfSeatRoom],
 	memberBasicRooms: [],
 	memberTemporaryRooms: [],

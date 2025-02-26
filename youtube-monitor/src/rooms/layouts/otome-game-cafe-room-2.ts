@@ -1,7 +1,7 @@
 import type { RoomLayout } from '../../types/room-layout'
 
 export const OtomeGameCafeRoom2: RoomLayout = {
-	floor_image: '/images/otome-game-cafe-room-2.png',
+	floor_image: '/images/rooms/otome-game-cafe-room-2.png',
 	font_size_ratio: 0.015,
 	room_shape: {
 		width: 1520,

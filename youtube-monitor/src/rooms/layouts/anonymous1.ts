@@ -1,7 +1,7 @@
 import type { RoomLayout } from '../../types/room-layout'
 
 export const Anonymous1Room: RoomLayout = {
-	floor_image: '/images/anonymous1.png',
+	floor_image: '/images/rooms/anonymous1.png',
 	font_size_ratio: 0.015,
 	room_shape: {
 		width: 1520,
