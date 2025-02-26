@@ -95,7 +95,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 	} else {
 		seatNo = (
 			<div css={styles.seatId} style={{ fontWeight: 'bold' }}>
-				{props.memberOnly ? '/' : ''}
+				{props.memberOnly ? '/' : '!'}
 				{props.globalSeatId}
 			</div>
 		)

@@ -41,7 +41,7 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [MemberBoxRooms3],
+	generalBasicRooms: [Chabio2Room, Freepik7Room],
 	generalTemporaryRooms: [SeaOfSeatRoom],
 	memberBasicRooms: [],
 	memberTemporaryRooms: [],
