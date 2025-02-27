@@ -1,5 +1,5 @@
 ---
-title: 基本指令
+title: 必須指令
 sidebar_position: 1
 ---
 
@@ -83,7 +83,7 @@ sidebar_position: 1
 確保工作名稱中沒有空格。
 
 ```text title="例如：學習英語。"
-!in work=English
+!in work=英文
 ```
 
 :::info
@@ -112,7 +112,7 @@ sidebar_position: 1
 `work=` 選項和 `min=` 選項可以同時使用。
 
 ```text title="例如：學習英語並在180分鐘後自動退出。"
-!in work=English min=180
+!in work=英文 min=180
 ```
 
 :::
@@ -125,14 +125,14 @@ sidebar_position: 1
 附加選項可以縮寫。`w=` 與 `work=` 含義相同，`m=` 與 `min=` 含義相同。
 :::
 
-### 傳統選項指定方法
+### 一般指令使用方式
 
 - `work-工作名稱`
 - `min-最大工作時間`
 - `w-工作名稱`
 - `m-最大工作時間`
 
-這些傳統指令仍然可以使用。
+這些一般指令仍然可以使用。
 
 ## !out
 
