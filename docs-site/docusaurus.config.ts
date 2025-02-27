@@ -25,7 +25,7 @@ const config: Config = {
 
 	i18n: {
 		defaultLocale: 'ja',
-		locales: ['ja', 'en', 'zh-Hant'],
+		locales: ['ja', 'en', 'zh-Hant', 'ko'],
 		path: 'i18n',
 		localeConfigs: {
 			ja: {
@@ -42,6 +42,11 @@ const config: Config = {
 				label: '繁體中文',
 				direction: 'ltr',
 				htmlLang: 'zh-Hant',
+			},
+			ko: {
+				label: '한국어',
+				direction: 'ltr',
+				htmlLang: 'ko',
 			},
 		},
 	},

@@ -1,0 +1,74 @@
+{
+	"theme.ErrorPageContent.title": {
+		"message": "페이지를 표시할 수 없습니다.",
+		"description": "The title of the fallback page when the page crashed"
+	},
+	"theme.BackToTopButton.buttonAriaLabel": {
+		"message": "맨 위로 스크롤",
+		"description": "The ARIA label for the back to top button"
+	},
+	"theme.blog.archive.title": {
+		"message": "아카이브",
+		"description": "The page & hero title of the blog archive page"
+	},
+	"theme.blog.archive.description": {
+		"message": "지난 게시물",
+		"description": "The page & hero description of the blog archive page"
+	},
+	"theme.NotFound.title": {
+		"message": "페이지를 찾을 수 없습니다",
+		"description": "The title of the 404 page"
+	},
+	"theme.NotFound.p1": {
+		"message": "찾으시는 내용을 찾을 수 없습니다.",
+		"description": "The first paragraph of the 404 page"
+	},
+	"theme.NotFound.p2": {
+		"message": "원래 URL로 연결한 사이트 소유자에게 연락하여 링크가 깨졌음을 알려주세요.",
+		"description": "The 2nd paragraph of the 404 page"
+	},
+	"theme.common.editThisPage": {
+		"message": "이 페이지 편집",
+		"description": "The link label to edit the current page"
+	},
+	"theme.docs.paginator.previous": {
+		"message": "이전",
+		"description": "The label used to navigate to the previous doc"
+	},
+	"theme.docs.paginator.next": {
+		"message": "다음",
+		"description": "The label used to navigate to the next doc"
+	},
+	"theme.colorToggle.ariaLabel.mode.dark": {
+		"message": "다크 모드",
+		"description": "The name for the dark color mode"
+	},
+	"theme.colorToggle.ariaLabel.mode.light": {
+		"message": "라이트 모드",
+		"description": "The name for the light color mode"
+	},
+	"homepage.title": {
+		"message": "YouTube 스터디 스페이스 명령어",
+		"description": "The title of the homepage"
+	},
+	"homepage.tagline": {
+		"message": "라이브 채팅에 입력",
+		"description": "The tagline of the homepage"
+	},
+	"homepage.commandList": {
+		"message": "명령어 목록",
+		"description": "Command list button text"
+	},
+	"homepage.description": {
+		"message": "YouTube 온라인 스터디 스페이스 명령어를 설명하는 사이트입니다.",
+		"description": "The description of the homepage"
+	},
+	"homepage.enterYouTube": {
+		"message": "YouTube 라이브로 입장",
+		"description": "Enter YouTube button text"
+	},
+	"site.title": {
+		"message": "YouTube 온라인 스터디 스페이스",
+		"description": "The title of the site"
+	}
+}
