@@ -1,0 +1,18 @@
+{
+	"title": {
+		"message": "YouTube 스터디 스페이스 명령어",
+		"description": "The title in the navbar"
+	},
+	"item.label.ドキュメント": {
+		"message": "문서",
+		"description": "Navbar item with label ドキュメント"
+	},
+	"item.label.GitHub": {
+		"message": "GitHub",
+		"description": "Navbar item with label GitHub"
+	},
+	"logo.alt": {
+		"message": "사이트 로고",
+		"description": "The alt text of navbar logo"
+	}
+}

@@ -1,0 +1,46 @@
+{
+	"link.title.ドキュメント": {
+		"message": "문서",
+		"description": "The title of the footer links column with title=ドキュメント in the footer"
+	},
+	"link.title.コミュニティ": {
+		"message": "커뮤니티",
+		"description": "The title of the footer links column with title=コミュニティ in the footer"
+	},
+	"link.title.More": {
+		"message": "더 보기",
+		"description": "The title of the footer links column with title=More in the footer"
+	},
+	"link.item.label.コマンド一覧": {
+		"message": "명령어 목록",
+		"description": "The label of footer link with label=コマンド一覧 linking to /docs/essential"
+	},
+	"link.item.label.公開資料": {
+		"message": "공개 자료",
+		"description": "The label of footer link with label=公開資料 linking to https://youtube-study-space.notion.site/5021213988a34747a7513f1067deb76d"
+	},
+	"link.item.label.YouTubeコミュニティ": {
+		"message": "YouTube 커뮤니티",
+		"description": "The label of footer link with label=YouTubeコミュニティ linking to https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/community"
+	},
+	"link.item.label.YouTubeメンバーシップ": {
+		"message": "YouTube 멤버십",
+		"description": "The label of footer link with label=YouTubeメンバーシップ linking to https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/join"
+	},
+	"link.item.label.Discord": {
+		"message": "Discord",
+		"description": "The label of footer link with label=Discord linking to https://discord.gg/h9SenAvawT"
+	},
+	"link.item.label.X": {
+		"message": "X",
+		"description": "The label of footer link with label=X linking to https://twitter.com/osr_soraride"
+	},
+	"link.item.label.GitHub": {
+		"message": "GitHub",
+		"description": "The label of footer link with label=GitHub linking to https://github.com/kani3camp/youtube-study-space"
+	},
+	"copyright": {
+		"message": "Copyright © 2025 Ride Dev.",
+		"description": "The footer copyright"
+	}
+}
