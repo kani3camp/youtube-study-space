@@ -1,0 +1,313 @@
+{
+	"theme.ErrorPageContent.title": {
+		"message": "無法顯示頁面。",
+		"description": "The title of the fallback page when the page crashed"
+	},
+	"theme.BackToTopButton.buttonAriaLabel": {
+		"message": "回到頂部",
+		"description": "The ARIA label for the back to top button"
+	},
+	"theme.blog.archive.title": {
+		"message": "文章歸檔",
+		"description": "The page & hero title of the blog archive page"
+	},
+	"theme.blog.archive.description": {
+		"message": "過往文章",
+		"description": "The page & hero description of the blog archive page"
+	},
+	"theme.blog.paginator.navAriaLabel": {
+		"message": "部落格列表頁面導航",
+		"description": "The ARIA label for the blog pagination"
+	},
+	"theme.blog.paginator.newerEntries": {
+		"message": "較新的文章",
+		"description": "The label used to navigate to the newer blog posts page (previous page)"
+	},
+	"theme.blog.paginator.olderEntries": {
+		"message": "較舊的文章",
+		"description": "The label used to navigate to the older blog posts page (next page)"
+	},
+	"theme.blog.post.paginator.navAriaLabel": {
+		"message": "部落格文章頁面導航",
+		"description": "The ARIA label for the blog posts pagination"
+	},
+	"theme.blog.post.paginator.newerPost": {
+		"message": "較新的文章",
+		"description": "The blog post button label to navigate to the newer/previous post"
+	},
+	"theme.blog.post.paginator.olderPost": {
+		"message": "較舊的文章",
+		"description": "The blog post button label to navigate to the older/next post"
+	},
+	"theme.blog.post.plurals": {
+		"message": "1 篇文章|{count} 篇文章",
+		"description": "Pluralized label for \"{count} posts\". Use as much plural forms (separated by \"|\") as your language support (see https://www.unicode.org/cldr/cldr-aux/charts/34/supplemental/language_plural_rules.html)"
+	},
+	"theme.blog.tagTitle": {
+		"message": "標籤為 \"{tagName}\" 的 {nPosts} 篇文章",
+		"description": "The title of the page for a blog tag"
+	},
+	"theme.tags.tagsPageLink": {
+		"message": "查看所有標籤",
+		"description": "The label of the link targeting the tag list page"
+	},
+	"theme.colorToggle.ariaLabel": {
+		"message": "切換深色和淺色模式（當前為{mode}）",
+		"description": "The ARIA label for the navbar color mode toggle"
+	},
+	"theme.colorToggle.ariaLabel.mode.dark": {
+		"message": "深色模式",
+		"description": "The name for the dark color mode"
+	},
+	"theme.colorToggle.ariaLabel.mode.light": {
+		"message": "淺色模式",
+		"description": "The name for the light color mode"
+	},
+	"theme.docs.breadcrumbs.navAriaLabel": {
+		"message": "頁面路徑",
+		"description": "The ARIA label for the breadcrumbs"
+	},
+	"theme.docs.DocCard.categoryDescription": {
+		"message": "{count} 個項目",
+		"description": "The default description for a category card in the generated index about how many items this category includes"
+	},
+	"theme.docs.paginator.navAriaLabel": {
+		"message": "文檔頁面",
+		"description": "The ARIA label for the docs pagination"
+	},
+	"theme.docs.paginator.previous": {
+		"message": "上一頁",
+		"description": "The label used to navigate to the previous doc"
+	},
+	"theme.docs.paginator.next": {
+		"message": "下一頁",
+		"description": "The label used to navigate to the next doc"
+	},
+	"theme.docs.tagDocListPageTitle.nDocsTagged": {
+		"message": "1 篇文檔已標記|{count} 篇文檔已標記",
+		"description": "Pluralized label for \"{count} docs tagged\". Use as much plural forms (separated by \"|\") as your language support (see https://www.unicode.org/cldr/cldr-aux/charts/34/supplemental/language_plural_rules.html)"
+	},
+	"theme.docs.tagDocListPageTitle": {
+		"message": "標籤為 \"{tagName}\" 的 {nDocsTagged}",
+		"description": "The title of the page for a docs tag"
+	},
+	"theme.docs.versionBadge.label": {
+		"message": "版本：{versionLabel}"
+	},
+	"theme.docs.versions.unreleasedVersionLabel": {
+		"message": "這是一個未發布的文檔。",
+		"description": "The label used to tell the user that he's browsing an unreleased doc version"
+	},
+	"theme.docs.versions.unmaintainedVersionLabel": {
+		"message": "這是 {siteTitle} {versionLabel} 的文檔，該版本已不再積極維護。",
+		"description": "The label used to tell the user that he's browsing an unmaintained doc version"
+	},
+	"theme.docs.versions.latestVersionSuggestionLabel": {
+		"message": "查看最新文檔，請參閱 {latestVersionLink} ({versionLabel})。",
+		"description": "The label used to tell the user to check the latest version"
+	},
+	"theme.docs.versions.latestVersionLinkLabel": {
+		"message": "最新版本",
+		"description": "The label used for the latest version suggestion link label"
+	},
+	"theme.common.editThisPage": {
+		"message": "編輯此頁",
+		"description": "The link label to edit the current page"
+	},
+	"theme.common.headingLinkTitle": {
+		"message": "直接連結到 {heading}",
+		"description": "Title for link to heading"
+	},
+	"theme.lastUpdated.atDate": {
+		"message": " 於 {date}",
+		"description": "The words used to describe on which date a page has been last updated"
+	},
+	"theme.lastUpdated.byUser": {
+		"message": " 由 {user}",
+		"description": "The words used to describe by who the page has been last updated"
+	},
+	"theme.lastUpdated.lastUpdatedAtBy": {
+		"message": "最後更新{atDate}{byUser}",
+		"description": "The sentence used to display when a page has been last updated, and by who"
+	},
+	"theme.navbar.mobileVersionsDropdown.label": {
+		"message": "版本",
+		"description": "The label for the navbar versions dropdown on mobile view"
+	},
+	"theme.NotFound.title": {
+		"message": "找不到頁面",
+		"description": "The title of the 404 page"
+	},
+	"theme.tags.tagsListLabel": {
+		"message": "標籤：",
+		"description": "The label alongside a tag list"
+	},
+	"theme.admonition.caution": {
+		"message": "注意",
+		"description": "The default label used for the Caution admonition (:::caution)"
+	},
+	"theme.admonition.danger": {
+		"message": "危險",
+		"description": "The default label used for the Danger admonition (:::danger)"
+	},
+	"theme.admonition.info": {
+		"message": "信息",
+		"description": "The default label used for the Info admonition (:::info)"
+	},
+	"theme.admonition.note": {
+		"message": "備註",
+		"description": "The default label used for the Note admonition (:::note)"
+	},
+	"theme.admonition.tip": {
+		"message": "提示",
+		"description": "The default label used for the Tip admonition (:::tip)"
+	},
+	"theme.admonition.warning": {
+		"message": "警告",
+		"description": "The default label used for the Warning admonition (:::warning)"
+	},
+	"theme.AnnouncementBar.closeButtonAriaLabel": {
+		"message": "關閉",
+		"description": "The ARIA label for close button of announcement bar"
+	},
+	"theme.blog.sidebar.navAriaLabel": {
+		"message": "部落格最近文章導航",
+		"description": "The ARIA label for recent posts in the blog sidebar"
+	},
+	"theme.CodeBlock.copied": {
+		"message": "已複製",
+		"description": "The copied button label on code blocks"
+	},
+	"theme.CodeBlock.copyButtonAriaLabel": {
+		"message": "複製代碼到剪貼板",
+		"description": "The ARIA label for copy code blocks button"
+	},
+	"theme.CodeBlock.copy": {
+		"message": "複製",
+		"description": "The copy button label on code blocks"
+	},
+	"theme.CodeBlock.wordWrapToggle": {
+		"message": "切換自動換行",
+		"description": "The title attribute for toggle word wrapping button of code block lines"
+	},
+	"theme.DocSidebarItem.expandCategoryAriaLabel": {
+		"message": "展開側邊欄類別 '{label}'",
+		"description": "The ARIA label to expand the sidebar category"
+	},
+	"theme.DocSidebarItem.collapseCategoryAriaLabel": {
+		"message": "收起側邊欄類別 '{label}'",
+		"description": "The ARIA label to collapse the sidebar category"
+	},
+	"theme.NavBar.navAriaLabel": {
+		"message": "主導航",
+		"description": "The ARIA label for the main navigation"
+	},
+	"theme.navbar.mobileLanguageDropdown.label": {
+		"message": "語言",
+		"description": "The label for the mobile language switcher dropdown"
+	},
+	"theme.NotFound.p1": {
+		"message": "我們找不到您要查找的內容。",
+		"description": "The first paragraph of the 404 page"
+	},
+	"theme.NotFound.p2": {
+		"message": "請聯繫將您連結到原始URL的網站所有者，並告知他們鏈接已損壞。",
+		"description": "The 2nd paragraph of the 404 page"
+	},
+	"theme.TOCCollapsible.toggleButtonLabel": {
+		"message": "在此頁面上",
+		"description": "The label used by the button on the collapsible TOC component"
+	},
+	"theme.blog.post.readMore": {
+		"message": "閱讀更多",
+		"description": "The label used in blog post item excerpts to link to full blog posts"
+	},
+	"theme.blog.post.readMoreLabel": {
+		"message": "閱讀更多關於 {title} 的內容",
+		"description": "The ARIA label for the link to full blog posts from excerpts"
+	},
+	"theme.blog.post.readingTime.plurals": {
+		"message": "閱讀時間1分鐘|閱讀時間{readingTime}分鐘",
+		"description": "Pluralized label for \"{readingTime} min read\". Use as much plural forms (separated by \"|\") as your language support (see https://www.unicode.org/cldr/cldr-aux/charts/34/supplemental/language_plural_rules.html)"
+	},
+	"theme.docs.breadcrumbs.home": {
+		"message": "首頁",
+		"description": "The ARIA label for the home page in the breadcrumbs"
+	},
+	"theme.docs.sidebar.collapseButtonTitle": {
+		"message": "收起側邊欄",
+		"description": "The title attribute for collapse button of doc sidebar"
+	},
+	"theme.docs.sidebar.collapseButtonAriaLabel": {
+		"message": "收起側邊欄",
+		"description": "The title attribute for collapse button of doc sidebar"
+	},
+	"theme.docs.sidebar.navAriaLabel": {
+		"message": "文檔側邊欄",
+		"description": "The ARIA label for the sidebar navigation"
+	},
+	"theme.docs.sidebar.closeSidebarButtonAriaLabel": {
+		"message": "關閉導航欄",
+		"description": "The ARIA label for close button of mobile sidebar"
+	},
+	"theme.navbar.mobileSidebarSecondaryMenu.backButtonLabel": {
+		"message": "← 返回主菜單",
+		"description": "The label of the back button to return to main menu, inside the mobile navbar sidebar secondary menu (notably used to display the docs sidebar)"
+	},
+	"theme.docs.sidebar.toggleSidebarButtonAriaLabel": {
+		"message": "切換導航欄",
+		"description": "The ARIA label for hamburger menu button of mobile navigation"
+	},
+	"theme.docs.sidebar.expandButtonTitle": {
+		"message": "展開側邊欄",
+		"description": "The ARIA label and title attribute for expand button of doc sidebar"
+	},
+	"theme.docs.sidebar.expandButtonAriaLabel": {
+		"message": "展開側邊欄",
+		"description": "The ARIA label and title attribute for expand button of doc sidebar"
+	},
+	"theme.ErrorPageContent.tryAgain": {
+		"message": "重試",
+		"description": "The label of the button to try again rendering when the React error boundary captures an error"
+	},
+	"theme.common.skipToMainContent": {
+		"message": "跳到主要內容",
+		"description": "The skip to content label used for accessibility, allowing to rapidly navigate to main content with keyboard tab/enter navigation"
+	},
+	"theme.tags.tagsPageTitle": {
+		"message": "標籤",
+		"description": "The title of the tag list page"
+	},
+	"theme.unlistedContent.title": {
+		"message": "未列出的頁面",
+		"description": "The unlisted content banner title"
+	},
+	"theme.unlistedContent.message": {
+		"message": "此頁面未被列出。搜索引擎不會索引它，只有擁有直接鏈接的用戶才能訪問它。",
+		"description": "The unlisted content banner message"
+	},
+	"homepage.title": {
+		"message": "YouTube 學習空間指令",
+		"description": "The title of the homepage"
+	},
+	"homepage.tagline": {
+		"message": "在直播聊天中輸入",
+		"description": "The tagline of the homepage"
+	},
+	"homepage.commandList": {
+		"message": "指令列表",
+		"description": "Command list button text"
+	},
+	"homepage.description": {
+		"message": "解釋 YouTube 線上學習空間指令的網站。",
+		"description": "The description of the homepage"
+	},
+	"homepage.enterYouTube": {
+		"message": "通過 YouTube 直播進入",
+		"description": "Enter YouTube button text"
+	},
+	"site.title": {
+		"message": "YouTube 線上學習空間",
+		"description": "The title of the site"
+	}
+}

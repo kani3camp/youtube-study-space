@@ -1,0 +1,18 @@
+{
+	"title": {
+		"message": "YouTube 線上學習空間指令",
+		"description": "The title in the navbar"
+	},
+	"item.label.ドキュメント": {
+		"message": "文檔",
+		"description": "Navbar item with label ドキュメント"
+	},
+	"item.label.GitHub": {
+		"message": "GitHub",
+		"description": "Navbar item with label GitHub"
+	},
+	"logo.alt": {
+		"message": "網站標誌",
+		"description": "The alt text of navbar logo"
+	}
+}

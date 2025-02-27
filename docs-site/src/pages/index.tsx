@@ -1,5 +1,5 @@
 import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import Translate, { translate } from '@docusaurus/Translate';
 import Heading from '@theme/Heading';
 import Layout from '@theme/Layout';
 import clsx from 'clsx';
@@ -7,17 +7,24 @@ import clsx from 'clsx';
 import styles from './index.module.css';
 
 function HomepageHeader() {
-	const { siteConfig } = useDocusaurusContext();
 	return (
 		<header className={clsx('hero hero--primary', styles.heroBanner)}>
 			<div className="container">
 				<Heading as="h1" className="hero__title">
-					{siteConfig.title}
+					<Translate id="homepage.title" description="The title of the homepage">
+						YouTubeオンライン作業部屋 コマンド一覧
+					</Translate>
 				</Heading>
-				<p className="hero__subtitle">{siteConfig.tagline}</p>
+				<p className="hero__subtitle">
+					<Translate id="homepage.tagline" description="The tagline of the homepage">
+						ライブチャットに書き込もう
+					</Translate>
+				</p>
 				<div className={styles.buttons}>
 					<Link className="button button--secondary button--lg" to="/docs/essential">
-						コマンド一覧へ
+						<Translate id="homepage.commandList" description="Command list button text">
+							コマンド一覧へ
+						</Translate>
 					</Link>
 				</div>
 			</div>
@@ -26,11 +33,20 @@ function HomepageHeader() {
 }
 
 export default function Home(): JSX.Element {
-	const { siteConfig } = useDocusaurusContext();
+	const title = translate({
+		id: 'homepage.title',
+		message: 'YouTubeオンライン作業部屋 コマンド一覧',
+		description: 'The title of the homepage',
+	});
+
 	return (
 		<Layout
-			title={siteConfig.title}
-			description="YouTubeオンライン作業部屋のコマンドについて説明するサイトです。"
+			title={title}
+			description={translate({
+				id: 'homepage.description',
+				message: 'YouTubeオンライン作業部屋のコマンドについて説明するサイトです。',
+				description: 'The description of the homepage',
+			})}
 		>
 			<HomepageHeader />
 			<main>
@@ -40,7 +56,9 @@ export default function Home(): JSX.Element {
 							className="button button--secondary button--lg"
 							href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"
 						>
-							YouTubeライブで入室する
+							<Translate id="homepage.enterYouTube" description="Enter YouTube button text">
+								YouTubeライブで入室する
+							</Translate>
 						</Link>
 					</div>
 				</div>
