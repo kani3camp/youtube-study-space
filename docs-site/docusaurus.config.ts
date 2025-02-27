@@ -11,11 +11,12 @@ const config: Config = {
 	url: 'https://sorarideblog.github.io',
 	// Set the /<baseUrl>/ pathname under which your site is served
 	// For GitHub pages deployment, it is often '/<projectName>/'
-	baseUrl: '/youtube-study-space/',
+	baseUrl: '/youtube-study-space',
+	// Don't use trailing slash for consistent SEO
 	trailingSlash: false,
 
 	// GitHub pages deployment config.
-	organizationName: 'sorarideblog', // Usually your GitHub org/user name.
+	organizationName: 'kani3camp', // Usually your GitHub org/user name.
 	projectName: 'youtube-study-space', // Usually your repo name.
 	deploymentBranch: 'docusaurus',
 
@@ -24,7 +25,20 @@ const config: Config = {
 
 	i18n: {
 		defaultLocale: 'ja',
-		locales: ['ja'], // TODO: Add more locales here
+		locales: ['ja', 'en'],
+		path: 'i18n',
+		localeConfigs: {
+			ja: {
+				label: '日本語',
+				direction: 'ltr',
+				htmlLang: 'ja',
+			},
+			en: {
+				label: 'English',
+				direction: 'ltr',
+				htmlLang: 'en',
+			},
+		},
 	},
 
 	themes: ['@docusaurus/theme-mermaid'],
@@ -41,7 +55,7 @@ const config: Config = {
 					sidebarPath: './sidebars.ts',
 					// Please change this to your repo.
 					// Remove this to remove the "edit this page" links.
-					editUrl: 'https://github.com/sorarideblog/youtube-study-space/tree/dev/docs-site/',
+					editUrl: 'https://github.com/kani3camp/youtube-study-space/tree/dev/docs-site/',
 				},
 				theme: {
 					customCss: './src/css/custom.css',
@@ -77,7 +91,7 @@ const config: Config = {
 					position: 'right',
 				},
 				{
-					href: 'https://github.com/sorarideblog/youtube-study-space',
+					href: 'https://github.com/kani3camp/youtube-study-space',
 					label: 'GitHub',
 					position: 'right',
 				},
@@ -125,7 +139,7 @@ const config: Config = {
 					items: [
 						{
 							label: 'GitHub',
-							href: 'https://github.com/sorarideblog/youtube-study-space',
+							href: 'https://github.com/kani3camp/youtube-study-space',
 						},
 					],
 				},
