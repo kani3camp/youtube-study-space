@@ -1,10 +1,10 @@
 {
 	"title": {
-		"message": "YouTube Study Space Commands",
+		"message": "YouTube 線上學習空間指令",
 		"description": "The title in the navbar"
 	},
 	"item.label.ドキュメント": {
-		"message": "Documents",
+		"message": "文檔",
 		"description": "Navbar item with label ドキュメント"
 	},
 	"item.label.GitHub": {
@@ -12,7 +12,7 @@
 		"description": "Navbar item with label GitHub"
 	},
 	"logo.alt": {
-		"message": "Site Logo",
+		"message": "網站標誌",
 		"description": "The alt text of navbar logo"
 	}
 }

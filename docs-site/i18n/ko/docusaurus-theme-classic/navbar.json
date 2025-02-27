@@ -1,10 +1,10 @@
 {
 	"title": {
-		"message": "YouTube Study Space Commands",
+		"message": "YouTube 스터디 스페이스 명령어",
 		"description": "The title in the navbar"
 	},
 	"item.label.ドキュメント": {
-		"message": "Documents",
+		"message": "문서",
 		"description": "Navbar item with label ドキュメント"
 	},
 	"item.label.GitHub": {
@@ -12,7 +12,7 @@
 		"description": "Navbar item with label GitHub"
 	},
 	"logo.alt": {
-		"message": "Site Logo",
+		"message": "사이트 로고",
 		"description": "The alt text of navbar logo"
 	}
 }
