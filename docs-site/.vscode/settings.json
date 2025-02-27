@@ -1,5 +1,5 @@
 {
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "cSpell.words": ["okawari"]
+	"editor.formatOnSave": true,
+	"cSpell.words": ["okawari"],
+	"editor.defaultFormatter": "biomejs.biome"
 }
