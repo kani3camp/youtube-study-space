@@ -151,7 +151,7 @@
 		"description": "The default label used for the Danger admonition (:::danger)"
 	},
 	"theme.admonition.info": {
-		"message": "信息",
+		"message": "說明",
 		"description": "The default label used for the Info admonition (:::info)"
 	},
 	"theme.admonition.note": {
