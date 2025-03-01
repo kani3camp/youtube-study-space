@@ -255,6 +255,21 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 		return fmt.Errorf("in ReadSystemConstantsConfig(): %w", err)
 	}
 
+	// 一般席の調整
+	if err := s.adjustGeneralSeats(ctx, constants); err != nil {
+		return fmt.Errorf("in adjustGeneralSeats(): %w", err)
+	}
+
+	// メンバー席の調整
+	if err := s.adjustMemberSeats(ctx, constants); err != nil {
+		return fmt.Errorf("in adjustMemberSeats(): %w", err)
+	}
+
+	return nil
+}
+
+// adjustGeneralSeats 一般席の数を調整する
+func (s *System) adjustGeneralSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
 	// 一般席
 	if constants.DesiredMaxSeats > constants.MaxSeats { // 一般席を増やす
 		s.MessageToLiveChat(ctx, "席を増やします↗")
@@ -334,6 +349,11 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// adjustMemberSeats メンバー席の数を調整する
+func (s *System) adjustMemberSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
 	// メンバー席
 	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
 		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")
@@ -465,6 +485,7 @@ func (s *System) Command(
 		return fmt.Errorf("in RunTransaction(): %w", txErr)
 	}
 
+	// コマンドの解析
 	commandDetails, message := utils.ParseCommand(commandString, isChatMember)
 	if message != "" { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
 		s.MessageToLiveChat(ctx, i18n.T("common:sir", s.ProcessedUserDisplayName)+message)
@@ -476,6 +497,12 @@ func (s *System) Command(
 		return nil
 	}
 
+	// コマンドの実行
+	return s.executeCommand(ctx, commandDetails, commandString)
+}
+
+// executeCommand 解析済みのコマンドを実行する
+func (s *System) executeCommand(ctx context.Context, commandDetails *utils.CommandDetails, commandString string) error {
 	// commandDetailsに基づいて命令処理
 	switch commandDetails.CommandType {
 	case utils.NotCommand:
@@ -2316,6 +2343,11 @@ func (s *System) CheckLongTimeSitting(ctx context.Context, isMemberRoom bool) er
 		return fmt.Errorf("failed to read seats: %w", err)
 	}
 
+	return s.processLongTimeSitting(ctx, seatsSnapshot, isMemberRoom)
+}
+
+// processLongTimeSitting 長時間入室しているユーザーを席移動させる処理を実行する
+func (s *System) processLongTimeSitting(ctx context.Context, seatsSnapshot []repository.SeatDoc, isMemberRoom bool) error {
 	if err := s.OrganizeDBForceMove(ctx, seatsSnapshot, isMemberRoom); err != nil {
 		return fmt.Errorf("in OrganizeDBForceMove: %w", err)
 	}
