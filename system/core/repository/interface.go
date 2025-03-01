@@ -1,4 +1,4 @@
-package myfirestore
+package repository
 
 import (
 	"cloud.google.com/go/firestore"
@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-// FirestoreClient テストでfirestore.Clientをmockできるように定義
-type FirestoreClient interface {
+// DBClient テストでfirestore.Clientをmockできるように定義
+type DBClient interface {
 	Collection(path string) *firestore.CollectionRef
 	Doc(path string) *firestore.DocumentRef
 	RunTransaction(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) (err error)
 	Close() error
 }
 
-type FirestoreController interface {
-	FirestoreClient() FirestoreClient
+type Repository interface {
+	FirestoreClient() DBClient
 
 	// Document Operations
 	DeleteDocRef(ctx context.Context, tx *firestore.Transaction, ref *firestore.DocumentRef) error

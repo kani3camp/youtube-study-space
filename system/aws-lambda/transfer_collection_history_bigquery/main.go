@@ -1,9 +1,10 @@
 package main
 
 import (
-	"app.modules/core/utils"
 	"context"
 	"log/slog"
+
+	"app.modules/core/utils"
 
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
@@ -30,10 +31,10 @@ func TransferCollectionHistoryBigquery() (TransferCollectionHistoryBigqueryRespo
 	defer sys.CloseFirestoreClient()
 
 	if err := sys.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption); err != nil {
-		sys.MessageToOwnerWithError("failed to transfer each collection history to bigquery", err)
+		sys.MessageToOwnerWithError(ctx, "failed to transfer each collection history to bigquery", err)
 		return TransferCollectionHistoryBigqueryResponse{}, nil
 	}
-	sys.MessageToOwner("successfully transferred each collection history to bigquery")
+	sys.MessageToOwner(ctx, "successfully transferred each collection history to bigquery")
 
 	return TransferCollectionHistoryBigqueryResponse{
 		Result:  lambdautils.OK,

@@ -1,7 +1,7 @@
 package mybigquery
 
 import (
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/bigquery"
 	"context"
@@ -97,17 +97,17 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		}
 
 		switch collectionName {
-		case myfirestore.LiveChatHistory:
+		case repository.LiveChatHistory:
 			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', published_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
-		case myfirestore.UserActivities:
+		case repository.UserActivities:
 			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', taken_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
 				yesterdayEnd.Format("2006-01-02 15:04:05") + "'")
-		case myfirestore.OrderHistory:
+		case repository.OrderHistory:
 			query = c.Client.Query("SELECT * FROM `" + c.Client.Project() + "." + DatasetName + "." +
 				TemporaryTableName + "` WHERE FORMAT_TIMESTAMP('%F %T', ordered_at, '+09:00') " +
 				"BETWEEN '" + yesterdayStart.Format("2006-01-02 15:04:05") + "' AND '" +
@@ -116,11 +116,11 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		query.Location = c.WorkingRegion
 		query.WriteDisposition = bigquery.WriteAppend // 追加
 		switch collectionName {
-		case myfirestore.LiveChatHistory:
+		case repository.LiveChatHistory:
 			query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName)
-		case myfirestore.UserActivities:
+		case repository.UserActivities:
 			query.QueryConfig.Dst = dataset.Table(UserActivityHistoryMainTableName)
-		case myfirestore.OrderHistory:
+		case repository.OrderHistory:
 			query.QueryConfig.Dst = dataset.Table(OrderHistoryMainTableName)
 		}
 		job, err = query.Run(ctx)

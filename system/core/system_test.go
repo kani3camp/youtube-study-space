@@ -3,8 +3,8 @@ package core_test
 import (
 	"app.modules/core"
 	"app.modules/core/i18n"
-	"app.modules/core/myfirestore"
-	mock_myfirestore "app.modules/core/myfirestore/mocks"
+	"app.modules/core/repository"
+	mock_myfirestore "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
@@ -23,15 +23,15 @@ import (
 
 var inTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	targetSeatDoc        *myfirestore.SeatDoc
+	targetSeatDoc        *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "一般席入室",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -54,7 +54,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "メンバー席入室",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 		},
@@ -78,7 +78,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "メンバー以外がメンバー席入室",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 		},
@@ -102,7 +102,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "一般席：座席指定なし",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 1,
 		},
 		commandDetails: utils.CommandDetails{
@@ -119,7 +119,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "一般席：指定した座席が空いていない",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -130,7 +130,7 @@ var inTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		targetSeatDoc: &myfirestore.SeatDoc{
+		targetSeatDoc: &repository.SeatDoc{
 			SeatId: 1,
 			UserId: "test_user_id",
 		},
@@ -138,7 +138,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "一般席：座席が存在しない",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -155,7 +155,7 @@ var inTestCases = []struct {
 	},
 	{
 		name: "メンバー席：座席指定なし",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           1,
 		},
@@ -181,43 +181,43 @@ func TestSystem_In(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
 			if tt.commandDetails.InOption.IsSeatIdSet {
-				var seatDoc myfirestore.SeatDoc
+				var seatDoc repository.SeatDoc
 				var seatErr error
 				if tt.targetSeatDoc != nil {
 					seatDoc = *tt.targetSeatDoc
 					seatErr = nil
 				} else {
-					seatDoc = myfirestore.SeatDoc{}
+					seatDoc = repository.SeatDoc{}
 					seatErr = status.Errorf(codes.NotFound, "")
 				}
 				mockDB.EXPECT().ReadSeat(gomock.Any(), gomock.Any(), tt.commandDetails.InOption.SeatId, gomock.Any()).Return(seatDoc, seatErr).AnyTimes()
 			}
 			mockDB.EXPECT().ReadSystemConstantsConfig(gomock.Any(), gomock.Any()).Return(tt.constantsConfig, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIdAndUserId(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
-				Return([]myfirestore.SeatLimitDoc{}, nil).AnyTimes()
+				Return([]repository.SeatLimitDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatLimitsBLACKListWithSeatIdAndUserId(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
-				Return([]myfirestore.SeatLimitDoc{}, nil).AnyTimes()
+				Return([]repository.SeatLimitDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return([]myfirestore.UserActivityDoc{}, nil).AnyTimes()
+				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return([]myfirestore.UserActivityDoc{}, nil).AnyTimes()
+				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").
-				Return(myfirestore.UserDoc{
+				Return(repository.UserDoc{
 					DefaultStudyMin:    100,
 					RankVisible:        false,
 					IsContinuousActive: false,
 				}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", true).
-				Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", false).
-				Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(gomock.Any(), gomock.Any(), "test_user_id", true, gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
-			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
@@ -235,7 +235,7 @@ func TestSystem_In(t *testing.T) {
 				Configs: &core.SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
@@ -255,7 +255,7 @@ func TestSystem_In(t *testing.T) {
 
 var outTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
 	expectedReplyMessage string
@@ -269,7 +269,7 @@ var outTestCases = []struct {
 	},
 	{
 		name: "メンバー席退室",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 		},
 		commandDetails: utils.CommandDetails{
@@ -296,12 +296,12 @@ func TestSystem_Out(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
 				SeatId: 1,
 				UserId: "test_user_id",
 			}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
@@ -312,7 +312,7 @@ func TestSystem_Out(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -332,10 +332,10 @@ func TestSystem_Out(t *testing.T) {
 
 var showUserInfoTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
@@ -353,10 +353,10 @@ var showUserInfoTestCases = []struct {
 			CommandType: utils.Info,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                1,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 		},
@@ -380,20 +380,20 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			if tt.currentSeatDoc != nil {
 				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -413,17 +413,17 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 
 var showSeatInfoTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
-	generalSeats         []myfirestore.SeatDoc
-	memberSeats          []myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
+	generalSeats         []repository.SeatDoc
+	memberSeats          []repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "座席表示（退室時）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -431,40 +431,40 @@ var showSeatInfoTestCases = []struct {
 		},
 		userIsMember:         false,
 		currentSeatDoc:       nil,
-		generalSeats:         []myfirestore.SeatDoc{},
-		memberSeats:          []myfirestore.SeatDoc{},
+		generalSeats:         []repository.SeatDoc{},
+		memberSeats:          []repository.SeatDoc{},
 		expectedReplyMessage: "@テストユーザーさんは入室していません。「!in」コマンドで入室しましょう！📝",
 	},
 	{
 		name: "座席表示（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Seat,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                3,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		generalSeats: []myfirestore.SeatDoc{
+		generalSeats: []repository.SeatDoc{
 			{
 				SeatId: 3,
 				UserId: "test_user_id",
-				State:  myfirestore.WorkState,
+				State:  repository.WorkState,
 			},
 		},
-		memberSeats:          []myfirestore.SeatDoc{},
+		memberSeats:          []repository.SeatDoc{},
 		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
 	},
 	{
 		name: "座席表示（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 		},
@@ -472,27 +472,27 @@ var showSeatInfoTestCases = []struct {
 			CommandType: utils.Seat,
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                3,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		generalSeats: []myfirestore.SeatDoc{},
-		memberSeats: []myfirestore.SeatDoc{
+		generalSeats: []repository.SeatDoc{},
+		memberSeats: []repository.SeatDoc{
 			{
 				SeatId: 3,
 				UserId: "test_user_id",
-				State:  myfirestore.WorkState,
+				State:  repository.WorkState,
 			},
 		},
 		expectedReplyMessage: "@テストユーザーさんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
 	},
 	{
 		name: "座席表示（一般席：詳細あり）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats:       10,
 			RecentRangeMin: 1440,
 		},
@@ -503,22 +503,22 @@ var showSeatInfoTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                3,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
 		},
-		generalSeats: []myfirestore.SeatDoc{
+		generalSeats: []repository.SeatDoc{
 			{
 				SeatId: 3,
 				UserId: "test_user_id",
-				State:  myfirestore.WorkState,
+				State:  repository.WorkState,
 			},
 		},
-		memberSeats:          []myfirestore.SeatDoc{},
+		memberSeats:          []repository.SeatDoc{},
 		expectedReplyMessage: "@テストユーザーさんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊過去1440分以内に3番席に合計0分着席しています🪑",
 	},
 }
@@ -541,24 +541,24 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return(tt.generalSeats, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return(tt.memberSeats, nil).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			if tt.currentSeatDoc != nil {
 				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return([]myfirestore.UserActivityDoc{}, nil).AnyTimes()
+				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return([]myfirestore.UserActivityDoc{}, nil).AnyTimes()
+				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -581,15 +581,15 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 var changeTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "作業内容・入室時間変更（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats:       10,
 			MinWorkTimeMin: 5,
 			MaxWorkTimeMin: 360,
@@ -604,10 +604,10 @@ var changeTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -616,7 +616,7 @@ var changeTestCases = []struct {
 	},
 	{
 		name: "作業内容・入室時間変更（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 			MinWorkTimeMin:           5,
@@ -632,10 +632,10 @@ var changeTestCases = []struct {
 			},
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -660,10 +660,10 @@ func TestSystem_Change(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
 				assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
@@ -676,7 +676,7 @@ func TestSystem_Change(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -699,15 +699,15 @@ func TestSystem_Change(t *testing.T) {
 
 var moreTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "作業時間延長（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats:       10,
 			MinWorkTimeMin: 5,
 			MaxWorkTimeMin: 360,
@@ -719,10 +719,10 @@ var moreTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -731,7 +731,7 @@ var moreTestCases = []struct {
 	},
 	{
 		name: "作業時間延長（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 			MinWorkTimeMin:           5,
@@ -744,10 +744,10 @@ var moreTestCases = []struct {
 			},
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -772,10 +772,10 @@ func TestSystem_More(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
 				assert.Equal(t, tt.currentSeatDoc.Until.Add(30*time.Minute), seat.Until)
@@ -788,7 +788,7 @@ func TestSystem_More(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -811,15 +811,15 @@ func TestSystem_More(t *testing.T) {
 
 var breakTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "休憩開始（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats:                10,
 			DefaultBreakDurationMin: 30,
 		},
@@ -827,10 +827,10 @@ var breakTestCases = []struct {
 			CommandType: utils.Break,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -839,7 +839,7 @@ var breakTestCases = []struct {
 	},
 	{
 		name: "休憩開始（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 			DefaultBreakDurationMin:  30,
@@ -848,10 +848,10 @@ var breakTestCases = []struct {
 			CommandType: utils.Break,
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -860,7 +860,7 @@ var breakTestCases = []struct {
 	},
 	{
 		name: "休憩開始（一般席：休憩中）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats:                10,
 			DefaultBreakDurationMin: 30,
 		},
@@ -868,10 +868,10 @@ var breakTestCases = []struct {
 			CommandType: utils.Break,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.BreakState,
+			State:                 repository.BreakState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -896,13 +896,13 @@ func TestSystem_Break(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.Equal(t, myfirestore.BreakState, seat.State)
+				assert.Equal(t, repository.BreakState, seat.State)
 				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				return nil
 			}).MaxTimes(1)
@@ -912,7 +912,7 @@ func TestSystem_Break(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -935,25 +935,25 @@ func TestSystem_Break(t *testing.T) {
 
 var resumeTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentSeatDoc       *myfirestore.SeatDoc
+	currentSeatDoc       *repository.SeatDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "作業再開（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.BreakState,
+			State:                 repository.BreakState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -962,7 +962,7 @@ var resumeTestCases = []struct {
 	},
 	{
 		name: "作業再開（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
 		},
@@ -970,10 +970,10 @@ var resumeTestCases = []struct {
 			CommandType: utils.Resume,
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
-			State:                 myfirestore.BreakState,
+			State:                 repository.BreakState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -982,17 +982,17 @@ var resumeTestCases = []struct {
 	},
 	{
 		name: "作業再開（一般席：作業中）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
-			State:                 myfirestore.WorkState,
+			State:                 repository.WorkState,
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			Until:                 time.Now().Add(90 * time.Minute),
@@ -1017,13 +1017,13 @@ func TestSystem_Resume(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(myfirestore.UserDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.Equal(t, myfirestore.WorkState, seat.State)
+				assert.Equal(t, repository.WorkState, seat.State)
 				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				return nil
 			}).MaxTimes(1)
@@ -1033,7 +1033,7 @@ func TestSystem_Resume(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -1056,36 +1056,36 @@ func TestSystem_Resume(t *testing.T) {
 
 var rankTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentUserDoc       myfirestore.UserDoc
+	currentUserDoc       repository.UserDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "ランク表示モード切り替え（オン）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Rank,
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
 		expectedReplyMessage: "@テストユーザーさんのランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モード切り替え（オフ）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Rank,
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
 		expectedReplyMessage: "@テストユーザーさんのランク表示をオフにしました🎯",
@@ -1108,11 +1108,11 @@ func TestSystem_Rank(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(tt.currentUserDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserRankVisible(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 
@@ -1120,7 +1120,7 @@ func TestSystem_Rank(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -1143,15 +1143,15 @@ func TestSystem_Rank(t *testing.T) {
 
 var myTestCases = []struct {
 	name                 string
-	constantsConfig      myfirestore.ConstantsConfigDoc
+	constantsConfig      repository.ConstantsConfigDoc
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
-	currentUserDoc       myfirestore.UserDoc
+	currentUserDoc       repository.UserDoc
 	expectedReplyMessage string
 }{
 	{
 		name: "ランク表示モードオン",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1164,14 +1164,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
 		expectedReplyMessage: "@テストユーザーさん、ランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モードオフ",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1184,14 +1184,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
 		expectedReplyMessage: "@テストユーザーさん、ランク表示をオフにしました🎯",
 	},
 	{
 		name: "ランク表示モードオン（すでにオン）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1204,14 +1204,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
 		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオンです🎯",
 	},
 	{
 		name: "ランク表示モードオフ（すでにオフ）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1224,14 +1224,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
 		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオフです🎯",
 	},
 	{
 		name: "お気に入り作業時間設定",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1244,14 +1244,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			DefaultStudyMin: 30,
 		},
 		expectedReplyMessage: "@テストユーザーさん、デフォルトの作業時間を60分に設定しました⏱️",
 	},
 	{
 		name: "お気に入りカラーを設定（まだ使用不可）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1264,14 +1264,14 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			FavoriteColor: "000000",
 		},
 		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました🎨（累計作業時間が1000時間を超えるとお気に入りカラーが使えるようになります）",
 	},
 	{
 		name: "お気に入りカラー設定（使用可能）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxSeats: 10,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1284,7 +1284,7 @@ var myTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentUserDoc: myfirestore.UserDoc{
+		currentUserDoc: repository.UserDoc{
 			FavoriteColor: "",
 			TotalStudySec: int(1000 * time.Hour),
 		},
@@ -1308,11 +1308,11 @@ func TestSystem_My(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(tt.currentUserDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateUserRankVisible(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserDefaultStudyMin(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
@@ -1322,7 +1322,7 @@ func TestSystem_My(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
@@ -1345,17 +1345,17 @@ func TestSystem_My(t *testing.T) {
 
 var orderTestCases = []struct {
 	name                     string
-	constantsConfig          myfirestore.ConstantsConfigDoc
+	constantsConfig          repository.ConstantsConfigDoc
 	commandDetails           utils.CommandDetails
 	userIsMember             bool
-	currentSeatDoc           *myfirestore.SeatDoc
+	currentSeatDoc           *repository.SeatDoc
 	alreadyOrderedCountToday int64
-	newOrderHistory          *myfirestore.OrderHistoryDoc
+	newOrderHistory          *repository.OrderHistoryDoc
 	expectedReplyMessage     string
 }{
 	{
 		name: "メニュー注文（一般席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxDailyOrderCount: 5,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1366,13 +1366,13 @@ var orderTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:   1,
 			UserId:   "test_user_id",
 			MenuCode: "",
 		},
 		alreadyOrderedCountToday: 0,
-		newOrderHistory: &myfirestore.OrderHistoryDoc{
+		newOrderHistory: &repository.OrderHistoryDoc{
 			UserId:   "test_user_id",
 			MenuCode: "black-tea",
 		},
@@ -1380,7 +1380,7 @@ var orderTestCases = []struct {
 	},
 	{
 		name: "メニュー注文（メンバー席）",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxDailyOrderCount: 5,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1391,13 +1391,13 @@ var orderTestCases = []struct {
 			},
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:   1,
 			UserId:   "test_user_id",
 			MenuCode: "",
 		},
 		alreadyOrderedCountToday: 0,
-		newOrderHistory: &myfirestore.OrderHistoryDoc{
+		newOrderHistory: &repository.OrderHistoryDoc{
 			UserId:   "test_user_id",
 			MenuCode: "black-tea",
 		},
@@ -1405,7 +1405,7 @@ var orderTestCases = []struct {
 	},
 	{
 		name: "入室してないなら注文できない",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxDailyOrderCount: 5,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1421,7 +1421,7 @@ var orderTestCases = []struct {
 	},
 	{
 		name: "非メンバーは注文回数に上限あり",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxDailyOrderCount: 5,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1432,7 +1432,7 @@ var orderTestCases = []struct {
 			},
 		},
 		userIsMember: false,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:   1,
 			UserId:   "test_user_id",
 			MenuCode: "",
@@ -1442,7 +1442,7 @@ var orderTestCases = []struct {
 	},
 	{
 		name: "メンバーは注文回数に上限なし",
-		constantsConfig: myfirestore.ConstantsConfigDoc{
+		constantsConfig: repository.ConstantsConfigDoc{
 			MaxDailyOrderCount: 5,
 		},
 		commandDetails: utils.CommandDetails{
@@ -1453,13 +1453,13 @@ var orderTestCases = []struct {
 			},
 		},
 		userIsMember: true,
-		currentSeatDoc: &myfirestore.SeatDoc{
+		currentSeatDoc: &repository.SeatDoc{
 			SeatId:   1,
 			UserId:   "test_user_id",
 			MenuCode: "",
 		},
 		alreadyOrderedCountToday: 5,
-		newOrderHistory: &myfirestore.OrderHistoryDoc{
+		newOrderHistory: &repository.OrderHistoryDoc{
 			UserId:   "test_user_id",
 			MenuCode: "black-tea",
 		},
@@ -1471,7 +1471,7 @@ func TestSystem_Order(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	menuDocs := []myfirestore.MenuDoc{
+	menuDocs := []repository.MenuDoc{
 		{
 			Code: "black-tea",
 			Name: "紅茶",
@@ -1498,21 +1498,21 @@ func TestSystem_Order(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
-			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]myfirestore.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 
 			if tt.currentSeatDoc != nil {
 				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(myfirestore.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadAllMenuDocsOrderByCode(gomock.Any()).Return(menuDocs, nil).AnyTimes()
 			mockDB.EXPECT().CountUserOrdersOfTheDay(gomock.Any(), "test_user_id", gomock.Any()).Return(tt.alreadyOrderedCountToday, nil).AnyTimes()
 			mockDB.EXPECT().CreateOrderHistoryDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat myfirestore.SeatDoc, isMemberSeat bool) error {
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
 				assert.NotNil(t, tt.currentSeatDoc.MenuCode)
@@ -1523,7 +1523,7 @@ func TestSystem_Order(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := core.System{
-				FirestoreController:      mockDB,
+				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
 				LiveChatBot:              mockLiveChatBot,

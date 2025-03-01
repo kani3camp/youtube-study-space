@@ -1,4 +1,4 @@
-package myspreadsheet
+package wordsreader
 
 import (
 	"context"
@@ -6,23 +6,24 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
+	"strconv"
 	"strings"
 )
 
-type SpreadsheetController struct {
+type SpreadsheetReader struct {
 	client                     *sheets.Service
 	spreadsheetId              string
 	blockRegexSheetName        string
 	notificationRegexSheetName string
 }
 
-func NewSpreadsheetController(
+func NewSpreadsheetReader(
 	ctx context.Context,
 	clientOption option.ClientOption,
 	spreadsheetId string,
 	blockRegexSheetNamePrefix,
 	notificationRegexSheetNamePrefix string,
-) (*SpreadsheetController, error) {
+) (*SpreadsheetReader, error) {
 	service, err := sheets.NewService(ctx, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in sheets.NewService: %w", err)
@@ -50,7 +51,7 @@ func NewSpreadsheetController(
 		return nil, errors.New("failed to find notificationRegexSheetName")
 	}
 
-	return &SpreadsheetController{
+	return &SpreadsheetReader{
 		client:                     service,
 		spreadsheetId:              spreadsheetId,
 		blockRegexSheetName:        blockRegexSheetName,
@@ -58,68 +59,86 @@ func NewSpreadsheetController(
 	}, nil
 }
 
-func (sc *SpreadsheetController) GetRegexForBlock() ([]string, []string, error) {
-	readRange := sc.blockRegexSheetName + "!" + "A2:C999" // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-
+func (sc *SpreadsheetReader) ReadBlockRegexes() (chatRegexes []string, channelRegexes []string, err error) {
+	readRange := fmt.Sprintf("%s!A2:C999", sc.blockRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
 	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
 
-	var regexListForChatMessage []string
-	var regexListForChannelName []string
-	var regex string
-	var enabled, applyForChannelName bool
 	for _, row := range resp.Values {
-		enabled = row[0] == "TRUE"
-		regex = row[1].(string)
-		applyForChannelName = row[2] == "TRUE"
-
-		if regex == "" {
-			continue // skip vacant cell
-		}
-		if !enabled {
+		if len(row) < 3 {
 			continue
 		}
 
-		regexListForChatMessage = append(regexListForChatMessage, regex)
+		enabledStr, ok1 := row[0].(string)
+		regex, ok2 := row[1].(string)
+		applyForChannelNameStr, ok3 := row[2].(string)
+		if !ok1 || !ok2 || !ok3 {
+			// 型が予想通りでなければスキップ
+			continue
+		}
+		enabled, err := strconv.ParseBool(enabledStr)
+		if err != nil {
+			continue
+		}
+		applyForChannelName, err := strconv.ParseBool(applyForChannelNameStr)
+		if err != nil {
+			continue
+		}
+
+		// 空文字や無効な設定はスキップ
+		if regex == "" || !enabled {
+			continue
+		}
+
+		chatRegexes = append(chatRegexes, regex)
 		if applyForChannelName {
-			regexListForChannelName = append(regexListForChannelName, regex)
+			channelRegexes = append(channelRegexes, regex)
 		}
 	}
 
-	return regexListForChatMessage, regexListForChannelName, nil
+	return
 }
 
-func (sc *SpreadsheetController) GetRegexForNotification() ([]string, []string, error) {
-	readRange := sc.notificationRegexSheetName + "!" + "A2:C999" // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-
+func (sc *SpreadsheetReader) ReadNotificationRegexes() (chatRegexes []string, channelRegexes []string, err error) {
+	readRange := fmt.Sprintf("%s!A2:C999", sc.notificationRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
 	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
 
-	var regexListForChatMessage []string
-	var regexListForChannelName []string
-	var regex string
-	var enabled, applyForChannelName bool
 	for _, row := range resp.Values {
-		enabled = row[0] == "TRUE"
-		regex = row[1].(string)
-		applyForChannelName = row[2] == "TRUE"
-
-		if regex == "" {
-			continue // skip vacant cell
-		}
-		if !enabled {
+		if len(row) < 3 {
 			continue
 		}
 
-		regexListForChatMessage = append(regexListForChatMessage, regex)
+		enabledStr, ok1 := row[0].(string)
+		regex, ok2 := row[1].(string)
+		applyForChannelNameStr, ok3 := row[2].(string)
+		if !ok1 || !ok2 || !ok3 {
+			// 型が予想通りでなければスキップ
+			continue
+		}
+		enabled, err := strconv.ParseBool(enabledStr)
+		if err != nil {
+			continue
+		}
+		applyForChannelName, err := strconv.ParseBool(applyForChannelNameStr)
+		if err != nil {
+			continue
+		}
+
+		// 空文字や無効な設定はスキップ
+		if regex == "" || !enabled {
+			continue
+		}
+
+		chatRegexes = append(chatRegexes, regex)
 		if applyForChannelName {
-			regexListForChannelName = append(regexListForChannelName, regex)
+			channelRegexes = append(channelRegexes, regex)
 		}
 	}
 
-	return regexListForChatMessage, regexListForChannelName, nil
+	return
 }

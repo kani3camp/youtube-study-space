@@ -1,18 +1,20 @@
 package core
 
 import (
-	"app.modules/core/discordbot"
-	"app.modules/core/myfirestore"
+	"app.modules/core/moderatorbot"
+	"app.modules/core/repository"
+	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
 )
 
 type System struct {
-	Configs             *SystemConfigs
-	FirestoreController myfirestore.FirestoreController
-	LiveChatBot         youtubebot.YoutubeLiveChatBotInterface
-	discordOwnerBot     *discordbot.DiscordBot
-	discordSharedBot    *discordbot.DiscordBot
-	discordSharedLogBot *discordbot.DiscordBot
+	Configs            *SystemConfigs
+	Repository         repository.Repository
+	WordsReader        wordsreader.WordsReader
+	LiveChatBot        youtubebot.LiveChatBot
+	alertOwnerBot      moderatorbot.MessageBot
+	alertModeratorsBot moderatorbot.MessageBot
+	logModeratorsBot   moderatorbot.MessageBot
 
 	ProcessedUserId                 string
 	ProcessedUserDisplayName        string
@@ -20,17 +22,17 @@ type System struct {
 	ProcessedUserIsModeratorOrOwner bool
 	ProcessedUserIsMember           bool
 
-	blockRegexListForChatMessage        []string
-	blockRegexListForChannelName        []string
-	notificationRegexListForChatMessage []string
-	notificationRegexListForChannelName []string
+	blockRegexesForChatMessage        []string
+	blockRegexesForChannelName        []string
+	notificationRegexesForChatMessage []string
+	notificationRegexesForChannelName []string
 
-	SortedMenuItems []myfirestore.MenuDoc // メニューコードで昇順ソートして格納
+	SortedMenuItems []repository.MenuDoc // メニューコードで昇順ソートして格納
 }
 
 // SystemConfigs System生成時に初期化すべきフィールド値
 type SystemConfigs struct {
-	Constants myfirestore.ConstantsConfigDoc
+	Constants repository.ConstantsConfigDoc
 
 	LiveChatBotChannelId string
 }

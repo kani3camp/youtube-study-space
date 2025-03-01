@@ -55,7 +55,7 @@
 [command-report]
 "no-message" = "@{0}님, 공백을 넣고 메시지를 작성해주세요." # 0: Username
 "owner" = "【{0} 수신】\n채널 ID: {1}\n채널 이름: {2}\n\n{3}" # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
-"discord" = "【{0} 수신】\n채널 이름: `{1}`\n메시지: `{2}`"    # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
+"moderators" = "【{0} 수신】\n채널 이름: `{1}`\n메시지: `{2}`"    # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
 "alert" = "@{0}님, 관리자에게 메시지를 전송하였습니다⚠" # 0: UserName
 
 [command-kick]
