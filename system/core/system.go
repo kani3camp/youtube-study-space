@@ -195,12 +195,12 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err := s.BanUser(ctx, userId); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, s.LogToModerators("発言から禁止ワードを検出、ユーザーをブロックしました。" +
-			"\n禁止ワード: `" + s.blockRegexesForChatMessage[index] + "`" +
-			"\nチャンネル名: `" + channelName + "`" +
-			"\nチャンネルURL: https://youtube.com/channel/" + userId +
-			"\nチャット内容: `" + message + "`" +
-			"\n日時: " + utils.JstNow().String())
+		return true, s.LogToModerators(ctx, "発言から禁止ワードを検出、ユーザーをブロックしました。"+
+			"\n禁止ワード: `"+s.blockRegexesForChatMessage[index]+"`"+
+			"\nチャンネル名: `"+channelName+"`"+
+			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャット内容: `"+message+"`"+
+			"\n日時: "+utils.JstNow().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(s.blockRegexesForChannelName, channelName)
 	if err != nil {
@@ -210,12 +210,12 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		if err := s.BanUser(ctx, userId); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, s.LogToModerators("チャンネル名から禁止ワードを検出、ユーザーをブロックしました。" +
-			"\n禁止ワード: `" + s.blockRegexesForChannelName[index] + "`" +
-			"\nチャンネル名: `" + channelName + "`" +
-			"\nチャンネルURL: https://youtube.com/channel/" + userId +
-			"\nチャット内容: `" + message + "`" +
-			"\n日時: " + utils.JstNow().String())
+		return true, s.LogToModerators(ctx, "チャンネル名から禁止ワードを検出、ユーザーをブロックしました。"+
+			"\n禁止ワード: `"+s.blockRegexesForChannelName[index]+"`"+
+			"\nチャンネル名: `"+channelName+"`"+
+			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャット内容: `"+message+"`"+
+			"\n日時: "+utils.JstNow().String())
 	}
 
 	// 通知対象チェック
@@ -224,24 +224,24 @@ func (s *System) CheckIfUnwantedWordIncluded(ctx context.Context, userId, messag
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
-		return false, s.MessageToModerators("発言から禁止ワードを検出しました。（通知のみ）" +
-			"\n禁止ワード: `" + s.notificationRegexesForChatMessage[index] + "`" +
-			"\nチャンネル名: `" + channelName + "`" +
-			"\nチャンネルURL: https://youtube.com/channel/" + userId +
-			"\nチャット内容: `" + message + "`" +
-			"\n日時: " + utils.JstNow().String())
+		return false, s.MessageToModerators(ctx, "発言から禁止ワードを検出しました。（通知のみ）"+
+			"\n禁止ワード: `"+s.notificationRegexesForChatMessage[index]+"`"+
+			"\nチャンネル名: `"+channelName+"`"+
+			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャット内容: `"+message+"`"+
+			"\n日時: "+utils.JstNow().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(s.notificationRegexesForChannelName, channelName)
 	if err != nil {
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
-		return false, s.MessageToModerators("チャンネルから禁止ワードを検出しました。（通知のみ）" +
-			"\n禁止ワード: `" + s.notificationRegexesForChannelName[index] + "`" +
-			"\nチャンネル名: `" + channelName + "`" +
-			"\nチャンネルURL: https://youtube.com/channel/" + userId +
-			"\nチャット内容: `" + message + "`" +
-			"\n日時: " + utils.JstNow().String())
+		return false, s.MessageToModerators(ctx, "チャンネルから禁止ワードを検出しました。（通知のみ）"+
+			"\n禁止ワード: `"+s.notificationRegexesForChannelName[index]+"`"+
+			"\nチャンネル名: `"+channelName+"`"+
+			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャット内容: `"+message+"`"+
+			"\n日時: "+utils.JstNow().String())
 	}
 	return false, nil
 }
@@ -459,7 +459,7 @@ func (s *System) Command(
 	if !isChatModerator && !isChatOwner {
 		blocked, err := s.CheckIfUnwantedWordIncluded(ctx, userId, commandString, userDisplayName)
 		if err != nil {
-			s.MessageToOwnerWithError("in CheckIfUnwantedWordIncluded", err)
+			s.MessageToOwnerWithError(ctx, "in CheckIfUnwantedWordIncluded", err)
 			// continue
 		}
 		if blocked {
@@ -903,11 +903,11 @@ func (s *System) Report(command *utils.CommandDetails, ctx context.Context) erro
 	}
 
 	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	s.MessageToOwner(ownerMessage)
+	s.MessageToOwner(ctx, ownerMessage)
 
 	messageForModerators := t("moderators", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	if err := s.MessageToModerators(messageForModerators); err != nil {
-		s.MessageToOwnerWithError("モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
+	if err := s.MessageToModerators(ctx, messageForModerators); err != nil {
+		s.MessageToOwnerWithError(ctx, "モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
 	}
 
 	s.MessageToLiveChat(ctx, t("alert", s.ProcessedUserDisplayName))
@@ -969,12 +969,12 @@ func (s *System) Kick(command *utils.CommandDetails, ctx context.Context) error 
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		{
-			err := s.LogToModerators(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
-				SeatId) + "番席のユーザーをkickしました。\n" +
-				"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
-				"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
-				"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
-				"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
+			err := s.LogToModerators(ctx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
+				SeatId)+"番席のユーザーをkickしました。\n"+
+				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
+				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
+				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
+				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserId)
 			if err != nil {
 				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}
@@ -1034,7 +1034,7 @@ func (s *System) Check(command *utils.CommandDetails, ctx context.Context) error
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserId
-		if err := s.LogToModerators(message); err != nil {
+		if err := s.LogToModerators(ctx, message); err != nil {
 			return fmt.Errorf("failed LogToModerators(): %w", err)
 		}
 		replyMessage = i18n.T("command:sent", s.ProcessedUserDisplayName)
@@ -1079,7 +1079,7 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 				replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
 				return nil
 			}
-			s.MessageToOwnerWithError("in ReadSeat", err)
+			s.MessageToOwnerWithError(ctx, "in ReadSeat", err)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 		replyMessage = s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
@@ -1112,12 +1112,12 @@ func (s *System) Block(command *utils.CommandDetails, ctx context.Context) error
 		}
 
 		{
-			err := s.LogToModerators(s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
-				SeatId) + "番席のユーザーをblockしました。\n" +
-				"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
-				"作業名: " + targetSeat.WorkName + "\n休憩中の作業名: " + targetSeat.BreakWorkName + "\n" +
-				"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
-				"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserId)
+			err := s.LogToModerators(ctx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
+				SeatId)+"番席のユーザーをblockしました。\n"+
+				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
+				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
+				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
+				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserId)
 			if err != nil {
 				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}
@@ -2303,30 +2303,30 @@ func (s *System) ListLiveChatMessages(ctx context.Context, pageToken string) ([]
 
 func (s *System) MessageToLiveChat(ctx context.Context, message string) {
 	if err := s.LiveChatBot.PostMessage(ctx, message); err != nil {
-		s.MessageToOwnerWithError("failed to send live chat message \""+message+"\"\n", err)
+		s.MessageToOwnerWithError(ctx, "failed to send live chat message \""+message+"\"\n", err)
 	}
 }
 
-func (s *System) MessageToOwner(message string) {
-	if err := s.alertOwnerBot.SendMessage(message); err != nil {
-		slog.Error("failed to send message to owner.", "err", err)
-	}
-	// これが最終連絡手段のため、エラーは返さずログのみ。
-}
-
-func (s *System) MessageToOwnerWithError(message string, argErr error) {
-	if err := s.alertOwnerBot.SendMessageWithError(message, argErr); err != nil {
-		slog.Error("failed to send message to owner.", "err", err)
+func (s *System) MessageToOwner(ctx context.Context, message string) {
+	if err := s.alertOwnerBot.SendMessage(ctx, message); err != nil {
+		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
-func (s *System) MessageToModerators(message string) error {
-	return s.alertModeratorsBot.SendMessage(message)
+func (s *System) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
+	if err := s.alertOwnerBot.SendMessageWithError(ctx, message, argErr); err != nil {
+		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
+	}
+	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
-func (s *System) LogToModerators(logMessage string) error {
-	return s.logModeratorsBot.SendMessage(logMessage)
+func (s *System) MessageToModerators(ctx context.Context, message string) error {
+	return s.alertModeratorsBot.SendMessage(ctx, message)
+}
+
+func (s *System) LogToModerators(ctx context.Context, logMessage string) error {
+	return s.logModeratorsBot.SendMessage(ctx, logMessage)
 }
 
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。

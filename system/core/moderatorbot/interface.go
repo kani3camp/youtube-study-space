@@ -1,6 +1,10 @@
 package moderatorbot
 
+import (
+	"context"
+)
+
 type MessageBot interface {
-	SendMessage(message string) error
-	SendMessageWithError(message string, err error) error
+	SendMessage(ctx context.Context, message string) error
+	SendMessageWithError(ctx context.Context, message string, err error) error
 }

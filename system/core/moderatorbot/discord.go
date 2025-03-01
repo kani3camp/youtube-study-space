@@ -1,9 +1,11 @@
 package moderatorbot
 
 import (
+	"context"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
 	"log/slog"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type DiscordBot struct {
@@ -23,7 +25,7 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 	}, nil
 }
 
-func (bot *DiscordBot) SendMessage(message string) error {
+func (bot *DiscordBot) SendMessage(ctx context.Context, message string) error {
 	slog.Info("sending a message to Discord.", "message", message)
 	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
 	if err != nil {
@@ -32,7 +34,7 @@ func (bot *DiscordBot) SendMessage(message string) error {
 	return nil
 }
 
-func (bot *DiscordBot) SendMessageWithError(message string, err error) error {
+func (bot *DiscordBot) SendMessageWithError(ctx context.Context, message string, err error) error {
 	message += ":\n" + fmt.Sprintf("%+v", err)
-	return bot.SendMessage(message)
+	return bot.SendMessage(ctx, message)
 }
