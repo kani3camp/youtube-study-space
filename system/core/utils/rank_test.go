@@ -55,11 +55,11 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         57 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: true,
-				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 30),
+				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 31),
 				LastActiveAt:             JstNow().Add(-time.Hour),
 				PreviousRankPoint:        0,
 			},
-			Output: 74,
+			Output: 74, // 57 * (1 + 0.3)
 		},
 		{
 			Name: "短時間",
@@ -107,7 +107,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				LastActiveAt:             JstNow().Add(-time.Hour),
 				PreviousRankPoint:        0,
 			},
-			Output: 112, // 100 * 1.1 * (1 + 0.02)
+			Output: 111, // 100 * 1.1 * (1 + 0.01)
 		},
 		{
 			Name: "上限値を超えない",
