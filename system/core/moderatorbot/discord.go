@@ -26,7 +26,7 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 }
 
 func (bot *DiscordBot) SendMessage(ctx context.Context, message string) error {
-	slog.Info("sending a message to Discord.", "message", message)
+	slog.InfoContext(ctx, "sending a message to Discord.", "message", message)
 	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
 	if err != nil {
 		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)
