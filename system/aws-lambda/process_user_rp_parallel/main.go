@@ -1,17 +1,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"strconv"
+
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
-	"context"
-	"encoding/json"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	"log/slog"
-	"strconv"
 )
 
 type ProcessUserRPParallelResponseStruct struct {
@@ -38,11 +39,11 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
-		sys.MessageToOwner(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
+		sys.MessageToOwner(ctx, strconv.Itoa(len(remainingUserIds))+"個のユーザーが未処理のため、次のlambdaを呼び出します。")
 
 		sess, err := session.NewSession()
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to session.NewSession()", err)
+			sys.MessageToOwnerWithError(ctx, "failed to session.NewSession()", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
@@ -52,7 +53,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
+			sys.MessageToOwnerWithError(ctx, "failed to json.Marshal(payload)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -62,12 +63,12 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
+			sys.MessageToOwnerWithError(ctx, "failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		slog.Info("lambda invoked.", "output", resp)
 	} else {
-		sys.MessageToOwner("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
+		sys.MessageToOwner(ctx, "batch process (index: "+strconv.Itoa(request.ProcessIndex)+") completed.👍")
 	}
 
 	return ProcessUserRPParallelResponse(), nil

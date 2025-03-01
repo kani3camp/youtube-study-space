@@ -1,16 +1,17 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
-	"context"
-	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
-	"log/slog"
-	"net/http"
 )
 
 type SetMaxSeatsParams struct {
@@ -53,11 +54,11 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 
 	// transaction not necessary
 	if err := system.Repository.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
-		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
+		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 	if err := system.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
-		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
+		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 
