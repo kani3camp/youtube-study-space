@@ -1,15 +1,16 @@
 package guardians
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/youtubebot"
-	"context"
-	"fmt"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
-	"log/slog"
 )
 
 type LiveStreamsListResponse struct {
@@ -71,10 +72,10 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	slog.Info("live stream status.", "streamStatus", streamStatus, "healthStatus", healthStatus)
 
 	if streamStatus != "active" && streamStatus != "ready" {
-		_ = checker.alertOwnerBot.SendMessage("stream status is now : " + streamStatus)
+		_ = checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
-		_ = checker.alertOwnerBot.SendMessage("stream HEALTH status is now : " + healthStatus)
+		_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
 	}
 
 	return nil

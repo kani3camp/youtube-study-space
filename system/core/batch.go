@@ -1,23 +1,24 @@
 package core
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"reflect"
+	"strconv"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/mybigquery"
 	"app.modules/core/mystorage"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"context"
-	"errors"
-	"fmt"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log/slog"
-	"reflect"
-	"strconv"
-	"time"
 )
 
 // OrganizeDB 1分ごとに処理を行う。
@@ -104,7 +105,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 			return nil
 		})
 		if txErr != nil {
-			s.MessageToOwnerWithError("failed transaction", txErr)
+			s.MessageToOwnerWithError(ctx, "failed transaction", txErr)
 			continue // txErr != nil でもreturnではなく次に進む
 		}
 		if liveChatMessage != "" {
@@ -185,7 +186,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 			return nil
 		})
 		if txErr != nil {
-			s.MessageToOwnerWithError("failed transaction", txErr)
+			s.MessageToOwnerWithError(ctx, "failed transaction", txErr)
 			continue // txErr != nil でもreturnではなく次に進む
 		}
 		if liveChatMessage != "" {
@@ -257,7 +258,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []reposi
 			return nil
 		})
 		if txErr != nil {
-			s.MessageToOwnerWithError("failed transaction in OrganizeDBForceMove", txErr)
+			s.MessageToOwnerWithError(ctx, "failed transaction in OrganizeDBForceMove", txErr)
 			continue
 		}
 		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
@@ -309,7 +310,7 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 
 	ownerMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
 	ownerMessage += "\n本日のDailyOrganizeDB()処理が完了しました（RP更新処理以外）。"
-	s.MessageToOwner(ownerMessage)
+	s.MessageToOwner(ctx, ownerMessage)
 	slog.Info("finished " + utils.NameOf(s.DailyOrganizeDB))
 	return userIdsToProcessRP, nil
 }
@@ -341,7 +342,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 		}
 		return count, nil
 	} else {
-		s.MessageToOwner("all user's daily total study times are already reset today.")
+		s.MessageToOwner(ctx, "all user's daily total study times are already reset today.")
 		return 0, nil
 	}
 }
@@ -359,7 +360,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 
 		// 処理
 		if err := s.UpdateUserRP(ctx, userId, jstNow); err != nil {
-			s.MessageToOwnerWithError("failed to UpdateUserRP, while processing "+userId, err)
+			s.MessageToOwnerWithError(ctx, "failed to UpdateUserRP, while processing "+userId, err)
 			// pass. mark user as done
 		}
 		doneUserIds = append(doneUserIds, userId)
@@ -483,7 +484,7 @@ func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, c
 			return fmt.Errorf("in UpdateLastTransferCollectionHistoryBigquery(): %w", err)
 		}
 	} else {
-		s.MessageToOwner("yesterday's collection histories are already reset today.")
+		s.MessageToOwner(ctx, "yesterday's collection histories are already reset today.")
 	}
 	return nil
 }
