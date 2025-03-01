@@ -15,6 +15,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
+
 		slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 		switch slice[0] {
 		case MemberInCommand:
@@ -47,15 +48,9 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 			return ParseBlock(emojiExcludedString, false)
 		case MemberBlockCommand:
 			return ParseBlock(emojiExcludedString, true)
-		case OkawariCommand:
-			fallthrough
-		case MoreCommand:
+		case OkawariCommand, MoreCommand:
 			return ParseMore(emojiExcludedString, fullString, isMember, emojis)
-		case RestCommand:
-			fallthrough
-		case ChillCommand:
-			fallthrough
-		case BreakCommand:
+		case RestCommand, ChillCommand, BreakCommand:
 			return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 		case ResumeCommand:
 			return ParseResume(emojiExcludedString, fullString, isMember, emojis)
@@ -100,17 +95,13 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return &CommandDetails{
 					CommandType: Out,
 				}, ""
-			case EmojiInfo:
-				fallthrough
-			case EmojiInfoD:
+			case EmojiInfo, EmojiInfoD:
 				return ParseInfo(emojiExcludedString, isMember, emojis)
 			case EmojiMy:
 				return ParseMy(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiChange:
 				return ParseChange(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiSeat:
-				fallthrough
-			case EmojiSeatD:
+			case EmojiSeat, EmojiSeatD:
 				return ParseSeat(emojiExcludedString, isMember, emojis)
 			case EmojiMore:
 				return ParseMore(emojiExcludedString, fullString, isMember, emojis)
@@ -118,9 +109,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiResume:
 				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiOrder:
-				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiOrderCancel:
+			case EmojiOrder, EmojiOrderCancel:
 				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
 			default:
 			}
