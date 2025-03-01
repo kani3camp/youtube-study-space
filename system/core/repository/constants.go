@@ -1,4 +1,4 @@
-package myfirestore
+package repository
 
 const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CONFIG                    = "config"
@@ -21,8 +21,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	UserIdDocProperty            = "user-id"
 	SeatIdDocProperty            = "seat-id"
 
-	CreatedAtDocProperty = "created-at"
-	UntilDocProperty     = "until"
+	UntilDocProperty = "until"
 
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"
@@ -33,7 +32,6 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MemberMaxSeatsDocProperty                        = "member-max-seats"
-	MinVacancyRateDocProperty                        = "min-vacancy-rate"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"

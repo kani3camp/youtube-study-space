@@ -1,15 +1,16 @@
 package guardians
 
 import (
-	"app.modules/core/discordbot"
-	"app.modules/core/myfirestore"
-	"app.modules/core/youtubebot"
 	"context"
 	"fmt"
+	"log/slog"
+
+	"app.modules/core/moderatorbot"
+	"app.modules/core/repository"
+	"app.modules/core/youtubebot"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
-	"log/slog"
 )
 
 type LiveStreamsListResponse struct {
@@ -20,20 +21,20 @@ type LiveStreamsListResponse struct {
 }
 
 type LiveStreamChecker struct {
-	YoutubeLiveChatBot  youtubebot.YoutubeLiveChatBotInterface
-	OwnerDiscordBot     *discordbot.DiscordBot
-	FirestoreController myfirestore.FirestoreController
+	YoutubeLiveChatBot  youtubebot.LiveChatBot
+	alertOwnerBot       moderatorbot.MessageBot
+	FirestoreController repository.Repository
 }
 
 func NewLiveStreamChecker(
-	controller myfirestore.FirestoreController,
-	youtubeLiveChatBot youtubebot.YoutubeLiveChatBotInterface,
-	discordBot *discordbot.DiscordBot,
+	controller repository.Repository,
+	youtubeLiveChatBot youtubebot.LiveChatBot,
+	messageBot moderatorbot.MessageBot,
 ) *LiveStreamChecker {
 
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
-		OwnerDiscordBot:     discordBot,
+		alertOwnerBot:       messageBot,
 		FirestoreController: controller,
 	}
 }
@@ -71,10 +72,10 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	slog.Info("live stream status.", "streamStatus", streamStatus, "healthStatus", healthStatus)
 
 	if streamStatus != "active" && streamStatus != "ready" {
-		_ = checker.OwnerDiscordBot.SendMessage("stream status is now : " + streamStatus)
+		_ = checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus)
 	}
 	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
-		_ = checker.OwnerDiscordBot.SendMessage("stream HEALTH status is now : " + healthStatus)
+		_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
 	}
 
 	return nil

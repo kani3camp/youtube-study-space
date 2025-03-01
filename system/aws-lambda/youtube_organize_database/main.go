@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
+	"log/slog"
+
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
-	"context"
 	"github.com/aws/aws-lambda-go/lambda"
-	"log/slog"
 )
 
 type OrganizeDatabaseResponse struct {
@@ -29,11 +30,11 @@ func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 	defer system.CloseFirestoreClient()
 
 	if err := system.OrganizeDB(ctx, true); err != nil {
-		system.MessageToOwnerWithError("failed to OrganizeDB", err)
+		system.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
 	if err := system.OrganizeDB(ctx, false); err != nil {
-		system.MessageToOwnerWithError("failed to OrganizeDB", err)
+		system.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
 

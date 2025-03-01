@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
+	"log/slog"
+
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core"
 	"app.modules/core/utils"
-	"context"
 	"github.com/aws/aws-lambda-go/lambda"
-	"log/slog"
 )
 
 type CheckLiveStreamResponse struct {
@@ -30,7 +31,7 @@ func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	defer system.CloseFirestoreClient()
 
 	if err := system.CheckLiveStreamStatus(ctx); err != nil {
-		system.MessageToOwnerWithError("failed to check live stream status", err)
+		system.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return CheckLiveStreamResponse{}, err
 	}
 

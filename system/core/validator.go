@@ -2,7 +2,7 @@ package core
 
 import (
 	"app.modules/core/i18n"
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"github.com/pkg/errors"
 )
@@ -154,14 +154,14 @@ func (s *System) ValidateReport(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirestore.SeatState) error {
+func (s *System) ValidateChange(command utils.CommandDetails, seatState repository.SeatState) error {
 	// オプションが1つ以上指定されているか
 	if command.ChangeOption.NumOptionsSet() == 0 {
 		return errors.New(i18n.T("validate:missing-option"))
 	}
 
 	switch seatState {
-	case myfirestore.WorkState:
+	case repository.WorkState:
 		// 作業内容
 		// pass
 
@@ -173,7 +173,7 @@ func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirest
 				return errors.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
 			}
 		}
-	case myfirestore.BreakState:
+	case repository.BreakState:
 		// 休憩内容
 		// pass
 
