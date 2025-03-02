@@ -1,13 +1,13 @@
 package main
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -36,7 +36,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}

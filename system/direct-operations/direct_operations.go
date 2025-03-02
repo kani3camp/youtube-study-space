@@ -1,6 +1,7 @@
 package direct_operations
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"math"
 	"os"
 
-	"app.modules/core"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/option"
@@ -24,7 +24,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 
-	sys, err := core.NewSystem(ctx, true, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +43,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, true, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +61,7 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 }
 
 func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, true, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +98,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 }
 
 func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, true, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -12,7 +13,6 @@ import (
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
-	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
@@ -46,7 +46,7 @@ func Init() (option.ClientOption, context.Context, error) {
 }
 
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, false, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError(ctx, "failed core.NewSystem()", err)
 		return
@@ -62,7 +62,7 @@ func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 }
 
 func Bot(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := core.NewSystem(ctx, true, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
 	if err != nil {
 		sys.MessageToOwnerWithError(ctx, "failed core.NewSystem()", err)
 		return

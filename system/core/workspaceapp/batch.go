@@ -1,4 +1,4 @@
-package core
+package workspaceapp
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 // - 自動退室予定時刻(until)を過ぎているルーム内のユーザーを退室させる。
 // - CurrentStateUntilを過ぎている休憩中のユーザーを作業再開させる。
 // - 一時着席制限ブラックリスト・ホワイトリストのuntilを過ぎているドキュメントを削除する。
-func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
+func (s *WorkspaceApp) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
 	slog.Info(utils.NameOf(s.OrganizeDB), "isMemberRoom", isMemberRoom)
 
 	slog.Info("自動退室")
@@ -47,7 +47,7 @@ func (s *System) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
 	return nil
 }
 
-func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) error {
+func (s *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) error {
 	jstNow := utils.JstNow()
 	candidateSeatsSnapshot, err := s.Repository.ReadSeatsExpiredUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
@@ -115,7 +115,7 @@ func (s *System) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) erro
 	return nil
 }
 
-func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error {
+func (s *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error {
 	jstNow := utils.JstNow()
 	candidateSeatsSnapshot, err := s.Repository.ReadSeatsExpiredBreakUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
@@ -196,7 +196,7 @@ func (s *System) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error 
 	return nil
 }
 
-func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMemberRoom bool) error {
+func (s *WorkspaceApp) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMemberRoom bool) error {
 	jstNow := utils.JstNow()
 	// white list
 	for {
@@ -224,7 +224,7 @@ func (s *System) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMember
 	return nil
 }
 
-func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []repository.SeatDoc, isMemberSeat bool) error {
+func (s *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []repository.SeatDoc, isMemberSeat bool) error {
 	slog.Info(utils.NameOf(s.OrganizeDBForceMove), "isMemberSeat", isMemberSeat, "len(seatsSnapshot)", len(seatsSnapshot))
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
@@ -291,7 +291,7 @@ func (s *System) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []reposi
 	return nil
 }
 
-func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
+func (s *WorkspaceApp) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	slog.Info(utils.NameOf(s.DailyOrganizeDB))
 	var ownerMessage string
 
@@ -315,7 +315,7 @@ func (s *System) DailyOrganizeDB(ctx context.Context) ([]string, error) {
 	return userIdsToProcessRP, nil
 }
 
-func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
+func (s *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	slog.Info(utils.NameOf(s.ResetDailyTotalStudyTime))
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Configs.Constants.LastResetDailyTotalStudySec.In(utils.JapanLocation())
@@ -347,7 +347,7 @@ func (s *System) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	}
 }
 
-func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) []string {
+func (s *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) []string {
 	jstNow := utils.JstNow()
 	startTime := jstNow
 	var doneUserIds []string
@@ -377,7 +377,7 @@ func (s *System) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLi
 	return remainingUserIds
 }
 
-func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
+func (s *WorkspaceApp) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
 	slog.Info("processing RP.", "userId", userId)
 	return s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := s.Repository.ReadUser(ctx, tx, userId)
@@ -423,7 +423,7 @@ func (s *System) UpdateUserRP(ctx context.Context, userId string, jstNow time.Ti
 	})
 }
 
-func (s *System) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
+func (s *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
 	slog.Info(utils.NameOf(s.BackupCollectionHistoryFromGcsToBigquery))
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := s.Configs.Constants.LastTransferCollectionHistoryBigquery.In(utils.JapanLocation())
