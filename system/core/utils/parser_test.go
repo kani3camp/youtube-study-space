@@ -151,6 +151,37 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "work=は不要",
+			Input: "!in テスト",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: false,
+						WorkName:         "テスト",
+					},
+				},
+			},
+		},
+		{
+			Name:  "work=は不要",
+			Input: "!in テスト min=60",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "テスト",
+						DurationMin:      60,
+					},
+				},
+			},
+		},
+		{
 			Input: "!0",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -227,6 +258,7 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "全角の＝も対応",
 			Input: "!300 w＝全角イコール m＝165",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -243,7 +275,56 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
-			Input: "/in",
+			Name:  "work=は不要",
+			Input: "!in テスト m＝165",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "テスト",
+						DurationMin:      165,
+					},
+				},
+			},
+		},
+		{
+			Name:  "work=は不要 オプション順不同",
+			Input: "!in m=165 テスト",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "テスト",
+						DurationMin:      165,
+					},
+				},
+			},
+		},
+		{
+			Name:  "work=を優先",
+			Input: "!in テスト m=165 w=work",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "work",
+						DurationMin:      165,
+					},
+				},
+			},
+		},
+		{
+			Name:  "全角の／も対応",
+			Input: "／in",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -277,6 +358,23 @@ func TestParseCommand(t *testing.T) {
 						DurationMin:      35,
 					},
 					IsMemberSeat: true,
+				},
+			},
+		},
+		{
+			Name:  "work=は不要",
+			Input: "/1 てすと m=165",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "てすと",
+						DurationMin:      165,
+					},
 				},
 			},
 		},
@@ -360,7 +458,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    "!in" + TestEmojiWork0 + "わーく" + TestEmojiMin0 + "111",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -375,7 +474,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    "!in" + TestEmojiWork0 + "わーく" + TestEmojiInfo0,
 			IsMember: true,
 			Output: &CommandDetails{
@@ -388,7 +488,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    "!in" + TestEmojiWork0 + TestEmojiMin0 + "111",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -437,7 +538,8 @@ func TestParseCommand(t *testing.T) {
 			},
 			WillErr: true,
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiIn0 + TestEmojiMin0 + "300" + TestEmojiWork0 + "w",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -596,7 +698,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiInfo0 + "d",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -768,7 +871,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiMy0 + TestEmojiColor0 + "白" + TestEmojiMin0 + "100" + TestEmojiRankOn0,
 			IsMember: true,
 			Output: &CommandDetails{
@@ -837,6 +941,45 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "work=は不要",
+			Input: "!change てすと m=140",
+			Output: &CommandDetails{
+				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    true,
+					IsDurationMinSet: true,
+					WorkName:         "てすと",
+					DurationMin:      140,
+				},
+			},
+		},
+		{
+			Name:  "work=は不要 オプション順不同",
+			Input: "!change m=140 てすと",
+			Output: &CommandDetails{
+				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    true,
+					IsDurationMinSet: true,
+					WorkName:         "てすと",
+					DurationMin:      140,
+				},
+			},
+		},
+		{
+			Name:  "work=を優先",
+			Input: "!change テスト m=140 w=work",
+			Output: &CommandDetails{
+				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet:    true,
+					IsDurationMinSet: true,
+					WorkName:         "work",
+					DurationMin:      140,
+				},
+			},
+		},
+		{
 			Input:    TestEmojiChange0 + TestEmojiWork0 + TestEmoji360Min0,
 			IsMember: true,
 			Output: &CommandDetails{
@@ -862,7 +1005,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiChange0 + "m=140 w=新",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -977,7 +1121,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiMore0 + "100",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -1073,7 +1218,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiBreak0 + TestEmojiMin0 + "20" + TestEmojiWork0 + "coffee",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -1211,7 +1357,8 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
-		{ // no space.
+		{
+			Name:     "絵文字コマンドの隣は空白なしも可",
 			Input:    TestEmojiSeat0 + "d",
 			IsMember: true,
 			Output: &CommandDetails{

@@ -116,6 +116,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 
 // FormatStringToParse
 // 全角スペースを半角に変換
+// 全角イコールを半角に変換
 // 前後のスペースをトリム
 // `！`（全角）で始まるなら半角に変換
 // `／`（全角）で始まるなら半角に変換
