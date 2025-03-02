@@ -1,13 +1,13 @@
 package main
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
 	"log/slog"
 	"strconv"
 
 	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,7 +28,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	sys, err := core.NewSystem(ctx, false, clientOption)
+	sys, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}

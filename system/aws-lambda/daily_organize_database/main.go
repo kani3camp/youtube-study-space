@@ -1,13 +1,13 @@
 package main
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
 	"log/slog"
 	"strconv"
 
 	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,7 +28,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}

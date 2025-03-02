@@ -2,7 +2,7 @@
 
 // TODO: GitHub ActionsでFirestore Emulatorを使用するようになったら、このファイルも自動テスト対象に変更する。
 
-package core
+package workspaceapp
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func TestEnterRoom(t *testing.T) {
 	if clientErr != nil {
 		t.Fatal(clientErr)
 	}
-	system := System{
+	system := WorkspaceApp{
 		Repository: &repository.FirestoreControllerImplements{firestoreClient: client},
 	}
 	t.Cleanup(func() {

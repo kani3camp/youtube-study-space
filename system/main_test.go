@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app.modules/core"
+	"app.modules/core/workspaceapp"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestSetProcessedUser(t *testing.T) {
-	s := core.System{
+	s := workspaceapp.WorkspaceApp{
 		Configs:                         nil,
 		Repository:                      nil,
 		ProcessedUserId:                 "",

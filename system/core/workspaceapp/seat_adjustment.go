@@ -1,4 +1,4 @@
-package core
+package workspaceapp
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 )
 
 // AdjustMaxSeats 一般席とメンバー席の数を調整する
-func (s *System) AdjustMaxSeats(ctx context.Context) error {
+func (s *WorkspaceApp) AdjustMaxSeats(ctx context.Context) error {
 	slog.Info(utils.NameOf(s.AdjustMaxSeats))
 	// UpdateDesiredMaxSeats()などはLambdaからも並列で実行される可能性があるが、競合が起こってもそこまで深刻な問題にはならないためトランザクションは使用しない。
 
@@ -34,7 +34,7 @@ func (s *System) AdjustMaxSeats(ctx context.Context) error {
 }
 
 // adjustGeneralSeats 一般席の数を調整する
-func (s *System) adjustGeneralSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
+func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
 	// 一般席
 	if constants.DesiredMaxSeats > constants.MaxSeats { // 一般席を増やす
 		s.MessageToLiveChat(ctx, "席を増やします↗")
@@ -118,7 +118,7 @@ func (s *System) adjustGeneralSeats(ctx context.Context, constants repository.Co
 }
 
 // adjustMemberSeats メンバー席の数を調整する
-func (s *System) adjustMemberSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
+func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants repository.ConstantsConfigDoc) error {
 	// メンバー席
 	if constants.DesiredMemberMaxSeats > constants.MemberMaxSeats { // メンバー席を増やす
 		s.MessageToLiveChat(ctx, "メンバー限定の席を増やします↗")

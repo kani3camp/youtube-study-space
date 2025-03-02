@@ -1,4 +1,4 @@
-package core
+package workspaceapp
 
 import (
 	"app.modules/core/moderatorbot"
@@ -7,7 +7,7 @@ import (
 	"app.modules/core/youtubebot"
 )
 
-type System struct {
+type WorkspaceApp struct {
 	Configs            *SystemConfigs
 	Repository         repository.Repository
 	WordsReader        wordsreader.WordsReader

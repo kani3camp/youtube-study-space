@@ -1,11 +1,11 @@
 package main
 
 import (
+	"app.modules/core/workspaceapp"
 	"context"
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
 	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/lambda"
 )
@@ -24,7 +24,7 @@ func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}

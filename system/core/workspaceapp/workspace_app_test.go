@@ -1,22 +1,22 @@
-package core_test
+package workspaceapp
 
 import (
-	"app.modules/core"
+	"context"
+	"fmt"
+	"sort"
+	"testing"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	mock_myfirestore "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"sort"
-	"testing"
-	"time"
 )
 
 // TODO: 各ケースでちゃんとエラーがハンドリングされること（返されること、ハンドリングされること）
@@ -231,8 +231,8 @@ func TestSystem_In(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
-				Configs: &core.SystemConfigs{
+			system := WorkspaceApp{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 				Repository:               mockDB,
@@ -311,7 +311,7 @@ func TestSystem_Out(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -392,7 +392,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -557,12 +557,12 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -675,12 +675,12 @@ func TestSystem_Change(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -787,12 +787,12 @@ func TestSystem_More(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -911,12 +911,12 @@ func TestSystem_Break(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1032,12 +1032,12 @@ func TestSystem_Resume(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1119,12 +1119,12 @@ func TestSystem_Rank(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1321,12 +1321,12 @@ func TestSystem_My(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1522,13 +1522,13 @@ func TestSystem_Order(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := core.System{
+			system := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &core.SystemConfigs{
+				Configs: &SystemConfigs{
 					Constants: tt.constantsConfig,
 				},
 				SortedMenuItems: menuDocs,
