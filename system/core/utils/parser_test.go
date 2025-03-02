@@ -1,10 +1,10 @@
 package utils
 
 import (
-	"app.modules/core/i18n"
-	"github.com/kr/pretty"
-	"reflect"
 	"testing"
+
+	"app.modules/core/i18n"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,13 +35,14 @@ const (
 
 func TestParseCommand(t *testing.T) {
 	type TestCase struct {
+		Name     string
 		Input    string
 		IsMember bool
 		Output   *CommandDetails
 		WillErr  bool
 	}
 
-	testCases := [...]TestCase{
+	testCases := []TestCase{
 		{
 			Input: "in",
 			Output: &CommandDetails{
@@ -1223,36 +1224,28 @@ func TestParseCommand(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		out, message := ParseCommand(testCase.Input, testCase.IsMember)
-		if testCase.WillErr {
-			if message == "" {
-				t.Error("message expected, but nil.")
-				t.Error("input: ", testCase.Input)
-				t.Errorf("out: %# v\n", pretty.Formatter(out))
+		t.Run(testCase.Name, func(t *testing.T) {
+			out, message := ParseCommand(testCase.Input, testCase.IsMember)
+			if testCase.WillErr {
+				assert.NotEmpty(t, message, "Expected error message but got none")
+			} else {
+				assert.Empty(t, message, "Expected no error message but got: %s", message)
+				assert.Equal(t, testCase.Output, out, "Command details do not match")
 			}
-		} else {
-			if message != "" {
-				t.Error("input: ", testCase.Input)
-				t.Error(message)
-			}
-			if !reflect.DeepEqual(out, testCase.Output) {
-				t.Errorf("input: %s\n", testCase.Input)
-				t.Errorf("result:\n%# v\n", pretty.Formatter(out))
-				t.Errorf("expected:\n%# v\n", pretty.Formatter(testCase.Output))
-				t.Error("command details do not match.")
-			}
-		}
+		})
 	}
 }
 
 func TestExtractAllEmojiCommands(t *testing.T) {
 	type TestCase struct {
+		Name    string
 		Input   string
 		Output1 []EmojiElement
 		Output2 string
 	}
-	testCases := [...]TestCase{
+	testCases := []TestCase{
 		{
+			Name:  "Multiple emoji commands",
 			Input: TestEmojiIn0 + TestEmoji360Min0,
 			Output1: []EmojiElement{
 				EmojiIn,
@@ -1261,51 +1254,65 @@ func TestExtractAllEmojiCommands(t *testing.T) {
 			Output2: "",
 		},
 		{
+			Name:    "No emoji commands",
 			Input:   "!in",
 			Output1: []EmojiElement{},
 			Output2: "!in",
 		},
 		{
+			Name:  "Emoji commands with text",
 			Input: " " + TestEmojiMy0 + TestEmojiColor0 + "ピンク",
 			Output1: []EmojiElement{
 				EmojiMy,
 				EmojiColor,
 			},
-			Output2: " ピンク",
+			Output2: "ピンク",
+		},
+		{
+			Name:    "Multiple emoji commands at different positions",
+			Input:   "Hello " + TestEmojiIn0 + " world " + TestEmojiOut0,
+			Output1: []EmojiElement{EmojiIn, EmojiOut},
+			Output2: "Hello   world  ",
 		},
 	}
 
 	for _, testCase := range testCases {
-		emojis, emojiExcludedString := ExtractAllEmojiCommands(testCase.Input)
-		if !reflect.DeepEqual(emojis, testCase.Output1) {
-			t.Errorf("input: %s\n", testCase.Input)
-			t.Errorf("emojis:\n%# v\n", pretty.Formatter(emojis))
-			t.Errorf("emojiExcludedString:\n%# v\n", pretty.Formatter(emojiExcludedString))
-			t.Errorf("expected emojis:\n%# v\n", pretty.Formatter(testCase.Output1))
-			t.Errorf("expected emojiExcludedString:\n%# v\n", pretty.Formatter(testCase.Output2))
-			t.Error("command details do not match.")
-		}
+		t.Run(testCase.Name, func(t *testing.T) {
+			emojis, emojiExcludedString := ExtractAllEmojiCommands(testCase.Input)
+			assert.Equal(t, testCase.Output1, emojis, "Extracted emoji elements don't match")
+			assert.Equal(t, testCase.Output2, emojiExcludedString, "Emoji excluded string doesn't match")
+		})
 	}
-
 }
 
 func TestParseEmojiWorkNameOption(t *testing.T) {
 	type TestCase struct {
+		Name   string
 		Input  string
 		Output string
 	}
-	testCases := [...]TestCase{
+	testCases := []TestCase{
 		{
+			Name:   "Basic work name extraction",
 			Input:  TestEmojiIn1 + TestEmojiWork0 + "テスト作業名 min=60",
 			Output: "テスト作業名",
 		},
+		{
+			Name:   "Empty work name",
+			Input:  TestEmojiIn1 + TestEmojiWork0 + " min=60",
+			Output: "",
+		},
+		{
+			Name:   "Work name with special characters",
+			Input:  TestEmojiIn1 + TestEmojiWork0 + "特殊文字!@#$%^&*() min=60",
+			Output: "特殊文字!@#$%^&*()",
+		},
 	}
+
 	for _, testCase := range testCases {
-		out := ParseEmojiWorkNameOption(testCase.Input)
-		if out != testCase.Output {
-			t.Errorf("input: %s\n", testCase.Input)
-			t.Errorf("expected: %s\n", testCase.Output)
-			t.Errorf("output: %s\n", out)
-		}
+		t.Run(testCase.Name, func(t *testing.T) {
+			result := ParseEmojiWorkNameOption(testCase.Input)
+			assert.Equal(t, testCase.Output, result, "Parsed work name doesn't match expected output")
+		})
 	}
 }

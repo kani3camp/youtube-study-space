@@ -2,7 +2,7 @@
 
 // TODO: GitHub ActionsでFirestore Emulatorを使用するようになったら、このファイルも自動テスト対象に変更する。
 
-package core
+package workspaceapp
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/api/iterator"
 
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 
@@ -39,7 +39,7 @@ func TestEnterRoom(t *testing.T) {
 		},
 		IsMemberSeat: false,
 	}
-	seatAppearance := myfirestore.SeatAppearance{
+	seatAppearance := repository.SeatAppearance{
 		ColorCode1:           "#000000",
 		ColorCode2:           "#000000",
 		NumStars:             3,
@@ -55,21 +55,21 @@ func TestEnterRoom(t *testing.T) {
 	if clientErr != nil {
 		t.Fatal(clientErr)
 	}
-	system := System{
-		FirestoreController: &myfirestore.FirestoreControllerImplements{firestoreClient: client},
+	system := WorkspaceApp{
+		Repository: &repository.FirestoreControllerImplements{firestoreClient: client},
 	}
 	t.Cleanup(func() {
 		system.CloseFirestoreClient()
 	})
 
 	// ユーザーデータを作成しておく
-	userErr := system.FirestoreController.CreateUser(ctx, nil, userId, myfirestore.UserDoc{})
+	userErr := system.Repository.CreateUser(ctx, nil, userId, repository.UserDoc{})
 	if userErr != nil {
 		t.Fatal(userErr)
 	}
 	t.Cleanup(func() {
-		userRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.USERS).Doc(userId)
-		if err := system.FirestoreController.DeleteDocRef(ctx, nil, userRef); err != nil {
+		userRef := system.Repository.FirestoreClient.Collection(repository.USERS).Doc(userId)
+		if err := system.Repository.DeleteDocRef(ctx, nil, userRef); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -88,7 +88,7 @@ func TestEnterRoom(t *testing.T) {
 			"",
 			inOption.MinutesAndWorkName.DurationMin,
 			seatAppearance,
-			myfirestore.WorkState,
+			repository.WorkState,
 			true,
 			time.Time{},
 			time.Time{},
@@ -104,17 +104,17 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(txErr)
 	}
 	t.Cleanup(func() {
-		if err := system.FirestoreController.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat); err != nil {
+		if err := system.Repository.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat); err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	// 入室したことを確認
-	seat, seatErr := system.FirestoreController.ReadSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
+	seat, seatErr := system.Repository.ReadSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
 	if seatErr != nil {
 		t.Fatal(seatErr)
 	}
-	assert.Equal(t, myfirestore.SeatDoc{
+	assert.Equal(t, repository.SeatDoc{
 		SeatId:                 inOption.SeatId,
 		UserId:                 userId,
 		UserDisplayName:        userDisplayName,
@@ -123,7 +123,7 @@ func TestEnterRoom(t *testing.T) {
 		EnteredAt:              enteredAt.UTC(),
 		Until:                  expectedUntil.UTC(),
 		Appearance:             seatAppearance,
-		State:                  myfirestore.WorkState,
+		State:                  repository.WorkState,
 		CurrentStateStartedAt:  enteredAt.UTC(),
 		CurrentStateUntil:      expectedUntil.UTC(),
 		CumulativeWorkSec:      0,
@@ -132,8 +132,8 @@ func TestEnterRoom(t *testing.T) {
 	}, seat)
 
 	// 履歴が作成されたことを確認
-	iter := system.FirestoreController.FirestoreClient.Collection(myfirestore.UserActivities).Where(myfirestore.UserIdDocProperty, "==", userId).Documents(ctx)
-	var userActivities []myfirestore.UserActivityDoc
+	iter := system.Repository.FirestoreClient.Collection(repository.UserActivities).Where(repository.UserIdDocProperty, "==", userId).Documents(ctx)
+	var userActivities []repository.UserActivityDoc
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -142,14 +142,14 @@ func TestEnterRoom(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var userActivity myfirestore.UserActivityDoc
+		var userActivity repository.UserActivityDoc
 		dataErr := doc.DataTo(&userActivity)
 		if dataErr != nil {
 			t.Fatal(dataErr)
 		}
 		t.Cleanup(func() {
-			userActivityRef := system.FirestoreController.FirestoreClient.Collection(myfirestore.UserActivities).Doc(doc.Ref.ID)
-			if err := system.FirestoreController.DeleteDocRef(ctx, nil, userActivityRef); err != nil {
+			userActivityRef := system.Repository.FirestoreClient.Collection(repository.UserActivities).Doc(doc.Ref.ID)
+			if err := system.Repository.DeleteDocRef(ctx, nil, userActivityRef); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -157,9 +157,9 @@ func TestEnterRoom(t *testing.T) {
 	}
 	assert.Len(t, userActivities, 1)
 	userActivity := userActivities[0]
-	assert.Equal(t, myfirestore.UserActivityDoc{
+	assert.Equal(t, repository.UserActivityDoc{
 		UserId:       userId,
-		ActivityType: myfirestore.EnterRoomActivity,
+		ActivityType: repository.EnterRoomActivity,
 		SeatId:       inOption.SeatId,
 		IsMemberSeat: inOption.IsMemberSeat,
 		TakenAt:      enteredAt.UTC(),

@@ -1,17 +1,18 @@
 package main
 
 import (
-	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
-	"app.modules/core/utils"
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
+	"log/slog"
+	"strconv"
+
+	"app.modules/aws-lambda/lambdautils"
+	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	"log/slog"
-	"strconv"
 )
 
 type DailyOrganizeDatabaseResponse struct {
@@ -27,7 +28,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
@@ -35,19 +36,19 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 
 	userIdsToProcess, err := system.DailyOrganizeDB(ctx)
 	if err != nil {
-		system.MessageToOwnerWithError("Failed to DailyOrganizeDB", err)
+		system.MessageToOwnerWithError(ctx, "Failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 
 	sess, err := session.NewSession()
 	if err != nil {
-		system.MessageToOwnerWithError("failed to lambda2.New(session.NewSession())", err)
+		system.MessageToOwnerWithError(ctx, "failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 	svc := lambda2.New(sess)
 
 	allBatch := utils.DivideStringEqually(system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
-	system.MessageToOwner(strconv.Itoa(len(userIdsToProcess)) + "人のRP処理を" + strconv.Itoa(len(allBatch)) + "つに分けて並行で処理。")
+	system.MessageToOwner(ctx, strconv.Itoa(len(userIdsToProcess))+"人のRP処理を"+strconv.Itoa(len(allBatch))+"つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		slog.Info("batch No. "+strconv.Itoa(i+1)+".", "batch", batch)
 
@@ -57,7 +58,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			system.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
+			system.MessageToOwnerWithError(ctx, "failed to json.Marshal(payload)", err)
 			return DailyOrganizeDatabaseResponse{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -67,7 +68,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			system.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
+			system.MessageToOwnerWithError(ctx, "failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponse{}, err
 		}
 		slog.Info("lambda invoked.", "output", resp)

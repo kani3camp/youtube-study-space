@@ -1,16 +1,17 @@
 package main
 
 import (
-	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
-	"app.modules/core/utils"
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
+	"log/slog"
+	"net/http"
+
+	"app.modules/aws-lambda/lambdautils"
+	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/pkg/errors"
-	"log/slog"
-	"net/http"
 )
 
 type SetMaxSeatsParams struct {
@@ -35,7 +36,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
@@ -52,12 +53,12 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	}
 
 	// transaction not necessary
-	if err := system.FirestoreController.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
-		system.MessageToOwnerWithError("failed UpdateDesiredMaxSeats", err)
+	if err := system.Repository.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
+		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
-	if err := system.FirestoreController.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
-		system.MessageToOwnerWithError("failed UpdateDesiredMemberMaxSeats", err)
+	if err := system.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
+		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 

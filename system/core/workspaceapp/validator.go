@@ -1,13 +1,13 @@
-package core
+package workspaceapp
 
 import (
 	"app.modules/core/i18n"
-	"app.modules/core/myfirestore"
+	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"github.com/pkg/errors"
 )
 
-func (s *System) ValidateCommand(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 	switch command.CommandType {
 	case utils.In:
 		return s.ValidateIn(command)
@@ -45,7 +45,7 @@ func (s *System) ValidateCommand(command utils.CommandDetails) string {
 	}
 }
 
-func (s *System) ValidateIn(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 
 	// 作業時間の値
 	inputWorkMin := command.InOption.MinutesAndWorkName.DurationMin
@@ -68,13 +68,13 @@ func (s *System) ValidateIn(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateInfo(_ utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateInfo(_ utils.CommandDetails) string {
 	// pass
 
 	return ""
 }
 
-func (s *System) ValidateMy(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateMy(command utils.CommandDetails) string {
 	var isRankVisibleSet, isDefaultStudyMinSet, isFavoriteColorSet bool
 
 	for _, option := range command.MyOptions {
@@ -112,13 +112,13 @@ func (s *System) ValidateMy(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateSeat(_ utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateSeat(_ utils.CommandDetails) string {
 	// pass
 
 	return ""
 }
 
-func (s *System) ValidateKick(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
 	// 指定座席番号
 	if command.KickOption.SeatId <= 0 {
 		return i18n.T("validate:non-one-or-more-seat-id")
@@ -127,7 +127,7 @@ func (s *System) ValidateKick(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateCheck(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateCheck(command utils.CommandDetails) string {
 	// 指定座席番号
 	if command.CheckOption.SeatId <= 0 {
 		return i18n.T("validate:non-one-or-more-seat-id")
@@ -136,7 +136,7 @@ func (s *System) ValidateCheck(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateBlock(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateBlock(command utils.CommandDetails) string {
 	// 指定座席番号
 	if command.BlockOption.SeatId <= 0 {
 		return "席番号は1以上にしてください。"
@@ -145,7 +145,7 @@ func (s *System) ValidateBlock(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateReport(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateReport(command utils.CommandDetails) string {
 	// 空欄でないか
 	if command.ReportOption.Message == "" {
 		return i18n.T("validate:parse:missing-message", utils.ReportCommand)
@@ -154,14 +154,14 @@ func (s *System) ValidateReport(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirestore.SeatState) error {
+func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState repository.SeatState) error {
 	// オプションが1つ以上指定されているか
 	if command.ChangeOption.NumOptionsSet() == 0 {
 		return errors.New(i18n.T("validate:missing-option"))
 	}
 
 	switch seatState {
-	case myfirestore.WorkState:
+	case repository.WorkState:
 		// 作業内容
 		// pass
 
@@ -173,7 +173,7 @@ func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirest
 				return errors.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
 			}
 		}
-	case myfirestore.BreakState:
+	case repository.BreakState:
 		// 休憩内容
 		// pass
 
@@ -190,7 +190,7 @@ func (s *System) ValidateChange(command utils.CommandDetails, seatState myfirest
 	return nil
 }
 
-func (s *System) ValidateMore(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
 	// 時間オプション
 	if command.MoreOption.DurationMin <= 0 {
 		return i18n.T("validate:non-one-or-more-extended-time")
@@ -199,7 +199,7 @@ func (s *System) ValidateMore(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateBreak(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateBreak(command utils.CommandDetails) string {
 	// 休憩内容
 	// pass
 
@@ -215,14 +215,14 @@ func (s *System) ValidateBreak(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *System) ValidateResume(_ utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateResume(_ utils.CommandDetails) string {
 	// 作業名
 	// pass
 
 	return ""
 }
 
-func (s *System) ValidateOrder(command utils.CommandDetails) string {
+func (s *WorkspaceApp) ValidateOrder(command utils.CommandDetails) string {
 	if !command.OrderOption.ClearFlag {
 		num := command.OrderOption.IntValue
 		expect := 0 < num && num <= len(s.SortedMenuItems)

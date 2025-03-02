@@ -2,8 +2,9 @@ package utils
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -116,20 +117,24 @@ func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 // CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。
 func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted time.Time, lastActiveAt time.Time) (int, error) {
 	jstNow := JstNow()
+
+	// 未来の日付がある場合はエラー
 	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
 		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true.")
 	}
-	if yesterdayContinuedActive {
-		startDate0AM := time.Date(currentStateStarted.Year(), currentStateStarted.Month(), currentStateStarted.Day(),
-			0, 0, 0, 0, JapanLocation())
-		if DateEqualJST(lastActiveAt, jstNow) {
-			return int(jstNow.Sub(startDate0AM).Hours() / 24), nil
-		} else { // 今日はまだ入室してないが、今日非アクティブとは断定できない。昨日までの連続日数を返す。
-			yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day(), 0, 0, 0, 0, JapanLocation())
-			return int(yesterday.Sub(startDate0AM).Hours() / 24), nil
-		}
-	} else { // 昨日非アクティブだった時点で現在の連続アクティブ日数は0。
+
+	// 昨日非アクティブだった時点で現在の連続アクティブ日数は0。
+	if !yesterdayContinuedActive {
 		return 0, nil
+	}
+
+	startDate0AM := time.Date(currentStateStarted.Year(), currentStateStarted.Month(), currentStateStarted.Day(),
+		0, 0, 0, 0, JapanLocation())
+	if DateEqualJST(lastActiveAt, jstNow) {
+		return int(jstNow.Sub(startDate0AM).Hours() / 24), nil
+	} else { // 今日はまだ入室してないが、今日非アクティブとは断定できない。昨日までの連続日数を返す。
+		yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day()-1, 0, 0, 0, 0, JapanLocation())
+		return int(yesterday.Sub(startDate0AM).Hours() / 24), nil
 	}
 }
 

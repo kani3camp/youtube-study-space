@@ -1,4 +1,4 @@
-package myfirestore
+package repository
 
 import (
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
@@ -16,7 +16,7 @@ import (
 )
 
 type FirestoreControllerImplements struct {
-	firestoreClient FirestoreClient
+	firestoreClient DBClient
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
@@ -30,7 +30,7 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	}, nil
 }
 
-func (c *FirestoreControllerImplements) FirestoreClient() FirestoreClient {
+func (c *FirestoreControllerImplements) FirestoreClient() DBClient {
 	return c.firestoreClient
 }
 
