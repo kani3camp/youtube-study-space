@@ -15,6 +15,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
+
 		slice := strings.Split(emojiExcludedString, HalfWidthSpace)
 		switch slice[0] {
 		case MemberInCommand:
@@ -47,15 +48,9 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 			return ParseBlock(emojiExcludedString, false)
 		case MemberBlockCommand:
 			return ParseBlock(emojiExcludedString, true)
-		case OkawariCommand:
-			fallthrough
-		case MoreCommand:
+		case OkawariCommand, MoreCommand:
 			return ParseMore(emojiExcludedString, fullString, isMember, emojis)
-		case RestCommand:
-			fallthrough
-		case ChillCommand:
-			fallthrough
-		case BreakCommand:
+		case RestCommand, ChillCommand, BreakCommand:
 			return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 		case ResumeCommand:
 			return ParseResume(emojiExcludedString, fullString, isMember, emojis)
@@ -68,14 +63,10 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
 			return nil, i18n.T("parse:isolated-!")
 		default: // !席番号 or 間違いコマンド
-			// !席番号かどうか
-			num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix))
-			if err == nil {
+			// "!席番号" or "/席番号" かも
+			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {
 				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, false, emojis)
-			}
-			// /席番号かどうか
-			num, err = strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix))
-			if err == nil {
+			} else if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix)); err == nil {
 				return ParseSeatIn(num, emojiExcludedString, fullString, isMember, true, emojis)
 			}
 
@@ -100,17 +91,13 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return &CommandDetails{
 					CommandType: Out,
 				}, ""
-			case EmojiInfo:
-				fallthrough
-			case EmojiInfoD:
+			case EmojiInfo, EmojiInfoD:
 				return ParseInfo(emojiExcludedString, isMember, emojis)
 			case EmojiMy:
 				return ParseMy(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiChange:
 				return ParseChange(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiSeat:
-				fallthrough
-			case EmojiSeatD:
+			case EmojiSeat, EmojiSeatD:
 				return ParseSeat(emojiExcludedString, isMember, emojis)
 			case EmojiMore:
 				return ParseMore(emojiExcludedString, fullString, isMember, emojis)
@@ -118,9 +105,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
 			case EmojiResume:
 				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiOrder:
-				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiOrderCancel:
+			case EmojiOrder, EmojiOrderCancel:
 				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
 			default:
 			}
@@ -228,32 +213,14 @@ func ParseSeatIn(seatNum int, commandString string, fullString string, isMember 
 
 func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-
-	if isMember {
-		if ContainsEmojiElement(emojis, EmojiInfoD) {
-			return &CommandDetails{
-				CommandType: Info,
-				InfoOption: InfoOption{
-					ShowDetails: true,
-				},
-			}, ""
-		}
-		if ContainsEmojiElement(emojis, EmojiInfo) {
-			showDetails := Contains(slice, ShowDetailsOption)
-			return &CommandDetails{
-				CommandType: Info,
-				InfoOption: InfoOption{
-					ShowDetails: showDetails,
-				},
-			}, ""
-		}
-	}
-
 	showDetails := false
-	if len(slice) >= 2 {
-		if slice[1] == ShowDetailsOption {
-			showDetails = true
-		}
+
+	if isMember && ContainsEmojiElement(emojis, EmojiInfoD) {
+		showDetails = true
+	} else if isMember && ContainsEmojiElement(emojis, EmojiInfo) {
+		showDetails = Contains(slice, ShowDetailsOption)
+	} else if len(slice) >= 2 && slice[1] == ShowDetailsOption {
+		showDetails = true
 	}
 
 	return &CommandDetails{
@@ -466,32 +433,14 @@ func ParseChange(commandString string, fullString string, isMember bool, emojis 
 
 func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-
-	if isMember {
-		if ContainsEmojiElement(emojis, EmojiSeatD) {
-			return &CommandDetails{
-				CommandType: Seat,
-				SeatOption: SeatOption{
-					ShowDetails: true,
-				},
-			}, ""
-		}
-		if ContainsEmojiElement(emojis, EmojiSeat) { // "{InfoEmoji}d" is NG. A space required.
-			showDetails := Contains(slice, ShowDetailsOption)
-			return &CommandDetails{
-				CommandType: Seat,
-				SeatOption: SeatOption{
-					ShowDetails: showDetails,
-				},
-			}, ""
-		}
-	}
-
 	showDetails := false
-	if len(slice) >= 2 {
-		if slice[1] == ShowDetailsOption {
-			showDetails = true
-		}
+
+	if isMember && ContainsEmojiElement(emojis, EmojiSeatD) {
+		showDetails = true
+	} else if isMember && ContainsEmojiElement(emojis, EmojiSeat) {
+		showDetails = Contains(slice, ShowDetailsOption)
+	} else if len(slice) >= 2 && slice[1] == ShowDetailsOption {
+		showDetails = true
 	}
 
 	return &CommandDetails{
@@ -504,26 +453,15 @@ func ParseSeat(commandString string, isMember bool, emojis []EmojiElement) (*Com
 
 func ParseMore(commandString string, fullString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
-
-	// 延長時間
 	var durationMin int
-	if isMember {
-		if ContainsEmojiElement(emojis, EmojiMore) {
-			durationMin, message := ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
-			if message != "" {
-				return nil, message
-			}
-			return &CommandDetails{
-				CommandType: More,
-				MoreOption: MoreOption{
-					DurationMin: durationMin,
-				},
-			}, ""
-		}
-	}
+	var message string
 
-	if len(slice) >= 2 {
-		var message string
+	if isMember && ContainsEmojiElement(emojis, EmojiMore) {
+		durationMin, message = ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
+		if message != "" {
+			return nil, message
+		}
+	} else if len(slice) >= 2 {
 		durationMin, message = ParseDurationMinOption(slice, fullString, true, false, isMember, emojis)
 		if message != "" {
 			return nil, message
@@ -572,40 +510,39 @@ func ParseOrder(commandString string, fullString string, isMember bool, emojis [
 
 	// NOTE: オプションは番号か文字列のどちらかのみ
 
-	if isMember {
-		if ContainsEmojiElement(emojis, EmojiOrderCancel) {
-			return &CommandDetails{
-				CommandType: Order,
-				OrderOption: OrderOption{
-					ClearFlag: true,
-				},
-			}, ""
-		}
-		if ContainsEmojiElement(emojis, EmojiOrder) {
-			if len(slice) < 2 {
-				return nil, i18n.T("parse:invalid-option")
-			}
-			for _, str := range slice[1:] {
-				if str == OrderCancelOption {
-					return &CommandDetails{
-						CommandType: Order,
-						OrderOption: OrderOption{
-							ClearFlag: true,
-						},
-					}, ""
-				}
-				num, err := strconv.Atoi(str)
-				if err == nil {
-					return &CommandDetails{
-						CommandType: Order,
-						OrderOption: OrderOption{
-							IntValue: num,
-						},
-					}, ""
-				}
-			}
+	if isMember && ContainsEmojiElement(emojis, EmojiOrderCancel) {
+		return &CommandDetails{
+			CommandType: Order,
+			OrderOption: OrderOption{
+				ClearFlag: true,
+			},
+		}, ""
+	} else if isMember && ContainsEmojiElement(emojis, EmojiOrder) {
+		if len(slice) < 2 {
 			return nil, i18n.T("parse:invalid-option")
 		}
+
+		for _, str := range slice[1:] {
+			if str == OrderCancelOption {
+				return &CommandDetails{
+					CommandType: Order,
+					OrderOption: OrderOption{
+						ClearFlag: true,
+					},
+				}, ""
+			}
+
+			num, err := strconv.Atoi(str)
+			if err == nil {
+				return &CommandDetails{
+					CommandType: Order,
+					OrderOption: OrderOption{
+						IntValue: num,
+					},
+				}, ""
+			}
+		}
+		return nil, i18n.T("parse:invalid-option")
 	}
 
 	option, message := ParseOrderOption(slice)
@@ -667,44 +604,48 @@ func ParseWorkNameOption(strSlice []string, fullString string, isMember bool, em
 }
 
 func ParseDurationMinOption(strSlice []string, fullString string, allowNonPrefix bool, allowEmpty bool, isMember bool, emojis []EmojiElement) (int, string) {
-	if isMember {
-		if ContainsEmojiElement(emojis, EmojiMin) {
-			num, err := ParseEmojiDurationMinOption(fullString, allowEmpty)
-			if err != nil {
-				return 0, i18n.T("parse:check-option", TimeOptionPrefix)
-			}
-			return num, ""
+	// 絵文字コマンドの処理
+	if isMember && ContainsEmojiElement(emojis, EmojiMin) {
+		num, err := ParseEmojiDurationMinOption(fullString, allowEmpty)
+		if err != nil {
+			return 0, i18n.T("parse:check-option", TimeOptionPrefix)
 		}
+		return num, ""
 	}
 
+	// テキストオプションの処理
 	for _, str := range strSlice {
+		// 空の時間オプション
 		if allowEmpty && IsEmptyTimeOption(str) {
 			return 0, ""
-		} else if HasTimeOptionPrefix(str) {
+		} else if HasTimeOptionPrefix(str) { // 時間オプションプレフィックス付き
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err == nil {
 				return num, ""
 			}
-		} else if allowNonPrefix {
+		} else if allowNonPrefix { // プレフィックスなしの数値
 			num, err := strconv.Atoi(str)
 			if err == nil {
 				return num, ""
 			}
 		}
 	}
+
 	return 0, i18n.T("parse:missing-time-option", TimeOptionPrefix)
 }
 
-func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) (*MinutesAndWorkNameOption,
-	string) {
+func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMember bool, emojis []EmojiElement) (*MinutesAndWorkNameOption, string) {
 	var options MinutesAndWorkNameOption
 
+	// 絵文字コマンド
 	if isMember {
+		// 作業名の処理
 		if ContainsEmojiElement(emojis, EmojiWork) && !options.IsWorkNameSet {
-			workName := ParseEmojiWorkNameOption(fullString)
-			options.WorkName = workName
+			options.WorkName = ParseEmojiWorkNameOption(fullString)
 			options.IsWorkNameSet = true
 		}
+
+		// 時間の処理
 		if ContainsEmojiElement(emojis, EmojiMin) && !options.IsDurationMinSet {
 			num, err := ParseEmojiDurationMinOption(fullString, false)
 			if err != nil {
@@ -715,12 +656,12 @@ func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMemb
 		}
 	}
 
+	// テキストオプションの処理
 	for _, str := range strSlice {
-		if (HasWorkNameOptionPrefix(str)) && !options.IsWorkNameSet {
-			workName := TrimWorkNameOptionPrefix(str)
-			options.WorkName = workName
+		if HasWorkNameOptionPrefix(str) && !options.IsWorkNameSet {
+			options.WorkName = TrimWorkNameOptionPrefix(str)
 			options.IsWorkNameSet = true
-		} else if (HasTimeOptionPrefix(str)) && !options.IsDurationMinSet {
+		} else if HasTimeOptionPrefix(str) && !options.IsDurationMinSet {
 			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
 			if err != nil { // 無効な値
 				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
@@ -729,6 +670,7 @@ func ParseMinutesAndWorkNameOptions(strSlice []string, fullString string, isMemb
 			options.IsDurationMinSet = true
 		}
 	}
+
 	return &options, ""
 }
 
