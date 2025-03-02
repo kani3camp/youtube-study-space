@@ -63,6 +63,30 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "文頭にスペースがある場合",
+			Input: " !in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
+			Name:  "全角！",
+			Input: "！in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+				},
+			},
+		},
+		{
 			Input: "!in work-てすと min-50",
 			Output: &CommandDetails{
 				CommandType: In,
