@@ -63,6 +63,34 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "文頭にスペースがある場合",
+			Input: " !in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
+			Name:  "全角の！も対応",
+			Input: "！in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
 			Input: "!in work-てすと min-50",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -124,6 +152,21 @@ func TestParseCommand(t *testing.T) {
 		},
 		{
 			Input: "!0",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      0,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
+			Name:  "全角の！も対応",
+			Input: "！0",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -210,6 +253,17 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:  "全角の／も対応",
+			Input: "／in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsMemberSeat:       true,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{},
+				},
+			},
+		},
+		{
 			Input: "/1 work=work min=35",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -221,6 +275,22 @@ func TestParseCommand(t *testing.T) {
 						IsDurationMinSet: true,
 						WorkName:         "work",
 						DurationMin:      35,
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
+		{
+			Name:  "全角の／も対応",
+			Input: "／1",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
 					},
 					IsMemberSeat: true,
 				},
@@ -420,7 +490,16 @@ func TestParseCommand(t *testing.T) {
 		},
 
 		{
-			Input: "!out",
+			Input:    "!out",
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: Out,
+			},
+		},
+		{
+			Name:     "全角の！も対応",
+			Input:    "！out",
+			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: Out,
 			},
@@ -430,14 +509,6 @@ func TestParseCommand(t *testing.T) {
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: NotCommand,
-			},
-		},
-
-		{
-			Input:    "!out",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Out,
 			},
 		},
 		{

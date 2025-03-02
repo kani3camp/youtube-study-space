@@ -28,27 +28,27 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return DailyOrganizeDatabaseResponse{}, err
 	}
-	defer system.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
-	userIdsToProcess, err := system.DailyOrganizeDB(ctx)
+	userIdsToProcess, err := app.DailyOrganizeDB(ctx)
 	if err != nil {
-		system.MessageToOwnerWithError(ctx, "Failed to DailyOrganizeDB", err)
+		app.MessageToOwnerWithError(ctx, "Failed to DailyOrganizeDB", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 
 	sess, err := session.NewSession()
 	if err != nil {
-		system.MessageToOwnerWithError(ctx, "failed to lambda2.New(session.NewSession())", err)
+		app.MessageToOwnerWithError(ctx, "failed to lambda2.New(session.NewSession())", err)
 		return DailyOrganizeDatabaseResponse{}, err
 	}
 	svc := lambda2.New(sess)
 
-	allBatch := utils.DivideStringEqually(system.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
-	system.MessageToOwner(ctx, strconv.Itoa(len(userIdsToProcess))+"人のRP処理を"+strconv.Itoa(len(allBatch))+"つに分けて並行で処理。")
+	allBatch := utils.DivideStringEqually(app.Configs.Constants.NumberOfParallelLambdaToProcessUserRP, userIdsToProcess)
+	app.MessageToOwner(ctx, strconv.Itoa(len(userIdsToProcess))+"人のRP処理を"+strconv.Itoa(len(allBatch))+"つに分けて並行で処理。")
 	for i, batch := range allBatch {
 		slog.Info("batch No. "+strconv.Itoa(i+1)+".", "batch", batch)
 
@@ -58,7 +58,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			system.MessageToOwnerWithError(ctx, "failed to json.Marshal(payload)", err)
+			app.MessageToOwnerWithError(ctx, "failed to json.Marshal(payload)", err)
 			return DailyOrganizeDatabaseResponse{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -68,7 +68,7 @@ func DailyOrganizeDatabase() (DailyOrganizeDatabaseResponse, error) {
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			system.MessageToOwnerWithError(ctx, "failed to svc.Invoke(&input)", err)
+			app.MessageToOwnerWithError(ctx, "failed to svc.Invoke(&input)", err)
 			return DailyOrganizeDatabaseResponse{}, err
 		}
 		slog.Info("lambda invoked.", "output", resp)

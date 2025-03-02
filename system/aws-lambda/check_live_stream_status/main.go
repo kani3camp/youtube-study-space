@@ -24,14 +24,14 @@ func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}
-	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}
-	defer system.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
-	if err := system.CheckLiveStreamStatus(ctx); err != nil {
-		system.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
+	if err := app.CheckLiveStreamStatus(ctx); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return CheckLiveStreamResponse{}, err
 	}
 
