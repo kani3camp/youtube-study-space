@@ -10,8 +10,8 @@ import (
 
 // ParseCommand コマンドを解析
 func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
-	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
-	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	// コマンド解析前に文字列を整形
+	fullString = FormatStringToParse(fullString)
 
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
@@ -75,8 +75,6 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				CommandType: InvalidCommand,
 			}, ""
 		}
-	} else if strings.HasPrefix(fullString, WrongCommandPrefix) {
-		return nil, i18n.T("parse:non-half-width-!")
 	} else if isMember && strings.HasPrefix(fullString, EmojiCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
 		if len(emojis) > 0 {
@@ -114,6 +112,24 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 	return &CommandDetails{
 		CommandType: NotCommand,
 	}, ""
+}
+
+// FormatStringToParse
+// 全角スペースを半角に変換
+// 前後のスペースをトリム
+// `！`（全角）で始まるなら半角に変換
+// `／`（全角）で始まるなら半角に変換
+func FormatStringToParse(fullString string) string {
+	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
+	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	fullString = strings.TrimSpace(fullString)
+	if strings.HasPrefix(fullString, CommandPrefixFullWidth) {
+		fullString = strings.Replace(fullString, CommandPrefixFullWidth, CommandPrefix, 1)
+	}
+	if strings.HasPrefix(fullString, MemberCommandPrefixFullWidth) {
+		fullString = strings.Replace(fullString, MemberCommandPrefixFullWidth, MemberCommandPrefix, 1)
+	}
+	return fullString
 }
 
 func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {

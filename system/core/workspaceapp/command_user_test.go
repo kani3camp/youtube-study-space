@@ -82,7 +82,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -94,7 +94,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.ShowUserInfo(&tt.commandDetails, context.Background())
+			err := app.ShowUserInfo(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -166,7 +166,7 @@ func TestSystem_Rank(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -181,7 +181,7 @@ func TestSystem_Rank(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Rank(&tt.commandDetails, context.Background())
+			err := app.Rank(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -368,7 +368,7 @@ func TestSystem_My(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -383,7 +383,7 @@ func TestSystem_My(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.My(&tt.commandDetails, context.Background())
+			err := app.My(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})

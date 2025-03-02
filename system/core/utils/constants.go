@@ -1,9 +1,10 @@
 package utils
 
 const (
-	CommandPrefix       = "!"
-	WrongCommandPrefix  = "！"
-	MemberCommandPrefix = "/"
+	CommandPrefix                = "!"
+	CommandPrefixFullWidth       = "！"
+	MemberCommandPrefix          = "/"
+	MemberCommandPrefixFullWidth = "／"
 
 	InCommand      = "!in"
 	OutCommand     = "!out"
