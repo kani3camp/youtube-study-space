@@ -1,7 +1,11 @@
 ---
 description: オンライン作業部屋の仕様・要件など
 globs: 
+alwaysApply: true
 ---
 # 概要
 
 このプログラムは、YouTubeのライブチャットにコマンドを書き込むことで入退室など操作ができるオンライン自習室システムです。
+
+
+上記に加えて、@AI_COLLABORATION_GUIDE.mdも参照してください。
