@@ -59,7 +59,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				LastActiveAt:             JstNow().Add(-time.Hour),
 				PreviousRankPoint:        0,
 			},
-			Output: 74, // 57 * (1 + 0.3)
+			Output: 74, // 57 * (1 + 0.31)
 		},
 		{
 			Name: "短時間",
@@ -107,7 +107,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				LastActiveAt:             JstNow().Add(-time.Hour),
 				PreviousRankPoint:        0,
 			},
-			Output: 111, // 100 * 1.1 * (1 + 0.01)
+			Output: 112, // 100 * 1.1 * (1 + 0.02)
 		},
 		{
 			Name: "上限値を超えない",
