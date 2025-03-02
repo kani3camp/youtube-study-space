@@ -232,7 +232,7 @@ func TestSystem_In(t *testing.T) {
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			system := WorkspaceApp{
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 				Repository:               mockDB,
@@ -562,7 +562,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -680,7 +680,7 @@ func TestSystem_Change(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -792,7 +792,7 @@ func TestSystem_More(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -916,7 +916,7 @@ func TestSystem_Break(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1037,7 +1037,7 @@ func TestSystem_Resume(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1124,7 +1124,7 @@ func TestSystem_Rank(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1326,7 +1326,7 @@ func TestSystem_My(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 			}
@@ -1528,7 +1528,7 @@ func TestSystem_Order(t *testing.T) {
 				ProcessedUserIsMember:    tt.userIsMember,
 				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
-				Configs: &SystemConfigs{
+				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
 				SortedMenuItems: menuDocs,

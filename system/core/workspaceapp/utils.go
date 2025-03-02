@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log/slog"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -615,4 +616,315 @@ func (s *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, erro
 		return repository.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(s.SortedMenuItems))
 	}
 	return s.SortedMenuItems[number-1], nil
+}
+
+// GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める
+func (s *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *firestore.Transaction, userId string) (repository.SeatAppearance, error) {
+	userDoc, err := s.Repository.ReadUser(ctx, tx, userId)
+	if err != nil {
+		return repository.SeatAppearance{}, fmt.Errorf("in ReadUser(): %w", err)
+	}
+	totalStudyDuration, _, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, userId)
+	if err != nil {
+		return repository.SeatAppearance{}, fmt.Errorf("in GetUserRealtimeTotalStudyDurations(): %w", err)
+	}
+	seatAppearance, err := utils.GetSeatAppearance(int(totalStudyDuration.Seconds()), userDoc.RankVisible, userDoc.RankPoint, userDoc.FavoriteColor)
+	if err != nil {
+		return repository.SeatAppearance{}, fmt.Errorf("in GetSeatAppearance(): %w", err)
+	}
+	return seatAppearance, nil
+}
+
+// RandomAvailableSeatIdForUser
+// ルームの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
+// 空いていないならmax-seatsを増やし、最小の空席番号を返す。
+func (s *WorkspaceApp) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string, isMemberSeat bool) (int,
+	error) {
+	var seats []repository.SeatDoc
+	var err error
+	if isMemberSeat {
+		seats, err = s.Repository.ReadMemberSeats(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("in ReadMemberSeats: %w", err)
+		}
+	} else {
+		seats, err = s.Repository.ReadGeneralSeats(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("in ReadGeneralSeats: %w", err)
+		}
+	}
+
+	constants, err := s.Repository.ReadSystemConstantsConfig(ctx, tx)
+	if err != nil {
+		return 0, fmt.Errorf("in ReadSystemConstantsConfig: %w", err)
+	}
+	var maxSeats int
+	if isMemberSeat {
+		maxSeats = constants.MemberMaxSeats
+	} else {
+		maxSeats = constants.MaxSeats
+	}
+
+	var vacantSeatIdList []int
+	for id := 1; id <= maxSeats; id++ {
+		isUsed := false
+		for _, seatInUse := range seats {
+			if id == seatInUse.SeatId {
+				isUsed = true
+				break
+			}
+		}
+		if !isUsed {
+			vacantSeatIdList = append(vacantSeatIdList, id)
+		}
+	}
+
+	if len(vacantSeatIdList) > 0 {
+		// 入室制限にかからない席を選ぶ
+		r := rand.New(rand.NewSource(utils.JstNow().UnixNano()))
+		r.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
+		for _, seatId := range vacantSeatIdList {
+			ifSittingTooMuch, err := s.CheckIfUserSittingTooMuchForSeat(ctx, userId, seatId, isMemberSeat)
+			if err != nil {
+				return -1, fmt.Errorf("in CheckIfUserSittingTooMuchForSeat: %w", err)
+			}
+			if !ifSittingTooMuch {
+				return seatId, nil
+			}
+		}
+	}
+	return 0, studyspaceerror.ErrNoSeatAvailable
+}
+
+// enterRoom ユーザーを入室させる。
+func (s *WorkspaceApp) enterRoom(
+	ctx context.Context,
+	tx *firestore.Transaction,
+	userId string,
+	userDisplayName string,
+	userProfileImageUrl string,
+	seatId int,
+	isMemberSeat bool,
+	workName string,
+	breakWorkName string,
+	workMin int,
+	seatAppearance repository.SeatAppearance,
+	menuCode string,
+	state repository.SeatState,
+	isContinuousActive bool,
+	breakStartedAt time.Time, // set when moving seat
+	breakUntil time.Time, // set when moving seat
+	enterDate time.Time,
+) (int, error) {
+	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
+
+	var currentStateStartedAt time.Time
+	var currentStateUntil time.Time
+	switch state {
+	case repository.WorkState:
+		currentStateStartedAt = enterDate
+		currentStateUntil = exitDate
+	case repository.BreakState:
+		currentStateStartedAt = breakStartedAt
+		currentStateUntil = breakUntil
+	}
+
+	newSeat := repository.SeatDoc{
+		SeatId:                 seatId,
+		UserId:                 userId,
+		UserDisplayName:        userDisplayName,
+		UserProfileImageUrl:    userProfileImageUrl,
+		WorkName:               workName,
+		BreakWorkName:          breakWorkName,
+		EnteredAt:              enterDate,
+		Until:                  exitDate,
+		Appearance:             seatAppearance,
+		MenuCode:               menuCode,
+		State:                  state,
+		CurrentStateStartedAt:  currentStateStartedAt,
+		CurrentStateUntil:      currentStateUntil,
+		CumulativeWorkSec:      0,
+		DailyCumulativeWorkSec: 0,
+	}
+	if err := s.Repository.CreateSeat(tx, newSeat, isMemberSeat); err != nil {
+		return 0, fmt.Errorf("in CreateSeat: %w", err)
+	}
+
+	// 入室時刻を記録
+	if err := s.Repository.UpdateUserLastEnteredDate(tx, userId, enterDate); err != nil {
+		return 0, fmt.Errorf("in UpdateUserLastEnteredDate: %w", err)
+	}
+	// activityログ記録
+	enterActivity := repository.UserActivityDoc{
+		UserId:       userId,
+		ActivityType: repository.EnterRoomActivity,
+		SeatId:       seatId,
+		IsMemberSeat: isMemberSeat,
+		TakenAt:      enterDate,
+	}
+	if err := s.Repository.CreateUserActivityDoc(ctx, tx, enterActivity); err != nil {
+		return 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
+	}
+	// 久しぶりの入室であれば、isContinuousActiveをtrueに、lastPenaltyImposedDaysを0に更新
+	if !isContinuousActive {
+		if err := s.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, true, enterDate); err != nil {
+			return 0, fmt.Errorf("in UpdateUserIsContinuousActiveAndCurrentActivityStateStarted: %w", err)
+		}
+		if err := s.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, 0); err != nil {
+			return 0, fmt.Errorf("in UpdateUserLastPenaltyImposedDays: %w", err)
+		}
+	}
+
+	// 入室から自動退室予定時刻までの時間（分）
+	untilExitMin := int(exitDate.Sub(enterDate).Minutes())
+
+	return untilExitMin, nil
+}
+
+// exitRoom ユーザーを退室させる。
+func (s *WorkspaceApp) exitRoom(
+	ctx context.Context,
+	tx *firestore.Transaction,
+	isMemberSeat bool,
+	previousSeat repository.SeatDoc,
+	previousUserDoc *repository.UserDoc,
+) (int, int, error) {
+	// 作業時間を計算
+	exitDate := utils.JstNow()
+	var addedWorkedTimeSec int
+	var addedDailyWorkedTimeSec int
+	switch previousSeat.State {
+	case repository.BreakState:
+		addedWorkedTimeSec = previousSeat.CumulativeWorkSec
+		// もし直前の休憩で日付を跨いでたら
+		justBreakTimeSec := int(utils.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
+		if justBreakTimeSec > utils.SecondsOfDay(exitDate) {
+			addedDailyWorkedTimeSec = 0
+		} else {
+			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec
+		}
+	case repository.WorkState:
+		justWorkedTimeSec := int(utils.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
+		addedWorkedTimeSec = previousSeat.CumulativeWorkSec + justWorkedTimeSec
+		// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
+		if justWorkedTimeSec > utils.SecondsOfDay(exitDate) {
+			addedDailyWorkedTimeSec = utils.SecondsOfDay(exitDate)
+		} else {
+			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec + justWorkedTimeSec
+		}
+	}
+
+	// 退室処理
+	if err := s.Repository.DeleteSeat(ctx, tx, previousSeat.SeatId, isMemberSeat); err != nil {
+		return 0, 0, fmt.Errorf("in DeleteSeat: %w", err)
+	}
+
+	// ログ記録
+	exitActivity := repository.UserActivityDoc{
+		UserId:       previousSeat.UserId,
+		ActivityType: repository.ExitRoomActivity,
+		SeatId:       previousSeat.SeatId,
+		IsMemberSeat: isMemberSeat,
+		TakenAt:      exitDate,
+	}
+	if err := s.Repository.CreateUserActivityDoc(ctx, tx, exitActivity); err != nil {
+		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
+	}
+	// 退室時刻を記録
+	if err := s.Repository.UpdateUserLastExitedDate(tx, previousSeat.UserId, exitDate); err != nil {
+		return 0, 0, fmt.Errorf("in UpdateUserLastExitedDate: %w", err)
+	}
+	// 累計作業時間を更新
+	if err := s.UpdateTotalWorkTime(tx, previousSeat.UserId, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec); err != nil {
+		return 0, 0, fmt.Errorf("in UpdateTotalWorkTime: %w", err)
+	}
+	// RP更新
+	netStudyDuration := time.Duration(addedWorkedTimeSec) * time.Second
+	newRP, err := utils.CalcNewRPExitRoom(netStudyDuration, previousSeat.WorkName != "", previousUserDoc.IsContinuousActive, previousUserDoc.CurrentActivityStateStarted, exitDate, previousUserDoc.RankPoint)
+	if err != nil {
+		return 0, 0, fmt.Errorf("in CalcNewRPExitRoom: %w", err)
+	}
+	if err := s.Repository.UpdateUserRankPoint(tx, previousSeat.UserId, newRP); err != nil {
+		return 0, 0, fmt.Errorf("in UpdateUserRP: %w", err)
+	}
+	addedRP := newRP - previousUserDoc.RankPoint
+
+	slog.Info("user exited the room.",
+		"userId", previousSeat.UserId,
+		"seatId", previousSeat.SeatId,
+		"addedWorkedTimeSec", addedWorkedTimeSec,
+		"addedRP", addedRP,
+		"newRP", newRP,
+		"previous RP", previousUserDoc.RankPoint)
+	return addedWorkedTimeSec, addedRP, nil
+}
+
+func (s *WorkspaceApp) moveSeat(
+	ctx context.Context,
+	tx *firestore.Transaction,
+	targetSeatId int,
+	latestUserProfileImage string,
+	beforeIsMemberSeat,
+	afterIsMemberSeat bool,
+	option utils.MinutesAndWorkNameOption,
+	previousSeat repository.SeatDoc,
+	previousUserDoc *repository.UserDoc,
+) (int, int, int, error) {
+	jstNow := utils.JstNow()
+
+	// 値チェック
+	if targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat {
+		return 0, 0, 0, errors.New("targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat")
+	}
+
+	// 退室
+	workedTimeSec, addedRP, err := s.exitRoom(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("in exitRoom for %s: %w", s.ProcessedUserId, err)
+	}
+
+	// 入室の準備
+	var workName string
+	var workMin int
+	if option.IsWorkNameSet {
+		workName = option.WorkName
+	} else {
+		workName = previousSeat.WorkName
+	}
+	if option.IsDurationMinSet {
+		workMin = option.DurationMin
+	} else {
+		workMin = int(utils.NoNegativeDuration(previousSeat.Until.Sub(jstNow)).Minutes())
+	}
+	newTotalStudyDuration := time.Duration(previousUserDoc.TotalStudySec+workedTimeSec) * time.Second
+	newRP := previousUserDoc.RankPoint + addedRP
+	newSeatAppearance, err := utils.GetSeatAppearance(int(newTotalStudyDuration.Seconds()), previousUserDoc.RankVisible, newRP, previousUserDoc.FavoriteColor)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("in GetSeatAppearance: %w", err)
+	}
+
+	// 入室
+	untilExitMin, err := s.enterRoom(
+		ctx,
+		tx,
+		previousSeat.UserId,
+		previousSeat.UserDisplayName,
+		latestUserProfileImage,
+		targetSeatId,
+		afterIsMemberSeat,
+		workName,
+		previousSeat.BreakWorkName,
+		workMin,
+		newSeatAppearance,
+		previousSeat.MenuCode,
+		previousSeat.State,
+		previousUserDoc.IsContinuousActive,
+		previousSeat.CurrentStateStartedAt,
+		previousSeat.CurrentStateUntil,
+		utils.JstNow())
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to enterRoom for %s: %w", previousSeat.UserId, err)
+	}
+
+	return workedTimeSec, addedRP, untilExitMin, nil
 }
