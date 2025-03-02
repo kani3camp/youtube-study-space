@@ -1230,7 +1230,7 @@ func TestParseCommand(t *testing.T) {
 				assert.NotEmpty(t, message, "Expected error message but got none")
 			} else {
 				assert.Empty(t, message, "Expected no error message but got: %s", message)
-				assert.Equal(t, testCase.Output, out, "Command details do not match")
+				assert.Equal(t, testCase.Output, out, "ProcessMessage details do not match")
 			}
 		})
 	}

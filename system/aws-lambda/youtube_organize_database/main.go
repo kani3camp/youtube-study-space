@@ -23,18 +23,18 @@ func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
 	if err != nil {
 		return OrganizeDatabaseResponse{}, nil
 	}
-	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return OrganizeDatabaseResponse{}, nil
 	}
-	defer system.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
-	if err := system.OrganizeDB(ctx, true); err != nil {
-		system.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
+	if err := app.OrganizeDB(ctx, true); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
-	if err := system.OrganizeDB(ctx, false); err != nil {
-		system.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
+	if err := app.OrganizeDB(ctx, false); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
 

@@ -48,7 +48,7 @@ type Configs struct {
 	LiveChatBotChannelId string
 }
 
-func NewSystem(ctx context.Context, interactive bool, clientOption option.ClientOption) (*WorkspaceApp, error) {
+func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.ClientOption) (*WorkspaceApp, error) {
 	if err := i18n.LoadLocaleFolderFS(); err != nil {
 		return nil, fmt.Errorf("in LoadLocaleFolderFS(): %w", err)
 	}
@@ -266,8 +266,8 @@ func (s *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId, 
 	return false, nil
 }
 
-// Command 入力コマンドを解析して実行
-func (s *WorkspaceApp) Command(
+// ProcessMessage 入力コマンドを解析して実行
+func (s *WorkspaceApp) ProcessMessage(
 	ctx context.Context,
 	commandString string,
 	userId string,

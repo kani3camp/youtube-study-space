@@ -147,7 +147,7 @@ func TestFindEmojiCommandIndex(t *testing.T) {
 			shouldFind:     true,
 		},
 		{
-			name:           "Command not found",
+			name:           "ProcessMessage not found",
 			input:          "hello world",
 			commandName:    InString,
 			expectedOutput: "",
