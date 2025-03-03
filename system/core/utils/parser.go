@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 			return nil, message
 		}
 		fullString = FormatStringToParse(fullString)
+		slog.Info("Replaced emoji command to text", "fullString", fullString)
 	}
 
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
@@ -162,11 +164,11 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 		case MatchEmojiCommand(s, WorkString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+WorkNameOptionPrefix, 1)
 		case MatchEmojiCommand(s, MinString):
-			num, err := ExtractEmojiMinValue(fullString, s, true)
+			minString, err := ReplaceEmojiMinToText(s)
 			if err != nil {
 				return "", i18n.T("parse:check-option", TimeOptionPrefix)
 			}
-			fullString = strings.Replace(fullString, s, HalfWidthSpace+TimeOptionPrefix+strconv.Itoa(num)+HalfWidthSpace, 1)
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+minString, 1)
 		case MatchEmojiCommand(s, ColorString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+FavoriteColorMyOptionPrefix, 1)
 		case MatchEmojiCommand(s, RankOnString):
@@ -181,9 +183,7 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 
 // NOTE: 何度も使用されるため、パッケージレベルで定義
 var (
-	leadingSpacesRegex      = regexp.MustCompile(`^![ ]+`)
-	leadingSlashSpacesRegex = regexp.MustCompile(`^/[ ]+`)
-	emojiCommandRegex       = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 )
 
 // FormatStringToParse
@@ -192,22 +192,28 @@ var (
 // 前後のスペースをトリム
 // `！`（全角）で始まるなら半角に変換
 // `／`（全角）で始まるなら半角に変換
+// 複数の空白が連続する場合は1つにする
 // `!`や`/`の隣が空白ならその空白を消す
 func FormatStringToParse(fullString string) string {
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
 	fullString = strings.TrimSpace(fullString)
+
+	// プレフィックスが全角なら半角に変換
 	if strings.HasPrefix(fullString, CommandPrefixFullWidth) {
 		fullString = strings.Replace(fullString, CommandPrefixFullWidth, CommandPrefix, 1)
 	}
 	if strings.HasPrefix(fullString, MemberCommandPrefixFullWidth) {
 		fullString = strings.Replace(fullString, MemberCommandPrefixFullWidth, MemberCommandPrefix, 1)
 	}
-	// `!`や`/`の隣が空白ならその空白を消す（空白は複数あるかも）
-	fullString = leadingSpacesRegex.ReplaceAllString(fullString, "!")
-	if strings.HasPrefix(fullString, MemberCommandPrefix) {
-		fullString = leadingSlashSpacesRegex.ReplaceAllString(fullString, "/")
-	}
+
+	// 複数の空白が連続する場合は1つにする
+	fullString = strings.Join(strings.Fields(fullString), HalfWidthSpace)
+
+	// `!`や`/`の隣が空白ならその空白を消す
+	fullString = strings.ReplaceAll(fullString, CommandPrefix+HalfWidthSpace, CommandPrefix)
+	fullString = strings.ReplaceAll(fullString, MemberCommandPrefix+HalfWidthSpace, MemberCommandPrefix)
+
 	return fullString
 }
 

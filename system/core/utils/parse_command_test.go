@@ -140,7 +140,28 @@ func TestParseCommand(t *testing.T) {
 		{
 			Name:  "詳細席表示",
 			Input: "!seat d",
-			Output: &CommandDetails{CommandType: Seat,
+			Output: &CommandDetails{
+				CommandType: Seat,
+				SeatOption: SeatOption{
+					ShowDetails: true,
+				},
+			},
+		},
+		{
+			Name:  "詳細席表示（全角スペース）",
+			Input: "!seat　d",
+			Output: &CommandDetails{
+				CommandType: Seat,
+				SeatOption: SeatOption{
+					ShowDetails: true,
+				},
+			},
+		},
+		{
+			Name:  "詳細席表示（スペース複数）",
+			Input: "!seat   d",
+			Output: &CommandDetails{
+				CommandType: Seat,
 				SeatOption: SeatOption{
 					ShowDetails: true,
 				},
