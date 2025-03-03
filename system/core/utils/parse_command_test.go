@@ -51,6 +51,27 @@ func TestParseCommand(t *testing.T) {
 				CommandType: NotCommand,
 			},
 		},
+		{
+			Name:  "非コマンド（空文字）",
+			Input: "",
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Name:  "無効コマンド",
+			Input: "!",
+			Output: &CommandDetails{
+				CommandType: InvalidCommand,
+			},
+		},
+		{
+			Name:  "無効コマンド（存在しないコマンド）",
+			Input: "!unknown",
+			Output: &CommandDetails{
+				CommandType: InvalidCommand,
+			},
+		},
 
 		{
 			Name:     "基本的な退室",

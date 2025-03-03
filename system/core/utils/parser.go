@@ -114,12 +114,20 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 	}, ""
 }
 
+// NOTE: 何度も使用されるため、パッケージレベルで定義
+var (
+	leadingSpacesRegex      = regexp.MustCompile(`^![ ]+`)
+	leadingSlashSpacesRegex = regexp.MustCompile(`^/[ ]+`)
+	emojiCommandRegex       = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+)
+
 // FormatStringToParse
 // 全角スペースを半角に変換
 // 全角イコールを半角に変換
 // 前後のスペースをトリム
 // `！`（全角）で始まるなら半角に変換
 // `／`（全角）で始まるなら半角に変換
+// `!`や`/`の隣が空白ならその空白を消す
 func FormatStringToParse(fullString string) string {
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
@@ -130,13 +138,17 @@ func FormatStringToParse(fullString string) string {
 	if strings.HasPrefix(fullString, MemberCommandPrefixFullWidth) {
 		fullString = strings.Replace(fullString, MemberCommandPrefixFullWidth, MemberCommandPrefix, 1)
 	}
+	// `!`や`/`の隣が空白ならその空白を消す（空白は複数あるかも）
+	fullString = leadingSpacesRegex.ReplaceAllString(fullString, "!")
+	if strings.HasPrefix(fullString, MemberCommandPrefix) {
+		fullString = leadingSlashSpacesRegex.ReplaceAllString(fullString, "/")
+	}
 	return fullString
 }
 
 func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
-	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	emojis := make([]EmojiElement, 0)
-	emojiStrings := r.FindAllString(commandString, -1)
+	emojiStrings := emojiCommandRegex.FindAllString(commandString, -1)
 	for _, s := range emojiStrings {
 		var m EmojiElement
 		switch true {
@@ -184,31 +196,13 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 		emojis = append(emojis, m)
 	}
 
-	emojiExcludedString := r.ReplaceAllString(commandString, HalfWidthSpace)
+	emojiExcludedString := emojiCommandRegex.ReplaceAllString(commandString, HalfWidthSpace)
 	emojiExcludedString = strings.TrimLeft(emojiExcludedString, HalfWidthSpace)
 	return emojis, emojiExcludedString
 }
 
-func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
-	slice := strings.Split(emojiExcludedString, HalfWidthSpace)
-
-	// 追加オプションチェック
-	options, message := ParseMinutesAndWorkNameOptions(slice, fullString, isMember, emojis)
-	if message != "" {
-		return nil, message
-	}
-
-	return &CommandDetails{
-		CommandType: In,
-		InOption: InOption{
-			IsSeatIdSet:        false,
-			MinutesAndWorkName: options,
-			IsMemberSeat:       isTargetMemberSeat,
-		},
-	}, ""
-}
-
-func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
+// parseInCommon 入室コマンドを解析し、座席指定の有無に関わらず共通処理を行う
+func parseInCommon(commandString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
 	slice := strings.Split(commandString, HalfWidthSpace)
 
 	// 追加オプションチェック
@@ -220,12 +214,20 @@ func ParseSeatIn(seatNum int, commandString string, fullString string, isMember 
 	return &CommandDetails{
 		CommandType: In,
 		InOption: InOption{
-			IsSeatIdSet:        true,
-			SeatId:             seatNum,
+			IsSeatIdSet:        isSeatIdSet,
+			SeatId:             seatId,
 			MinutesAndWorkName: options,
-			IsMemberSeat:       isMemberSeat,
+			IsMemberSeat:       isTargetMemberSeat,
 		},
 	}, ""
+}
+
+func ParseIn(emojiExcludedString string, fullString string, isMember bool, isTargetMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
+	return parseInCommon(emojiExcludedString, fullString, isMember, isTargetMemberSeat, emojis, false, 0)
+}
+
+func ParseSeatIn(seatNum int, commandString string, fullString string, isMember bool, isMemberSeat bool, emojis []EmojiElement) (*CommandDetails, string) {
+	return parseInCommon(commandString, fullString, isMember, isMemberSeat, emojis, true, seatNum)
 }
 
 func ParseInfo(commandString string, isMember bool, emojis []EmojiElement) (*CommandDetails, string) {

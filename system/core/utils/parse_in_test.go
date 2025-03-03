@@ -38,6 +38,34 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
+			Name:  "文頭に全角スペースがある場合",
+			Input: "　!in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
+			Name:  "!の隣に空白",
+			Input: "! in",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+				},
+			},
+		},
+		{
 			Name:  "全角の！も対応",
 			Input: "！in",
 			Output: &CommandDetails{
@@ -52,8 +80,24 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
+			Name:  "従来のオプション指定（work-, min-）",
+			Input: "!in min-30 work-テスト",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinutesAndWorkNameOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "テスト",
+						DurationMin:      30,
+					},
+				},
+			},
+		},
+		{
 			Name:  "作業名と時間指定付き入室",
-			Input: "!in work-てすと min-50",
+			Input: "!in work=てすと min=50",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -69,7 +113,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "全角スペース付き入室",
-			Input: "!in　work-全角すぺーす　min-50",
+			Input: "!in　work=全角すぺーす　min=50",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -85,7 +129,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "時間指定が先の入室",
-			Input: "!in min-60 work-わーく",
+			Input: "!in min=60 work=わーく",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -101,7 +145,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "短い作業名付き入室",
-			Input: "!in min-60 work-w",
+			Input: "!in min=60 work=w",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -131,7 +175,7 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:  "work=なしで時間指定可能 時間指定あり",
+			Name:  "work=なしで時間指定 時間指定あり",
 			Input: "!in テスト min=60",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -244,23 +288,7 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:  "work=	",
-			Input: "!in テスト m＝165",
-			Output: &CommandDetails{
-				CommandType: In,
-				InOption: InOption{
-					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
-						IsWorkNameSet:    true,
-						IsDurationMinSet: true,
-						WorkName:         "テスト",
-						DurationMin:      165,
-					},
-				},
-			},
-		},
-		{
-			Name:  "work=なしで作業名指定可能 オプション順不同",
+			Name:  "work=なしで作業名指定 オプション順不同",
 			Input: "!in m=165 テスト",
 			Output: &CommandDetails{
 				CommandType: In,
