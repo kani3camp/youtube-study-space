@@ -526,7 +526,7 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:     "絵文字入室と無効な時間指定（エラーケース）",
+			Name:     "絵文字コマンド入室と無効な時間指定（エラーケース）",
 			Input:    TestEmojiIn0 + TestEmojiMin0 + "  450",
 			IsMember: true,
 			Output: &CommandDetails{

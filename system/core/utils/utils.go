@@ -266,14 +266,14 @@ func ExtractEmojiString(text string, commandName string) string {
 }
 
 func ExtractEmojiMinValue(fullString, emojiString string, allowEmpty bool) (int, error) {
-	tmp := strings.TrimPrefix(emojiString, EmojiCommandPrefix)
+	tmp := strings.TrimPrefix(emojiString, EmojiCommandPrefix) // ex. "360Min0:"
 	r, _ := regexp.Compile(MinString + `[0-9]*` + EmojiSide)
 	loc := r.FindStringIndex(tmp)
 	if len(loc) != 2 {
 		return 0, errors.New("invalid emoji min string.")
 	}
-	numString := tmp[:loc[0]]
-	if numString != "" { // "min=xxx" emoji
+	numString := tmp[:loc[0]] // ex. "360"
+	if numString != "" {      // "min=xxx" emoji
 		return strconv.Atoi(numString)
 	}
 

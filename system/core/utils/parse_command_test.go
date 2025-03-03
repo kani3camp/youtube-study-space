@@ -114,6 +114,14 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:     "メンバーによる絵文字コマンドランク表示",
+			Input:    TestEmojiRank0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Rank,
+			},
+		},
+		{
 			Name:     "非メンバーによる絵文字ランク表示（無効）",
 			Input:    TestEmojiRank0,
 			IsMember: false,

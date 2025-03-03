@@ -13,6 +13,16 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 	// コマンド解析前に文字列を整形
 	fullString = FormatStringToParse(fullString)
 
+	// メンバーの場合は絵文字コマンドを文字に置換
+	if isMember {
+		var message string
+		fullString, message = ReplaceEmojiCommandToText(fullString)
+		if message != "" {
+			return nil, message
+		}
+		fullString = FormatStringToParse(fullString)
+	}
+
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
 
@@ -75,43 +85,98 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				CommandType: InvalidCommand,
 			}, ""
 		}
-	} else if isMember && strings.HasPrefix(fullString, EmojiCommandPrefix) {
-		emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
-		if len(emojis) > 0 {
-			switch emojis[0] {
-			case EmojiInZero:
-				return ParseSeatIn(0, emojiExcludedString, fullString, isMember, false, emojis)
-			case EmojiMemberIn:
-				return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
-			case EmojiIn:
-				return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
-			case EmojiOut:
-				return &CommandDetails{
-					CommandType: Out,
-				}, ""
-			case EmojiInfo, EmojiInfoD:
-				return ParseInfo(emojiExcludedString, isMember, emojis)
-			case EmojiMy:
-				return ParseMy(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiChange:
-				return ParseChange(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiSeat, EmojiSeatD:
-				return ParseSeat(emojiExcludedString, isMember, emojis)
-			case EmojiMore:
-				return ParseMore(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiBreak:
-				return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiResume:
-				return ParseResume(emojiExcludedString, fullString, isMember, emojis)
-			case EmojiOrder, EmojiOrderCancel:
-				return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
-			default:
-			}
-		}
+		//} else if isMember && strings.HasPrefix(fullString, EmojiCommandPrefix) {
+		//	emojis, emojiExcludedString := ExtractAllEmojiCommands(fullString)
+		//	if len(emojis) > 0 {
+		//		switch emojis[0] {
+		//		case EmojiInZero:
+		//			return ParseSeatIn(0, emojiExcludedString, fullString, isMember, false, emojis)
+		//		case EmojiMemberIn:
+		//			return ParseIn(emojiExcludedString, fullString, isMember, true, emojis)
+		//		case EmojiIn:
+		//			return ParseIn(emojiExcludedString, fullString, isMember, false, emojis)
+		//		case EmojiOut:
+		//			return &CommandDetails{
+		//				CommandType: Out,
+		//			}, ""
+		//		case EmojiInfo, EmojiInfoD:
+		//			return ParseInfo(emojiExcludedString, isMember, emojis)
+		//		case EmojiMy:
+		//			return ParseMy(emojiExcludedString, fullString, isMember, emojis)
+		//		case EmojiChange:
+		//			return ParseChange(emojiExcludedString, fullString, isMember, emojis)
+		//		case EmojiSeat, EmojiSeatD:
+		//			return ParseSeat(emojiExcludedString, isMember, emojis)
+		//		case EmojiMore:
+		//			return ParseMore(emojiExcludedString, fullString, isMember, emojis)
+		//		case EmojiBreak:
+		//			return ParseBreak(emojiExcludedString, fullString, isMember, emojis)
+		//		case EmojiResume:
+		//			return ParseResume(emojiExcludedString, fullString, isMember, emojis)
+		//		case EmojiOrder, EmojiOrderCancel:
+		//			return ParseOrder(emojiExcludedString, fullString, isMember, emojis)
+		//		default:
+		//		}
+		//	}
 	}
 	return &CommandDetails{
 		CommandType: NotCommand,
 	}, ""
+}
+
+func ReplaceEmojiCommandToText(fullString string) (string, string) {
+	// コマンドの置換（オプション除く）
+	emojiStrings := emojiCommandRegex.FindAllString(fullString, -1)
+	for _, s := range emojiStrings {
+		switch true {
+		case MatchEmojiCommand(s, InZeroString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+InZeroCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, InString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+InCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, OutString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+OutCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, InfoString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+InfoCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, InfoDString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+InfoDCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, MyString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+MyCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, ChangeString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+ChangeCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, SeatString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+SeatCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, SeatDString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+SeatDCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, MoreString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+MoreCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, BreakString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+BreakCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, ResumeString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+ResumeCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, MemberInString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+MemberInCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, OrderString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+OrderCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, RankString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, WorkString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+WorkNameOptionPrefix, 1)
+		case MatchEmojiCommand(s, MinString):
+			num, err := ExtractEmojiMinValue(fullString, s, true)
+			if err != nil {
+				return "", i18n.T("parse:check-option", TimeOptionPrefix)
+			}
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+TimeOptionPrefix+strconv.Itoa(num)+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, ColorString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+FavoriteColorMyOptionPrefix, 1)
+		case MatchEmojiCommand(s, RankOnString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionPrefix+RankVisibleMyOptionOn, 1)
+		case MatchEmojiCommand(s, RankOffString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionPrefix+RankVisibleMyOptionOff, 1)
+		}
+	}
+
+	return fullString, ""
 }
 
 // NOTE: 何度も使用されるため、パッケージレベルで定義

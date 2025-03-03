@@ -99,7 +99,7 @@ func TestParseChange(t *testing.T) {
 			},
 		},
 		{
-			Name:     "メンバーによる絵文字変更",
+			Name:     "メンバーによる絵文字コマンド変更",
 			Input:    TestEmojiChange0 + TestEmojiWork0 + TestEmoji360Min0,
 			IsMember: true,
 			Output: &CommandDetails{
