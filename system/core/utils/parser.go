@@ -34,6 +34,12 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		case InCommand:
 			commandExcludedStr := strings.TrimPrefix(fullString, InCommand)
 			return ParseIn(commandExcludedStr, false, false, 0)
+		case MemberWorkCommand:
+			commandExcludedStr := strings.TrimPrefix(fullString, MemberWorkCommand)
+			return ParseIn(commandExcludedStr, true, false, 0)
+		case WorkCommand:
+			commandExcludedStr := strings.TrimPrefix(fullString, WorkCommand)
+			return ParseIn(commandExcludedStr, false, false, 0)
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,

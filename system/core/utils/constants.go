@@ -24,12 +24,14 @@ const (
 	ChillCommand   = "!chill"
 	ResumeCommand  = "!resume"
 	OrderCommand   = "!order"
+	WorkCommand    = "!work"
 
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
 	BlockCommand = "!block"
 
-	MemberInCommand = "/in"
+	MemberInCommand   = "/in"
+	MemberWorkCommand = "/work"
 
 	MemberKickCommand  = "/kick"
 	MemberCheckCommand = "/check"
