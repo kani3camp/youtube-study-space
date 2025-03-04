@@ -29,9 +29,11 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		slice := strings.Split(fullString, HalfWidthSpace)
 		switch slice[0] {
 		case MemberInCommand:
-			return ParseIn(fullString, true)
+			commandExcludedStr := strings.TrimPrefix(fullString, MemberInCommand)
+			return ParseIn(commandExcludedStr, true, false, 0)
 		case InCommand:
-			return ParseIn(fullString, false)
+			commandExcludedStr := strings.TrimPrefix(fullString, InCommand)
+			return ParseIn(commandExcludedStr, false, false, 0)
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,
@@ -75,9 +77,11 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		default: // !席番号 or 間違いコマンド
 			// "!席番号" or "/席番号" かも
 			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {
-				return ParseSeatIn(num, fullString, false)
+				commandExcludedStr := strings.TrimPrefix(fullString, slice[0])
+				return ParseSeatIn(num, commandExcludedStr, false)
 			} else if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix)); err == nil {
-				return ParseSeatIn(num, fullString, true)
+				commandExcludedStr := strings.TrimPrefix(fullString, slice[0])
+				return ParseSeatIn(num, commandExcludedStr, true)
 			}
 
 			// 間違いコマンド
@@ -149,6 +153,8 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 // NOTE: 何度も使用されるため、パッケージレベルで定義
 var (
 	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+	workRegex         = regexp.MustCompile(`(work=|w=|work-|w-)`)
+	minRegex          = regexp.MustCompile(`(min=|m=|min-|m-)`)
 )
 
 // FormatStringToParse
@@ -237,14 +243,20 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 	return emojis, emojiExcludedString
 }
 
-// parseInCommon 入室コマンドを解析し、座席指定の有無に関わらず共通処理を行う
-func parseInCommon(commandString string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseIn(commandExcludedStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
+	fields := strings.Fields(commandExcludedStr)
 
-	// 追加オプションチェック
-	options, message := ParseMinutesAndWorkNameOptions(slice)
-	if message != "" {
-		return nil, message
+	options := &MinutesAndWorkNameOption{
+		IsWorkNameSet:    false,
+		IsDurationMinSet: false,
+	}
+	var err string
+
+	if len(fields) >= 1 {
+		options, err = ParseMinutesAndWorkNameOptions(commandExcludedStr)
+		if err != "" {
+			return nil, err
+		}
 	}
 
 	return &CommandDetails{
@@ -258,12 +270,8 @@ func parseInCommon(commandString string, isTargetMemberSeat bool, isSeatIdSet bo
 	}, ""
 }
 
-func ParseIn(emojiExcludedString string, isTargetMemberSeat bool) (*CommandDetails, string) {
-	return parseInCommon(emojiExcludedString, isTargetMemberSeat, false, 0)
-}
-
-func ParseSeatIn(seatNum int, commandString string, isMemberSeat bool) (*CommandDetails, string) {
-	return parseInCommon(commandString, isMemberSeat, true, seatNum)
+func ParseSeatIn(seatNum int, commandExcludedStr string, isMemberSeat bool) (*CommandDetails, string) {
+	return ParseIn(commandExcludedStr, isMemberSeat, true, seatNum)
 }
 
 func ParseInfo(commandString string) (*CommandDetails, string) {
@@ -432,10 +440,8 @@ func ParseReport(commandString string) (*CommandDetails, string) {
 }
 
 func ParseChange(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
 	// 追加オプションチェック
-	options, message := ParseMinutesAndWorkNameOptions(slice)
+	options, message := ParseMinutesAndWorkNameOptions(commandString)
 	if message != "" {
 		return nil, message
 	}
@@ -485,10 +491,8 @@ func ParseMore(commandString string) (*CommandDetails, string) {
 }
 
 func ParseBreak(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
 	// 追加オプションチェック
-	options, message := ParseMinutesAndWorkNameOptions(slice)
+	options, message := ParseMinutesAndWorkNameOptions(commandString)
 	if message != "" {
 		return nil, message
 	}
@@ -587,21 +591,60 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool, allowEmpty b
 	return 0, i18n.T("parse:missing-time-option", TimeOptionPrefix)
 }
 
-func ParseMinutesAndWorkNameOptions(strSlice []string) (*MinutesAndWorkNameOption, string) {
+func ParseMinutesAndWorkNameOptions(commandExcludedStr string) (*MinutesAndWorkNameOption, string) {
 	var options MinutesAndWorkNameOption
 
-	// テキストオプションの処理
-	for _, str := range strSlice {
-		if HasWorkNameOptionPrefix(str) && !options.IsWorkNameSet {
-			options.WorkName = TrimWorkNameOptionPrefix(str)
-			options.IsWorkNameSet = true
-		} else if HasTimeOptionPrefix(str) && !options.IsDurationMinSet {
-			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
-			if err != nil { // 無効な値
-				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+	minLoc := minRegex.FindStringIndex(commandExcludedStr)
+	workLoc := workRegex.FindStringIndex(commandExcludedStr)
+
+	// minオプション
+	if minLoc != nil {
+		// runeのインデックスに変換
+		targetStr := commandExcludedStr[minLoc[1]:]
+		fields := strings.Fields(targetStr)
+		if len(fields) == 0 {
+			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+		}
+		minValueStr := fields[0]
+		minValue, err := strconv.Atoi(strings.TrimSpace(minValueStr))
+		if err != nil {
+			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+		}
+		options.DurationMin = minValue
+		options.IsDurationMinSet = true
+	}
+
+	// workオプション
+	if workLoc != nil {
+		// min指定がないか、minLocより後にある
+		if minLoc == nil || minLoc[0] < workLoc[0] {
+			workNameValue := commandExcludedStr[workLoc[1]:]
+			options.WorkName = strings.TrimSpace(workNameValue)
+		} else { // minLocより前にある
+			workNameValue := commandExcludedStr[workLoc[1]:minLoc[0]]
+			options.WorkName = strings.TrimSpace(workNameValue)
+		}
+		options.IsWorkNameSet = true
+	}
+
+	// 明示的なwork=指定なしの場合
+	if !options.IsWorkNameSet {
+		if minLoc != nil {
+			re := regexp.MustCompile(`min=\S*|m=\S*|min-\S*|m-\S*`)
+			parts := re.Split(commandExcludedStr, -1)
+			for _, part := range parts {
+				trimmed := strings.TrimSpace(part)
+				if trimmed != "" {
+					options.WorkName = trimmed
+					options.IsWorkNameSet = true
+					break
+				}
 			}
-			options.DurationMin = num
-			options.IsDurationMinSet = true
+		} else { // min指定がない場合
+			options.WorkName = strings.TrimSpace(commandExcludedStr)
+			if options.WorkName != "" {
+				options.IsWorkNameSet = true
+			}
 		}
 	}
 

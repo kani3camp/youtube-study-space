@@ -66,7 +66,7 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
-			Name:  "無効コマンド（存在しないコマンド）",
+			Name:  "存在しないコマンド",
 			Input: "!unknown",
 			Output: &CommandDetails{
 				CommandType: InvalidCommand,
