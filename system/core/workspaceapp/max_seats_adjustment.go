@@ -92,7 +92,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 							InOption: utils.InOption{
 								IsSeatIdSet: true,
 								SeatId:      0,
-								MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+								MinutesAndWorkName: &utils.MinWorkOrderOption{
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
@@ -175,7 +175,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 							InOption: utils.InOption{
 								IsSeatIdSet: true,
 								SeatId:      0,
-								MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+								MinutesAndWorkName: &utils.MinWorkOrderOption{
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,

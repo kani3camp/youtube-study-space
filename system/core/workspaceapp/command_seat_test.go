@@ -36,7 +36,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -60,7 +60,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -84,7 +84,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -106,7 +106,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       false,
 			},
 		},
@@ -142,7 +142,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        true,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				SeatId:             999,
 			},
 		},
@@ -160,7 +160,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       true,
 			},
 		},
@@ -512,7 +512,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",
@@ -540,7 +540,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",

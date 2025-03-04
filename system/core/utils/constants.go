@@ -70,6 +70,9 @@ const (
 	TimeOptionPrefixLegacy      = "min-"
 	TimeOptionShortPrefixLegacy = "m-"
 
+	OrderOptionPrefix      = "order="
+	OrderOptionShortPrefix = "o="
+
 	ShowDetailsOption = "d"
 	OrderCancelOption = "-"
 

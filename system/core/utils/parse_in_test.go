@@ -16,7 +16,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -30,7 +30,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -44,7 +44,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -58,7 +58,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -72,7 +72,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -86,7 +86,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "テスト",
@@ -96,17 +96,19 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:  "作業名と時間指定付き入室",
-			Input: "!in work=てすと min=50",
+			Name:  "作業名と時間指定と注文付き入室",
+			Input: "!in work=てすと min=50 order=3",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
+						IsOrderSet:       true,
 						WorkName:         "てすと",
 						DurationMin:      50,
+						OrderNum:         3,
 					},
 				},
 			},
@@ -118,7 +120,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "全角すぺーす",
@@ -134,7 +136,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "わーく",
@@ -150,11 +152,37 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "w",
 						DurationMin:      60,
+					},
+				},
+			},
+		},
+		{
+			Name:  "メニュー注文付き入室",
+			Input: "!in order=3",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
+						IsOrderSet: true,
+						OrderNum:   3,
+					},
+				},
+			},
+		},
+		{
+			Name:  "メニュー注文つき（短縮形）",
+			Input: "!in o=3",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
+						IsOrderSet: true,
+						OrderNum:   3,
 					},
 				},
 			},
@@ -166,7 +194,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: false,
 						WorkName:         "テスト",
@@ -181,7 +209,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "テスト",
@@ -198,7 +226,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      0,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -213,7 +241,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      0,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -228,7 +256,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      0,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "work",
@@ -245,7 +273,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      1,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "work",
@@ -262,7 +290,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      300,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: false,
 						WorkName:         "ｙ",
@@ -278,7 +306,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      300,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "全角イコール",
@@ -294,7 +322,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "テスト",
@@ -310,7 +338,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "work",
@@ -326,7 +354,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsMemberSeat:       true,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{},
+					MinutesAndWorkName: &MinWorkOrderOption{},
 				},
 			},
 		},
@@ -338,7 +366,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      1,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "work",
@@ -356,7 +384,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      1,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "てすと",
@@ -374,7 +402,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      1,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -391,7 +419,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet:        false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{},
+					MinutesAndWorkName: &MinWorkOrderOption{},
 				},
 			},
 		},
@@ -403,7 +431,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet:        false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{IsWorkNameSet: true, WorkName: "dev"},
+					MinutesAndWorkName: &MinWorkOrderOption{IsWorkNameSet: true, WorkName: "dev"},
 				},
 			},
 		},
@@ -416,7 +444,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet:        true,
 					SeatId:             0,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{},
+					MinutesAndWorkName: &MinWorkOrderOption{},
 				},
 			},
 		},
@@ -428,7 +456,7 @@ func TestParseIn(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsSeatIdSet: false,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet: true,
 						WorkName:      "dev",
 					},
@@ -442,7 +470,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						WorkName:         "",
 						IsDurationMinSet: true,
@@ -458,7 +486,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						WorkName:         "わーく",
 						IsDurationMinSet: true,
@@ -474,7 +502,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet: true,
 						WorkName:      "work test",
 					},
@@ -488,7 +516,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						WorkName:         "",
 						IsDurationMinSet: true,
@@ -504,7 +532,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsDurationMinSet: true,
 						DurationMin:      360,
 					},
@@ -518,7 +546,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsDurationMinSet: true,
 						DurationMin:      450,
 					},
@@ -532,7 +560,7 @@ func TestParseIn(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "w",
@@ -550,7 +578,7 @@ func TestParseIn(t *testing.T) {
 				InOption: InOption{
 					IsSeatIdSet: true,
 					SeatId:      0,
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
+					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet: true,
 						WorkName:      "英単語",
 					},

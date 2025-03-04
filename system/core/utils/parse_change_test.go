@@ -13,7 +13,7 @@ func TestParseChange(t *testing.T) {
 			Input: "!change m=140 w=新",
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "新",
@@ -32,7 +32,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet: true,
 					WorkName:      TestEmojiWork0 + TestEmoji360Min0,
 				},
@@ -45,7 +45,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "新",
@@ -58,7 +58,7 @@ func TestParseChange(t *testing.T) {
 			Input: "!change てすと m=140",
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "てすと",
@@ -71,7 +71,7 @@ func TestParseChange(t *testing.T) {
 			Input: "!change m=140 てすと",
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "てすと",
@@ -84,7 +84,7 @@ func TestParseChange(t *testing.T) {
 			Input: "!change テスト m=140 w=work",
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "work",
@@ -98,7 +98,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					WorkName:         "",
 					IsDurationMinSet: true,
@@ -112,7 +112,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "新",
@@ -126,7 +126,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					WorkName:         "新",
 					IsDurationMinSet: true,
@@ -141,7 +141,7 @@ func TestParseChange(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
+				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					WorkName:         "",
 					IsDurationMinSet: true,

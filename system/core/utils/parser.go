@@ -173,7 +173,7 @@ var (
 	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	workRegex         = regexp.MustCompile(`(work=|w=|work-|w-)`)
 	minRegex          = regexp.MustCompile(`(min=|m=|min-|m-)`)
-	minWithValueRegex = regexp.MustCompile(`min=\S+|m=\S+|min-\S+|m-\S+|min= \S+|m= \S+|min- \S+|m- \S+`)
+	orderRegex        = regexp.MustCompile(`(order=|o=)`)
 )
 
 // FormatStringToParse
@@ -265,14 +265,14 @@ func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
 func ParseIn(commandExcludedStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
 	fields := strings.Fields(commandExcludedStr)
 
-	options := &MinutesAndWorkNameOption{
+	options := &MinWorkOrderOption{
 		IsWorkNameSet:    false,
 		IsDurationMinSet: false,
 	}
 	var err string
 
 	if len(fields) >= 1 {
-		options, err = ParseMinutesAndWorkNameOptions(commandExcludedStr)
+		options, err = ParseMinWorkOrderOptions(commandExcludedStr)
 		if err != "" {
 			return nil, err
 		}
@@ -464,7 +464,7 @@ func ParseChange(commandString string) (*CommandDetails, string) {
 	if len(fields) == 0 {
 		return nil, i18n.T("parse:missing-change-option")
 	}
-	options, message := ParseMinutesAndWorkNameOptions(commandString)
+	options, message := ParseMinWorkOrderOptions(commandString)
 	if message != "" {
 		return nil, message
 	}
@@ -515,7 +515,7 @@ func ParseMore(commandString string) (*CommandDetails, string) {
 
 func ParseBreak(commandString string) (*CommandDetails, string) {
 	// 追加オプションチェック
-	options, message := ParseMinutesAndWorkNameOptions(commandString)
+	options, message := ParseMinWorkOrderOptions(commandString)
 	if message != "" {
 		return nil, message
 	}
@@ -614,15 +614,15 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool, allowEmpty b
 	return 0, i18n.T("parse:missing-time-option", TimeOptionPrefix)
 }
 
-func ParseMinutesAndWorkNameOptions(commandExcludedStr string) (*MinutesAndWorkNameOption, string) {
-	var options MinutesAndWorkNameOption
+func ParseMinWorkOrderOptions(commandExcludedStr string) (*MinWorkOrderOption, string) {
+	var options MinWorkOrderOption
 
 	minLoc := minRegex.FindStringIndex(commandExcludedStr)
 	workLoc := workRegex.FindStringIndex(commandExcludedStr)
+	orderLoc := orderRegex.FindStringIndex(commandExcludedStr)
 
 	// minオプション
 	if minLoc != nil {
-		// runeのインデックスに変換
 		targetStr := commandExcludedStr[minLoc[1]:]
 		fields := strings.Fields(targetStr)
 		if len(fields) == 0 {
@@ -635,38 +635,46 @@ func ParseMinutesAndWorkNameOptions(commandExcludedStr string) (*MinutesAndWorkN
 		}
 		options.DurationMin = minValue
 		options.IsDurationMinSet = true
+
+		// パースした部分は空白にしておく
+		targetStart := minLoc[1] + strings.Index(commandExcludedStr[minLoc[1]:], minValueStr) // min=のあとに空白が入る場合があるので正確に位置を求める
+		targetEnd := targetStart + len(minValueStr)
+		commandExcludedStr = commandExcludedStr[:minLoc[0]] + strings.Repeat(HalfWidthSpace, targetEnd-minLoc[0]) + commandExcludedStr[targetEnd:]
+	}
+
+	// orderオプション
+	if orderLoc != nil {
+		targetStr := commandExcludedStr[orderLoc[1]:]
+		fields := strings.Fields(targetStr)
+		if len(fields) == 0 {
+			return nil, i18n.T("parse:check-option", OrderOptionPrefix)
+		}
+		orderValueStr := fields[0]
+		orderValue, err := strconv.Atoi(strings.TrimSpace(orderValueStr))
+		if err != nil {
+			return nil, i18n.T("parse:check-option", OrderOptionPrefix)
+		}
+		options.OrderNum = orderValue
+		options.IsOrderSet = true
+
+		// パースした部分は空白にしておく
+		targetStart := orderLoc[1] + strings.Index(commandExcludedStr[orderLoc[1]:], orderValueStr) // order=のあとに空白が入る場合があるので正確に位置を求める
+		targetEnd := targetStart + len(orderValueStr)
+		commandExcludedStr = commandExcludedStr[:orderLoc[0]] + strings.Repeat(HalfWidthSpace, targetEnd-orderLoc[0]) + commandExcludedStr[targetEnd:]
 	}
 
 	// workオプション
 	if workLoc != nil {
-		// min指定がないか、minLocより後にある
-		if minLoc == nil || minLoc[0] < workLoc[0] {
-			workNameValue := commandExcludedStr[workLoc[1]:]
-			options.WorkName = strings.TrimSpace(workNameValue)
-		} else { // minLocより前にある
-			workNameValue := commandExcludedStr[workLoc[1]:minLoc[0]]
-			options.WorkName = strings.TrimSpace(workNameValue)
-		}
+		workNameValue := commandExcludedStr[workLoc[1]:]
+		options.WorkName = strings.TrimSpace(workNameValue)
 		options.IsWorkNameSet = true
 	}
 
 	// 明示的なwork=指定なしの場合
 	if !options.IsWorkNameSet {
-		if minLoc != nil {
-			parts := minWithValueRegex.Split(commandExcludedStr, -1)
-			for _, part := range parts {
-				trimmed := strings.TrimSpace(part)
-				if trimmed != "" {
-					options.WorkName = trimmed
-					options.IsWorkNameSet = true
-					break
-				}
-			}
-		} else { // min指定がない場合
-			options.WorkName = strings.TrimSpace(commandExcludedStr)
-			if options.WorkName != "" {
-				options.IsWorkNameSet = true
-			}
+		options.WorkName = strings.TrimSpace(commandExcludedStr)
+		if options.WorkName != "" {
+			options.IsWorkNameSet = true
 		}
 	}
 

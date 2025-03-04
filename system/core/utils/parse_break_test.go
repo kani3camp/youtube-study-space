@@ -13,7 +13,7 @@ func TestParseBreak(t *testing.T) {
 			Input: "!break",
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    false,
 					IsDurationMinSet: false,
 				},
@@ -24,7 +24,7 @@ func TestParseBreak(t *testing.T) {
 			Input: "!break min=23 work=休憩",
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "休憩",
@@ -39,7 +39,7 @@ func TestParseBreak(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    false,
 					IsDurationMinSet: false,
 				},
@@ -51,7 +51,7 @@ func TestParseBreak(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "休憩",
@@ -65,7 +65,7 @@ func TestParseBreak(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					WorkName:         "coffee",
@@ -79,7 +79,7 @@ func TestParseBreak(t *testing.T) {
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinutesAndWorkNameOption{
+				BreakOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					WorkName:         "coffee",
 					IsDurationMinSet: true,

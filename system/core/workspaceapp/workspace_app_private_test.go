@@ -33,7 +33,7 @@ func TestEnterRoom(t *testing.T) {
 	inOption := utils.InOption{
 		IsSeatIdSet: true,
 		SeatId:      1,
-		MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+		MinutesAndWorkName: &utils.MinWorkOrderOption{
 			DurationMin: 30,
 			WorkName:    "test_work_name",
 		},
