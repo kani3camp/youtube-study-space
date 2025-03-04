@@ -72,8 +72,6 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 			}, ""
 		case OrderCommand:
 			return ParseOrder(fullString)
-		case CommandPrefix: // 典型的なミスコマンド「! in」「! out」とか。
-			return nil, i18n.T("parse:isolated-!")
 		default: // !席番号 or 間違いコマンド
 			// "!席番号" or "/席番号" かも
 			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {
@@ -150,11 +148,11 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 	return fullString, ""
 }
 
-// NOTE: 何度も使用されるため、パッケージレベルで定義
 var (
 	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	workRegex         = regexp.MustCompile(`(work=|w=|work-|w-)`)
 	minRegex          = regexp.MustCompile(`(min=|m=|min-|m-)`)
+	minWithValueRegex = regexp.MustCompile(`min=\S+|m=\S+|min-\S+|m-\S+|min= \S+|m= \S+|min- \S+|m- \S+`)
 )
 
 // FormatStringToParse
@@ -630,8 +628,7 @@ func ParseMinutesAndWorkNameOptions(commandExcludedStr string) (*MinutesAndWorkN
 	// 明示的なwork=指定なしの場合
 	if !options.IsWorkNameSet {
 		if minLoc != nil {
-			re := regexp.MustCompile(`min=\S*|m=\S*|min-\S*|m-\S*`)
-			parts := re.Split(commandExcludedStr, -1)
+			parts := minWithValueRegex.Split(commandExcludedStr, -1)
 			for _, part := range parts {
 				trimmed := strings.TrimSpace(part)
 				if trimmed != "" {

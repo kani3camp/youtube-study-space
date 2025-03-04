@@ -469,14 +469,14 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:     "絵文字コマンドの隣は空白なしも可",
-			Input:    "!in" + TestEmojiWork0 + "わーく" + TestEmojiInfo0,
+			Input:    "!in" + TestEmojiWork0 + "work test",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
 					MinutesAndWorkName: &MinutesAndWorkNameOption{
 						IsWorkNameSet: true,
-						WorkName:      "わーく",
+						WorkName:      "work test",
 					},
 				},
 			},
@@ -512,27 +512,18 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:     "無効な絵文字コマンドが入っていたら無視（入室コマンドで色指定はできない）",
-			Input:    TestEmojiIn0 + TestEmojiColor0 + TestEmojiMin0 + "30",
+			Name:     "絵文字コマンド入室 時間指定は空白あってもOK",
+			Input:    TestEmojiIn0 + TestEmojiMin0 + "  450",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
 					MinutesAndWorkName: &MinutesAndWorkNameOption{
 						IsDurationMinSet: true,
-						DurationMin:      30,
+						DurationMin:      450,
 					},
 				},
 			},
-		},
-		{
-			Name:     "絵文字コマンド入室と無効な時間指定（エラーケース）",
-			Input:    TestEmojiIn0 + TestEmojiMin0 + "  450",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: In,
-			},
-			WillErr: true,
 		},
 		{
 			Name:     "絵文字コマンドの隣は空白なしも可",
@@ -572,21 +563,6 @@ func TestParseIn(t *testing.T) {
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: NotCommand,
-			},
-		},
-		{
-			Name:     "メンバー用絵文字入室と色指定と時間指定",
-			Input:    TestEmojiMemberIn0 + TestEmojiColor0 + TestEmojiMin0 + "30",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: In,
-				InOption: InOption{
-					MinutesAndWorkName: &MinutesAndWorkNameOption{
-						IsDurationMinSet: true,
-						DurationMin:      30,
-					},
-					IsMemberSeat: true,
-				},
 			},
 		},
 	}

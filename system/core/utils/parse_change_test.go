@@ -22,10 +22,14 @@ func TestParseChange(t *testing.T) {
 			},
 		},
 		{
-			Name:  "オプションなしの変更",
+			Name:  "オプションなしなら作業名リセット",
 			Input: "!change",
 			Output: &CommandDetails{
 				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      "",
+				},
 			},
 		},
 		{
