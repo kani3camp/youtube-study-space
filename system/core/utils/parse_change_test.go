@@ -22,22 +22,20 @@ func TestParseChange(t *testing.T) {
 			},
 		},
 		{
-			Name:  "オプションなしなら作業名リセット",
-			Input: "!change",
-			Output: &CommandDetails{
-				CommandType: Change,
-				ChangeOption: MinutesAndWorkNameOption{
-					IsWorkNameSet: true,
-					WorkName:      "",
-				},
-			},
+			Name:    "オプションなしは不可",
+			Input:   "!change",
+			WillErr: true,
 		},
 		{
-			Name:     "非メンバーによる絵文字変更（無効）",
+			Name:     "非メンバーによる絵文字コマンド変更（無効）",
 			Input:    "!change " + TestEmojiWork0 + TestEmoji360Min0,
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: Change,
+				ChangeOption: MinutesAndWorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      TestEmojiWork0 + TestEmoji360Min0,
+				},
 			},
 		},
 
@@ -53,14 +51,6 @@ func TestParseChange(t *testing.T) {
 					WorkName:         "新",
 					DurationMin:      140,
 				},
-			},
-		},
-		{
-			Name:     "メンバーによるオプションなしの変更",
-			Input:    "!change",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Change,
 			},
 		},
 		{
@@ -144,14 +134,7 @@ func TestParseChange(t *testing.T) {
 				},
 			},
 		},
-		{
-			Name:     "メンバーによるオプションなしの変更",
-			Input:    "!change",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Change,
-			},
-		},
+
 		{
 			Name:     "メンバーによる絵文字変更",
 			Input:    "!change " + TestEmojiWork0 + TestEmoji360Min0,

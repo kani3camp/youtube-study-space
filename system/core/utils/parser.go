@@ -39,39 +39,54 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 				CommandType: Out,
 			}, ""
 		case InfoCommand:
-			return ParseInfo(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, InfoCommand)
+			return ParseInfo(commandExcludedStr)
 		case MyCommand:
-			return ParseMy(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, MyCommand)
+			return ParseMy(commandExcludedStr)
 		case ChangeCommand:
-			return ParseChange(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, ChangeCommand)
+			return ParseChange(commandExcludedStr)
 		case SeatCommand:
-			return ParseSeat(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, SeatCommand)
+			return ParseSeat(commandExcludedStr)
 		case ReportCommand:
+			// NOTE: !reportの場合は全文を送信する。
 			return ParseReport(fullString)
 		case KickCommand:
-			return ParseKick(fullString, false)
+			commandExcludedStr := strings.TrimPrefix(fullString, KickCommand)
+			return ParseKick(commandExcludedStr, false)
 		case MemberKickCommand:
-			return ParseKick(fullString, true)
+			commandExcludedStr := strings.TrimPrefix(fullString, MemberKickCommand)
+			return ParseKick(commandExcludedStr, true)
 		case CheckCommand:
-			return ParseCheck(fullString, false)
+			commandExcludedStr := strings.TrimPrefix(fullString, CheckCommand)
+			return ParseCheck(commandExcludedStr, false)
 		case MemberCheckCommand:
-			return ParseCheck(fullString, true)
+			commandExcludedStr := strings.TrimPrefix(fullString, MemberCheckCommand)
+			return ParseCheck(commandExcludedStr, true)
 		case BlockCommand:
-			return ParseBlock(fullString, false)
+			commandExcludedStr := strings.TrimPrefix(fullString, BlockCommand)
+			return ParseBlock(commandExcludedStr, false)
 		case MemberBlockCommand:
-			return ParseBlock(fullString, true)
+			commandExcludedStr := strings.TrimPrefix(fullString, MemberBlockCommand)
+			return ParseBlock(commandExcludedStr, true)
 		case OkawariCommand, MoreCommand:
-			return ParseMore(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, OkawariCommand)
+			return ParseMore(commandExcludedStr)
 		case RestCommand, ChillCommand, BreakCommand:
-			return ParseBreak(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, BreakCommand)
+			return ParseBreak(commandExcludedStr)
 		case ResumeCommand:
-			return ParseResume(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, ResumeCommand)
+			return ParseResume(commandExcludedStr)
 		case RankCommand:
 			return &CommandDetails{
 				CommandType: Rank,
 			}, ""
 		case OrderCommand:
-			return ParseOrder(fullString)
+			commandExcludedStr := strings.TrimPrefix(fullString, OrderCommand)
+			return ParseOrder(commandExcludedStr)
 		default: // !席番号 or 間違いコマンド
 			// "!席番号" or "/席番号" かも
 			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {
@@ -419,14 +434,14 @@ func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails,
 	}, ""
 }
 
-func ParseReport(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseReport(fullString string) (*CommandDetails, string) {
+	slice := strings.Split(fullString, HalfWidthSpace)
 
 	var reportMessage string
 	if len(slice) == 1 {
 		return nil, i18n.T("parse:missing-message", ReportCommand)
 	} else { // len(slice) > 1
-		reportMessage = commandString
+		reportMessage = fullString
 	}
 
 	return &CommandDetails{
@@ -439,6 +454,10 @@ func ParseReport(commandString string) (*CommandDetails, string) {
 
 func ParseChange(commandString string) (*CommandDetails, string) {
 	// 追加オプションチェック
+	fields := strings.Fields(commandString)
+	if len(fields) == 0 {
+		return nil, i18n.T("parse:missing-change-option")
+	}
 	options, message := ParseMinutesAndWorkNameOptions(commandString)
 	if message != "" {
 		return nil, message
