@@ -866,7 +866,7 @@ func (s *WorkspaceApp) moveSeat(
 	latestUserProfileImage string,
 	beforeIsMemberSeat,
 	afterIsMemberSeat bool,
-	option utils.MinutesAndWorkNameOption,
+	option utils.MinWorkOrderOption,
 	previousSeat repository.SeatDoc,
 	previousUserDoc *repository.UserDoc,
 ) (int, int, int, error) {

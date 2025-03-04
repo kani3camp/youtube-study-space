@@ -24,18 +24,18 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 
-	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
 
-	sys.MessageToOwner(ctx, "direct op: ExitAllUsersInRoom")
+	app.MessageToOwner(ctx, "direct op: ExitAllUsersInRoom")
 
 	slog.Info("全ルームの全ユーザーを退室させます。")
-	if err := sys.ExitAllUsersInRoom(ctx, true); err != nil {
+	if err := app.ExitAllUsersInRoom(ctx, true); err != nil {
 		panic(err)
 	}
-	if err := sys.ExitAllUsersInRoom(ctx, false); err != nil {
+	if err := app.ExitAllUsersInRoom(ctx, false); err != nil {
 		panic(err)
 	}
 
@@ -43,35 +43,35 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
-	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
 
-	sys.MessageToOwner(ctx, "direct op: ExitSpecificUser")
+	app.MessageToOwner(ctx, "direct op: ExitSpecificUser")
 
-	sys.SetProcessedUser(userId, "**", "**", false, false, true)
+	app.SetProcessedUser(userId, "**", "**", false, false, true)
 	outCommandDetails := &utils.CommandDetails{
 		CommandType: utils.Out,
 	}
 
-	if err = sys.Out(outCommandDetails, ctx); err != nil {
+	if err = app.Out(outCommandDetails, ctx); err != nil {
 		panic(err)
 	}
 }
 
 func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
 
-	sys.MessageToOwner(ctx, "direct op: ExportUsersCollectionJson")
+	app.MessageToOwner(ctx, "direct op: ExportUsersCollectionJson")
 
 	var allUsersTotalStudySecList []utils.UserIdTotalStudySecSet
-	txErr := sys.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
-		allUsersTotalStudySecList, err = sys.GetAllUsersTotalStudySecList(ctx)
+		allUsersTotalStudySecList, err = app.GetAllUsersTotalStudySecList(ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -98,20 +98,20 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 }
 
 func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
-	sys, err := workspaceapp.NewSystem(ctx, true, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
 
-	sys.MessageToOwner(ctx, "direct op: UpdateUsersRP")
+	app.MessageToOwner(ctx, "direct op: UpdateUsersRP")
 
-	userIdsToProcessRP, err := sys.GetUserIdsToProcessRP(ctx)
+	userIdsToProcessRP, err := app.GetUserIdsToProcessRP(ctx)
 	if err != nil {
 		slog.Error("error in GetUserIdsToProcessRP.", "err", err)
 		panic(err)
 	}
 
-	remainingUserIds := sys.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
+	remainingUserIds := app.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
 
 	slog.Info("", "remaining user ids", remainingUserIds)
 }

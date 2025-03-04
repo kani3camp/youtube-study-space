@@ -36,13 +36,13 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
-	system, err := workspaceapp.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
-	defer system.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
-	if system.Configs.Constants.YoutubeMembershipEnabled {
+	if app.Configs.Constants.YoutubeMembershipEnabled {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats <= 0 {
 			return events.APIGatewayProxyResponse{}, errors.New("invalid parameter")
 		}
@@ -53,12 +53,12 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	}
 
 	// transaction not necessary
-	if err := system.Repository.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
-		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
+	if err := app.Repository.UpdateDesiredMaxSeats(ctx, nil, params.DesiredMaxSeats); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
-	if err := system.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
-		system.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
+	if err := app.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, params.DesiredMemberMaxSeats); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 

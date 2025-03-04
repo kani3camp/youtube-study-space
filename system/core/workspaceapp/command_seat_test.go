@@ -36,7 +36,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -60,7 +60,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -84,7 +84,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinutesAndWorkName: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -106,7 +106,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       false,
 			},
 		},
@@ -142,7 +142,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        true,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				SeatId:             999,
 			},
 		},
@@ -160,7 +160,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       true,
 			},
 		},
@@ -228,7 +228,7 @@ func TestSystem_In(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
@@ -243,7 +243,7 @@ func TestSystem_In(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.In(context.Background(), &tt.commandDetails)
+			err := app.In(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
@@ -308,7 +308,7 @@ func TestSystem_Out(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -320,7 +320,7 @@ func TestSystem_Out(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Out(&tt.commandDetails, context.Background())
+			err := app.Out(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -473,7 +473,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -488,7 +488,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.ShowSeatInfo(&tt.commandDetails, context.Background())
+			err := app.ShowSeatInfo(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -512,7 +512,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",
@@ -540,7 +540,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",
@@ -591,7 +591,7 @@ func TestSystem_Change(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -606,7 +606,7 @@ func TestSystem_Change(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Change(&tt.commandDetails, context.Background())
+			err := app.Change(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -703,7 +703,7 @@ func TestSystem_More(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -718,7 +718,7 @@ func TestSystem_More(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.More(&tt.commandDetails, context.Background())
+			err := app.More(&tt.commandDetails, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -827,7 +827,7 @@ func TestSystem_Break(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -842,7 +842,7 @@ func TestSystem_Break(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Break(context.Background(), &tt.commandDetails)
+			err := app.Break(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
@@ -948,7 +948,7 @@ func TestSystem_Resume(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -963,7 +963,7 @@ func TestSystem_Resume(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Resume(context.Background(), &tt.commandDetails)
+			err := app.Resume(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
@@ -1149,7 +1149,7 @@ func TestSystem_Order(t *testing.T) {
 			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
@@ -1166,7 +1166,7 @@ func TestSystem_Order(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Order(context.Background(), &tt.commandDetails)
+			err := app.Order(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
