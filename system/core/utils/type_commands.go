@@ -37,6 +37,7 @@ const (
 	Break  // !break
 	Resume // !resume
 	Order
+	Clear
 )
 
 type InfoOption struct {

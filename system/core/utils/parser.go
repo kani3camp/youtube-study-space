@@ -93,6 +93,10 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		case OrderCommand:
 			commandExcludedStr := strings.TrimPrefix(fullString, OrderCommand)
 			return ParseOrder(commandExcludedStr)
+		case ClearCommand, ClearShortCommand:
+			return &CommandDetails{
+				CommandType: Clear,
+			}, ""
 		default: // !席番号 or 間違いコマンド
 			// "!席番号" or "/席番号" かも
 			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {

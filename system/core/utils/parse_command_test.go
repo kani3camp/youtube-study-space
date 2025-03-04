@@ -298,6 +298,35 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			Name:  "作業名クリア",
+			Input: "!clear",
+			Output: &CommandDetails{
+				CommandType: Clear,
+			},
+		},
+		{
+			Name:  "全角！クリア",
+			Input: "！clear",
+			Output: &CommandDetails{
+				CommandType: Clear,
+			},
+		},
+		{
+			Name:  "スペース付きクリア",
+			Input: "! clear",
+			Output: &CommandDetails{
+				CommandType: Clear,
+			},
+		},
+		{
+			Name:  "作業名クリア（短縮形）",
+			Input: "!clr",
+			Output: &CommandDetails{
+				CommandType: Clear,
+			},
+		},
 	}
 
 	if err := i18n.LoadLocaleFolderFS(); err != nil {
