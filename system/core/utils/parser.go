@@ -29,70 +29,79 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		slice := strings.Split(fullString, HalfWidthSpace)
 		switch slice[0] {
 		case MemberInCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MemberInCommand)
-			return ParseIn(commandExcludedStr, true, false, 0)
+			argStr := strings.TrimPrefix(fullString, MemberInCommand)
+			return ParseIn(argStr, true, false, 0)
 		case InCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, InCommand)
-			return ParseIn(commandExcludedStr, false, false, 0)
+			argStr := strings.TrimPrefix(fullString, InCommand)
+			return ParseIn(argStr, false, false, 0)
 		case MemberWorkCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MemberWorkCommand)
-			return ParseIn(commandExcludedStr, true, false, 0)
+			argStr := strings.TrimPrefix(fullString, MemberWorkCommand)
+			return ParseIn(argStr, true, false, 0)
 		case WorkCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, WorkCommand)
-			return ParseIn(commandExcludedStr, false, false, 0)
+			argStr := strings.TrimPrefix(fullString, WorkCommand)
+			return ParseIn(argStr, false, false, 0)
 		case OutCommand:
 			return &CommandDetails{
 				CommandType: Out,
 			}, ""
 		case InfoCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, InfoCommand)
-			return ParseInfo(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, InfoCommand)
+			return ParseInfo(argStr)
 		case MyCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MyCommand)
-			return ParseMy(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, MyCommand)
+			return ParseMy(argStr)
 		case ChangeCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, ChangeCommand)
-			return ParseChange(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, ChangeCommand)
+			return ParseChange(argStr)
 		case SeatCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, SeatCommand)
-			return ParseSeat(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, SeatCommand)
+			return ParseSeat(argStr)
 		case ReportCommand:
 			// NOTE: !reportの場合は全文を送信する。
 			return ParseReport(fullString)
 		case KickCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, KickCommand)
-			return ParseKick(commandExcludedStr, false)
+			argStr := strings.TrimPrefix(fullString, KickCommand)
+			return ParseKick(argStr, false)
 		case MemberKickCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MemberKickCommand)
-			return ParseKick(commandExcludedStr, true)
+			argStr := strings.TrimPrefix(fullString, MemberKickCommand)
+			return ParseKick(argStr, true)
 		case CheckCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, CheckCommand)
-			return ParseCheck(commandExcludedStr, false)
+			argStr := strings.TrimPrefix(fullString, CheckCommand)
+			return ParseCheck(argStr, false)
 		case MemberCheckCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MemberCheckCommand)
-			return ParseCheck(commandExcludedStr, true)
+			argStr := strings.TrimPrefix(fullString, MemberCheckCommand)
+			return ParseCheck(argStr, true)
 		case BlockCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, BlockCommand)
-			return ParseBlock(commandExcludedStr, false)
+			argStr := strings.TrimPrefix(fullString, BlockCommand)
+			return ParseBlock(argStr, false)
 		case MemberBlockCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, MemberBlockCommand)
-			return ParseBlock(commandExcludedStr, true)
-		case OkawariCommand, MoreCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, OkawariCommand)
-			return ParseMore(commandExcludedStr)
-		case RestCommand, ChillCommand, BreakCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, BreakCommand)
-			return ParseBreak(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, MemberBlockCommand)
+			return ParseBlock(argStr, true)
+		case OkawariCommand:
+			argStr := strings.TrimPrefix(fullString, OkawariCommand)
+			return ParseMore(argStr)
+		case MoreCommand:
+			argStr := strings.TrimPrefix(fullString, MoreCommand)
+			return ParseMore(argStr)
+		case RestCommand:
+			argStr := strings.TrimPrefix(fullString, RestCommand)
+			return ParseBreak(argStr)
+		case ChillCommand:
+			argStr := strings.TrimPrefix(fullString, ChillCommand)
+			return ParseBreak(argStr)
+		case BreakCommand:
+			argStr := strings.TrimPrefix(fullString, BreakCommand)
+			return ParseBreak(argStr)
 		case ResumeCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, ResumeCommand)
-			return ParseResume(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, ResumeCommand)
+			return ParseResume(argStr)
 		case RankCommand:
 			return &CommandDetails{
 				CommandType: Rank,
 			}, ""
 		case OrderCommand:
-			commandExcludedStr := strings.TrimPrefix(fullString, OrderCommand)
-			return ParseOrder(commandExcludedStr)
+			argStr := strings.TrimPrefix(fullString, OrderCommand)
+			return ParseOrder(argStr)
 		case ClearCommand, ClearShortCommand:
 			return &CommandDetails{
 				CommandType: Clear,
@@ -100,11 +109,11 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		default: // !席番号 or 間違いコマンド
 			// "!席番号" or "/席番号" かも
 			if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], CommandPrefix)); err == nil {
-				commandExcludedStr := strings.TrimPrefix(fullString, slice[0])
-				return ParseSeatIn(num, commandExcludedStr, false)
+				argStr := strings.TrimPrefix(fullString, slice[0])
+				return ParseSeatIn(num, argStr, false)
 			} else if num, err := strconv.Atoi(strings.TrimPrefix(slice[0], MemberCommandPrefix)); err == nil {
-				commandExcludedStr := strings.TrimPrefix(fullString, slice[0])
-				return ParseSeatIn(num, commandExcludedStr, true)
+				argStr := strings.TrimPrefix(fullString, slice[0])
+				return ParseSeatIn(num, argStr, true)
 			}
 
 			// 間違いコマンド
@@ -495,8 +504,8 @@ func ParseSeat(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseMore(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseMore(argText string) (*CommandDetails, string) {
+	slice := strings.Split(argText, HalfWidthSpace)
 	var durationMin int
 	var message string
 
