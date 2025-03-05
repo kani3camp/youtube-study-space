@@ -94,7 +94,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.ShowUserInfo(&tt.commandDetails, context.Background())
+			err := app.ShowUserInfo(&tt.commandDetails.InfoOption, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -383,7 +383,7 @@ func TestSystem_My(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.My(&tt.commandDetails, context.Background())
+			err := app.My(tt.commandDetails.MyOptions, context.Background())
 
 			assert.Nil(t, err)
 		})

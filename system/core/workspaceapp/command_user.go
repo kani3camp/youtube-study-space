@@ -1,17 +1,18 @@
 package workspaceapp
 
 import (
-	"app.modules/core/i18n"
-	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"log/slog"
 
+	"app.modules/core/i18n"
+	"app.modules/core/repository"
+	"app.modules/core/utils"
+
 	"cloud.google.com/go/firestore"
 )
 
-func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) ShowUserInfo(infoOption *utils.InfoOption, ctx context.Context) error {
 	t := i18n.GetTFunc("command-user-info")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -32,7 +33,7 @@ func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.C
 			replyMessage += t("rank", userDoc.RankPoint)
 		}
 
-		if command.InfoOption.ShowDetails {
+		if infoOption.ShowDetails {
 			switch userDoc.RankVisible {
 			case true:
 				replyMessage += t("rank-on")
@@ -69,13 +70,13 @@ func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.C
 	return txErr
 }
 
-func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) My(myOptions []utils.MyOption, ctx context.Context) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
 
 	// オプションが1つ以上指定されているか？
-	if len(command.MyOptions) == 0 {
+	if len(myOptions) == 0 {
 		s.MessageToLiveChat(ctx, i18n.T("command:option-warn", s.ProcessedUserDisplayName))
 		return nil
 	}
@@ -119,7 +120,7 @@ func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) er
 
 		replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName)
 		currenRankVisible := userDoc.RankVisible
-		for _, myOption := range command.MyOptions {
+		for _, myOption := range myOptions {
 			if myOption.Type == utils.RankVisible {
 				newRankVisible := myOption.BoolValue
 				// 現在の値と、設定したい値が同じなら、変更なし

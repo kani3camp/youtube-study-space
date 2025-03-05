@@ -101,7 +101,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 								IsMemberSeat: false,
 							},
 						}
-						if err := s.In(ctx, inCommandDetails); err != nil {
+						if err := s.In(ctx, &inCommandDetails.InOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}
@@ -185,7 +185,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 							},
 						}
 
-						if err := s.In(ctx, inCommandDetails); err != nil {
+						if err := s.In(ctx, &inCommandDetails.InOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}

@@ -1,21 +1,22 @@
 package workspaceapp
 
 import (
+	"context"
+	"fmt"
+	"sort"
+	"testing"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	mock_myfirestore "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"sort"
-	"testing"
-	"time"
 )
 
 var inTestCases = []struct {
@@ -243,7 +244,7 @@ func TestSystem_In(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.In(context.Background(), &tt.commandDetails)
+			err := app.In(context.Background(), &tt.commandDetails.InOption)
 
 			assert.Nil(t, err)
 		})
@@ -488,7 +489,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.ShowSeatInfo(&tt.commandDetails, context.Background())
+			err := app.ShowSeatInfo(&tt.commandDetails.SeatOption, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -606,7 +607,7 @@ func TestSystem_Change(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Change(&tt.commandDetails, context.Background())
+			err := app.Change(&tt.commandDetails.ChangeOption, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -718,7 +719,7 @@ func TestSystem_More(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.More(&tt.commandDetails, context.Background())
+			err := app.More(&tt.commandDetails.MoreOption, context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -842,7 +843,7 @@ func TestSystem_Break(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Break(context.Background(), &tt.commandDetails)
+			err := app.Break(context.Background(), &tt.commandDetails.BreakOption)
 
 			assert.Nil(t, err)
 		})
@@ -963,7 +964,7 @@ func TestSystem_Resume(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Resume(context.Background(), &tt.commandDetails)
+			err := app.Resume(context.Background(), &tt.commandDetails.ResumeOption)
 
 			assert.Nil(t, err)
 		})
@@ -1166,7 +1167,7 @@ func TestSystem_Order(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Order(context.Background(), &tt.commandDetails)
+			err := app.Order(context.Background(), &tt.commandDetails.OrderOption)
 
 			assert.Nil(t, err)
 		})
