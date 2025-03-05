@@ -119,7 +119,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 		// これ以降は書き込みのみ
 
 		replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName)
-		currenRankVisible := userDoc.RankVisible
+		currentRankVisible := userDoc.RankVisible
 		for _, myOption := range myOptions {
 			if myOption.Type == utils.RankVisible {
 				newRankVisible := myOption.BoolValue
@@ -162,7 +162,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 						}
 					}
 				}
-				currenRankVisible = newRankVisible
+				currentRankVisible = newRankVisible
 			} else if myOption.Type == utils.DefaultStudyMin {
 				if err := s.Repository.UpdateUserDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue); err != nil {
 					return fmt.Errorf("in UpdateUserDefaultStudyMin: %w", err)
@@ -190,7 +190,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 					if err != nil {
 						return fmt.Errorf("in GetSeatByUserId: %w", err)
 					}
-					seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
+					seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, currentRankVisible, userDoc.RankPoint, colorCode)
 					if err != nil {
 						return fmt.Errorf("in GetSeatAppearance: %w", err)
 					}
