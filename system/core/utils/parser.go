@@ -509,6 +509,15 @@ func ParseMore(argText string) (*CommandDetails, string) {
 	var durationMin int
 	var message string
 
+	if len(slice) == 1 && slice[0] == "" {
+		return &CommandDetails{
+			CommandType: More,
+			MoreOption: MoreOption{
+				IsDurationMinSet: false,
+			},
+		}, ""
+	}
+
 	if len(slice) >= 2 {
 		durationMin, message = ParseDurationMinOption(slice, true, false)
 		if message != "" {

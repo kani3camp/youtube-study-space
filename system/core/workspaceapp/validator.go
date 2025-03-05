@@ -192,7 +192,7 @@ func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState re
 
 func (s *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
 	// 時間オプション
-	if command.MoreOption.DurationMin <= 0 {
+	if command.MoreOption.IsDurationMinSet && command.MoreOption.DurationMin <= 0 {
 		return i18n.T("validate:non-one-or-more-extended-time")
 	}
 
