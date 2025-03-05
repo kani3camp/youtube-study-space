@@ -127,7 +127,7 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
-			replyMessage += t("seat-move", s.ProcessedUserDisplayName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+			replyMessage += t("seat-move", s.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
 
 			return nil
 		} else { // 入室のみ
