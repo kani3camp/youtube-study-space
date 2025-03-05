@@ -56,7 +56,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 					outCommandDetails := &utils.CommandDetails{
 						CommandType: utils.Out,
 					}
-					if err := s.Out(outCommandDetails, ctx); err != nil {
+					if err := s.Out(ctx, outCommandDetails); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}
@@ -140,7 +140,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 					outCommandDetails := &utils.CommandDetails{
 						CommandType: utils.Out,
 					}
-					if err := s.Out(outCommandDetails, ctx); err != nil {
+					if err := s.Out(ctx, outCommandDetails); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}

@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *WorkspaceApp) Report(reportOption *utils.ReportOption, ctx context.Context) error {
+func (s *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {
 	t := i18n.GetTFunc("command-report")
 	if reportOption.Message == "" { // !reportのみは不可
 		s.MessageToLiveChat(ctx, t("no-message", s.ProcessedUserDisplayName))
@@ -32,7 +32,7 @@ func (s *WorkspaceApp) Report(reportOption *utils.ReportOption, ctx context.Cont
 	return nil
 }
 
-func (s *WorkspaceApp) Kick(kickOption *utils.KickOption, ctx context.Context) error {
+func (s *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption) error {
 	t := i18n.GetTFunc("command-kick")
 	targetSeatId := kickOption.SeatId
 	isTargetMemberSeat := kickOption.IsTargetMemberSeat
@@ -107,7 +107,7 @@ func (s *WorkspaceApp) Kick(kickOption *utils.KickOption, ctx context.Context) e
 	return txErr
 }
 
-func (s *WorkspaceApp) Check(checkOption *utils.CheckOption, ctx context.Context) error {
+func (s *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
 	targetSeatId := checkOption.SeatId
 	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
@@ -166,7 +166,7 @@ func (s *WorkspaceApp) Check(checkOption *utils.CheckOption, ctx context.Context
 	return txErr
 }
 
-func (s *WorkspaceApp) Block(blockOption *utils.BlockOption, ctx context.Context) error {
+func (s *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOption) error {
 	targetSeatId := blockOption.SeatId
 	isTargetMemberSeat := blockOption.IsTargetMemberSeat
 

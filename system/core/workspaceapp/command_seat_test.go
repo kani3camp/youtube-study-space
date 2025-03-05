@@ -321,7 +321,7 @@ func TestSystem_Out(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Out(&tt.commandDetails, context.Background())
+			err := app.Out(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
@@ -489,7 +489,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.ShowSeatInfo(&tt.commandDetails.SeatOption, context.Background())
+			err := app.ShowSeatInfo(context.Background(), &tt.commandDetails.SeatOption)
 
 			assert.Nil(t, err)
 		})
@@ -607,7 +607,7 @@ func TestSystem_Change(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Change(&tt.commandDetails.ChangeOption, context.Background())
+			err := app.Change(context.Background(), &tt.commandDetails.ChangeOption)
 
 			assert.Nil(t, err)
 		})
@@ -719,7 +719,7 @@ func TestSystem_More(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.More(&tt.commandDetails.MoreOption, context.Background())
+			err := app.More(context.Background(), &tt.commandDetails.MoreOption)
 
 			assert.Nil(t, err)
 		})

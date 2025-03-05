@@ -172,7 +172,7 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	return txErr
 }
 
-func (s *WorkspaceApp) Out(_ *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Out(ctx context.Context, _ *utils.CommandDetails) error {
 	t := i18n.GetTFunc("command-out")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -228,7 +228,7 @@ func (s *WorkspaceApp) Out(_ *utils.CommandDetails, ctx context.Context) error {
 	return txErr
 }
 
-func (s *WorkspaceApp) ShowSeatInfo(seatOption *utils.SeatOption, ctx context.Context) error {
+func (s *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.SeatOption) error {
 	t := i18n.GetTFunc("command-seat-info")
 	showDetails := seatOption.ShowDetails
 	var replyMessage string
@@ -290,7 +290,7 @@ func (s *WorkspaceApp) ShowSeatInfo(seatOption *utils.SeatOption, ctx context.Co
 	return txErr
 }
 
-func (s *WorkspaceApp) Change(changeOption *utils.MinWorkOrderOption, ctx context.Context) error {
+func (s *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWorkOrderOption) error {
 	jstNow := utils.JstNow()
 	replyMessage := ""
 	t := i18n.GetTFunc("command-change")
@@ -389,7 +389,7 @@ func (s *WorkspaceApp) Change(changeOption *utils.MinWorkOrderOption, ctx contex
 	return txErr
 }
 
-func (s *WorkspaceApp) More(moreOption *utils.MoreOption, ctx context.Context) error {
+func (s *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption) error {
 	replyMessage := ""
 	t := i18n.GetTFunc("command-more")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {

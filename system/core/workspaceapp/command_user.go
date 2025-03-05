@@ -12,7 +12,7 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-func (s *WorkspaceApp) ShowUserInfo(infoOption *utils.InfoOption, ctx context.Context) error {
+func (s *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
 	t := i18n.GetTFunc("command-user-info")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -70,7 +70,7 @@ func (s *WorkspaceApp) ShowUserInfo(infoOption *utils.InfoOption, ctx context.Co
 	return txErr
 }
 
-func (s *WorkspaceApp) My(myOptions []utils.MyOption, ctx context.Context) error {
+func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
@@ -213,7 +213,7 @@ func (s *WorkspaceApp) My(myOptions []utils.MyOption, ctx context.Context) error
 	return txErr
 }
 
-func (s *WorkspaceApp) Rank(_ *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error {
 	replyMessage := ""
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく

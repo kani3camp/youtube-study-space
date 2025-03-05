@@ -1,13 +1,14 @@
 package direct_operations
 
 import (
-	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
 	"os"
+
+	"app.modules/core/workspaceapp"
 
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
@@ -55,7 +56,7 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 		CommandType: utils.Out,
 	}
 
-	if err = app.Out(outCommandDetails, ctx); err != nil {
+	if err = app.Out(ctx, outCommandDetails); err != nil {
 		panic(err)
 	}
 }
