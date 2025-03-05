@@ -160,7 +160,7 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 			}
 
 			// 入室しましたのメッセージ
-			replyMessage = t("start", s.ProcessedUserDisplayName, untilExitMin, newSeatId)
+			replyMessage = t("start", s.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, untilExitMin, newSeatId)
 			return nil
 		}
 	})
@@ -172,7 +172,7 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	return txErr
 }
 
-func (s *WorkspaceApp) Out(ctx context.Context, _ *utils.CommandDetails) error {
+func (s *WorkspaceApp) Out(ctx context.Context) error {
 	t := i18n.GetTFunc("command-out")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -332,10 +332,10 @@ func (s *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWorkOr
 			switch currentSeat.State {
 			case repository.WorkState:
 				newSeat.WorkName = changeOption.WorkName
-				replyMessage += t("update-work", seatIdStr)
+				replyMessage += t("update-work", changeOption.WorkName, seatIdStr)
 			case repository.BreakState:
 				newSeat.BreakWorkName = changeOption.WorkName
-				replyMessage += t("update-break", seatIdStr)
+				replyMessage += t("update-break", changeOption.WorkName, seatIdStr)
 			}
 		}
 		if changeOption.IsDurationMinSet {
@@ -743,6 +743,52 @@ func (s *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOption
 	})
 	if txErr != nil {
 		slog.Error("txErr in Order()", "txErr", txErr)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+	}
+	s.MessageToLiveChat(ctx, replyMessage)
+	return txErr
+}
+
+func (s *WorkspaceApp) Clear(ctx context.Context) error {
+	replyMessage := ""
+	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 入室しているか？
+		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
+		if err != nil {
+			return fmt.Errorf("failed IsUserInRoom: %w", err)
+		}
+		isInRoom := isInMemberRoom || isInGeneralRoom
+		if !isInRoom {
+			replyMessage = i18n.T("command:enter-only", s.ProcessedUserDisplayName)
+			return nil
+		}
+
+		seat, err := s.CurrentSeat(ctx, s.ProcessedUserId, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("failed s.CurrentSeat(): %w", err)
+		}
+
+		// これ以降は書き込みのみ
+
+		// 作業内容をクリアする
+		switch seat.State {
+		case repository.WorkState:
+			seat.WorkName = ""
+			replyMessage = i18n.T("others:clear-work", s.ProcessedUserDisplayName, seat.SeatId)
+		case repository.BreakState:
+			seat.BreakWorkName = ""
+			replyMessage = i18n.T("others:clear-break", s.ProcessedUserDisplayName, seat.SeatId)
+		}
+
+		err = s.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("in UpdateSeat: %w", err)
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		slog.Error("txErr in Clear()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)

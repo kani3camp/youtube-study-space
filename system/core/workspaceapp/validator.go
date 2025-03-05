@@ -40,6 +40,8 @@ func (s *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 		return ""
 	case utils.Order:
 		return s.ValidateOrder(command)
+	case utils.Clear:
+		return ""
 	default:
 		return ""
 	}

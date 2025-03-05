@@ -342,7 +342,7 @@ func (s *WorkspaceApp) executeCommand(ctx context.Context, commandDetails *utils
 	case utils.In:
 		return s.In(ctx, &commandDetails.InOption)
 	case utils.Out:
-		return s.Out(ctx, commandDetails)
+		return s.Out(ctx)
 	case utils.Info:
 		return s.ShowUserInfo(ctx, &commandDetails.InfoOption)
 	case utils.My:
@@ -369,6 +369,8 @@ func (s *WorkspaceApp) executeCommand(ctx context.Context, commandDetails *utils
 		return s.Rank(ctx, commandDetails)
 	case utils.Order:
 		return s.Order(ctx, &commandDetails.OrderOption)
+	case utils.Clear:
+		return s.Clear(ctx)
 	default:
 		return errors.New("Unknown command: " + commandString)
 	}

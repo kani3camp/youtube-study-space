@@ -52,11 +52,8 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 	app.MessageToOwner(ctx, "direct op: ExitSpecificUser")
 
 	app.SetProcessedUser(userId, "**", "**", false, false, true)
-	outCommandDetails := &utils.CommandDetails{
-		CommandType: utils.Out,
-	}
 
-	if err = app.Out(ctx, outCommandDetails); err != nil {
+	if err = app.Out(ctx); err != nil {
 		panic(err)
 	}
 }

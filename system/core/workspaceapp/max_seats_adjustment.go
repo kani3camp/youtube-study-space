@@ -53,10 +53,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					outCommandDetails := &utils.CommandDetails{
-						CommandType: utils.Out,
-					}
-					if err := s.Out(ctx, outCommandDetails); err != nil {
+					if err := s.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}
@@ -137,10 +134,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					outCommandDetails := &utils.CommandDetails{
-						CommandType: utils.Out,
-					}
-					if err := s.Out(ctx, outCommandDetails); err != nil {
+					if err := s.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}
