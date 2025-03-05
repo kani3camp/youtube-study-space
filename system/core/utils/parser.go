@@ -530,7 +530,8 @@ func ParseMore(argText string) (*CommandDetails, string) {
 	return &CommandDetails{
 		CommandType: More,
 		MoreOption: MoreOption{
-			DurationMin: durationMin,
+			IsDurationMinSet: true,
+			DurationMin:      durationMin,
 		},
 	}, ""
 }

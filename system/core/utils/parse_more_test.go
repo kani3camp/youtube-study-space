@@ -1,9 +1,10 @@
 package utils
 
 import (
+	"testing"
+
 	"app.modules/core/i18n"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestParseMore(t *testing.T) {
@@ -34,7 +35,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
@@ -44,7 +46,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
@@ -54,7 +57,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
@@ -64,7 +68,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
@@ -76,7 +81,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 20,
+					IsDurationMinSet: true,
+					DurationMin:      20,
 				},
 			},
 		},
@@ -87,7 +93,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 210,
+					IsDurationMinSet: true,
+					DurationMin:      210,
 				},
 			},
 		},
@@ -98,7 +105,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 100,
+					IsDurationMinSet: true,
+					DurationMin:      100,
 				},
 			},
 		},
@@ -109,7 +117,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 100,
+					IsDurationMinSet: true,
+					DurationMin:      100,
 				},
 			},
 		},
@@ -120,7 +129,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 360,
+					IsDurationMinSet: true,
+					DurationMin:      360,
 				},
 			},
 		},
@@ -131,7 +141,8 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 40,
+					IsDurationMinSet: true,
+					DurationMin:      40,
 				},
 			},
 		},

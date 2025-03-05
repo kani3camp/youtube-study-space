@@ -420,8 +420,13 @@ func (s *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption) e
 
 		switch currentSeat.State {
 		case repository.WorkState:
-			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、少なくともアウトなので最大作業時間で上書き。
-			if moreOption.DurationMin > s.Configs.Constants.MaxWorkTimeMin {
+			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、最大作業時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > s.Configs.Constants.MaxWorkTimeMin {
+				moreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
+			}
+
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
 				moreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
 			}
 
@@ -438,10 +443,21 @@ func (s *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption) e
 			newSeat.CurrentStateUntil = newUntil
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 		case repository.BreakState:
+			// オーバーフロー対策。延長時間が最大休憩時間を超えていたら、最大休憩時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > s.Configs.Constants.MaxBreakDurationMin {
+				moreOption.DurationMin = s.Configs.Constants.MaxBreakDurationMin
+			}
+
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
+				moreOption.DurationMin = s.Configs.Constants.MaxBreakDurationMin
+			}
+
 			// 休憩時間を指定分延長する
 			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(moreOption.DurationMin) * time.Minute)
 			// もし延長後の休憩時間が最大休憩時間を超えていたら、最大休憩時間まで延長
-			if int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt)).Minutes()) > s.Configs.Constants.MaxBreakDurationMin {
+			newBreakDuration := utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt))
+			if int(newBreakDuration.Minutes()) > s.Configs.Constants.MaxBreakDurationMin {
 				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(s.Configs.Constants.MaxBreakDurationMin) * time.Minute)
 				replyMessage += t("max-break", strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin))
 			}

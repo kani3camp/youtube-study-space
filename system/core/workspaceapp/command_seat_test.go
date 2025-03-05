@@ -365,9 +365,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -393,9 +393,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{},
 		memberSeats: []repository.SeatDoc{
@@ -424,9 +424,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -525,9 +525,9 @@ var changeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
@@ -553,9 +553,9 @@ var changeTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
@@ -620,6 +620,7 @@ var moreTestCases = []struct {
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
 	currentSeatDoc       *repository.SeatDoc
+	expectedExtraTimeMin int
 	expectedReplyMessage string
 }{
 	{
@@ -632,7 +633,8 @@ var moreTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.More,
 			MoreOption: utils.MoreOption{
-				DurationMin: 30,
+				IsDurationMinSet: true,
+				DurationMin:      30,
 			},
 		},
 		userIsMember: false,
@@ -640,10 +642,11 @@ var moreTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
+		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
 	},
 	{
@@ -657,7 +660,8 @@ var moreTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.More,
 			MoreOption: utils.MoreOption{
-				DurationMin: 30,
+				IsDurationMinSet: true,
+				DurationMin:      30,
 			},
 		},
 		userIsMember: true,
@@ -665,11 +669,37 @@ var moreTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
+		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
+	},
+	{
+		name: "作業時間延長（延長時間指定なし）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.More,
+			MoreOption: utils.MoreOption{
+				IsDurationMinSet: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
+		},
+		expectedExtraTimeMin: 270,
+		expectedReplyMessage: "@テストユーザーさん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
 	},
 }
 
@@ -695,7 +725,10 @@ func TestSystem_More(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.Equal(t, tt.currentSeatDoc.Until.Add(30*time.Minute), seat.Until)
+
+				expectedTime := tt.currentSeatDoc.Until.Add(time.Duration(tt.expectedExtraTimeMin) * time.Minute)
+				assert.WithinDuration(t, expectedTime, seat.Until, 1*time.Second, "時間が1秒以内の誤差であること")
+
 				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				return nil
 			}).Times(1)
@@ -748,9 +781,9 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、5番席）",
 	},
@@ -769,9 +802,9 @@ var breakTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、VIP7番席）",
 	},
@@ -789,9 +822,9 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、作業中のみ使えるコマンドです🙏",
 	},
@@ -871,9 +904,9 @@ var resumeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
@@ -891,9 +924,9 @@ var resumeTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（VIP7番席、自動退室まで89分）",
 	},
@@ -910,9 +943,9 @@ var resumeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、座席で休憩中のみ使えるコマンドです🙏",
 	},
@@ -1143,7 +1176,7 @@ func TestSystem_Order(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.NotNil(t, tt.currentSeatDoc.MenuCode)
+				assert.NotEmpty(t, seat.MenuCode)
 				return nil
 			}).MaxTimes(1)
 
