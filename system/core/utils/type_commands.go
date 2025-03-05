@@ -90,7 +90,8 @@ type ReportOption struct {
 }
 
 type MoreOption struct {
-	DurationMin int
+	IsDurationMinSet bool
+	DurationMin      int
 }
 
 type WorkNameOption struct {

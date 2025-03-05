@@ -40,6 +40,8 @@ func (s *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 		return ""
 	case utils.Order:
 		return s.ValidateOrder(command)
+	case utils.Clear:
+		return ""
 	default:
 		return ""
 	}
@@ -154,9 +156,9 @@ func (s *WorkspaceApp) ValidateReport(command utils.CommandDetails) string {
 	return ""
 }
 
-func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState repository.SeatState) error {
+func (s *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, seatState repository.SeatState) error {
 	// オプションが1つ以上指定されているか
-	if command.ChangeOption.NumOptionsSet() == 0 {
+	if changeOption.NumOptionsSet() == 0 {
 		return errors.New(i18n.T("validate:missing-option"))
 	}
 
@@ -166,8 +168,8 @@ func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState re
 		// pass
 
 		// 入室時間
-		if command.ChangeOption.IsDurationMinSet {
-			inputDurationMin := command.ChangeOption.DurationMin
+		if changeOption.IsDurationMinSet {
+			inputDurationMin := changeOption.DurationMin
 			expect := s.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxWorkTimeMin
 			if !expect {
 				return errors.New(i18n.T("validate:invalid-work-time-range", s.Configs.Constants.MinWorkTimeMin, s.Configs.Constants.MaxWorkTimeMin))
@@ -178,8 +180,8 @@ func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState re
 		// pass
 
 		// 休憩時間
-		if command.ChangeOption.IsDurationMinSet {
-			inputDurationMin := command.ChangeOption.DurationMin
+		if changeOption.IsDurationMinSet {
+			inputDurationMin := changeOption.DurationMin
 			expect := s.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= s.Configs.Constants.MaxBreakDurationMin
 			if !expect {
 				return errors.New(i18n.T("validate:invalid-break-time-range", s.Configs.Constants.MinBreakDurationMin, s.Configs.Constants.MaxBreakDurationMin))
@@ -192,7 +194,7 @@ func (s *WorkspaceApp) ValidateChange(command utils.CommandDetails, seatState re
 
 func (s *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
 	// 時間オプション
-	if command.MoreOption.DurationMin <= 0 {
+	if command.MoreOption.IsDurationMinSet && command.MoreOption.DurationMin <= 0 {
 		return i18n.T("validate:non-one-or-more-extended-time")
 	}
 

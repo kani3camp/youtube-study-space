@@ -340,35 +340,37 @@ func (s *WorkspaceApp) executeCommand(ctx context.Context, commandDetails *utils
 	case utils.InvalidCommand:
 		return nil
 	case utils.In:
-		return s.In(ctx, commandDetails)
+		return s.In(ctx, &commandDetails.InOption)
 	case utils.Out:
-		return s.Out(commandDetails, ctx)
+		return s.Out(ctx)
 	case utils.Info:
-		return s.ShowUserInfo(commandDetails, ctx)
+		return s.ShowUserInfo(ctx, &commandDetails.InfoOption)
 	case utils.My:
-		return s.My(commandDetails, ctx)
+		return s.My(ctx, commandDetails.MyOptions)
 	case utils.Change:
-		return s.Change(commandDetails, ctx)
+		return s.Change(ctx, &commandDetails.ChangeOption)
 	case utils.Seat:
-		return s.ShowSeatInfo(commandDetails, ctx)
+		return s.ShowSeatInfo(ctx, &commandDetails.SeatOption)
 	case utils.Report:
-		return s.Report(commandDetails, ctx)
+		return s.Report(ctx, &commandDetails.ReportOption)
 	case utils.Kick:
-		return s.Kick(commandDetails, ctx)
+		return s.Kick(ctx, &commandDetails.KickOption)
 	case utils.Check:
-		return s.Check(commandDetails, ctx)
+		return s.Check(ctx, &commandDetails.CheckOption)
 	case utils.Block:
-		return s.Block(commandDetails, ctx)
+		return s.Block(ctx, &commandDetails.BlockOption)
 	case utils.More:
-		return s.More(commandDetails, ctx)
+		return s.More(ctx, &commandDetails.MoreOption)
 	case utils.Break:
-		return s.Break(ctx, commandDetails)
+		return s.Break(ctx, &commandDetails.BreakOption)
 	case utils.Resume:
-		return s.Resume(ctx, commandDetails)
+		return s.Resume(ctx, &commandDetails.ResumeOption)
 	case utils.Rank:
-		return s.Rank(commandDetails, ctx)
+		return s.Rank(ctx, commandDetails)
 	case utils.Order:
-		return s.Order(ctx, commandDetails)
+		return s.Order(ctx, &commandDetails.OrderOption)
+	case utils.Clear:
+		return s.Clear(ctx)
 	default:
 		return errors.New("Unknown command: " + commandString)
 	}

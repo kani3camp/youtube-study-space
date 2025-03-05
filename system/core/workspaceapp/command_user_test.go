@@ -94,7 +94,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.ShowUserInfo(&tt.commandDetails, context.Background())
+			err := app.ShowUserInfo(context.Background(), &tt.commandDetails.InfoOption)
 
 			assert.Nil(t, err)
 		})
@@ -181,7 +181,7 @@ func TestSystem_Rank(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.Rank(&tt.commandDetails, context.Background())
+			err := app.Rank(context.Background(), &tt.commandDetails)
 
 			assert.Nil(t, err)
 		})
@@ -383,7 +383,7 @@ func TestSystem_My(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := app.My(&tt.commandDetails, context.Background())
+			err := app.My(context.Background(), tt.commandDetails.MyOptions)
 
 			assert.Nil(t, err)
 		})

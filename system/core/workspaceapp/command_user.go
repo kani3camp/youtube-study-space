@@ -1,17 +1,18 @@
 package workspaceapp
 
 import (
-	"app.modules/core/i18n"
-	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"context"
 	"fmt"
 	"log/slog"
 
+	"app.modules/core/i18n"
+	"app.modules/core/repository"
+	"app.modules/core/utils"
+
 	"cloud.google.com/go/firestore"
 )
 
-func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
 	t := i18n.GetTFunc("command-user-info")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -32,7 +33,7 @@ func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.C
 			replyMessage += t("rank", userDoc.RankPoint)
 		}
 
-		if command.InfoOption.ShowDetails {
+		if infoOption.ShowDetails {
 			switch userDoc.RankVisible {
 			case true:
 				replyMessage += t("rank-on")
@@ -69,13 +70,13 @@ func (s *WorkspaceApp) ShowUserInfo(command *utils.CommandDetails, ctx context.C
 	return txErr
 }
 
-func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
 
 	// オプションが1つ以上指定されているか？
-	if len(command.MyOptions) == 0 {
+	if len(myOptions) == 0 {
 		s.MessageToLiveChat(ctx, i18n.T("command:option-warn", s.ProcessedUserDisplayName))
 		return nil
 	}
@@ -118,8 +119,8 @@ func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) er
 		// これ以降は書き込みのみ
 
 		replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName)
-		currenRankVisible := userDoc.RankVisible
-		for _, myOption := range command.MyOptions {
+		currentRankVisible := userDoc.RankVisible
+		for _, myOption := range myOptions {
 			if myOption.Type == utils.RankVisible {
 				newRankVisible := myOption.BoolValue
 				// 現在の値と、設定したい値が同じなら、変更なし
@@ -161,7 +162,7 @@ func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) er
 						}
 					}
 				}
-				currenRankVisible = newRankVisible
+				currentRankVisible = newRankVisible
 			} else if myOption.Type == utils.DefaultStudyMin {
 				if err := s.Repository.UpdateUserDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue); err != nil {
 					return fmt.Errorf("in UpdateUserDefaultStudyMin: %w", err)
@@ -189,7 +190,7 @@ func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) er
 					if err != nil {
 						return fmt.Errorf("in GetSeatByUserId: %w", err)
 					}
-					seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, currenRankVisible, userDoc.RankPoint, colorCode)
+					seatAppearance, err := utils.GetSeatAppearance(realTimeTotalStudySec, currentRankVisible, userDoc.RankPoint, colorCode)
 					if err != nil {
 						return fmt.Errorf("in GetSeatAppearance: %w", err)
 					}
@@ -212,7 +213,7 @@ func (s *WorkspaceApp) My(command *utils.CommandDetails, ctx context.Context) er
 	return txErr
 }
 
-func (s *WorkspaceApp) Rank(_ *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error {
 	replyMessage := ""
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく

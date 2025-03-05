@@ -1,84 +1,112 @@
 package utils
 
 import (
+	"testing"
+
 	"app.modules/core/i18n"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestParseMore(t *testing.T) {
 	testCases := []ParseCommandTestCase{
 		{
-			Name:  "追加時間（数値直接指定）",
+			Name:  "延長（指定なし）",
+			Input: "!more",
+			Output: &CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					IsDurationMinSet: false,
+				},
+			},
+		},
+		{
+			Name:  "延長（全角！）",
+			Input: "！more",
+			Output: &CommandDetails{
+				CommandType: More,
+				MoreOption: MoreOption{
+					IsDurationMinSet: false,
+				},
+			},
+		},
+		{
+			Name:  "延長（数値直接指定）",
 			Input: "!more 123",
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
 		{
-			Name:  "追加時間（m=指定）",
+			Name:  "延長（m=指定）",
 			Input: "!more m=123",
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
 		{
-			Name:  "追加時間（全角＝指定）",
+			Name:  "延長（全角＝指定）",
 			Input: "!more m＝123",
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
 		{
-			Name:  "追加時間（min=指定）",
+			Name:  "延長（min=指定）",
 			Input: "!more min=123",
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 123,
+					IsDurationMinSet: true,
+					DurationMin:      123,
 				},
 			},
 		},
 
 		{
-			Name:     "メンバーによる追加時間",
+			Name:     "メンバーによる延長",
 			Input:    "!more 20",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 20,
+					IsDurationMinSet: true,
+					DurationMin:      20,
 				},
 			},
 		},
 		{
-			Name:     "メンバーによる追加時間（m=指定）",
+			Name:     "メンバーによる延長（m=指定）",
 			Input:    "!more m=210",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 210,
+					IsDurationMinSet: true,
+					DurationMin:      210,
 				},
 			},
 		},
 		{
-			Name:     "メンバーによる絵文字追加時間",
+			Name:     "メンバーによる絵文字コマンド延長",
 			Input:    TestEmojiMore0 + " 100",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 100,
+					IsDurationMinSet: true,
+					DurationMin:      100,
 				},
 			},
 		},
@@ -89,34 +117,37 @@ func TestParseMore(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 100,
+					IsDurationMinSet: true,
+					DurationMin:      100,
 				},
 			},
 		},
 		{
-			Name:     "絵文字追加時間と360分指定",
+			Name:     "絵文字コマンド延長と360分指定",
 			Input:    TestEmojiMore0 + TestEmoji360Min0,
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 360,
+					IsDurationMinSet: true,
+					DurationMin:      360,
 				},
 			},
 		},
 		{
-			Name:     "絵文字追加時間と時間指定",
+			Name:     "絵文字コマンド延長と時間指定",
 			Input:    TestEmojiMore0 + TestEmojiMin0 + "40",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: More,
 				MoreOption: MoreOption{
-					DurationMin: 40,
+					IsDurationMinSet: true,
+					DurationMin:      40,
 				},
 			},
 		},
 		{
-			Name:     "絵文字追加時間と無効な時間指定（エラーケース）",
+			Name:     "絵文字コマンド延長と無効な時間指定（エラーケース）",
 			Input:    TestEmojiMore0 + TestEmojiMin0,
 			IsMember: true,
 			WillErr:  true,
