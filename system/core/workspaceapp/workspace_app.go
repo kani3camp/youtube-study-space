@@ -99,22 +99,28 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 
 	// 全ての項目が初期化できているか確認
 	v := reflect.ValueOf(configs.Constants)
+	var uninitializedFields []string
 	for i := 0; i < v.NumField(); i++ {
 		if v.Field(i).IsZero() {
-			if interactive {
-				fieldName := v.Type().Field(i).Name
-				fieldValue := fmt.Sprintf("%v", v.Field(i))
-				fmt.Println("The field \"" + fieldName + " = " + fieldValue + "\" may not be initialized. " +
-					"Continue? (yes / no)")
-				var s string
-				_, err := fmt.Scanln(&s)
-				if err != nil {
-					return nil, fmt.Errorf("in fmt.Scanln(): %w", err)
-				}
-				if s != "yes" {
-					return nil, errors.New("aborted")
-				}
-			}
+			fieldName := v.Type().Field(i).Name
+			fieldValue := fmt.Sprintf("%v", v.Field(i))
+			uninitializedFields = append(uninitializedFields, fieldName+" = "+fieldValue)
+		}
+	}
+
+	if interactive && len(uninitializedFields) > 0 {
+		fmt.Println("The following fields may not be initialized:")
+		for _, field := range uninitializedFields {
+			fmt.Println("- " + field)
+		}
+		fmt.Println("Continue? (yes / no)")
+		var s string
+		_, err := fmt.Scanln(&s)
+		if err != nil {
+			return nil, fmt.Errorf("in fmt.Scanln(): %w", err)
+		}
+		if s != "yes" {
+			return nil, errors.New("aborted")
 		}
 	}
 

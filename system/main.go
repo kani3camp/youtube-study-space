@@ -29,7 +29,6 @@ func Init() (option.ClientOption, context.Context, error) {
 	ctx := context.Background()
 	clientOption := option.WithCredentialsFile(credentialFilePath)
 
-	// 本番GCPプロジェクトの場合はCLI上で確認
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
 		return nil, nil, err
