@@ -1,28 +1,29 @@
 package workspaceapp
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+
 	"app.modules/core/i18n"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log/slog"
-	"strconv"
 )
 
-func (s *WorkspaceApp) Report(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {
 	t := i18n.GetTFunc("command-report")
-	if command.ReportOption.Message == "" { // !reportのみは不可
+	if reportOption.Message == "" { // !reportのみは不可
 		s.MessageToLiveChat(ctx, t("no-message", s.ProcessedUserDisplayName))
 		return nil
 	}
 
-	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
+	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, reportOption.Message)
 	s.MessageToOwner(ctx, ownerMessage)
 
-	messageForModerators := t("moderators", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
+	messageForModerators := t("moderators", utils.ReportCommand, s.ProcessedUserDisplayName, reportOption.Message)
 	if err := s.MessageToModerators(ctx, messageForModerators); err != nil {
 		s.MessageToOwnerWithError(ctx, "モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
 	}
@@ -31,10 +32,10 @@ func (s *WorkspaceApp) Report(command *utils.CommandDetails, ctx context.Context
 	return nil
 }
 
-func (s *WorkspaceApp) Kick(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption) error {
 	t := i18n.GetTFunc("command-kick")
-	targetSeatId := command.KickOption.SeatId
-	isTargetMemberSeat := command.KickOption.IsTargetMemberSeat
+	targetSeatId := kickOption.SeatId
+	isTargetMemberSeat := kickOption.IsTargetMemberSeat
 	var replyMessage string
 
 	// commanderはモデレーターもしくはチャットオーナーか
@@ -106,9 +107,9 @@ func (s *WorkspaceApp) Kick(command *utils.CommandDetails, ctx context.Context) 
 	return txErr
 }
 
-func (s *WorkspaceApp) Check(command *utils.CommandDetails, ctx context.Context) error {
-	targetSeatId := command.CheckOption.SeatId
-	isTargetMemberSeat := command.CheckOption.IsTargetMemberSeat
+func (s *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
+	targetSeatId := checkOption.SeatId
+	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -165,9 +166,9 @@ func (s *WorkspaceApp) Check(command *utils.CommandDetails, ctx context.Context)
 	return txErr
 }
 
-func (s *WorkspaceApp) Block(command *utils.CommandDetails, ctx context.Context) error {
-	targetSeatId := command.BlockOption.SeatId
-	isTargetMemberSeat := command.BlockOption.IsTargetMemberSeat
+func (s *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOption) error {
+	targetSeatId := blockOption.SeatId
+	isTargetMemberSeat := blockOption.IsTargetMemberSeat
 
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {

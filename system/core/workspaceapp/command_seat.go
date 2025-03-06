@@ -7,6 +7,12 @@ import (
 	"strconv"
 	"time"
 
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
@@ -15,10 +21,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) error {
+func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
+	jstNow := utils.JstNow()
 	var replyMessage string
 	t := i18n.GetTFunc("command-in")
-	inOption := &command.InOption
 	isTargetMemberSeat := inOption.IsMemberSeat
 
 	if isTargetMemberSeat && !s.ProcessedUserIsMember {
@@ -136,9 +142,16 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 
 		// =========== 以降は書き込み処理のみ ===========
 
-		if isInRoom { // 退室させてから、入室させる
-			// 席移動処理
-			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(ctx, tx, inOption.SeatId, s.ProcessedUserProfileImageUrl, isInMemberRoom, isTargetMemberSeat, *inOption.MinutesAndWorkName, currentSeat, &userDoc)
+		if isInRoom && inOption.IsSeatIdSet { // 入室中で、席指定があれば、席移動処理
+			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(
+				ctx,
+				tx,
+				inOption.SeatId,
+				s.ProcessedUserProfileImageUrl,
+				isInMemberRoom,
+				isTargetMemberSeat,
+				*inOption.MinutesAndWorkName,
+				currentSeat, &userDoc)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
 			}
@@ -226,7 +239,7 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 				userDoc.IsContinuousActive,
 				time.Time{},
 				time.Time{},
-				utils.JstNow())
+				jstNow)
 			if err != nil {
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
@@ -273,7 +286,7 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 	return txErr
 }
 
-func (s *WorkspaceApp) Out(_ *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) Out(ctx context.Context) error {
 	t := i18n.GetTFunc("command-out")
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -329,9 +342,9 @@ func (s *WorkspaceApp) Out(_ *utils.CommandDetails, ctx context.Context) error {
 	return txErr
 }
 
-func (s *WorkspaceApp) ShowSeatInfo(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.SeatOption) error {
 	t := i18n.GetTFunc("command-seat-info")
-	showDetails := command.SeatOption.ShowDetails
+	showDetails := seatOption.ShowDetails
 	var replyMessage string
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室しているか？
@@ -391,8 +404,7 @@ func (s *WorkspaceApp) ShowSeatInfo(command *utils.CommandDetails, ctx context.C
 	return txErr
 }
 
-func (s *WorkspaceApp) Change(command *utils.CommandDetails, ctx context.Context) error {
-	changeOption := &command.ChangeOption
+func (s *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWorkOrderOption) error {
 	jstNow := utils.JstNow()
 	replyMessage := ""
 	t := i18n.GetTFunc("command-change")
@@ -414,7 +426,7 @@ func (s *WorkspaceApp) Change(command *utils.CommandDetails, ctx context.Context
 		}
 
 		// validation
-		if err := s.ValidateChange(*command, currentSeat.State); err != nil {
+		if err := s.ValidateChange(*changeOption, currentSeat.State); err != nil {
 			replyMessage = fmt.Sprintf("%s%s", i18n.T("common:sir", s.ProcessedUserDisplayName), err) // TODO 動作確認
 			return nil
 		}
@@ -434,10 +446,10 @@ func (s *WorkspaceApp) Change(command *utils.CommandDetails, ctx context.Context
 			switch currentSeat.State {
 			case repository.WorkState:
 				newSeat.WorkName = changeOption.WorkName
-				replyMessage += t("update-work", seatIdStr)
+				replyMessage += t("update-work", changeOption.WorkName, seatIdStr)
 			case repository.BreakState:
 				newSeat.BreakWorkName = changeOption.WorkName
-				replyMessage += t("update-break", seatIdStr)
+				replyMessage += t("update-break", changeOption.WorkName, seatIdStr)
 			}
 		}
 		if changeOption.IsDurationMinSet {
@@ -491,7 +503,7 @@ func (s *WorkspaceApp) Change(command *utils.CommandDetails, ctx context.Context
 	return txErr
 }
 
-func (s *WorkspaceApp) More(command *utils.CommandDetails, ctx context.Context) error {
+func (s *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption) error {
 	replyMessage := ""
 	t := i18n.GetTFunc("command-more")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -522,13 +534,18 @@ func (s *WorkspaceApp) More(command *utils.CommandDetails, ctx context.Context) 
 
 		switch currentSeat.State {
 		case repository.WorkState:
-			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、少なくともアウトなので最大作業時間で上書き。
-			if command.MoreOption.DurationMin > s.Configs.Constants.MaxWorkTimeMin {
-				command.MoreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
+			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、最大作業時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > s.Configs.Constants.MaxWorkTimeMin {
+				moreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
+			}
+
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
+				moreOption.DurationMin = s.Configs.Constants.MaxWorkTimeMin
 			}
 
 			// 作業時間を指定分延長する
-			newUntil := currentSeat.Until.Add(time.Duration(command.MoreOption.DurationMin) * time.Minute)
+			newUntil := currentSeat.Until.Add(time.Duration(moreOption.DurationMin) * time.Minute)
 			// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 			if remainingUntilExitMin > s.Configs.Constants.MaxWorkTimeMin {
@@ -540,10 +557,21 @@ func (s *WorkspaceApp) More(command *utils.CommandDetails, ctx context.Context) 
 			newSeat.CurrentStateUntil = newUntil
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 		case repository.BreakState:
+			// オーバーフロー対策。延長時間が最大休憩時間を超えていたら、最大休憩時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > s.Configs.Constants.MaxBreakDurationMin {
+				moreOption.DurationMin = s.Configs.Constants.MaxBreakDurationMin
+			}
+
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
+				moreOption.DurationMin = s.Configs.Constants.MaxBreakDurationMin
+			}
+
 			// 休憩時間を指定分延長する
-			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(command.MoreOption.DurationMin) * time.Minute)
+			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(moreOption.DurationMin) * time.Minute)
 			// もし延長後の休憩時間が最大休憩時間を超えていたら、最大休憩時間まで延長
-			if int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt)).Minutes()) > s.Configs.Constants.MaxBreakDurationMin {
+			newBreakDuration := utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt))
+			if int(newBreakDuration.Minutes()) > s.Configs.Constants.MaxBreakDurationMin {
 				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(s.Configs.Constants.MaxBreakDurationMin) * time.Minute)
 				replyMessage += t("max-break", strconv.Itoa(s.Configs.Constants.MaxBreakDurationMin))
 			}
@@ -583,8 +611,7 @@ func (s *WorkspaceApp) More(command *utils.CommandDetails, ctx context.Context) 
 	return txErr
 }
 
-func (s *WorkspaceApp) Break(ctx context.Context, command *utils.CommandDetails) error {
-	breakOption := &command.BreakOption
+func (s *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOrderOption) error {
 	replyMessage := ""
 	t := i18n.GetTFunc("command-break")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -676,7 +703,7 @@ func (s *WorkspaceApp) Break(ctx context.Context, command *utils.CommandDetails)
 	return txErr
 }
 
-func (s *WorkspaceApp) Resume(ctx context.Context, command *utils.CommandDetails) error {
+func (s *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNameOption) error {
 	replyMessage := ""
 	t := i18n.GetTFunc("command-resume")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -711,8 +738,8 @@ func (s *WorkspaceApp) Resume(ctx context.Context, command *utils.CommandDetails
 			dailyCumulativeWorkSec = 0
 		}
 		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
-		var workName = command.ResumeOption.WorkName
-		if !command.ResumeOption.IsWorkNameSet {
+		var workName = resumeOption.WorkName
+		if !resumeOption.IsWorkNameSet {
 			workName = currentSeat.WorkName
 		}
 
@@ -756,7 +783,7 @@ func (s *WorkspaceApp) Resume(ctx context.Context, command *utils.CommandDetails
 	return txErr
 }
 
-func (s *WorkspaceApp) Order(ctx context.Context, command *utils.CommandDetails) error {
+func (s *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOption) error {
 	replyMessage := ""
 	t := i18n.GetTFunc("command-order")
 	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -776,7 +803,7 @@ func (s *WorkspaceApp) Order(ctx context.Context, command *utils.CommandDetails)
 		if err != nil {
 			return fmt.Errorf("in CountUserOrdersOfTheDay: %w", err)
 		}
-		if !s.ProcessedUserIsMember && !command.OrderOption.ClearFlag { // 下膳の場合はスキップ
+		if !s.ProcessedUserIsMember && !orderOption.ClearFlag { // 下膳の場合はスキップ
 			if todayOrderCount >= int64(s.Configs.Constants.MaxDailyOrderCount) {
 				replyMessage = t("too-many-orders", s.ProcessedUserDisplayName, s.Configs.Constants.MaxDailyOrderCount)
 				return nil
@@ -790,7 +817,7 @@ func (s *WorkspaceApp) Order(ctx context.Context, command *utils.CommandDetails)
 
 		// これ以降は書き込みのみ
 
-		if command.OrderOption.ClearFlag {
+		if orderOption.ClearFlag {
 			// 食器を下げる（注文履歴は削除しない）
 			currentSeat.MenuCode = ""
 			err := s.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom)
@@ -801,7 +828,7 @@ func (s *WorkspaceApp) Order(ctx context.Context, command *utils.CommandDetails)
 			return nil
 		}
 
-		targetMenuItem, err := s.GetMenuItemByNumber(command.OrderOption.IntValue)
+		targetMenuItem, err := s.GetMenuItemByNumber(orderOption.IntValue)
 		if err != nil {
 			return fmt.Errorf("in GetMenuItemByNumber: %w", err)
 		}
@@ -830,6 +857,52 @@ func (s *WorkspaceApp) Order(ctx context.Context, command *utils.CommandDetails)
 	})
 	if txErr != nil {
 		slog.Error("txErr in Order()", "txErr", txErr)
+		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+	}
+	s.MessageToLiveChat(ctx, replyMessage)
+	return txErr
+}
+
+func (s *WorkspaceApp) Clear(ctx context.Context) error {
+	replyMessage := ""
+	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// 入室しているか？
+		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
+		if err != nil {
+			return fmt.Errorf("failed IsUserInRoom: %w", err)
+		}
+		isInRoom := isInMemberRoom || isInGeneralRoom
+		if !isInRoom {
+			replyMessage = i18n.T("command:enter-only", s.ProcessedUserDisplayName)
+			return nil
+		}
+
+		seat, err := s.CurrentSeat(ctx, s.ProcessedUserId, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("failed s.CurrentSeat(): %w", err)
+		}
+
+		// これ以降は書き込みのみ
+
+		// 作業内容をクリアする
+		switch seat.State {
+		case repository.WorkState:
+			seat.WorkName = ""
+			replyMessage = i18n.T("others:clear-work", s.ProcessedUserDisplayName, seat.SeatId)
+		case repository.BreakState:
+			seat.BreakWorkName = ""
+			replyMessage = i18n.T("others:clear-break", s.ProcessedUserDisplayName, seat.SeatId)
+		}
+
+		err = s.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)
+		if err != nil {
+			return fmt.Errorf("in UpdateSeat: %w", err)
+		}
+
+		return nil
+	})
+	if txErr != nil {
+		slog.Error("txErr in Clear()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
 	}
 	s.MessageToLiveChat(ctx, replyMessage)

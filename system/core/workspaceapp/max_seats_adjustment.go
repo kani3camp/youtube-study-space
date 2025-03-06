@@ -53,10 +53,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 				if seat.SeatId > constants.DesiredMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					outCommandDetails := &utils.CommandDetails{
-						CommandType: utils.Out,
-					}
-					if err := s.Out(outCommandDetails, ctx); err != nil {
+					if err := s.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}
@@ -101,7 +98,7 @@ func (s *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants reposit
 								IsMemberSeat: false,
 							},
 						}
-						if err := s.In(ctx, inCommandDetails); err != nil {
+						if err := s.In(ctx, &inCommandDetails.InOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}
@@ -137,10 +134,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
 					s.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
 					// 移動させる
-					outCommandDetails := &utils.CommandDetails{
-						CommandType: utils.Out,
-					}
-					if err := s.Out(outCommandDetails, ctx); err != nil {
+					if err := s.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
 				}
@@ -185,7 +179,7 @@ func (s *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposito
 							},
 						}
 
-						if err := s.In(ctx, inCommandDetails); err != nil {
+						if err := s.In(ctx, &inCommandDetails.InOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}
