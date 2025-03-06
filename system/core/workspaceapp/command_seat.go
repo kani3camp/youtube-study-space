@@ -7,12 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"context"
-	"fmt"
-	"log/slog"
-	"strconv"
-	"time"
-
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"

@@ -32,7 +32,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow().Add(-time.Hour),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 57,
@@ -44,7 +44,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            true,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow().Add(-time.Hour),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 62,
@@ -56,7 +56,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: true,
 				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 31),
-				LastActiveAt:             JstNow().Add(-time.Hour),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 74, // 57 * (1 + 0.31)
@@ -68,7 +68,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Minute * 40),
-				LastActiveAt:             JstNow().Add(-time.Minute * 40),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 40,
@@ -80,7 +80,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Hour * 2),
-				LastActiveAt:             JstNow().Add(-time.Hour * 2),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        50000,
 			},
 			Output: 50070, // 100 * 0.7 + 50000
@@ -92,7 +92,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Hour * 2),
-				LastActiveAt:             JstNow().Add(-time.Hour * 2),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        90000,
 			},
 			Output: 90030, // 100 * 0.3 + 90000
@@ -104,10 +104,10 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            true,
 				YesterdayContinuedActive: true,
 				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 2),
-				LastActiveAt:             JstNow().Add(-time.Hour),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        0,
 			},
-			Output: 112, // 100 * 1.1 * (1 + 0.02)
+			Output: 112, // 100 * 1.1 * (1 + 0.02) = 112.2
 		},
 		{
 			Name: "上限値を超えない",
@@ -116,7 +116,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
 				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow().Add(-time.Hour),
+				LastActiveAt:             JstNow(),
 				PreviousRankPoint:        99990,
 			},
 			Output: 99999, // 99,990 + 57 * 0.3 = 99,990 + 17 = 100,007 > 99,999
