@@ -67,6 +67,15 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 	// 作業名は特に制限はない
 	// pass
 
+	// メニュー番号
+	if command.InOption.MinutesAndWorkName.IsOrderSet {
+		num := command.InOption.MinutesAndWorkName.OrderNum
+		expect := 0 < num && num <= len(app.SortedMenuItems)
+		if !expect {
+			return i18n.T("validate:invalid-menu-number-range", len(app.SortedMenuItems))
+		}
+	}
+
 	return ""
 }
 
