@@ -12,21 +12,21 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-func (s *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
+func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
 	t := i18n.GetTFunc("command-user-info")
 	var replyMessage string
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		totalStudyDuration, dailyTotalStudyDuration, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		totalStudyDuration, dailyTotalStudyDuration, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserId)
 		if err != nil {
-			return fmt.Errorf("in s.GetUserRealtimeTotalStudyDurations(): %w", err)
+			return fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
 		}
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
 		totalTimeStr := utils.DurationToString(totalStudyDuration)
-		replyMessage += t("base", s.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
+		replyMessage += t("base", app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
-		userDoc, err := s.Repository.ReadUser(ctx, tx, s.ProcessedUserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
 		if err != nil {
-			return fmt.Errorf("in s.Repository.ReadUser: %w", err)
+			return fmt.Errorf("in app.Repository.ReadUser: %w", err)
 		}
 
 		if userDoc.RankVisible {
@@ -66,32 +66,32 @@ func (s *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoO
 		slog.Error("txErr in ShowUserInfo()", "txErr", txErr)
 		replyMessage = i18n.T("command:error")
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
-func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error {
+func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error {
 	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
 	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
 	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
 
 	// オプションが1つ以上指定されているか？
 	if len(myOptions) == 0 {
-		s.MessageToLiveChat(ctx, i18n.T("command:option-warn", s.ProcessedUserDisplayName))
+		app.MessageToLiveChat(ctx, i18n.T("command:option-warn", app.ProcessedUserDisplayName))
 		return nil
 	}
 
 	t := i18n.GetTFunc("command-my")
 
 	replyMessage := ""
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく
-		userDoc, err := s.Repository.ReadUser(ctx, tx, s.ProcessedUserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -99,18 +99,18 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 
 		var seats []repository.SeatDoc
 		if isInMemberRoom {
-			seats, err = s.Repository.ReadMemberSeats(ctx)
+			seats, err = app.Repository.ReadMemberSeats(ctx)
 			if err != nil {
 				return fmt.Errorf("in ReadMemberSeats: %w", err)
 			}
 		}
 		if isInGeneralRoom {
-			seats, err = s.Repository.ReadGeneralSeats(ctx)
+			seats, err = app.Repository.ReadGeneralSeats(ctx)
 			if err != nil {
 				return fmt.Errorf("in ReadGeneralSeats: %w", err)
 			}
 		}
-		realTimeTotalStudyDuration, _, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
+		realTimeTotalStudyDuration, _, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserId)
 		if err != nil {
 			return fmt.Errorf("in RetrieveRealtimeTotalStudyDuration: %w", err)
 		}
@@ -118,7 +118,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 
 		// これ以降は書き込みのみ
 
-		replyMessage = i18n.T("common:sir", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("common:sir", app.ProcessedUserDisplayName)
 		currentRankVisible := userDoc.RankVisible
 		for _, myOption := range myOptions {
 			if myOption.Type == utils.RankVisible {
@@ -133,7 +133,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 					}
 					replyMessage += t("already-rank", rankVisibleStr)
 				} else { // 違うなら、切替
-					if err := s.Repository.UpdateUserRankVisible(tx, s.ProcessedUserId, newRankVisible); err != nil {
+					if err := app.Repository.UpdateUserRankVisible(tx, app.ProcessedUserId, newRankVisible); err != nil {
 						return fmt.Errorf("in UpdateUserRankVisible: %w", err)
 					}
 					var newValueStr string
@@ -152,19 +152,19 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 						}
 
 						// 席の色を更新
-						newSeat, err := utils.GetSeatByUserId(seats, s.ProcessedUserId)
+						newSeat, err := utils.GetSeatByUserId(seats, app.ProcessedUserId)
 						if err != nil {
 							return fmt.Errorf("in GetSeatByUserId: %w", err)
 						}
 						newSeat.Appearance = seatAppearance
-						if err := s.Repository.UpdateSeat(ctx, tx, newSeat, isInMemberRoom); err != nil {
-							return fmt.Errorf("in s.Repository.UpdateSeats: %w", err)
+						if err := app.Repository.UpdateSeat(ctx, tx, newSeat, isInMemberRoom); err != nil {
+							return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
 						}
 					}
 				}
 				currentRankVisible = newRankVisible
 			} else if myOption.Type == utils.DefaultStudyMin {
-				if err := s.Repository.UpdateUserDefaultStudyMin(tx, s.ProcessedUserId, myOption.IntValue); err != nil {
+				if err := app.Repository.UpdateUserDefaultStudyMin(tx, app.ProcessedUserId, myOption.IntValue); err != nil {
 					return fmt.Errorf("in UpdateUserDefaultStudyMin: %w", err)
 				}
 				// 値が0はリセットのこと。
@@ -176,7 +176,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 			} else if myOption.Type == utils.FavoriteColor {
 				// 値が""はリセットのこと。
 				colorCode := utils.ColorNameToColorCode(myOption.StringValue)
-				if err := s.Repository.UpdateUserFavoriteColor(tx, s.ProcessedUserId, colorCode); err != nil {
+				if err := app.Repository.UpdateUserFavoriteColor(tx, app.ProcessedUserId, colorCode); err != nil {
 					return fmt.Errorf("in UpdateUserFavoriteColor: %w", err)
 				}
 				replyMessage += t("set-favorite-color")
@@ -186,7 +186,7 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 
 				// 入室中であれば、座席の色も変える
 				if isInRoom {
-					newSeat, err := utils.GetSeatByUserId(seats, s.ProcessedUserId)
+					newSeat, err := utils.GetSeatByUserId(seats, app.ProcessedUserId)
 					if err != nil {
 						return fmt.Errorf("in GetSeatByUserId: %w", err)
 					}
@@ -197,8 +197,8 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 
 					// 席の色を更新
 					newSeat.Appearance = seatAppearance
-					if err := s.Repository.UpdateSeat(ctx, tx, newSeat, isInMemberRoom); err != nil {
-						return fmt.Errorf("in s.Repository.UpdateSeat(): %w", err)
+					if err := app.Repository.UpdateSeat(ctx, tx, newSeat, isInMemberRoom); err != nil {
+						return fmt.Errorf("in app.Repository.UpdateSeat(): %w", err)
 					}
 				}
 			}
@@ -207,22 +207,22 @@ func (s *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error
 	})
 	if txErr != nil {
 		slog.Error("txErr in My()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
-func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error {
+func (app *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error {
 	replyMessage := ""
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 変更前のuserDocを読み込んでおく
-		userDoc, err := s.Repository.ReadUser(ctx, tx, s.ProcessedUserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		isInMemberRoom, isInGeneralRoom, err := s.IsUserInRoom(ctx, s.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -232,12 +232,12 @@ func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error 
 		var realtimeTotalStudySec int
 		if isInRoom {
 			var err error
-			currentSeat, err = s.CurrentSeat(ctx, s.ProcessedUserId, isInMemberRoom)
+			currentSeat, err = app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
 			if err != nil {
-				return fmt.Errorf("failed s.CurrentSeat(): %w", err)
+				return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 			}
 
-			realtimeTotalStudyDuration, _, err := s.GetUserRealtimeTotalStudyDurations(ctx, tx, s.ProcessedUserId)
+			realtimeTotalStudyDuration, _, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserId)
 			if err != nil {
 				return fmt.Errorf("in RetrieveRealtimeTotalStudyDuration: %w", err)
 			}
@@ -248,7 +248,7 @@ func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error 
 
 		// ランク表示設定のON/OFFを切り替える
 		newRankVisible := !userDoc.RankVisible
-		if err := s.Repository.UpdateUserRankVisible(tx, s.ProcessedUserId, newRankVisible); err != nil {
+		if err := app.Repository.UpdateUserRankVisible(tx, app.ProcessedUserId, newRankVisible); err != nil {
 			return fmt.Errorf("in UpdateUserRankVisible: %w", err)
 		}
 		var newValueStr string
@@ -257,7 +257,7 @@ func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error 
 		} else {
 			newValueStr = i18n.T("common:off")
 		}
-		replyMessage = i18n.T("command:rank", s.ProcessedUserDisplayName, newValueStr)
+		replyMessage = i18n.T("command:rank", app.ProcessedUserDisplayName, newValueStr)
 
 		// 入室中であれば、座席の色も変える
 		if isInRoom {
@@ -268,8 +268,8 @@ func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error 
 
 			// 席の色を更新
 			currentSeat.Appearance = seatAppearance
-			if err := s.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
-				return fmt.Errorf("in s.Repository.UpdateSeat(): %w", err)
+			if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
+				return fmt.Errorf("in app.Repository.UpdateSeat(): %w", err)
 			}
 		}
 
@@ -277,8 +277,8 @@ func (s *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error 
 	})
 	if txErr != nil {
 		slog.Error("txErr in Rank()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
