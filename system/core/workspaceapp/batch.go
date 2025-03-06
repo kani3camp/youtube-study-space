@@ -283,7 +283,7 @@ func (s *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot []
 					IsMemberSeat: isMemberSeat,
 				},
 			}
-			if err := s.In(ctx, inCommandDetails); err != nil {
+			if err := s.In(ctx, &inCommandDetails.InOption); err != nil {
 				return fmt.Errorf("%sさん（%s）の自動席移動処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
 			}
 		}
