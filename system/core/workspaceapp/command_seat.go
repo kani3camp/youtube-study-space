@@ -16,6 +16,7 @@ import (
 )
 
 func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
+	jstNow := utils.JstNow()
 	var replyMessage string
 	t := i18n.GetTFunc("command-in")
 	isTargetMemberSeat := inOption.IsMemberSeat
@@ -113,9 +114,16 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 
 		// =========== 以降は書き込み処理のみ ===========
 
-		if isInRoom { // 退室させてから、入室させる
-			// 席移動処理
-			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(ctx, tx, inOption.SeatId, s.ProcessedUserProfileImageUrl, isInMemberRoom, isTargetMemberSeat, *inOption.MinutesAndWorkName, currentSeat, &userDoc)
+		if isInRoom && inOption.IsSeatIdSet { // 入室中で、席指定があれば、席移動処理
+			workedTimeSec, addedRP, untilExitMin, err := s.moveSeat(
+				ctx,
+				tx,
+				inOption.SeatId,
+				s.ProcessedUserProfileImageUrl,
+				isInMemberRoom,
+				isTargetMemberSeat,
+				*inOption.MinutesAndWorkName,
+				currentSeat, &userDoc)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", s.ProcessedUserDisplayName, s.ProcessedUserId, err)
 			}
@@ -128,6 +136,65 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
 			replyMessage += t("seat-move", s.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+
+			return nil
+		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
+			var seatIdStr string
+			if isInMemberRoom {
+				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
+			} else {
+				seatIdStr = strconv.Itoa(currentSeat.SeatId)
+			}
+			replyMessage += t("already-seat", s.ProcessedUserDisplayName, seatIdStr)
+
+			if inOption.MinutesAndWorkName.IsWorkNameSet {
+				switch currentSeat.State {
+				case repository.WorkState:
+					currentSeat.WorkName = inOption.MinutesAndWorkName.WorkName
+					replyMessage += i18n.T("command-change:update-work", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+				case repository.BreakState:
+					currentSeat.BreakWorkName = inOption.MinutesAndWorkName.WorkName
+					replyMessage += i18n.T("command-change:update-break", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+				}
+			}
+
+			if inOption.MinutesAndWorkName.IsDurationMinSet {
+				switch currentSeat.State {
+				case repository.WorkState:
+					// 作業時間を（入室時間から自動退室までの時間）を変更
+					realtimeEntryDurationMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
+					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+
+					if requestedUntil.Before(jstNow) {
+						// もし現在時刻が指定時間を経過していたら却下
+						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
+						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					} else if requestedUntil.After(jstNow.Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
+						// もし現在時刻より最大延長可能時間以上後なら却下
+						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
+						replyMessage += i18n.T("command-change:work-duration-after", s.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
+					} else { // それ以外なら延長
+						currentSeat.Until = requestedUntil
+						currentSeat.CurrentStateUntil = requestedUntil
+						remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
+						replyMessage += i18n.T("command-change:work-duration", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					}
+				case repository.BreakState:
+					// 休憩時間を変更
+					realtimeBreakDuration := utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
+					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+
+					if requestedUntil.Before(jstNow) {
+						// もし現在時刻が指定時間を経過していたら却下
+						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
+						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					} else { // それ以外ならuntilを変更
+						currentSeat.CurrentStateUntil = requestedUntil
+						remainingBreakDuration := requestedUntil.Sub(jstNow)
+						replyMessage += i18n.T("command-change:break-duration", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					}
+				}
+			}
 
 			return nil
 		} else { // 入室のみ
@@ -148,7 +215,7 @@ func (s *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 				userDoc.IsContinuousActive,
 				time.Time{},
 				time.Time{},
-				utils.JstNow())
+				jstNow)
 			if err != nil {
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
