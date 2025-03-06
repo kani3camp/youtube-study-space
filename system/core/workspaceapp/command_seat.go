@@ -1,17 +1,18 @@
 package workspaceapp
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"github.com/pkg/errors"
-	"log/slog"
-	"strconv"
-	"time"
 )
 
 func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) error {
@@ -111,6 +112,28 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 			}
 		}
 
+		var totalOrderCount int64
+		var targetMenuItem repository.MenuDoc
+		var orderLimitExceeded bool
+		if inOption.MinutesAndWorkName.IsOrderSet {
+			// メンバーでない場合は、本日の注文回数をチェック
+			totalOrderCount, err = s.Repository.CountUserOrdersOfTheDay(ctx, s.ProcessedUserId, jstNow)
+			if err != nil {
+				return fmt.Errorf("in CountUserOrdersOfTheDay(): %w", err)
+			}
+			orderLimitExceeded = !s.ProcessedUserIsMember && totalOrderCount >= int64(s.Configs.Constants.MaxDailyOrderCount)
+
+			if !orderLimitExceeded {
+				targetMenuItem, err = s.GetMenuItemByNumber(inOption.MinutesAndWorkName.OrderNum)
+				if err != nil {
+					return fmt.Errorf("in GetMenuItemByNumber(): %w", err)
+				}
+				if isInRoom {
+					currentSeat.MenuCode = targetMenuItem.Code
+				}
+			}
+		}
+
 		// =========== 以降は書き込み処理のみ ===========
 
 		if isInRoom { // 退室させてから、入室させる
@@ -127,9 +150,64 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
-			replyMessage += t("seat-move", s.ProcessedUserDisplayName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+			replyMessage += t("seat-move", s.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
+			var seatIdStr string
+			if isInMemberRoom {
+				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
+			} else {
+				seatIdStr = strconv.Itoa(currentSeat.SeatId)
+			}
+			replyMessage += t("already-seat", s.ProcessedUserDisplayName, seatIdStr)
 
-			return nil
+			if inOption.MinutesAndWorkName.IsWorkNameSet {
+				switch currentSeat.State {
+				case repository.WorkState:
+					currentSeat.WorkName = inOption.MinutesAndWorkName.WorkName
+					replyMessage += i18n.T("command-change:update-work", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+				case repository.BreakState:
+					currentSeat.BreakWorkName = inOption.MinutesAndWorkName.WorkName
+					replyMessage += i18n.T("command-change:update-break", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+				}
+			}
+
+			if inOption.MinutesAndWorkName.IsDurationMinSet {
+				switch currentSeat.State {
+				case repository.WorkState:
+					// 作業時間を（入室時間から自動退室までの時間）を変更
+					realtimeEntryDurationMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
+					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+
+					if requestedUntil.Before(jstNow) {
+						// もし現在時刻が指定時間を経過していたら却下
+						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
+						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					} else if requestedUntil.After(jstNow.Add(time.Duration(s.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
+						// もし現在時刻より最大延長可能時間以上後なら却下
+						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
+						replyMessage += i18n.T("command-change:work-duration-after", s.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
+					} else { // それ以外なら延長
+						currentSeat.Until = requestedUntil
+						currentSeat.CurrentStateUntil = requestedUntil
+						remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
+						replyMessage += i18n.T("command-change:work-duration", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					}
+				case repository.BreakState:
+					// 休憩時間を変更
+					realtimeBreakDuration := utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
+					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+
+					if requestedUntil.Before(jstNow) {
+						// もし現在時刻が指定時間を経過していたら却下
+						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
+						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					} else { // それ以外ならuntilを変更
+						currentSeat.CurrentStateUntil = requestedUntil
+						remainingBreakDuration := requestedUntil.Sub(jstNow)
+						replyMessage += i18n.T("command-change:break-duration", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					}
+				}
+			}
 		} else { // 入室のみ
 			untilExitMin, err := s.enterRoom(
 				ctx,
@@ -143,7 +221,7 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 				"",
 				inOption.MinutesAndWorkName.DurationMin,
 				seatAppearance,
-				"",
+				targetMenuItem.Code,
 				repository.WorkState,
 				userDoc.IsContinuousActive,
 				time.Time{},
@@ -160,9 +238,32 @@ func (s *WorkspaceApp) In(ctx context.Context, command *utils.CommandDetails) er
 			}
 
 			// 入室しましたのメッセージ
-			replyMessage = t("start", s.ProcessedUserDisplayName, untilExitMin, newSeatId)
-			return nil
+			replyMessage += t("start", s.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, untilExitMin, newSeatId)
 		}
+
+		// メニュー注文されている場合は、メニューコードをセット
+		if inOption.MinutesAndWorkName.IsOrderSet {
+			if orderLimitExceeded {
+				replyMessage += t("too-many-orders", s.Configs.Constants.MaxDailyOrderCount)
+				return nil
+			}
+
+			// 注文履歴を作成
+			orderHistoryDoc := repository.OrderHistoryDoc{
+				UserId:       s.ProcessedUserId,
+				MenuCode:     targetMenuItem.Code,
+				SeatId:       inOption.SeatId,
+				IsMemberSeat: isTargetMemberSeat,
+				OrderedAt:    jstNow,
+			}
+			if err := s.Repository.CreateOrderHistoryDoc(ctx, tx, orderHistoryDoc); err != nil {
+				return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
+			}
+
+			replyMessage += t("ordered", targetMenuItem.Name, totalOrderCount+1)
+		}
+
+		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in In()", "txErr", txErr)
