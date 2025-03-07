@@ -64,7 +64,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 	})
 	if txErr != nil {
 		slog.Error("txErr in ShowUserInfo()", "txErr", txErr)
-		replyMessage = i18n.T("command:error")
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr

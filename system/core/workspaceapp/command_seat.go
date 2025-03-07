@@ -145,7 +145,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				isInMemberRoom,
 				isTargetMemberSeat,
 				*inOption.MinutesAndWorkName,
-				currentSeat, &userDoc)
+				currentSeat,
+				&userDoc)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 			}
@@ -182,7 +183,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				switch currentSeat.State {
 				case repository.WorkState:
 					// 作業時間を（入室時間から自動退室までの時間）を変更
-					realtimeEntryDurationMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
+					realtimeEntryDurationMin := int(utils.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
 					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
