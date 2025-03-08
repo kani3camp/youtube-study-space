@@ -181,7 +181,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
-			replyMessage += t("seat-move", app.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+			var workName string
+			if inOption.MinutesAndWorkName.IsWorkNameSet {
+				workName = inOption.MinutesAndWorkName.WorkName
+			} else {
+				workName = currentSeat.WorkName
+			}
+
+			replyMessage += t("seat-move", app.ProcessedUserDisplayName, workName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
 			var seatIdStr string
 			if isInMemberRoom {
