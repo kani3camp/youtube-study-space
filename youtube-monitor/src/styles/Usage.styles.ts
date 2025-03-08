@@ -80,5 +80,4 @@ export const commandCode = css`
     border-radius: 0.15rem;
     padding: 0 0.3rem;
     margin: 0.07rem;
-    /* font-family: ${sourceCodeProFontFamily}; */
 `
