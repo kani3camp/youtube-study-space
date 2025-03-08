@@ -6,7 +6,7 @@ import { getCurrentSection } from '../lib/time-table'
 import * as styles from '../styles/BackgroundImage.styles'
 
 const BACKGROUND_UPDATE_INTERVAL_SEC = 1000
-const BACKGROUND_IMAGE_URL = '/images/background/13223498_5160549.jpg'
+const BACKGROUND_IMAGE_URL = '/images/background/6793129_3418645.jpg'
 
 const BackgroundImage: FC = () => {
 	const [lastPartName, setLastPartName] = useState<string>('')
