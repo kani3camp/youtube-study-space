@@ -17,7 +17,7 @@ import (
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	jstNow := utils.JstNow()
-	var replyMessage string
+	var replyMessage, orderMessage string
 	t := i18n.GetTFunc("command-in")
 	isTargetMemberSeat := inOption.IsMemberSeat
 
@@ -95,8 +95,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			return fmt.Errorf("in GetUserRealtimeSeatAppearance(): %w", err)
 		}
 
-		// 動作が決定
-
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
@@ -136,6 +134,31 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 		// =========== 以降は書き込み処理のみ ===========
 
+		// メニュー注文されている場合は、メニューコードをセット
+		if inOption.MinutesAndWorkName.IsOrderSet {
+			if orderLimitExceeded {
+				orderMessage += t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount)
+			} else {
+				if isInRoom {
+					currentSeat.MenuCode = targetMenuItem.Code
+				}
+
+				// 注文履歴を作成
+				orderHistoryDoc := repository.OrderHistoryDoc{
+					UserId:       app.ProcessedUserId,
+					MenuCode:     targetMenuItem.Code,
+					SeatId:       inOption.SeatId,
+					IsMemberSeat: isTargetMemberSeat,
+					OrderedAt:    jstNow,
+				}
+				if err := app.Repository.CreateOrderHistoryDoc(ctx, tx, orderHistoryDoc); err != nil {
+					return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
+				}
+
+				orderMessage += t("ordered", targetMenuItem.Name, totalOrderCount+1)
+			}
+		}
+
 		if isInRoom && inOption.IsSeatIdSet { // 入室中で、席指定があれば、席移動処理
 			workedTimeSec, addedRP, untilExitMin, err := app.moveSeat(
 				ctx,
@@ -158,7 +181,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
-			replyMessage += t("seat-move", app.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+			var workName string
+			if inOption.MinutesAndWorkName.IsWorkNameSet {
+				workName = inOption.MinutesAndWorkName.WorkName
+			} else {
+				workName = currentSeat.WorkName
+			}
+
+			replyMessage += t("seat-move", app.ProcessedUserDisplayName, workName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
 			var seatIdStr string
 			if isInMemberRoom {
@@ -216,6 +246,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					}
 				}
 			}
+
+			if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
+				return fmt.Errorf("in UpdateSeat(): %w", err)
+			}
 		} else { // 入室のみ
 			untilExitMin, err := app.enterRoom(
 				ctx,
@@ -249,28 +283,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			replyMessage += t("start", app.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, untilExitMin, newSeatId)
 		}
 
-		// メニュー注文されている場合は、メニューコードをセット
-		if inOption.MinutesAndWorkName.IsOrderSet {
-			if orderLimitExceeded {
-				replyMessage += t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount)
-				return nil
-			}
-
-			// 注文履歴を作成
-			orderHistoryDoc := repository.OrderHistoryDoc{
-				UserId:       app.ProcessedUserId,
-				MenuCode:     targetMenuItem.Code,
-				SeatId:       inOption.SeatId,
-				IsMemberSeat: isTargetMemberSeat,
-				OrderedAt:    jstNow,
-			}
-			if err := app.Repository.CreateOrderHistoryDoc(ctx, tx, orderHistoryDoc); err != nil {
-				return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
-			}
-
-			replyMessage += t("ordered", targetMenuItem.Name, totalOrderCount+1)
-		}
-
+		replyMessage += orderMessage
 		return nil
 	})
 	if txErr != nil {

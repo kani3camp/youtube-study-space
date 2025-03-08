@@ -24,8 +24,8 @@
 "no-availability" = "@{0}님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요⏳"
 "already-seat" = "@{0}님은 {1}번 좌석에 앉아 있습니다🪑"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
-"seat-move" = "@{0}님이 좌석을 이동하였습니다🚶（\"{1}\"）（{2}→{3}번 좌석）（+ {4}분）{5}（{6}분 후 자동 퇴장）"
-"start" = "@{0}님이 작업을 시작했습니다🔥（\"{1}\"、최대 {2}분, {3}번 좌석）" # 0: Username, 1: workName, 2: Until Exit, 3: Seat
+"seat-move" = "@{0}님이 좌석을 이동하였습니다🚶（작업 내용: \"{1}\"）（{2}→{3}번 좌석）（+ {4}분）{5}（{6}분 후 자동 퇴장）"
+"start" = "@{0}님이 작업을 시작했습니다🔥（작업 내용: \"{1}\"、최대 {2}분, {3}번 좌석）" # 0: Username, 1: workName, 2: Until Exit, 3: Seat
 "member-seat-forbidden" = "@{0}님, 멤버 전용 좌석에 앉으려면 멤버 등록이 필요합니다🍀"
 "membership-disabled" = "@{0}님, 멤버십 기능은 사용할 수 없습니다."
 "ordered" = "{0}の注文を受け付けました🍽（本日{1}回目）" # 0: menuName, 1: orderNum
