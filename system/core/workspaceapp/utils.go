@@ -282,16 +282,7 @@ func (app *WorkspaceApp) CheckLongTimeSitting(ctx context.Context, isMemberRoom 
 		return fmt.Errorf("failed to read seats: %w", err)
 	}
 
-	return app.processLongTimeSitting(ctx, seatsSnapshot, isMemberRoom)
-}
-
-// processLongTimeSitting 長時間入室しているユーザーを席移動させる処理を実行する
-func (app *WorkspaceApp) processLongTimeSitting(ctx context.Context, seatsSnapshot []repository.SeatDoc, isMemberRoom bool) error {
-	if err := app.OrganizeDBForceMove(ctx, seatsSnapshot, isMemberRoom); err != nil {
-		return fmt.Errorf("in OrganizeDBForceMove: %w", err)
-	}
-
-	return nil
+	return app.OrganizeDBForceMove(ctx, seatsSnapshot, isMemberRoom)
 }
 
 func (app *WorkspaceApp) CheckLiveStreamStatus(ctx context.Context) error {
@@ -617,6 +608,15 @@ func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, er
 		return repository.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
+}
+
+func (app *WorkspaceApp) GetMenuNumByCode(code string) (int, error) {
+	for i, item := range app.SortedMenuItems {
+		if item.Code == code {
+			return i + 1, nil
+		}
+	}
+	return -1, errors.Errorf("menu code not found: %s", code)
 }
 
 // GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める

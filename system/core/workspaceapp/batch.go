@@ -270,15 +270,28 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			}
 			app.MessageToLiveChat(ctx, i18n.T("others:force-move", app.ProcessedUserDisplayName, seatIdStr))
 
+			var isOrderSet bool
+			var menuNum int
+			if seatSnapshot.MenuCode != "" {
+				var err error
+				menuNum, err = app.GetMenuNumByCode(seatSnapshot.MenuCode)
+				if err != nil {
+					return fmt.Errorf("in GetMenuNumByCode(): %w", err)
+				}
+			}
+
 			inCommandDetails := &utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: false,
+					IsSeatIdSet: true,
+					SeatId:      0,
 					MinutesAndWorkName: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
+						IsOrderSet:       isOrderSet,
 						WorkName:         seatSnapshot.WorkName,
 						DurationMin:      int(utils.NoNegativeDuration(seatSnapshot.Until.Sub(utils.JstNow())).Minutes()),
+						OrderNum:         menuNum,
 					},
 					IsMemberSeat: isMemberSeat,
 				},
