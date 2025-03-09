@@ -27,3 +27,10 @@
 	--ifm-color-primary-lightest: #c4a6f7;
 	--docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* モバイル表示でも言語選択メニューを表示する */
+@media (max-width: 996px) {
+	.dropdown {
+		display: flex !important;
+	}
+}
