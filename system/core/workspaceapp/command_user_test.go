@@ -60,8 +60,8 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 
 	for _, tt := range showUserInfoTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_myfirestore.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -79,7 +79,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -145,8 +145,8 @@ func TestSystem_Rank(t *testing.T) {
 
 	for _, tt := range rankTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_myfirestore.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -163,7 +163,7 @@ func TestSystem_Rank(t *testing.T) {
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserRankVisible(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -345,8 +345,8 @@ func TestSystem_My(t *testing.T) {
 
 	for _, tt := range myTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_myfirestore.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_myfirestore.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -365,7 +365,7 @@ func TestSystem_My(t *testing.T) {
 			mockDB.EXPECT().UpdateUserDefaultStudyMin(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 			mockDB.EXPECT().UpdateUserFavoriteColor(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{

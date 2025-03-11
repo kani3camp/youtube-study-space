@@ -17,32 +17,32 @@ import (
 	youtube "google.golang.org/api/youtube/v3"
 )
 
-// MockYoutubeLiveChatBotInterface is a mock of YoutubeLiveChatBotInterface interface.
-type MockYoutubeLiveChatBotInterface struct {
+// MockLiveChatBot is a mock of LiveChatBot interface.
+type MockLiveChatBot struct {
 	ctrl     *gomock.Controller
-	recorder *MockYoutubeLiveChatBotInterfaceMockRecorder
+	recorder *MockLiveChatBotMockRecorder
 	isgomock struct{}
 }
 
-// MockYoutubeLiveChatBotInterfaceMockRecorder is the mock recorder for MockYoutubeLiveChatBotInterface.
-type MockYoutubeLiveChatBotInterfaceMockRecorder struct {
-	mock *MockYoutubeLiveChatBotInterface
+// MockLiveChatBotMockRecorder is the mock recorder for MockLiveChatBot.
+type MockLiveChatBotMockRecorder struct {
+	mock *MockLiveChatBot
 }
 
-// NewMockYoutubeLiveChatBotInterface creates a new mock instance.
-func NewMockYoutubeLiveChatBotInterface(ctrl *gomock.Controller) *MockYoutubeLiveChatBotInterface {
-	mock := &MockYoutubeLiveChatBotInterface{ctrl: ctrl}
-	mock.recorder = &MockYoutubeLiveChatBotInterfaceMockRecorder{mock}
+// NewMockLiveChatBot creates a new mock instance.
+func NewMockLiveChatBot(ctrl *gomock.Controller) *MockLiveChatBot {
+	mock := &MockLiveChatBot{ctrl: ctrl}
+	mock.recorder = &MockLiveChatBotMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockYoutubeLiveChatBotInterface) EXPECT() *MockYoutubeLiveChatBotInterfaceMockRecorder {
+func (m *MockLiveChatBot) EXPECT() *MockLiveChatBotMockRecorder {
 	return m.recorder
 }
 
 // BanUser mocks base method.
-func (m *MockYoutubeLiveChatBotInterface) BanUser(ctx context.Context, userId string) error {
+func (m *MockLiveChatBot) BanUser(ctx context.Context, userId string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BanUser", ctx, userId)
 	ret0, _ := ret[0].(error)
@@ -50,13 +50,13 @@ func (m *MockYoutubeLiveChatBotInterface) BanUser(ctx context.Context, userId st
 }
 
 // BanUser indicates an expected call of BanUser.
-func (mr *MockYoutubeLiveChatBotInterfaceMockRecorder) BanUser(ctx, userId any) *gomock.Call {
+func (mr *MockLiveChatBotMockRecorder) BanUser(ctx, userId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BanUser", reflect.TypeOf((*MockYoutubeLiveChatBotInterface)(nil).BanUser), ctx, userId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BanUser", reflect.TypeOf((*MockLiveChatBot)(nil).BanUser), ctx, userId)
 }
 
 // ListMessages mocks base method.
-func (m *MockYoutubeLiveChatBotInterface) ListMessages(ctx context.Context, nextPageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
+func (m *MockLiveChatBot) ListMessages(ctx context.Context, nextPageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListMessages", ctx, nextPageToken)
 	ret0, _ := ret[0].([]*youtube.LiveChatMessage)
@@ -67,13 +67,13 @@ func (m *MockYoutubeLiveChatBotInterface) ListMessages(ctx context.Context, next
 }
 
 // ListMessages indicates an expected call of ListMessages.
-func (mr *MockYoutubeLiveChatBotInterfaceMockRecorder) ListMessages(ctx, nextPageToken any) *gomock.Call {
+func (mr *MockLiveChatBotMockRecorder) ListMessages(ctx, nextPageToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMessages", reflect.TypeOf((*MockYoutubeLiveChatBotInterface)(nil).ListMessages), ctx, nextPageToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMessages", reflect.TypeOf((*MockLiveChatBot)(nil).ListMessages), ctx, nextPageToken)
 }
 
 // PostMessage mocks base method.
-func (m *MockYoutubeLiveChatBotInterface) PostMessage(ctx context.Context, message string) error {
+func (m *MockLiveChatBot) PostMessage(ctx context.Context, message string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PostMessage", ctx, message)
 	ret0, _ := ret[0].(error)
@@ -81,7 +81,7 @@ func (m *MockYoutubeLiveChatBotInterface) PostMessage(ctx context.Context, messa
 }
 
 // PostMessage indicates an expected call of PostMessage.
-func (mr *MockYoutubeLiveChatBotInterfaceMockRecorder) PostMessage(ctx, message any) *gomock.Call {
+func (mr *MockLiveChatBotMockRecorder) PostMessage(ctx, message any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostMessage", reflect.TypeOf((*MockYoutubeLiveChatBotInterface)(nil).PostMessage), ctx, message)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostMessage", reflect.TypeOf((*MockLiveChatBot)(nil).PostMessage), ctx, message)
 }

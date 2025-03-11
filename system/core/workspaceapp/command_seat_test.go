@@ -9,7 +9,7 @@ import (
 
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
-	mock_myfirestore "app.modules/core/repository/mocks"
+	mock_repository "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
@@ -20,12 +20,16 @@ import (
 )
 
 var inTestCases = []struct {
-	name                 string
-	constantsConfig      repository.ConstantsConfigDoc
-	commandDetails       utils.CommandDetails
-	userIsMember         bool
-	targetSeatDoc        *repository.SeatDoc
-	expectedReplyMessage string
+	name                          string
+	constantsConfig               repository.ConstantsConfigDoc
+	commandDetails                utils.CommandDetails
+	userIsMember                  bool
+	targetSeatDoc                 *repository.SeatDoc
+	currentSeatOfUserIsMemberSeat bool
+	currentSeatOfUser             *repository.SeatDoc
+	currentSeatDeleted            bool
+	seatMoved                     bool
+	expectedReplyMessage          string
 }{
 	{
 		name: "一般席入室",
@@ -75,7 +79,7 @@ var inTestCases = []struct {
 		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、VIP1番席）",
 	},
 	{
-		name: "メンバー以外がメンバー席入室",
+		name: "メンバー以外はメンバー席に入室できない",
 		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
@@ -169,6 +173,78 @@ var inTestCases = []struct {
 		targetSeatDoc:        nil,
 		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"\"、最大100分、VIP1番席）",
 	},
+	{
+		name: "一般席入室：すでに入室中",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:        false,
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				IsMemberSeat:       false,
+			},
+		},
+		userIsMember: false,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId: 1,
+			UserId: "test_user_id",
+			State:  repository.WorkState,
+		},
+		expectedReplyMessage: "@テストユーザーさんは1番の席に座っています🪑",
+	},
+	{
+		name: "メンバー席入室：すでに入室中",
+		constantsConfig: repository.ConstantsConfigDoc{
+			YoutubeMembershipEnabled: true,
+			MemberMaxSeats:           10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsMemberSeat:       true,
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+			},
+		},
+		userIsMember:                  true,
+		currentSeatOfUserIsMemberSeat: true,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId: 1,
+			UserId: "test_user_id",
+			State:  repository.WorkState,
+		},
+		expectedReplyMessage: "@テストユーザーさんはVIP1番の席に座っています🪑",
+	},
+	{
+		name: "一般席入室：すでにメンバー席に入室中なので席移動",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                 10,
+			YoutubeMembershipEnabled: true,
+			MemberMaxSeats:           10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:        true,
+				IsMemberSeat:       false,
+				SeatId:             1,
+				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+			},
+		},
+		userIsMember:                  false,
+		currentSeatOfUserIsMemberSeat: true,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId:                1,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+		},
+		currentSeatDeleted:   true,
+		seatMoved:            true,
+		expectedReplyMessage: "@テストユーザーさんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
+	},
 }
 
 func TestSystem_In(t *testing.T) {
@@ -177,7 +253,7 @@ func TestSystem_In(t *testing.T) {
 
 	for _, tt := range inTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
 			if tt.commandDetails.InOption.IsSeatIdSet {
 				var seatDoc repository.SeatDoc
 				var seatErr error
@@ -205,10 +281,15 @@ func TestSystem_In(t *testing.T) {
 					RankVisible:        false,
 					IsContinuousActive: false,
 				}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", true).
-				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", false).
-				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			if tt.currentSeatOfUser != nil {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.currentSeatOfUserIsMemberSeat).
+					Return(*tt.currentSeatOfUser, nil).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.currentSeatOfUserIsMemberSeat).
+					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			} else {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", gomock.Any()).
+					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			}
 			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -216,7 +297,7 @@ func TestSystem_In(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -225,8 +306,17 @@ func TestSystem_In(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
+			if tt.currentSeatOfUser != nil && !tt.seatMoved {
+				mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
+			if tt.currentSeatDeleted {
+				mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), tt.currentSeatOfUser.SeatId, tt.currentSeatOfUserIsMemberSeat).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+			}
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -284,8 +374,8 @@ func TestSystem_Out(t *testing.T) {
 
 	for _, tt := range outTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -306,7 +396,7 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -446,8 +536,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 	for _, tt := range showSeatInfoTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -471,7 +561,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -567,8 +657,8 @@ func TestSystem_Change(t *testing.T) {
 
 	for _, tt := range changeTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -589,7 +679,7 @@ func TestSystem_Change(t *testing.T) {
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -709,8 +799,8 @@ func TestSystem_More(t *testing.T) {
 
 	for _, tt := range moreTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -734,7 +824,7 @@ func TestSystem_More(t *testing.T) {
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -836,8 +926,8 @@ func TestSystem_Break(t *testing.T) {
 
 	for _, tt := range breakTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -858,7 +948,7 @@ func TestSystem_Break(t *testing.T) {
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -957,8 +1047,8 @@ func TestSystem_Resume(t *testing.T) {
 
 	for _, tt := range resumeTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -979,7 +1069,7 @@ func TestSystem_Resume(t *testing.T) {
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
@@ -1149,8 +1239,8 @@ func TestSystem_Order(t *testing.T) {
 
 	for _, tt := range orderTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -1180,7 +1270,7 @@ func TestSystem_Order(t *testing.T) {
 				return nil
 			}).MaxTimes(1)
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
