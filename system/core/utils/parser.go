@@ -1,12 +1,18 @@
 package utils
 
 import (
+	"github.com/pkg/errors"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"app.modules/core/i18n"
+)
+
+var (
+	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
+	emojiMinRegex     = regexp.MustCompile(MinString + `[0-9]*` + EmojiSide)
 )
 
 // ParseCommand コマンドを解析
@@ -162,10 +168,12 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+MemberInCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, OrderString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+OrderCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, OrderClearString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+OrderClearCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, RankString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, WorkString):
-			fullString = strings.Replace(fullString, s, HalfWidthSpace+WorkNameOptionPrefix, 1)
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+WorkNameOptionKey+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, MinString):
 			minString, err := ReplaceEmojiMinToText(s)
 			if err != nil {
@@ -173,20 +181,16 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 			}
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+minString, 1)
 		case MatchEmojiCommand(s, ColorString):
-			fullString = strings.Replace(fullString, s, HalfWidthSpace+FavoriteColorMyOptionPrefix, 1)
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+FavoriteColorMyOptionKey+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, RankOnString):
-			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionPrefix+RankVisibleMyOptionOn, 1)
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionKey+HalfWidthSpace+RankVisibleMyOptionOn+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, RankOffString):
-			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionPrefix+RankVisibleMyOptionOff, 1)
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+RankVisibleMyOptionKey+HalfWidthSpace+RankVisibleMyOptionOff+HalfWidthSpace, 1)
 		}
 	}
 
 	return fullString, ""
 }
-
-var (
-	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
-)
 
 // FormatStringToParse はコマンド解析のために文字列を整形する
 func FormatStringToParse(fullString string) string {
@@ -239,63 +243,8 @@ func FormatStringToParse(fullString string) string {
 	return fullString
 }
 
-func ExtractAllEmojiCommands(commandString string) ([]EmojiElement, string) {
-	emojis := make([]EmojiElement, 0)
-	emojiStrings := emojiCommandRegex.FindAllString(commandString, -1)
-	for _, s := range emojiStrings {
-		var m EmojiElement
-		switch true {
-		case MatchEmojiCommand(s, InZeroString): // must be before InString
-			m = EmojiInZero
-		case MatchEmojiCommand(s, InString):
-			m = EmojiIn
-		case MatchEmojiCommand(s, OutString):
-			m = EmojiOut
-		case MatchEmojiCommand(s, InfoString):
-			m = EmojiInfo
-		case MatchEmojiCommand(s, InfoDString):
-			m = EmojiInfoD
-		case MatchEmojiCommand(s, MyString):
-			m = EmojiMy
-		case MatchEmojiCommand(s, ChangeString):
-			m = EmojiChange
-		case MatchEmojiCommand(s, SeatString):
-			m = EmojiSeat
-		case MatchEmojiCommand(s, SeatDString):
-			m = EmojiSeatD
-		case MatchEmojiCommand(s, MoreString):
-			m = EmojiMore
-		case MatchEmojiCommand(s, BreakString):
-			m = EmojiBreak
-		case MatchEmojiCommand(s, ResumeString):
-			m = EmojiResume
-		case MatchEmojiCommand(s, WorkString):
-			m = EmojiWork
-		case MatchEmojiCommand(s, MinString):
-			m = EmojiMin
-		case MatchEmojiCommand(s, ColorString):
-			m = EmojiColor
-		case MatchEmojiCommand(s, RankOnString):
-			m = EmojiRankOn
-		case MatchEmojiCommand(s, RankOffString):
-			m = EmojiRankOff
-		case MatchEmojiCommand(s, MemberInString):
-			m = EmojiMemberIn
-		case MatchEmojiCommand(s, OrderString):
-			m = EmojiOrder
-		default:
-			continue
-		}
-		emojis = append(emojis, m)
-	}
-
-	emojiExcludedString := emojiCommandRegex.ReplaceAllString(commandString, HalfWidthSpace)
-	emojiExcludedString = strings.TrimLeft(emojiExcludedString, HalfWidthSpace)
-	return emojis, emojiExcludedString
-}
-
-func ParseIn(commandExcludedStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
-	fields := strings.Fields(commandExcludedStr)
+func ParseIn(argStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 
 	options := &MinWorkOrderOption{
 		IsWorkNameSet:    false,
@@ -304,7 +253,7 @@ func ParseIn(commandExcludedStr string, isTargetMemberSeat bool, isSeatIdSet boo
 	var err string
 
 	if len(fields) >= 1 {
-		options, err = ParseMinWorkOrderOptions(commandExcludedStr)
+		options, err = ParseMinWorkOrderOptions(argStr)
 		if err != "" {
 			return nil, err
 		}
@@ -325,8 +274,8 @@ func ParseSeatIn(seatNum int, commandExcludedStr string, isMemberSeat bool) (*Co
 	return ParseIn(commandExcludedStr, isMemberSeat, true, seatNum)
 }
 
-func ParseInfo(argText string) (*CommandDetails, string) {
-	fields := strings.Fields(argText)
+func ParseInfo(argStr string) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 	showDetails := false
 
 	if len(fields) > 0 && fields[0] == ShowDetailsOption {
@@ -353,8 +302,8 @@ func ParseMy(argText string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseMyOptions(argText string) ([]MyOption, string) {
-	fields := strings.Fields(argText)
+func ParseMyOptions(argStr string) ([]MyOption, string) {
+	fields := strings.Fields(argStr)
 
 	const (
 		Rank = iota
@@ -441,12 +390,12 @@ func ParseMyOptions(argText string) ([]MyOption, string) {
 	return options, ""
 }
 
-func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseKick(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 
 	var kickSeatId int
-	if len(slice) >= 2 {
-		num, err := strconv.Atoi(slice[1])
+	if len(fields) >= 1 {
+		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18n.T("parse:invalid-seat-id")
 		}
@@ -464,12 +413,12 @@ func ParseKick(commandString string, isTargetMemberSeat bool) (*CommandDetails, 
 	}, ""
 }
 
-func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseCheck(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 
 	var targetSeatId int
-	if len(slice) >= 2 {
-		num, err := strconv.Atoi(slice[1])
+	if len(fields) >= 1 {
+		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18n.T("parse:invalid-seat-id")
 		}
@@ -487,12 +436,12 @@ func ParseCheck(commandString string, isTargetMemberSeat bool) (*CommandDetails,
 	}, ""
 }
 
-func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseBlock(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 
 	var targetSeatId int
-	if len(slice) >= 2 {
-		num, err := strconv.Atoi(slice[1])
+	if len(fields) >= 1 {
+		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18n.T("parse:invalid-seat-id")
 		}
@@ -511,10 +460,10 @@ func ParseBlock(commandString string, isTargetMemberSeat bool) (*CommandDetails,
 }
 
 func ParseReport(fullString string) (*CommandDetails, string) {
-	slice := strings.Split(fullString, HalfWidthSpace)
+	fields := strings.Fields(fullString)
 
 	var reportMessage string
-	if len(slice) == 1 {
+	if len(fields) == 1 {
 		return nil, i18n.T("parse:missing-message", ReportCommand)
 	} else { // len(slice) > 1
 		reportMessage = fullString
@@ -528,13 +477,13 @@ func ParseReport(fullString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseChange(commandString string) (*CommandDetails, string) {
+func ParseChange(argStr string) (*CommandDetails, string) {
 	// 追加オプションチェック
-	fields := strings.Fields(commandString)
+	fields := strings.Fields(argStr)
 	if len(fields) == 0 {
 		return nil, i18n.T("parse:missing-change-option")
 	}
-	options, message := ParseMinWorkOrderOptions(commandString)
+	options, message := ParseMinWorkOrderOptions(argStr)
 	if message != "" {
 		return nil, message
 	}
@@ -545,11 +494,11 @@ func ParseChange(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseSeat(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseSeat(argStr string) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 	showDetails := false
 
-	if len(slice) >= 2 && slice[1] == ShowDetailsOption {
+	if len(fields) >= 1 && fields[0] == ShowDetailsOption {
 		showDetails = true
 	}
 
@@ -561,12 +510,10 @@ func ParseSeat(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseMore(argText string) (*CommandDetails, string) {
-	slice := strings.Split(argText, HalfWidthSpace)
-	var durationMin int
-	var message string
+func ParseMore(argStr string) (*CommandDetails, string) {
+	fields := strings.Fields(argStr)
 
-	if len(slice) == 1 && slice[0] == "" {
+	if len(fields) == 0 || (len(fields) == 1 && fields[0] == "") {
 		return &CommandDetails{
 			CommandType: More,
 			MoreOption: MoreOption{
@@ -575,13 +522,32 @@ func ParseMore(argText string) (*CommandDetails, string) {
 		}, ""
 	}
 
-	if len(slice) >= 2 {
-		durationMin, message = ParseDurationMinOption(slice, true, false)
-		if message != "" {
-			return nil, message
+	var durationMin int
+	if len(fields) >= 2 {
+		if fields[0] == TimeOptionKey {
+			value, err := strconv.Atoi(fields[1])
+			if err != nil {
+				return nil, i18n.T("parse:invalid-time-option")
+			}
+			durationMin = value
+		} else {
+			value, err := strconv.Atoi(fields[0])
+			if err != nil {
+				return nil, i18n.T("parse:invalid-time-option")
+			}
+			durationMin = value
 		}
+	} else if len(fields) == 1 {
+		if fields[0] == TimeOptionKey {
+			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+		}
+		value, err := strconv.Atoi(fields[0])
+		if err != nil {
+			return nil, i18n.T("parse:invalid-time-option")
+		}
+		durationMin = value
 	} else {
-		return nil, i18n.T("parse:missing-more-option") // !more doesn't need 'min=' prefix.
+		return nil, i18n.T("parse:missing-more-option")
 	}
 
 	return &CommandDetails{
@@ -593,9 +559,9 @@ func ParseMore(argText string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseBreak(commandString string) (*CommandDetails, string) {
+func ParseBreak(argStr string) (*CommandDetails, string) {
 	// 追加オプションチェック
-	options, message := ParseMinWorkOrderOptions(commandString)
+	options, message := ParseMinWorkOrderOptions(argStr)
 	if message != "" {
 		return nil, message
 	}
@@ -606,9 +572,9 @@ func ParseBreak(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseResume(argText string) (*CommandDetails, string) {
+func ParseResume(argStr string) (*CommandDetails, string) {
 	// 作業名
-	option := ParseWorkNameOption(argText)
+	option := ParseWorkNameOption(argStr)
 
 	return &CommandDetails{
 		CommandType:  Resume,
@@ -616,14 +582,12 @@ func ParseResume(argText string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseOrder(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
+func ParseOrder(argStr string) (*CommandDetails, string) {
 	// NOTE: オプションは番号か文字列のどちらかのみ
 
-	option, message := ParseOrderOption(slice)
-	if message != "" {
-		return nil, message
+	option, errMessage := ParseOrderOption(argStr)
+	if errMessage != "" {
+		return nil, errMessage
 	}
 
 	return &CommandDetails{
@@ -632,19 +596,23 @@ func ParseOrder(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseOrderOption(strSlice []string) (*OrderOption, string) {
-	if len(strSlice) < 2 {
+func ParseOrderOption(argStr string) (*OrderOption, string) {
+	fields := strings.Fields(argStr)
+	if len(fields) == 0 {
+		return nil, i18n.T("parse:invalid-option")
+	}
+	if len(fields) == 1 && fields[0] == "" {
 		return nil, i18n.T("parse:invalid-option")
 	}
 
 	// cancel flag?
-	if strSlice[1] == OrderCancelOption {
+	if fields[0] == OrderClearOption {
 		return &OrderOption{
 			ClearFlag: true,
 		}, ""
 	}
 
-	num, err := strconv.Atoi(strSlice[1])
+	num, err := strconv.Atoi(fields[0])
 	if err != nil {
 		return nil, i18n.T("parse:invalid-option")
 	}
@@ -663,6 +631,11 @@ func ParseWorkNameOption(argText string) WorkNameOption {
 			IsWorkNameSet: false,
 		}
 	}
+	if len(fields) == 1 && fields[0] == "" {
+		return WorkNameOption{
+			IsWorkNameSet: false,
+		}
+	}
 
 	workName := strings.TrimPrefix(argText, WorkNameOptionKey)
 	workName = strings.TrimSpace(workName)
@@ -673,29 +646,7 @@ func ParseWorkNameOption(argText string) WorkNameOption {
 	}
 }
 
-func ParseDurationMinOption(strSlice []string, allowNonPrefix bool, allowEmpty bool) (int, string) {
-	// テキストオプションの処理
-	for _, str := range strSlice {
-		// 空の時間オプション
-		if allowEmpty && IsEmptyTimeOption(str) {
-			return 0, ""
-		} else if HasTimeOptionPrefix(str) { // 時間オプションプレフィックス付き
-			num, err := strconv.Atoi(TrimTimeOptionPrefix(str))
-			if err == nil {
-				return num, ""
-			}
-		} else if allowNonPrefix { // プレフィックスなしの数値
-			num, err := strconv.Atoi(str)
-			if err == nil {
-				return num, ""
-			}
-		}
-	}
-
-	return 0, i18n.T("parse:missing-time-option", TimeOptionPrefix)
-}
-
-func ParseMinWorkOrderOptions(commandExcludedStr string) (*MinWorkOrderOption, string) {
+func ParseMinWorkOrderOptions(argStr string) (*MinWorkOrderOption, string) {
 	var options MinWorkOrderOption
 
 	const (
@@ -706,7 +657,7 @@ func ParseMinWorkOrderOptions(commandExcludedStr string) (*MinWorkOrderOption, s
 	)
 
 	currentMode := Any // NOTE: 作業内容はオプションwork明示なしもあるので、初期値はWork
-	for _, field := range strings.Fields(commandExcludedStr) {
+	for _, field := range strings.Fields(argStr) {
 		switch currentMode {
 		case Min:
 			value, err := strconv.Atoi(field)
@@ -756,16 +707,21 @@ func ParseMinWorkOrderOptions(commandExcludedStr string) (*MinWorkOrderOption, s
 	return &options, ""
 }
 
-func ParseEmojiWorkNameOption(fullString string) string {
-	emojiLoc := FindEmojiCommandIndex(fullString, WorkString)
-	if len(emojiLoc) != 2 {
-		return ""
+// ReplaceEmojiMinToText は"min="や"min=360"の絵文字をテキストに変換する。
+func ReplaceEmojiMinToText(emojiString string) (string, error) {
+	tmp := strings.TrimPrefix(emojiString, EmojiCommandPrefix) // ex. "360Min0:"
+	loc := emojiMinRegex.FindStringIndex(tmp)
+	if len(loc) != 2 {
+		return "", errors.New("invalid emoji min string. tmp=" + tmp)
 	}
-	targetString := fullString[emojiLoc[1]:]
-	targetString = ReplaceAnyEmojiCommandStringWithSpace(targetString)
-	slice := strings.Split(targetString, HalfWidthSpace)
-	if MatchEmojiCommandString(slice[0]) {
-		return ""
+	numString := tmp[:loc[0]] // ex. "360"
+	if numString != "" {      // "min=xxx" emoji -> "min xxx"
+		num, err := strconv.Atoi(numString)
+		if err != nil {
+			return "", err
+		}
+		return TimeOptionKey + HalfWidthSpace + strconv.Itoa(num) + HalfWidthSpace, nil
 	}
-	return slice[0]
+	// "min=" emoji -> "min "
+	return TimeOptionPrefix + HalfWidthSpace, nil
 }

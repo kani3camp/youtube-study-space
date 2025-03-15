@@ -1,9 +1,10 @@
 package utils
 
 import (
+	"testing"
+
 	"app.modules/core/i18n"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestParseMy(t *testing.T) {
@@ -103,7 +104,7 @@ func TestParseMy(t *testing.T) {
 			},
 		},
 		{
-			Name:     "非メンバーによる絵文字設定（無効）",
+			Name:     "非メンバーによる絵文字!my設定（無効）",
 			Input:    TestEmojiMy0 + TestEmojiColor0 + "白 " + TestEmojiMin0 + "100 " + TestEmojiRankOn0,
 			IsMember: false,
 			Output: &CommandDetails{
@@ -111,7 +112,7 @@ func TestParseMy(t *testing.T) {
 			},
 		},
 		{
-			Name:     "非メンバーによる絵文字設定（無効）",
+			Name:     "非メンバーによる絵文字!my設定（無効）",
 			Input:    "!my " + TestEmojiColor0 + "白 " + TestEmojiMin0 + "100 " + TestEmojiRankOn0,
 			IsMember: false,
 			Output: &CommandDetails{
@@ -121,7 +122,7 @@ func TestParseMy(t *testing.T) {
 		},
 
 		{
-			Name:     "メンバーによる設定",
+			Name:     "メンバーによる!my設定",
 			Input:    "!my color=白 min=200 rank=off",
 			IsMember: true,
 			Output: &CommandDetails{
@@ -152,7 +153,7 @@ func TestParseMy(t *testing.T) {
 			},
 		},
 		{
-			Name:     "メンバーによる絵文字設定",
+			Name:     "メンバーによる絵文字!my設定",
 			Input:    TestEmojiMy0,
 			IsMember: true,
 			Output: &CommandDetails{
@@ -161,7 +162,63 @@ func TestParseMy(t *testing.T) {
 			},
 		},
 		{
-			Name:     "メンバーによる絵文字設定（複数オプション）",
+			Name:     "メンバーによる絵文字!my設定（ランクオン）",
+			Input:    TestEmojiMy0 + TestEmojiRankOn0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: true,
+					},
+				},
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字!my設定（ランクオフ）",
+			Input:    TestEmojiMy0 + TestEmojiRankOff0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: false,
+					},
+				},
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字!my設定（デフォルト作業時間）",
+			Input:    TestEmojiMy0 + TestEmojiMin0 + "100",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 100,
+					},
+				},
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字!my設定（お気に入りカラー）",
+			Input:    TestEmojiMy0 + TestEmojiColor0 + "白",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:        FavoriteColor,
+						StringValue: "白",
+					},
+				},
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字!my設定（複数オプション）",
 			Input:    TestEmojiMy0 + TestEmojiColor0 + "白 " + TestEmojiMin0 + "100 " + TestEmojiRankOn0,
 			IsMember: true,
 			Output: &CommandDetails{

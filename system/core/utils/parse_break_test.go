@@ -87,6 +87,7 @@ func TestParseBreak(t *testing.T) {
 				},
 			},
 		},
+
 		{
 			Name:  "再開",
 			Input: "!resume",
@@ -98,13 +99,46 @@ func TestParseBreak(t *testing.T) {
 			},
 		},
 		{
-			Name:  "再開（作業名付き）",
+			Name:  "再開（作業名付き１）",
 			Input: "!resume work=再開！",
 			Output: &CommandDetails{
 				CommandType: Resume,
 				ResumeOption: WorkNameOption{
 					IsWorkNameSet: true,
 					WorkName:      "再開！",
+				},
+			},
+		},
+		{
+			Name:  "再開（作業名付き２）",
+			Input: "!resume 再開！",
+			Output: &CommandDetails{
+				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      "再開！",
+				},
+			},
+		},
+		{
+			Name:  "再開（作業名指定あるけど無効１）",
+			Input: "!resume work",
+			Output: &CommandDetails{
+				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      "",
+				},
+			},
+		},
+		{
+			Name:  "再開（作業名指定あるけど無効２）",
+			Input: "!resume work=",
+			Output: &CommandDetails{
+				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      "",
 				},
 			},
 		},

@@ -8,22 +8,23 @@ import (
 )
 
 const (
-	TestEmojiIn0       = ":_commandIn0:"
-	TestEmojiIn1       = ":_commandIn1:"
-	TestEmojiInZero0   = ":_command0InZero0:"
-	TestEmojiOut0      = ":_commandOut0:"
-	TestEmojiInfo0     = ":_commandInfo0:"
-	TestEmojiInfoD0    = ":_commandInfoD0:"
-	TestEmojiSeat0     = ":_commandSeat0:"
-	TestEmojiSeatD0    = ":_commandSeatD0:"
-	TestEmojiChange0   = ":_commandChange0:"
-	TestEmojiBreak0    = ":_commandBreak0:"
-	TestEmojiResume0   = ":_commandResume0:"
-	TestEmojiMore0     = ":_commandMore0:"
-	TestEmojiMy0       = ":_commandMy0:"
-	TestEmojiRank0     = ":_commandRank0:"
-	TestEmojiMemberIn0 = ":_commandMemberIn0:"
-	TestEmojiOrder0    = ":_commandOrder0:"
+	TestEmojiIn0         = ":_commandIn0:"
+	TestEmojiIn1         = ":_commandIn1:"
+	TestEmojiInZero0     = ":_command0InZero0:"
+	TestEmojiOut0        = ":_commandOut0:"
+	TestEmojiInfo0       = ":_commandInfo0:"
+	TestEmojiInfoD0      = ":_commandInfoD0:"
+	TestEmojiSeat0       = ":_commandSeat0:"
+	TestEmojiSeatD0      = ":_commandSeatD0:"
+	TestEmojiChange0     = ":_commandChange0:"
+	TestEmojiBreak0      = ":_commandBreak0:"
+	TestEmojiResume0     = ":_commandResume0:"
+	TestEmojiMore0       = ":_commandMore0:"
+	TestEmojiMy0         = ":_commandMy0:"
+	TestEmojiRank0       = ":_commandRank0:"
+	TestEmojiMemberIn0   = ":_commandMemberIn0:"
+	TestEmojiOrder0      = ":_commandOrder0:"
+	TestEmojiOrderClear0 = ":_commandOrderClr0:"
 
 	TestEmojiMin0     = ":_commandMin0:"
 	TestEmoji360Min0  = ":_command360Min0:"
@@ -269,11 +270,68 @@ func TestParseCommand(t *testing.T) {
 		},
 		{
 			Name:  "全角スペース付きオーダー",
-			Input: "!order　8",
+			Input: "!order　22",
 			Output: &CommandDetails{
 				CommandType: Order,
 				OrderOption: OrderOption{
-					IntValue: 8,
+					IntValue: 22,
+				},
+			},
+		},
+		{
+			Name:     "非メンバーによる絵文字オーダーは無効",
+			Input:    TestEmojiOrder0 + "22",
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字オーダー",
+			Input:    TestEmojiOrder0 + "22",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					IntValue: 22,
+				},
+			},
+		},
+		{
+			Name:     "非メンバーによる絵文字オーダーキャンセルは無効１",
+			Input:    TestEmojiOrder0 + "-",
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Name:     "非メンバーによる絵文字オーダーキャンセルは無効２",
+			Input:    TestEmojiOrderClear0,
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字オーダーキャンセル１",
+			Input:    TestEmojiOrder0 + "-",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					ClearFlag: true,
+				},
+			},
+		},
+		{
+			Name:     "メンバーによる絵文字オーダーキャンセル２",
+			Input:    TestEmojiOrderClear0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					ClearFlag: true,
 				},
 			},
 		},

@@ -24,6 +24,7 @@ const (
 	ChillCommand      = "!chill"
 	ResumeCommand     = "!resume"
 	OrderCommand      = "!order"
+	OrderClearCommand = "!order -"
 	WorkCommand       = "!work"
 	ClearCommand      = "!clear"
 	ClearShortCommand = "!clr"
@@ -61,24 +62,18 @@ const (
 	RankOffString      = "RankOff"
 	MemberInString     = "MemberIn"
 	OrderString        = "Order"
+	OrderClearString   = "OrderClr"
 
-	WorkNameOptionPrefix            = "work="
-	WorkNameOptionShortPrefix       = "w="
-	WorkNameOptionPrefixLegacy      = "work-"
-	WorkNameOptionShortPrefixLegacy = "w-"
-	WorkNameOptionKey               = "work"
+	WorkNameOptionKey = "work"
 
-	TimeOptionPrefix            = "min="
-	TimeOptionShortPrefix       = "m="
-	TimeOptionPrefixLegacy      = "min-"
-	TimeOptionShortPrefixLegacy = "m-"
-	TimeOptionKey               = "min"
+	TimeOptionPrefix = "min="
+	TimeOptionKey    = "min"
 
 	OrderOptionPrefix = "order="
 	OrderOptionKey    = "order"
 
 	ShowDetailsOption = "d"
-	OrderCancelOption = "-"
+	OrderClearOption  = "-"
 
 	RankVisibleMyOptionPrefix = "rank="
 	RankVisibleMyOptionKey    = "rank"
@@ -95,27 +90,3 @@ const (
 )
 
 type EmojiElement int
-
-const (
-	EmojiIn EmojiElement = iota
-	EmojiInZero
-	EmojiOut
-	EmojiInfo
-	EmojiInfoD
-	EmojiMy
-	EmojiChange
-	EmojiSeat
-	EmojiSeatD
-	EmojiMore
-	EmojiBreak
-	EmojiResume
-	EmojiMemberIn
-	EmojiOrder
-	EmojiOrderCancel
-
-	EmojiWork
-	EmojiMin
-	EmojiColor
-	EmojiRankOn
-	EmojiRankOff
-)
