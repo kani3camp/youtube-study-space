@@ -66,23 +66,27 @@ const (
 	WorkNameOptionShortPrefix       = "w="
 	WorkNameOptionPrefixLegacy      = "work-"
 	WorkNameOptionShortPrefixLegacy = "w-"
+	WorkNameOptionKey               = "work"
 
 	TimeOptionPrefix            = "min="
 	TimeOptionShortPrefix       = "m="
 	TimeOptionPrefixLegacy      = "min-"
 	TimeOptionShortPrefixLegacy = "m-"
+	TimeOptionKey               = "min"
 
-	OrderOptionPrefix      = "order="
-	OrderOptionShortPrefix = "o="
+	OrderOptionPrefix = "order="
+	OrderOptionKey    = "order"
 
 	ShowDetailsOption = "d"
 	OrderCancelOption = "-"
 
 	RankVisibleMyOptionPrefix = "rank="
+	RankVisibleMyOptionKey    = "rank"
 	RankVisibleMyOptionOn     = "on"
 	RankVisibleMyOptionOff    = "off"
 
 	FavoriteColorMyOptionPrefix = "color="
+	FavoriteColorMyOptionKey    = "color"
 
 	FullWidthSpace     = "　"
 	HalfWidthSpace     = " "

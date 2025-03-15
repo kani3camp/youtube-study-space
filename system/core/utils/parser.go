@@ -25,6 +25,8 @@ func ParseCommand(fullString string, isMember bool) (*CommandDetails, string) {
 		slog.Info("Replaced emoji command to text", "fullString", fullString)
 	}
 
+	slog.Info("formatted string", "fullString", fullString)
+
 	if strings.HasPrefix(fullString, CommandPrefix) || strings.HasPrefix(fullString, MemberCommandPrefix) {
 		slice := strings.Split(fullString, HalfWidthSpace)
 		switch slice[0] {
@@ -184,31 +186,48 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 
 var (
 	emojiCommandRegex = regexp.MustCompile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
-	workRegex         = regexp.MustCompile(`(work=|w=|work-|w-)`)
-	minRegex          = regexp.MustCompile(`(min=|m=|min-|m-)`)
-	orderRegex        = regexp.MustCompile(`(order=|o=)`)
 )
 
-// FormatStringToParse
-// 全角スペースを半角に変換
-// 全角イコールを半角に変換
-// 前後のスペースをトリム
-// `！`（全角）で始まるなら半角に変換
-// `／`（全角）で始まるなら半角に変換
-// 複数の空白が連続する場合は1つにする
-// `!`や`/`の隣が空白ならその空白を消す
+// FormatStringToParse はコマンド解析のために文字列を整形する
 func FormatStringToParse(fullString string) string {
+	// 全角スペースを半角に変換
 	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
+
+	// 全角イコールを半角に変換
 	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+
+	// 前後のスペースをトリム
 	fullString = strings.TrimSpace(fullString)
 
-	// プレフィックスが全角なら半角に変換
+	// `！`（全角）で始まるなら半角に変換
 	if strings.HasPrefix(fullString, CommandPrefixFullWidth) {
 		fullString = strings.Replace(fullString, CommandPrefixFullWidth, CommandPrefix, 1)
 	}
+	// `／`（全角）で始まるなら半角に変換
 	if strings.HasPrefix(fullString, MemberCommandPrefixFullWidth) {
 		fullString = strings.Replace(fullString, MemberCommandPrefixFullWidth, MemberCommandPrefix, 1)
 	}
+
+	// work=やmin=のようなオプションで=を空白に変換。
+	fullString = strings.ReplaceAll(fullString, " work=", " work ")
+	fullString = strings.ReplaceAll(fullString, " min=", " min ")
+	fullString = strings.ReplaceAll(fullString, " order=", " order ")
+	fullString = strings.ReplaceAll(fullString, " w=", " w ")
+	fullString = strings.ReplaceAll(fullString, " m=", " m ")
+	fullString = strings.ReplaceAll(fullString, " o=", " o ")
+	fullString = strings.ReplaceAll(fullString, " work-", " work ")
+	fullString = strings.ReplaceAll(fullString, " w-", " work ")
+	fullString = strings.ReplaceAll(fullString, " min-", " min ")
+	fullString = strings.ReplaceAll(fullString, " m-", " min ")
+	fullString = strings.ReplaceAll(fullString, " order-", " order ")
+	fullString = strings.ReplaceAll(fullString, " o-", " order ")
+	fullString = strings.ReplaceAll(fullString, " rank=", " rank ")
+	fullString = strings.ReplaceAll(fullString, " color=", " color ")
+
+	// オプションの短縮系は非短縮に変換
+	fullString = strings.ReplaceAll(fullString, " w ", " work ")
+	fullString = strings.ReplaceAll(fullString, " m ", " min ")
+	fullString = strings.ReplaceAll(fullString, " o ", " order ")
 
 	// 複数の空白が連続する場合は1つにする
 	fullString = strings.Join(strings.Fields(fullString), HalfWidthSpace)
@@ -306,11 +325,11 @@ func ParseSeatIn(seatNum int, commandExcludedStr string, isMemberSeat bool) (*Co
 	return ParseIn(commandExcludedStr, isMemberSeat, true, seatNum)
 }
 
-func ParseInfo(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
+func ParseInfo(argText string) (*CommandDetails, string) {
+	fields := strings.Fields(argText)
 	showDetails := false
 
-	if len(slice) >= 2 && slice[1] == ShowDetailsOption {
+	if len(fields) > 0 && fields[0] == ShowDetailsOption {
 		showDetails = true
 	}
 
@@ -322,10 +341,8 @@ func ParseInfo(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseMy(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
-	options, message := ParseMyOptions(slice[1:])
+func ParseMy(argText string) (*CommandDetails, string) {
+	options, message := ParseMyOptions(argText)
 	if message != "" {
 		return nil, message
 	}
@@ -336,51 +353,91 @@ func ParseMy(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseMyOptions(strSlice []string) ([]MyOption, string) {
+func ParseMyOptions(argText string) ([]MyOption, string) {
+	fields := strings.Fields(argText)
+
+	const (
+		Rank = iota
+		Min
+		Color
+		Any
+	)
+	currentMode := Any
+
 	isRankVisibleSet := false
+	var rankVisibleValue bool
 	isDefaultStudyMinSet := false
+	var defaultStudyMinValue int
 	isFavoriteColorSet := false
+	var favoriteColorValue string
 
-	options := make([]MyOption, 0)
-
-	for _, str := range strSlice {
-		if strings.HasPrefix(str, RankVisibleMyOptionPrefix) && !isRankVisibleSet {
-			var rankVisible bool
-			rankVisibleStr := strings.TrimPrefix(str, RankVisibleMyOptionPrefix)
-			if rankVisibleStr == RankVisibleMyOptionOn {
-				rankVisible = true
-			} else if rankVisibleStr == RankVisibleMyOptionOff {
-				rankVisible = false
+	for _, field := range fields {
+		switch currentMode {
+		case Rank:
+			if field == RankVisibleMyOptionOn {
+				rankVisibleValue = true
+				isRankVisibleSet = true
+			} else if field == RankVisibleMyOptionOff {
+				rankVisibleValue = false
+				isRankVisibleSet = true
 			} else {
 				return []MyOption{}, i18n.T("parse:check-option", RankVisibleMyOptionPrefix)
 			}
-			options = append(options, MyOption{
-				Type:      RankVisible,
-				BoolValue: rankVisible,
-			})
-			isRankVisibleSet = true
-		} else if HasTimeOptionPrefix(str) && !isDefaultStudyMinSet {
-			var durationMin int
-			// 0もしくは空欄ならリセットなので、空欄も許可。リセットは内部的には0で扱う。
-			var message string
-			durationMin, message = ParseDurationMinOption([]string{str}, false, true)
-			if message != "" {
-				return nil, message
+			currentMode = Any
+			continue
+		case Min:
+			// 0もしくは空欄ならリセットとする。リセットは内部的には0で扱う。
+			if field == RankVisibleMyOptionOn || field == RankVisibleMyOptionOff {
+				defaultStudyMinValue = 0
+			} else {
+				value, err := strconv.Atoi(field)
+				if err != nil {
+					return []MyOption{}, i18n.T("parse:check-option", TimeOptionPrefix)
+				}
+				defaultStudyMinValue = value
 			}
-			options = append(options, MyOption{
-				Type:     DefaultStudyMin,
-				IntValue: durationMin,
-			})
-			isDefaultStudyMinSet = true
-		} else if strings.HasPrefix(str, FavoriteColorMyOptionPrefix) && !isFavoriteColorSet {
-			var paramStr = strings.TrimPrefix(str, FavoriteColorMyOptionPrefix)
-			options = append(options, MyOption{
-				Type:        FavoriteColor,
-				StringValue: paramStr,
-			})
-			isFavoriteColorSet = true
+			currentMode = Any
+			continue
+		case Color:
+			favoriteColorValue = field
+			currentMode = Any
+			continue
+		default:
+			// pass
+		}
+
+		if field == RankVisibleMyOptionKey && !isRankVisibleSet {
+			currentMode = Rank
+		} else if field == TimeOptionKey && !isDefaultStudyMinSet {
+			currentMode = Min
+			isDefaultStudyMinSet = true // 空白の場合も対応（リセット）するのでここでセット
+		} else if field == FavoriteColorMyOptionKey && !isFavoriteColorSet {
+			currentMode = Color
+			isFavoriteColorSet = true // 空白の場合も対応（リセット）するのでここでセット
 		}
 	}
+
+	options := make([]MyOption, 0)
+
+	if isRankVisibleSet {
+		options = append(options, MyOption{
+			Type:      RankVisible,
+			BoolValue: rankVisibleValue,
+		})
+	}
+	if isDefaultStudyMinSet {
+		options = append(options, MyOption{
+			Type:     DefaultStudyMin,
+			IntValue: defaultStudyMinValue,
+		})
+	}
+	if isFavoriteColorSet {
+		options = append(options, MyOption{
+			Type:        FavoriteColor,
+			StringValue: favoriteColorValue,
+		})
+	}
+
 	return options, ""
 }
 
@@ -549,11 +606,9 @@ func ParseBreak(commandString string) (*CommandDetails, string) {
 	}, ""
 }
 
-func ParseResume(commandString string) (*CommandDetails, string) {
-	slice := strings.Split(commandString, HalfWidthSpace)
-
+func ParseResume(argText string) (*CommandDetails, string) {
 	// 作業名
-	option := ParseWorkNameOption(slice)
+	option := ParseWorkNameOption(argText)
 
 	return &CommandDetails{
 		CommandType:  Resume,
@@ -599,19 +654,22 @@ func ParseOrderOption(strSlice []string) (*OrderOption, string) {
 	}, ""
 }
 
-func ParseWorkNameOption(strSlice []string) WorkNameOption {
+func ParseWorkNameOption(argText string) WorkNameOption {
+	argText = strings.TrimSpace(argText)
 
-	for _, str := range strSlice {
-		if HasWorkNameOptionPrefix(str) {
-			workName := TrimWorkNameOptionPrefix(str)
-			return WorkNameOption{
-				IsWorkNameSet: true,
-				WorkName:      workName,
-			}
+	fields := strings.Fields(argText)
+	if len(fields) == 0 {
+		return WorkNameOption{
+			IsWorkNameSet: false,
 		}
 	}
+
+	workName := strings.TrimPrefix(argText, WorkNameOptionKey)
+	workName = strings.TrimSpace(workName)
+
 	return WorkNameOption{
-		IsWorkNameSet: false,
+		IsWorkNameSet: true,
+		WorkName:      workName,
 	}
 }
 
@@ -640,66 +698,60 @@ func ParseDurationMinOption(strSlice []string, allowNonPrefix bool, allowEmpty b
 func ParseMinWorkOrderOptions(commandExcludedStr string) (*MinWorkOrderOption, string) {
 	var options MinWorkOrderOption
 
-	minLoc := minRegex.FindStringIndex(commandExcludedStr)
-	workLoc := workRegex.FindStringIndex(commandExcludedStr)
-	orderLoc := orderRegex.FindStringIndex(commandExcludedStr)
+	const (
+		Min = iota
+		Order
+		Any
+		Work
+	)
 
-	// minオプション
-	if minLoc != nil {
-		targetStr := commandExcludedStr[minLoc[1]:]
-		fields := strings.Fields(targetStr)
-		if len(fields) == 0 {
-			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+	currentMode := Any // NOTE: 作業内容はオプションwork明示なしもあるので、初期値はWork
+	for _, field := range strings.Fields(commandExcludedStr) {
+		switch currentMode {
+		case Min:
+			value, err := strconv.Atoi(field)
+			if err != nil {
+				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+			}
+			options.DurationMin = value
+			options.IsDurationMinSet = true
+			currentMode = Any
+			continue
+		case Order:
+			value, err := strconv.Atoi(field)
+			if err != nil {
+				return nil, i18n.T("parse:check-option", OrderOptionPrefix)
+			}
+			options.OrderNum = value
+			options.IsOrderSet = true
+			currentMode = Any
+			continue
+		case Work:
+			if field == TimeOptionKey || field == OrderOptionKey {
+				currentMode = Any
+			} else {
+				options.WorkName += field + HalfWidthSpace
+				continue
+			}
+		default:
+			// pass
 		}
-		minValueStr := fields[0]
-		minValue, err := strconv.Atoi(strings.TrimSpace(minValueStr))
-		if err != nil {
-			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
-		}
-		options.DurationMin = minValue
-		options.IsDurationMinSet = true
 
-		// パースした部分は空白にしておく
-		targetStart := minLoc[1] + strings.Index(commandExcludedStr[minLoc[1]:], minValueStr) // min=のあとに空白が入る場合があるので正確に位置を求める
-		targetEnd := targetStart + len(minValueStr)
-		commandExcludedStr = commandExcludedStr[:minLoc[0]] + strings.Repeat(HalfWidthSpace, targetEnd-minLoc[0]) + commandExcludedStr[targetEnd:]
-	}
-
-	// orderオプション
-	if orderLoc != nil {
-		targetStr := commandExcludedStr[orderLoc[1]:]
-		fields := strings.Fields(targetStr)
-		if len(fields) == 0 {
-			return nil, i18n.T("parse:check-option", OrderOptionPrefix)
-		}
-		orderValueStr := fields[0]
-		orderValue, err := strconv.Atoi(strings.TrimSpace(orderValueStr))
-		if err != nil {
-			return nil, i18n.T("parse:check-option", OrderOptionPrefix)
-		}
-		options.OrderNum = orderValue
-		options.IsOrderSet = true
-
-		// パースした部分は空白にしておく
-		targetStart := orderLoc[1] + strings.Index(commandExcludedStr[orderLoc[1]:], orderValueStr) // order=のあとに空白が入る場合があるので正確に位置を求める
-		targetEnd := targetStart + len(orderValueStr)
-		commandExcludedStr = commandExcludedStr[:orderLoc[0]] + strings.Repeat(HalfWidthSpace, targetEnd-orderLoc[0]) + commandExcludedStr[targetEnd:]
-	}
-
-	// workオプション
-	if workLoc != nil {
-		workNameValue := commandExcludedStr[workLoc[1]:]
-		options.WorkName = strings.TrimSpace(workNameValue)
-		options.IsWorkNameSet = true
-	}
-
-	// 明示的なwork=指定なしの場合
-	if !options.IsWorkNameSet {
-		options.WorkName = strings.TrimSpace(commandExcludedStr)
-		if options.WorkName != "" {
+		if field == TimeOptionKey && !options.IsDurationMinSet {
+			currentMode = Min
+		} else if field == OrderOptionKey && !options.IsOrderSet {
+			currentMode = Order
+		} else if field == WorkNameOptionKey && !options.IsWorkNameSet {
+			currentMode = Work
+			options.IsWorkNameSet = true // リセット（空文字）の場合もあるので、ここでセット
+		} else if !options.IsWorkNameSet {
+			currentMode = Work
 			options.IsWorkNameSet = true
+			options.WorkName += field + HalfWidthSpace
 		}
 	}
+
+	options.WorkName = strings.TrimSpace(options.WorkName)
 
 	return &options, ""
 }

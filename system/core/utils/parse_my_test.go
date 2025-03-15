@@ -88,16 +88,16 @@ func TestParseMy(t *testing.T) {
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
+						Type:      RankVisible,
+						BoolValue: false,
+					},
+					{
 						Type:     DefaultStudyMin,
 						IntValue: 40,
 					},
 					{
 						Type:        FavoriteColor,
 						StringValue: "ピンク",
-					},
-					{
-						Type:      RankVisible,
-						BoolValue: false,
 					},
 				},
 			},
@@ -128,16 +128,16 @@ func TestParseMy(t *testing.T) {
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
-						Type:        FavoriteColor,
-						StringValue: "白",
+						Type:      RankVisible,
+						BoolValue: false,
 					},
 					{
 						Type:     DefaultStudyMin,
 						IntValue: 200,
 					},
 					{
-						Type:      RankVisible,
-						BoolValue: false,
+						Type:        FavoriteColor,
+						StringValue: "白",
 					},
 				},
 			},
@@ -168,16 +168,16 @@ func TestParseMy(t *testing.T) {
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
-						Type:        FavoriteColor,
-						StringValue: "白",
+						Type:      RankVisible,
+						BoolValue: true,
 					},
 					{
 						Type:     DefaultStudyMin,
 						IntValue: 100,
 					},
 					{
-						Type:      RankVisible,
-						BoolValue: true,
+						Type:        FavoriteColor,
+						StringValue: "白",
 					},
 				},
 			},
@@ -190,16 +190,16 @@ func TestParseMy(t *testing.T) {
 				CommandType: My,
 				MyOptions: []MyOption{
 					{
-						Type:        FavoriteColor,
-						StringValue: "白",
+						Type:      RankVisible,
+						BoolValue: true,
 					},
 					{
 						Type:     DefaultStudyMin,
 						IntValue: 100,
 					},
 					{
-						Type:      RankVisible,
-						BoolValue: true,
+						Type:        FavoriteColor,
+						StringValue: "白",
 					},
 				},
 			},

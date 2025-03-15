@@ -80,14 +80,14 @@ func TestParseChange(t *testing.T) {
 			},
 		},
 		{
-			Name:  "work=を優先",
-			Input: "!change テスト m=140 w=work",
+			Name:  "一番左の作業内容を優先",
+			Input: "!change テスト1 m=140 w=テスト2",
 			Output: &CommandDetails{
 				CommandType: Change,
 				ChangeOption: MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
-					WorkName:         "work",
+					WorkName:         "テスト1",
 					DurationMin:      140,
 				},
 			},

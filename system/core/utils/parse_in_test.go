@@ -80,7 +80,7 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:  "従来のオプション指定（work-, min-）",
+			Name:  "従来のオプション指定（work-,min-）",
 			Input: "!in min-30 work-テスト",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -97,6 +97,24 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "作業名と時間指定と注文付き入室",
+			Input: "!in work てすと min 50 order 3",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinutesAndWorkName: &MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						IsOrderSet:       true,
+						WorkName:         "てすと",
+						DurationMin:      50,
+						OrderNum:         3,
+					},
+				},
+			},
+		},
+		{
+			Name:  "作業名と時間指定と注文付き入室（=付き）",
 			Input: "!in work=てすと min=50 order=3",
 			Output: &CommandDetails{
 				CommandType: In,
@@ -131,7 +149,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "時間指定が先の入室",
-			Input: "!in min=60 work=わーく",
+			Input: "!in min 60 work わーく",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -147,7 +165,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "短い作業名付き入室",
-			Input: "!in min=60 work=w",
+			Input: "!in min 60 work w",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -163,7 +181,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "メニュー注文付き入室",
-			Input: "!in order=3",
+			Input: "!in order 3",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -176,7 +194,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "メニュー注文つき（短縮形）",
-			Input: "!in o=3",
+			Input: "!in o 3",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -204,7 +222,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "work=なしで時間指定 時間指定あり",
-			Input: "!in テスト min=60",
+			Input: "!in テスト min 60",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -250,7 +268,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "席番号0と作業名と時間指定付き入室",
-			Input: "!0  min=180 work=work",
+			Input: "!0  min 180 work work",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -267,7 +285,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "席番号1と作業名と時間指定付き入室",
-			Input: "!1 work=work min=35",
+			Input: "!1 work work min 35",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -284,7 +302,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "席番号300と短縮形作業名指定付き入室",
-			Input: "!300 w=ｙ",
+			Input: "!300 w ｙ",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -317,7 +335,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "work=なしで作業名指定 オプション順不同",
-			Input: "!in m=165 テスト",
+			Input: "!in m 165 テスト",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -332,8 +350,8 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
-			Name:  "work=を優先",
-			Input: "!in テスト m=165 w=work",
+			Name:  "一番左の作業内容を優先",
+			Input: "!in テスト m 165 w=work",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -341,7 +359,7 @@ func TestParseIn(t *testing.T) {
 					MinutesAndWorkName: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
-						WorkName:         "work",
+						WorkName:         "テスト",
 						DurationMin:      165,
 					},
 				},
@@ -360,7 +378,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "メンバー席番号1と作業名と時間指定付き入室",
-			Input: "/1 work=work min=35",
+			Input: "/1 work work min 35",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
@@ -378,7 +396,7 @@ func TestParseIn(t *testing.T) {
 		},
 		{
 			Name:  "work=なしで作業名指定可能 オプション順不同",
-			Input: "/1 てすと m=165",
+			Input: "/1 てすと m 165",
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{

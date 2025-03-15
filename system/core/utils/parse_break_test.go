@@ -120,6 +120,10 @@ func TestParseBreak(t *testing.T) {
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: Resume,
+				ResumeOption: WorkNameOption{
+					IsWorkNameSet: true,
+					WorkName:      ":_commandWork0:www",
+				},
 			},
 		},
 
