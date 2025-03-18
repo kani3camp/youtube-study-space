@@ -298,6 +298,17 @@ func TestParseCommand(t *testing.T) {
 			},
 		},
 		{
+			Name:     "メンバーによる絵文字オーダー（空白あり）",
+			Input:    TestEmojiOrder0 + " 22",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: Order,
+				OrderOption: OrderOption{
+					IntValue: 22,
+				},
+			},
+		},
+		{
 			Name:     "非メンバーによる絵文字オーダーキャンセルは無効１",
 			Input:    TestEmojiOrder0 + "-",
 			IsMember: false,
