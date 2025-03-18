@@ -81,11 +81,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		}
 
 		// 作業時間が指定されているか？
-		if !inOption.MinutesAndWorkName.IsDurationMinSet {
+		if !inOption.MinWorkOrderOption.IsDurationMinSet {
 			if userDoc.DefaultStudyMin == 0 {
-				inOption.MinutesAndWorkName.DurationMin = app.Configs.Constants.DefaultWorkTimeMin
+				inOption.MinWorkOrderOption.DurationMin = app.Configs.Constants.DefaultWorkTimeMin
 			} else {
-				inOption.MinutesAndWorkName.DurationMin = userDoc.DefaultStudyMin
+				inOption.MinWorkOrderOption.DurationMin = userDoc.DefaultStudyMin
 			}
 		}
 
@@ -113,7 +113,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		var totalOrderCount int64
 		var targetMenuItem repository.MenuDoc
 		var orderLimitExceeded bool
-		if inOption.MinutesAndWorkName.IsOrderSet {
+		if inOption.MinWorkOrderOption.IsOrderSet {
 			// メンバーでない場合は、本日の注文回数をチェック
 			totalOrderCount, err = app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, jstNow)
 			if err != nil {
@@ -122,7 +122,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			orderLimitExceeded = !app.ProcessedUserIsMember && totalOrderCount >= int64(app.Configs.Constants.MaxDailyOrderCount)
 
 			if !orderLimitExceeded {
-				targetMenuItem, err = app.GetMenuItemByNumber(inOption.MinutesAndWorkName.OrderNum)
+				targetMenuItem, err = app.GetMenuItemByNumber(inOption.MinWorkOrderOption.OrderNum)
 				if err != nil {
 					return fmt.Errorf("in GetMenuItemByNumber(): %w", err)
 				}
@@ -135,7 +135,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		// =========== 以降は書き込み処理のみ ===========
 
 		// メニュー注文されている場合は、メニューコードをセット
-		if inOption.MinutesAndWorkName.IsOrderSet {
+		if inOption.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
 				orderMessage += t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount)
 			} else {
@@ -167,7 +167,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				app.ProcessedUserProfileImageUrl,
 				isInMemberRoom,
 				isTargetMemberSeat,
-				*inOption.MinutesAndWorkName,
+				*inOption.MinWorkOrderOption,
 				currentSeat,
 				&userDoc)
 			if err != nil {
@@ -182,8 +182,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
 
 			var workName string
-			if inOption.MinutesAndWorkName.IsWorkNameSet {
-				workName = inOption.MinutesAndWorkName.WorkName
+			if inOption.MinWorkOrderOption.IsWorkNameSet {
+				workName = inOption.MinWorkOrderOption.WorkName
 			} else {
 				workName = currentSeat.WorkName
 			}
@@ -198,28 +198,28 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 			replyMessage += t("already-seat", app.ProcessedUserDisplayName, seatIdStr)
 
-			if inOption.MinutesAndWorkName.IsWorkNameSet {
+			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				switch currentSeat.State {
 				case repository.WorkState:
-					currentSeat.WorkName = inOption.MinutesAndWorkName.WorkName
-					replyMessage += i18n.T("command-change:update-work", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+					currentSeat.WorkName = inOption.MinWorkOrderOption.WorkName
+					replyMessage += i18n.T("command-change:update-work", inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				case repository.BreakState:
-					currentSeat.BreakWorkName = inOption.MinutesAndWorkName.WorkName
-					replyMessage += i18n.T("command-change:update-break", inOption.MinutesAndWorkName.WorkName, seatIdStr)
+					currentSeat.BreakWorkName = inOption.MinWorkOrderOption.WorkName
+					replyMessage += i18n.T("command-change:update-break", inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				}
 			}
 
-			if inOption.MinutesAndWorkName.IsDurationMinSet {
+			if inOption.MinWorkOrderOption.IsDurationMinSet {
 				switch currentSeat.State {
 				case repository.WorkState:
 					// 作業時間を（入室時間から自動退室までの時間）を変更
 					realtimeEntryDurationMin := int(utils.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
-					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
@@ -228,21 +228,21 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						currentSeat.Until = requestedUntil
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-						replyMessage += i18n.T("command-change:work-duration", inOption.MinutesAndWorkName.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18n.T("command-change:work-duration", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					}
 				case repository.BreakState:
 					// 休憩時間を変更
 					realtimeBreakDuration := utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
-					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinutesAndWorkName.DurationMin) * time.Minute)
+					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					} else { // それ以外ならuntilを変更
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingBreakDuration := requestedUntil.Sub(jstNow)
-						replyMessage += i18n.T("command-change:break-duration", inOption.MinutesAndWorkName.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18n.T("command-change:break-duration", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					}
 				}
 			}
@@ -259,9 +259,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				app.ProcessedUserProfileImageUrl,
 				inOption.SeatId,
 				isTargetMemberSeat,
-				inOption.MinutesAndWorkName.WorkName,
+				inOption.MinWorkOrderOption.WorkName,
 				"",
-				inOption.MinutesAndWorkName.DurationMin,
+				inOption.MinWorkOrderOption.DurationMin,
 				seatAppearance,
 				targetMenuItem.Code,
 				repository.WorkState,
@@ -280,7 +280,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 
 			// 入室しましたのメッセージ
-			replyMessage += t("start", app.ProcessedUserDisplayName, inOption.MinutesAndWorkName.WorkName, untilExitMin, newSeatId)
+			replyMessage += t("start", app.ProcessedUserDisplayName, inOption.MinWorkOrderOption.WorkName, untilExitMin, newSeatId)
 		}
 
 		replyMessage += orderMessage

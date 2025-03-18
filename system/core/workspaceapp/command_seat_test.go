@@ -41,7 +41,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -65,7 +65,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -89,7 +89,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -111,7 +111,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       false,
 			},
 		},
@@ -147,7 +147,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        true,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				SeatId:             999,
 			},
 		},
@@ -165,7 +165,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       true,
 			},
 		},
@@ -182,7 +182,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       false,
 			},
 		},
@@ -204,7 +204,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsMemberSeat:       true,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 			},
 		},
 		userIsMember:                  true,
@@ -229,7 +229,7 @@ var inTestCases = []struct {
 				IsSeatIdSet:        true,
 				IsMemberSeat:       false,
 				SeatId:             1,
-				MinutesAndWorkName: &utils.MinWorkOrderOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 			},
 		},
 		userIsMember:                  false,

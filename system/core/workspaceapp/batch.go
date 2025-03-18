@@ -285,7 +285,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 				InOption: utils.InOption{
 					IsSeatIdSet: true,
 					SeatId:      0,
-					MinutesAndWorkName: &utils.MinWorkOrderOption{
+					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						IsOrderSet:       isOrderSet,

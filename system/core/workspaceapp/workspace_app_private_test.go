@@ -33,7 +33,7 @@ func TestEnterRoom(t *testing.T) {
 	inOption := utils.InOption{
 		IsSeatIdSet: true,
 		SeatId:      1,
-		MinutesAndWorkName: &utils.MinWorkOrderOption{
+		MinWorkOrderOption: &utils.MinWorkOrderOption{
 			DurationMin: 30,
 			WorkName:    "test_work_name",
 		},
@@ -84,9 +84,9 @@ func TestEnterRoom(t *testing.T) {
 			userProfileImageUrl,
 			inOption.SeatId,
 			inOption.IsMemberSeat,
-			inOption.MinutesAndWorkName.WorkName,
+			inOption.MinWorkOrderOption.WorkName,
 			"",
-			inOption.MinutesAndWorkName.DurationMin,
+			inOption.MinWorkOrderOption.DurationMin,
 			seatAppearance,
 			repository.WorkState,
 			true,
@@ -118,7 +118,7 @@ func TestEnterRoom(t *testing.T) {
 		SeatId:                 inOption.SeatId,
 		UserId:                 userId,
 		UserDisplayName:        userDisplayName,
-		WorkName:               inOption.MinutesAndWorkName.WorkName,
+		WorkName:               inOption.MinWorkOrderOption.WorkName,
 		BreakWorkName:          "",
 		EnteredAt:              enteredAt.UTC(),
 		Until:                  expectedUntil.UTC(),

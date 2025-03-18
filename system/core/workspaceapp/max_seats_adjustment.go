@@ -52,7 +52,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMaxSeats {
 					app.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
-					// 移動させる
+					// 退出させる
 					if err := app.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
@@ -89,7 +89,8 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 							InOption: utils.InOption{
 								IsSeatIdSet: true,
 								SeatId:      0,
-								MinutesAndWorkName: &utils.MinWorkOrderOption{
+								// TODO: メニューも引き継げるようにする。ただし、システム側の都合なので注文回数はカウントしないようにしたい
+								MinWorkOrderOption: &utils.MinWorkOrderOption{
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
@@ -133,7 +134,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 			for _, seat := range seats {
 				if seat.SeatId > constants.DesiredMemberMaxSeats {
 					app.SetProcessedUser(seat.UserId, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
-					// 移動させる
+					// 退出させる
 					if err := app.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
 					}
@@ -169,7 +170,8 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 							InOption: utils.InOption{
 								IsSeatIdSet: true,
 								SeatId:      0,
-								MinutesAndWorkName: &utils.MinWorkOrderOption{
+								// TODO: メニューも引き継げるようにする。ただし、システム側の都合なので注文回数はカウントしないようにしたい
+								MinWorkOrderOption: &utils.MinWorkOrderOption{
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,

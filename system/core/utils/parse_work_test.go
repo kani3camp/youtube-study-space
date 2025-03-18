@@ -15,7 +15,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -28,7 +28,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: false,
 						WorkName:         "運動",
@@ -42,7 +42,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: true,
 						DurationMin:      30,
@@ -56,7 +56,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "運動",
@@ -71,7 +71,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
 						WorkName:         "hard work",
@@ -86,7 +86,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: false,
 						WorkName:         "",
@@ -100,7 +100,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -113,7 +113,7 @@ func TestParseWork(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: In,
 				InOption: InOption{
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -128,7 +128,7 @@ func TestParseWork(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsMemberSeat: true,
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},
@@ -143,7 +143,7 @@ func TestParseWork(t *testing.T) {
 				CommandType: In,
 				InOption: InOption{
 					IsMemberSeat: true,
-					MinutesAndWorkName: &MinWorkOrderOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
 						IsWorkNameSet:    false,
 						IsDurationMinSet: false,
 					},

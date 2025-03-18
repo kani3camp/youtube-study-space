@@ -264,7 +264,7 @@ func ParseIn(argStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId in
 		InOption: InOption{
 			IsSeatIdSet:        isSeatIdSet,
 			SeatId:             seatId,
-			MinutesAndWorkName: options,
+			MinWorkOrderOption: options,
 			IsMemberSeat:       isTargetMemberSeat,
 		},
 	}, ""

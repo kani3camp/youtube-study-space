@@ -12,7 +12,7 @@ type CommandDetails struct {
 	ReportOption ReportOption
 	ChangeOption MinWorkOrderOption
 	MoreOption   MoreOption
-	BreakOption  MinWorkOrderOption
+	BreakOption  MinWorkOrderOption // NOTE: !breakではorderオプションもパースはするが注文処理はされない
 	ResumeOption WorkNameOption
 	OrderOption  OrderOption
 }
@@ -55,7 +55,7 @@ const (
 type InOption struct {
 	IsSeatIdSet        bool
 	SeatId             int
-	MinutesAndWorkName *MinWorkOrderOption
+	MinWorkOrderOption *MinWorkOrderOption
 	IsMemberSeat       bool
 }
 

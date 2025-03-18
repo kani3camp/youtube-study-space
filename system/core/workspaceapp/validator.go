@@ -50,7 +50,7 @@ func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 
 	// 作業時間の値
-	inputWorkMin := command.InOption.MinutesAndWorkName.DurationMin
+	inputWorkMin := command.InOption.MinWorkOrderOption.DurationMin
 	if inputWorkMin != 0 {
 		expect := app.Configs.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= app.Configs.Constants.MaxWorkTimeMin
 		if !expect {
@@ -68,8 +68,8 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 	// pass
 
 	// メニュー番号
-	if command.InOption.MinutesAndWorkName.IsOrderSet {
-		num := command.InOption.MinutesAndWorkName.OrderNum
+	if command.InOption.MinWorkOrderOption.IsOrderSet {
+		num := command.InOption.MinWorkOrderOption.OrderNum
 		expect := 0 < num && num <= len(app.SortedMenuItems)
 		if !expect {
 			return i18n.T("validate:invalid-menu-number-range", len(app.SortedMenuItems))
