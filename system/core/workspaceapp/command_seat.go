@@ -364,7 +364,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 		if isInRoom {
 			currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
 			if err != nil {
-				return fmt.Errorf("failed app.CurrentSeat(): %w", err)
+				return fmt.Errorf("in app.CurrentSeat(): %w", err)
 			}
 
 			realtimeSittingDurationMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.EnteredAt)).Minutes())
