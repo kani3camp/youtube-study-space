@@ -875,7 +875,7 @@ var breakTestCases = []struct {
 			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
 			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、5番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 	},
 	{
 		name: "休憩開始（メンバー席）",
@@ -896,7 +896,7 @@ var breakTestCases = []struct {
 			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
 			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、VIP7番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"\"、最大30分、VIP7番席）",
 	},
 	{
 		name: "休憩開始（一般席：休憩中）",
@@ -917,6 +917,32 @@ var breakTestCases = []struct {
 			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、作業中のみ使えるコマンドです🙏",
+	},
+	{
+		name: "休憩開始（一般席）（休憩内容・休憩時間指定）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                10,
+			DefaultBreakDurationMin: 30,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Break,
+			BreakOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				WorkName:         "お茶を飲む",
+				IsDurationMinSet: true,
+				DurationMin:      20,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
 	},
 }
 

@@ -700,7 +700,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			seatIdStr = strconv.Itoa(currentSeat.SeatId)
 		}
 
-		replyMessage = t("break", app.ProcessedUserDisplayName, breakOption.DurationMin, seatIdStr)
+		replyMessage = t("break", app.ProcessedUserDisplayName, breakOption.WorkName, breakOption.DurationMin, seatIdStr)
 		return nil
 	})
 	if txErr != nil {
