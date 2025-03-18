@@ -1,7 +1,7 @@
 package main
 
 import (
-	"app.modules/core"
+	"app.modules/core/workspaceapp"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -10,9 +10,9 @@ import (
 )
 
 func TestSetProcessedUser(t *testing.T) {
-	s := core.System{
+	app := workspaceapp.WorkspaceApp{
 		Configs:                         nil,
-		FirestoreController:             nil,
+		Repository:                      nil,
 		ProcessedUserId:                 "",
 		ProcessedUserDisplayName:        "",
 		ProcessedUserProfileImageUrl:    "",
@@ -21,11 +21,11 @@ func TestSetProcessedUser(t *testing.T) {
 	}
 
 	// check initial values
-	assert.Equal(t, s.ProcessedUserId, "")
-	assert.Equal(t, s.ProcessedUserDisplayName, "")
-	assert.Equal(t, s.ProcessedUserProfileImageUrl, "")
-	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, false)
-	assert.Equal(t, s.ProcessedUserIsMember, false)
+	assert.Equal(t, app.ProcessedUserId, "")
+	assert.Equal(t, app.ProcessedUserDisplayName, "")
+	assert.Equal(t, app.ProcessedUserProfileImageUrl, "")
+	assert.Equal(t, app.ProcessedUserIsModeratorOrOwner, false)
+	assert.Equal(t, app.ProcessedUserIsMember, false)
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -35,14 +35,14 @@ func TestSetProcessedUser(t *testing.T) {
 	isChatModerator := r.Intn(2) == 0
 	isChatOwner := r.Intn(2) == 0
 	isChatMember := r.Intn(2) == 0
-	s.SetProcessedUser(userId, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
+	app.SetProcessedUser(userId, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
 
 	// 正しくセットされたか
-	assert.Equal(t, s.ProcessedUserId, userId)
-	assert.Equal(t, s.ProcessedUserDisplayName, userDisplayName)
-	assert.Equal(t, s.ProcessedUserProfileImageUrl, userProfileImageUrl)
-	assert.Equal(t, s.ProcessedUserIsModeratorOrOwner, isChatModerator || isChatOwner)
-	assert.Equal(t, s.ProcessedUserIsMember, isChatMember)
+	assert.Equal(t, app.ProcessedUserId, userId)
+	assert.Equal(t, app.ProcessedUserDisplayName, userDisplayName)
+	assert.Equal(t, app.ProcessedUserProfileImageUrl, userProfileImageUrl)
+	assert.Equal(t, app.ProcessedUserIsModeratorOrOwner, isChatModerator || isChatOwner)
+	assert.Equal(t, app.ProcessedUserIsMember, isChatMember)
 }
 
 func TestCalculateRetryIntervalSec(t *testing.T) {

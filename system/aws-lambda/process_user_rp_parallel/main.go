@@ -1,17 +1,18 @@
 package main
 
 import (
-	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
-	"app.modules/core/utils"
+	"app.modules/core/workspaceapp"
 	"context"
 	"encoding/json"
+	"log/slog"
+	"strconv"
+
+	"app.modules/aws-lambda/lambdautils"
+	"app.modules/core/utils"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambda2 "github.com/aws/aws-sdk-go/service/lambda"
-	"log/slog"
-	"strconv"
 )
 
 type ProcessUserRPParallelResponseStruct struct {
@@ -27,22 +28,22 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	sys, err := core.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return ProcessUserRPParallelResponseStruct{}, err
 	}
-	defer sys.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
 	slog.Info("process index: " + strconv.Itoa(request.ProcessIndex))
-	remainingUserIds := sys.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
+	remainingUserIds := app.UpdateUserRPBatch(ctx, request.UserIds, lambdautils.InterruptTimeLimitSec)
 
 	// 残っているならば次を呼び出す
 	if len(remainingUserIds) > 0 {
-		sys.MessageToOwner(strconv.Itoa(len(remainingUserIds)) + "個のユーザーが未処理のため、次のlambdaを呼び出します。")
+		app.MessageToOwner(ctx, strconv.Itoa(len(remainingUserIds))+"個のユーザーが未処理のため、次のlambdaを呼び出します。")
 
 		sess, err := session.NewSession()
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to session.NewSession()", err)
+			app.MessageToOwnerWithError(ctx, "failed to session.NewSession()", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		svc := lambda2.New(sess)
@@ -52,7 +53,7 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 		}
 		jsonBytes, err := json.Marshal(payload)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to json.Marshal(payload)", err)
+			app.MessageToOwnerWithError(ctx, "failed to json.Marshal(payload)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		input := lambda2.InvokeInput{
@@ -62,12 +63,12 @@ func ProcessUserRPParallel(request lambdautils.UserRPParallelRequest) (ProcessUs
 		}
 		resp, err := svc.Invoke(&input)
 		if err != nil {
-			sys.MessageToOwnerWithError("failed to svc.Invoke(&input)", err)
+			app.MessageToOwnerWithError(ctx, "failed to svc.Invoke(&input)", err)
 			return ProcessUserRPParallelResponseStruct{}, err
 		}
 		slog.Info("lambda invoked.", "output", resp)
 	} else {
-		sys.MessageToOwner("batch process (index: " + strconv.Itoa(request.ProcessIndex) + ") completed.👍")
+		app.MessageToOwner(ctx, "batch process (index: "+strconv.Itoa(request.ProcessIndex)+") completed.👍")
 	}
 
 	return ProcessUserRPParallelResponse(), nil

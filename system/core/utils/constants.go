@@ -1,31 +1,40 @@
 package utils
 
 const (
-	CommandPrefix       = "!"
-	WrongCommandPrefix  = "！"
-	MemberCommandPrefix = "/"
+	CommandPrefix                = "!"
+	CommandPrefixFullWidth       = "！"
+	MemberCommandPrefix          = "/"
+	MemberCommandPrefixFullWidth = "／"
 
-	InCommand      = "!in"
-	OutCommand     = "!out"
-	InfoCommand    = "!info"
-	MyCommand      = "!my"
-	ChangeCommand  = "!change"
-	SeatCommand    = "!seat"
-	ReportCommand  = "!report"
-	MoreCommand    = "!more"
-	OkawariCommand = "!okawari"
-	RankCommand    = "!rank"
-	BreakCommand   = "!break"
-	RestCommand    = "!rest"
-	ChillCommand   = "!chill"
-	ResumeCommand  = "!resume"
-	OrderCommand   = "!order"
+	InCommand         = "!in"
+	InZeroCommand     = "!0"
+	OutCommand        = "!out"
+	InfoCommand       = "!info"
+	InfoDCommand      = "!info d"
+	MyCommand         = "!my"
+	ChangeCommand     = "!change"
+	SeatCommand       = "!seat"
+	SeatDCommand      = "!seat d"
+	ReportCommand     = "!report"
+	MoreCommand       = "!more"
+	OkawariCommand    = "!okawari"
+	RankCommand       = "!rank"
+	BreakCommand      = "!break"
+	RestCommand       = "!rest"
+	ChillCommand      = "!chill"
+	ResumeCommand     = "!resume"
+	OrderCommand      = "!order"
+	OrderClearCommand = "!order -"
+	WorkCommand       = "!work"
+	ClearCommand      = "!clear"
+	ClearShortCommand = "!clr"
 
 	KickCommand  = "!kick"
 	CheckCommand = "!check"
 	BlockCommand = "!block"
 
-	MemberInCommand = "/in"
+	MemberInCommand   = "/in"
+	MemberWorkCommand = "/work"
 
 	MemberKickCommand  = "/kick"
 	MemberCheckCommand = "/check"
@@ -45,6 +54,7 @@ const (
 	MoreString         = "More"
 	BreakString        = "Break"
 	ResumeString       = "Resume"
+	RankString         = "Rank"
 	WorkString         = "Work"
 	MinString          = "Min"
 	ColorString        = "Color"
@@ -52,25 +62,26 @@ const (
 	RankOffString      = "RankOff"
 	MemberInString     = "MemberIn"
 	OrderString        = "Order"
+	OrderClearString   = "OrderClr"
 
-	WorkNameOptionPrefix            = "work="
-	WorkNameOptionShortPrefix       = "w="
-	WorkNameOptionPrefixLegacy      = "work-"
-	WorkNameOptionShortPrefixLegacy = "w-"
+	WorkNameOptionKey = "work"
 
-	TimeOptionPrefix            = "min="
-	TimeOptionShortPrefix       = "m="
-	TimeOptionPrefixLegacy      = "min-"
-	TimeOptionShortPrefixLegacy = "m-"
+	TimeOptionPrefix = "min="
+	TimeOptionKey    = "min"
+
+	OrderOptionPrefix = "order="
+	OrderOptionKey    = "order"
 
 	ShowDetailsOption = "d"
-	OrderCancelOption = "-"
+	OrderClearOption  = "-"
 
 	RankVisibleMyOptionPrefix = "rank="
+	RankVisibleMyOptionKey    = "rank"
 	RankVisibleMyOptionOn     = "on"
 	RankVisibleMyOptionOff    = "off"
 
 	FavoriteColorMyOptionPrefix = "color="
+	FavoriteColorMyOptionKey    = "color"
 
 	FullWidthSpace     = "　"
 	HalfWidthSpace     = " "
@@ -79,27 +90,3 @@ const (
 )
 
 type EmojiElement int
-
-const (
-	EmojiIn EmojiElement = iota
-	EmojiInZero
-	EmojiOut
-	EmojiInfo
-	EmojiInfoD
-	EmojiMy
-	EmojiChange
-	EmojiSeat
-	EmojiSeatD
-	EmojiMore
-	EmojiBreak
-	EmojiResume
-	EmojiMemberIn
-	EmojiOrder
-	EmojiOrderCancel
-
-	EmojiWork
-	EmojiMin
-	EmojiColor
-	EmojiRankOn
-	EmojiRankOff
-)
