@@ -1,30 +1,35 @@
 package workspaceapp
 
 import (
+	"context"
+	"fmt"
+	"sort"
+	"testing"
+	"time"
+
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
-	mock_myfirestore "app.modules/core/repository/mocks"
+	mock_repository "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"sort"
-	"testing"
-	"time"
 )
 
 var inTestCases = []struct {
-	name                 string
-	constantsConfig      repository.ConstantsConfigDoc
-	commandDetails       utils.CommandDetails
-	userIsMember         bool
-	targetSeatDoc        *repository.SeatDoc
-	expectedReplyMessage string
+	name                          string
+	constantsConfig               repository.ConstantsConfigDoc
+	commandDetails                utils.CommandDetails
+	userIsMember                  bool
+	targetSeatDoc                 *repository.SeatDoc
+	currentSeatOfUserIsMemberSeat bool
+	currentSeatOfUser             *repository.SeatDoc
+	currentSeatDeleted            bool
+	seatMoved                     bool
+	expectedReplyMessage          string
 }{
 	{
 		name: "一般席入室",
@@ -36,7 +41,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -47,7 +52,7 @@ var inTestCases = []struct {
 		},
 		userIsMember:         false,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（最大30分、1番席）",
+		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、1番席）",
 	},
 	{
 		name: "メンバー席入室",
@@ -60,7 +65,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -71,10 +76,10 @@ var inTestCases = []struct {
 		},
 		userIsMember:         true,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（最大30分、VIP1番席）",
+		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、VIP1番席）",
 	},
 	{
-		name: "メンバー以外がメンバー席入室",
+		name: "メンバー以外はメンバー席に入室できない",
 		constantsConfig: repository.ConstantsConfigDoc{
 			YoutubeMembershipEnabled: true,
 			MemberMaxSeats:           10,
@@ -84,7 +89,7 @@ var inTestCases = []struct {
 			InOption: utils.InOption{
 				IsSeatIdSet: true,
 				SeatId:      1,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: true,
 					DurationMin:      30,
@@ -106,13 +111,13 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       false,
 			},
 		},
 		userIsMember:         false,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（最大100分、1番席）",
+		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"\"、最大100分、1番席）",
 	},
 	{
 		name: "一般席：指定した座席が空いていない",
@@ -142,7 +147,7 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        true,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				SeatId:             999,
 			},
 		},
@@ -160,13 +165,85 @@ var inTestCases = []struct {
 			CommandType: utils.In,
 			InOption: utils.InOption{
 				IsSeatIdSet:        false,
-				MinutesAndWorkName: &utils.MinutesAndWorkNameOption{},
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				IsMemberSeat:       true,
 			},
 		},
 		userIsMember:         true,
 		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（最大100分、VIP1番席）",
+		expectedReplyMessage: "@テストユーザーさんが作業を始めました🔥（作業内容：\"\"、最大100分、VIP1番席）",
+	},
+	{
+		name: "一般席入室：すでに入室中",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:        false,
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
+				IsMemberSeat:       false,
+			},
+		},
+		userIsMember: false,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId: 1,
+			UserId: "test_user_id",
+			State:  repository.WorkState,
+		},
+		expectedReplyMessage: "@テストユーザーさんは1番の席に座っています🪑",
+	},
+	{
+		name: "メンバー席入室：すでに入室中",
+		constantsConfig: repository.ConstantsConfigDoc{
+			YoutubeMembershipEnabled: true,
+			MemberMaxSeats:           10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsMemberSeat:       true,
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
+			},
+		},
+		userIsMember:                  true,
+		currentSeatOfUserIsMemberSeat: true,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId: 1,
+			UserId: "test_user_id",
+			State:  repository.WorkState,
+		},
+		expectedReplyMessage: "@テストユーザーさんはVIP1番の席に座っています🪑",
+	},
+	{
+		name: "一般席入室：すでにメンバー席に入室中なので席移動",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                 10,
+			YoutubeMembershipEnabled: true,
+			MemberMaxSeats:           10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:        true,
+				IsMemberSeat:       false,
+				SeatId:             1,
+				MinWorkOrderOption: &utils.MinWorkOrderOption{},
+			},
+		},
+		userIsMember:                  false,
+		currentSeatOfUserIsMemberSeat: true,
+		currentSeatOfUser: &repository.SeatDoc{
+			SeatId:                1,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+		},
+		currentSeatDeleted:   true,
+		seatMoved:            true,
+		expectedReplyMessage: "@テストユーザーさんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
 	},
 }
 
@@ -176,7 +253,7 @@ func TestSystem_In(t *testing.T) {
 
 	for _, tt := range inTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
 			if tt.commandDetails.InOption.IsSeatIdSet {
 				var seatDoc repository.SeatDoc
 				var seatErr error
@@ -204,10 +281,15 @@ func TestSystem_In(t *testing.T) {
 					RankVisible:        false,
 					IsContinuousActive: false,
 				}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", true).
-				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", false).
-				Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			if tt.currentSeatOfUser != nil {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.currentSeatOfUserIsMemberSeat).
+					Return(*tt.currentSeatOfUser, nil).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.currentSeatOfUserIsMemberSeat).
+					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			} else {
+				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", gomock.Any()).
+					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			}
 			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -215,7 +297,7 @@ func TestSystem_In(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -224,11 +306,20 @@ func TestSystem_In(t *testing.T) {
 					},
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
+			if tt.currentSeatOfUser != nil && !tt.seatMoved {
+				mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
+			if tt.currentSeatDeleted {
+				mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), tt.currentSeatOfUser.SeatId, tt.currentSeatOfUserIsMemberSeat).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+			}
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
@@ -243,7 +334,7 @@ func TestSystem_In(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.In(context.Background(), &tt.commandDetails)
+			err := app.In(context.Background(), &tt.commandDetails.InOption)
 
 			assert.Nil(t, err)
 		})
@@ -283,8 +374,8 @@ func TestSystem_Out(t *testing.T) {
 
 	for _, tt := range outTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -305,10 +396,10 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -320,7 +411,7 @@ func TestSystem_Out(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Out(&tt.commandDetails, context.Background())
+			err := app.Out(context.Background())
 
 			assert.Nil(t, err)
 		})
@@ -364,9 +455,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -392,9 +483,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{},
 		memberSeats: []repository.SeatDoc{
@@ -423,9 +514,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -445,8 +536,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 	for _, tt := range showSeatInfoTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -470,10 +561,10 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -488,7 +579,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.ShowSeatInfo(&tt.commandDetails, context.Background())
+			err := app.ShowSeatInfo(context.Background(), &tt.commandDetails.SeatOption)
 
 			assert.Nil(t, err)
 		})
@@ -512,7 +603,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",
@@ -524,11 +615,11 @@ var changeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
+		expectedReplyMessage: "@テストユーザーさん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
 	{
 		name: "作業内容・入室時間変更（メンバー席）",
@@ -540,7 +631,7 @@ var changeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Change,
-			ChangeOption: utils.MinutesAndWorkNameOption{
+			ChangeOption: utils.MinWorkOrderOption{
 				IsWorkNameSet:    true,
 				IsDurationMinSet: true,
 				WorkName:         "テスト作業",
@@ -552,11 +643,11 @@ var changeTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん、作業内容を更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
+		expectedReplyMessage: "@テストユーザーさん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
 }
 
@@ -566,8 +657,8 @@ func TestSystem_Change(t *testing.T) {
 
 	for _, tt := range changeTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -588,10 +679,10 @@ func TestSystem_Change(t *testing.T) {
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -606,7 +697,7 @@ func TestSystem_Change(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Change(&tt.commandDetails, context.Background())
+			err := app.Change(context.Background(), &tt.commandDetails.ChangeOption)
 
 			assert.Nil(t, err)
 		})
@@ -619,6 +710,7 @@ var moreTestCases = []struct {
 	commandDetails       utils.CommandDetails
 	userIsMember         bool
 	currentSeatDoc       *repository.SeatDoc
+	expectedExtraTimeMin int
 	expectedReplyMessage string
 }{
 	{
@@ -631,7 +723,8 @@ var moreTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.More,
 			MoreOption: utils.MoreOption{
-				DurationMin: 30,
+				IsDurationMinSet: true,
+				DurationMin:      30,
 			},
 		},
 		userIsMember: false,
@@ -639,10 +732,11 @@ var moreTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
+		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
 	},
 	{
@@ -656,7 +750,8 @@ var moreTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.More,
 			MoreOption: utils.MoreOption{
-				DurationMin: 30,
+				IsDurationMinSet: true,
+				DurationMin:      30,
 			},
 		},
 		userIsMember: true,
@@ -664,11 +759,37 @@ var moreTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
+		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザーさん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
+	},
+	{
+		name: "作業時間延長（延長時間指定なし）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.More,
+			MoreOption: utils.MoreOption{
+				IsDurationMinSet: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
+		},
+		expectedExtraTimeMin: 270,
+		expectedReplyMessage: "@テストユーザーさん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
 	},
 }
 
@@ -678,8 +799,8 @@ func TestSystem_More(t *testing.T) {
 
 	for _, tt := range moreTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -694,16 +815,19 @@ func TestSystem_More(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.Equal(t, tt.currentSeatDoc.Until.Add(30*time.Minute), seat.Until)
+
+				expectedTime := tt.currentSeatDoc.Until.Add(time.Duration(tt.expectedExtraTimeMin) * time.Minute)
+				assert.WithinDuration(t, expectedTime, seat.Until, 1*time.Second, "時間が1秒以内の誤差であること")
+
 				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				return nil
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -718,7 +842,7 @@ func TestSystem_More(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.More(&tt.commandDetails, context.Background())
+			err := app.More(context.Background(), &tt.commandDetails.MoreOption)
 
 			assert.Nil(t, err)
 		})
@@ -747,11 +871,11 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、5番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 	},
 	{
 		name: "休憩開始（メンバー席）",
@@ -768,11 +892,11 @@ var breakTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさんが休憩します☕（最大30分、VIP7番席）",
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"\"、最大30分、VIP7番席）",
 	},
 	{
 		name: "休憩開始（一般席：休憩中）",
@@ -788,11 +912,37 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、作業中のみ使えるコマンドです🙏",
+	},
+	{
+		name: "休憩開始（一般席）（休憩内容・休憩時間指定）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                10,
+			DefaultBreakDurationMin: 30,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Break,
+			BreakOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				WorkName:         "お茶を飲む",
+				IsDurationMinSet: true,
+				DurationMin:      20,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザーさんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
 	},
 }
 
@@ -802,8 +952,8 @@ func TestSystem_Break(t *testing.T) {
 
 	for _, tt := range breakTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -824,10 +974,10 @@ func TestSystem_Break(t *testing.T) {
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -842,7 +992,7 @@ func TestSystem_Break(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Break(context.Background(), &tt.commandDetails)
+			err := app.Break(context.Background(), &tt.commandDetails.BreakOption)
 
 			assert.Nil(t, err)
 		})
@@ -870,9 +1020,9 @@ var resumeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
@@ -890,9 +1040,9 @@ var resumeTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさんが作業を再開します🔥（VIP7番席、自動退室まで89分）",
 	},
@@ -909,9 +1059,9 @@ var resumeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
-			EnteredAt:             time.Now().Add(-10 * time.Minute),
-			Until:                 time.Now().Add(90 * time.Minute),
+			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
+			Until:                 utils.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザーさん、座席で休憩中のみ使えるコマンドです🙏",
 	},
@@ -923,8 +1073,8 @@ func TestSystem_Resume(t *testing.T) {
 
 	for _, tt := range resumeTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -945,10 +1095,10 @@ func TestSystem_Resume(t *testing.T) {
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
@@ -963,7 +1113,7 @@ func TestSystem_Resume(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Resume(context.Background(), &tt.commandDetails)
+			err := app.Resume(context.Background(), &tt.commandDetails.ResumeOption)
 
 			assert.Nil(t, err)
 		})
@@ -1115,8 +1265,8 @@ func TestSystem_Order(t *testing.T) {
 
 	for _, tt := range orderTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDB := mock_myfirestore.NewMockFirestoreController(ctrl)
-			mockFirestoreClient := mock_myfirestore.NewMockFirestoreClient(ctrl)
+			mockDB := mock_repository.NewMockRepository(ctrl)
+			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
 					func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, opts ...firestore.TransactionOption) error {
@@ -1142,14 +1292,14 @@ func TestSystem_Order(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.NotNil(t, tt.currentSeatDoc.MenuCode)
+				assert.NotEmpty(t, seat.MenuCode)
 				return nil
 			}).MaxTimes(1)
 
-			mockLiveChatBot := mock_youtubebot.NewMockYoutubeLiveChatBotInterface(ctrl)
+			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
-			system := WorkspaceApp{
+			app := WorkspaceApp{
 				Repository:               mockDB,
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
@@ -1166,7 +1316,7 @@ func TestSystem_Order(t *testing.T) {
 			}
 
 			// テスト対象の関数を実行
-			err := system.Order(context.Background(), &tt.commandDetails)
+			err := app.Order(context.Background(), &tt.commandDetails.OrderOption)
 
 			assert.Nil(t, err)
 		})

@@ -10,9 +10,9 @@ type CommandDetails struct {
 	CheckOption  CheckOption
 	BlockOption  BlockOption
 	ReportOption ReportOption
-	ChangeOption MinutesAndWorkNameOption
+	ChangeOption MinWorkOrderOption
 	MoreOption   MoreOption
-	BreakOption  MinutesAndWorkNameOption
+	BreakOption  MinWorkOrderOption // NOTE: !breakではorderオプションもパースはするが注文処理はされない
 	ResumeOption WorkNameOption
 	OrderOption  OrderOption
 }
@@ -37,6 +37,7 @@ const (
 	Break  // !break
 	Resume // !resume
 	Order
+	Clear
 )
 
 type InfoOption struct {
@@ -54,7 +55,7 @@ const (
 type InOption struct {
 	IsSeatIdSet        bool
 	SeatId             int
-	MinutesAndWorkName *MinutesAndWorkNameOption
+	MinWorkOrderOption *MinWorkOrderOption
 	IsMemberSeat       bool
 }
 
@@ -89,7 +90,8 @@ type ReportOption struct {
 }
 
 type MoreOption struct {
-	DurationMin int
+	IsDurationMinSet bool
+	DurationMin      int
 }
 
 type WorkNameOption struct {
@@ -97,11 +99,13 @@ type WorkNameOption struct {
 	WorkName      string
 }
 
-type MinutesAndWorkNameOption struct {
+type MinWorkOrderOption struct {
 	IsWorkNameSet    bool
 	IsDurationMinSet bool
+	IsOrderSet       bool
 	WorkName         string
 	DurationMin      int
+	OrderNum         int
 }
 
 type OrderOption struct {
@@ -109,7 +113,7 @@ type OrderOption struct {
 	ClearFlag bool
 }
 
-func (o *MinutesAndWorkNameOption) NumOptionsSet() int {
+func (o *MinWorkOrderOption) NumOptionsSet() int {
 	return NumTrue(o.IsWorkNameSet, o.IsDurationMinSet)
 }
 

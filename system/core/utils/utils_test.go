@@ -117,59 +117,6 @@ func TestDivideStringEqually(t *testing.T) {
 	}
 }
 
-func TestFindEmojiCommandIndex(t *testing.T) {
-	tests := []struct {
-		name           string
-		input          string
-		commandName    string
-		expectedOutput string
-		shouldFind     bool
-	}{
-		{
-			name:           "Find emoji command in middle of string",
-			input:          "こんにちは" + TestEmojiIn0 + "jio",
-			commandName:    InString,
-			expectedOutput: "jio",
-			shouldFind:     true,
-		},
-		{
-			name:           "Find emoji command at start of string",
-			input:          TestEmojiIn0 + "hello",
-			commandName:    InString,
-			expectedOutput: "hello",
-			shouldFind:     true,
-		},
-		{
-			name:           "Find emoji command at end of string",
-			input:          "hello" + TestEmojiIn0,
-			commandName:    InString,
-			expectedOutput: "",
-			shouldFind:     true,
-		},
-		{
-			name:           "Command not found",
-			input:          "hello world",
-			commandName:    InString,
-			expectedOutput: "",
-			shouldFind:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			loc := FindEmojiCommandIndex(tt.input, tt.commandName)
-			if tt.shouldFind {
-				assert.NotEmpty(t, loc, "Expected to find emoji command but didn't")
-				if len(loc) == 2 {
-					assert.Equal(t, tt.expectedOutput, tt.input[loc[1]:])
-				}
-			} else {
-				assert.Empty(t, loc, "Expected not to find emoji command but did")
-			}
-		})
-	}
-}
-
 func TestMatchEmojiCommandString(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -211,42 +158,6 @@ func TestMatchEmojiCommandString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MatchEmojiCommandString(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestReplaceAnyEmojiCommandStringWithSpace(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "Single emoji command",
-			input:    TestEmojiIn0,
-			expected: HalfWidthSpace,
-		},
-		{
-			name:     "Multiple emoji commands with text",
-			input:    TestEmojiIn0 + "orange" + TestEmojiWork0 + "apple",
-			expected: " orange apple",
-		},
-		{
-			name:     "No emoji commands",
-			input:    "Just regular text",
-			expected: "Just regular text",
-		},
-		{
-			name:     "Multiple consecutive emoji commands",
-			input:    TestEmojiIn0 + TestEmojiOut0 + TestEmojiWork0,
-			expected: "   ",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := ReplaceAnyEmojiCommandStringWithSpace(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -450,41 +361,6 @@ func TestContains(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Contains(tt.slice, tt.element)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestContainsEmojiElement(t *testing.T) {
-	tests := []struct {
-		name     string
-		slice    []EmojiElement
-		element  EmojiElement
-		expected bool
-	}{
-		{
-			name:     "Element exists in slice",
-			slice:    []EmojiElement{EmojiIn, EmojiOut, EmojiWork},
-			element:  EmojiOut,
-			expected: true,
-		},
-		{
-			name:     "Element does not exist in slice",
-			slice:    []EmojiElement{EmojiIn, EmojiOut, EmojiWork},
-			element:  EmojiMy,
-			expected: false,
-		},
-		{
-			name:     "Empty slice",
-			slice:    []EmojiElement{},
-			element:  EmojiIn,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := ContainsEmojiElement(tt.slice, tt.element)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

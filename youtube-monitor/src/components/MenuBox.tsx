@@ -46,7 +46,7 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
 			number && (
 				<div key={`order-${number}`}>
 					<span css={[styles.listItem, styles.commandCode]}>
-						!order {number}
+						!order　{number}
 					</span>
 				</div>
 			),

@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"app.modules/core/i18n"
@@ -91,53 +90,6 @@ func DivideStringEqually(batchSize int, values []string) [][]string {
 	return batchList
 }
 
-func HasWorkNameOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, WorkNameOptionPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefix) ||
-		strings.HasPrefix(str, WorkNameOptionPrefixLegacy) ||
-		strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy)
-}
-
-func TrimWorkNameOptionPrefix(str string) string {
-	if strings.HasPrefix(str, WorkNameOptionPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefix) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefix)
-	} else if strings.HasPrefix(str, WorkNameOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, WorkNameOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, WorkNameOptionShortPrefixLegacy)
-	}
-	return str
-}
-
-func HasTimeOptionPrefix(str string) bool {
-	return strings.HasPrefix(str, TimeOptionPrefix) ||
-		strings.HasPrefix(str, TimeOptionShortPrefix) ||
-		strings.HasPrefix(str, TimeOptionPrefixLegacy) ||
-		strings.HasPrefix(str, TimeOptionShortPrefixLegacy)
-}
-
-func IsEmptyTimeOption(str string) bool {
-	return str == TimeOptionPrefix ||
-		str == TimeOptionShortPrefix ||
-		str == TimeOptionPrefixLegacy ||
-		str == TimeOptionShortPrefixLegacy
-}
-
-func TrimTimeOptionPrefix(str string) string {
-	if strings.HasPrefix(str, TimeOptionPrefix) {
-		return strings.TrimPrefix(str, TimeOptionPrefix)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefix) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefix)
-	} else if strings.HasPrefix(str, TimeOptionPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionPrefixLegacy)
-	} else if strings.HasPrefix(str, TimeOptionShortPrefixLegacy) {
-		return strings.TrimPrefix(str, TimeOptionShortPrefixLegacy)
-	}
-	return str
-}
-
 func GetSeatByUserId(seats []repository.SeatDoc, userId string) (repository.SeatDoc, error) {
 	for _, seat := range seats {
 		if seat.UserId == userId {
@@ -175,20 +127,6 @@ func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
 		}
 	}
 	return false, 0, nil
-}
-
-func ContainsEmojiElement(s []EmojiElement, e EmojiElement) bool {
-	contains, _ := ContainsEmojiElementWithIndex(s, e)
-	return contains
-}
-
-func ContainsEmojiElementWithIndex(s []EmojiElement, e EmojiElement) (bool, int) {
-	for i, a := range s {
-		if a == e {
-			return true, i
-		}
-	}
-	return false, 0
 }
 
 func RealTimeTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (time.Duration, error) {
@@ -252,55 +190,10 @@ func MatchEmojiCommand(text string, commandName string) bool {
 	return r.MatchString(text)
 }
 
-func FindEmojiCommandIndex(text string, commandName string) []int {
-	r, _ := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
-	return r.FindStringIndex(text)
-}
-
-func ExtractEmojiString(text string, commandName string) string {
-	loc := FindEmojiCommandIndex(text, commandName)
-	if len(loc) != 2 {
-		return ""
-	}
-	return text[loc[0]:loc[1]]
-}
-
-func ExtractEmojiMinValue(fullString, emojiString string, allowEmpty bool) (int, error) {
-	tmp := strings.TrimPrefix(emojiString, EmojiCommandPrefix)
-	r, _ := regexp.Compile(MinString + `[0-9]*` + EmojiSide)
-	loc := r.FindStringIndex(tmp)
-	if len(loc) != 2 {
-		return 0, errors.New("invalid emoji min string.")
-	}
-	numString := tmp[:loc[0]]
-	if numString != "" { // "min=xxx" emoji
-		return strconv.Atoi(numString)
-	}
-
-	// "min=" emoji
-	loc = FindEmojiCommandIndex(fullString, MinString)
-	if len(loc) != 2 {
-		return 0, errors.New("couldn't find min emoji.")
-	}
-	latterString := fullString[loc[1]:]
-	latterString = ReplaceAnyEmojiCommandStringWithSpace(latterString)
-	slice := strings.Split(latterString, HalfWidthSpace)
-	numString = slice[0] // may include emoji command.
-	if allowEmpty && numString == "" {
-		return 0, nil
-	}
-	return strconv.Atoi(numString)
-}
-
 // MatchEmojiCommandString partial match.
 func MatchEmojiCommandString(text string) bool {
 	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
 	return r.MatchString(text)
-}
-
-func ReplaceAnyEmojiCommandStringWithSpace(text string) string {
-	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
-	return r.ReplaceAllString(text, HalfWidthSpace)
 }
 
 func NameOf(i interface{}) string {

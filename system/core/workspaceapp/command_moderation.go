@@ -1,83 +1,84 @@
 package workspaceapp
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+
 	"app.modules/core/i18n"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"context"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log/slog"
-	"strconv"
 )
 
-func (s *WorkspaceApp) Report(command *utils.CommandDetails, ctx context.Context) error {
+func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {
 	t := i18n.GetTFunc("command-report")
-	if command.ReportOption.Message == "" { // !reportのみは不可
-		s.MessageToLiveChat(ctx, t("no-message", s.ProcessedUserDisplayName))
+	if reportOption.Message == "" { // !reportのみは不可
+		app.MessageToLiveChat(ctx, t("no-message", app.ProcessedUserDisplayName))
 		return nil
 	}
 
-	ownerMessage := t("owner", utils.ReportCommand, s.ProcessedUserId, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	s.MessageToOwner(ctx, ownerMessage)
+	ownerMessage := t("owner", utils.ReportCommand, app.ProcessedUserId, app.ProcessedUserDisplayName, reportOption.Message)
+	app.MessageToOwner(ctx, ownerMessage)
 
-	messageForModerators := t("moderators", utils.ReportCommand, s.ProcessedUserDisplayName, command.ReportOption.Message)
-	if err := s.MessageToModerators(ctx, messageForModerators); err != nil {
-		s.MessageToOwnerWithError(ctx, "モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
+	messageForModerators := t("moderators", utils.ReportCommand, app.ProcessedUserDisplayName, reportOption.Message)
+	if err := app.MessageToModerators(ctx, messageForModerators); err != nil {
+		app.MessageToOwnerWithError(ctx, "モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
 	}
 
-	s.MessageToLiveChat(ctx, t("alert", s.ProcessedUserDisplayName))
+	app.MessageToLiveChat(ctx, t("alert", app.ProcessedUserDisplayName))
 	return nil
 }
 
-func (s *WorkspaceApp) Kick(command *utils.CommandDetails, ctx context.Context) error {
+func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption) error {
 	t := i18n.GetTFunc("command-kick")
-	targetSeatId := command.KickOption.SeatId
-	isTargetMemberSeat := command.KickOption.IsTargetMemberSeat
+	targetSeatId := kickOption.SeatId
+	isTargetMemberSeat := kickOption.IsTargetMemberSeat
 	var replyMessage string
 
 	// commanderはモデレーターもしくはチャットオーナーか
-	if !s.ProcessedUserIsModeratorOrOwner {
-		s.MessageToLiveChat(ctx, i18n.T("command:permission", s.ProcessedUserDisplayName, utils.KickCommand))
+	if !app.ProcessedUserIsModeratorOrOwner {
+		app.MessageToLiveChat(ctx, i18n.T("command:permission", app.ProcessedUserDisplayName, utils.KickCommand))
 		return nil
 	}
 
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatAvailable, err := s.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
 			if isSeatAvailable {
-				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
 				return nil
 			}
 		}
 
 		// ユーザーを強制退室させる
-		targetSeat, err := s.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
 				return nil
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
 		seatIdStr := utils.SeatIdStr(targetSeatId, isTargetMemberSeat)
-		replyMessage = t("kick", s.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
+		replyMessage = t("kick", app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
-		// s.ProcessedUserが処理の対象ではないことに注意。
-		userDoc, err := s.Repository.ReadUser(ctx, tx, targetSeat.UserId)
+		// app.ProcessedUserが処理の対象ではないことに注意。
+		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := s.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
 		if exitErr != nil {
-			return fmt.Errorf("%sさんのkick退室処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, exitErr)
+			return fmt.Errorf("%sさんのkick退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
@@ -86,7 +87,7 @@ func (s *WorkspaceApp) Kick(command *utils.CommandDetails, ctx context.Context) 
 		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		{
-			err := s.LogToModerators(ctx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
+			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
 				SeatId)+"番席のユーザーをkickしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
 				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
@@ -100,40 +101,40 @@ func (s *WorkspaceApp) Kick(command *utils.CommandDetails, ctx context.Context) 
 	})
 	if txErr != nil {
 		slog.Error("txErr in Kick()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
-func (s *WorkspaceApp) Check(command *utils.CommandDetails, ctx context.Context) error {
-	targetSeatId := command.CheckOption.SeatId
-	isTargetMemberSeat := command.CheckOption.IsTargetMemberSeat
+func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
+	targetSeatId := checkOption.SeatId
+	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
 	var replyMessage string
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// commanderはモデレーターかチャットオーナーか
-		if !s.ProcessedUserIsModeratorOrOwner {
-			replyMessage = i18n.T("command:permission", s.ProcessedUserDisplayName, utils.CheckCommand)
+		if !app.ProcessedUserIsModeratorOrOwner {
+			replyMessage = i18n.T("command:permission", app.ProcessedUserDisplayName, utils.CheckCommand)
 			return nil
 		}
 
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatVacant, err := s.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatVacant, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant: %w", err)
 			}
 			if isSeatVacant {
-				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
 				return nil
 			}
 		}
 		// 座席情報を表示する
-		seat, err := s.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		seat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = i18n.T("command:unused", s.ProcessedUserDisplayName)
+				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
 				return nil
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
@@ -146,70 +147,70 @@ func (s *WorkspaceApp) Check(command *utils.CommandDetails, ctx context.Context)
 		} else {
 			seatIdStr = strconv.Itoa(targetSeatId)
 		}
-		message := s.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
+		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserId
-		if err := s.LogToModerators(ctx, message); err != nil {
+		if err := app.LogToModerators(ctx, message); err != nil {
 			return fmt.Errorf("failed LogToModerators(): %w", err)
 		}
-		replyMessage = i18n.T("command:sent", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:sent", app.ProcessedUserDisplayName)
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Check()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
-func (s *WorkspaceApp) Block(command *utils.CommandDetails, ctx context.Context) error {
-	targetSeatId := command.BlockOption.SeatId
-	isTargetMemberSeat := command.BlockOption.IsTargetMemberSeat
+func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOption) error {
+	targetSeatId := blockOption.SeatId
+	isTargetMemberSeat := blockOption.IsTargetMemberSeat
 
 	var replyMessage string
-	txErr := s.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// commanderはモデレーターかチャットオーナーか
-		if !s.ProcessedUserIsModeratorOrOwner {
-			replyMessage = s.ProcessedUserDisplayName + "さんは" + utils.BlockCommand + "コマンドを使用できません"
+		if !app.ProcessedUserIsModeratorOrOwner {
+			replyMessage = app.ProcessedUserDisplayName + "さんは" + utils.BlockCommand + "コマンドを使用できません"
 			return nil
 		}
 
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatAvailable, err := s.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
 			if isSeatAvailable {
-				replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+				replyMessage = app.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
 				return nil
 			}
 		}
 
 		// ユーザーを強制退室させる
-		targetSeat, err := s.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = s.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+				replyMessage = app.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
 				return nil
 			}
-			s.MessageToOwnerWithError(ctx, "in ReadSeat", err)
+			app.MessageToOwnerWithError(ctx, "in ReadSeat", err)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		replyMessage = s.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
+		replyMessage = app.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
 
-		// s.ProcessedUserが処理の対象ではないことに注意。
-		userDoc, err := s.Repository.ReadUser(ctx, tx, targetSeat.UserId)
+		// app.ProcessedUserが処理の対象ではないことに注意。
+		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := s.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
 		if exitErr != nil {
-			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", s.ProcessedUserDisplayName, exitErr)
+			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
 		var rpEarned string
 		var seatIdStr string
@@ -224,12 +225,12 @@ func (s *WorkspaceApp) Block(command *utils.CommandDetails, ctx context.Context)
 		replyMessage = i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		// ブロック
-		if err := s.BanUser(ctx, targetSeat.UserId); err != nil {
+		if err := app.BanUser(ctx, targetSeat.UserId); err != nil {
 			return fmt.Errorf("in BanUser: %w", err)
 		}
 
 		{
-			err := s.LogToModerators(ctx, s.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
+			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
 				SeatId)+"番席のユーザーをblockしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
 				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
@@ -243,8 +244,8 @@ func (s *WorkspaceApp) Block(command *utils.CommandDetails, ctx context.Context)
 	})
 	if txErr != nil {
 		slog.Error("txErr in Block()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", s.ProcessedUserDisplayName)
+		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	s.MessageToLiveChat(ctx, replyMessage)
+	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
