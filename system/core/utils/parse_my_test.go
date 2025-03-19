@@ -11,7 +11,7 @@ func TestParseMy(t *testing.T) {
 	testCases := []ParseCommandTestCase{
 		{
 			Name:  "ランク表示オンの設定",
-			Input: "!my rank=on",
+			Input: "!my rank on",
 			Output: &CommandDetails{
 				CommandType: My,
 				MyOptions: []MyOption{
@@ -24,6 +24,32 @@ func TestParseMy(t *testing.T) {
 		},
 		{
 			Name:  "ランク表示オフの設定",
+			Input: "!my rank off",
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: false,
+					},
+				},
+			},
+		},
+		{
+			Name:  "ランク表示オンの設定（=あり）",
+			Input: "!my rank=on",
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: true,
+					},
+				},
+			},
+		},
+		{
+			Name:  "ランク表示オフの設定（=あり）",
 			Input: "!my rank=off",
 			Output: &CommandDetails{
 				CommandType: My,
@@ -45,6 +71,19 @@ func TestParseMy(t *testing.T) {
 		},
 		{
 			Name:  "デフォルト勉強時間設定",
+			Input: "!my min 500",
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 500,
+					},
+				},
+			},
+		},
+		{
+			Name:  "デフォルト勉強時間設定（=あり）",
 			Input: "!my min=500",
 			Output: &CommandDetails{
 				CommandType: My,
@@ -58,6 +97,19 @@ func TestParseMy(t *testing.T) {
 		},
 		{
 			Name:  "デフォルト勉強時間リセット",
+			Input: "!my min", // リセットの意味
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 0,
+					},
+				},
+			},
+		},
+		{
+			Name:  "デフォルト勉強時間リセット（=あり）",
 			Input: "!my min=", // リセットの意味
 			Output: &CommandDetails{
 				CommandType: My,
@@ -71,6 +123,19 @@ func TestParseMy(t *testing.T) {
 		},
 		{
 			Name:  "お気に入り色リセット",
+			Input: "!my color", // リセットの意味
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:        FavoriteColor,
+						StringValue: "",
+					},
+				},
+			},
+		},
+		{
+			Name:  "お気に入り色リセット（=あり）",
 			Input: "!my color=", // リセットの意味
 			Output: &CommandDetails{
 				CommandType: My,
@@ -84,6 +149,27 @@ func TestParseMy(t *testing.T) {
 		},
 		{
 			Name:  "複数オプション設定",
+			Input: "!my min 40 color ピンク  rank off",
+			Output: &CommandDetails{
+				CommandType: My,
+				MyOptions: []MyOption{
+					{
+						Type:      RankVisible,
+						BoolValue: false,
+					},
+					{
+						Type:     DefaultStudyMin,
+						IntValue: 40,
+					},
+					{
+						Type:        FavoriteColor,
+						StringValue: "ピンク",
+					},
+				},
+			},
+		},
+		{
+			Name:  "複数オプション設定（=あり）",
 			Input: "!my min=40 color=ピンク  rank=off",
 			Output: &CommandDetails{
 				CommandType: My,
