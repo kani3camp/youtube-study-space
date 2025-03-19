@@ -481,7 +481,7 @@ func ParseChange(argStr string) (*CommandDetails, string) {
 	// 追加オプションチェック
 	fields := strings.Fields(argStr)
 	if len(fields) == 0 {
-		return nil, i18n.T("parse:missing-change-option")
+		return nil, i18n.T("parse:invalid-option")
 	}
 	options, message := ParseMinWorkOrderOptions(argStr)
 	if message != "" {
