@@ -18,7 +18,7 @@ sidebar_position: 3
 您可以為每個用戶設置喜好設定。
 目前支持的設定有：
 
-- 等級顯示模式開啟/關閉（在等級顯示模式下，您的座位顏色會根據您的總工作時間而變化）
+- 等級顯示模式開啟/關閉
 - 更改/重置您喜好的工作時間（默認工作時間）
 - 設置/重置您喜好的顏色
 
@@ -29,42 +29,42 @@ sidebar_position: 3
 #### 開啟等級顯示模式。
 
 ```
-!my rank=on
+!my rank on
 ```
 
 #### 關閉等級顯示模式。
 
 ```
-!my rank=off
+!my rank off
 ```
 
 ### 設置喜好工作時間
 
-您可以使用 `min=` 選項以分鐘為單位指定您喜好的工作時間（默認工作時間）。
+您可以使用 `min` 選項以分鐘為單位指定您喜好的工作時間（默認工作時間）。
 
-有了這個設定，當您使用 [`!in` 指令](/docs/essential#in) 時，您將自動帶有 [`min=` 選項](/docs/essential#min-option) 進入房間。
+有了這個設定，當您使用 [`!in` 指令](/docs/essential#in) 時，您將自動帶有 [`min` 選項](/docs/essential#min-option) 進入房間。
 
 ```text title="例如：將喜好工作時間設置為60分鐘。"
-!my min=60
+!my min 60
 ```
 
 ```text title="例如：重置喜好工作時間。"
-!my min=
+!my min
 ```
 
 ### 設置喜好顏色
 
-您可以使用 `color=` 選項指定您喜好的顏色。
+您可以使用 `color` 選項指定您喜好的顏色。
 可用的顏色名稱可以在[這裡](https://youtube-study-space.notion.site/f4366038a5de4fe1957bfbfa93fd1ebb?v=4dcfe9a135d54615a84083b9dd3d7f5f)找到。
 
 您可以設置您的[喜好顏色](https://youtube-study-space.notion.site/3fc22ea1b4214b3f976b03331c51d113)。
 
 ```text title="例如：將喜好顏色設置為Aquamarine（碧綠色）。"
-!my color=Aquamarine
+!my color アクアマリン
 ```
 
 ```text title="例如：重置喜好顏色。"
-!my color=
+!my color
 ```
 
 ## !break
@@ -86,19 +86,19 @@ sidebar_position: 3
 `!rest` 和 `!chill` 也可以作為與 `!break` 含義相同的指令使用。使用您喜歡的任何一個。
 :::
 
-### 附加選項 `work=` `min=`
+### 附加選項 `work` `min`
 
-您可以使用 `work=` 選項指定休息內容。
-您也可以使用 `min=` 選項以分鐘為單位指定休息時間。
+您可以使用 `work` 選項指定休息內容。
+您也可以使用 `min` 選項以分鐘為單位指定休息時間。
 
 休息結束時，休息內容將被刪除，您原來的工作名稱將被恢復。
 
 ```text title="例如：休息30分鐘，休息內容設置為'短暫休息'。"
-!break work=短暫休息 min=30
+!break work 短暫休息 min 30
 ```
 
 ```text title="例如：休息20分鐘。20分鐘後，休息模式將自動結束，工作將恢復。"
-!break min=20
+!break min 20
 ```
 
 ## !resume
@@ -112,4 +112,4 @@ sidebar_position: 3
 從休息模式恢復工作。
 這只能在休息模式下使用。
 
-通過使用此指令，您可以在休息模式期間立即恢復工作。
+休息模式會在指定時間後自動結束，但如果您想提前返回工作，可以使用此指令立即恢復工作。
