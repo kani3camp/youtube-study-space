@@ -2,7 +2,7 @@ module app.modules
 
 go 1.22
 
-toolchain go1.22.9
+toolchain go1.23.7
 
 require (
 	cloud.google.com/go/bigquery v1.50.0
