@@ -1,12 +1,13 @@
 package main
 
 import (
-	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core"
-	"app.modules/core/utils"
+	"app.modules/core/workspaceapp"
 	"context"
-	"github.com/aws/aws-lambda-go/lambda"
 	"log/slog"
+
+	"app.modules/aws-lambda/lambdautils"
+	"app.modules/core/utils"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
 type CheckLiveStreamResponse struct {
@@ -23,14 +24,14 @@ func CheckLiveStream() (CheckLiveStreamResponse, error) {
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}
-	system, err := core.NewSystem(ctx, false, clientOption)
+	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
 		return CheckLiveStreamResponse{}, err
 	}
-	defer system.CloseFirestoreClient()
+	defer app.CloseFirestoreClient()
 
-	if err := system.CheckLiveStreamStatus(ctx); err != nil {
-		system.MessageToOwnerWithError("failed to check live stream status", err)
+	if err := app.CheckLiveStreamStatus(ctx); err != nil {
+		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return CheckLiveStreamResponse{}, err
 	}
 

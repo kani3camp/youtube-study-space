@@ -21,7 +21,7 @@ const Usage: FC = () => {
 
 				<div>
 					<div css={styles.command}>
-						<span css={styles.commandCode}>!in</span>
+						<span css={styles.commandCode}>!in　{t('usage.work')}</span>
 						<span>{t('usage.in')}</span>
 					</div>
 					<div css={styles.command}>

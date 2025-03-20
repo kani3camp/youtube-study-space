@@ -63,7 +63,6 @@ export const commandCode = css`
     border-radius: 0.2rem;
     font-size: 0.75em;
     font-weight: bold;
-    font-family: ${sourceCodeProFontFamily};
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
