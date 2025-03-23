@@ -237,8 +237,12 @@ func FormatStringToParse(fullString string) string {
 	fullString = strings.Join(strings.Fields(fullString), HalfWidthSpace)
 
 	// `!`や`/`の隣が空白ならその空白を消す
-	fullString = strings.ReplaceAll(fullString, CommandPrefix+HalfWidthSpace, CommandPrefix)
-	fullString = strings.ReplaceAll(fullString, MemberCommandPrefix+HalfWidthSpace, MemberCommandPrefix)
+	if strings.HasPrefix(fullString, CommandPrefix+HalfWidthSpace) {
+		fullString = strings.Replace(fullString, CommandPrefix+HalfWidthSpace, CommandPrefix, 1) // NOTE: 最初の1つだけ
+	}
+	if strings.HasPrefix(fullString, MemberCommandPrefix+HalfWidthSpace) {
+		fullString = strings.Replace(fullString, MemberCommandPrefix+HalfWidthSpace, MemberCommandPrefix, 1) // NOTE: 最初の1つだけ
+	}
 
 	return fullString
 }

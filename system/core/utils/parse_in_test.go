@@ -366,6 +366,22 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
+			Name:  "作業内容に!が含まれる場合",
+			Input: "!in がんばる! min 90",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIdSet: false,
+					MinWorkOrderOption: &MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "がんばる!",
+						DurationMin:      90,
+					},
+				},
+			},
+		},
+		{
 			Name:  "全角の／によるメンバー入室",
 			Input: "／in",
 			Output: &CommandDetails{
