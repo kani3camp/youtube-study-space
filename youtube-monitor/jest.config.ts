@@ -177,6 +177,16 @@ const config: Config = {
 		'^.+\\.(ts|tsx)$': 'ts-jest',
 	},
 
+	// ts-jest configuration
+	preset: 'ts-jest',
+	globals: {
+		'ts-jest': {
+			tsconfig: {
+				target: 'es2020',
+			},
+		},
+	},
+
 	// An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
 	// transformIgnorePatterns: [
 	//   "\\\\node_modules\\\\",
