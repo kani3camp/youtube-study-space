@@ -1,5 +1,5 @@
 import { Wave } from '@foobar404/wave'
-import { parseWebStream, parseBlob } from 'music-metadata'
+import { parseWebStream, parseBlob, type IAudioMetadata } from 'music-metadata'
 import type React from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
@@ -68,39 +68,47 @@ const BgmPlayer: React.FC = () => {
 
 	const audioNext = useCallback(async () => {
 		try {
-			const audio = document.getElementById(audioDivId) as HTMLAudioElement | null;
+			const audio = document.getElementById(
+				audioDivId,
+			) as HTMLAudioElement | null
 			if (!audio) {
-				console.error(`Audio element with ID '${audioDivId}' not found.`);
-				return;
+				console.error(`Audio element with ID '${audioDivId}' not found.`)
+				return
 			}
 
-			const bgm = await getCurrentRandomBgm();
+			const bgm = await getCurrentRandomBgm()
+			audio.src = bgm
 
-			const response = await fetch(audio.src);
+			const response = await fetch(audio.src)
 			if (!response.ok) {
-				throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+				throw new Error(
+					`Failed to fetch audio: ${response.status} ${response.statusText}`,
+				)
 			}
 
-			let metadata;
+			let metadata: IAudioMetadata
 			if (!response.body) {
 				// Fall back on Blob if web stream is not supported
-				const blob = await response.blob();
-				metadata = await parseBlob(blob);
+				const blob = await response.blob()
+				metadata = await parseBlob(blob)
 			} else {
-				const contentLength = response.headers.get('Content-Length');
-				const size = contentLength ? parseInt(contentLength) : undefined;
-				metadata = await parseWebStream(response.body, {mimeType: response.headers.get('Content-Type') ?? undefined, size});
+				const contentLength = response.headers.get('Content-Length')
+				const size = contentLength ? Number.parseInt(contentLength) : undefined
+				metadata = await parseWebStream(response.body, {
+					mimeType: response.headers.get('Content-Type') ?? undefined,
+					size,
+				})
 			}
 
-			setAudioTitle(metadata.common.title ?? 'BGM TITLE');
-			setAudioArtist(metadata.common.artist ?? 'BGM ARTIST');
+			setAudioTitle(metadata.common.title ?? 'BGM TITLE')
+			setAudioArtist(metadata.common.artist ?? 'BGM ARTIST')
 
-			audio.volume = Constants.bgmVolume;
-			await audio.play();
+			audio.volume = Constants.bgmVolume
+			await audio.play()
 		} catch (error) {
-			console.error('Failed to play audio or parse metadata:', error);
+			console.error('Failed to play audio or parse metadata:', error)
 		}
-	}, []);
+	}, [])
 
 	const audioStart = useCallback(() => {
 		const audio = document.getElementById(audioDivId) as HTMLAudioElement
