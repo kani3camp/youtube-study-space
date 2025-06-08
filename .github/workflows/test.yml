@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v4
+      - name: Set up Go 1.23
+        uses: actions/setup-go@v5
         with:
-          go-version: ^1.21
+          go-version: ^1.23
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get dependencies and run tests
         working-directory: system
@@ -30,17 +30,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
-          cache: false
+          go-version: "1.23"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.54
+          version: v1.64
           working-directory: system
-          args: --timeout 5m
+          args: --timeout=5m
 
   jest:
     name: Jest
@@ -50,11 +49,11 @@ jobs:
       run:
         working-directory: youtube-monitor
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
-          node-version: '14'
+          node-version: '20'
       - name: Install dependencies
         run: npm install
       - name: Run tests

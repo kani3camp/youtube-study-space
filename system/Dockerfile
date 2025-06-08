@@ -1,4 +1,4 @@
-FROM golang:1.22 as build
+FROM golang:1.23 as build
 WORKDIR /var/task
 COPY . .
 ENV GOCACHE=/root/.cache/go-build
