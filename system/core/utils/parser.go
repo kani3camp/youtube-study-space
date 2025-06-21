@@ -237,8 +237,12 @@ func FormatStringToParse(fullString string) string {
 	fullString = strings.Join(strings.Fields(fullString), HalfWidthSpace)
 
 	// `!`や`/`の隣が空白ならその空白を消す
-	fullString = strings.ReplaceAll(fullString, CommandPrefix+HalfWidthSpace, CommandPrefix)
-	fullString = strings.ReplaceAll(fullString, MemberCommandPrefix+HalfWidthSpace, MemberCommandPrefix)
+	if strings.HasPrefix(fullString, CommandPrefix+HalfWidthSpace) {
+		fullString = strings.Replace(fullString, CommandPrefix+HalfWidthSpace, CommandPrefix, 1) // NOTE: 最初の1つだけ
+	}
+	if strings.HasPrefix(fullString, MemberCommandPrefix+HalfWidthSpace) {
+		fullString = strings.Replace(fullString, MemberCommandPrefix+HalfWidthSpace, MemberCommandPrefix, 1) // NOTE: 最初の1つだけ
+	}
 
 	return fullString
 }
@@ -527,13 +531,13 @@ func ParseMore(argStr string) (*CommandDetails, string) {
 		if fields[0] == TimeOptionKey {
 			value, err := strconv.Atoi(fields[1])
 			if err != nil {
-				return nil, i18n.T("parse:invalid-time-option")
+				return nil, i18n.T("parse:invalid-option")
 			}
 			durationMin = value
 		} else {
 			value, err := strconv.Atoi(fields[0])
 			if err != nil {
-				return nil, i18n.T("parse:invalid-time-option")
+				return nil, i18n.T("parse:invalid-option")
 			}
 			durationMin = value
 		}
@@ -543,7 +547,7 @@ func ParseMore(argStr string) (*CommandDetails, string) {
 		}
 		value, err := strconv.Atoi(fields[0])
 		if err != nil {
-			return nil, i18n.T("parse:invalid-time-option")
+			return nil, i18n.T("parse:invalid-option")
 		}
 		durationMin = value
 	} else {
