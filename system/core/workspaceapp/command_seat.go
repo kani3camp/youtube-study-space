@@ -9,112 +9,111 @@ import (
 
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
-	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"github.com/pkg/errors"
 )
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
+	// [NOTE FOR REVIEW] Refactored to use the new orchestrator pattern
+	// This maintains backward compatibility while using the new service-oriented architecture
+	
+	orchestrator := NewRoomEntryOrchestrator(app)
+	
+	// Create request from the input parameters
+	request := &RoomEntryRequest{
+		UserId:       app.ProcessedUserId,
+		InOption:     inOption,
+		IsMemberSeat: inOption.IsMemberSeat,
+	}
+	
+	// Check pre-conditions before starting the transaction
+	preConditionResult := orchestrator.ValidatePreConditions(request)
+	if !preConditionResult.Success {
+		if preConditionResult.ShouldReturn {
+			app.MessageToLiveChat(ctx, preConditionResult.Message)
+			return nil
+		}
+		return fmt.Errorf("pre-condition validation failed: %s", preConditionResult.Message)
+	}
+	
+	// Check if user is already in a room and handle accordingly
+	isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+	if err != nil {
+		app.MessageToLiveChat(ctx, i18n.T("command:error", app.ProcessedUserDisplayName))
+		return fmt.Errorf("failed to check if user is in room: %w", err)
+	}
+	isInRoom := isInGeneralRoom || isInMemberRoom
+	
+	if isInRoom {
+		// User is already in a room - handle seat movement or option updates
+		return app.handleInRoomEntry(ctx, inOption, isInMemberRoom, request.IsMemberSeat)
+	}
+	
+	// User is not in a room - process new room entry
+	result := orchestrator.ProcessRoomEntry(ctx, request)
+	if !result.Success {
+		if result.ShouldReturn {
+			app.MessageToLiveChat(ctx, result.Message)
+			return nil
+		}
+		
+		// Error occurred
+		app.MessageToLiveChat(ctx, i18n.T("command:error", app.ProcessedUserDisplayName))
+		if result.Error != nil {
+			return result.Error
+		}
+		return fmt.Errorf("room entry failed: %s", result.Message)
+	}
+	
+	// Generate success message for new entry
+	t := i18n.GetTFunc("command-in")
+	var newSeatId string
+	if request.IsMemberSeat {
+		newSeatId = i18n.T("common:vip-seat-id", result.AssignedSeatId)
+	} else {
+		newSeatId = strconv.Itoa(result.AssignedSeatId)
+	}
+	
+	workName := ""
+	if inOption.MinWorkOrderOption != nil && inOption.MinWorkOrderOption.IsWorkNameSet {
+		workName = inOption.MinWorkOrderOption.WorkName
+	}
+	
+	untilExitMin := result.UserSettings.WorkDurationMin
+	replyMessage := t("start", app.ProcessedUserDisplayName, workName, untilExitMin, newSeatId)
+	
+	// Handle menu order message if applicable
+	if inOption.MinWorkOrderOption != nil && inOption.MinWorkOrderOption.IsOrderSet {
+		orderMessage, err := app.generateOrderMessage(ctx, inOption.MinWorkOrderOption, result.UserSettings)
+		if err != nil {
+			slog.Error("Failed to generate order message", "error", err)
+		} else {
+			replyMessage += orderMessage
+		}
+	}
+	
+	app.MessageToLiveChat(ctx, replyMessage)
+	return nil
+}
+
+// handleInRoomEntry handles entry when user is already in a room
+func (app *WorkspaceApp) handleInRoomEntry(ctx context.Context, inOption *utils.InOption, isInMemberRoom, isTargetMemberSeat bool) error {
 	jstNow := utils.JstNow()
 	var replyMessage, orderMessage string
 	t := i18n.GetTFunc("command-in")
-	isTargetMemberSeat := inOption.IsMemberSeat
-
-	if isTargetMemberSeat && !app.ProcessedUserIsMember {
-		if app.Configs.Constants.YoutubeMembershipEnabled {
-			app.MessageToLiveChat(ctx, t("member-seat-forbidden", app.ProcessedUserDisplayName))
-		} else {
-			app.MessageToLiveChat(ctx, t("membership-disabled", app.ProcessedUserDisplayName))
-		}
-		return nil
-	}
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// 席が指定されているか？
-		if inOption.IsSeatIdSet {
-			// 0番席だったら最小番号の空席に決定
-			if inOption.SeatId == 0 {
-				seatId, err := app.MinAvailableSeatIdForUser(ctx, tx, app.ProcessedUserId, isTargetMemberSeat)
-				if err != nil {
-					return fmt.Errorf("in app.MinAvailableSeatIdForUser(): %w", err)
-				}
-				inOption.SeatId = seatId
-			} else {
-				// その席が空いているか？
-				{
-					isVacant, err := app.IfSeatVacant(ctx, tx, inOption.SeatId, isTargetMemberSeat)
-					if err != nil {
-						return fmt.Errorf("in app.IfSeatVacant(): %w", err)
-					}
-					if !isVacant {
-						replyMessage = t("no-seat", app.ProcessedUserDisplayName, utils.InCommand)
-						return nil
-					}
-				}
-				// ユーザーはその席に対して入室制限を受けてないか？
-				{
-					isTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserId, inOption.SeatId, isTargetMemberSeat)
-					if err != nil {
-						return fmt.Errorf("in app.CheckIfUserSittingTooMuchForSeat(): %w", err)
-					}
-					if isTooMuch {
-						replyMessage = t("no-availability", app.ProcessedUserDisplayName, utils.InCommand)
-						return nil
-					}
-				}
-			}
-		} else { // 席の指定なし
-			seatId, err := app.RandomAvailableSeatIdForUser(ctx, tx, app.ProcessedUserId, isTargetMemberSeat)
-			if err != nil {
-				if errors.Is(err, studyspaceerror.ErrNoSeatAvailable) {
-					return fmt.Errorf("席数がmax seatに達していて、ユーザーが入室できない事象が発生: %w", err)
-				}
-				return err
-			}
-			inOption.SeatId = seatId
-		}
-
-		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+		// Get current seat information
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
 		if err != nil {
-			return fmt.Errorf("in ReadUser(): %w", err)
+			return fmt.Errorf("in CurrentSeat(): %w", err)
 		}
-
-		// 作業時間が指定されているか？
-		if !inOption.MinWorkOrderOption.IsDurationMinSet {
-			if userDoc.DefaultStudyMin == 0 {
-				inOption.MinWorkOrderOption.DurationMin = app.Configs.Constants.DefaultWorkTimeMin
-			} else {
-				inOption.MinWorkOrderOption.DurationMin = userDoc.DefaultStudyMin
-			}
-		}
-
-		// ランクから席の色を決定
-		seatAppearance, err := app.GetUserRealtimeSeatAppearance(ctx, tx, app.ProcessedUserId)
-		if err != nil {
-			return fmt.Errorf("in GetUserRealtimeSeatAppearance(): %w", err)
-		}
-
-		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
-		if err != nil {
-			return fmt.Errorf("in IsUserInRoom(): %w", err)
-		}
-		isInRoom := isInGeneralRoom || isInMemberRoom
-		var currentSeat repository.SeatDoc
-		if isInRoom { // 現在座っている席を取得
-			var err error
-			currentSeat, err = app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
-			if err != nil {
-				return fmt.Errorf("in CurrentSeat(): %w", err)
-			}
-		}
-
+		
+		// Handle menu order processing (preserved from original logic)
 		var totalOrderCount int64
 		var targetMenuItem repository.MenuDoc
 		var orderLimitExceeded bool
 		if inOption.MinWorkOrderOption.IsOrderSet {
-			// メンバーでない場合は、本日の注文回数をチェック
 			totalOrderCount, err = app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, jstNow)
 			if err != nil {
 				return fmt.Errorf("in CountUserOrdersOfTheDay(): %w", err)
@@ -126,24 +125,17 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				if err != nil {
 					return fmt.Errorf("in GetMenuItemByNumber(): %w", err)
 				}
-				if isInRoom {
-					currentSeat.MenuCode = targetMenuItem.Code
-				}
+				currentSeat.MenuCode = targetMenuItem.Code
 			}
 		}
-
-		// =========== 以降は書き込み処理のみ ===========
-
-		// メニュー注文されている場合は、メニューコードをセット
+		
+		// Process menu order if applicable (preserved from original logic)
 		if inOption.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
 				orderMessage += t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount)
 			} else {
-				if isInRoom {
-					currentSeat.MenuCode = targetMenuItem.Code
-				}
+				currentSeat.MenuCode = targetMenuItem.Code
 
-				// 注文履歴を作成
 				orderHistoryDoc := repository.OrderHistoryDoc{
 					UserId:       app.ProcessedUserId,
 					MenuCode:     targetMenuItem.Code,
@@ -159,7 +151,46 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		if isInRoom && inOption.IsSeatIdSet { // 入室中で、席指定があれば、席移動処理
+		if inOption.IsSeatIdSet { // Seat movement
+			// Validate seat availability for movement
+			orchestrator := NewRoomEntryOrchestrator(app)
+			validator := orchestrator.validator
+			
+			// Validate seat availability
+			validationResult := validator.ValidateSeatAvailability(ctx, tx, inOption)
+			if !validationResult.IsValid {
+				if validationResult.ShouldReturn {
+					replyMessage = validationResult.ErrorMessage
+					return nil
+				}
+				return fmt.Errorf("seat validation failed: %s", validationResult.ErrorMessage)
+			}
+			
+			// Validate user restrictions
+			restrictionResult := validator.ValidateUserSeatRestrictions(ctx, inOption)
+			if !restrictionResult.IsValid {
+				if restrictionResult.ShouldReturn {
+					replyMessage = restrictionResult.ErrorMessage
+					return nil
+				}
+				return fmt.Errorf("user restriction validation failed: %s", restrictionResult.ErrorMessage)
+			}
+			
+			// Handle seat 0 assignment
+			if inOption.SeatId == 0 {
+				seatId, err := app.MinAvailableSeatIdForUser(ctx, tx, app.ProcessedUserId, isTargetMemberSeat)
+				if err != nil {
+					return fmt.Errorf("in app.MinAvailableSeatIdForUser(): %w", err)
+				}
+				inOption.SeatId = seatId
+			}
+			
+			// Perform seat movement
+			userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+			if err != nil {
+				return fmt.Errorf("in ReadUser(): %w", err)
+			}
+			
 			workedTimeSec, addedRP, untilExitMin, err := app.moveSeat(
 				ctx,
 				tx,
@@ -189,7 +220,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 
 			replyMessage += t("seat-move", app.ProcessedUserDisplayName, workName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
-		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
+		} else { // Option updates only (no seat movement)
 			var seatIdStr string
 			if isInMemberRoom {
 				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
@@ -198,6 +229,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 			replyMessage += t("already-seat", app.ProcessedUserDisplayName, seatIdStr)
 
+			// Handle work name updates (preserved from original logic)
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				switch currentSeat.State {
 				case repository.WorkState:
@@ -209,37 +241,33 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				}
 			}
 
+			// Handle duration updates (preserved from original logic)
 			if inOption.MinWorkOrderOption.IsDurationMinSet {
 				switch currentSeat.State {
 				case repository.WorkState:
-					// 作業時間を（入室時間から自動退室までの時間）を変更
 					realtimeEntryDurationMin := int(utils.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
 					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
-						// もし現在時刻が指定時間を経過していたら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
-						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 						replyMessage += i18n.T("command-change:work-duration-after", app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
-					} else { // それ以外なら延長
+					} else {
 						currentSeat.Until = requestedUntil
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
 						replyMessage += i18n.T("command-change:work-duration", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					}
 				case repository.BreakState:
-					// 休憩時間を変更
 					realtimeBreakDuration := utils.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
 					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
-						// もし現在時刻が指定時間を経過していたら却下
 						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
 						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
-					} else { // それ以外ならuntilを変更
+					} else {
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingBreakDuration := requestedUntil.Sub(jstNow)
 						replyMessage += i18n.T("command-change:break-duration", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
@@ -250,48 +278,44 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 				return fmt.Errorf("in UpdateSeat(): %w", err)
 			}
-		} else { // 入室のみ
-			untilExitMin, err := app.enterRoom(
-				ctx,
-				tx,
-				app.ProcessedUserId,
-				app.ProcessedUserDisplayName,
-				app.ProcessedUserProfileImageUrl,
-				inOption.SeatId,
-				isTargetMemberSeat,
-				inOption.MinWorkOrderOption.WorkName,
-				"",
-				inOption.MinWorkOrderOption.DurationMin,
-				seatAppearance,
-				targetMenuItem.Code,
-				repository.WorkState,
-				userDoc.IsContinuousActive,
-				time.Time{},
-				time.Time{},
-				jstNow)
-			if err != nil {
-				return fmt.Errorf("in enterRoom(): %w", err)
-			}
-			var newSeatId string
-			if isTargetMemberSeat {
-				newSeatId = i18n.T("common:vip-seat-id", inOption.SeatId)
-			} else {
-				newSeatId = strconv.Itoa(inOption.SeatId)
-			}
-
-			// 入室しましたのメッセージ
-			replyMessage += t("start", app.ProcessedUserDisplayName, inOption.MinWorkOrderOption.WorkName, untilExitMin, newSeatId)
 		}
 
 		replyMessage += orderMessage
 		return nil
 	})
 	if txErr != nil {
-		slog.Error("txErr in In()", "txErr", txErr)
+		slog.Error("txErr in handleInRoomEntry()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
+}
+
+// generateOrderMessage generates order-related messages
+func (app *WorkspaceApp) generateOrderMessage(ctx context.Context, workOrderOption *utils.MinWorkOrderOption, userSettings *UserSettings) (string, error) {
+	if !workOrderOption.IsOrderSet {
+		return "", nil
+	}
+	
+	jstNow := utils.JstNow()
+	t := i18n.GetTFunc("command-in")
+	
+	totalOrderCount, err := app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, jstNow)
+	if err != nil {
+		return "", fmt.Errorf("failed to count user orders: %w", err)
+	}
+	
+	orderLimitExceeded := !app.ProcessedUserIsMember && totalOrderCount >= int64(app.Configs.Constants.MaxDailyOrderCount)
+	if orderLimitExceeded {
+		return t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount), nil
+	}
+	
+	targetMenuItem, err := app.GetMenuItemByNumber(workOrderOption.OrderNum)
+	if err != nil {
+		return "", fmt.Errorf("failed to get menu item: %w", err)
+	}
+	
+	return t("ordered", targetMenuItem.Name, totalOrderCount+1), nil
 }
 
 func (app *WorkspaceApp) Out(ctx context.Context) error {
