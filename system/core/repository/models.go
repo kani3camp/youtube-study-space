@@ -210,3 +210,19 @@ type OrderHistoryDoc struct {
 	IsMemberSeat bool      `json:"is_member_seat" firestore:"is-member-seat"`
 	OrderedAt    time.Time `json:"ordered_at" firestore:"ordered-at"`
 }
+
+type WorkHistoryDoc struct {
+	SeatId       int       `firestore:"seat-id"`
+	IsMemberSeat bool      `firestore:"is-member-seat"`
+	UserId       string    `firestore:"user-id"`
+	StartedAt    time.Time `firestore:"started-at"`
+	EndedAt      time.Time `firestore:"ended-at"`
+	WorkName     string    `firestore:"work-name"`
+}
+
+type DailyWorkHistoryDoc struct {
+	Date        string `firestore:"date"` // YYYY-MM-DD形式
+	UserId      string `firestore:"user-id"`
+	WorkSeconds int    `firestore:"work-seconds"` // 当日の作業時間（秒）
+	Timezone    string `firestore:"timezone"`     // タイムゾーン（例: "Asia/Tokyo"）
+}

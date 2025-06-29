@@ -13,6 +13,8 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	SeatLimitsWhiteList       = "seat-limits-white-list"
 	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
 	MemberSeatLimitsWhiteList = "member-seat-limits-white-list"
+	WorkHistory               = "work-history"
+	DailyWorkHistory          = "daily-work-history"
 
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"

@@ -21,6 +21,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 			return fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
 		}
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
+		yesterdayTotalTimeStr := utils.DurationToString()
 		totalTimeStr := utils.DurationToString(totalStudyDuration)
 		replyMessage += t("base", app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 

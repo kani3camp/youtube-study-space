@@ -134,6 +134,14 @@ func (c *FirestoreControllerImplements) memberSeatLimitsWHITEListCollection() *f
 	return c.firestoreClient.Collection(MemberSeatLimitsWhiteList)
 }
 
+func (c *FirestoreControllerImplements) workHistoryCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(WorkHistory)
+}
+
+func (c *FirestoreControllerImplements) dailyWorkHistoryCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(DailyWorkHistory)
+}
+
 func (c *FirestoreControllerImplements) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
 	ref *firestore.DocumentRef) error {
 	if tx != nil {
@@ -653,6 +661,15 @@ func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Cont
 func (c *FirestoreControllerImplements) CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error {
 	ref := c.orderHistoryCollection().NewDoc()
 	return c.create(ctx, tx, ref, orderHistoryDoc)
+}
+
+func ReadDailyWorkHistory(ctx context.Context, tx *firestore.Transaction, userId string, date string) (WorkHistoryDoc, error) {
+
+}
+
+func (c *FirestoreControllerImplements) CreateWorkHistoryDoc(ctx context.Context, tx *firestore.Transaction, workHistoryDoc WorkHistoryDoc) error {
+	ref := c.workHistoryCollection().NewDoc()
+	return c.create(ctx, tx, ref, workHistoryDoc)
 }
 
 func getDocDataFromIterator[T any](iter *firestore.DocumentIterator) ([]T, error) {

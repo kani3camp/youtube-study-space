@@ -178,6 +178,19 @@ func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context,
 	return totalDuration, dailyTotalDuration, nil
 }
 
+func (app *WorkspaceApp) GetUserYesterdayTotalStudyDuration(ctx context.Context, tx *firestore.Transaction, userId string) (time.Duration, error) {
+	// 昨日の累積作業時間を取得
+	userDoc, err := app.Repository.ReadUser(ctx, tx, userId)
+	if err != nil {
+		return 0, fmt.Errorf("in ReadUser: %w", err)
+	}
+	if userDoc.DailyTotalStudySec == 0 {
+		return 0, nil // 昨日入室していない
+	}
+	yesterdayDuration := time.Duration(userDoc.DailyTotalStudySec) * time.Second
+	return yesterdayDuration, nil
+}
+
 // ExitAllUsersInRoom roomの全てのユーザーを退室させる。
 func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bool) error {
 	for {

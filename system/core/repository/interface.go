@@ -84,6 +84,10 @@ type Repository interface {
 	CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error)
 	CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error
 
+	// Work History Operations
+	ReadDailyWorkHistory(ctx context.Context, tx *firestore.Transaction, userId string, date string) (WorkHistoryDoc, error)
+	CreateWorkHistoryDoc(ctx context.Context, tx *firestore.Transaction, workHistoryDoc WorkHistoryDoc) error
+
 	// General Operations
 	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)
 	GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator
