@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app.modules/core/constants"
 	"app.modules/core/workspaceapp"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestCalculateRetryIntervalSec(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(pretty.Sprintf("%# v", tt), func(t *testing.T) {
-			assert.InDeltaf(t, tt.want, CalculateRetryIntervalSec(RetryIntervalCalculationBase, tt.args.numContinuousFailed), 0.1, "CalculateRetryIntervalSec(%v)", tt.args.numContinuousFailed)
+			assert.InDeltaf(t, tt.want, CalculateRetryIntervalSec(constants.RetryIntervalCalculationBase, tt.args.numContinuousFailed), 0.1, "CalculateRetryIntervalSec(%v)", tt.args.numContinuousFailed)
 		})
 	}
 }

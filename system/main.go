@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"app.modules/core/constants"
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
@@ -18,9 +19,6 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )
-
-const MaxRetryIntervalSeconds = 300
-const RetryIntervalCalculationBase = 1.2
 
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv(".env")
@@ -57,7 +55,7 @@ func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption)
 }
 
 func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
-	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
+	return math.Min(constants.MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
 }
 
 func Bot(ctx context.Context, clientOption option.ClientOption) {
@@ -80,7 +78,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 	lastCheckedDesiredMaxSeats := utils.JstNow()
 
-	const MinimumTryTimesToNotify = 2
+	const MinimumTryTimesToNotify = constants.MinimumTryTimesToNotify
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
 	var lastChatFetched time.Time
@@ -112,7 +110,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			if numContinuousRetrieveNextPageTokenFailed >= MinimumTryTimesToNotify {
 				app.MessageToOwnerWithError(ctx, "（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed)+"回目） failed to retrieve next page token", err)
 			}
-			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
+			waitSeconds := CalculateRetryIntervalSec(constants.RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
 		} else {
@@ -127,7 +125,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 				app.MessageToOwnerWithError(ctx, "（"+strconv.Itoa(numContinuousListMessagesFailed)+
 					"回目） failed to retrieve chat messages", err)
 			}
-			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousListMessagesFailed)
+			waitSeconds := CalculateRetryIntervalSec(constants.RetryIntervalCalculationBase, numContinuousListMessagesFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
 		} else {
@@ -139,7 +137,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
 			app.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
 			// 少し待ってから再試行
-			time.Sleep(3 * time.Second)
+			time.Sleep(constants.DefaultSleepIntervalSeconds * time.Second)
 			err2 := app.SaveNextPageToken(ctx, nextPageToken)
 			if err2 != nil {
 				app.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
@@ -156,7 +154,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 			if err = app.AddLiveChatHistoryDoc(ctx, chatMessage); err != nil {
 				app.MessageToOwnerWithError(ctx, "(1回目) failed to add live chat history", err)
-				time.Sleep(2 * time.Second)
+				time.Sleep(constants.ChatHistorySaveRetrySleepSeconds * time.Second)
 				if err2 := app.AddLiveChatHistoryDoc(ctx, chatMessage); err2 != nil {
 					app.MessageToOwnerWithError(ctx, "(2回目) failed to add live chat history", err2)
 					// pass
