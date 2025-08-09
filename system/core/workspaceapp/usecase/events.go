@@ -107,36 +107,47 @@ func (ChangeBreakDurationUpdated) isEvent() {}
 // Events produced by the More handler.
 
 type MoreMaxWork struct {
-    MaxWorkTimeMin int
+	MaxWorkTimeMin int
 }
 
 func (MoreMaxWork) isEvent() {}
 
 type MoreWorkExtended struct {
-    AddedMin int
+	AddedMin int
 }
 
 func (MoreWorkExtended) isEvent() {}
 
 type MoreMaxBreak struct {
-    MaxBreakDurationMin int
+	MaxBreakDurationMin int
 }
 
 func (MoreMaxBreak) isEvent() {}
 
 type MoreBreakExtended struct {
-    AddedMin           int
-    RemainingBreakMin  int
+	AddedMin          int
+	RemainingBreakMin int
 }
 
 func (MoreBreakExtended) isEvent() {}
 
 type MoreSummary struct {
-    RealtimeEnteredMin      int
-    RemainingUntilExitMin   int
+	RealtimeEnteredMin    int
+	RemainingUntilExitMin int
 }
 
 func (MoreSummary) isEvent() {}
+
+// ============ Break usecase events ============
+// Event produced when a break is successfully started.
+type BreakStarted struct {
+    SeatID       int
+    IsMemberSeat bool
+    WorkName     string
+    DurationMin  int
+}
+
+func (BreakStarted) isEvent() {}
 
 // Result aggregates events produced by a usecase execution.
 type Result struct {
