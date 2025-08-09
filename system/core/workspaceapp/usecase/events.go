@@ -181,6 +181,45 @@ type ResumeStarted struct {
 
 func (ResumeStarted) isEvent() {}
 
+// ============ Order usecase events ============
+type OrderEnterOnly struct{}
+
+func (OrderEnterOnly) isEvent() {}
+
+type OrderTooMany struct {
+	MaxDailyOrderCount int
+}
+
+func (OrderTooMany) isEvent() {}
+
+type OrderCleared struct{}
+
+func (OrderCleared) isEvent() {}
+
+type OrderOrdered struct {
+	MenuName   string
+	CountAfter int64
+}
+
+func (OrderOrdered) isEvent() {}
+
+// ============ Clear usecase events ============
+type ClearEnterOnly struct{}
+
+func (ClearEnterOnly) isEvent() {}
+
+type ClearWork struct {
+	SeatID int
+}
+
+func (ClearWork) isEvent() {}
+
+type ClearBreak struct {
+	SeatID int
+}
+
+func (ClearBreak) isEvent() {}
+
 // Result aggregates events produced by a usecase execution.
 type Result struct {
 	Events []Event

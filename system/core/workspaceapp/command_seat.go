@@ -799,7 +799,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 
 func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOption) error {
 	replyMessage := ""
-	t := i18n.GetTFunc("command-order")
+	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -808,7 +808,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			result.Add(usecase.OrderEnterOnly{})
 			return nil
 		}
 
@@ -819,7 +819,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		}
 		if !app.ProcessedUserIsMember && !orderOption.ClearFlag { // 下膳の場合はスキップ
 			if todayOrderCount >= int64(app.Configs.Constants.MaxDailyOrderCount) {
-				replyMessage = t("too-many-orders", app.ProcessedUserDisplayName, app.Configs.Constants.MaxDailyOrderCount)
+				result.Add(usecase.OrderTooMany{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
 				return nil
 			}
 		}
@@ -838,7 +838,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 			if err != nil {
 				return fmt.Errorf("in UpdateSeat: %w", err)
 			}
-			replyMessage = t("cleared", app.ProcessedUserDisplayName)
+			result.Add(usecase.OrderCleared{})
 			return nil
 		}
 
@@ -866,12 +866,15 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
-		replyMessage = t("ordered", app.ProcessedUserDisplayName, targetMenuItem.Name, todayOrderCount+1)
+		result.Add(usecase.OrderOrdered{MenuName: targetMenuItem.Name, CountAfter: todayOrderCount + 1})
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Order()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+	}
+	if txErr == nil {
+		replyMessage = presenter.BuildOrderMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -879,6 +882,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 
 func (app *WorkspaceApp) Clear(ctx context.Context) error {
 	replyMessage := ""
+	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -887,7 +891,7 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			result.Add(usecase.ClearEnterOnly{})
 			return nil
 		}
 
@@ -902,10 +906,10 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 		switch seat.State {
 		case repository.WorkState:
 			seat.WorkName = ""
-			replyMessage = i18n.T("others:clear-work", app.ProcessedUserDisplayName, seat.SeatId)
+			result.Add(usecase.ClearWork{SeatID: seat.SeatId})
 		case repository.BreakState:
 			seat.BreakWorkName = ""
-			replyMessage = i18n.T("others:clear-break", app.ProcessedUserDisplayName, seat.SeatId)
+			result.Add(usecase.ClearBreak{SeatID: seat.SeatId})
 		}
 
 		err = app.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)
@@ -918,6 +922,9 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 	if txErr != nil {
 		slog.Error("txErr in Clear()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+	}
+	if txErr == nil {
+		replyMessage = presenter.BuildClearMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
