@@ -297,10 +297,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		slog.Error("txErr in In()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-    if txErr == nil {
-        // イベントから返信文をTx外で組み立てる
-        replyMessage += presenter.BuildInMessage(result, app.ProcessedUserDisplayName)
-    }
+	if txErr == nil {
+		// イベントから返信文をTx外で組み立てる
+		replyMessage += presenter.BuildInMessage(result, app.ProcessedUserDisplayName)
+	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
@@ -510,17 +510,17 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		slog.Error("txErr in Change()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-    if txErr == nil {
-        // Tx外で返信文構築。sir接頭辞＋更新メッセージ→時間系メッセージの順はPresenter側で維持
-        replyMessage = presenter.BuildChangeMessage(result, app.ProcessedUserDisplayName)
-    }
+	if txErr == nil {
+		// Tx外で返信文構築。sir接頭辞＋更新メッセージ→時間系メッセージの順はPresenter側で維持
+		replyMessage = presenter.BuildChangeMessage(result, app.ProcessedUserDisplayName)
+	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
 func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption) error {
-	replyMessage := ""
-	t := i18n.GetTFunc("command-more")
+    replyMessage := ""
+    var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		jstNow := utils.JstNow()
 
@@ -543,9 +543,8 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		// 以降書き込みのみ
 		newSeat := &currentSeat
 
-		replyMessage = i18n.T("common:sir", app.ProcessedUserDisplayName)
-		var addedMin int              // 最終的な延長時間（分）
-		var remainingUntilExitMin int // 最終的な自動退室予定時刻までの残り時間（分）
+        var addedMin int              // 最終的な延長時間（分）
+        var remainingUntilExitMin int // 最終的な自動退室予定時刻までの残り時間（分）
 
 		switch currentSeat.State {
 		case repository.WorkState:
@@ -563,15 +562,15 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			newUntil := currentSeat.Until.Add(time.Duration(moreOption.DurationMin) * time.Minute)
 			// もし延長後の時間が最大作業時間を超えていたら、最大作業時間まで延長
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
-			if remainingUntilExitMin > app.Configs.Constants.MaxWorkTimeMin {
-				newUntil = jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)
-				replyMessage += t("max-work", app.Configs.Constants.MaxWorkTimeMin)
-			}
+            if remainingUntilExitMin > app.Configs.Constants.MaxWorkTimeMin {
+                newUntil = jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)
+                result.Add(usecase.MoreMaxWork{MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin})
+            }
 			addedMin = int(utils.NoNegativeDuration(newUntil.Sub(currentSeat.Until)).Minutes())
 			newSeat.Until = newUntil
 			newSeat.CurrentStateUntil = newUntil
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
-		case repository.BreakState:
+        case repository.BreakState:
 			// オーバーフロー対策。延長時間が最大休憩時間を超えていたら、最大休憩時間で上書き。
 			if moreOption.IsDurationMinSet && moreOption.DurationMin > app.Configs.Constants.MaxBreakDurationMin {
 				moreOption.DurationMin = app.Configs.Constants.MaxBreakDurationMin
@@ -586,10 +585,10 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			newBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(moreOption.DurationMin) * time.Minute)
 			// もし延長後の休憩時間が最大休憩時間を超えていたら、最大休憩時間まで延長
 			newBreakDuration := utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt))
-			if int(newBreakDuration.Minutes()) > app.Configs.Constants.MaxBreakDurationMin {
-				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(app.Configs.Constants.MaxBreakDurationMin) * time.Minute)
-				replyMessage += t("max-break", strconv.Itoa(app.Configs.Constants.MaxBreakDurationMin))
-			}
+            if int(newBreakDuration.Minutes()) > app.Configs.Constants.MaxBreakDurationMin {
+                newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(app.Configs.Constants.MaxBreakDurationMin) * time.Minute)
+                result.Add(usecase.MoreMaxBreak{MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin})
+            }
 			addedMin = int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateUntil)).Minutes())
 			newSeat.CurrentStateUntil = newBreakUntil
 			// もし延長後の休憩時間がUntilを超えていたらUntilもそれに合わせる
@@ -606,15 +605,15 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
 		}
 
-		switch currentSeat.State {
-		case repository.WorkState:
-			replyMessage += t("reply-work", addedMin)
-		case repository.BreakState:
-			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
-			replyMessage += t("reply-break", addedMin, int(remainingBreakDuration.Minutes()))
-		}
-		realtimeEnteredTimeMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
-		replyMessage += t("reply", realtimeEnteredTimeMin, remainingUntilExitMin)
+        switch currentSeat.State {
+        case repository.WorkState:
+            result.Add(usecase.MoreWorkExtended{AddedMin: addedMin})
+        case repository.BreakState:
+            remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
+            result.Add(usecase.MoreBreakExtended{AddedMin: addedMin, RemainingBreakMin: int(remainingBreakDuration.Minutes())})
+        }
+        realtimeEnteredTimeMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
+        result.Add(usecase.MoreSummary{RealtimeEnteredMin: realtimeEnteredTimeMin, RemainingUntilExitMin: remainingUntilExitMin})
 
 		return nil
 	})
@@ -622,6 +621,9 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		slog.Error("txErr in More()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
+    if txErr == nil {
+        replyMessage = presenter.BuildMoreMessage(result, app.ProcessedUserDisplayName)
+    }
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
