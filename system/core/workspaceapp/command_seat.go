@@ -11,13 +11,16 @@ import (
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp/presenter"
+	"app.modules/core/workspaceapp/usecase"
 	"cloud.google.com/go/firestore"
 	"github.com/pkg/errors"
 )
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	jstNow := utils.JstNow()
-	var replyMessage, orderMessage string
+	var replyMessage string
+	var result usecase.Result
 	t := i18n.GetTFunc("command-in")
 	isTargetMemberSeat := inOption.IsMemberSeat
 
@@ -31,6 +34,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	}
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// order系イベントは最後に追加してメッセージ順を旧実装と合わせる
+		var orderEvents []usecase.Event
 		// 席が指定されているか？
 		if inOption.IsSeatIdSet {
 			// 0番席だったら最小番号の空席に決定
@@ -134,10 +139,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 		// =========== 以降は書き込み処理のみ ===========
 
-		// メニュー注文されている場合は、メニューコードをセット
+		// メニュー注文されている場合は、メニューコードをセット（イベント化）
 		if inOption.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
-				orderMessage += t("too-many-orders", app.Configs.Constants.MaxDailyOrderCount)
+				orderEvents = append(orderEvents, usecase.OrderLimitExceeded{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
 			} else {
 				if isInRoom {
 					currentSeat.MenuCode = targetMenuItem.Code
@@ -155,7 +160,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
 				}
 
-				orderMessage += t("ordered", targetMenuItem.Name, totalOrderCount+1)
+				orderEvents = append(orderEvents, usecase.MenuOrdered{MenuName: targetMenuItem.Name, CountAfter: totalOrderCount + 1})
 			}
 		}
 
@@ -174,21 +179,23 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 			}
 
-			var rpEarned string
-			if userDoc.RankVisible {
-				rpEarned = i18n.T("command:rp-earned", addedRP)
-			}
-			previousSeatIdStr := utils.SeatIdStr(currentSeat.SeatId, isInMemberRoom)
-			newSeatIdStr := utils.SeatIdStr(inOption.SeatId, isTargetMemberSeat)
-
 			var workName string
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				workName = inOption.MinWorkOrderOption.WorkName
 			} else {
 				workName = currentSeat.WorkName
 			}
-
-			replyMessage += t("seat-move", app.ProcessedUserDisplayName, workName, previousSeatIdStr, newSeatIdStr, workedTimeSec/60, rpEarned, untilExitMin)
+			result.Add(usecase.SeatMoved{
+				FromSeatID:       currentSeat.SeatId,
+				FromIsMemberSeat: isInMemberRoom,
+				ToSeatID:         inOption.SeatId,
+				ToIsMemberSeat:   isTargetMemberSeat,
+				WorkName:         workName,
+				WorkedTimeSec:    workedTimeSec,
+				AddedRP:          addedRP,
+				RankVisible:      userDoc.RankVisible,
+				UntilExitMin:     untilExitMin,
+			})
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
 			var seatIdStr string
 			if isInMemberRoom {
@@ -272,23 +279,27 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			if err != nil {
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
-			var newSeatId string
-			if isTargetMemberSeat {
-				newSeatId = i18n.T("common:vip-seat-id", inOption.SeatId)
-			} else {
-				newSeatId = strconv.Itoa(inOption.SeatId)
-			}
-
-			// 入室しましたのメッセージ
-			replyMessage += t("start", app.ProcessedUserDisplayName, inOption.MinWorkOrderOption.WorkName, untilExitMin, newSeatId)
+			// イベント積む（入室）
+			result.Add(usecase.SeatEntered{
+				SeatID:       inOption.SeatId,
+				IsMemberSeat: isTargetMemberSeat,
+				WorkName:     inOption.MinWorkOrderOption.WorkName,
+				UntilExitMin: untilExitMin,
+			})
 		}
-
-		replyMessage += orderMessage
+		// 旧実装の順序に合わせて最後にorderイベントを追加
+		for _, ev := range orderEvents {
+			result.Add(ev)
+		}
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in In()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+	}
+	if txErr == nil {
+		// イベントから返信文をTx外で組み立てる
+		replyMessage += presenter.BuildInMessage(result, t, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
