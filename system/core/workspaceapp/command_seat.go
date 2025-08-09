@@ -288,8 +288,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			})
 		}
 		// 旧実装の順序に合わせて最後にorderイベントを追加
-		for _, ev := range orderEvents {
-			result.Add(ev)
+		for _, event := range orderEvents {
+			result.Add(event)
 		}
 		return nil
 	})
@@ -435,7 +435,9 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			result.Add(usecase.ChangeValidationError{Message: i18n.T("command:enter-only", app.ProcessedUserDisplayName)})
+			result.Add(usecase.ChangeValidationError{
+				Message: i18n.T("command:enter-only", app.ProcessedUserDisplayName),
+			})
 			return nil
 		}
 
@@ -457,10 +459,18 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 			switch currentSeat.State {
 			case repository.WorkState:
 				newSeat.WorkName = changeOption.WorkName
-				result.Add(usecase.ChangeUpdatedWork{WorkName: changeOption.WorkName, SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom})
+				result.Add(usecase.ChangeUpdatedWork{
+					WorkName:     changeOption.WorkName,
+					SeatID:       currentSeat.SeatId,
+					IsMemberSeat: isInMemberRoom,
+				})
 			case repository.BreakState:
 				newSeat.BreakWorkName = changeOption.WorkName
-				result.Add(usecase.ChangeUpdatedBreak{WorkName: changeOption.WorkName, SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom})
+				result.Add(usecase.ChangeUpdatedBreak{
+					WorkName:     changeOption.WorkName,
+					SeatID:       currentSeat.SeatId,
+					IsMemberSeat: isInMemberRoom,
+				})
 			}
 		}
 		if changeOption.IsDurationMinSet {
@@ -473,16 +483,28 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
 					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-					result.Add(usecase.ChangeWorkDurationRejectedBefore{RequestedMin: changeOption.DurationMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
+					result.Add(usecase.ChangeWorkDurationRejectedBefore{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
 				} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 					// もし現在時刻より最大延長可能時間以上後なら却下
 					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-					result.Add(usecase.ChangeWorkDurationRejectedAfter{MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
+					result.Add(usecase.ChangeWorkDurationRejectedAfter{
+						MaxWorkTimeMin:           app.Configs.Constants.MaxWorkTimeMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
 				} else { // それ以外なら延長
 					newSeat.Until = requestedUntil
 					newSeat.CurrentStateUntil = requestedUntil
 					remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-					result.Add(usecase.ChangeWorkDurationUpdated{RequestedMin: changeOption.DurationMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
+					result.Add(usecase.ChangeWorkDurationUpdated{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
 				}
 			case repository.BreakState:
 				// 休憩時間を変更
@@ -492,11 +514,19 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
 					remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-					result.Add(usecase.ChangeBreakDurationRejectedBefore{RequestedMin: changeOption.DurationMin, RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()), RemainingBreakMin: int(remainingBreakDuration.Minutes())})
+					result.Add(usecase.ChangeBreakDurationRejectedBefore{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()),
+						RemainingBreakMin:        int(remainingBreakDuration.Minutes()),
+					})
 				} else { // それ以外ならuntilを変更
 					newSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
-					result.Add(usecase.ChangeBreakDurationUpdated{RequestedMin: changeOption.DurationMin, RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()), RemainingBreakMin: int(remainingBreakDuration.Minutes())})
+					result.Add(usecase.ChangeBreakDurationUpdated{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()),
+						RemainingBreakMin:        int(remainingBreakDuration.Minutes()),
+					})
 				}
 			}
 		}
@@ -565,7 +595,9 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			remainingUntilExitMin = int(utils.NoNegativeDuration(newUntil.Sub(jstNow)).Minutes())
 			if remainingUntilExitMin > app.Configs.Constants.MaxWorkTimeMin {
 				newUntil = jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)
-				result.Add(usecase.MoreMaxWork{MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin})
+				result.Add(usecase.MoreMaxWork{
+					MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin,
+				})
 			}
 			addedMin = int(utils.NoNegativeDuration(newUntil.Sub(currentSeat.Until)).Minutes())
 			newSeat.Until = newUntil
@@ -588,7 +620,9 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			newBreakDuration := utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateStartedAt))
 			if int(newBreakDuration.Minutes()) > app.Configs.Constants.MaxBreakDurationMin {
 				newBreakUntil = currentSeat.CurrentStateStartedAt.Add(time.Duration(app.Configs.Constants.MaxBreakDurationMin) * time.Minute)
-				result.Add(usecase.MoreMaxBreak{MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin})
+				result.Add(usecase.MoreMaxBreak{
+					MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin,
+				})
 			}
 			addedMin = int(utils.NoNegativeDuration(newBreakUntil.Sub(currentSeat.CurrentStateUntil)).Minutes())
 			newSeat.CurrentStateUntil = newBreakUntil
@@ -611,10 +645,16 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			result.Add(usecase.MoreWorkExtended{AddedMin: addedMin})
 		case repository.BreakState:
 			remainingBreakDuration := utils.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(jstNow))
-			result.Add(usecase.MoreBreakExtended{AddedMin: addedMin, RemainingBreakMin: int(remainingBreakDuration.Minutes())})
+			result.Add(usecase.MoreBreakExtended{
+				AddedMin:          addedMin,
+				RemainingBreakMin: int(remainingBreakDuration.Minutes()),
+			})
 		}
 		realtimeEnteredTimeMin := int(utils.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
-		result.Add(usecase.MoreSummary{RealtimeEnteredMin: realtimeEnteredTimeMin, RemainingUntilExitMin: remainingUntilExitMin})
+		result.Add(usecase.MoreSummary{
+			RealtimeEnteredMin:    realtimeEnteredTimeMin,
+			RemainingUntilExitMin: remainingUntilExitMin,
+		})
 
 		return nil
 	})
@@ -657,7 +697,10 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		// 前回の入室または再開から、最低休憩間隔経っているか？
 		currentWorkedMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
 		if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
-			result.Add(usecase.BreakWarn{MinBreakIntervalMin: app.Configs.Constants.MinBreakIntervalMin, CurrentWorkedMin: currentWorkedMin})
+			result.Add(usecase.BreakWarn{
+				MinBreakIntervalMin: app.Configs.Constants.MinBreakIntervalMin,
+				CurrentWorkedMin:    currentWorkedMin,
+			})
 			return nil
 		}
 
@@ -703,7 +746,12 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
 		}
 
-		result.Add(usecase.BreakStarted{SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom, WorkName: breakOption.WorkName, DurationMin: breakOption.DurationMin})
+		result.Add(usecase.BreakStarted{
+			SeatID:       currentSeat.SeatId,
+			IsMemberSeat: isInMemberRoom,
+			WorkName:     breakOption.WorkName,
+			DurationMin:  breakOption.DurationMin,
+		})
 		return nil
 	})
 	if txErr != nil {
@@ -781,7 +829,11 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 
 		untilExitDuration := utils.NoNegativeDuration(until.Sub(jstNow))
-		result.Add(usecase.ResumeStarted{SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom, RemainingUntilExitMin: int(untilExitDuration.Minutes())})
+		result.Add(usecase.ResumeStarted{
+			SeatID:                currentSeat.SeatId,
+			IsMemberSeat:          isInMemberRoom,
+			RemainingUntilExitMin: int(untilExitDuration.Minutes()),
+		})
 		return nil
 	})
 	if txErr != nil {
@@ -819,7 +871,9 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		}
 		if !app.ProcessedUserIsMember && !orderOption.ClearFlag { // 下膳の場合はスキップ
 			if todayOrderCount >= int64(app.Configs.Constants.MaxDailyOrderCount) {
-				result.Add(usecase.OrderTooMany{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
+				result.Add(usecase.OrderTooMany{
+					MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount,
+				})
 				return nil
 			}
 		}
@@ -866,7 +920,10 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
-		result.Add(usecase.OrderOrdered{MenuName: targetMenuItem.Name, CountAfter: todayOrderCount + 1})
+		result.Add(usecase.OrderOrdered{
+			MenuName:   targetMenuItem.Name,
+			CountAfter: todayOrderCount + 1,
+		})
 		return nil
 	})
 	if txErr != nil {

@@ -11,8 +11,8 @@ import (
 func BuildOrderMessage(res usecase.Result, displayName string) string {
 	t := i18n.GetTFunc("command-order")
 	msg := ""
-	for _, ev := range res.Events {
-		switch e := ev.(type) {
+	for _, event := range res.Events {
+		switch e := event.(type) {
 		case usecase.OrderEnterOnly:
 			msg += i18n.T("command:enter-only", displayName)
 		case usecase.OrderTooMany:

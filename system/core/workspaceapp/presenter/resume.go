@@ -11,8 +11,8 @@ import (
 func BuildResumeMessage(res usecase.Result, displayName string) string {
 	t := i18n.GetTFunc("command-resume")
 	msg := ""
-	for _, ev := range res.Events {
-		switch e := ev.(type) {
+	for _, event := range res.Events {
+		switch e := event.(type) {
 		case usecase.ResumeBreakOnly:
 			msg += t("break-only", displayName)
 		case usecase.ResumeStarted:

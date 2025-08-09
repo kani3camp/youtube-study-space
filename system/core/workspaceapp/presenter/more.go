@@ -10,8 +10,8 @@ import (
 func BuildMoreMessage(res usecase.Result, displayName string) string {
 	t := i18n.GetTFunc("command-more")
 	msg := i18n.T("common:sir", displayName)
-	for _, ev := range res.Events {
-		switch e := ev.(type) {
+	for _, event := range res.Events {
+		switch e := event.(type) {
 		case usecase.MoreMaxWork:
 			msg += t("max-work", e.MaxWorkTimeMin)
 		case usecase.MoreWorkExtended:

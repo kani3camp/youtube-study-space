@@ -10,8 +10,8 @@ import (
 // Note: Clearはsir接頭辞なし（既存テスト準拠）
 func BuildClearMessage(res usecase.Result, displayName string) string {
 	msg := ""
-	for _, ev := range res.Events {
-		switch e := ev.(type) {
+	for _, event := range res.Events {
+		switch e := event.(type) {
 		case usecase.ClearEnterOnly:
 			msg += i18n.T("command:enter-only", displayName)
 		case usecase.ClearWork:
