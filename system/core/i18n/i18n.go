@@ -4,7 +4,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"strings"
 
@@ -54,6 +53,9 @@ type Localizer struct {
 }
 
 type TFuncType func(key string, args ...interface{}) string
+
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 本型は移行期間中の後方互換のために残されています。
 
 func SetDefaultLanguage(lang Language) {
 	defaultLanguage = lang
@@ -107,23 +109,8 @@ func LoadLocaleFileFS(f embed.FS, name string) error {
 	return nil
 }
 
-func LoadLocaleFolder(name string) error {
-	files, err := os.ReadDir(name)
-	if err != nil {
-		return fmt.Errorf("in os.ReadDir: %w", err)
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			return ErrLocaleFile
-		}
-		if err := LoadLocaleFile(path.Join(name, file.Name())); err != nil {
-			return fmt.Errorf("in LoadLocaleFile: %w", err)
-		}
-	}
-	return nil
-}
-
+// LoadLocaleFolderFS loads all locale files from embedded filesystem.
+// Deprecated: Use LoadLocaleFolderFS which loads from embedded files.
 func LoadLocaleFolderFS() error {
 	dir, err := fs.ReadDir(LocalesFolderName)
 	if err != nil {
@@ -175,6 +162,8 @@ func t(lang, fallback Language, namespace, key string, args ...interface{}) stri
 	return fmt.Sprintf("TRANSLATION DATA NOT FOUND. [%s]: %s:%s", lang, namespace, key)
 }
 
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 直接キー文字列を渡す利用は段階的に廃止します。
 func T(key string, args ...interface{}) string {
 	return t(defaultLanguage, defaultFallback, "", key, args...)
 }
@@ -210,10 +199,14 @@ func (l *Localizer) SetNamespace(namespace string) {
 	l.namespace = namespace
 }
 
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 直接キー文字列を渡す利用は段階的に廃止します。
 func (l *Localizer) T(key string, args ...interface{}) string {
 	return t(l.language, l.fallback, l.namespace, key, args...)
 }
 
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 低レベルの翻訳関数の取得は段階的に廃止します。
 func (l *Localizer) GetTFunc() TFuncType {
 	return getTFunc(l.language, l.fallback, l.namespace)
 }
@@ -228,10 +221,14 @@ func getTFunc(lang, fallback Language, namespace ...string) TFuncType {
 	}
 }
 
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 低レベルの翻訳関数の取得は段階的に廃止します。
 func GetTFunc(namespaces ...string) TFuncType {
 	return getTFunc(defaultLanguage, defaultFallback, namespaces...)
 }
 
+// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
+// 低レベルの翻訳関数の取得は段階的に廃止します。
 func GetTFuncWithLang(lang Language, namespaces ...string) TFuncType {
 	return getTFunc(lang, defaultFallback, namespaces...)
 }
