@@ -250,7 +250,24 @@ func toExportedName(ns, key string) string {
 			}
 			parts[i] = strings.ToUpper(p[:1]) + p[1:]
 		}
-		return strings.Join(parts, "")
+		// join and strip non-alphanumeric
+		joined := strings.Join(parts, "")
+		b := strings.Builder{}
+		for _, r := range joined {
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				b.WriteRune(r)
+			}
+		}
+		out := b.String()
+		if out == "" {
+			out = "Key"
+		}
+		// ensure starts with letter for exported name
+		r0 := rune(out[0])
+		if !((r0 >= 'A' && r0 <= 'Z') || (r0 >= 'a' && r0 <= 'z')) {
+			out = "Key" + out
+		}
+		return out
 	}
 	return conv(ns) + conv(key)
 }
