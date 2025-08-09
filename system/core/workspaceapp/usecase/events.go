@@ -141,10 +141,10 @@ func (MoreSummary) isEvent() {}
 // ============ Break usecase events ============
 // Event produced when a break is successfully started.
 type BreakStarted struct {
-    SeatID       int
-    IsMemberSeat bool
-    WorkName     string
-    DurationMin  int
+	SeatID       int
+	IsMemberSeat bool
+	WorkName     string
+	DurationMin  int
 }
 
 func (BreakStarted) isEvent() {}

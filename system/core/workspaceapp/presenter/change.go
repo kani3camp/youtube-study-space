@@ -1,14 +1,14 @@
 package presenter
 
 import (
-    "app.modules/core/i18n"
+	"app.modules/core/i18n"
 	"app.modules/core/workspaceapp/usecase"
 )
 
 // BuildChangeMessage converts Change usecase events into a localized response.
 func BuildChangeMessage(res usecase.Result, displayName string) string {
-    t := i18n.GetTFunc("command-change")
-    msg := i18n.T("common:sir", displayName)
+	t := i18n.GetTFunc("command-change")
+	msg := i18n.T("common:sir", displayName)
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.ChangeUpdatedWork:

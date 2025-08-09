@@ -629,8 +629,8 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 }
 
 func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOrderOption) error {
-    replyMessage := ""
-    var result usecase.Result
+	replyMessage := ""
+	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -648,15 +648,15 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
-        if currentSeat.State != repository.WorkState {
-            replyMessage = i18n.T("command-break:work-only", app.ProcessedUserDisplayName)
+		if currentSeat.State != repository.WorkState {
+			replyMessage = i18n.T("command-break:work-only", app.ProcessedUserDisplayName)
 			return nil
 		}
 
 		// 前回の入室または再開から、最低休憩間隔経っているか？
 		currentWorkedMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
-        if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
-            replyMessage = i18n.T("command-break:warn", app.ProcessedUserDisplayName, app.Configs.Constants.MinBreakIntervalMin, currentWorkedMin)
+		if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
+			replyMessage = i18n.T("command-break:warn", app.ProcessedUserDisplayName, app.Configs.Constants.MinBreakIntervalMin, currentWorkedMin)
 			return nil
 		}
 
@@ -702,18 +702,18 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
 		}
 
-        result.Add(usecase.BreakStarted{SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom, WorkName: breakOption.WorkName, DurationMin: breakOption.DurationMin})
+		result.Add(usecase.BreakStarted{SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom, WorkName: breakOption.WorkName, DurationMin: breakOption.DurationMin})
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Break()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-    if txErr == nil {
-        if len(result.Events) > 0 {
-            replyMessage = presenter.BuildBreakMessage(result, app.ProcessedUserDisplayName)
-        }
-    }
+	if txErr == nil {
+		if len(result.Events) > 0 {
+			replyMessage = presenter.BuildBreakMessage(result, app.ProcessedUserDisplayName)
+		}
+	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
