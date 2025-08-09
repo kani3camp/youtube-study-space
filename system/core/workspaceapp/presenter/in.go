@@ -1,15 +1,13 @@
 package presenter
 
 import (
-	"strconv"
-
 	"app.modules/core/i18n"
 	"app.modules/core/workspaceapp/usecase"
 )
 
 // BuildInMessage converts In usecase result events into a localized response message.
-// t must be a localizer with namespace "command-in".
-func BuildInMessage(res usecase.Result, t i18n.TFuncType, displayName string) string {
+func BuildInMessage(res usecase.Result, displayName string) string {
+	t := i18n.GetTFunc("command-in")
 	msg := ""
 	for _, event := range res.Events {
 		switch e := event.(type) {
@@ -31,11 +29,4 @@ func BuildInMessage(res usecase.Result, t i18n.TFuncType, displayName string) st
 		}
 	}
 	return msg
-}
-
-func seatIDStr(seatID int, isMemberSeat bool) string {
-	if isMemberSeat {
-		return i18n.T("common:vip-seat-id", seatID)
-	}
-	return strconv.Itoa(seatID)
 }

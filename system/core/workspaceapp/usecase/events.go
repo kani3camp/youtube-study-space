@@ -43,6 +43,66 @@ type OrderLimitExceeded struct {
 
 func (OrderLimitExceeded) isEvent() {}
 
+// ============ Change usecase events ============
+// These events are used by the Change handler to describe state changes
+// or rejections, and then formatted by presenter/change.go outside the tx.
+
+type ChangeUpdatedWork struct {
+    WorkName     string
+    SeatID       int
+    IsMemberSeat bool
+}
+
+func (ChangeUpdatedWork) isEvent() {}
+
+type ChangeUpdatedBreak struct {
+    WorkName     string
+    SeatID       int
+    IsMemberSeat bool
+}
+
+func (ChangeUpdatedBreak) isEvent() {}
+
+type ChangeWorkDurationRejectedBefore struct {
+    RequestedMin             int
+    RealtimeEntryDurationMin int
+    RemainingWorkMin         int
+}
+
+func (ChangeWorkDurationRejectedBefore) isEvent() {}
+
+type ChangeWorkDurationRejectedAfter struct {
+    MaxWorkTimeMin           int
+    RealtimeEntryDurationMin int
+    RemainingWorkMin         int
+}
+
+func (ChangeWorkDurationRejectedAfter) isEvent() {}
+
+type ChangeWorkDurationUpdated struct {
+    RequestedMin             int
+    RealtimeEntryDurationMin int
+    RemainingWorkMin         int
+}
+
+func (ChangeWorkDurationUpdated) isEvent() {}
+
+type ChangeBreakDurationRejectedBefore struct {
+    RequestedMin              int
+    RealtimeBreakDurationMin  int
+    RemainingBreakMin         int
+}
+
+func (ChangeBreakDurationRejectedBefore) isEvent() {}
+
+type ChangeBreakDurationUpdated struct {
+    RequestedMin             int
+    RealtimeBreakDurationMin int
+    RemainingBreakMin        int
+}
+
+func (ChangeBreakDurationUpdated) isEvent() {}
+
 // Result aggregates events produced by a usecase execution.
 type Result struct {
 	Events []Event

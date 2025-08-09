@@ -297,10 +297,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		slog.Error("txErr in In()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
-	if txErr == nil {
-		// イベントから返信文をTx外で組み立てる
-		replyMessage += presenter.BuildInMessage(result, t, app.ProcessedUserDisplayName)
-	}
+    if txErr == nil {
+        // イベントから返信文をTx外で組み立てる
+        replyMessage += presenter.BuildInMessage(result, app.ProcessedUserDisplayName)
+    }
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
@@ -426,7 +426,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWorkOrderOption) error {
 	jstNow := utils.JstNow()
 	replyMessage := ""
-	t := i18n.GetTFunc("command-change")
+	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室中か？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -450,25 +450,17 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 			return nil
 		}
 
-		// これ以降は書き込みのみ可。
+		// これ以降は書き込みのみ可。イベントを積む
 
 		newSeat := &currentSeat
-		replyMessage = i18n.T("common:sir", app.ProcessedUserDisplayName)
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
-			var seatIdStr string
-			if isInMemberRoom {
-				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(currentSeat.SeatId)
-			}
-
 			switch currentSeat.State {
 			case repository.WorkState:
 				newSeat.WorkName = changeOption.WorkName
-				replyMessage += t("update-work", changeOption.WorkName, seatIdStr)
+				result.Add(usecase.ChangeUpdatedWork{WorkName: changeOption.WorkName, SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom})
 			case repository.BreakState:
 				newSeat.BreakWorkName = changeOption.WorkName
-				replyMessage += t("update-break", changeOption.WorkName, seatIdStr)
+				result.Add(usecase.ChangeUpdatedBreak{WorkName: changeOption.WorkName, SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom})
 			}
 		}
 		if changeOption.IsDurationMinSet {
@@ -481,16 +473,16 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
 					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-					replyMessage += t("work-duration-before", changeOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					result.Add(usecase.ChangeWorkDurationRejectedBefore{RequestedMin: changeOption.DurationMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
 				} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 					// もし現在時刻より最大延長可能時間以上後なら却下
 					remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-					replyMessage += t("work-duration-after", app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
+					result.Add(usecase.ChangeWorkDurationRejectedAfter{MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
 				} else { // それ以外なら延長
 					newSeat.Until = requestedUntil
 					newSeat.CurrentStateUntil = requestedUntil
 					remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-					replyMessage += t("work-duration", changeOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					result.Add(usecase.ChangeWorkDurationUpdated{RequestedMin: changeOption.DurationMin, RealtimeEntryDurationMin: realtimeEntryDurationMin, RemainingWorkMin: remainingWorkMin})
 				}
 			case repository.BreakState:
 				// 休憩時間を変更
@@ -500,11 +492,11 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				if requestedUntil.Before(jstNow) {
 					// もし現在時刻が指定時間を経過していたら却下
 					remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-					replyMessage += t("break-duration-before", changeOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					result.Add(usecase.ChangeBreakDurationRejectedBefore{RequestedMin: changeOption.DurationMin, RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()), RemainingBreakMin: int(remainingBreakDuration.Minutes())})
 				} else { // それ以外ならuntilを変更
 					newSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
-					replyMessage += t("break-duration", changeOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+					result.Add(usecase.ChangeBreakDurationUpdated{RequestedMin: changeOption.DurationMin, RealtimeBreakDurationMin: int(realtimeBreakDuration.Minutes()), RemainingBreakMin: int(remainingBreakDuration.Minutes())})
 				}
 			}
 		}
@@ -518,6 +510,10 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		slog.Error("txErr in Change()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
 	}
+    if txErr == nil {
+        // Tx外で返信文構築。sir接頭辞＋更新メッセージ→時間系メッセージの順はPresenter側で維持
+        replyMessage = presenter.BuildChangeMessage(result, app.ProcessedUserDisplayName)
+    }
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
