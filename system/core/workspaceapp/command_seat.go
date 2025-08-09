@@ -721,7 +721,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 
 func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNameOption) error {
 	replyMessage := ""
-	t := i18n.GetTFunc("command-resume")
+	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -740,7 +740,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
 		if currentSeat.State != repository.BreakState {
-			replyMessage = t("break-only", app.ProcessedUserDisplayName)
+			result.Add(usecase.ResumeBreakOnly{})
 			return nil
 		}
 
@@ -780,20 +780,18 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
 		}
 
-		var seatIdStr string
-		if isInMemberRoom {
-			seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
-		} else {
-			seatIdStr = strconv.Itoa(currentSeat.SeatId)
-		}
-
 		untilExitDuration := utils.NoNegativeDuration(until.Sub(jstNow))
-		replyMessage = t("work", app.ProcessedUserDisplayName, seatIdStr, int(untilExitDuration.Minutes()))
+		result.Add(usecase.ResumeStarted{SeatID: currentSeat.SeatId, IsMemberSeat: isInMemberRoom, RemainingUntilExitMin: int(untilExitDuration.Minutes())})
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Resume()", "txErr", txErr)
 		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+	}
+	if txErr == nil {
+		if len(result.Events) > 0 {
+			replyMessage = presenter.BuildResumeMessage(result, app.ProcessedUserDisplayName)
+		}
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr

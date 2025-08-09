@@ -168,6 +168,19 @@ type BreakWarn struct {
 
 func (BreakWarn) isEvent() {}
 
+// ============ Resume usecase events ============
+type ResumeBreakOnly struct{}
+
+func (ResumeBreakOnly) isEvent() {}
+
+type ResumeStarted struct {
+	SeatID                int
+	IsMemberSeat          bool
+	RemainingUntilExitMin int
+}
+
+func (ResumeStarted) isEvent() {}
+
 // Result aggregates events produced by a usecase execution.
 type Result struct {
 	Events []Event
