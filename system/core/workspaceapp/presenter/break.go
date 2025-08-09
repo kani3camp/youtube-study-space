@@ -13,6 +13,10 @@ func BuildBreakMessage(res usecase.Result, displayName string) string {
 	msg := ""
 	for _, ev := range res.Events {
 		switch e := ev.(type) {
+		case usecase.BreakWorkOnly:
+			msg += t("work-only", displayName)
+		case usecase.BreakWarn:
+			msg += t("warn", displayName, e.MinBreakIntervalMin, e.CurrentWorkedMin)
 		case usecase.BreakStarted:
 			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += t("break", displayName, e.WorkName, e.DurationMin, seat)

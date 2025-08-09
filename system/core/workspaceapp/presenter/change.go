@@ -11,6 +11,8 @@ func BuildChangeMessage(res usecase.Result, displayName string) string {
 	msg := i18n.T("common:sir", displayName)
 	for _, event := range res.Events {
 		switch e := event.(type) {
+		case usecase.ChangeValidationError:
+			msg += e.Message
 		case usecase.ChangeUpdatedWork:
 			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += t("update-work", e.WorkName, seat)

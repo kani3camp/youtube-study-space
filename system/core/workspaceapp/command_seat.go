@@ -435,7 +435,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			result.Add(usecase.ChangeValidationError{Message: i18n.T("command:enter-only", app.ProcessedUserDisplayName)})
 			return nil
 		}
 
@@ -446,7 +446,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 
 		// validation
 		if err := app.ValidateChange(*changeOption, currentSeat.State); err != nil {
-			replyMessage = fmt.Sprintf("%s%s", i18n.T("common:sir", app.ProcessedUserDisplayName), err) // TODO 動作確認
+			result.Add(usecase.ChangeValidationError{Message: err.Error()})
 			return nil
 		}
 
@@ -531,6 +531,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
+			result.Add(usecase.BreakWorkOnly{}) // Will be rendered as enter-only? keep original message below
 			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
 			return nil
 		}
@@ -649,14 +650,14 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
 		if currentSeat.State != repository.WorkState {
-			replyMessage = i18n.T("command-break:work-only", app.ProcessedUserDisplayName)
+			result.Add(usecase.BreakWorkOnly{})
 			return nil
 		}
 
 		// 前回の入室または再開から、最低休憩間隔経っているか？
 		currentWorkedMin := int(utils.NoNegativeDuration(utils.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
 		if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
-			replyMessage = i18n.T("command-break:warn", app.ProcessedUserDisplayName, app.Configs.Constants.MinBreakIntervalMin, currentWorkedMin)
+			result.Add(usecase.BreakWarn{MinBreakIntervalMin: app.Configs.Constants.MinBreakIntervalMin, CurrentWorkedMin: currentWorkedMin})
 			return nil
 		}
 

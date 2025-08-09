@@ -103,6 +103,13 @@ type ChangeBreakDurationUpdated struct {
 
 func (ChangeBreakDurationUpdated) isEvent() {}
 
+// Validation error occurred in Change usecase (message already localized)
+type ChangeValidationError struct {
+	Message string
+}
+
+func (ChangeValidationError) isEvent() {}
+
 // ============ More usecase events ============
 // Events produced by the More handler.
 
@@ -148,6 +155,18 @@ type BreakStarted struct {
 }
 
 func (BreakStarted) isEvent() {}
+
+// Early-return reasons for Break
+type BreakWorkOnly struct{}
+
+func (BreakWorkOnly) isEvent() {}
+
+type BreakWarn struct {
+	MinBreakIntervalMin int
+	CurrentWorkedMin    int
+}
+
+func (BreakWarn) isEvent() {}
 
 // Result aggregates events produced by a usecase execution.
 type Result struct {
