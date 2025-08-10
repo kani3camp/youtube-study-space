@@ -1,7 +1,7 @@
 package presenter
 
 import (
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
 )
 
@@ -9,17 +9,16 @@ import (
 // Namespace: command-break
 // Note: Breakの文面は先頭のsir接頭辞を付けない（既存テスト準拠）
 func BuildBreakMessage(res usecase.Result, displayName string) string {
-	t := i18n.GetTFunc("command-break")
 	msg := ""
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.BreakWorkOnly:
-			msg += t("work-only", displayName)
+			msg += i18nmsg.CommandBreakWorkOnly(displayName)
 		case usecase.BreakWarn:
-			msg += t("warn", displayName, e.MinBreakIntervalMin, e.CurrentWorkedMin)
+			msg += i18nmsg.CommandBreakWarn(displayName, e.MinBreakIntervalMin, e.CurrentWorkedMin)
 		case usecase.BreakStarted:
 			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
-			msg += t("break", displayName, e.WorkName, e.DurationMin, seat)
+			msg += i18nmsg.CommandBreakBreak(displayName, e.WorkName, e.DurationMin, seat)
 		}
 	}
 	return msg

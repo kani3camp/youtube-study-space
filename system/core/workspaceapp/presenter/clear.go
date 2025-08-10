@@ -1,7 +1,7 @@
 package presenter
 
 import (
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
 )
 
@@ -13,11 +13,11 @@ func BuildClearMessage(res usecase.Result, displayName string) string {
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.ClearEnterOnly:
-			msg += i18n.T("command:enter-only", displayName)
+			msg += i18nmsg.CommandEnterOnly(displayName)
 		case usecase.ClearWork:
-			msg += i18n.T("others:clear-work", displayName, e.SeatID)
+			msg += i18nmsg.OthersClearWork(displayName, i18nmsg.CommonVipSeatId(e.SeatID))
 		case usecase.ClearBreak:
-			msg += i18n.T("others:clear-break", displayName, e.SeatID)
+			msg += i18nmsg.OthersClearBreak(displayName, i18nmsg.CommonVipSeatId(e.SeatID))
 		}
 	}
 	return msg

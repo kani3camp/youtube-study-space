@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
-	t := i18n.GetTFunc("command-user-info")
+	// no-op
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		totalStudyDuration, dailyTotalStudyDuration, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserId)
@@ -22,7 +22,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 		}
 		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
 		totalTimeStr := utils.DurationToString(totalStudyDuration)
-		replyMessage += t("base", app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
+		replyMessage += i18nmsg.CommandUserInfoBase(app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
 		if err != nil {
@@ -30,41 +30,41 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 		}
 
 		if userDoc.RankVisible {
-			replyMessage += t("rank", userDoc.RankPoint)
+			replyMessage += i18nmsg.CommandUserInfoRank(userDoc.RankPoint)
 		}
 
 		if infoOption.ShowDetails {
 			switch userDoc.RankVisible {
 			case true:
-				replyMessage += t("rank-on")
+				replyMessage += i18nmsg.CommandUserInfoRankOn()
 			case false:
-				replyMessage += t("rank-off")
+				replyMessage += i18nmsg.CommandUserInfoRankOff()
 			}
 
 			if userDoc.IsContinuousActive {
 				continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
-				replyMessage += t("rank-on-continuous", continuousActiveDays+1, continuousActiveDays)
+				replyMessage += i18nmsg.CommandUserInfoRankOnContinuous(continuousActiveDays+1, continuousActiveDays)
 			}
 
 			if userDoc.DefaultStudyMin == 0 {
-				replyMessage += t("default-work-off")
+				replyMessage += i18nmsg.CommandUserInfoDefaultWorkOff()
 			} else {
-				replyMessage += t("default-work", userDoc.DefaultStudyMin)
+				replyMessage += i18nmsg.CommandUserInfoDefaultWork(userDoc.DefaultStudyMin)
 			}
 
 			if userDoc.FavoriteColor == "" {
-				replyMessage += t("favorite-color-off")
+				replyMessage += i18nmsg.CommandUserInfoFavoriteColorOff()
 			} else {
-				replyMessage += t("favorite-color", utils.ColorCodeToColorName(userDoc.FavoriteColor))
+				replyMessage += i18nmsg.CommandUserInfoFavoriteColor(utils.ColorCodeToColorName(userDoc.FavoriteColor))
 			}
 
-			replyMessage += t("register-date", userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日"))
+			replyMessage += i18nmsg.CommandUserInfoRegisterDate(userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日"))
 		}
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in ShowUserInfo()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -77,11 +77,11 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 
 	// オプションが1つ以上指定されているか？
 	if len(myOptions) == 0 {
-		app.MessageToLiveChat(ctx, i18n.T("command:option-warn", app.ProcessedUserDisplayName))
+		app.MessageToLiveChat(ctx, i18nmsg.CommandOptionWarn(app.ProcessedUserDisplayName))
 		return nil
 	}
 
-	t := i18n.GetTFunc("command-my")
+	// no-op
 
 	replyMessage := ""
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -118,7 +118,7 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 
 		// これ以降は書き込みのみ
 
-		replyMessage = i18n.T("common:sir", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommonSir(app.ProcessedUserDisplayName)
 		currentRankVisible := userDoc.RankVisible
 		for _, myOption := range myOptions {
 			if myOption.Type == utils.RankVisible {
@@ -127,22 +127,22 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 				if userDoc.RankVisible == newRankVisible {
 					var rankVisibleStr string
 					if userDoc.RankVisible {
-						rankVisibleStr = i18n.T("common:on")
+						rankVisibleStr = i18nmsg.CommonOn()
 					} else {
-						rankVisibleStr = i18n.T("common:off")
+						rankVisibleStr = i18nmsg.CommonOff()
 					}
-					replyMessage += t("already-rank", rankVisibleStr)
+					replyMessage += i18nmsg.CommandMyAlreadyRank(rankVisibleStr)
 				} else { // 違うなら、切替
 					if err := app.Repository.UpdateUserRankVisible(tx, app.ProcessedUserId, newRankVisible); err != nil {
 						return fmt.Errorf("in UpdateUserRankVisible: %w", err)
 					}
 					var newValueStr string
 					if newRankVisible {
-						newValueStr = i18n.T("common:on")
+						newValueStr = i18nmsg.CommonOn()
 					} else {
-						newValueStr = i18n.T("common:off")
+						newValueStr = i18nmsg.CommonOff()
 					}
-					replyMessage += t("set-rank", newValueStr)
+					replyMessage += i18nmsg.CommandMySetRank(newValueStr)
 
 					// 入室中であれば、座席の色も変える
 					if isInRoom {
@@ -169,9 +169,9 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 				}
 				// 値が0はリセットのこと。
 				if myOption.IntValue == 0 {
-					replyMessage += t("reset-default-work")
+					replyMessage += i18nmsg.CommandMyResetDefaultWork()
 				} else {
-					replyMessage += t("set-default-work", myOption.IntValue)
+					replyMessage += i18nmsg.CommandMySetDefaultWork(myOption.IntValue)
 				}
 			} else if myOption.Type == utils.FavoriteColor {
 				// 値が""はリセットのこと。
@@ -179,9 +179,9 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 				if err := app.Repository.UpdateUserFavoriteColor(tx, app.ProcessedUserId, colorCode); err != nil {
 					return fmt.Errorf("in UpdateUserFavoriteColor: %w", err)
 				}
-				replyMessage += t("set-favorite-color")
+				replyMessage += i18nmsg.CommandMySetFavoriteColor()
 				if !utils.CanUseFavoriteColor(realTimeTotalStudySec) {
-					replyMessage += t("alert-favorite-color", utils.FavoriteColorAvailableThresholdHours)
+					replyMessage += i18nmsg.CommandMyAlertFavoriteColor(utils.FavoriteColorAvailableThresholdHours)
 				}
 
 				// 入室中であれば、座席の色も変える
@@ -207,7 +207,7 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 	})
 	if txErr != nil {
 		slog.Error("txErr in My()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -253,11 +253,11 @@ func (app *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) erro
 		}
 		var newValueStr string
 		if newRankVisible {
-			newValueStr = i18n.T("common:on")
+			newValueStr = i18nmsg.CommonOn()
 		} else {
-			newValueStr = i18n.T("common:off")
+			newValueStr = i18nmsg.CommonOff()
 		}
-		replyMessage = i18n.T("command:rank", app.ProcessedUserDisplayName, newValueStr)
+		replyMessage = i18nmsg.CommandRank(app.ProcessedUserDisplayName, newValueStr)
 
 		// 入室中であれば、座席の色も変える
 		if isInRoom {
@@ -277,7 +277,7 @@ func (app *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) erro
 	})
 	if txErr != nil {
 		slog.Error("txErr in Rank()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr

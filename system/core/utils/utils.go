@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -202,7 +202,7 @@ func NameOf(i interface{}) string {
 
 func SeatIdStr(seatId int, isMemberSeat bool) string {
 	if isMemberSeat {
-		return i18n.T("common:vip-seat-id", seatId)
+		return i18nmsg.CommonVipSeatId(seatId)
 	} else {
 		return strconv.Itoa(seatId)
 	}

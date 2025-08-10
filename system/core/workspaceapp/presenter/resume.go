@@ -1,7 +1,7 @@
 package presenter
 
 import (
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
 )
 
@@ -9,15 +9,14 @@ import (
 // Namespace: command-resume
 // Note: Resumeはsir接頭辞なし（テスト準拠）
 func BuildResumeMessage(res usecase.Result, displayName string) string {
-	t := i18n.GetTFunc("command-resume")
 	msg := ""
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.ResumeBreakOnly:
-			msg += t("break-only", displayName)
+			msg += i18nmsg.CommandResumeBreakOnly(displayName)
 		case usecase.ResumeStarted:
 			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
-			msg += t("work", displayName, seat, e.RemainingUntilExitMin)
+			msg += i18nmsg.CommandResumeWork(displayName, seat, e.RemainingUntilExitMin)
 		}
 	}
 	return msg

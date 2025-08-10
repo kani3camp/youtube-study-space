@@ -1,7 +1,7 @@
 package workspaceapp
 
 import (
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"github.com/pkg/errors"
@@ -54,13 +54,13 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 	if inputWorkMin != 0 {
 		expect := app.Configs.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= app.Configs.Constants.MaxWorkTimeMin
 		if !expect {
-			return i18n.T("validate:invalid-work-time-range", app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin)
+			return i18nmsg.ValidateInvalidWorkTimeRange(app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin)
 		}
 	}
 	// 席番号
 	if command.InOption.IsSeatIdSet {
 		if command.InOption.SeatId < 0 {
-			return i18n.T("validate:negative-seat-id")
+			return i18nmsg.ValidateNegativeSeatId()
 		}
 	}
 
@@ -72,7 +72,7 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 		num := command.InOption.MinWorkOrderOption.OrderNum
 		expect := 0 < num && num <= len(app.SortedMenuItems)
 		if !expect {
-			return i18n.T("validate:invalid-menu-number-range", len(app.SortedMenuItems))
+			return i18nmsg.ValidateInvalidMenuNumberRange(len(app.SortedMenuItems))
 		}
 	}
 
@@ -103,7 +103,7 @@ func (app *WorkspaceApp) ValidateMy(command utils.CommandDetails) string {
 			if inputDefaultStudyMin != 0 {
 				expect := app.Configs.Constants.MinWorkTimeMin <= inputDefaultStudyMin && inputDefaultStudyMin <= app.Configs.Constants.MaxWorkTimeMin
 				if !expect {
-					return i18n.T("validate:invalid-work-time-range", app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin)
+					return i18nmsg.ValidateInvalidWorkTimeRange(app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin)
 				}
 			}
 			isDefaultStudyMinSet = true
@@ -113,7 +113,7 @@ func (app *WorkspaceApp) ValidateMy(command utils.CommandDetails) string {
 			}
 			expect := utils.IsIncludedInColorNames(option.StringValue) || option.StringValue == ""
 			if !expect {
-				return i18n.T("validate:invalid-favorite-color-option", utils.FavoriteColorMyOptionPrefix)
+				return i18nmsg.ValidateInvalidFavoriteColorOption(utils.FavoriteColorMyOptionPrefix)
 			}
 			isFavoriteColorSet = true
 		default:
@@ -132,7 +132,7 @@ func (app *WorkspaceApp) ValidateSeat(_ utils.CommandDetails) string {
 func (app *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
 	// 指定座席番号
 	if command.KickOption.SeatId <= 0 {
-		return i18n.T("validate:non-one-or-more-seat-id")
+		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
 
 	return ""
@@ -141,7 +141,7 @@ func (app *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
 func (app *WorkspaceApp) ValidateCheck(command utils.CommandDetails) string {
 	// 指定座席番号
 	if command.CheckOption.SeatId <= 0 {
-		return i18n.T("validate:non-one-or-more-seat-id")
+		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
 
 	return ""
@@ -159,7 +159,7 @@ func (app *WorkspaceApp) ValidateBlock(command utils.CommandDetails) string {
 func (app *WorkspaceApp) ValidateReport(command utils.CommandDetails) string {
 	// 空欄でないか
 	if command.ReportOption.Message == "" {
-		return i18n.T("validate:parse:missing-message", utils.ReportCommand)
+		return i18nmsg.ParseMissingMessage(utils.ReportCommand)
 	}
 
 	return ""
@@ -168,7 +168,7 @@ func (app *WorkspaceApp) ValidateReport(command utils.CommandDetails) string {
 func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, seatState repository.SeatState) error {
 	// オプションが1つ以上指定されているか
 	if changeOption.NumOptionsSet() == 0 {
-		return errors.New(i18n.T("validate:missing-option"))
+		return errors.New(i18nmsg.ValidateMissingOption())
 	}
 
 	switch seatState {
@@ -181,7 +181,7 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			inputDurationMin := changeOption.DurationMin
 			expect := app.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxWorkTimeMin
 			if !expect {
-				return errors.New(i18n.T("validate:invalid-work-time-range", app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin))
+				return errors.New(i18nmsg.ValidateInvalidWorkTimeRange(app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin))
 			}
 		}
 	case repository.BreakState:
@@ -193,7 +193,7 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			inputDurationMin := changeOption.DurationMin
 			expect := app.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxBreakDurationMin
 			if !expect {
-				return errors.New(i18n.T("validate:invalid-break-time-range", app.Configs.Constants.MinBreakDurationMin, app.Configs.Constants.MaxBreakDurationMin))
+				return errors.New(i18nmsg.ValidateInvalidBreakTimeRange(app.Configs.Constants.MinBreakDurationMin, app.Configs.Constants.MaxBreakDurationMin))
 			}
 		}
 	}
@@ -204,7 +204,7 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 func (app *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
 	// 時間オプション
 	if command.MoreOption.IsDurationMinSet && command.MoreOption.DurationMin <= 0 {
-		return i18n.T("validate:non-one-or-more-extended-time")
+		return i18nmsg.ValidateNonOneOrMoreExtendedTime()
 	}
 
 	return ""
@@ -219,7 +219,7 @@ func (app *WorkspaceApp) ValidateBreak(command utils.CommandDetails) string {
 		inputDurationMin := command.BreakOption.DurationMin
 		expect := app.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxBreakDurationMin
 		if !expect {
-			return i18n.T("validate:invalid-break-time-range", app.Configs.Constants.MinBreakDurationMin, app.Configs.Constants.MaxBreakDurationMin)
+			return i18nmsg.ValidateInvalidBreakTimeRange(app.Configs.Constants.MinBreakDurationMin, app.Configs.Constants.MaxBreakDurationMin)
 		}
 	}
 
@@ -238,7 +238,7 @@ func (app *WorkspaceApp) ValidateOrder(command utils.CommandDetails) string {
 		num := command.OrderOption.IntValue
 		expect := 0 < num && num <= len(app.SortedMenuItems)
 		if !expect {
-			return i18n.T("validate:invalid-menu-number-range", len(app.SortedMenuItems))
+			return i18nmsg.ValidateInvalidMenuNumberRange(len(app.SortedMenuItems))
 		}
 	}
 
