@@ -54,31 +54,6 @@ func TestI18nRealWorldUsage(t *testing.T) {
 		assert.Contains(t, errorMsg, "エラー")
 	})
 
-	t.Run("LanguageSwitching", func(t *testing.T) {
-		jaFunc := i18n.GetTFuncWithLang(i18n.LanguageJA)
-		koFunc := i18n.GetTFuncWithLang(i18n.LanguageKO)
-
-		jaWork := jaFunc("common:work")
-		koWork := koFunc("common:work")
-
-		assert.NotEmpty(t, jaWork)
-		assert.NotEmpty(t, koWork)
-		assert.NotEqual(t, jaWork, koWork, "Japanese and Korean translations should be different")
-	})
-
-	t.Run("LocalizerWithNamespace", func(t *testing.T) {
-		localizer := i18n.NewLocalizerWithLang(i18n.LanguageJA)
-		localizer.SetNamespace("command")
-
-		errorMsg := localizer.T("error", "ユーザー")
-		assert.Contains(t, errorMsg, "ユーザー")
-		assert.Contains(t, errorMsg, "エラー")
-
-		exitMsg := localizer.T("exit", "太郎", 30, "1", "")
-		assert.Contains(t, exitMsg, "太郎")
-		assert.Contains(t, exitMsg, "30分")
-	})
-
 	t.Run("NonExistentKey", func(t *testing.T) {
 		result := i18n.T("nonexistent:key")
 		assert.Contains(t, result, "TRANSLATION DATA NOT FOUND", "Non-existent key should return error message")
@@ -96,7 +71,7 @@ func TestI18nRealWorldUsage(t *testing.T) {
 	})
 
 	t.Run("ComplexMessageWithMultipleParameters", func(t *testing.T) {
-		seatMoveMsg := i18n.T("command-in:seat-move", 
+		seatMoveMsg := i18n.T("command-in:seat-move",
 			"ユーザー", "勉強", "1", "2", 30, "+ 10 RP", 90)
 		assert.Contains(t, seatMoveMsg, "ユーザー")
 		assert.Contains(t, seatMoveMsg, "勉強")
@@ -114,7 +89,7 @@ func TestI18nRealWorldUsage(t *testing.T) {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < 100; j++ {
 					msg := i18n.T("common:work")
 					if msg == "" {
@@ -122,9 +97,8 @@ func TestI18nRealWorldUsage(t *testing.T) {
 						errors = append(errors, assert.AnError)
 						mu.Unlock()
 					}
-					
-					localizer := i18n.NewLocalizerWithLang(i18n.LanguageJA)
-					exitMsg := localizer.T("command:exit", "user", id, j, "")
+
+					exitMsg := i18n.T("command:exit", "user", id, j, "")
 					if exitMsg == "" {
 						mu.Lock()
 						errors = append(errors, assert.AnError)
@@ -149,20 +123,14 @@ func TestI18nFallback(t *testing.T) {
 	existingKey := i18n.T("common:work")
 	assert.NotEmpty(t, existingKey, "Existing key in Korean should return Korean translation")
 
-	koLocalizer := i18n.NewLocalizerWithLang(i18n.LanguageKO)
-	koWork := koLocalizer.T("common:work")
-	assert.NotEmpty(t, koWork)
-
-	jaLocalizer := i18n.NewLocalizerWithLang(i18n.LanguageJA)
-	jaWork := jaLocalizer.T("common:work")
+	jaWork := i18n.T("common:work")
 	assert.NotEmpty(t, jaWork)
-	assert.NotEqual(t, koWork, jaWork, "Korean and Japanese should have different translations")
 }
 
 func TestI18nEdgeCases(t *testing.T) {
 	i18n.SetDefaultLanguage(i18n.LanguageJA)
 	i18n.SetDefaultFallback(i18n.LanguageJA)
-	
+
 	err := i18n.LoadLocaleFolderFS()
 	assert.NoError(t, err)
 

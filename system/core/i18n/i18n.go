@@ -45,17 +45,6 @@ var localeData map[Language]LocaleData = make(map[Language]LocaleData)
 var defaultLanguage Language = LanguageJA
 var defaultFallback Language = LanguageJA
 
-type Localizer struct {
-	language  Language
-	fallback  Language
-	namespace string
-}
-
-type TFuncType func(key string, args ...interface{}) string
-
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 本型は移行期間中の後方互換のために残されています。
-
 func SetDefaultLanguage(lang Language) {
 	defaultLanguage = lang
 }
@@ -161,73 +150,8 @@ func t(lang, fallback Language, namespace, key string, args ...interface{}) stri
 	return fmt.Sprintf("TRANSLATION DATA NOT FOUND. [%s]: %s:%s", lang, namespace, key)
 }
 
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 直接キー文字列を渡す利用は段階的に廃止します。
+// T is the top-level translation function.
+// Deprecated: Use generated type-safe functions from `app.modules/core/i18n/typed` package (e.g., i18nmsg.CommonSir(...)).
 func T(key string, args ...interface{}) string {
 	return t(defaultLanguage, defaultFallback, "", key, args...)
-}
-
-func NewLocalizer(namespaces ...string) *Localizer {
-	ns := ""
-	if len(namespaces) > 0 {
-		ns = namespaces[0]
-	}
-	return &Localizer{
-		language:  defaultLanguage,
-		namespace: ns,
-		fallback:  defaultFallback,
-	}
-}
-
-func NewLocalizerWithLang(lang Language, namespaces ...string) *Localizer {
-	ns := ""
-	if len(namespaces) > 0 {
-		ns = namespaces[0]
-	}
-	return &Localizer{
-		language:  lang,
-		fallback:  defaultFallback,
-		namespace: ns,
-	}
-}
-
-func (l *Localizer) SetLang(lang Language) {
-	l.language = lang
-}
-func (l *Localizer) SetNamespace(namespace string) {
-	l.namespace = namespace
-}
-
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 直接キー文字列を渡す利用は段階的に廃止します。
-func (l *Localizer) T(key string, args ...interface{}) string {
-	return t(l.language, l.fallback, l.namespace, key, args...)
-}
-
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 低レベルの翻訳関数の取得は段階的に廃止します。
-func (l *Localizer) GetTFunc() TFuncType {
-	return getTFunc(l.language, l.fallback, l.namespace)
-}
-
-func getTFunc(lang, fallback Language, namespace ...string) TFuncType {
-	ns := ""
-	if len(namespace) > 0 {
-		ns = namespace[0]
-	}
-	return func(key string, args ...interface{}) string {
-		return t(lang, fallback, ns, key, args...)
-	}
-}
-
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 低レベルの翻訳関数の取得は段階的に廃止します。
-func GetTFunc(namespaces ...string) TFuncType {
-	return getTFunc(defaultLanguage, defaultFallback, namespaces...)
-}
-
-// Deprecated: 型安全なラッパー関数（`i18nmsg` パッケージの自動生成関数）の使用を推奨します。
-// 低レベルの翻訳関数の取得は段階的に廃止します。
-func GetTFuncWithLang(lang Language, namespaces ...string) TFuncType {
-	return getTFunc(lang, defaultFallback, namespaces...)
 }
