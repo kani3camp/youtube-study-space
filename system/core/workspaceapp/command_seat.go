@@ -963,10 +963,10 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 		switch seat.State {
 		case repository.WorkState:
 			seat.WorkName = ""
-			result.Add(usecase.ClearWork{SeatID: seat.SeatId})
+			result.Add(usecase.ClearWork{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		case repository.BreakState:
 			seat.BreakWorkName = ""
-			result.Add(usecase.ClearBreak{SeatID: seat.SeatId})
+			result.Add(usecase.ClearBreak{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		}
 
 		err = app.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)

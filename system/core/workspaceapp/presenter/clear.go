@@ -2,6 +2,7 @@ package presenter
 
 import (
 	i18nmsg "app.modules/core/i18n/typed"
+	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/usecase"
 )
 
@@ -15,9 +16,11 @@ func BuildClearMessage(res usecase.Result, displayName string) string {
 		case usecase.ClearEnterOnly:
 			msg += i18nmsg.CommandEnterOnly(displayName)
 		case usecase.ClearWork:
-			msg += i18nmsg.OthersClearWork(displayName, i18nmsg.CommonVipSeatId(e.SeatID))
+			seat := utils.SeatIdStr(e.SeatID, e.IsMemberSeat)
+			msg += i18nmsg.OthersClearWork(displayName, seat)
 		case usecase.ClearBreak:
-			msg += i18nmsg.OthersClearBreak(displayName, i18nmsg.CommonVipSeatId(e.SeatID))
+			seat := utils.SeatIdStr(e.SeatID, e.IsMemberSeat)
+			msg += i18nmsg.OthersClearBreak(displayName, seat)
 		}
 	}
 	return msg
