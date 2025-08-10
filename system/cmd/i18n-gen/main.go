@@ -21,7 +21,7 @@ const (
 
 	outputPkgName = "i18nmsg"
 
-	i18nImportPath = "app.modules/core/i18n"
+	i18nImportPath = "app.modules/core/i18n/internal/engine"
 
 	baselineLang = "ja"
 )
@@ -148,7 +148,7 @@ func main() {
 			out.WriteString(fmt.Sprintf("%s %s", name, typ))
 		}
 		out.WriteString(") string {\n")
-		out.WriteString(fmt.Sprintf("\treturn i18n.T(%q", ok.namespace+":"+ok.key))
+		out.WriteString(fmt.Sprintf("\treturn engine.TranslateDefault(%q", ok.namespace+":"+ok.key))
 		for _, raw := range argsList {
 			name, _, _ := parseArgSpec(raw)
 			out.WriteString(", ")
