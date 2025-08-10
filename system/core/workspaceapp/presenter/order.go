@@ -19,7 +19,7 @@ func BuildOrderMessage(res usecase.Result, displayName string) string {
 		case usecase.OrderCleared:
 			msg += i18nmsg.CommandOrderCleared(displayName)
 		case usecase.OrderOrdered:
-			msg += i18nmsg.CommandOrderOrdered(displayName, e.MenuName, int(e.CountAfter))
+			msg += i18nmsg.CommandOrderOrdered(displayName, e.MenuName, e.CountAfter)
 		}
 	}
 	return msg
