@@ -121,7 +121,7 @@ func CommandInMembershipDisabled(username string) string {
 }
 
 // CommandInOrdered: key "command-in:ordered"
-func CommandInOrdered(menuName string, orderNum int) string {
+func CommandInOrdered(menuName string, orderNum int64) string {
 	return engine.TranslateDefault("command-in:ordered", menuName, orderNum)
 }
 
@@ -361,7 +361,7 @@ func CommandOrderTooManyOrders(username string, maxOrderCount int) string {
 }
 
 // CommandOrderOrdered: key "command-order:ordered"
-func CommandOrderOrdered(username string, menuName string, count int) string {
+func CommandOrderOrdered(username string, menuName string, count int64) string {
 	return engine.TranslateDefault("command-order:ordered", username, menuName, count)
 }
 

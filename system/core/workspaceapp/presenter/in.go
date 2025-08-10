@@ -13,7 +13,7 @@ func BuildInMessage(res usecase.Result, displayName string) string {
 		case usecase.OrderLimitExceeded:
 			msg += i18nmsg.CommandInTooManyOrders(e.MaxDailyOrderCount)
 		case usecase.MenuOrdered:
-			msg += i18nmsg.CommandInOrdered(e.MenuName, int(e.CountAfter))
+			msg += i18nmsg.CommandInOrdered(e.MenuName, e.CountAfter)
 		case usecase.SeatMoved:
 			rpEarned := ""
 			if e.RankVisible && e.AddedRP != 0 {

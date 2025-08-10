@@ -26,7 +26,7 @@ seat-move = ["username: string", "workName: string", "fromSeat: string", "toSeat
 start = ["username: string", "workName: string", "untilExitMin: int", "seat: string"]
 member-seat-forbidden = ["username: string"]
 membership-disabled = ["username: string"]
-ordered = ["menuName: string", "orderNum: int"]
+ordered = ["menuName: string", "orderNum: int64"]
 too-many-orders = ["maxOrderCount: int"]
 
 [command-out]
@@ -98,7 +98,7 @@ work = ["username: string", "seat: string", "untilExitMin: int"]
 
 [command-order]
 too-many-orders = ["username: string", "maxOrderCount: int"]
-ordered = ["username: string", "menuName: string", "count: int"]
+ordered = ["username: string", "menuName: string", "count: int64"]
 cleared = ["username: string"]
 
 [others]
