@@ -1,7 +1,7 @@
 package presenter
 
 import (
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
 )
 
@@ -9,18 +9,17 @@ import (
 // Namespace: command-order
 // Note: Orderはsir接頭辞なし（既存テスト準拠）
 func BuildOrderMessage(res usecase.Result, displayName string) string {
-	t := i18n.GetTFunc("command-order")
 	msg := ""
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.OrderEnterOnly:
-			msg += i18n.T("command:enter-only", displayName)
+			msg += i18nmsg.CommandEnterOnly(displayName)
 		case usecase.OrderTooMany:
-			msg += t("too-many-orders", displayName, e.MaxDailyOrderCount)
+			msg += i18nmsg.CommandOrderTooManyOrders(displayName, e.MaxDailyOrderCount)
 		case usecase.OrderCleared:
-			msg += t("cleared", displayName)
+			msg += i18nmsg.CommandOrderCleared(displayName)
 		case usecase.OrderOrdered:
-			msg += t("ordered", displayName, e.MenuName, e.CountAfter)
+			msg += i18nmsg.CommandOrderOrdered(displayName, e.MenuName, e.CountAfter)
 		}
 	}
 	return msg

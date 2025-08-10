@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
@@ -21,14 +21,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	jstNow := utils.JstNow()
 	var replyMessage string
 	var result usecase.Result
-	t := i18n.GetTFunc("command-in")
+	// no-op
 	isTargetMemberSeat := inOption.IsMemberSeat
 
 	if isTargetMemberSeat && !app.ProcessedUserIsMember {
 		if app.Configs.Constants.YoutubeMembershipEnabled {
-			app.MessageToLiveChat(ctx, t("member-seat-forbidden", app.ProcessedUserDisplayName))
+			app.MessageToLiveChat(ctx, i18nmsg.CommandInMemberSeatForbidden(app.ProcessedUserDisplayName))
 		} else {
-			app.MessageToLiveChat(ctx, t("membership-disabled", app.ProcessedUserDisplayName))
+			app.MessageToLiveChat(ctx, i18nmsg.CommandInMembershipDisabled(app.ProcessedUserDisplayName))
 		}
 		return nil
 	}
@@ -53,7 +53,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						return fmt.Errorf("in app.IfSeatVacant(): %w", err)
 					}
 					if !isVacant {
-						replyMessage = t("no-seat", app.ProcessedUserDisplayName, utils.InCommand)
+						replyMessage = i18nmsg.CommandInNoSeat(app.ProcessedUserDisplayName, utils.InCommand)
 						return nil
 					}
 				}
@@ -64,7 +64,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						return fmt.Errorf("in app.CheckIfUserSittingTooMuchForSeat(): %w", err)
 					}
 					if isTooMuch {
-						replyMessage = t("no-availability", app.ProcessedUserDisplayName, utils.InCommand)
+						replyMessage = i18nmsg.CommandInNoAvailability(app.ProcessedUserDisplayName, utils.InCommand)
 						return nil
 					}
 				}
@@ -199,20 +199,20 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
 			var seatIdStr string
 			if isInMemberRoom {
-				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
+				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
 			} else {
 				seatIdStr = strconv.Itoa(currentSeat.SeatId)
 			}
-			replyMessage += t("already-seat", app.ProcessedUserDisplayName, seatIdStr)
+			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				switch currentSeat.State {
 				case repository.WorkState:
 					currentSeat.WorkName = inOption.MinWorkOrderOption.WorkName
-					replyMessage += i18n.T("command-change:update-work", inOption.MinWorkOrderOption.WorkName, seatIdStr)
+					replyMessage += i18nmsg.CommandChangeUpdateWork(inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				case repository.BreakState:
 					currentSeat.BreakWorkName = inOption.MinWorkOrderOption.WorkName
-					replyMessage += i18n.T("command-change:update-break", inOption.MinWorkOrderOption.WorkName, seatIdStr)
+					replyMessage += i18nmsg.CommandChangeUpdateBreak(inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				}
 			}
 
@@ -226,16 +226,16 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-						replyMessage += i18n.T("command-change:work-duration-before", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18nmsg.CommandChangeWorkDurationBefore(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
-						replyMessage += i18n.T("command-change:work-duration-after", app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else { // それ以外なら延長
 						currentSeat.Until = requestedUntil
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingWorkMin := int(utils.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-						replyMessage += i18n.T("command-change:work-duration", inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					}
 				case repository.BreakState:
 					// 休憩時間を変更
@@ -245,11 +245,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-						replyMessage += i18n.T("command-change:break-duration-before", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18nmsg.CommandChangeBreakDurationBefore(inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					} else { // それ以外ならuntilを変更
 						currentSeat.CurrentStateUntil = requestedUntil
 						remainingBreakDuration := requestedUntil.Sub(jstNow)
-						replyMessage += i18n.T("command-change:break-duration", inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18nmsg.CommandChangeBreakDuration(inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					}
 				}
 			}
@@ -295,7 +295,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	})
 	if txErr != nil {
 		slog.Error("txErr in In()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		// イベントから返信文をTx外で組み立てる
@@ -306,7 +306,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 }
 
 func (app *WorkspaceApp) Out(ctx context.Context) error {
-	t := i18n.GetTFunc("command-out")
+	// no-op
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
@@ -321,10 +321,10 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
 			if userDoc.LastExited.IsZero() {
-				replyMessage = t("already-exit", app.ProcessedUserDisplayName)
+				replyMessage = i18nmsg.CommandOutAlreadyExit(app.ProcessedUserDisplayName)
 			} else {
 				lastExited := userDoc.LastExited.In(utils.JapanLocation())
-				replyMessage = t("already-exit-with-last-exit-time", app.ProcessedUserDisplayName, lastExited.Hour(), lastExited.Minute())
+				replyMessage = i18nmsg.CommandOutAlreadyExitWithLastExitTime(app.ProcessedUserDisplayName, lastExited.Hour(), lastExited.Minute())
 			}
 			return nil
 		}
@@ -343,26 +343,26 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 		var rpEarned string
 		var seatIdStr string
 		if userDoc.RankVisible {
-			rpEarned = i18n.T("command:rp-earned", addedRP)
+			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
 		if isInMemberRoom {
-			seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
+			seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
 		} else {
 			seatIdStr = strconv.Itoa(seat.SeatId)
 		}
-		replyMessage = i18n.T("command:exit", app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		replyMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Out()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
 }
 
 func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.SeatOption) error {
-	t := i18n.GetTFunc("command-seat-info")
+	// no-op
 	showDetails := seatOption.ShowDetails
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -388,36 +388,36 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 			var breakUntilStr string
 			switch currentSeat.State {
 			case repository.WorkState:
-				stateStr = i18n.T("common:work")
+				stateStr = i18nmsg.CommonWork()
 				breakUntilStr = ""
 			case repository.BreakState:
-				stateStr = i18n.T("common:break")
+				stateStr = i18nmsg.CommonBreak()
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
-				breakUntilStr = t("break-until", int(breakUntilDuration.Minutes()))
+				breakUntilStr = i18nmsg.CommandSeatInfoBreakUntil(int(breakUntilDuration.Minutes()))
 			}
 			var seatIdStr string
 			if isInMemberRoom {
-				seatIdStr = i18n.T("common:vip-seat-id", currentSeat.SeatId)
+				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
 			} else {
 				seatIdStr = strconv.Itoa(currentSeat.SeatId)
 			}
-			replyMessage = t("base", app.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
+			replyMessage = i18nmsg.CommandSeatInfoBase(app.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
 
 			if showDetails {
 				recentTotalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, app.ProcessedUserId, currentSeat.SeatId, isInMemberRoom)
 				if err != nil {
 					return fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 				}
-				replyMessage += t("details", app.Configs.Constants.RecentRangeMin, seatIdStr, int(recentTotalEntryDuration.Minutes()))
+				replyMessage += i18nmsg.CommandSeatInfoDetails(app.Configs.Constants.RecentRangeMin, seatIdStr, int(recentTotalEntryDuration.Minutes()))
 			}
 		} else {
-			replyMessage = i18n.T("command:not-enter", app.ProcessedUserDisplayName, utils.InCommand)
+			replyMessage = i18nmsg.CommandNotEnter(app.ProcessedUserDisplayName, utils.InCommand)
 		}
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in ShowSeatInfo()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -436,7 +436,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
 			result.Add(usecase.ChangeValidationError{
-				Message: i18n.T("command:enter-only", app.ProcessedUserDisplayName),
+				Message: i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName),
 			})
 			return nil
 		}
@@ -538,7 +538,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 	})
 	if txErr != nil {
 		slog.Error("txErr in Change()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		// Tx外で返信文構築。sir接頭辞＋更新メッセージ→時間系メッセージの順はPresenter側で維持
@@ -562,7 +562,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
 			result.Add(usecase.BreakWorkOnly{}) // Will be rendered as enter-only? keep original message below
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
 			return nil
 		}
 
@@ -660,7 +660,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 	})
 	if txErr != nil {
 		slog.Error("txErr in More()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		replyMessage = presenter.BuildMoreMessage(result, app.ProcessedUserDisplayName)
@@ -680,7 +680,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
 			return nil
 		}
 
@@ -756,7 +756,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 	})
 	if txErr != nil {
 		slog.Error("txErr in Break()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		if len(result.Events) > 0 {
@@ -778,7 +778,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18n.T("command:enter-only", app.ProcessedUserDisplayName)
+			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
 			return nil
 		}
 
@@ -838,7 +838,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 	})
 	if txErr != nil {
 		slog.Error("txErr in Resume()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		if len(result.Events) > 0 {
@@ -928,7 +928,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 	})
 	if txErr != nil {
 		slog.Error("txErr in Order()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		replyMessage = presenter.BuildOrderMessage(result, app.ProcessedUserDisplayName)
@@ -963,10 +963,10 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 		switch seat.State {
 		case repository.WorkState:
 			seat.WorkName = ""
-			result.Add(usecase.ClearWork{SeatID: seat.SeatId})
+			result.Add(usecase.ClearWork{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		case repository.BreakState:
 			seat.BreakWorkName = ""
-			result.Add(usecase.ClearBreak{SeatID: seat.SeatId})
+			result.Add(usecase.ClearBreak{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		}
 
 		err = app.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)
@@ -978,7 +978,7 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 	})
 	if txErr != nil {
 		slog.Error("txErr in Clear()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
 		replyMessage = presenter.BuildClearMessage(result, app.ProcessedUserDisplayName)

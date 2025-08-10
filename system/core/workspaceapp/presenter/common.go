@@ -3,12 +3,12 @@ package presenter
 import (
 	"strconv"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 )
 
 func seatIDStr(seatID int, isMemberSeat bool) string {
 	if isMemberSeat {
-		return i18n.T("common:vip-seat-id", seatID)
+		return i18nmsg.CommonVipSeatId(seatID)
 	}
 	return strconv.Itoa(seatID)
 }

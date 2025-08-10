@@ -209,13 +209,15 @@ type ClearEnterOnly struct{}
 func (ClearEnterOnly) isEvent() {}
 
 type ClearWork struct {
-	SeatID int
+	SeatID       int
+	IsMemberSeat bool
 }
 
 func (ClearWork) isEvent() {}
 
 type ClearBreak struct {
-	SeatID int
+	SeatID       int
+	IsMemberSeat bool
 }
 
 func (ClearBreak) isEvent() {}

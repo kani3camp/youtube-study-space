@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
@@ -317,19 +318,19 @@ func (app *WorkspaceApp) ProcessMessage(
 		return nil
 	})
 	if txErr != nil {
-		app.MessageToLiveChat(ctx, i18n.T("command:error", app.ProcessedUserDisplayName))
+		app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
 		return fmt.Errorf("in RunTransaction(): %w", txErr)
 	}
 
 	// コマンドの解析
 	commandDetails, message := utils.ParseCommand(commandString, isChatMember)
 	if message != "" { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
-		app.MessageToLiveChat(ctx, i18n.T("common:sir", app.ProcessedUserDisplayName)+message)
+		app.MessageToLiveChat(ctx, i18nmsg.CommonSir(app.ProcessedUserDisplayName)+message)
 		return nil
 	}
 
 	if message = app.ValidateCommand(*commandDetails); message != "" {
-		app.MessageToLiveChat(ctx, i18n.T("common:sir", app.ProcessedUserDisplayName)+message)
+		app.MessageToLiveChat(ctx, i18nmsg.CommonSir(app.ProcessedUserDisplayName)+message)
 		return nil
 	}
 
