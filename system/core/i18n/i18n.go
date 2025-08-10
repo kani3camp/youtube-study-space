@@ -20,7 +20,6 @@ var (
 type Language string
 
 const (
-	LanguageEN Language = "EN"
 	LanguageJA Language = "JA"
 	LanguageKO Language = "KO"
 
@@ -28,7 +27,7 @@ const (
 )
 
 func isValidLocale(l string) bool {
-	list := []string{string(LanguageEN), string(LanguageJA), string(LanguageKO)}
+	list := []string{string(LanguageJA), string(LanguageKO)}
 	for _, d := range list {
 		if d == l {
 			return true
@@ -44,7 +43,7 @@ type LocaleFile LocaleData
 
 var localeData map[Language]LocaleData = make(map[Language]LocaleData)
 var defaultLanguage Language = LanguageJA
-var defaultFallback Language = LanguageEN
+var defaultFallback Language = LanguageJA
 
 type Localizer struct {
 	language  Language
@@ -69,11 +68,11 @@ func validateFileName(name string) (Language, error) {
 	name = path.Base(name)
 	splitName := strings.Split(name, ".")
 	if len(splitName) != 2 || splitName[1] != "toml" {
-		return LanguageEN, ErrLocaleFile
+		return "", ErrLocaleFile
 	}
 	localeName := strings.ToUpper(splitName[0])
 	if !isValidLocale(localeName) {
-		return LanguageEN, ErrLocaleFile
+		return "", ErrLocaleFile
 	}
 	return Language(localeName), nil
 }
