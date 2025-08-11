@@ -20,7 +20,7 @@ import (
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	jstNow := utils.JstNow()
 	var replyMessage string
-	var result usecase.Result
+	result := usecase.Result{}
 	// no-op
 	isTargetMemberSeat := inOption.IsMemberSeat
 
