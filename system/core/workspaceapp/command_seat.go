@@ -33,7 +33,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	}
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		var orderEvents []usecase.Event
 		// 席が指定されているか？
 		if inOption.IsSeatIdSet {
 			// 0番席だったら最小番号の空席に決定
@@ -140,7 +139,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		// メニュー注文されている場合は、メニューコードをセット
 		if inOption.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
-				orderEvents = append(orderEvents, usecase.OrderLimitExceeded{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
+				result.Add(usecase.OrderLimitExceeded{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
 			} else {
 				if isInRoom {
 					currentSeat.MenuCode = targetMenuItem.Code
@@ -158,7 +157,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
 				}
 
-				orderEvents = append(orderEvents, usecase.MenuOrdered{MenuName: targetMenuItem.Name, CountAfter: totalOrderCount + 1})
+				result.Add(usecase.MenuOrdered{MenuName: targetMenuItem.Name, CountAfter: totalOrderCount + 1})
 			}
 		}
 
@@ -283,10 +282,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				WorkName:     inOption.MinWorkOrderOption.WorkName,
 				UntilExitMin: untilExitMin,
 			})
-		}
-		// NOTE: 返信文の構成上、最後にorderイベントを追加
-		for _, event := range orderEvents {
-			result.Add(event)
 		}
 		return nil
 	})
