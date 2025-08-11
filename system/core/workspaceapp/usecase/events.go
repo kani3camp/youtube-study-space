@@ -1,5 +1,12 @@
 package usecase
 
+// Package usecase contains event types that describe the outcomes of
+// workspace application commands. Handlers accumulate these events inside
+// transactions while mutating state, and the presenter layer formats the
+// resulting list of events into localized user-visible messages outside the
+// transaction. This decouples write-path side effects from message rendering
+// and preserves existing reply ordering semantics.
+
 // Event is a marker interface for usecase events.
 type Event interface{ isEvent() }
 

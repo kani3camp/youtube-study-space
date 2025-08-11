@@ -124,12 +124,12 @@ func main() {
 				continue
 			}
 			msg := ld[ok.namespace][ok.key]
-			if msg == "" {
-				warnf("[i18n-gen] warn: missing locale %s: %s.%s\n", lang, ok.namespace, ok.key)
+            if msg == "" {
+                warnf("[i18n-gen] missing locale %s: %s.%s\n", lang, ok.namespace, ok.key)
 				continue
 			}
 			if countPlaceholders(msg) != expected {
-				warnf("[i18n-gen] warn: placeholder mismatch in %s for %s.%s (expected %d)\n", lang, ok.namespace, ok.key, expected)
+                warnf("[i18n-gen] placeholder mismatch in %s for %s.%s (expected %d)\n", lang, ok.namespace, ok.key, expected)
 			}
 		}
 
