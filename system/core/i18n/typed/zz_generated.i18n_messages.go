@@ -56,8 +56,8 @@ func CommandNotEnter(username string, inCommand string) string {
 }
 
 // CommandEnterOnly: key "command:enter-only"
-func CommandEnterOnly(username string) string {
-	return engine.TranslateDefault("command:enter-only", username)
+func CommandEnterOnly() string {
+	return engine.TranslateDefault("command:enter-only")
 }
 
 // CommandPermission: key "command:permission"

@@ -113,6 +113,10 @@ func (ChangeValidationError) isEvent() {}
 // ============ More usecase events ============
 // Events produced by the More handler.
 
+type MoreEnterOnly struct{}
+
+func (MoreEnterOnly) isEvent() {}
+
 type MoreMaxWork struct {
 	MaxWorkTimeMin int
 }
@@ -156,7 +160,10 @@ type BreakStarted struct {
 
 func (BreakStarted) isEvent() {}
 
-// Early-return reasons for Break
+type BreakEnterOnly struct{}
+
+func (BreakEnterOnly) isEvent() {}
+
 type BreakWorkOnly struct{}
 
 func (BreakWorkOnly) isEvent() {}
@@ -169,6 +176,11 @@ type BreakWarn struct {
 func (BreakWarn) isEvent() {}
 
 // ============ Resume usecase events ============
+
+type ResumeEnterOnly struct{}
+
+func (ResumeEnterOnly) isEvent() {}
+
 type ResumeBreakOnly struct{}
 
 func (ResumeBreakOnly) isEvent() {}

@@ -12,6 +12,8 @@ func BuildBreakMessage(res usecase.Result, displayName string) string {
 	msg := ""
 	for _, event := range res.Events {
 		switch e := event.(type) {
+		case usecase.BreakEnterOnly:
+			msg += i18nmsg.CommonSir(displayName) + i18nmsg.CommandEnterOnly()
 		case usecase.BreakWorkOnly:
 			msg += i18nmsg.CommandBreakWorkOnly(displayName)
 		case usecase.BreakWarn:

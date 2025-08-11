@@ -11,6 +11,8 @@ func BuildMoreMessage(res usecase.Result, displayName string) string {
 	msg := i18nmsg.CommonSir(displayName)
 	for _, event := range res.Events {
 		switch e := event.(type) {
+		case usecase.MoreEnterOnly:
+			msg += i18nmsg.CommandEnterOnly()
 		case usecase.MoreMaxWork:
 			msg += i18nmsg.CommandMoreMaxWork()
 		case usecase.MoreWorkExtended:

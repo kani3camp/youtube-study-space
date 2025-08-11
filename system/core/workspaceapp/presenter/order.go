@@ -13,7 +13,7 @@ func BuildOrderMessage(res usecase.Result, displayName string) string {
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.OrderEnterOnly:
-			msg += i18nmsg.CommandEnterOnly(displayName)
+			msg += i18nmsg.CommonSir(displayName) + i18nmsg.CommandEnterOnly()
 		case usecase.OrderTooMany:
 			msg += i18nmsg.CommandOrderTooManyOrders(displayName, e.MaxDailyOrderCount)
 		case usecase.OrderCleared:

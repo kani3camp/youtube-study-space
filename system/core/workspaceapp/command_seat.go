@@ -436,7 +436,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
 			result.Add(usecase.ChangeValidationError{
-				Message: i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName),
+				Message: i18nmsg.CommandEnterOnly(),
 			})
 			return nil
 		}
@@ -541,7 +541,6 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
-		// Tx外で返信文構築。sir接頭辞＋更新メッセージ→時間系メッセージの順はPresenter側で維持
 		replyMessage = presenter.BuildChangeMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
@@ -561,8 +560,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			result.Add(usecase.BreakWorkOnly{}) // Will be rendered as enter-only? keep original message below
-			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
+			result.Add(usecase.MoreEnterOnly{})
 			return nil
 		}
 
@@ -680,7 +678,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
+			result.Add(usecase.BreakEnterOnly{})
 			return nil
 		}
 
@@ -759,9 +757,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
-		if len(result.Events) > 0 {
-			replyMessage = presenter.BuildBreakMessage(result, app.ProcessedUserDisplayName)
-		}
+		replyMessage = presenter.BuildBreakMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -778,7 +774,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if !isInRoom {
-			replyMessage = i18nmsg.CommandEnterOnly(app.ProcessedUserDisplayName)
+			result.Add(usecase.ResumeEnterOnly{})
 			return nil
 		}
 
@@ -841,9 +837,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
-		if len(result.Events) > 0 {
-			replyMessage = presenter.BuildResumeMessage(result, app.ProcessedUserDisplayName)
-		}
+		replyMessage = presenter.BuildResumeMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr

@@ -13,7 +13,7 @@ func BuildClearMessage(res usecase.Result, displayName string) string {
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.ClearEnterOnly:
-			msg += i18nmsg.CommandEnterOnly(displayName)
+			msg += i18nmsg.CommonSir(displayName) + i18nmsg.CommandEnterOnly()
 		case usecase.ClearWork:
 			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.OthersClearWork(displayName, seat)
