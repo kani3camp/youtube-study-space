@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/mybigquery"
 	"app.modules/core/mystorage"
 	"app.modules/core/repository"
@@ -92,14 +92,14 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 				var rpEarned string
 				var seatIdStr string
 				if userDoc.RankVisible {
-					rpEarned = i18n.T("command:rp-earned", addedRP)
+					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
 				if isMemberRoom {
-					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
+					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
-				liveChatMessage = i18n.T("command:exit", app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+				liveChatMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 			}
 
 			return nil
@@ -176,12 +176,12 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				}
 				var seatIdStr string
 				if isMemberRoom {
-					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
+					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
 
-				liveChatMessage = i18n.T("command-resume:work", app.ProcessedUserDisplayName, seatIdStr, int(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
+				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIdStr, int(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
 			}
 			return nil
 		})
@@ -264,11 +264,11 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
 			var seatIdStr string
 			if isMemberSeat {
-				seatIdStr = i18n.T("common:vip-seat-id", seatSnapshot.SeatId)
+				seatIdStr = i18nmsg.CommonVipSeatId(seatSnapshot.SeatId)
 			} else {
 				seatIdStr = strconv.Itoa(seatSnapshot.SeatId)
 			}
-			app.MessageToLiveChat(ctx, i18n.T("others:force-move", app.ProcessedUserDisplayName, seatIdStr))
+			app.MessageToLiveChat(ctx, i18nmsg.OthersForceMove(app.ProcessedUserDisplayName, seatIdStr))
 
 			var isOrderSet bool
 			var menuNum int

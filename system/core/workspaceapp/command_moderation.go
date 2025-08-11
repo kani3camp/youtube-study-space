@@ -6,41 +6,40 @@ import (
 	"log/slog"
 	"strconv"
 
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {
-	t := i18n.GetTFunc("command-report")
 	if reportOption.Message == "" { // !reportのみは不可
-		app.MessageToLiveChat(ctx, t("no-message", app.ProcessedUserDisplayName))
+		app.MessageToLiveChat(ctx, i18nmsg.CommandReportNoMessage(app.ProcessedUserDisplayName))
 		return nil
 	}
 
-	ownerMessage := t("owner", utils.ReportCommand, app.ProcessedUserId, app.ProcessedUserDisplayName, reportOption.Message)
+	ownerMessage := i18nmsg.CommandReportOwner(utils.ReportCommand, app.ProcessedUserId, app.ProcessedUserDisplayName, reportOption.Message)
 	app.MessageToOwner(ctx, ownerMessage)
 
-	messageForModerators := t("moderators", utils.ReportCommand, app.ProcessedUserDisplayName, reportOption.Message)
+	messageForModerators := i18nmsg.CommandReportModerators(utils.ReportCommand, app.ProcessedUserDisplayName, reportOption.Message)
 	if err := app.MessageToModerators(ctx, messageForModerators); err != nil {
 		app.MessageToOwnerWithError(ctx, "モデレーターへメッセージが送信できませんでした: \""+messageForModerators+"\"", err)
 	}
 
-	app.MessageToLiveChat(ctx, t("alert", app.ProcessedUserDisplayName))
+	app.MessageToLiveChat(ctx, i18nmsg.CommandReportAlert(app.ProcessedUserDisplayName))
 	return nil
 }
 
 func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption) error {
-	t := i18n.GetTFunc("command-kick")
 	targetSeatId := kickOption.SeatId
 	isTargetMemberSeat := kickOption.IsTargetMemberSeat
 	var replyMessage string
 
 	// commanderはモデレーターもしくはチャットオーナーか
 	if !app.ProcessedUserIsModeratorOrOwner {
-		app.MessageToLiveChat(ctx, i18n.T("command:permission", app.ProcessedUserDisplayName, utils.KickCommand))
+		app.MessageToLiveChat(ctx, i18nmsg.CommandPermission(app.ProcessedUserDisplayName, utils.KickCommand))
 		return nil
 	}
 
@@ -52,7 +51,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
 			if isSeatAvailable {
-				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 		}
@@ -61,14 +60,14 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
-		seatIdStr := utils.SeatIdStr(targetSeatId, isTargetMemberSeat)
-		replyMessage = t("kick", app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
+		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
 		// app.ProcessedUserが処理の対象ではないことに注意。
 		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
@@ -82,9 +81,9 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
-			rpEarned = i18n.T("command:rp-earned", addedRP)
+			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		replyMessage += i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		{
 			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
@@ -101,7 +100,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 	})
 	if txErr != nil {
 		slog.Error("txErr in Kick()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -115,7 +114,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// commanderはモデレーターかチャットオーナーか
 		if !app.ProcessedUserIsModeratorOrOwner {
-			replyMessage = i18n.T("command:permission", app.ProcessedUserDisplayName, utils.CheckCommand)
+			replyMessage = i18nmsg.CommandPermission(app.ProcessedUserDisplayName, utils.CheckCommand)
 			return nil
 		}
 
@@ -126,7 +125,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 				return fmt.Errorf("in IfSeatVacant: %w", err)
 			}
 			if isSeatVacant {
-				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 		}
@@ -134,19 +133,14 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		seat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = i18n.T("command:unused", app.ProcessedUserDisplayName)
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 		sinceMinutes := int(utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes())
 		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
-		var seatIdStr string
-		if isTargetMemberSeat {
-			seatIdStr = i18n.T("common:vip-seat-id", targetSeatId)
-		} else {
-			seatIdStr = strconv.Itoa(targetSeatId)
-		}
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
@@ -155,12 +149,12 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		if err := app.LogToModerators(ctx, message); err != nil {
 			return fmt.Errorf("failed LogToModerators(): %w", err)
 		}
-		replyMessage = i18n.T("command:sent", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandSent(app.ProcessedUserDisplayName)
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Check()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
@@ -213,16 +207,11 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
 		var rpEarned string
-		var seatIdStr string
 		if userDoc.RankVisible {
 			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 		}
-		if isTargetMemberSeat {
-			seatIdStr = i18n.T("common:vip-seat-id", targetSeatId)
-		} else {
-			seatIdStr = strconv.Itoa(targetSeatId)
-		}
-		replyMessage = i18n.T("command:exit", targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
+		replyMessage = i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		// ブロック
 		if err := app.BanUser(ctx, targetSeat.UserId); err != nil {
@@ -244,7 +233,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 	})
 	if txErr != nil {
 		slog.Error("txErr in Block()", "txErr", txErr)
-		replyMessage = i18n.T("command:error", app.ProcessedUserDisplayName)
+		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
 	return txErr
