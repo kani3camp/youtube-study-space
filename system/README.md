@@ -27,7 +27,6 @@
 設計のポイント:
 - 生成コードは `internal/engine` を使用します（`engine.TranslateDefault(...)`）。
 - アプリ側は必ず型安全な `i18nmsg.*` を使用してください。
-- 旧APIの `i18n.T(...)` は廃止済みです（生成器・生成コードも `engine` を利用）。
 - ロケールは `//go:embed` によりバイナリに埋め込み、`LoadLocaleFolderFS()` で読み込みます。
 
 生成:
