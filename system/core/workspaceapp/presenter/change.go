@@ -13,10 +13,10 @@ func BuildChangeMessage(res usecase.Result, displayName string) string {
 		case usecase.ChangeValidationError:
 			msg += e.Message
 		case usecase.ChangeUpdatedWork:
-			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
+			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.CommandChangeUpdateWork(e.WorkName, seat)
 		case usecase.ChangeUpdatedBreak:
-			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
+			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.CommandChangeUpdateBreak(e.WorkName, seat)
 		case usecase.ChangeWorkDurationRejectedBefore:
 			msg += i18nmsg.CommandChangeWorkDurationBefore(e.RequestedMin, e.RealtimeEntryDurationMin, e.RemainingWorkMin)

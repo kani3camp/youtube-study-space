@@ -8,6 +8,7 @@ import (
 
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -66,7 +67,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
-		seatIdStr := utils.SeatIdStr(targetSeatId, isTargetMemberSeat)
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
 		// app.ProcessedUserが処理の対象ではないことに注意。
@@ -140,12 +141,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		}
 		sinceMinutes := int(utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes())
 		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
-		var seatIdStr string
-		if isTargetMemberSeat {
-			seatIdStr = i18nmsg.CommonVipSeatId(targetSeatId)
-		} else {
-			seatIdStr = strconv.Itoa(targetSeatId)
-		}
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
@@ -212,15 +208,10 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
 		var rpEarned string
-		var seatIdStr string
 		if userDoc.RankVisible {
 			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
 		}
-		if isTargetMemberSeat {
-			seatIdStr = i18nmsg.CommonVipSeatId(targetSeatId)
-		} else {
-			seatIdStr = strconv.Itoa(targetSeatId)
-		}
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		replyMessage = i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		// ブロック

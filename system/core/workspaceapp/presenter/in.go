@@ -19,11 +19,11 @@ func BuildInMessage(res usecase.Result, displayName string) string {
 			if e.RankVisible && e.AddedRP != 0 {
 				rpEarned = i18nmsg.CommandRpEarned(e.AddedRP)
 			}
-			prevSeat := seatIDStr(e.FromSeatID, e.FromIsMemberSeat)
-			nextSeat := seatIDStr(e.ToSeatID, e.ToIsMemberSeat)
+			prevSeat := SeatIDStr(e.FromSeatID, e.FromIsMemberSeat)
+			nextSeat := SeatIDStr(e.ToSeatID, e.ToIsMemberSeat)
 			msg += i18nmsg.CommandInSeatMove(displayName, e.WorkName, prevSeat, nextSeat, e.WorkedTimeSec/60, rpEarned, e.UntilExitMin)
 		case usecase.SeatEntered:
-			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
+			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.CommandInStart(displayName, e.WorkName, e.UntilExitMin, seat)
 		}
 	}

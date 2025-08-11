@@ -15,7 +15,7 @@ func BuildResumeMessage(res usecase.Result, displayName string) string {
 		case usecase.ResumeBreakOnly:
 			msg += i18nmsg.CommandResumeBreakOnly(displayName)
 		case usecase.ResumeStarted:
-			seat := seatIDStr(e.SeatID, e.IsMemberSeat)
+			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.CommandResumeWork(displayName, seat, e.RemainingUntilExitMin)
 		}
 	}
