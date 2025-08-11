@@ -33,7 +33,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	}
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// order系イベントは最後に追加してメッセージ順を旧実装と合わせる
 		var orderEvents []usecase.Event
 		// 席が指定されているか？
 		if inOption.IsSeatIdSet {
@@ -278,7 +277,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			if err != nil {
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
-			// イベント積む（入室）
 			result.Add(usecase.SeatEntered{
 				SeatID:       inOption.SeatId,
 				IsMemberSeat: isTargetMemberSeat,
@@ -286,7 +284,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				UntilExitMin: untilExitMin,
 			})
 		}
-		// 旧実装の順序に合わせて最後にorderイベントを追加
+		// NOTE: 返信文の構成上、最後にorderイベントを追加
 		for _, event := range orderEvents {
 			result.Add(event)
 		}
@@ -297,7 +295,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
 	}
 	if txErr == nil {
-		// イベントから返信文をTx外で組み立てる
 		replyMessage += presenter.BuildInMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
