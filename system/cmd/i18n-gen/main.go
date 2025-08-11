@@ -100,6 +100,7 @@ func main() {
 	out.WriteString(i18nImportPath)
 	out.WriteString("\"\n)\n\n")
 
+	strict := os.Getenv("I18N_STRICT") == "1"
 	for _, ok := range ordered {
 		argsList, okMeta := getArgs(meta, ok.namespace, ok.key)
 		if !okMeta {
@@ -125,11 +126,19 @@ func main() {
 			}
 			msg := ld[ok.namespace][ok.key]
 			if msg == "" {
-				warnf("[i18n-gen] missing locale %s: %s.%s\n", lang, ok.namespace, ok.key)
+				if strict {
+					panic(fmt.Errorf("missing translation for locale %s: %s.%s", lang, ok.namespace, ok.key))
+				} else {
+					warnf("[i18n-gen] missing locale %s: %s.%s\n", lang, ok.namespace, ok.key)
+				}
 				continue
 			}
 			if countPlaceholders(msg) != expected {
-				warnf("[i18n-gen] placeholder mismatch in %s for %s.%s (expected %d)\n", lang, ok.namespace, ok.key, expected)
+				if strict {
+					panic(fmt.Errorf("placeholder mismatch in %s for %s.%s (expected %d)", lang, ok.namespace, ok.key, expected))
+				} else {
+					warnf("[i18n-gen] placeholder mismatch in %s for %s.%s (expected %d)\n", lang, ok.namespace, ok.key, expected)
+				}
 			}
 		}
 

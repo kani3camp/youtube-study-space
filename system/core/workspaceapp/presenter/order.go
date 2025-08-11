@@ -7,7 +7,6 @@ import (
 
 // BuildOrderMessage converts Order events into a localized response.
 // Namespace: command-order
-// Note: Orderはsir接頭辞なし（既存テスト準拠）
 func BuildOrderMessage(res usecase.Result, displayName string) string {
 	msg := ""
 	for _, event := range res.Events {

@@ -7,7 +7,6 @@ import (
 
 // BuildResumeMessage converts Resume events into a localized response.
 // Namespace: command-resume
-// Note: Resumeはsir接頭辞なし（テスト準拠）
 func BuildResumeMessage(res usecase.Result, displayName string) string {
 	msg := ""
 	for _, event := range res.Events {
