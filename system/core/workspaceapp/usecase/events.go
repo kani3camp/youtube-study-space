@@ -110,7 +110,7 @@ type ChangeBreakDurationUpdated struct {
 
 func (ChangeBreakDurationUpdated) isEvent() {}
 
-// Validation error occurred in Change usecase (message already localized)
+// ChangeValidationError represents a validation error occurred in Change usecase (message already localized).
 type ChangeValidationError struct {
 	Message string
 }
@@ -157,7 +157,7 @@ type MoreSummary struct {
 func (MoreSummary) isEvent() {}
 
 // ============ Break usecase events ============
-// Event produced when a break is successfully started.
+// BreakStarted represents that a break is successfully started.
 type BreakStarted struct {
 	SeatID       int
 	IsMemberSeat bool

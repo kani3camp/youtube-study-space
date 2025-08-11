@@ -118,7 +118,8 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 		replyMessage = i18nmsg.CommonSir(app.ProcessedUserDisplayName)
 		currentRankVisible := userDoc.RankVisible
 		for _, myOption := range myOptions {
-			if myOption.Type == utils.RankVisible {
+			switch myOption.Type {
+			case utils.RankVisible:
 				newRankVisible := myOption.BoolValue
 				// 現在の値と、設定したい値が同じなら、変更なし
 				if userDoc.RankVisible == newRankVisible {
@@ -160,7 +161,7 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 					}
 				}
 				currentRankVisible = newRankVisible
-			} else if myOption.Type == utils.DefaultStudyMin {
+			case utils.DefaultStudyMin:
 				if err := app.Repository.UpdateUserDefaultStudyMin(tx, app.ProcessedUserId, myOption.IntValue); err != nil {
 					return fmt.Errorf("in UpdateUserDefaultStudyMin: %w", err)
 				}
@@ -170,7 +171,7 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 				} else {
 					replyMessage += i18nmsg.CommandMySetDefaultWork(myOption.IntValue)
 				}
-			} else if myOption.Type == utils.FavoriteColor {
+			case utils.FavoriteColor:
 				// 値が""はリセットのこと。
 				colorCode := utils.ColorNameToColorCode(myOption.StringValue)
 				if err := app.Repository.UpdateUserFavoriteColor(tx, app.ProcessedUserId, colorCode); err != nil {
@@ -198,6 +199,8 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 						return fmt.Errorf("in app.Repository.UpdateSeat(): %w", err)
 					}
 				}
+			default:
+				// pass
 			}
 		}
 		return nil

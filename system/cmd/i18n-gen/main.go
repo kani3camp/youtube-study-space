@@ -278,7 +278,7 @@ func toExportedName(ns, key string) string {
 		}
 		// ensure starts with letter for exported name
 		r0 := rune(out[0])
-		if !((r0 >= 'A' && r0 <= 'Z') || (r0 >= 'a' && r0 <= 'z')) {
+		if (r0 < 'A' || r0 > 'Z') && (r0 < 'a' || r0 > 'z') {
 			out = "Key" + out
 		}
 		return out
@@ -309,7 +309,7 @@ func sanitizeIdent(s string) string {
 	b := strings.Builder{}
 	// If first char is not letter or underscore, prefix underscore
 	r0 := rune(s[0])
-	if !(r0 == '_' || (r0 >= 'A' && r0 <= 'Z') || (r0 >= 'a' && r0 <= 'z')) {
+	if r0 != '_' && (r0 < 'A' || r0 > 'Z') && (r0 < 'a' || r0 > 'z') {
 		b.WriteByte('_')
 	}
 	for _, r := range s {
@@ -329,8 +329,4 @@ func isSupportedType(t string) bool {
 	default:
 		return false
 	}
-}
-
-func warnf(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, format, a...)
 }

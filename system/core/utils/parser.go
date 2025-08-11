@@ -196,10 +196,10 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 // FormatStringToParse はコマンド解析のために文字列を整形する
 func FormatStringToParse(fullString string) string {
 	// 全角スペースを半角に変換
-	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
+	fullString = strings.ReplaceAll(fullString, FullWidthSpace, HalfWidthSpace)
 
 	// 全角イコールを半角に変換
-	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	fullString = strings.ReplaceAll(fullString, FullWidthEqualSign, HalfWidthEqualSign)
 
 	// 前後のスペースをトリム
 	fullString = strings.TrimSpace(fullString)
@@ -281,11 +281,7 @@ func ParseSeatIn(seatNum int, commandExcludedStr string, isMemberSeat bool) (*Co
 
 func ParseInfo(argStr string) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
-	showDetails := false
-
-	if len(fields) > 0 && fields[0] == ShowDetailsOption {
-		showDetails = true
-	}
+	showDetails := len(fields) > 0 && fields[0] == ShowDetailsOption
 
 	return &CommandDetails{
 		CommandType: Info,
@@ -328,13 +324,14 @@ func ParseMyOptions(argStr string) ([]MyOption, string) {
 	for _, field := range fields {
 		switch currentMode {
 		case Rank:
-			if field == RankVisibleMyOptionOn {
+			switch field {
+			case RankVisibleMyOptionOn:
 				rankVisibleValue = true
 				isRankVisibleSet = true
-			} else if field == RankVisibleMyOptionOff {
+			case RankVisibleMyOptionOff:
 				rankVisibleValue = false
 				isRankVisibleSet = true
-			} else {
+			default:
 				return []MyOption{}, i18nmsg.ParseCheckOption(RankVisibleMyOptionPrefix)
 			}
 			currentMode = Any
@@ -501,11 +498,7 @@ func ParseChange(argStr string) (*CommandDetails, string) {
 
 func ParseSeat(argStr string) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
-	showDetails := false
-
-	if len(fields) >= 1 && fields[0] == ShowDetailsOption {
-		showDetails = true
-	}
+	showDetails := len(fields) > 0 && fields[0] == ShowDetailsOption
 
 	return &CommandDetails{
 		CommandType: Seat,
