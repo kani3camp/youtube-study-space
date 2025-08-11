@@ -134,6 +134,9 @@ func main() {
 		if expected != len(argsList) {
 			panic(fmt.Errorf("meta args mismatch: %s.%s expects %d, meta has %d", ok.namespace, ok.key, expected, len(argsList)))
 		}
+		if err := validateSequentialPlaceholders(baseMsg, expected); err != nil {
+			panic(fmt.Errorf("invalid placeholder sequence in baseline locale (%s): %s.%s: %w", baselineLang, ok.namespace, ok.key, err))
+		}
 		for lang, ld := range locales {
 			if lang == baselineLang {
 				continue
@@ -144,6 +147,9 @@ func main() {
 			}
 			if countPlaceholders(msg) != expected {
 				panic(fmt.Errorf("placeholder mismatch in %s for %s.%s (expected %d)", lang, ok.namespace, ok.key, expected))
+			}
+			if err := validateSequentialPlaceholders(msg, expected); err != nil {
+				panic(fmt.Errorf("invalid placeholder sequence in %s for %s.%s: %w", lang, ok.namespace, ok.key, err))
 			}
 		}
 
@@ -240,6 +246,26 @@ func countPlaceholders(s string) int {
 		}
 	}
 	return max + 1
+}
+
+// validateSequentialPlaceholders ensures placeholders are sequentially
+// numbered from {0} to {expected-1} with no gaps.
+func validateSequentialPlaceholders(s string, expected int) error {
+	seen := make(map[int]bool)
+	matches := phRe.FindAllStringSubmatch(s, -1)
+	for _, g := range matches {
+		if len(g) < 2 {
+			continue
+		}
+		idx := atoiSafe(g[1])
+		seen[idx] = true
+	}
+	for i := 0; i < expected; i++ {
+		if !seen[i] {
+			return fmt.Errorf("missing placeholder {%d}", i)
+		}
+	}
+	return nil
 }
 
 func atoiSafe(s string) int {
