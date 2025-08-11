@@ -8,6 +8,7 @@ package usecase
 // and preserves existing reply ordering semantics.
 
 // Event is a marker interface for usecase events.
+// Handlers accumulate these during state changes; presenters render them.
 type Event interface{ isEvent() }
 
 // SeatMoved represents that a user moved seats.

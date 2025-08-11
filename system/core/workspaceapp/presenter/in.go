@@ -1,20 +1,22 @@
 package presenter
 
 import (
+	"strings"
+
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
-	"strings"
 )
 
 // BuildInMessage converts In usecase result events into a localized response message.
 func BuildInMessage(res usecase.Result, displayName string) string {
 	var builder strings.Builder
+	var order strings.Builder
 	for _, event := range res.Events {
 		switch e := event.(type) {
 		case usecase.OrderLimitExceeded:
-			builder.WriteString(i18nmsg.CommandInTooManyOrders(e.MaxDailyOrderCount))
+			order.WriteString(i18nmsg.CommandInTooManyOrders(e.MaxDailyOrderCount))
 		case usecase.MenuOrdered:
-			builder.WriteString(i18nmsg.CommandInOrdered(e.MenuName, e.CountAfter))
+			order.WriteString(i18nmsg.CommandInOrdered(e.MenuName, e.CountAfter))
 		case usecase.SeatMoved:
 			rpEarned := ""
 			if e.RankVisible && e.AddedRP != 0 {
@@ -28,5 +30,6 @@ func BuildInMessage(res usecase.Result, displayName string) string {
 			builder.WriteString(i18nmsg.CommandInStart(displayName, e.WorkName, e.UntilExitMin, seat))
 		}
 	}
+	builder.WriteString(order.String())
 	return builder.String()
 }

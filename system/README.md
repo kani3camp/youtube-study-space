@@ -27,7 +27,6 @@
 設計のポイント:
 - 生成コードは `internal/engine` を使用します（`engine.TranslateDefault(...)`）。
 - アプリ側は必ず型安全な `i18nmsg.*` を使用してください。
-- 旧APIの `i18n.T(...)` は廃止済みです（生成器・生成コードも `engine` を利用）。
 - ロケールは `//go:embed` によりバイナリに埋め込み、`LoadLocaleFolderFS()` で読み込みます。
 
 生成:
@@ -55,7 +54,7 @@ cd system
 ```
 
 ### mockファイルを作成する
-* FirestoreControllerの場合
+* Repositoryの場合
 ```shell
-mockgen -source=core/repository/firestore_controller_interface.go -destination=core/repository/mocks/firestore_controller_interface.go -package=mock_myfirestore
+mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
 ```
