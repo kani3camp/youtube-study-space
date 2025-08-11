@@ -54,7 +54,7 @@ cd system
 ```
 
 ### mockファイルを作成する
-* FirestoreControllerの場合
+* Repositoryの場合
 ```shell
-mockgen -source=core/repository/firestore_controller_interface.go -destination=core/repository/mocks/firestore_controller_interface.go -package=mock_myfirestore
+mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
 ```
