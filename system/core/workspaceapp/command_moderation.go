@@ -15,7 +15,6 @@ import (
 )
 
 func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {
-	// report templates
 	if reportOption.Message == "" { // !reportのみは不可
 		app.MessageToLiveChat(ctx, i18nmsg.CommandReportNoMessage(app.ProcessedUserDisplayName))
 		return nil

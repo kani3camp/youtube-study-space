@@ -21,7 +21,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	jstNow := utils.JstNow()
 	var replyMessage string
 	result := usecase.Result{}
-	// no-op
 	isTargetMemberSeat := inOption.IsMemberSeat
 
 	if isTargetMemberSeat && !app.ProcessedUserIsMember {
@@ -139,7 +138,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 		// =========== 以降は書き込み処理のみ ===========
 
-		// メニュー注文されている場合は、メニューコードをセット（イベント化）
+		// メニュー注文されている場合は、メニューコードをセット
 		if inOption.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
 				orderEvents = append(orderEvents, usecase.OrderLimitExceeded{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
@@ -306,7 +305,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 }
 
 func (app *WorkspaceApp) Out(ctx context.Context) error {
-	// no-op
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
@@ -362,7 +360,6 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 }
 
 func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.SeatOption) error {
-	// no-op
 	showDetails := seatOption.ShowDetails
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -452,7 +449,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 			return nil
 		}
 
-		// これ以降は書き込みのみ可。イベントを積む
+		// これ以降は書き込みのみ可。
 
 		newSeat := &currentSeat
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ

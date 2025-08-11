@@ -13,7 +13,6 @@ import (
 )
 
 func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
-	// no-op
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		totalStudyDuration, dailyTotalStudyDuration, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserId)
@@ -80,8 +79,6 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 		app.MessageToLiveChat(ctx, i18nmsg.CommandOptionWarn(app.ProcessedUserDisplayName))
 		return nil
 	}
-
-	// no-op
 
 	replyMessage := ""
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
