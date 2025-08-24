@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"app.modules/core/guardians"
-	"app.modules/core/i18n"
+	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
@@ -217,14 +217,14 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				var rpEarned string
 				var seatIdStr string
 				if userDoc.RankVisible {
-					rpEarned = i18n.T("command:rp-earned", addedRP)
+					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
 				if isMemberRoom {
-					seatIdStr = i18n.T("common:vip-seat-id", seat.SeatId)
+					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
 				} else {
 					seatIdStr = strconv.Itoa(seat.SeatId)
 				}
-				message = i18n.T("command:exit", app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+				message = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 				return nil
 			})
 			if txErr != nil { // log txErr but continues

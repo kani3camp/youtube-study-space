@@ -67,7 +67,7 @@ Youtube Study Spaceは、YouTubeのライブ配信を活用したオンライン
 - `main.go`: アプリケーションのエントリーポイント。`Bot`関数と`CheckLongTimeSitting`関数を起動
 - `core/system.go`: システムの中核機能。コマンド処理、席管理などの主要ロジックを含む
 - `core/type_system.go`: システムの型定義
-- `core/repository/firestore_controller_interface.go`: Firestoreとのインターフェース
+- `core/repository/interface.go`: Firestoreとのインターフェース（`Repository`/`DBClient`）
 
 ## データモデルと処理フロー
 
@@ -140,7 +140,7 @@ go run main.go
 go test ./...
 
 # モックの生成
-mockgen -source=core/repository/firestore_controller_interface.go -destination=core/repository/mocks/firestore_controller_interface.go -package=mock_myfirestore
+mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
 ```
 
 ### デプロイ
