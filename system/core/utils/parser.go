@@ -1,13 +1,14 @@
 package utils
 
 import (
-	"github.com/pkg/errors"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"app.modules/core/i18n"
+	"github.com/pkg/errors"
+
+	i18nmsg "app.modules/core/i18n/typed"
 )
 
 var (
@@ -177,7 +178,7 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 		case MatchEmojiCommand(s, MinString):
 			minString, err := ReplaceEmojiMinToText(s)
 			if err != nil {
-				return "", i18n.T("parse:check-option", TimeOptionPrefix)
+				return "", i18nmsg.ParseCheckOption(TimeOptionPrefix)
 			}
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+minString, 1)
 		case MatchEmojiCommand(s, ColorString):
@@ -195,10 +196,10 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 // FormatStringToParse はコマンド解析のために文字列を整形する
 func FormatStringToParse(fullString string) string {
 	// 全角スペースを半角に変換
-	fullString = strings.Replace(fullString, FullWidthSpace, HalfWidthSpace, -1)
+	fullString = strings.ReplaceAll(fullString, FullWidthSpace, HalfWidthSpace)
 
 	// 全角イコールを半角に変換
-	fullString = strings.Replace(fullString, FullWidthEqualSign, HalfWidthEqualSign, -1)
+	fullString = strings.ReplaceAll(fullString, FullWidthEqualSign, HalfWidthEqualSign)
 
 	// 前後のスペースをトリム
 	fullString = strings.TrimSpace(fullString)
@@ -280,11 +281,7 @@ func ParseSeatIn(seatNum int, commandExcludedStr string, isMemberSeat bool) (*Co
 
 func ParseInfo(argStr string) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
-	showDetails := false
-
-	if len(fields) > 0 && fields[0] == ShowDetailsOption {
-		showDetails = true
-	}
+	showDetails := len(fields) > 0 && fields[0] == ShowDetailsOption
 
 	return &CommandDetails{
 		CommandType: Info,
@@ -327,14 +324,15 @@ func ParseMyOptions(argStr string) ([]MyOption, string) {
 	for _, field := range fields {
 		switch currentMode {
 		case Rank:
-			if field == RankVisibleMyOptionOn {
+			switch field {
+			case RankVisibleMyOptionOn:
 				rankVisibleValue = true
 				isRankVisibleSet = true
-			} else if field == RankVisibleMyOptionOff {
+			case RankVisibleMyOptionOff:
 				rankVisibleValue = false
 				isRankVisibleSet = true
-			} else {
-				return []MyOption{}, i18n.T("parse:check-option", RankVisibleMyOptionPrefix)
+			default:
+				return []MyOption{}, i18nmsg.ParseCheckOption(RankVisibleMyOptionPrefix)
 			}
 			currentMode = Any
 			continue
@@ -345,7 +343,7 @@ func ParseMyOptions(argStr string) ([]MyOption, string) {
 			} else {
 				value, err := strconv.Atoi(field)
 				if err != nil {
-					return []MyOption{}, i18n.T("parse:check-option", TimeOptionPrefix)
+					return []MyOption{}, i18nmsg.ParseCheckOption(TimeOptionPrefix)
 				}
 				defaultStudyMinValue = value
 			}
@@ -401,11 +399,11 @@ func ParseKick(argStr string, isTargetMemberSeat bool) (*CommandDetails, string)
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
-			return nil, i18n.T("parse:invalid-seat-id")
+			return nil, i18nmsg.ParseInvalidSeatId()
 		}
 		kickSeatId = num
 	} else {
-		return nil, i18n.T("parse:missing-seat-id")
+		return nil, i18nmsg.ParseMissingSeatId()
 	}
 
 	return &CommandDetails{
@@ -424,11 +422,11 @@ func ParseCheck(argStr string, isTargetMemberSeat bool) (*CommandDetails, string
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
-			return nil, i18n.T("parse:invalid-seat-id")
+			return nil, i18nmsg.ParseInvalidSeatId()
 		}
 		targetSeatId = num
 	} else {
-		return nil, i18n.T("parse:missing-seat-id")
+		return nil, i18nmsg.ParseMissingSeatId()
 	}
 
 	return &CommandDetails{
@@ -447,11 +445,11 @@ func ParseBlock(argStr string, isTargetMemberSeat bool) (*CommandDetails, string
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
-			return nil, i18n.T("parse:invalid-seat-id")
+			return nil, i18nmsg.ParseInvalidSeatId()
 		}
 		targetSeatId = num
 	} else {
-		return nil, i18n.T("parse:missing-seat-id")
+		return nil, i18nmsg.ParseMissingSeatId()
 	}
 
 	return &CommandDetails{
@@ -468,7 +466,7 @@ func ParseReport(fullString string) (*CommandDetails, string) {
 
 	var reportMessage string
 	if len(fields) == 1 {
-		return nil, i18n.T("parse:missing-message", ReportCommand)
+		return nil, i18nmsg.ParseMissingMessage(ReportCommand)
 	} else { // len(slice) > 1
 		reportMessage = fullString
 	}
@@ -485,7 +483,7 @@ func ParseChange(argStr string) (*CommandDetails, string) {
 	// 追加オプションチェック
 	fields := strings.Fields(argStr)
 	if len(fields) == 0 {
-		return nil, i18n.T("parse:invalid-option")
+		return nil, i18nmsg.ParseInvalidOption()
 	}
 	options, message := ParseMinWorkOrderOptions(argStr)
 	if message != "" {
@@ -500,11 +498,7 @@ func ParseChange(argStr string) (*CommandDetails, string) {
 
 func ParseSeat(argStr string) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
-	showDetails := false
-
-	if len(fields) >= 1 && fields[0] == ShowDetailsOption {
-		showDetails = true
-	}
+	showDetails := len(fields) > 0 && fields[0] == ShowDetailsOption
 
 	return &CommandDetails{
 		CommandType: Seat,
@@ -531,27 +525,27 @@ func ParseMore(argStr string) (*CommandDetails, string) {
 		if fields[0] == TimeOptionKey {
 			value, err := strconv.Atoi(fields[1])
 			if err != nil {
-				return nil, i18n.T("parse:invalid-option")
+				return nil, i18nmsg.ParseInvalidOption()
 			}
 			durationMin = value
 		} else {
 			value, err := strconv.Atoi(fields[0])
 			if err != nil {
-				return nil, i18n.T("parse:invalid-option")
+				return nil, i18nmsg.ParseInvalidOption()
 			}
 			durationMin = value
 		}
 	} else if len(fields) == 1 {
 		if fields[0] == TimeOptionKey {
-			return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+			return nil, i18nmsg.ParseCheckOption(TimeOptionPrefix)
 		}
 		value, err := strconv.Atoi(fields[0])
 		if err != nil {
-			return nil, i18n.T("parse:invalid-option")
+			return nil, i18nmsg.ParseInvalidOption()
 		}
 		durationMin = value
 	} else {
-		return nil, i18n.T("parse:missing-more-option")
+		return nil, i18nmsg.ParseMissingMoreOption()
 	}
 
 	return &CommandDetails{
@@ -603,10 +597,10 @@ func ParseOrder(argStr string) (*CommandDetails, string) {
 func ParseOrderOption(argStr string) (*OrderOption, string) {
 	fields := strings.Fields(argStr)
 	if len(fields) == 0 {
-		return nil, i18n.T("parse:invalid-option")
+		return nil, i18nmsg.ParseInvalidOption()
 	}
 	if len(fields) == 1 && fields[0] == "" {
-		return nil, i18n.T("parse:invalid-option")
+		return nil, i18nmsg.ParseInvalidOption()
 	}
 
 	// cancel flag?
@@ -618,7 +612,7 @@ func ParseOrderOption(argStr string) (*OrderOption, string) {
 
 	num, err := strconv.Atoi(fields[0])
 	if err != nil {
-		return nil, i18n.T("parse:invalid-option")
+		return nil, i18nmsg.ParseInvalidOption()
 	}
 
 	return &OrderOption{
@@ -666,7 +660,7 @@ func ParseMinWorkOrderOptions(argStr string) (*MinWorkOrderOption, string) {
 		case Min:
 			value, err := strconv.Atoi(field)
 			if err != nil {
-				return nil, i18n.T("parse:check-option", TimeOptionPrefix)
+				return nil, i18nmsg.ParseCheckOption(TimeOptionPrefix)
 			}
 			options.DurationMin = value
 			options.IsDurationMinSet = true
@@ -675,7 +669,7 @@ func ParseMinWorkOrderOptions(argStr string) (*MinWorkOrderOption, string) {
 		case Order:
 			value, err := strconv.Atoi(field)
 			if err != nil {
-				return nil, i18n.T("parse:check-option", OrderOptionPrefix)
+				return nil, i18nmsg.ParseCheckOption(OrderOptionPrefix)
 			}
 			options.OrderNum = value
 			options.IsOrderSet = true

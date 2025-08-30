@@ -1,16 +1,17 @@
 package mybigquery
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/bigquery"
-	"context"
-	"fmt"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"log/slog"
-	"time"
 )
 
 type BigqueryController struct {

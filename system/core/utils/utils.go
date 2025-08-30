@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -198,12 +197,4 @@ func MatchEmojiCommandString(text string) bool {
 
 func NameOf(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
-}
-
-func SeatIdStr(seatId int, isMemberSeat bool) string {
-	if isMemberSeat {
-		return i18n.T("common:vip-seat-id", seatId)
-	} else {
-		return strconv.Itoa(seatId)
-	}
 }

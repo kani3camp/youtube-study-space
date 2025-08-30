@@ -11,7 +11,7 @@
 "error" = "@{0}님, 오류가 발생하였습니다. 다시 시도해주세요🔄" # 0: Username
 "rp-earned" = "（+ {0} RP✨）" # 0: Earned
 "not-enter" = "@{0}님은 아직 입장하지 않으셨습니다. 「{1}」 명령어로 입장해주세요!📝" # 0: Username, 1: InCommand
-"enter-only" = "@{0}님, 입장 중에만 사용할 수 있는 명령어입니다🚪" # 0: Username
+"enter-only" = "입장 중에만 사용할 수 있는 명령어입니다🚪"
 "permission" = "@{0}님은 「{1}」 명령어를 사용할 수 없습니다🔒" # 0: Username, 1: Command
 "exit"= "@{0}님이 퇴장하셨습니다🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
 "unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다🪑" # 0: UserName
@@ -101,13 +101,14 @@
 "work" = "@{0}님이 작업을 재개합니다🔥（{1}번 좌석, 자동 퇴실까지 {2}분 남았습니다）"
 
 [command-order]
+"too-many-orders" = "@{0}님, 오늘의 주문 횟수가 상한({1}회)에 도달했습니다😔" # 0: userName, 1: maxOrderCount
 "ordered" = "@{0}님, {1}의 주문을 접수했습니다🍽（오늘 {2}회째）" # 0: userName, 1: menuName
 "cleared" = "@{0}님, 식기를 치웠습니다🍽️" # 0: userName
 
 [others]
 "force-move" = "@{0}님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
-"cleared-work" = "@{0}님, 작업 내용을 리셋했습니다🧹({1}번 좌석)"
-"cleared-break" = "@{0}님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatId
+"clear-work" = "@{0}님, 작업 내용을 리셋했습니다🧹({1}번 좌석)"
+"clear-break" = "@{0}님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatId
 
 [parse]
 "isolated-!" = "느낌표는 옆 문자와 붙여서 사용하세요 ✍️"
