@@ -288,8 +288,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	if txErr != nil {
 		slog.Error("txErr in In()", "txErr", txErr)
 		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
-	}
-	if txErr == nil {
+	} else {
 		replyMessage += presenter.BuildInMessage(result, app.ProcessedUserDisplayName)
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
