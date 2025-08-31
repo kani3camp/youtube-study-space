@@ -1,0 +1,40 @@
+name: i18n generate check
+
+on:
+  pull_request:
+
+jobs:
+  i18n-generate-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # go.mod lives under the system/ module, not repo root
+          go-version-file: system/go.mod
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Run go generate
+        run: go generate ./...
+        env:
+          I18N_BASELINE: ja
+
+      - name: Verify no diff
+        working-directory: ${{ github.workspace }}
+        run: |
+          git update-index -q --refresh
+          if ! git diff --quiet --exit-code; then
+            echo "::error::Generated files are outdated. Please run 'go generate ./...' and commit the changes."
+            git diff --name-only
+            exit 1
+          fi
