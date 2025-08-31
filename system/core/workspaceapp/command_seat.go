@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	i18nmsg "app.modules/core/i18n/typed"
@@ -194,12 +193,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				UntilExitMin:     untilExitMin,
 			})
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
-			var seatIdStr string
-			if isInMemberRoom {
-				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(currentSeat.SeatId)
-			}
+			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
 			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
@@ -330,15 +324,10 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 			return fmt.Errorf("in exitRoom(): %w", err)
 		}
 		var rpEarned string
-		var seatIdStr string
 		if userDoc.RankVisible {
 			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		if isInMemberRoom {
-			seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
-		} else {
-			seatIdStr = strconv.Itoa(seat.SeatId)
-		}
+		seatIdStr := presenter.SeatIDStr(seat.SeatId, isInMemberRoom)
 		replyMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 		return nil
 	})
@@ -383,12 +372,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
 				breakUntilStr = i18nmsg.CommandSeatInfoBreakUntil(int(breakUntilDuration.Minutes()))
 			}
-			var seatIdStr string
-			if isInMemberRoom {
-				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(currentSeat.SeatId)
-			}
+			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
 			replyMessage = i18nmsg.CommandSeatInfoBase(app.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
 
 			if showDetails {

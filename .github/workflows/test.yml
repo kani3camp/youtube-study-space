@@ -9,37 +9,23 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
     steps:
-      - name: Set up Go 1.23
-        uses: actions/setup-go@v5
-        with:
-          go-version: ^1.23
-        id: go
-
-      - name: Check out code into the Go module directory
+      - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: system/go.mod
+        id: go
+
       - name: Get dependencies and run tests
-        working-directory: system
         run: |
           go mod tidy
           go test -shuffle=on -v ./...
-
-  go-lint:
-    name: Go Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64
-          working-directory: system
-          args: --timeout=5m
 
   jest:
     name: Jest

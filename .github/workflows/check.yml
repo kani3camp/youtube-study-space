@@ -1,0 +1,55 @@
+name: Check
+
+on:
+  pull_request:
+
+jobs:
+  check-i18n-generate:
+    name: Generated Files Up-to-Date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: system/go.mod
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Run go generate
+        run: go generate ./...
+        env:
+          I18N_BASELINE: ja
+
+      - name: Verify no diff
+        working-directory: ${{ github.workspace }}
+        run: |
+          git update-index -q --refresh
+          if ! git diff --quiet --exit-code; then
+            echo "::error::Generated files are outdated. Please run 'go generate ./...' and commit the changes."
+            git diff --name-only
+            exit 1
+          fi
+
+  go-lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: system/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: system
+          args: --timeout=5m

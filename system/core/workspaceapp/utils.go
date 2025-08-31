@@ -13,6 +13,7 @@ import (
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"github.com/kr/pretty"
@@ -219,11 +220,7 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				if userDoc.RankVisible {
 					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
-				if isMemberRoom {
-					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
-				} else {
-					seatIdStr = strconv.Itoa(seat.SeatId)
-				}
+				seatIdStr = presenter.SeatIDStr(seat.SeatId, isMemberRoom)
 				message = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 				return nil
 			})
