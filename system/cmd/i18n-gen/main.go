@@ -180,7 +180,18 @@ func main() {
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile(outPath, out.Bytes(), 0o644); err != nil {
+	// Normalize trailing newlines: ensure exactly one newline at EOF
+	content := out.Bytes()
+	for len(content) > 0 {
+		last := content[len(content)-1]
+		if last == '\n' || last == '\r' {
+			content = content[:len(content)-1]
+			continue
+		}
+		break
+	}
+	content = append(content, '\n')
+	if err := os.WriteFile(outPath, content, 0o644); err != nil {
 		panic(err)
 	}
 }
