@@ -194,12 +194,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				UntilExitMin:     untilExitMin,
 			})
 		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
-			var seatIdStr string
-			if isInMemberRoom {
-				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(currentSeat.SeatId)
-			}
+			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
 			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
@@ -378,12 +373,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 				breakUntilDuration := utils.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(utils.JstNow()))
 				breakUntilStr = i18nmsg.CommandSeatInfoBreakUntil(int(breakUntilDuration.Minutes()))
 			}
-			var seatIdStr string
-			if isInMemberRoom {
-				seatIdStr = i18nmsg.CommonVipSeatId(currentSeat.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(currentSeat.SeatId)
-			}
+			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
 			replyMessage = i18nmsg.CommandSeatInfoBase(app.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
 
 			if showDetails {

@@ -168,7 +168,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// commanderはモデレーターかチャットオーナーか
 		if !app.ProcessedUserIsModeratorOrOwner {
-			replyMessage = app.ProcessedUserDisplayName + "さんは" + utils.BlockCommand + "コマンドを使用できません"
+			replyMessage = i18nmsg.CommandPermission(app.ProcessedUserDisplayName, utils.BlockCommand)
 			return nil
 		}
 
@@ -179,7 +179,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
 			if isSeatAvailable {
-				replyMessage = app.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 		}
@@ -188,13 +188,14 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				replyMessage = app.ProcessedUserDisplayName + "さん、その番号の座席は誰も使用していません"
+				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
 			app.MessageToOwnerWithError(ctx, "in ReadSeat", err)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		replyMessage = app.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.SeatId) + "番席の" + targetSeat.UserDisplayName + "さんをブロックします。"
+		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
+		replyMessage = i18nmsg.CommandBlockBlock(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
 		// app.ProcessedUserが処理の対象ではないことに注意。
 		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
@@ -208,10 +209,9 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 		}
 		var rpEarned string
 		if userDoc.RankVisible {
-			rpEarned = "（+ " + strconv.Itoa(addedRP) + " RP）"
+			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
-		replyMessage = i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 
 		// ブロック
 		if err := app.BanUser(ctx, targetSeat.UserId); err != nil {
