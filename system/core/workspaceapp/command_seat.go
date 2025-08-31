@@ -330,15 +330,10 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 			return fmt.Errorf("in exitRoom(): %w", err)
 		}
 		var rpEarned string
-		var seatIdStr string
 		if userDoc.RankVisible {
 			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		if isInMemberRoom {
-			seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
-		} else {
-			seatIdStr = strconv.Itoa(seat.SeatId)
-		}
+		seatIdStr := presenter.SeatIDStr(seat.SeatId, isInMemberRoom)
 		replyMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 		return nil
 	})
