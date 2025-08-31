@@ -1,24 +1,23 @@
-name: i18n generate check
+name: Check
 
 on:
   pull_request:
 
 jobs:
-  i18n-generate-check:
+  check-i18n-generate:
+    name: Generated Files Up-to-Date
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: system
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          # go.mod lives under the system/ module, not repo root
           go-version-file: system/go.mod
 
       - name: Download deps
@@ -38,3 +37,19 @@ jobs:
             git diff --name-only
             exit 1
           fi
+
+  go-lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: system/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: system
+          args: --timeout=5m
