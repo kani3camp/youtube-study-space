@@ -14,6 +14,7 @@ import (
 	"app.modules/core/mystorage"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -90,15 +91,10 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 					return fmt.Errorf("%sさん（%s）の退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 				}
 				var rpEarned string
-				var seatIdStr string
 				if userDoc.RankVisible {
 					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
-				if isMemberRoom {
-					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
-				} else {
-					seatIdStr = strconv.Itoa(seat.SeatId)
-				}
+				seatIdStr := presenter.SeatIDStr(seat.SeatId, isMemberRoom)
 				liveChatMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
 			}
 
@@ -174,12 +170,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
 				}
-				var seatIdStr string
-				if isMemberRoom {
-					seatIdStr = i18nmsg.CommonVipSeatId(seat.SeatId)
-				} else {
-					seatIdStr = strconv.Itoa(seat.SeatId)
-				}
+				seatIdStr := presenter.SeatIDStr(seat.SeatId, isMemberRoom)
 
 				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIdStr, int(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
 			}
@@ -262,12 +253,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			continue
 		}
 		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
-			var seatIdStr string
-			if isMemberSeat {
-				seatIdStr = i18nmsg.CommonVipSeatId(seatSnapshot.SeatId)
-			} else {
-				seatIdStr = strconv.Itoa(seatSnapshot.SeatId)
-			}
+			seatIdStr := presenter.SeatIDStr(seatSnapshot.SeatId, isMemberSeat)
 			app.MessageToLiveChat(ctx, i18nmsg.OthersForceMove(app.ProcessedUserDisplayName, seatIdStr))
 
 			var isOrderSet bool
