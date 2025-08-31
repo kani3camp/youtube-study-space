@@ -465,4 +465,3 @@ func ValidateNonOneOrMoreExtendedTime() string {
 func ValidateInvalidMenuNumberRange(maxMenuNumber int) string {
 	return engine.TranslateDefault("validate:invalid-menu-number-range", maxMenuNumber)
 }
-
