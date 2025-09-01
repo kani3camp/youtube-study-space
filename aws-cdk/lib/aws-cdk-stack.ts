@@ -3,12 +3,20 @@ import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
+import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as path from 'path';
 import { aws_apigateway } from 'aws-cdk-lib';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
 import * as logs from 'aws-cdk-lib/aws-logs';
+
+// Docker asset path constants (can be overridden via context in future PRs)
+const SYSTEM_DIR = path.join(__dirname, '../../system/');
+const DOCKERFILE_LAMBDA = 'Dockerfile.lambda';
+const DOCKERFILE_FARGATE = 'Dockerfile.fargate';
 
 export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -21,6 +29,118 @@ export class AwsCdkStack extends cdk.Stack {
       resources: ['arn:aws:dynamodb:*:*:table/secrets'],
     });
 
+    // =========================
+    // ECS/Fargate: Daily Batch
+    // =========================
+    // VPC: Public Subnet のみ、NATなし（コスト最小）
+    const vpc = new ec2.Vpc(this, 'BatchVpc', {
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          name: 'public',
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
+      ],
+    });
+
+    // 最小限のegressのみ許可するSG
+    const batchSecurityGroup = new ec2.SecurityGroup(
+      this,
+      'BatchSecurityGroup',
+      {
+        vpc,
+        allowAllOutbound: false,
+        description: 'Minimal egress for Fargate batch',
+      }
+    );
+    // HTTPS (外部API/GCP等)
+    batchSecurityGroup.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(443),
+      'HTTPS to internet'
+    );
+    // VPC DNS リゾルバ (169.254.169.253) への TCP/UDP 53
+    batchSecurityGroup.addEgressRule(
+      ec2.Peer.ipv4('169.254.169.253/32'),
+      ec2.Port.tcp(53),
+      'DNS TCP to VPC resolver'
+    );
+    batchSecurityGroup.addEgressRule(
+      ec2.Peer.ipv4('169.254.169.253/32'),
+      ec2.Port.udp(53),
+      'DNS UDP to VPC resolver'
+    );
+    // ECS Task メタデータ/credential (169.254.170.2:80)
+    batchSecurityGroup.addEgressRule(
+      ec2.Peer.ipv4('169.254.170.2/32'),
+      ec2.Port.tcp(80),
+      'ECS task metadata/credentials'
+    );
+
+    const cluster = new ecs.Cluster(this, 'BatchCluster', { vpc });
+
+    const batchLogGroup = new logs.LogGroup(this, 'BatchLogGroup', {
+      retention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const batchImageAsset = new ecr_assets.DockerImageAsset(
+      this,
+      'BatchImage',
+      {
+        directory: SYSTEM_DIR,
+        file: DOCKERFILE_FARGATE,
+        platform: Platform.LINUX_ARM64,
+      }
+    );
+
+    const taskDefinition = new ecs.FargateTaskDefinition(
+      this,
+      'DailyBatchTaskDefinition',
+      {
+        cpu: 256,
+        memoryLimitMiB: 512,
+        runtimePlatform: {
+          cpuArchitecture: ecs.CpuArchitecture.ARM64,
+          operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+        },
+      }
+    );
+    // DynamoDB secrets テーブルへのアクセス付与
+    taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy);
+
+    taskDefinition.addContainer('daily-batch', {
+      image: ecs.ContainerImage.fromDockerImageAsset(batchImageAsset),
+      logging: ecs.LogDrivers.awsLogs({
+        logGroup: batchLogGroup,
+        streamPrefix: 'daily-batch',
+      }),
+    });
+
+    // 参照用の出力（後続PRでStep Functionsから使用）
+    new cdk.CfnOutput(this, 'BatchClusterArn', {
+      value: cluster.clusterArn,
+      exportName: 'BatchClusterArn',
+    });
+    new cdk.CfnOutput(this, 'DailyBatchTaskDefinitionArn', {
+      value: taskDefinition.taskDefinitionArn,
+      exportName: 'DailyBatchTaskDefinitionArn',
+    });
+    new cdk.CfnOutput(this, 'BatchSecurityGroupId', {
+      value: batchSecurityGroup.securityGroupId,
+      exportName: 'BatchSecurityGroupId',
+    });
+    const publicSubnetIds = vpc.selectSubnets({
+      subnetType: ec2.SubnetType.PUBLIC,
+    }).subnetIds;
+    new cdk.CfnOutput(this, 'BatchPublicSubnetIds', {
+      value: cdk.Fn.join(',', publicSubnetIds),
+      exportName: 'BatchPublicSubnetIds',
+    });
+    new cdk.CfnOutput(this, 'BatchVpcId', {
+      value: vpc.vpcId,
+      exportName: 'BatchVpcId',
+    });
+
     // Lambda function
     const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(
       this,
@@ -28,9 +148,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'set_desired_max_seats',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -52,9 +172,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'youtube_organize_database',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -76,9 +196,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'process_user_rp_parallel',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -100,9 +220,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'daily_organize_database',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -132,9 +252,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'check_live_stream_status',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -157,9 +277,9 @@ export class AwsCdkStack extends cdk.Stack {
         {
           functionName: 'transfer_collection_history_bigquery',
           code: lambda.DockerImageCode.fromImageAsset(
-            path.join(__dirname, '../../system/'),
+            SYSTEM_DIR,
             {
-              file: 'Dockerfile.lambda',
+              file: DOCKERFILE_LAMBDA,
               buildArgs: {
                 HANDLER: 'main',
               },
