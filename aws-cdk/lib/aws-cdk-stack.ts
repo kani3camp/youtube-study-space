@@ -13,6 +13,11 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
+// Docker asset path constants (can be overridden via context in future PRs)
+const SYSTEM_DIR = path.join(__dirname, '../../system/');
+const DOCKERFILE_LAMBDA = 'Dockerfile.lambda';
+const DOCKERFILE_FARGATE = 'Dockerfile.fargate';
+
 export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -82,8 +87,8 @@ export class AwsCdkStack extends cdk.Stack {
       this,
       'BatchImage',
       {
-        directory: path.join(__dirname, '../../system/'),
-        file: 'Dockerfile.fargate',
+        directory: SYSTEM_DIR,
+        file: DOCKERFILE_FARGATE,
         platform: Platform.LINUX_ARM64,
       }
     );
@@ -109,7 +114,6 @@ export class AwsCdkStack extends cdk.Stack {
         logGroup: batchLogGroup,
         streamPrefix: 'daily-batch',
       }),
-      environment: {},
     });
 
     // 参照用の出力（後続PRでStep Functionsから使用）
@@ -144,9 +148,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'set_desired_max_seats',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -168,9 +172,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'youtube_organize_database',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -192,9 +196,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'process_user_rp_parallel',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -216,9 +220,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'daily_organize_database',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -248,9 +252,9 @@ export class AwsCdkStack extends cdk.Stack {
       {
         functionName: 'check_live_stream_status',
         code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, '../../system/'),
+          SYSTEM_DIR,
           {
-            file: 'Dockerfile.lambda',
+            file: DOCKERFILE_LAMBDA,
             buildArgs: {
               HANDLER: 'main',
             },
@@ -273,9 +277,9 @@ export class AwsCdkStack extends cdk.Stack {
         {
           functionName: 'transfer_collection_history_bigquery',
           code: lambda.DockerImageCode.fromImageAsset(
-            path.join(__dirname, '../../system/'),
+            SYSTEM_DIR,
             {
-              file: 'Dockerfile.lambda',
+              file: DOCKERFILE_LAMBDA,
               buildArgs: {
                 HANDLER: 'main',
               },
