@@ -30,6 +30,7 @@ export class AwsCdkStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromImageAsset(
           path.join(__dirname, '../../system/'),
           {
+            file: 'Dockerfile.lambda',
             buildArgs: {
               HANDLER: 'main',
             },
@@ -53,6 +54,7 @@ export class AwsCdkStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromImageAsset(
           path.join(__dirname, '../../system/'),
           {
+            file: 'Dockerfile.lambda',
             buildArgs: {
               HANDLER: 'main',
             },
@@ -76,6 +78,7 @@ export class AwsCdkStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromImageAsset(
           path.join(__dirname, '../../system/'),
           {
+            file: 'Dockerfile.lambda',
             buildArgs: {
               HANDLER: 'main',
             },
@@ -99,6 +102,7 @@ export class AwsCdkStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromImageAsset(
           path.join(__dirname, '../../system/'),
           {
+            file: 'Dockerfile.lambda',
             buildArgs: {
               HANDLER: 'main',
             },
@@ -130,6 +134,7 @@ export class AwsCdkStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromImageAsset(
           path.join(__dirname, '../../system/'),
           {
+            file: 'Dockerfile.lambda',
             buildArgs: {
               HANDLER: 'main',
             },
@@ -154,6 +159,7 @@ export class AwsCdkStack extends cdk.Stack {
           code: lambda.DockerImageCode.fromImageAsset(
             path.join(__dirname, '../../system/'),
             {
+              file: 'Dockerfile.lambda',
               buildArgs: {
                 HANDLER: 'main',
               },

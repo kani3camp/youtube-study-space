@@ -61,7 +61,8 @@ Youtube Study Spaceは、YouTubeのライブ配信を活用したオンライン
     - `mystorage/` - ストレージ連携
   - `direct-operations/` - 直接操作用のツール
   - `aws-lambda/` - AWS Lambda関数
-  - `Dockerfile` - コンテナ化定義
+  - `Dockerfile.lambda` - Lambda用コンテナ定義
+  - `Dockerfile.fargate` - ECS Fargate用バッチコンテナ定義
 
 ### 主要ファイル
 - `main.go`: アプリケーションのエントリーポイント。`Bot`関数と`CheckLongTimeSitting`関数を起動
