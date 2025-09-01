@@ -53,8 +53,7 @@ func main() {
 			runErr = fmt.Errorf("transfer-bq: %w", err)
 		}
 	default:
-		app.MessageToOwner(ctx, "unknown JOB: "+job)
-		runErr = os.ErrInvalid
+		runErr = fmt.Errorf("unknown job: %s", job)
 	}
 
 	if runErr != nil {
@@ -104,6 +103,9 @@ func doUpdateRP(ctx context.Context, app *workspaceapp.WorkspaceApp) error {
 		success++
 	}
 	app.MessageToOwner(ctx, "update-rp finished. success="+strconv.Itoa(success)+", failed="+strconv.Itoa(failed)+", total="+strconv.Itoa(len(userIds)))
+	if failed > 0 {
+		return fmt.Errorf("UpdateUserRP failed for %d out of %d users", failed, len(userIds))
+	}
 	return nil
 }
 
