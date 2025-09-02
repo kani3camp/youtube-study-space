@@ -155,23 +155,18 @@ export class AwsCdkStack extends cdk.Stack {
       }),
       assignPublicIp: true,
       securityGroups: [batchSecurityGroup],
-      containerOverrides: [
-        {
-          containerDefinition: batchContainer,
-          environment: [
-            {
-              name: 'JOB',
-              value: 'reset-daily-total',
-            },
-          ],
-        },
-      ],
       resultPath: sfn.JsonPath.DISCARD,
       integrationPattern: sfn.IntegrationPattern.RUN_JOB,
     };
 
     const resetDailyTotalTask = new sfn_tasks.EcsRunTask(this, 'reset-daily-total', {
       ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'reset-daily-total' }],
+        },
+      ],
     });
     const updateRpTask = new sfn_tasks.EcsRunTask(this, 'update-rp', {
       ...runTaskCommon,
