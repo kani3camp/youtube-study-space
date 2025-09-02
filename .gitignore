@@ -100,3 +100,4 @@ fabric.properties
 **/.next/
 
 .mcp.json
+system/sfn_notify_discord
