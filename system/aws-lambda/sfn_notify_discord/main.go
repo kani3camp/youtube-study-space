@@ -56,8 +56,8 @@ func handler(input sfnErrorInput) (notifyResponse, error) {
 	}
 
 	message := fmt.Sprintf(
-		"[daily-batch] StepFunctions failure\nstate: %s\nerror: %s\ncause: %s\nexecution: %s",
-		input.StateName, input.Error, compactCause, input.ExecutionArn,
+		"[%s] StepFunctions failure\nstate: %s\nerror: %s\ncause: %s\nexecution: %s",
+		input.Workflow, input.StateName, input.Error, compactCause, input.ExecutionArn,
 	)
 	app.MessageToOwner(ctx, message)
 	return notifyResponse{Result: "ok"}, nil
