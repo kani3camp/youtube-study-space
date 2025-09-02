@@ -33,27 +33,29 @@ func handler(evt events.SNSEvent) error {
 		return nil
 	}
 
-	rec := evt.Records[0].SNS
-	subject := rec.Subject
-	message := rec.Message
+	for i, record := range evt.Records {
+		rec := record.SNS
+		subject := rec.Subject
+		message := rec.Message
 
-	// Try to compact JSON messages
-	var tmp map[string]any
-	if json.Unmarshal([]byte(message), &tmp) == nil {
-		if b, e := json.Marshal(tmp); e == nil {
-			message = string(b)
+		// Try to compact JSON messages
+		var tmp map[string]any
+		if json.Unmarshal([]byte(message), &tmp) == nil {
+			if b, e := json.Marshal(tmp); e == nil {
+				message = string(b)
+			}
 		}
+
+		// Log full message before truncation for console inspection
+		slog.InfoContext(ctx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
+
+		if len(message) > 1800 {
+			message = message[:1800] + "... (truncated)"
+		}
+
+		notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
+		app.MessageToOwner(ctx, notify)
 	}
-
-	// Log full message before truncation for console inspection
-	slog.InfoContext(ctx, "sns notify full message", "subject", subject, "message_full", message)
-
-	if len(message) > 1800 {
-		message = message[:1800] + "... (truncated)"
-	}
-
-	notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
-	app.MessageToOwner(ctx, notify)
 	return nil
 }
 
