@@ -118,6 +118,29 @@ export class AwsCdkStack extends cdk.Stack {
       }),
     });
 
+    // Lambda for Step Functions failure notification (Discord)
+    const sfnNotifyDiscordFunction = new lambda.DockerImageFunction(
+      this,
+      'sfn_notify_discord',
+      {
+        functionName: 'sfn_notify_discord',
+        code: lambda.DockerImageCode.fromImageAsset(
+          SYSTEM_DIR,
+          {
+            file: DOCKERFILE_LAMBDA,
+            buildArgs: { HANDLER: 'main' },
+            platform: Platform.LINUX_AMD64,
+            entrypoint: ['/app/sfn_notify_discord'],
+          }
+        ),
+        timeout: cdk.Duration.seconds(30),
+        reservedConcurrentExecutions: 1,
+      }
+    );
+    (sfnNotifyDiscordFunction.role as iam.Role).addToPolicy(
+      dynamoDBAccessPolicy
+    );
+
     // 参照用の出力（後続PRでStep Functionsから使用）
     new cdk.CfnOutput(this, 'BatchClusterArn', {
       value: cluster.clusterArn,
@@ -192,11 +215,35 @@ export class AwsCdkStack extends cdk.Stack {
       time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
     });
 
+    const notifyOnFailure = new sfn_tasks.LambdaInvoke(this, 'notify-on-failure', {
+      lambdaFunction: sfnNotifyDiscordFunction,
+      payload: sfn.TaskInput.fromObject({
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        workflow: 'daily-batch',
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+
+    // Wrap the whole sequence in a Parallel to attach a single catch for all states
+    const tryBranch = sfn.Chain.start(wait15s)
+      .next(resetDailyTotalTask)
+      .next(updateRpTask)
+      .next(transferBqTask);
+
+    const tryBlock = new sfn.Parallel(this, 'try-all', {
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    tryBlock.branch(tryBranch);
+    tryBlock.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+
     const dailyBatchStateMachine = new sfn.StateMachine(
       this,
       'daily-batch-sfn',
       {
-        definition: wait15s.next(resetDailyTotalTask).next(updateRpTask).next(transferBqTask),
+        definition: tryBlock,
         tracingEnabled: false,
         logs: {
           destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
