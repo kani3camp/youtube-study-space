@@ -14,6 +14,10 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 
 // Docker asset path constants (can be overridden via context in future PRs)
 const SYSTEM_DIR = path.join(__dirname, '../../system/');
@@ -132,28 +136,31 @@ export class AwsCdkStack extends cdk.Stack {
       },
     });
 
-    // Lambda for Step Functions failure notification (Discord)
-    const sfnNotifyDiscordFunction = new lambda.DockerImageFunction(
+    // SNS topic for CloudWatch alarms and subscription to Discord notify Lambda
+    const alarmsTopic = new sns.Topic(this, 'AlarmsTopic', {
+      displayName: 'youtube-study-space-alarms',
+    });
+    // Unified SNS consumer Lambda for all infra/app alerts
+    const snsNotifyDiscordFunction = new lambda.DockerImageFunction(
       this,
-      'sfn_notify_discord',
+      'sns_notify_discord',
       {
-        functionName: 'sfn_notify_discord',
+        functionName: 'sns_notify_discord',
         code: lambda.DockerImageCode.fromImageAsset(
           SYSTEM_DIR,
           {
             file: DOCKERFILE_LAMBDA,
             buildArgs: { HANDLER: 'main' },
             platform: Platform.LINUX_AMD64,
-            entrypoint: ['/app/sfn_notify_discord'],
+            entrypoint: ['/app/sns_notify_discord'],
           }
         ),
         timeout: cdk.Duration.seconds(30),
         reservedConcurrentExecutions: 1,
       }
     );
-    (sfnNotifyDiscordFunction.role as iam.Role).addToPolicy(
-      dynamoDBAccessPolicy
-    );
+    (snsNotifyDiscordFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
+    alarmsTopic.addSubscription(new subs.LambdaSubscription(snsNotifyDiscordFunction));
 
     // 参照用の出力（後続PRでStep Functionsから使用）
     new cdk.CfnOutput(this, 'BatchClusterArn', {
@@ -229,15 +236,16 @@ export class AwsCdkStack extends cdk.Stack {
       time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
     });
 
-    const notifyOnFailure = new sfn_tasks.LambdaInvoke(this, 'notify-on-failure', {
-      lambdaFunction: sfnNotifyDiscordFunction,
-      payload: sfn.TaskInput.fromObject({
+    const notifyOnFailure = new sfn_tasks.SnsPublish(this, 'notify-on-failure-sns', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'daily-batch',
         stateName: sfn.JsonPath.stringAt('$$.State.Name'),
         executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
-        workflow: 'daily-batch',
         error: sfn.JsonPath.stringAt('$.Error'),
         cause: sfn.JsonPath.stringAt('$.Cause'),
       }),
+      subject: 'daily-batch failed',
       resultPath: sfn.JsonPath.DISCARD,
     });
 
@@ -268,6 +276,21 @@ export class AwsCdkStack extends cdk.Stack {
         timeout: cdk.Duration.hours(3),
       }
     );
+
+    // CloudWatch alarm: Step Functions ExecutionsFailed > 0
+    const failedMetric = dailyBatchStateMachine.metricFailed({
+      statistic: 'sum',
+      period: cdk.Duration.minutes(5),
+    });
+    const sfnFailedAlarm = new cloudwatch.Alarm(this, 'DailyBatchFailedAlarm', {
+      metric: failedMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      alarmDescription: 'Daily batch Step Functions failed executions > 0',
+    });
+    sfnFailedAlarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic));
 
     new cdk.CfnOutput(this, 'DailyBatchStateMachineArn', {
       value: dailyBatchStateMachine.stateMachineArn,
