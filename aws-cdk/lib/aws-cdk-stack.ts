@@ -162,6 +162,27 @@ export class AwsCdkStack extends cdk.Stack {
     (snsNotifyDiscordFunction.role as iam.Role).addToPolicy(dynamoDBAccessPolicy);
     alarmsTopic.addSubscription(new subs.LambdaSubscription(snsNotifyDiscordFunction));
 
+    // Helper to create a common Lambda Errors>0 alarm wired to SNS
+    const createLambdaErrorAlarm = (
+      fn: lambda.FunctionBase,
+      id: string,
+      description: string
+    ) => {
+      const alarm = new cloudwatch.Alarm(this, id, {
+        metric: fn.metricErrors({
+          statistic: 'sum',
+          period: cdk.Duration.minutes(5),
+        }),
+        threshold: 0,
+        evaluationPeriods: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        alarmDescription: description,
+      });
+      alarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic));
+      return alarm;
+    };
+
     // 参照用の出力（後続PRでStep Functionsから使用）
     new cdk.CfnOutput(this, 'BatchClusterArn', {
       value: cluster.clusterArn,
@@ -321,6 +342,11 @@ export class AwsCdkStack extends cdk.Stack {
     (setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
       dynamoDBAccessPolicy
     );
+    createLambdaErrorAlarm(
+      setDesiredMaxSeatsFunction,
+      'SetDesiredMaxSeatsErrorsAlarm',
+      'Lambda set_desired_max_seats errors > 0'
+    );
 
     const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(
       this,
@@ -345,6 +371,11 @@ export class AwsCdkStack extends cdk.Stack {
     (youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
       dynamoDBAccessPolicy
     );
+    createLambdaErrorAlarm(
+      youtubeOrganizeDatabaseFunction,
+      'YoutubeOrganizeDatabaseErrorsAlarm',
+      'Lambda youtube_organize_database errors > 0'
+    );
 
     const processUserRPParallelFunction = new lambda.DockerImageFunction(
       this,
@@ -368,6 +399,11 @@ export class AwsCdkStack extends cdk.Stack {
     );
     (processUserRPParallelFunction.role as iam.Role).addToPolicy(
       dynamoDBAccessPolicy
+    );
+    createLambdaErrorAlarm(
+      processUserRPParallelFunction,
+      'ProcessUserRPParallelErrorsAlarm',
+      'Lambda process_user_rp_parallel errors > 0'
     );
 
     const dailyOrganizeDatabaseFunction = new lambda.DockerImageFunction(
@@ -401,6 +437,11 @@ export class AwsCdkStack extends cdk.Stack {
     (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
       invokeLambdaPolicy
     );
+    createLambdaErrorAlarm(
+      dailyOrganizeDatabaseFunction,
+      'DailyOrganizeDatabaseErrorsAlarm',
+      'Lambda daily_organize_database errors > 0'
+    );
 
     const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
       this,
@@ -424,6 +465,11 @@ export class AwsCdkStack extends cdk.Stack {
     );
     (checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
       dynamoDBAccessPolicy
+    );
+    createLambdaErrorAlarm(
+      checkLiveStreamStatusFunction,
+      'CheckLiveStreamStatusErrorsAlarm',
+      'Lambda check_live_stream_status errors > 0'
     );
 
     const transferCollectionHistoryBigqueryFunction =
@@ -449,6 +495,11 @@ export class AwsCdkStack extends cdk.Stack {
       );
     (transferCollectionHistoryBigqueryFunction.role as iam.Role).addToPolicy(
       dynamoDBAccessPolicy
+    );
+    createLambdaErrorAlarm(
+      transferCollectionHistoryBigqueryFunction,
+      'TransferCollectionHistoryBigqueryErrorsAlarm',
+      'Lambda transfer_collection_history_bigquery errors > 0'
     );
 
     // API Gateway用ロググループ
