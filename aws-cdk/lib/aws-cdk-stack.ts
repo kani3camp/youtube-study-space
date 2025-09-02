@@ -45,6 +45,15 @@ export class AwsCdkStack extends cdk.Stack {
       ],
     });
 
+    // DynamoDB Gateway VPC Endpoint for secure, cost-effective access
+    // Note: This VPC uses only Public Subnets (no NAT). Gateway endpoint attaches to route tables
+    // in these public subnets and enables private DynamoDB access without NAT egress.
+    vpc.addGatewayEndpoint('DynamoDbEndpoint', {
+      service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
+      // public subnets are fine; gateway endpoints are attached to the route tables
+      // associatedRoutes can be left default to all route tables in the VPC
+    });
+
     // 最小限のegressのみ許可するSG
     const batchSecurityGroup = new ec2.SecurityGroup(
       this,
@@ -116,6 +125,11 @@ export class AwsCdkStack extends cdk.Stack {
         logGroup: batchLogGroup,
         streamPrefix: 'daily-batch',
       }),
+      environment: {
+        // ECS/Fargate でも AWS_REGION は基本入るが、念のため DEFAULT もセット
+        AWS_REGION: cdk.Stack.of(this).region,
+        AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
+      },
     });
 
     // Lambda for Step Functions failure notification (Discord)
