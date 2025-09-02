@@ -377,71 +377,6 @@ export class AwsCdkStack extends cdk.Stack {
       'Lambda youtube_organize_database errors > 0'
     );
 
-    const processUserRPParallelFunction = new lambda.DockerImageFunction(
-      this,
-      'process_user_rp_parallel',
-      {
-        functionName: 'process_user_rp_parallel',
-        code: lambda.DockerImageCode.fromImageAsset(
-          SYSTEM_DIR,
-          {
-            file: DOCKERFILE_LAMBDA,
-            buildArgs: {
-              HANDLER: 'main',
-            },
-            platform: Platform.LINUX_AMD64,
-            entrypoint: ['/app/process_user_rp_parallel'],
-          }
-        ),
-        timeout: cdk.Duration.minutes(15),
-        reservedConcurrentExecutions: undefined,
-      }
-    );
-    (processUserRPParallelFunction.role as iam.Role).addToPolicy(
-      dynamoDBAccessPolicy
-    );
-    createLambdaErrorAlarm(
-      processUserRPParallelFunction,
-      'ProcessUserRPParallelErrorsAlarm',
-      'Lambda process_user_rp_parallel errors > 0'
-    );
-
-    const dailyOrganizeDatabaseFunction = new lambda.DockerImageFunction(
-      this,
-      'daily_organize_database',
-      {
-        functionName: 'daily_organize_database',
-        code: lambda.DockerImageCode.fromImageAsset(
-          SYSTEM_DIR,
-          {
-            file: DOCKERFILE_LAMBDA,
-            buildArgs: {
-              HANDLER: 'main',
-            },
-            platform: Platform.LINUX_AMD64,
-            entrypoint: ['/app/daily_organize_database'],
-          }
-        ),
-        timeout: cdk.Duration.minutes(15),
-        reservedConcurrentExecutions: 1,
-      }
-    );
-    (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
-      dynamoDBAccessPolicy
-    );
-    const invokeLambdaPolicy = new iam.PolicyStatement({
-      actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
-      effect: iam.Effect.ALLOW,
-      resources: [processUserRPParallelFunction.functionArn],
-    });
-    (dailyOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
-      invokeLambdaPolicy
-    );
-    createLambdaErrorAlarm(
-      dailyOrganizeDatabaseFunction,
-      'DailyOrganizeDatabaseErrorsAlarm',
-      'Lambda daily_organize_database errors > 0'
-    );
 
     const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
       this,
@@ -470,36 +405,6 @@ export class AwsCdkStack extends cdk.Stack {
       checkLiveStreamStatusFunction,
       'CheckLiveStreamStatusErrorsAlarm',
       'Lambda check_live_stream_status errors > 0'
-    );
-
-    const transferCollectionHistoryBigqueryFunction =
-      new lambda.DockerImageFunction(
-        this,
-        'transfer_collection_history_bigquery',
-        {
-          functionName: 'transfer_collection_history_bigquery',
-          code: lambda.DockerImageCode.fromImageAsset(
-            SYSTEM_DIR,
-            {
-              file: DOCKERFILE_LAMBDA,
-              buildArgs: {
-                HANDLER: 'main',
-              },
-              platform: Platform.LINUX_AMD64,
-              entrypoint: ['/app/transfer_collection_history_bigquery'],
-            }
-          ),
-          timeout: cdk.Duration.minutes(15),
-          reservedConcurrentExecutions: 1,
-        }
-      );
-    (transferCollectionHistoryBigqueryFunction.role as iam.Role).addToPolicy(
-      dynamoDBAccessPolicy
-    );
-    createLambdaErrorAlarm(
-      transferCollectionHistoryBigqueryFunction,
-      'TransferCollectionHistoryBigqueryErrorsAlarm',
-      'Lambda transfer_collection_history_bigquery errors > 0'
     );
 
     // API Gateway用ロググループ
