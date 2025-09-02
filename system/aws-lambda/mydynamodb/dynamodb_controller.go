@@ -19,6 +19,9 @@ func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
 	if region == "" {
 		region = os.Getenv("AWS_DEFAULT_REGION")
 	}
+	if region == "" {
+		return nil, fmt.Errorf("AWS_REGION/AWS_DEFAULT_REGION not set")
+	}
 	sess := session.Must(session.NewSession())
 	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
 
