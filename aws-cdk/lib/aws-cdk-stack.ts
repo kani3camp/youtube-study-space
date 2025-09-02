@@ -6,6 +6,8 @@ import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
+import * as sfn_tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as path from 'path';
 import { aws_apigateway } from 'aws-cdk-lib';
 import * as events from 'aws-cdk-lib/aws-events';
@@ -108,7 +110,7 @@ export class AwsCdkStack extends cdk.Stack {
     // DynamoDB secrets テーブルへのアクセス付与
     taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy);
 
-    taskDefinition.addContainer('daily-batch', {
+    const batchContainer = taskDefinition.addContainer('daily-batch', {
       image: ecs.ContainerImage.fromDockerImageAsset(batchImageAsset),
       logging: ecs.LogDrivers.awsLogs({
         logGroup: batchLogGroup,
@@ -139,6 +141,76 @@ export class AwsCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'BatchVpcId', {
       value: vpc.vpcId,
       exportName: 'BatchVpcId',
+    });
+
+    // =========================
+    // Step Functions: Daily Batch Orchestration
+    // =========================
+    // RunTask.sync で Fargate タスクを直列実行（JOB=reset → update-rp → transfer-bq）
+    const runTaskCommon: sfn_tasks.EcsRunTaskProps = {
+      cluster: cluster,
+      taskDefinition: taskDefinition,
+      launchTarget: new sfn_tasks.EcsFargateLaunchTarget({
+        platformVersion: ecs.FargatePlatformVersion.LATEST,
+      }),
+      assignPublicIp: true,
+      securityGroups: [batchSecurityGroup],
+      resultPath: sfn.JsonPath.DISCARD,
+      integrationPattern: sfn.IntegrationPattern.RUN_JOB,
+    };
+
+    const resetDailyTotalTask = new sfn_tasks.EcsRunTask(this, 'reset-daily-total', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'reset-daily-total' }],
+        },
+      ],
+    });
+    const updateRpTask = new sfn_tasks.EcsRunTask(this, 'update-rp', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'update-rp' }],
+        },
+      ],
+    });
+    const transferBqTask = new sfn_tasks.EcsRunTask(this, 'transfer-bq', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'transfer-bq' }],
+        },
+      ],
+    });
+
+    // 日付境界ずれ対策として 15 秒待ってから開始
+    const wait15s = new sfn.Wait(this, 'wait-00:00:15', {
+      time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
+    });
+
+    const dailyBatchStateMachine = new sfn.StateMachine(
+      this,
+      'daily-batch-sfn',
+      {
+        definition: wait15s.next(resetDailyTotalTask).next(updateRpTask).next(transferBqTask),
+        tracingEnabled: false,
+        logs: {
+          destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
+            retention: logs.RetentionDays.ONE_MONTH,
+          }),
+          level: sfn.LogLevel.ERROR,
+        },
+        timeout: cdk.Duration.hours(3),
+      }
+    );
+
+    new cdk.CfnOutput(this, 'DailyBatchStateMachineArn', {
+      value: dailyBatchStateMachine.stateMachineArn,
+      exportName: 'DailyBatchStateMachineArn',
     });
 
     // Lambda function
@@ -379,15 +451,10 @@ export class AwsCdkStack extends cdk.Stack {
         new targets.LambdaFunction(checkLiveStreamStatusFunction),
       ],
     });
-    new events.Rule(this, 'daily0am-JST', {
-      schedule: events.Schedule.cron({ minute: '0', hour: '15' }),
-      targets: [new targets.LambdaFunction(dailyOrganizeDatabaseFunction)],
-    });
-    new events.Rule(this, 'daily1am-JST', {
-      schedule: events.Schedule.cron({ minute: '0', hour: '16' }),
-      targets: [
-        new targets.LambdaFunction(transferCollectionHistoryBigqueryFunction),
-      ],
+    // Step Functions 版のスケジュール: 00:00 JST (= UTC 15:00)
+    new events.Rule(this, 'daily-batch-00:00-JST', {
+      schedule: events.Schedule.cron({ hour: '15', minute: '0' }),
+      targets: [new targets.SfnStateMachine(dailyBatchStateMachine)],
     });
   }
 }

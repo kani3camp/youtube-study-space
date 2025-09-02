@@ -40,9 +40,9 @@ func main() {
 	switch job {
 	case "all":
 		runErr = runAll(ctx, app, clientOption)
-	case "reset":
+	case "reset-daily-total":
 		if err := doResetDailyTotal(ctx, app); err != nil {
-			runErr = fmt.Errorf("reset: %w", err)
+			runErr = fmt.Errorf("reset-daily-total: %w", err)
 		}
 	case "update-rp":
 		if err := doUpdateRP(ctx, app); err != nil {
@@ -66,7 +66,7 @@ func main() {
 
 func runAll(ctx context.Context, app *workspaceapp.WorkspaceApp, clientOption option.ClientOption) error {
 	if err := doResetDailyTotal(ctx, app); err != nil {
-		return fmt.Errorf("reset: %w", err)
+		return fmt.Errorf("reset-daily-total: %w", err)
 	}
 	if err := doUpdateRP(ctx, app); err != nil {
 		return fmt.Errorf("update-rp: %w", err)
