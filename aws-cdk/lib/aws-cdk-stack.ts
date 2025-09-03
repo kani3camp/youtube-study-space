@@ -300,6 +300,11 @@ export class AwsCdkStack extends cdk.Stack {
       resultPath: sfn.JsonPath.DISCARD,
     });
 
+    // 手動実行用にも同じエラーハンドリングを適用
+    manualResetDailyTotalTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+    manualUpdateRpTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+    manualTransferBqTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+
     // Execute all three sequentially but continue on failure (each task has local catch → notify → continue)
     const definition = sfn.Chain
       .start(wait15s)
@@ -343,31 +348,53 @@ export class AwsCdkStack extends cdk.Stack {
       exportName: 'DailyBatchStateMachineArn',
     });
 
-    // Manual one-off runner: choose one job by input.job
-    const invalidJob = new sfn.Fail(this, 'manual-invalid-job', {
-      error: 'InvalidJob',
-      cause: 'job must be one of reset-daily-total|update-rp|transfer-bq',
-    });
-    const manualChoice = new sfn.Choice(this, 'manual-job');
-    const manualDefinition = manualChoice
-      .when(sfn.Condition.stringEquals('$.job', 'reset-daily-total'), manualResetDailyTotalTask)
-      .when(sfn.Condition.stringEquals('$.job', 'update-rp'), manualUpdateRpTask)
-      .when(sfn.Condition.stringEquals('$.job', 'transfer-bq'), manualTransferBqTask)
-      .otherwise(invalidJob);
-    const manualBatchStateMachine = new sfn.StateMachine(this, 'manual-batch-sfn', {
-      definition: manualDefinition,
+    // Manual one-off runners (no JSON input): 3 dedicated state machines
+    const manualResetDailyTotalSfn = new sfn.StateMachine(this, 'manual-reset-daily-total-sfn', {
+      definition: manualResetDailyTotalTask,
       tracingEnabled: false,
       logs: {
-        destination: new logs.LogGroup(this, 'ManualBatchSfnLogs', {
+        destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
           retention: logs.RetentionDays.ONE_MONTH,
         }),
         level: sfn.LogLevel.ERROR,
       },
       timeout: cdk.Duration.hours(3),
     });
-    new cdk.CfnOutput(this, 'ManualBatchStateMachineArn', {
-      value: manualBatchStateMachine.stateMachineArn,
-      exportName: 'ManualBatchStateMachineArn',
+    new cdk.CfnOutput(this, 'ManualResetDailyTotalStateMachineArn', {
+      value: manualResetDailyTotalSfn.stateMachineArn,
+      exportName: 'ManualResetDailyTotalStateMachineArn',
+    });
+
+    const manualUpdateRpSfn = new sfn.StateMachine(this, 'manual-update-rp-sfn', {
+      definition: manualUpdateRpTask,
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualUpdateRpStateMachineArn', {
+      value: manualUpdateRpSfn.stateMachineArn,
+      exportName: 'ManualUpdateRpStateMachineArn',
+    });
+
+    const manualTransferBqSfn = new sfn.StateMachine(this, 'manual-transfer-bq-sfn', {
+      definition: manualTransferBqTask,
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualTransferBqStateMachineArn', {
+      value: manualTransferBqSfn.stateMachineArn,
+      exportName: 'ManualTransferBqStateMachineArn',
     });
 
     // EventBridge Scheduler: 00:00 JST (= UTC 15:00) → start_daily_batch Lambda
