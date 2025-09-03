@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	sfn "github.com/aws/aws-sdk-go/service/stepfunctions"
+	sfn "github.com/aws/aws-sdk-go/service/sfn"
 )
 
 func handler(ctx context.Context) error {
