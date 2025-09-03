@@ -18,6 +18,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
+import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 
 // Docker asset path constants (can be overridden via context in future PRs)
 const SYSTEM_DIR = path.join(__dirname, '../../system/');
@@ -252,6 +253,35 @@ export class AwsCdkStack extends cdk.Stack {
       ],
     });
 
+    // Manual-run tasks must be separate instances (states cannot be reused across graphs)
+    const manualResetDailyTotalTask = new sfn_tasks.EcsRunTask(this, 'manual-reset-daily-total', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'reset-daily-total' }],
+        },
+      ],
+    });
+    const manualUpdateRpTask = new sfn_tasks.EcsRunTask(this, 'manual-update-rp', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'update-rp' }],
+        },
+      ],
+    });
+    const manualTransferBqTask = new sfn_tasks.EcsRunTask(this, 'manual-transfer-bq', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'transfer-bq' }],
+        },
+      ],
+    });
+
     // 日付境界ずれ対策として 15 秒待ってから開始
     const wait15s = new sfn.Wait(this, 'wait-00:00:15', {
       time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
@@ -270,23 +300,18 @@ export class AwsCdkStack extends cdk.Stack {
       resultPath: sfn.JsonPath.DISCARD,
     });
 
-    // Wrap the whole sequence in a Parallel to attach a single catch for all states
-    const tryBranch = sfn.Chain.start(wait15s)
-      .next(resetDailyTotalTask)
-      .next(updateRpTask)
-      .next(transferBqTask);
-
-    const tryBlock = new sfn.Parallel(this, 'try-all', {
-      resultPath: sfn.JsonPath.DISCARD,
-    });
-    tryBlock.branch(tryBranch);
-    tryBlock.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+    // Execute all three sequentially but continue on failure (each task has local catch → notify → continue)
+    const definition = sfn.Chain
+      .start(wait15s)
+      .next(resetDailyTotalTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }))
+      .next(updateRpTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }))
+      .next(transferBqTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }));
 
     const dailyBatchStateMachine = new sfn.StateMachine(
       this,
       'daily-batch-sfn',
       {
-        definition: tryBlock,
+        definition: definition,
         tracingEnabled: false,
         logs: {
           destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
@@ -316,6 +341,71 @@ export class AwsCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'DailyBatchStateMachineArn', {
       value: dailyBatchStateMachine.stateMachineArn,
       exportName: 'DailyBatchStateMachineArn',
+    });
+
+    // Manual one-off runner: choose one job by input.job
+    const invalidJob = new sfn.Fail(this, 'manual-invalid-job', {
+      error: 'InvalidJob',
+      cause: 'job must be one of reset-daily-total|update-rp|transfer-bq',
+    });
+    const manualChoice = new sfn.Choice(this, 'manual-job');
+    const manualDefinition = manualChoice
+      .when(sfn.Condition.stringEquals('$.job', 'reset-daily-total'), manualResetDailyTotalTask)
+      .when(sfn.Condition.stringEquals('$.job', 'update-rp'), manualUpdateRpTask)
+      .when(sfn.Condition.stringEquals('$.job', 'transfer-bq'), manualTransferBqTask)
+      .otherwise(invalidJob);
+    const manualBatchStateMachine = new sfn.StateMachine(this, 'manual-batch-sfn', {
+      definition: manualDefinition,
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualBatchSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualBatchStateMachineArn', {
+      value: manualBatchStateMachine.stateMachineArn,
+      exportName: 'ManualBatchStateMachineArn',
+    });
+
+    // EventBridge Scheduler: 00:00 JST (= UTC 15:00) → start_daily_batch Lambda
+    const schedulerRole = new iam.Role(this, 'DailyBatchSchedulerRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+    });
+    // start_daily_batch Lambda to start SFN with idempotent name
+    const startDailyBatchFunction = new lambda.DockerImageFunction(this, 'start_daily_batch', {
+      functionName: 'start_daily_batch',
+      code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
+        file: DOCKERFILE_LAMBDA,
+        buildArgs: { HANDLER: 'main' },
+        platform: Platform.LINUX_AMD64,
+        entrypoint: ['/app/start_daily_batch'],
+      }),
+      timeout: cdk.Duration.seconds(15),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        STATE_MACHINE_ARN: dailyBatchStateMachine.stateMachineArn,
+      },
+    });
+    startDailyBatchFunction.grantInvoke(schedulerRole);
+    (startDailyBatchFunction.role as iam.Role).addToPolicy(new iam.PolicyStatement({
+      actions: ['states:StartExecution'],
+      effect: iam.Effect.ALLOW,
+      resources: [dailyBatchStateMachine.stateMachineArn],
+    }));
+
+    new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
+      flexibleTimeWindow: { mode: 'OFF' },
+      scheduleExpression: 'cron(0 15 * * ? *)',
+      target: {
+        arn: startDailyBatchFunction.functionArn,
+        roleArn: schedulerRole.roleArn,
+      },
+      name: 'daily-batch-00-00-jst',
+      description: 'Start daily batch SFN with idempotent name',
+      state: 'ENABLED',
     });
 
     // Lambda function
@@ -376,7 +466,6 @@ export class AwsCdkStack extends cdk.Stack {
       'YoutubeOrganizeDatabaseErrorsAlarm',
       'Lambda youtube_organize_database errors > 0'
     );
-
 
     const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
       this,
@@ -490,11 +579,6 @@ export class AwsCdkStack extends cdk.Stack {
         new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
         new targets.LambdaFunction(checkLiveStreamStatusFunction),
       ],
-    });
-    // Step Functions 版のスケジュール: 00:00 JST (= UTC 15:00)
-    new events.Rule(this, 'daily-batch-00:00-JST', {
-      schedule: events.Schedule.cron({ hour: '15', minute: '0' }),
-      targets: [new targets.SfnStateMachine(dailyBatchStateMachine)],
     });
   }
 }
