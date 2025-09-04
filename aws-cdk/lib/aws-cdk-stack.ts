@@ -313,7 +313,7 @@ export class AwsCdkStack extends cdk.Stack {
       this,
       'daily-batch-sfn',
       {
-        definition: definition,
+        definitionBody: sfn.DefinitionBody.fromChainable(definition),
         tracingEnabled: false,
         logs: {
           destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
@@ -360,7 +360,7 @@ export class AwsCdkStack extends cdk.Stack {
     });
     const manualResetDefinition = manualResetDailyTotalTask.addCatch(manualResetNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualResetDailyTotalSfn = new sfn.StateMachine(this, 'manual-reset-daily-total-sfn', {
-      definition: manualResetDefinition,
+      definitionBody: sfn.DefinitionBody.fromChainable(manualResetDefinition),
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
@@ -389,7 +389,7 @@ export class AwsCdkStack extends cdk.Stack {
     });
     const manualUpdateDefinition = manualUpdateRpTask.addCatch(manualUpdateNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualUpdateRpSfn = new sfn.StateMachine(this, 'manual-update-rp-sfn', {
-      definition: manualUpdateDefinition,
+      definitionBody: sfn.DefinitionBody.fromChainable(manualUpdateDefinition),
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
@@ -418,7 +418,7 @@ export class AwsCdkStack extends cdk.Stack {
     });
     const manualTransferDefinition = manualTransferBqTask.addCatch(manualTransferNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualTransferBqSfn = new sfn.StateMachine(this, 'manual-transfer-bq-sfn', {
-      definition: manualTransferDefinition,
+      definitionBody: sfn.DefinitionBody.fromChainable(manualTransferDefinition),
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {

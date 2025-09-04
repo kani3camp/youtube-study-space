@@ -13,6 +13,11 @@ import (
 	sfn "github.com/aws/aws-sdk-go/service/sfn"
 )
 
+const (
+	jstOffsetSeconds = 9 * 60 * 60
+	emptyJSONInput   = "{}"
+)
+
 func handler(ctx context.Context) error {
 	stateMachineArn := os.Getenv("STATE_MACHINE_ARN")
 	if stateMachineArn == "" {
@@ -28,18 +33,17 @@ func handler(ctx context.Context) error {
 	}
 
 	// Build idempotent execution name based on JST date
-	jst := time.FixedZone("JST", 9*60*60)
+	jst := time.FixedZone("JST", jstOffsetSeconds)
 	today := time.Now().In(jst).Format("20060102")
 	execName := fmt.Sprintf("daily-batch-%s", today)
 
 	sess := session.Must(session.NewSession())
 	client := sfn.New(sess, aws.NewConfig().WithRegion(region))
 
-	input := "{}"
 	_, err := client.StartExecutionWithContext(ctx, &sfn.StartExecutionInput{
 		StateMachineArn: aws.String(stateMachineArn),
 		Name:            aws.String(execName),
-		Input:           aws.String(input),
+		Input:           aws.String(emptyJSONInput),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to start state machine execution", "name", execName, "err", err)
