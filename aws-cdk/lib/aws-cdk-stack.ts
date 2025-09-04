@@ -300,10 +300,7 @@ export class AwsCdkStack extends cdk.Stack {
       resultPath: sfn.JsonPath.DISCARD,
     });
 
-    // 手動実行用にも同じエラーハンドリングを適用
-    manualResetDailyTotalTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
-    manualUpdateRpTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
-    manualTransferBqTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+    // 手動実行用は別グラフになるため、各グラフ専用のSNS通知ステートを定義して接続する
 
     // Execute all three sequentially but continue on failure (each task has local catch → notify → continue)
     const definition = sfn.Chain
@@ -349,8 +346,21 @@ export class AwsCdkStack extends cdk.Stack {
     });
 
     // Manual one-off runners (no JSON input): 3 dedicated state machines
+    const manualResetNotify = new sfn_tasks.SnsPublish(this, 'manual-reset-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-reset-daily-total',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-reset-daily-total failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualResetDefinition = manualResetDailyTotalTask.addCatch(manualResetNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualResetDailyTotalSfn = new sfn.StateMachine(this, 'manual-reset-daily-total-sfn', {
-      definition: manualResetDailyTotalTask,
+      definition: manualResetDefinition,
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
@@ -365,8 +375,21 @@ export class AwsCdkStack extends cdk.Stack {
       exportName: 'ManualResetDailyTotalStateMachineArn',
     });
 
+    const manualUpdateNotify = new sfn_tasks.SnsPublish(this, 'manual-update-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-update-rp',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-update-rp failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualUpdateDefinition = manualUpdateRpTask.addCatch(manualUpdateNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualUpdateRpSfn = new sfn.StateMachine(this, 'manual-update-rp-sfn', {
-      definition: manualUpdateRpTask,
+      definition: manualUpdateDefinition,
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
@@ -381,8 +404,21 @@ export class AwsCdkStack extends cdk.Stack {
       exportName: 'ManualUpdateRpStateMachineArn',
     });
 
+    const manualTransferNotify = new sfn_tasks.SnsPublish(this, 'manual-transfer-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-transfer-bq',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-transfer-bq failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualTransferDefinition = manualTransferBqTask.addCatch(manualTransferNotify, { resultPath: sfn.JsonPath.DISCARD });
     const manualTransferBqSfn = new sfn.StateMachine(this, 'manual-transfer-bq-sfn', {
-      definition: manualTransferBqTask,
+      definition: manualTransferDefinition,
       tracingEnabled: false,
       logs: {
         destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {
