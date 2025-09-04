@@ -1,0 +1,29 @@
+# VCS / CI
+.git
+.github
+.gitignore
+
+# OS / IDE
+**/.DS_Store
+**/.idea
+**/.vscode
+
+# Logs / cache / tmp
+**/*.log
+**/.cache
+**/tmp
+coverage*
+*.out
+
+# Build artifacts
+/bin
+/build
+/dist
+/out
+
+# Tests (not needed for container image)
+**/*_test.go
+
+# Env files
+.env
+.env.*

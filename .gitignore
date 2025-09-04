@@ -5,6 +5,8 @@ system/main.exe
 system/main
 system/bootstrap.exe
 system/bootstrap
+system/batch
+system/sns_notify_discord
 system/.env
 system/aws-lambda/main
 system/aws-lambda/main.zip
