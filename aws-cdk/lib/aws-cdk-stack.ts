@@ -453,11 +453,8 @@ export class AwsCdkStack extends cdk.Stack {
       },
     });
     startDailyBatchFunction.grantInvoke(schedulerRole);
-    (startDailyBatchFunction.role as iam.Role).addToPolicy(new iam.PolicyStatement({
-      actions: ['states:StartExecution'],
-      effect: iam.Effect.ALLOW,
-      resources: [dailyBatchStateMachine.stateMachineArn],
-    }));
+    // [NOTE FOR REVIEW] Grant permission to start the SFN execution without relying on role casting
+    dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction);
 
     new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
       flexibleTimeWindow: { mode: 'OFF' },
