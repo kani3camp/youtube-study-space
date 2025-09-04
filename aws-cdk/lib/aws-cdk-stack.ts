@@ -18,6 +18,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
+import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 
 // Docker asset path constants (can be overridden via context in future PRs)
 const SYSTEM_DIR = path.join(__dirname, '../../system/');
@@ -252,6 +253,35 @@ export class AwsCdkStack extends cdk.Stack {
       ],
     });
 
+    // Manual-run tasks must be separate instances (states cannot be reused across graphs)
+    const manualResetDailyTotalTask = new sfn_tasks.EcsRunTask(this, 'manual-reset-daily-total', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'reset-daily-total' }],
+        },
+      ],
+    });
+    const manualUpdateRpTask = new sfn_tasks.EcsRunTask(this, 'manual-update-rp', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'update-rp' }],
+        },
+      ],
+    });
+    const manualTransferBqTask = new sfn_tasks.EcsRunTask(this, 'manual-transfer-bq', {
+      ...runTaskCommon,
+      containerOverrides: [
+        {
+          containerDefinition: batchContainer,
+          environment: [{ name: 'JOB', value: 'transfer-bq' }],
+        },
+      ],
+    });
+
     // 日付境界ずれ対策として 15 秒待ってから開始
     const wait15s = new sfn.Wait(this, 'wait-00:00:15', {
       time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
@@ -270,23 +300,20 @@ export class AwsCdkStack extends cdk.Stack {
       resultPath: sfn.JsonPath.DISCARD,
     });
 
-    // Wrap the whole sequence in a Parallel to attach a single catch for all states
-    const tryBranch = sfn.Chain.start(wait15s)
-      .next(resetDailyTotalTask)
-      .next(updateRpTask)
-      .next(transferBqTask);
+    // 手動実行用は別グラフになるため、各グラフ専用のSNS通知ステートを定義して接続する
 
-    const tryBlock = new sfn.Parallel(this, 'try-all', {
-      resultPath: sfn.JsonPath.DISCARD,
-    });
-    tryBlock.branch(tryBranch);
-    tryBlock.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD });
+    // Execute all three sequentially but continue on failure (each task has local catch → notify → continue)
+    const definition = sfn.Chain
+      .start(wait15s)
+      .next(resetDailyTotalTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }))
+      .next(updateRpTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }))
+      .next(transferBqTask.addCatch(notifyOnFailure, { resultPath: sfn.JsonPath.DISCARD }));
 
     const dailyBatchStateMachine = new sfn.StateMachine(
       this,
       'daily-batch-sfn',
       {
-        definition: tryBlock,
+        definitionBody: sfn.DefinitionBody.fromChainable(definition),
         tracingEnabled: false,
         logs: {
           destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
@@ -316,6 +343,128 @@ export class AwsCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'DailyBatchStateMachineArn', {
       value: dailyBatchStateMachine.stateMachineArn,
       exportName: 'DailyBatchStateMachineArn',
+    });
+
+    // Manual one-off runners (no JSON input): 3 dedicated state machines
+    const manualResetNotify = new sfn_tasks.SnsPublish(this, 'manual-reset-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-reset-daily-total',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-reset-daily-total failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualResetDefinition = manualResetDailyTotalTask.addCatch(manualResetNotify, { resultPath: sfn.JsonPath.DISCARD });
+    const manualResetDailyTotalSfn = new sfn.StateMachine(this, 'manual-reset-daily-total-sfn', {
+      definitionBody: sfn.DefinitionBody.fromChainable(manualResetDefinition),
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualResetDailyTotalStateMachineArn', {
+      value: manualResetDailyTotalSfn.stateMachineArn,
+      exportName: 'ManualResetDailyTotalStateMachineArn',
+    });
+
+    const manualUpdateNotify = new sfn_tasks.SnsPublish(this, 'manual-update-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-update-rp',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-update-rp failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualUpdateDefinition = manualUpdateRpTask.addCatch(manualUpdateNotify, { resultPath: sfn.JsonPath.DISCARD });
+    const manualUpdateRpSfn = new sfn.StateMachine(this, 'manual-update-rp-sfn', {
+      definitionBody: sfn.DefinitionBody.fromChainable(manualUpdateDefinition),
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualUpdateRpStateMachineArn', {
+      value: manualUpdateRpSfn.stateMachineArn,
+      exportName: 'ManualUpdateRpStateMachineArn',
+    });
+
+    const manualTransferNotify = new sfn_tasks.SnsPublish(this, 'manual-transfer-notify-on-failure', {
+      topic: alarmsTopic,
+      message: sfn.TaskInput.fromObject({
+        workflow: 'manual-transfer-bq',
+        stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+        executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+        error: sfn.JsonPath.stringAt('$.Error'),
+        cause: sfn.JsonPath.stringAt('$.Cause'),
+      }),
+      subject: 'manual-transfer-bq failed',
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    const manualTransferDefinition = manualTransferBqTask.addCatch(manualTransferNotify, { resultPath: sfn.JsonPath.DISCARD });
+    const manualTransferBqSfn = new sfn.StateMachine(this, 'manual-transfer-bq-sfn', {
+      definitionBody: sfn.DefinitionBody.fromChainable(manualTransferDefinition),
+      tracingEnabled: false,
+      logs: {
+        destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
+        level: sfn.LogLevel.ERROR,
+      },
+      timeout: cdk.Duration.hours(3),
+    });
+    new cdk.CfnOutput(this, 'ManualTransferBqStateMachineArn', {
+      value: manualTransferBqSfn.stateMachineArn,
+      exportName: 'ManualTransferBqStateMachineArn',
+    });
+
+    // EventBridge Scheduler: 00:00 JST (= UTC 15:00) → start_daily_batch Lambda
+    const schedulerRole = new iam.Role(this, 'DailyBatchSchedulerRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+    });
+    // start_daily_batch Lambda to start SFN with idempotent name
+    const startDailyBatchFunction = new lambda.DockerImageFunction(this, 'start_daily_batch', {
+      functionName: 'start_daily_batch',
+      code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
+        file: DOCKERFILE_LAMBDA,
+        buildArgs: { HANDLER: 'main' },
+        platform: Platform.LINUX_AMD64,
+        entrypoint: ['/app/start_daily_batch'],
+      }),
+      timeout: cdk.Duration.seconds(15),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        STATE_MACHINE_ARN: dailyBatchStateMachine.stateMachineArn,
+      },
+    });
+    startDailyBatchFunction.grantInvoke(schedulerRole);
+    dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction);
+
+    new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
+      flexibleTimeWindow: { mode: 'OFF' },
+      scheduleExpression: 'cron(0 15 * * ? *)',
+      target: {
+        arn: startDailyBatchFunction.functionArn,
+        roleArn: schedulerRole.roleArn,
+      },
+      name: 'daily-batch-00-00-jst',
+      description: 'Start daily batch SFN with idempotent name',
+      state: 'ENABLED',
     });
 
     // Lambda function
@@ -376,7 +525,6 @@ export class AwsCdkStack extends cdk.Stack {
       'YoutubeOrganizeDatabaseErrorsAlarm',
       'Lambda youtube_organize_database errors > 0'
     );
-
 
     const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
       this,
@@ -490,11 +638,6 @@ export class AwsCdkStack extends cdk.Stack {
         new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
         new targets.LambdaFunction(checkLiveStreamStatusFunction),
       ],
-    });
-    // Step Functions 版のスケジュール: 00:00 JST (= UTC 15:00)
-    new events.Rule(this, 'daily-batch-00:00-JST', {
-      schedule: events.Schedule.cron({ hour: '15', minute: '0' }),
-      targets: [new targets.SfnStateMachine(dailyBatchStateMachine)],
     });
   }
 }
