@@ -29,5 +29,9 @@
 	"part_type.early_morning": "早朝",
 	"message.room": "ページ{{index}} / {{length}}",
 	"member": "メンバー限定",
-	"message.num_studying_people": "{{value}}人が作業中"
+	"message.num_studying_people": "{{value}}人が作業中",
+	"work_name_trend.updating": "作業トレンド解析中...",
+	"work_name_trend.trend_rank": "作業トレンド #{{rank}}",
+	"work_name_trend.count": "{{value}}人",
+	"work_name_trend.ranked_at": "{{date}} {{time}} 更新"
 }

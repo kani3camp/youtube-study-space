@@ -19,6 +19,7 @@ import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as scheduler from 'aws-cdk-lib/aws-scheduler';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 // Docker asset path constants (can be overridden via context in future PRs)
 const SYSTEM_DIR = path.join(__dirname, '../../system/');
@@ -28,6 +29,14 @@ const DOCKERFILE_FARGATE = 'Dockerfile.fargate';
 export class AwsCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // =========================
+    // Secrets Manager
+    // =========================
+    const openaiApiKeySecret = new secretsmanager.Secret(this, 'YoutubeStudySpaceSecret', {
+      secretName: 'youtube-study-space-secret',
+      description: 'Youtube Study Space Secret',
+    });
 
     // NOTE: 現状、DynamoDBのテーブルは別途作成しておく必要がある
     const dynamoDBAccessPolicy = new iam.PolicyStatement({
@@ -555,6 +564,39 @@ export class AwsCdkStack extends cdk.Stack {
       'Lambda check_live_stream_status errors > 0'
     );
 
+    const updateWorkNameTrendFunction = new lambda.DockerImageFunction(
+      this,
+      'update_work_name_trend',
+      {
+        functionName: 'update_work_name_trend',
+        code: lambda.DockerImageCode.fromImageAsset(
+          SYSTEM_DIR,
+          {
+            file: DOCKERFILE_LAMBDA,
+            buildArgs: {
+              HANDLER: 'main',
+            },
+            platform: Platform.LINUX_AMD64,
+            entrypoint: ['/app/update_work_name_trend'],
+          }
+        ),
+        timeout: cdk.Duration.minutes(5),
+        reservedConcurrentExecutions: 1,
+        environment: {
+          OPENAI_API_SECRET_NAME: openaiApiKeySecret.secretName,
+        },
+      }
+    );
+    openaiApiKeySecret.grantRead(updateWorkNameTrendFunction);
+    (updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
+      dynamoDBAccessPolicy
+    );
+    createLambdaErrorAlarm(
+      updateWorkNameTrendFunction,
+      'UpdateWorkNameTrendErrorsAlarm',
+      'Lambda update_work_name_trend errors > 0'
+    );
+
     // API Gateway用ロググループ
     const restApiLogAccessLogGroup = new logs.LogGroup(
       this,
@@ -637,6 +679,13 @@ export class AwsCdkStack extends cdk.Stack {
       targets: [
         new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
         new targets.LambdaFunction(checkLiveStreamStatusFunction),
+      ],
+    });
+
+    new events.Rule(this, '3minutes', {
+      schedule: events.Schedule.rate(cdk.Duration.minutes(3)),
+      targets: [
+        new targets.LambdaFunction(updateWorkNameTrendFunction),
       ],
     });
   }

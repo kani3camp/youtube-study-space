@@ -29,5 +29,9 @@
 	"part_type.early_morning": "Early Morning Part",
 	"message.room": "Page {{index}} / {{length}}",
 	"member": "members only",
-	"message.num_studying_people": "{{value}} people working"
+	"message.num_studying_people": "{{value}} people working",
+	"work_name_trend.updating": "Analyzing work name trend...",
+	"work_name_trend.trend_rank": "Work Name Trend #{{rank}}",
+	"work_name_trend.count": "{{value}} people",
+	"work_name_trend.ranked_at": "{{date}} {{time}} updated"
 }

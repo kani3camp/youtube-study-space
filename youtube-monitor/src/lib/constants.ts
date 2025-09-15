@@ -28,6 +28,7 @@ export const Constants = {
 	screenWidth: 1920,
 	screenHeight: 1080,
 	sideBarWidth: 400,
+	tickerWidth: 600,
 	messageBarHeight: 80,
 	clockHeight: 160,
 	usageHeight: 315,

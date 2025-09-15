@@ -210,3 +210,16 @@ type OrderHistoryDoc struct {
 	IsMemberSeat bool      `json:"is_member_seat" firestore:"is-member-seat"`
 	OrderedAt    time.Time `json:"ordered_at" firestore:"ordered-at"`
 }
+
+type WorkNameTrendDoc struct {
+	Ranking  []WorkNameTrendRanking `json:"ranking" firestore:"ranking"`
+	RankedAt time.Time              `json:"ranked_at" firestore:"ranked-at"`
+}
+
+type WorkNameTrendRanking struct {
+	Rank     int      `json:"rank" firestore:"rank"`
+	Genre    string   `json:"genre" firestore:"genre"`
+	Count    int      `json:"count" firestore:"count"`
+	Examples []string `json:"examples" firestore:"examples"`
+	Note     string   `json:"note" firestore:"note"`
+}

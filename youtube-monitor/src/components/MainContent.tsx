@@ -7,10 +7,15 @@ import {
 	numSeatsInMemberAllBasicRooms,
 } from '../rooms/rooms-config'
 import { mainContent } from '../styles/MainContent.styles'
-import type { Seat, SetDesiredMaxSeatsResponse } from '../types/api'
+import type {
+	Seat,
+	SetDesiredMaxSeatsResponse,
+	WorkNameTrend,
+} from '../types/api'
 import type { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
 import Message from './Message'
+import TickerBoard from './TickerBoard'
 import SeatsPage, { type LayoutPageProps } from './SeatsPage'
 
 import { initializeApp } from 'firebase/app'
@@ -20,6 +25,7 @@ import {
 	getFirestore,
 	onSnapshot,
 	query,
+	Timestamp,
 } from 'firebase/firestore'
 import { useRouter } from 'next/router'
 import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
@@ -28,6 +34,7 @@ import {
 	type SystemConstants,
 	firestoreConstantsConverter,
 	firestoreSeatConverter,
+	firestoreWorkNameTrendConverter,
 	getFirebaseConfig,
 } from '../lib/firestore'
 
@@ -49,6 +56,12 @@ const Seats: FC = () => {
 		useState<boolean>(false)
 	const [latestFixedMaxSeatsEnabled, setLatestFixedMaxSeatsEnabled] =
 		useState<boolean>()
+	const [latestWorkNameTrend, setLatestWorkNameTrend] = useState<WorkNameTrend>(
+		{
+			ranking: [],
+			ranked_at: Timestamp.now(),
+		},
+	)
 
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
@@ -142,6 +155,7 @@ const Seats: FC = () => {
 
 		const constantsConverter = firestoreConstantsConverter
 		const seatConverter = firestoreSeatConverter
+		const workNameTrendConverter = firestoreWorkNameTrendConverter
 
 		const generalSeatsQuery = query(collection(db, 'seats')).withConverter(
 			seatConverter,
@@ -162,6 +176,21 @@ const Seats: FC = () => {
 				seats.push(doc.data())
 			}
 			setLatestMemberSeats(seats)
+		})
+
+		const workNameTrendQuery = query(
+			collection(db, 'work-name-trend'),
+		).withConverter(workNameTrendConverter)
+		onSnapshot(workNameTrendQuery, (querySnapshot) => {
+			const workNameTrend: WorkNameTrend[] = []
+			for (const doc of querySnapshot.docs) {
+				workNameTrend.push(doc.data())
+			}
+			if (workNameTrend.length === 1) {
+				setLatestWorkNameTrend(workNameTrend[0])
+			} else if (workNameTrend.length > 1) {
+				throw new Error('workNameTrend.length > 1')
+			}
 		})
 
 		onSnapshot(
@@ -485,12 +514,18 @@ const Seats: FC = () => {
 		[currentPageIndex, latestGeneralSeats, latestMemberSeats, pageProps],
 	)
 
+	const tickerMemo = useMemo(
+		() => <TickerBoard workNameTrend={latestWorkNameTrend} />,
+		[latestWorkNameTrend],
+	)
+
 	if (pageProps.length > 0) {
 		return (
 			<>
 				<div css={mainContent}>
 					{layoutPagesMemo}
 					{messageMemo}
+					{tickerMemo}
 				</div>
 			</>
 		)

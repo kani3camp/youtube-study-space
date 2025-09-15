@@ -468,6 +468,21 @@ func (mr *MockRepositoryMockRecorder) GetUsersActiveAfterDate(ctx, date any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersActiveAfterDate", reflect.TypeOf((*MockRepository)(nil).GetUsersActiveAfterDate), ctx, date)
 }
 
+// ReadActiveWorkNameSeats mocks base method.
+func (m *MockRepository) ReadActiveWorkNameSeats(ctx context.Context, isMemberSeat bool) ([]repository.SeatDoc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadActiveWorkNameSeats", ctx, isMemberSeat)
+	ret0, _ := ret[0].([]repository.SeatDoc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadActiveWorkNameSeats indicates an expected call of ReadActiveWorkNameSeats.
+func (mr *MockRepositoryMockRecorder) ReadActiveWorkNameSeats(ctx, isMemberSeat any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadActiveWorkNameSeats", reflect.TypeOf((*MockRepository)(nil).ReadActiveWorkNameSeats), ctx, isMemberSeat)
+}
+
 // ReadAllMenuDocsOrderByCode mocks base method.
 func (m *MockRepository) ReadAllMenuDocsOrderByCode(ctx context.Context) ([]repository.MenuDoc, error) {
 	m.ctrl.T.Helper()
@@ -1012,4 +1027,18 @@ func (m *MockRepository) UpdateUserTotalTime(tx *firestore.Transaction, userId s
 func (mr *MockRepositoryMockRecorder) UpdateUserTotalTime(tx, userId, newTotalTimeSec, newDailyTotalTimeSec any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTotalTime", reflect.TypeOf((*MockRepository)(nil).UpdateUserTotalTime), tx, userId, newTotalTimeSec, newDailyTotalTimeSec)
+}
+
+// UpdateWorkNameTrend mocks base method.
+func (m *MockRepository) UpdateWorkNameTrend(ctx context.Context, tx *firestore.Transaction, workNameTrend repository.WorkNameTrendDoc) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkNameTrend", ctx, tx, workNameTrend)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkNameTrend indicates an expected call of UpdateWorkNameTrend.
+func (mr *MockRepositoryMockRecorder) UpdateWorkNameTrend(ctx, tx, workNameTrend any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkNameTrend", reflect.TypeOf((*MockRepository)(nil).UpdateWorkNameTrend), ctx, tx, workNameTrend)
 }
