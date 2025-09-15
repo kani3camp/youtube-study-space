@@ -59,3 +59,25 @@ cd system
 ```shell
 mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
 ```
+
+
+## 日次バッチ（ECS Fargate）と通知（SNS→Lambda→Discord）
+
+- 実行基盤: AWS ECS Fargate (arm64) 上の単一バッチコンテナ
+- オーケストレーション: AWS Step Functions（直列実行）
+- スケジュール: 00:00:15 JST に開始（EventBridge → Step Functions）
+- 実行順序: `reset-daily-total` → `update-rp` → `transfer-bq`
+- 認証情報: DynamoDB `secrets` テーブルからGCP SA JSON取得
+- ネットワーク: Public Subnet, Public IP割当, DynamoDB Gateway VPC Endpoint
+- ログ: CloudWatch Logs（ECS/Step Functions/Lambda）
+- 通知: CloudWatch Alarm/SFN失敗 → SNS → `sns_notify_discord` Lambda → Discord
+
+### ビルド/イメージ
+- Fargateバッチ: `system/Dockerfile.fargate`
+- Lambda群: `system/Dockerfile.lambda`
+
+### 手動実行（ローカル確認用）
+```bash
+# Fargate用バッチのローカルビルド例（arm64）
+docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system --load
+```
