@@ -542,7 +542,7 @@ export class AwsCdkStack extends cdk.Stack {
             entrypoint: ['/app/check_live_stream_status'],
           }
         ),
-        timeout: cdk.Duration.seconds(10),
+        timeout: cdk.Duration.seconds(20),
         reservedConcurrentExecutions: undefined,
       }
     );
