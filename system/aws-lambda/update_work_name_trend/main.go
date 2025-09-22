@@ -16,9 +16,9 @@ import (
 func UpdateWorkNameTrend(ctx context.Context) error {
 	slog.Info(utils.NameOf(UpdateWorkNameTrend))
 
-	secretName := os.Getenv("OPENAI_API_SECRET_NAME")
+	secretName := os.Getenv("SECRET_NAME")
 	if secretName == "" {
-		log.Fatal("環境変数 OPENAI_API_SECRET_NAME を設定してください")
+		log.Fatal("環境変数 SECRET_NAME を設定してください")
 	}
 	apiKey, err := lambdautils.SecretFieldFromSecretsManager(ctx, secretName, "OPENAI_API_KEY")
 	if err != nil {
