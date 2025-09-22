@@ -5,7 +5,7 @@ import type {
 	QueryDocumentSnapshot,
 	SnapshotOptions,
 } from 'firebase/firestore'
-import type { Menu, Seat } from '../types/api'
+import type { Menu, Seat, WorkNameTrend } from '../types/api'
 import { validateString } from './common'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
@@ -126,3 +126,23 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
 		}
 	},
 }
+
+export const firestoreWorkNameTrendConverter: FirestoreDataConverter<WorkNameTrend> =
+	{
+		toFirestore(workNameTrend: WorkNameTrend): DocumentData {
+			return {
+				ranking: workNameTrend.ranking,
+				'ranked-at': workNameTrend.ranked_at,
+			}
+		},
+		fromFirestore(
+			snapshot: QueryDocumentSnapshot,
+			options: SnapshotOptions,
+		): WorkNameTrend {
+			const data = snapshot.data(options)
+			return {
+				ranking: data.ranking,
+				ranked_at: data['ranked-at'],
+			}
+		},
+	}

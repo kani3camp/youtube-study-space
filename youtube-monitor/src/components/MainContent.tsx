@@ -7,10 +7,15 @@ import {
 	numSeatsInMemberAllBasicRooms,
 } from '../rooms/rooms-config'
 import { mainContent } from '../styles/MainContent.styles'
-import type { Seat, SetDesiredMaxSeatsResponse } from '../types/api'
+import type {
+	Seat,
+	SetDesiredMaxSeatsResponse,
+	WorkNameTrend,
+} from '../types/api'
 import type { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
 import Message from './Message'
+import TickerBoard from './TickerBoard'
 import SeatsPage, { type LayoutPageProps } from './SeatsPage'
 
 import { initializeApp } from 'firebase/app'
@@ -20,6 +25,7 @@ import {
 	getFirestore,
 	onSnapshot,
 	query,
+	Timestamp,
 } from 'firebase/firestore'
 import { useRouter } from 'next/router'
 import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
@@ -28,6 +34,7 @@ import {
 	type SystemConstants,
 	firestoreConstantsConverter,
 	firestoreSeatConverter,
+	firestoreWorkNameTrendConverter,
 	getFirebaseConfig,
 } from '../lib/firestore'
 
@@ -49,7 +56,14 @@ const Seats: FC = () => {
 		useState<boolean>(false)
 	const [latestFixedMaxSeatsEnabled, setLatestFixedMaxSeatsEnabled] =
 		useState<boolean>()
+	const [latestWorkNameTrend, setLatestWorkNameTrend] = useState<WorkNameTrend>(
+		{
+			ranking: [],
+			ranked_at: Timestamp.now(),
+		},
+	)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
 			alert('NEXT_PUBLIC_API_KEY is not defined')
@@ -62,6 +76,7 @@ const Seats: FC = () => {
 		refreshPageIndex()
 	}, PAGING_INTERVAL_MSEC)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: changePage は引数の currentPageIndex のみで十分
 	useEffect(() => {
 		console.log('[currentPageIndex]:', currentPageIndex)
 		changePage(currentPageIndex)
@@ -70,6 +85,7 @@ const Seats: FC = () => {
 	/**
 	 * URLのクエリパラメータにpageが指定されており、かつ座席データも読み込めていたらそのページを表示する。
 	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: getQueryPageIndex の依存は設計上 router と pageProps.length に限定
 	useEffect(() => {
 		if (router && pageProps.length > 0) {
 			if (router.query.page !== undefined) {
@@ -142,6 +158,7 @@ const Seats: FC = () => {
 
 		const constantsConverter = firestoreConstantsConverter
 		const seatConverter = firestoreSeatConverter
+		const workNameTrendConverter = firestoreWorkNameTrendConverter
 
 		const generalSeatsQuery = query(collection(db, 'seats')).withConverter(
 			seatConverter,
@@ -162,6 +179,23 @@ const Seats: FC = () => {
 				seats.push(doc.data())
 			}
 			setLatestMemberSeats(seats)
+		})
+
+		const workNameTrendQuery = query(
+			collection(db, 'work-name-trend'),
+		).withConverter(workNameTrendConverter)
+		onSnapshot(workNameTrendQuery, (querySnapshot) => {
+			const workNameTrend: WorkNameTrend[] = []
+			for (const doc of querySnapshot.docs) {
+				workNameTrend.push(doc.data())
+			}
+			if (workNameTrend.length === 1) {
+				setLatestWorkNameTrend(workNameTrend[0])
+			} else if (workNameTrend.length > 1) {
+				throw new Error(
+					`Found ${workNameTrend.length} work name trend documents in Firestore, but only one is expected. This may cause incorrect application behavior. Please ensure that only one document exists in the 'work-name-trend' collection.`,
+				)
+			}
 		})
 
 		onSnapshot(
@@ -485,12 +519,18 @@ const Seats: FC = () => {
 		[currentPageIndex, latestGeneralSeats, latestMemberSeats, pageProps],
 	)
 
+	const tickerMemo = useMemo(
+		() => <TickerBoard workNameTrend={latestWorkNameTrend} />,
+		[latestWorkNameTrend],
+	)
+
 	if (pageProps.length > 0) {
 		return (
 			<>
 				<div css={mainContent}>
 					{layoutPagesMemo}
 					{messageMemo}
+					{tickerMemo}
 				</div>
 			</>
 		)

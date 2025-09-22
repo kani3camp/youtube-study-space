@@ -8,6 +8,7 @@ RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norp
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
 RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o start_daily_batch aws-lambda/start_daily_batch/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
 
 # Copy artifacts to a clean image
 FROM public.ecr.aws/lambda/provided:al2023
@@ -18,3 +19,4 @@ COPY --from=build /var/task/youtube_organize_database ./youtube_organize_databas
 COPY --from=build /var/task/check_live_stream_status ./check_live_stream_status
 COPY --from=build /var/task/sns_notify_discord ./sns_notify_discord
 COPY --from=build /var/task/start_daily_batch ./start_daily_batch
+COPY --from=build /var/task/update_work_name_trend ./update_work_name_trend

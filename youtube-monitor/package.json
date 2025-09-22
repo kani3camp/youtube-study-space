@@ -35,6 +35,7 @@
 		"next-i18next": "^15.0.0",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
+		"react-fast-marquee": "^1.6.5",
 		"react-h5-audio-player": "^3.9.0",
 		"react-loader-spinner": "^5.4.5",
 		"react-redux": "^8.1.3",

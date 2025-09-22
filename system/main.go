@@ -1,7 +1,6 @@
 package main
 
 import (
-	"app.modules/core/workspaceapp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -9,6 +8,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"app.modules/core/workspaceapp"
 
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"

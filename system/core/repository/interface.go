@@ -1,9 +1,10 @@
 package repository
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"time"
+
+	"cloud.google.com/go/firestore"
 )
 
 // DBClient テストでfirestore.Clientをmockできるように定義
@@ -34,6 +35,7 @@ type Repository interface {
 	ReadSeatsExpiredBreakUntil(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) ([]SeatDoc, error)
 	ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (SeatDoc, error)
 	ReadSeatWithUserId(ctx context.Context, userId string, isMemberSeat bool) (SeatDoc, error)
+	ReadActiveWorkNameSeats(ctx context.Context, isMemberSeat bool) ([]SeatDoc, error)
 	CreateSeat(tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error
 	UpdateSeat(ctx context.Context, tx *firestore.Transaction, seat SeatDoc, isMemberSeat bool) error
 	DeleteSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) error
@@ -83,6 +85,9 @@ type Repository interface {
 	// Order History Operations
 	CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error)
 	CreateOrderHistoryDoc(ctx context.Context, tx *firestore.Transaction, orderHistoryDoc OrderHistoryDoc) error
+
+	// Work Name Trend Operations
+	UpdateWorkNameTrend(ctx context.Context, tx *firestore.Transaction, workNameTrend WorkNameTrendDoc) error
 
 	// General Operations
 	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)

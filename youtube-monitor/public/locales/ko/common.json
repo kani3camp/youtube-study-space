@@ -29,5 +29,9 @@
 	"part_type.early_morning": "새벽 파트",
 	"message.room": "페이지 {{index}} / {{length}}",
 	"member": "members only",
-	"message.num_studying_people": "{{value}}명이 작업 중"
+	"message.num_studying_people": "{{value}}명이 작업 중",
+	"work_name_trend.updating": "작업 이름 트렌드 업데이트 중...",
+	"work_name_trend.trend_rank": "작업 이름 트렌드 #{{rank}}",
+	"work_name_trend.count": "{{value}}명",
+	"work_name_trend.ranked_at": "{{date}} {{time}} 업데이트"
 }
