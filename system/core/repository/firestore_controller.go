@@ -1,13 +1,13 @@
 package repository
 
 import (
-	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -134,6 +134,10 @@ func (c *FirestoreControllerImplements) memberSeatLimitsWHITEListCollection() *f
 	return c.firestoreClient.Collection(MemberSeatLimitsWhiteList)
 }
 
+func (c *FirestoreControllerImplements) workNameTrendCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(WorkNameTrend)
+}
+
 func (c *FirestoreControllerImplements) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
 	ref *firestore.DocumentRef) error {
 	if tx != nil {
@@ -247,6 +251,11 @@ func (c *FirestoreControllerImplements) ReadSeatWithUserId(ctx context.Context, 
 	return SeatDoc{}, status.Errorf(codes.NotFound, "%s not found", "the document with user id = "+userId)
 }
 
+func (c *FirestoreControllerImplements) ReadActiveWorkNameSeats(ctx context.Context, isMemberSeat bool) ([]SeatDoc, error) {
+	iter := c.seatsCollection(isMemberSeat).Where(WorkNameDocProperty, "!=", "").Documents(ctx)
+	return getDocDataFromIterator[SeatDoc](iter)
+}
+
 func (c *FirestoreControllerImplements) UpdateUserLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
 	ref := c.usersCollection().Doc(userId)
 	return tx.Update(ref, []firestore.Update{
@@ -333,6 +342,11 @@ func (c *FirestoreControllerImplements) UpdateLiveChatId(ctx context.Context, tx
 func (c *FirestoreControllerImplements) CreateUser(ctx context.Context, tx *firestore.Transaction, userId string, userData UserDoc) error {
 	ref := c.usersCollection().Doc(userId)
 	return c.create(ctx, tx, ref, userData)
+}
+
+func (c *FirestoreControllerImplements) UpdateWorkNameTrend(ctx context.Context, tx *firestore.Transaction, workNameTrend WorkNameTrendDoc) error {
+	ref := c.workNameTrendCollection().Doc(WorkNameTrendDocName)
+	return c.set(ctx, tx, ref, workNameTrend)
 }
 
 func (c *FirestoreControllerImplements) GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {

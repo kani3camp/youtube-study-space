@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!**/.next"]
+		"includes": ["**", "!**/.next", "!**/node_modules", "!**/storybook-static"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -18,9 +18,6 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
-			"a11y": {
-				"useMediaCaption": "off"
-			},
 			"style": {
 				"noParameterAssign": "error",
 				"useAsConstAssertion": "error",

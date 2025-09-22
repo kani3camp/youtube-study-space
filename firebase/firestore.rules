@@ -24,5 +24,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    
+    match /work-name-trend/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

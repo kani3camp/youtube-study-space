@@ -13,15 +13,21 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	SeatLimitsWhiteList       = "seat-limits-white-list"
 	MemberSeatLimitsBlackList = "member-seat-limits-black-list"
 	MemberSeatLimitsWhiteList = "member-seat-limits-white-list"
+	WorkNameTrend             = "work-name-trend"
 
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
-	PublishedAtDocProperty       = "published-at"
-	TakenAtDocProperty           = "taken-at"
-	UserIdDocProperty            = "user-id"
-	SeatIdDocProperty            = "seat-id"
+	WorkNameTrendDocName         = "work-name-trend"
 
-	UntilDocProperty = "until"
+	PublishedAtDocProperty = "published-at"
+	TakenAtDocProperty     = "taken-at"
+	UserIdDocProperty      = "user-id"
+	SeatIdDocProperty      = "seat-id"
+
+	UntilDocProperty    = "until"
+	WorkNameDocProperty = "work-name"
+	RankingDocProperty  = "ranking"
+	RankedAtDocProperty = "ranked-at"
 
 	StateDocProperty             = "state"
 	CurrentStateUntilDocProperty = "current-state-until"

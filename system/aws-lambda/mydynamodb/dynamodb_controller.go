@@ -2,11 +2,12 @@ package mydynamodb
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"os"
 )
 
 type SecretData struct {
@@ -15,6 +16,12 @@ type SecretData struct {
 
 func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
 	region := os.Getenv("AWS_REGION") // Use the same region as the Lambda function for the DynamoDB table
+	if region == "" {
+		region = os.Getenv("AWS_DEFAULT_REGION")
+	}
+	if region == "" {
+		return nil, fmt.Errorf("AWS_REGION/AWS_DEFAULT_REGION not set")
+	}
 	sess := session.Must(session.NewSession())
 	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
 

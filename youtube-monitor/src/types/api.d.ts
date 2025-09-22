@@ -34,3 +34,14 @@ export type SetDesiredMaxSeatsResponse = {
 	result: string
 	message: string
 }
+
+export type WorkNameTrend = {
+	ranking: {
+		rank: number
+		genre: string
+		count: number
+		examples: string[]
+		note: string
+	}[]
+	ranked_at: Timestamp
+}

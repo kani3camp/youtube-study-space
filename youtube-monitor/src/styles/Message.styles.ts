@@ -4,7 +4,7 @@ import { Constants } from '../lib/constants'
 
 export const shape = css`
     height: ${Constants.messageBarHeight}px;
-    width: calc(${Constants.screenWidth}px - ${Constants.sideBarWidth}px);
+    width: calc(${Constants.screenWidth}px - ${Constants.sideBarWidth}px - ${Constants.tickerWidth}px);
     position: absolute;
     bottom: 0;
     left: 0;
@@ -12,16 +12,17 @@ export const shape = css`
 
 export const message = css`
     height: 80%;
-    width: 85%;
+    width: 100%;
+    padding: 0 5%;
     text-align: center;
-    font-size: 1.6rem;
+    font-size: 1.4rem;
     display: flex;
     flex-direction: row;
     color: ${Constants.primaryTextColor};
 `
 
 export const pageInfo = css`
-    width: 40%;
+    width: 45%;
     height: 100%;
     display: flex;
     align-items: center;
@@ -45,7 +46,7 @@ export const memberOnly = css`
 `
 
 export const numStudyingPeople = css`
-    width: 60%;
+    width: 45%;
     height: 100%;
     display: inline-block;
     background-color: rgba(255, 255, 255, 0.472);
