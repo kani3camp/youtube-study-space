@@ -43,7 +43,7 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 	userInput := strings.Join(workNames, "\n")
 	slog.Info("userInput", "value", userInput)
 
-	resp, err := client.Responses.New(context.TODO(), responses.ResponseNewParams{
+	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Model: shared.ResponsesModel("gpt-5-nano"),
 		Reasoning: shared.ReasoningParam{
 			Effort:  shared.ReasoningEffortMedium,

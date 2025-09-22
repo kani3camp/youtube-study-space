@@ -63,6 +63,7 @@ const Seats: FC = () => {
 		},
 	)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
 			alert('NEXT_PUBLIC_API_KEY is not defined')
@@ -75,6 +76,7 @@ const Seats: FC = () => {
 		refreshPageIndex()
 	}, PAGING_INTERVAL_MSEC)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: changePage は引数の currentPageIndex のみで十分
 	useEffect(() => {
 		console.log('[currentPageIndex]:', currentPageIndex)
 		changePage(currentPageIndex)
@@ -83,6 +85,7 @@ const Seats: FC = () => {
 	/**
 	 * URLのクエリパラメータにpageが指定されており、かつ座席データも読み込めていたらそのページを表示する。
 	 */
+	// biome-ignore lint/correctness/useExhaustiveDependencies: getQueryPageIndex の依存は設計上 router と pageProps.length に限定
 	useEffect(() => {
 		if (router && pageProps.length > 0) {
 			if (router.query.page !== undefined) {
@@ -189,7 +192,9 @@ const Seats: FC = () => {
 			if (workNameTrend.length === 1) {
 				setLatestWorkNameTrend(workNameTrend[0])
 			} else if (workNameTrend.length > 1) {
-				throw new Error('workNameTrend.length > 1')
+				throw new Error(
+					`Found ${workNameTrend.length} work name trend documents in Firestore, but only one is expected. This may cause incorrect application behavior. Please ensure that only one document exists in the 'work-name-trend' collection.`,
+				)
 			}
 		})
 

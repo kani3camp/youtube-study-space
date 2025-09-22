@@ -15,7 +15,13 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={styles.container}>
-				<Marquee css={styles.marquee} speed={100} autoFill gradient={false}>
+				<Marquee
+					css={styles.marquee}
+					speed={100}
+					pauseOnHover
+					autoFill
+					gradient={false}
+				>
 					{workNameTrend.ranking.map((r) => {
 						return (
 							<span css={styles.genreItem} key={`tb-${r.genre}`}>
