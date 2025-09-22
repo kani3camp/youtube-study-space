@@ -52,9 +52,11 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 		Store: openai.Bool(true),
 		Instructions: openai.String(`作業内容の一覧を改行区切りで入力します。
 作業内容のトレンドのジャンルをランキング形式で上位5個を列挙してください。
-ただし、トレンドになっているとは言い難いものは、無理にランキングする必要はありませんので、上位5個を無理に埋める必要はありません。
-作業内容の意味がわかりづらいものも含まれますので、それらは集計では無視してください。
-ランキングでは、そのジャンル名、代表的な作業項目（例）を含めるようにしてください。`),
+ランキングでは、そのジャンル名、代表的な作業項目（例）を含めるようにしてください。
+ただし、トレンドになっているとは言い難いものは、無理にランキングする必要はありません。
+絵文字だけの作業内容もありますが、絵文字から意味を推測してください。
+その他、作業内容の意味がわかりづらいものは集計では無視してください。
+`),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfString: openai.String(userInput),
 		},
