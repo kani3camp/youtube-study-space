@@ -1,130 +1,130 @@
-import * as cdk from "aws-cdk-lib";
-import { Construct } from "constructs";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as iam from "aws-cdk-lib/aws-iam";
-import { Platform } from "aws-cdk-lib/aws-ecr-assets";
-import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets";
-import * as ecs from "aws-cdk-lib/aws-ecs";
-import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as sfn from "aws-cdk-lib/aws-stepfunctions";
-import * as sfn_tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
-import * as path from "path";
-import { aws_apigateway } from "aws-cdk-lib";
-import * as events from "aws-cdk-lib/aws-events";
-import * as targets from "aws-cdk-lib/aws-events-targets";
-import { PassthroughBehavior } from "aws-cdk-lib/aws-apigateway";
-import * as logs from "aws-cdk-lib/aws-logs";
-import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
-import * as sns from "aws-cdk-lib/aws-sns";
-import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
-import * as cw_actions from "aws-cdk-lib/aws-cloudwatch-actions";
-import * as scheduler from "aws-cdk-lib/aws-scheduler";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as cdk from 'aws-cdk-lib'
+import { Construct } from 'constructs'
+import * as lambda from 'aws-cdk-lib/aws-lambda'
+import * as iam from 'aws-cdk-lib/aws-iam'
+import { Platform } from 'aws-cdk-lib/aws-ecr-assets'
+import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets'
+import * as ecs from 'aws-cdk-lib/aws-ecs'
+import * as ec2 from 'aws-cdk-lib/aws-ec2'
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions'
+import * as sfn_tasks from 'aws-cdk-lib/aws-stepfunctions-tasks'
+import * as path from 'path'
+import { aws_apigateway } from 'aws-cdk-lib'
+import * as events from 'aws-cdk-lib/aws-events'
+import * as targets from 'aws-cdk-lib/aws-events-targets'
+import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway'
+import * as logs from 'aws-cdk-lib/aws-logs'
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch'
+import * as sns from 'aws-cdk-lib/aws-sns'
+import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
+import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions'
+import * as scheduler from 'aws-cdk-lib/aws-scheduler'
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 
 // Docker asset path constants (can be overridden via context in future PRs)
-const SYSTEM_DIR = path.join(__dirname, "../../system/");
-const DOCKERFILE_LAMBDA = "Dockerfile.lambda";
-const DOCKERFILE_FARGATE = "Dockerfile.fargate";
+const SYSTEM_DIR = path.join(__dirname, '../../system/')
+const DOCKERFILE_LAMBDA = 'Dockerfile.lambda'
+const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
 
 export class AwsCdkStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-		super(scope, id, props);
+		super(scope, id, props)
 
 		// =========================
 		// Secrets Manager
 		// =========================
 		const openaiApiKeySecret = new secretsmanager.Secret(
 			this,
-			"YoutubeStudySpaceSecret",
+			'YoutubeStudySpaceSecret',
 			{
-				secretName: "youtube-study-space-secret",
-				description: "Youtube Study Space Secret",
+				secretName: 'youtube-study-space-secret',
+				description: 'Youtube Study Space Secret',
 			},
-		);
+		)
 
 		// NOTE: 現状、DynamoDBのテーブルは別途作成しておく必要がある
 		const dynamoDBAccessPolicy = new iam.PolicyStatement({
-			actions: ["dynamodb:GetItem"],
+			actions: ['dynamodb:GetItem'],
 			effect: iam.Effect.ALLOW,
-			resources: ["arn:aws:dynamodb:*:*:table/secrets"],
-		});
+			resources: ['arn:aws:dynamodb:*:*:table/secrets'],
+		})
 
 		// =========================
 		// ECS/Fargate: Daily Batch
 		// =========================
 		// VPC: Public Subnet のみ、NATなし（コスト最小）
-		const vpc = new ec2.Vpc(this, "BatchVpc", {
+		const vpc = new ec2.Vpc(this, 'BatchVpc', {
 			natGateways: 0,
 			subnetConfiguration: [
 				{
-					name: "public",
+					name: 'public',
 					subnetType: ec2.SubnetType.PUBLIC,
 				},
 			],
-		});
+		})
 
 		// DynamoDB Gateway VPC Endpoint for secure, cost-effective access
 		// Note: This VPC uses only Public Subnets (no NAT). Gateway endpoint attaches to route tables
 		// in these public subnets and enables private DynamoDB access without NAT egress.
-		vpc.addGatewayEndpoint("DynamoDbEndpoint", {
+		vpc.addGatewayEndpoint('DynamoDbEndpoint', {
 			service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
 			// public subnets are fine; gateway endpoints are attached to the route tables
 			// associatedRoutes can be left default to all route tables in the VPC
-		});
+		})
 
 		// 最小限のegressのみ許可するSG
 		const batchSecurityGroup = new ec2.SecurityGroup(
 			this,
-			"BatchSecurityGroup",
+			'BatchSecurityGroup',
 			{
 				vpc,
 				allowAllOutbound: false,
-				description: "Minimal egress for Fargate batch",
+				description: 'Minimal egress for Fargate batch',
 			},
-		);
+		)
 		// HTTPS (外部API/GCP等)
 		batchSecurityGroup.addEgressRule(
 			ec2.Peer.anyIpv4(),
 			ec2.Port.tcp(443),
-			"HTTPS to internet",
-		);
+			'HTTPS to internet',
+		)
 		// VPC DNS リゾルバ (169.254.169.253) への TCP/UDP 53
 		batchSecurityGroup.addEgressRule(
-			ec2.Peer.ipv4("169.254.169.253/32"),
+			ec2.Peer.ipv4('169.254.169.253/32'),
 			ec2.Port.tcp(53),
-			"DNS TCP to VPC resolver",
-		);
+			'DNS TCP to VPC resolver',
+		)
 		batchSecurityGroup.addEgressRule(
-			ec2.Peer.ipv4("169.254.169.253/32"),
+			ec2.Peer.ipv4('169.254.169.253/32'),
 			ec2.Port.udp(53),
-			"DNS UDP to VPC resolver",
-		);
+			'DNS UDP to VPC resolver',
+		)
 		// ECS Task メタデータ/credential (169.254.170.2:80)
 		batchSecurityGroup.addEgressRule(
-			ec2.Peer.ipv4("169.254.170.2/32"),
+			ec2.Peer.ipv4('169.254.170.2/32'),
 			ec2.Port.tcp(80),
-			"ECS task metadata/credentials",
-		);
+			'ECS task metadata/credentials',
+		)
 
-		const cluster = new ecs.Cluster(this, "BatchCluster", { vpc });
+		const cluster = new ecs.Cluster(this, 'BatchCluster', { vpc })
 
-		const batchLogGroup = new logs.LogGroup(this, "BatchLogGroup", {
+		const batchLogGroup = new logs.LogGroup(this, 'BatchLogGroup', {
 			retention: logs.RetentionDays.ONE_MONTH,
-		});
+		})
 
 		const batchImageAsset = new ecr_assets.DockerImageAsset(
 			this,
-			"BatchImage",
+			'BatchImage',
 			{
 				directory: SYSTEM_DIR,
 				file: DOCKERFILE_FARGATE,
 				platform: Platform.LINUX_ARM64,
 			},
-		);
+		)
 
 		const taskDefinition = new ecs.FargateTaskDefinition(
 			this,
-			"DailyBatchTaskDefinition",
+			'DailyBatchTaskDefinition',
 			{
 				cpu: 256,
 				memoryLimitMiB: 512,
@@ -133,49 +133,49 @@ export class AwsCdkStack extends cdk.Stack {
 					operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
 				},
 			},
-		);
+		)
 		// DynamoDB secrets テーブルへのアクセス付与
-		taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy);
+		taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy)
 
-		const batchContainer = taskDefinition.addContainer("daily-batch", {
+		const batchContainer = taskDefinition.addContainer('daily-batch', {
 			image: ecs.ContainerImage.fromDockerImageAsset(batchImageAsset),
 			logging: ecs.LogDrivers.awsLogs({
 				logGroup: batchLogGroup,
-				streamPrefix: "daily-batch",
+				streamPrefix: 'daily-batch',
 			}),
 			environment: {
 				// ECS/Fargate でも AWS_REGION は基本入るが、念のため DEFAULT もセット
 				AWS_REGION: cdk.Stack.of(this).region,
 				AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
 			},
-		});
+		})
 
 		// SNS topic for CloudWatch alarms and subscription to Discord notify Lambda
-		const alarmsTopic = new sns.Topic(this, "AlarmsTopic", {
-			displayName: "youtube-study-space-alarms",
-		});
+		const alarmsTopic = new sns.Topic(this, 'AlarmsTopic', {
+			displayName: 'youtube-study-space-alarms',
+		})
 		// Unified SNS consumer Lambda for all infra/app alerts
 		const snsNotifyDiscordFunction = new lambda.DockerImageFunction(
 			this,
-			"sns_notify_discord",
+			'sns_notify_discord',
 			{
-				functionName: "sns_notify_discord",
+				functionName: 'sns_notify_discord',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
-					buildArgs: { HANDLER: "main" },
+					buildArgs: { HANDLER: 'main' },
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/sns_notify_discord"],
+					entrypoint: ['/app/sns_notify_discord'],
 				}),
 				timeout: cdk.Duration.seconds(30),
 				reservedConcurrentExecutions: 1,
 			},
-		);
-		(snsNotifyDiscordFunction.role as iam.Role).addToPolicy(
+		)
+		;(snsNotifyDiscordFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		);
+		)
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
-		);
+		)
 
 		// Helper to create a common Lambda Errors>0 alarm wired to SNS
 		const createLambdaErrorAlarm = (
@@ -185,7 +185,7 @@ export class AwsCdkStack extends cdk.Stack {
 		) => {
 			const alarm = new cloudwatch.Alarm(this, id, {
 				metric: fn.metricErrors({
-					statistic: "sum",
+					statistic: 'sum',
 					period: cdk.Duration.minutes(5),
 				}),
 				threshold: 0,
@@ -194,35 +194,35 @@ export class AwsCdkStack extends cdk.Stack {
 					cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
 				treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
 				alarmDescription: description,
-			});
-			alarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic));
-			return alarm;
-		};
+			})
+			alarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic))
+			return alarm
+		}
 
 		// 参照用の出力（後続PRでStep Functionsから使用）
-		new cdk.CfnOutput(this, "BatchClusterArn", {
+		new cdk.CfnOutput(this, 'BatchClusterArn', {
 			value: cluster.clusterArn,
-			exportName: "BatchClusterArn",
-		});
-		new cdk.CfnOutput(this, "DailyBatchTaskDefinitionArn", {
+			exportName: 'BatchClusterArn',
+		})
+		new cdk.CfnOutput(this, 'DailyBatchTaskDefinitionArn', {
 			value: taskDefinition.taskDefinitionArn,
-			exportName: "DailyBatchTaskDefinitionArn",
-		});
-		new cdk.CfnOutput(this, "BatchSecurityGroupId", {
+			exportName: 'DailyBatchTaskDefinitionArn',
+		})
+		new cdk.CfnOutput(this, 'BatchSecurityGroupId', {
 			value: batchSecurityGroup.securityGroupId,
-			exportName: "BatchSecurityGroupId",
-		});
+			exportName: 'BatchSecurityGroupId',
+		})
 		const publicSubnetIds = vpc.selectSubnets({
 			subnetType: ec2.SubnetType.PUBLIC,
-		}).subnetIds;
-		new cdk.CfnOutput(this, "BatchPublicSubnetIds", {
-			value: cdk.Fn.join(",", publicSubnetIds),
-			exportName: "BatchPublicSubnetIds",
-		});
-		new cdk.CfnOutput(this, "BatchVpcId", {
+		}).subnetIds
+		new cdk.CfnOutput(this, 'BatchPublicSubnetIds', {
+			value: cdk.Fn.join(',', publicSubnetIds),
+			exportName: 'BatchPublicSubnetIds',
+		})
+		new cdk.CfnOutput(this, 'BatchVpcId', {
 			value: vpc.vpcId,
-			exportName: "BatchVpcId",
-		});
+			exportName: 'BatchVpcId',
+		})
 
 		// =========================
 		// Step Functions: Daily Batch Orchestration
@@ -238,102 +238,102 @@ export class AwsCdkStack extends cdk.Stack {
 			securityGroups: [batchSecurityGroup],
 			resultPath: sfn.JsonPath.DISCARD,
 			integrationPattern: sfn.IntegrationPattern.RUN_JOB,
-		};
+		}
 
 		const resetDailyTotalTask = new sfn_tasks.EcsRunTask(
 			this,
-			"reset-daily-total",
+			'reset-daily-total',
 			{
 				...runTaskCommon,
 				containerOverrides: [
 					{
 						containerDefinition: batchContainer,
-						environment: [{ name: "JOB", value: "reset-daily-total" }],
+						environment: [{ name: 'JOB', value: 'reset-daily-total' }],
 					},
 				],
 			},
-		);
-		const updateRpTask = new sfn_tasks.EcsRunTask(this, "update-rp", {
+		)
+		const updateRpTask = new sfn_tasks.EcsRunTask(this, 'update-rp', {
 			...runTaskCommon,
 			containerOverrides: [
 				{
 					containerDefinition: batchContainer,
-					environment: [{ name: "JOB", value: "update-rp" }],
+					environment: [{ name: 'JOB', value: 'update-rp' }],
 				},
 			],
-		});
-		const transferBqTask = new sfn_tasks.EcsRunTask(this, "transfer-bq", {
+		})
+		const transferBqTask = new sfn_tasks.EcsRunTask(this, 'transfer-bq', {
 			...runTaskCommon,
 			containerOverrides: [
 				{
 					containerDefinition: batchContainer,
-					environment: [{ name: "JOB", value: "transfer-bq" }],
+					environment: [{ name: 'JOB', value: 'transfer-bq' }],
 				},
 			],
-		});
+		})
 
 		// Manual-run tasks must be separate instances (states cannot be reused across graphs)
 		const manualResetDailyTotalTask = new sfn_tasks.EcsRunTask(
 			this,
-			"manual-reset-daily-total",
+			'manual-reset-daily-total',
 			{
 				...runTaskCommon,
 				containerOverrides: [
 					{
 						containerDefinition: batchContainer,
-						environment: [{ name: "JOB", value: "reset-daily-total" }],
+						environment: [{ name: 'JOB', value: 'reset-daily-total' }],
 					},
 				],
 			},
-		);
+		)
 		const manualUpdateRpTask = new sfn_tasks.EcsRunTask(
 			this,
-			"manual-update-rp",
+			'manual-update-rp',
 			{
 				...runTaskCommon,
 				containerOverrides: [
 					{
 						containerDefinition: batchContainer,
-						environment: [{ name: "JOB", value: "update-rp" }],
+						environment: [{ name: 'JOB', value: 'update-rp' }],
 					},
 				],
 			},
-		);
+		)
 		const manualTransferBqTask = new sfn_tasks.EcsRunTask(
 			this,
-			"manual-transfer-bq",
+			'manual-transfer-bq',
 			{
 				...runTaskCommon,
 				containerOverrides: [
 					{
 						containerDefinition: batchContainer,
-						environment: [{ name: "JOB", value: "transfer-bq" }],
+						environment: [{ name: 'JOB', value: 'transfer-bq' }],
 					},
 				],
 			},
-		);
+		)
 
 		// 日付境界ずれ対策として 15 秒待ってから開始
-		const wait15s = new sfn.Wait(this, "wait-00:00:15", {
+		const wait15s = new sfn.Wait(this, 'wait-00:00:15', {
 			time: sfn.WaitTime.duration(cdk.Duration.seconds(15)),
-		});
+		})
 
 		const notifyOnFailure = new sfn_tasks.SnsPublish(
 			this,
-			"notify-on-failure-sns",
+			'notify-on-failure-sns',
 			{
 				topic: alarmsTopic,
 				message: sfn.TaskInput.fromObject({
-					workflow: "daily-batch",
-					stateName: sfn.JsonPath.stringAt("$$.State.Name"),
-					executionArn: sfn.JsonPath.stringAt("$$.Execution.Id"),
-					error: sfn.JsonPath.stringAt("$.Error"),
-					cause: sfn.JsonPath.stringAt("$.Cause"),
+					workflow: 'daily-batch',
+					stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+					executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+					error: sfn.JsonPath.stringAt('$.Error'),
+					cause: sfn.JsonPath.stringAt('$.Cause'),
 				}),
-				subject: "daily-batch failed",
+				subject: 'daily-batch failed',
 				resultPath: sfn.JsonPath.DISCARD,
 			},
-		);
+		)
 
 		// 手動実行用は別グラフになるため、各グラフ専用のSNS通知ステートを定義して接続する
 
@@ -353,184 +353,184 @@ export class AwsCdkStack extends cdk.Stack {
 				transferBqTask.addCatch(notifyOnFailure, {
 					resultPath: sfn.JsonPath.DISCARD,
 				}),
-			);
+			)
 
 		const dailyBatchStateMachine = new sfn.StateMachine(
 			this,
-			"daily-batch-sfn",
+			'daily-batch-sfn',
 			{
 				definitionBody: sfn.DefinitionBody.fromChainable(definition),
 				tracingEnabled: false,
 				logs: {
-					destination: new logs.LogGroup(this, "DailyBatchSfnLogs", {
+					destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
 						retention: logs.RetentionDays.ONE_MONTH,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
 				timeout: cdk.Duration.hours(3),
 			},
-		);
+		)
 
 		// CloudWatch alarm: Step Functions ExecutionsFailed > 0
 		const failedMetric = dailyBatchStateMachine.metricFailed({
-			statistic: "sum",
+			statistic: 'sum',
 			period: cdk.Duration.minutes(5),
-		});
-		const sfnFailedAlarm = new cloudwatch.Alarm(this, "DailyBatchFailedAlarm", {
+		})
+		const sfnFailedAlarm = new cloudwatch.Alarm(this, 'DailyBatchFailedAlarm', {
 			metric: failedMetric,
 			threshold: 0,
 			evaluationPeriods: 1,
 			comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
 			treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-			alarmDescription: "Daily batch Step Functions failed executions > 0",
-		});
-		sfnFailedAlarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic));
+			alarmDescription: 'Daily batch Step Functions failed executions > 0',
+		})
+		sfnFailedAlarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic))
 
-		new cdk.CfnOutput(this, "DailyBatchStateMachineArn", {
+		new cdk.CfnOutput(this, 'DailyBatchStateMachineArn', {
 			value: dailyBatchStateMachine.stateMachineArn,
-			exportName: "DailyBatchStateMachineArn",
-		});
+			exportName: 'DailyBatchStateMachineArn',
+		})
 
 		// Manual one-off runners (no JSON input): 3 dedicated state machines
 		const manualResetNotify = new sfn_tasks.SnsPublish(
 			this,
-			"manual-reset-notify-on-failure",
+			'manual-reset-notify-on-failure',
 			{
 				topic: alarmsTopic,
 				message: sfn.TaskInput.fromObject({
-					workflow: "manual-reset-daily-total",
-					stateName: sfn.JsonPath.stringAt("$$.State.Name"),
-					executionArn: sfn.JsonPath.stringAt("$$.Execution.Id"),
-					error: sfn.JsonPath.stringAt("$.Error"),
-					cause: sfn.JsonPath.stringAt("$.Cause"),
+					workflow: 'manual-reset-daily-total',
+					stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+					executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+					error: sfn.JsonPath.stringAt('$.Error'),
+					cause: sfn.JsonPath.stringAt('$.Cause'),
 				}),
-				subject: "manual-reset-daily-total failed",
+				subject: 'manual-reset-daily-total failed',
 				resultPath: sfn.JsonPath.DISCARD,
 			},
-		);
+		)
 		const manualResetDefinition = manualResetDailyTotalTask.addCatch(
 			manualResetNotify,
 			{ resultPath: sfn.JsonPath.DISCARD },
-		);
+		)
 		const manualResetDailyTotalSfn = new sfn.StateMachine(
 			this,
-			"manual-reset-daily-total-sfn",
+			'manual-reset-daily-total-sfn',
 			{
 				definitionBody: sfn.DefinitionBody.fromChainable(manualResetDefinition),
 				tracingEnabled: false,
 				logs: {
-					destination: new logs.LogGroup(this, "ManualResetDailyTotalSfnLogs", {
+					destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
 						retention: logs.RetentionDays.ONE_MONTH,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
 				timeout: cdk.Duration.hours(3),
 			},
-		);
-		new cdk.CfnOutput(this, "ManualResetDailyTotalStateMachineArn", {
+		)
+		new cdk.CfnOutput(this, 'ManualResetDailyTotalStateMachineArn', {
 			value: manualResetDailyTotalSfn.stateMachineArn,
-			exportName: "ManualResetDailyTotalStateMachineArn",
-		});
+			exportName: 'ManualResetDailyTotalStateMachineArn',
+		})
 
 		const manualUpdateNotify = new sfn_tasks.SnsPublish(
 			this,
-			"manual-update-notify-on-failure",
+			'manual-update-notify-on-failure',
 			{
 				topic: alarmsTopic,
 				message: sfn.TaskInput.fromObject({
-					workflow: "manual-update-rp",
-					stateName: sfn.JsonPath.stringAt("$$.State.Name"),
-					executionArn: sfn.JsonPath.stringAt("$$.Execution.Id"),
-					error: sfn.JsonPath.stringAt("$.Error"),
-					cause: sfn.JsonPath.stringAt("$.Cause"),
+					workflow: 'manual-update-rp',
+					stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+					executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+					error: sfn.JsonPath.stringAt('$.Error'),
+					cause: sfn.JsonPath.stringAt('$.Cause'),
 				}),
-				subject: "manual-update-rp failed",
+				subject: 'manual-update-rp failed',
 				resultPath: sfn.JsonPath.DISCARD,
 			},
-		);
+		)
 		const manualUpdateDefinition = manualUpdateRpTask.addCatch(
 			manualUpdateNotify,
 			{ resultPath: sfn.JsonPath.DISCARD },
-		);
+		)
 		const manualUpdateRpSfn = new sfn.StateMachine(
 			this,
-			"manual-update-rp-sfn",
+			'manual-update-rp-sfn',
 			{
 				definitionBody: sfn.DefinitionBody.fromChainable(
 					manualUpdateDefinition,
 				),
 				tracingEnabled: false,
 				logs: {
-					destination: new logs.LogGroup(this, "ManualUpdateRpSfnLogs", {
+					destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
 						retention: logs.RetentionDays.ONE_MONTH,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
 				timeout: cdk.Duration.hours(3),
 			},
-		);
-		new cdk.CfnOutput(this, "ManualUpdateRpStateMachineArn", {
+		)
+		new cdk.CfnOutput(this, 'ManualUpdateRpStateMachineArn', {
 			value: manualUpdateRpSfn.stateMachineArn,
-			exportName: "ManualUpdateRpStateMachineArn",
-		});
+			exportName: 'ManualUpdateRpStateMachineArn',
+		})
 
 		const manualTransferNotify = new sfn_tasks.SnsPublish(
 			this,
-			"manual-transfer-notify-on-failure",
+			'manual-transfer-notify-on-failure',
 			{
 				topic: alarmsTopic,
 				message: sfn.TaskInput.fromObject({
-					workflow: "manual-transfer-bq",
-					stateName: sfn.JsonPath.stringAt("$$.State.Name"),
-					executionArn: sfn.JsonPath.stringAt("$$.Execution.Id"),
-					error: sfn.JsonPath.stringAt("$.Error"),
-					cause: sfn.JsonPath.stringAt("$.Cause"),
+					workflow: 'manual-transfer-bq',
+					stateName: sfn.JsonPath.stringAt('$$.State.Name'),
+					executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
+					error: sfn.JsonPath.stringAt('$.Error'),
+					cause: sfn.JsonPath.stringAt('$.Cause'),
 				}),
-				subject: "manual-transfer-bq failed",
+				subject: 'manual-transfer-bq failed',
 				resultPath: sfn.JsonPath.DISCARD,
 			},
-		);
+		)
 		const manualTransferDefinition = manualTransferBqTask.addCatch(
 			manualTransferNotify,
 			{ resultPath: sfn.JsonPath.DISCARD },
-		);
+		)
 		const manualTransferBqSfn = new sfn.StateMachine(
 			this,
-			"manual-transfer-bq-sfn",
+			'manual-transfer-bq-sfn',
 			{
 				definitionBody: sfn.DefinitionBody.fromChainable(
 					manualTransferDefinition,
 				),
 				tracingEnabled: false,
 				logs: {
-					destination: new logs.LogGroup(this, "ManualTransferBqSfnLogs", {
+					destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {
 						retention: logs.RetentionDays.ONE_MONTH,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
 				timeout: cdk.Duration.hours(3),
 			},
-		);
-		new cdk.CfnOutput(this, "ManualTransferBqStateMachineArn", {
+		)
+		new cdk.CfnOutput(this, 'ManualTransferBqStateMachineArn', {
 			value: manualTransferBqSfn.stateMachineArn,
-			exportName: "ManualTransferBqStateMachineArn",
-		});
+			exportName: 'ManualTransferBqStateMachineArn',
+		})
 
 		// EventBridge Scheduler: 00:00 JST (= UTC 15:00) → start_daily_batch Lambda
-		const schedulerRole = new iam.Role(this, "DailyBatchSchedulerRole", {
-			assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
-		});
+		const schedulerRole = new iam.Role(this, 'DailyBatchSchedulerRole', {
+			assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+		})
 		// start_daily_batch Lambda to start SFN with idempotent name
 		const startDailyBatchFunction = new lambda.DockerImageFunction(
 			this,
-			"start_daily_batch",
+			'start_daily_batch',
 			{
-				functionName: "start_daily_batch",
+				functionName: 'start_daily_batch',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
-					buildArgs: { HANDLER: "main" },
+					buildArgs: { HANDLER: 'main' },
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/start_daily_batch"],
+					entrypoint: ['/app/start_daily_batch'],
 				}),
 				timeout: cdk.Duration.seconds(15),
 				reservedConcurrentExecutions: 1,
@@ -538,113 +538,113 @@ export class AwsCdkStack extends cdk.Stack {
 					STATE_MACHINE_ARN: dailyBatchStateMachine.stateMachineArn,
 				},
 			},
-		);
-		startDailyBatchFunction.grantInvoke(schedulerRole);
-		dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction);
+		)
+		startDailyBatchFunction.grantInvoke(schedulerRole)
+		dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction)
 
-		new scheduler.CfnSchedule(this, "DailyBatchScheduler", {
-			flexibleTimeWindow: { mode: "OFF" },
-			scheduleExpression: "cron(0 15 * * ? *)",
+		new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
+			flexibleTimeWindow: { mode: 'OFF' },
+			scheduleExpression: 'cron(0 15 * * ? *)',
 			target: {
 				arn: startDailyBatchFunction.functionArn,
 				roleArn: schedulerRole.roleArn,
 			},
-			name: "daily-batch-00-00-jst",
-			description: "Start daily batch SFN with idempotent name",
-			state: "ENABLED",
-		});
+			name: 'daily-batch-00-00-jst',
+			description: 'Start daily batch SFN with idempotent name',
+			state: 'ENABLED',
+		})
 
 		// Lambda function
 		const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(
 			this,
-			"set_desired_max_seats",
+			'set_desired_max_seats',
 			{
-				functionName: "set_desired_max_seats",
+				functionName: 'set_desired_max_seats',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
 					buildArgs: {
-						HANDLER: "main",
+						HANDLER: 'main',
 					},
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/set_desired_max_seats"],
+					entrypoint: ['/app/set_desired_max_seats'],
 				}),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
 			},
-		);
-		(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
+		)
+		;(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		);
+		)
 		createLambdaErrorAlarm(
 			setDesiredMaxSeatsFunction,
-			"SetDesiredMaxSeatsErrorsAlarm",
-			"Lambda set_desired_max_seats errors > 0",
-		);
+			'SetDesiredMaxSeatsErrorsAlarm',
+			'Lambda set_desired_max_seats errors > 0',
+		)
 
 		const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(
 			this,
-			"youtube_organize_database",
+			'youtube_organize_database',
 			{
-				functionName: "youtube_organize_database",
+				functionName: 'youtube_organize_database',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
 					buildArgs: {
-						HANDLER: "main",
+						HANDLER: 'main',
 					},
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/youtube_organize_database"],
+					entrypoint: ['/app/youtube_organize_database'],
 				}),
 				timeout: cdk.Duration.seconds(50),
 				reservedConcurrentExecutions: 1,
 			},
-		);
-		(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
+		)
+		;(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		);
+		)
 		createLambdaErrorAlarm(
 			youtubeOrganizeDatabaseFunction,
-			"YoutubeOrganizeDatabaseErrorsAlarm",
-			"Lambda youtube_organize_database errors > 0",
-		);
+			'YoutubeOrganizeDatabaseErrorsAlarm',
+			'Lambda youtube_organize_database errors > 0',
+		)
 
 		const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
 			this,
-			"check_live_stream_status",
+			'check_live_stream_status',
 			{
-				functionName: "check_live_stream_status",
+				functionName: 'check_live_stream_status',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
 					buildArgs: {
-						HANDLER: "main",
+						HANDLER: 'main',
 					},
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/check_live_stream_status"],
+					entrypoint: ['/app/check_live_stream_status'],
 				}),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
 			},
-		);
-		(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
+		)
+		;(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		);
+		)
 		createLambdaErrorAlarm(
 			checkLiveStreamStatusFunction,
-			"CheckLiveStreamStatusErrorsAlarm",
-			"Lambda check_live_stream_status errors > 0",
-		);
+			'CheckLiveStreamStatusErrorsAlarm',
+			'Lambda check_live_stream_status errors > 0',
+		)
 
 		const updateWorkNameTrendFunction = new lambda.DockerImageFunction(
 			this,
-			"update_work_name_trend",
+			'update_work_name_trend',
 			{
-				functionName: "update_work_name_trend",
+				functionName: 'update_work_name_trend',
 				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
 					file: DOCKERFILE_LAMBDA,
 					buildArgs: {
-						HANDLER: "main",
+						HANDLER: 'main',
 					},
 					platform: Platform.LINUX_AMD64,
-					entrypoint: ["/app/update_work_name_trend"],
+					entrypoint: ['/app/update_work_name_trend'],
 				}),
 				timeout: cdk.Duration.minutes(5),
 				reservedConcurrentExecutions: 1,
@@ -652,33 +652,33 @@ export class AwsCdkStack extends cdk.Stack {
 					SECRET_NAME: openaiApiKeySecret.secretName,
 				},
 			},
-		);
-		openaiApiKeySecret.grantRead(updateWorkNameTrendFunction);
-		(updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
+		)
+		openaiApiKeySecret.grantRead(updateWorkNameTrendFunction)
+		;(updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		);
+		)
 		createLambdaErrorAlarm(
 			updateWorkNameTrendFunction,
-			"UpdateWorkNameTrendErrorsAlarm",
-			"Lambda update_work_name_trend errors > 0",
-		);
+			'UpdateWorkNameTrendErrorsAlarm',
+			'Lambda update_work_name_trend errors > 0',
+		)
 
 		// API Gateway用ロググループ
 		const restApiLogAccessLogGroup = new logs.LogGroup(
 			this,
-			"RestApiLogAccessLogGroup",
+			'RestApiLogAccessLogGroup',
 			{
 				retention: logs.RetentionDays.INFINITE,
 			},
-		);
+		)
 
 		// API Gateway
 		const restApi = new aws_apigateway.RestApi(
 			this,
-			"youtube-study-space-rest-api",
+			'youtube-study-space-rest-api',
 			{
 				deployOptions: {
-					stageName: "default",
+					stageName: 'default',
 					dataTraceEnabled: true,
 					loggingLevel: aws_apigateway.MethodLoggingLevel.INFO,
 					accessLogDestination: new aws_apigateway.LogGroupLogDestination(
@@ -686,7 +686,7 @@ export class AwsCdkStack extends cdk.Stack {
 					),
 					accessLogFormat: aws_apigateway.AccessLogFormat.clf(),
 				},
-				restApiName: "youtube-study-space-rest-api",
+				restApiName: 'youtube-study-space-rest-api',
 				defaultMethodOptions: { apiKeyRequired: true },
 				defaultCorsPreflightOptions: {
 					allowOrigins: aws_apigateway.Cors.ALL_ORIGINS,
@@ -696,61 +696,61 @@ export class AwsCdkStack extends cdk.Stack {
 				},
 				cloudWatchRole: true,
 			},
-		);
+		)
 
-		const apiKey = restApi.addApiKey("youtube-study-space-api-key", {
+		const apiKey = restApi.addApiKey('youtube-study-space-api-key', {
 			apiKeyName: `youtube-study-space-api-key`,
-		});
+		})
 
 		// const plan = restApi.addUsagePlan("UsagePlan");
-		const plan = restApi.addUsagePlan("UsagePlan", {
+		const plan = restApi.addUsagePlan('UsagePlan', {
 			name: `youtube-study-space`,
-		});
-		plan.addApiKey(apiKey);
-		plan.addApiStage({ stage: restApi.deploymentStage });
+		})
+		plan.addApiKey(apiKey)
+		plan.addApiStage({ stage: restApi.deploymentStage })
 
 		const apiSetDesiredMaxSeats = restApi.root.addResource(
-			"set_desired_max_seats",
-		);
+			'set_desired_max_seats',
+		)
 		apiSetDesiredMaxSeats.addMethod(
-			"POST",
+			'POST',
 			new aws_apigateway.LambdaIntegration(setDesiredMaxSeatsFunction, {
 				passthroughBehavior: PassthroughBehavior.WHEN_NO_MATCH,
 			}),
 			{
 				methodResponses: [
 					{
-						statusCode: "200",
+						statusCode: '200',
 						responseModels: {
-							"application/json": aws_apigateway.Model.EMPTY_MODEL,
+							'application/json': aws_apigateway.Model.EMPTY_MODEL,
 						},
 						responseParameters: {
-							"method.response.header.Access-Control-Allow-Origin": true,
+							'method.response.header.Access-Control-Allow-Origin': true,
 						},
 					},
 				],
 			},
-		);
+		)
 
 		// APIエンドポイントURLを出力
-		new cdk.CfnOutput(this, "ApiEndpointUrl", {
+		new cdk.CfnOutput(this, 'ApiEndpointUrl', {
 			value: restApi.url,
-			description: "The URL of the API Gateway endpoint",
-			exportName: "YoutubeStudySpaceApiEndpointUrl",
-		});
+			description: 'The URL of the API Gateway endpoint',
+			exportName: 'YoutubeStudySpaceApiEndpointUrl',
+		})
 
 		// EventBridge
-		new events.Rule(this, "1minute", {
+		new events.Rule(this, '1minute', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
 			targets: [
 				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
 				new targets.LambdaFunction(checkLiveStreamStatusFunction),
 			],
-		});
+		})
 
-		new events.Rule(this, "5minutes", {
+		new events.Rule(this, '5minutes', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
 			targets: [new targets.LambdaFunction(updateWorkNameTrendFunction)],
-		});
+		})
 	}
 }
