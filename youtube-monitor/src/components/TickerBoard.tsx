@@ -17,7 +17,7 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 			<div css={styles.container}>
 				<Marquee
 					css={styles.marquee}
-					speed={100}
+					speed={85}
 					pauseOnHover
 					autoFill
 					gradient={false}
