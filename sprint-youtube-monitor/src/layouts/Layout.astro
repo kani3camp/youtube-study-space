@@ -11,7 +11,7 @@ import '../styles/tailwind.css';
 		<meta name="generator" content={Astro.generator} />
 		<title>Sprint YouTube Monitor</title>
 	</head>
-	<body class="relative m-0 flex h-[1080px] w-[1920px] items-center justify-center bg-slate-950 text-slate-100">
+	<body class="relative m-0 flex h-[1080px] w-[1920px] items-start justify-center bg-slate-950 text-slate-100">
 		<div
 			id="clock"
 			class="absolute right-6 top-6 inline-flex flex-col items-end gap-1.5 rounded-2xl bg-slate-900/80 px-6 py-4 text-white shadow-lg backdrop-blur"
@@ -47,9 +47,9 @@ import '../styles/tailwind.css';
 			const now = new Date();
 			const { date, time, offset } = formatTime(now);
 			clockElement.innerHTML = `
-				<span class="text-2xl font-semibold tracking-[0.35em] text-slate-200">${date}</span>
-				<span class="text-[3.5rem] font-black leading-tight tracking-[0.3em]">${time}</span>
-				<span class="text-xl font-medium tracking-[0.4em] text-slate-300">${offset}</span>
+				<span class="font-display text-2xl font-semibold tracking-[0.35em] text-slate-200">${date}</span>
+				<span class="font-mono tabular-nums text-[3.5rem] font-black leading-tight tracking-[0.15em] text-white" style="font-feature-settings: 'tnum', 'lnum'">${time}</span>
+				<span class="font-display text-xl font-medium tracking-[0.4em] text-slate-300">${offset}</span>
 			`;
 		};
 
