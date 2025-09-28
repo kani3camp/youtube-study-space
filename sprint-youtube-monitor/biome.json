@@ -1,0 +1,22 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
+	"formatter": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single"
+		}
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": ["**/*.{astro,ts,tsx,js,jsx,json,css,md}"]
+	}
+}
+
