@@ -1,5 +1,12 @@
-<div id="pomodoro-timer" class="relative flex h-[560px] w-[480px] flex-col items-center justify-center gap-10 rounded-[44px] border border-slate-800/60 bg-slate-900/75 px-14 py-16 text-center shadow-2xl backdrop-blur">
-	<div class="relative h-[420px] w-[420px]">
+---
+const { class: className = '' } = Astro.props;
+---
+
+<div
+	id="pomodoro-timer"
+	class={`relative flex h-full w-full flex-col items-center justify-center gap-10 rounded-[36px] border border-slate-800/60 bg-slate-900/75 px-14 py-16 text-center shadow-2xl backdrop-blur ${className}`.trim()}
+>
+	<div class="relative h-[420px] w/[420px]">
 		<svg class="h-full w-full -rotate-90" viewBox="0 0 460 460" fill="none">
 			<circle cx="230" cy="230" r="200" stroke="rgba(148, 163, 184, 0.32)" stroke-width="40" />
 			<circle
@@ -9,16 +16,14 @@
 				r="200"
 				stroke="#f97316"
 				stroke-width="40"
-				stroke-linecap="round"
+				stroke-linecap="butt"
 				stroke-dasharray="0"
 				stroke-dashoffset="0"
-				style="transition: stroke 0.3s ease, stroke-dashoffset 1s linear"
 			/>
 		</svg>
 		<div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-5">
-			<span data-role="label" class="font-display text-[1.75rem] font-extrabold uppercase tracking-[0.55em] text-orange-400">Focus</span>
+			<span data-role="label" class="font-display text-[1.75rem] font-extrabold uppercase tracking-[0.55em] text-orange-400">STATUS</span>
 			<span data-role="time" class="font-mono tabular-nums text-[5.5rem] font-black leading-tight tracking-[0.02em] text-white" style="font-feature-settings: 'tnum', 'lnum'">25:00</span>
-			<span class="font-display text-lg uppercase tracking-[0.4em] text-slate-300">Pomodoro</span>
 		</div>
 	</div>
 </div>
@@ -26,6 +31,7 @@
 <script>
 	const focusDuration = 25 * 60;
 	const breakDuration = 5 * 60;
+	const prefillDurationMs = 2000;
 
 	const container = document.getElementById('pomodoro-timer');
 	if (!container) {
@@ -36,18 +42,25 @@
 	const timeElement = container.querySelector('[data-role="time"]');
 	const progressCircle = container.querySelector('[data-role="progress"]');
 
-	const circumference = progressCircle ? 2 * Math.PI * progressCircle.r.baseVal.value : 0;
-	if (progressCircle) {
-		progressCircle.style.strokeDasharray = `${circumference}`;
-		progressCircle.style.strokeDashoffset = `${circumference}`;
+	if (!labelElement || !timeElement || !progressCircle) {
+		throw new Error('Pomodoro timer elements not found');
 	}
 
+	const circumference = 2 * Math.PI * progressCircle.r.baseVal.value;
+	progressCircle.style.strokeDasharray = `${circumference}`;
+	progressCircle.style.strokeDashoffset = `${circumference}`;
+
 	let isFocus = true;
-	let remaining = focusDuration;
+	let currentDuration = focusDuration;
+	let periodStart = performance.now();
+	let prefillStart = periodStart;
+	let isPrefill = true;
+	let animationFrameId;
 
 	const formatTime = (seconds) => {
-		const mins = Math.floor(seconds / 60);
-		const secs = seconds % 60;
+		const totalSeconds = Math.max(0, Math.ceil(seconds));
+		const mins = Math.floor(totalSeconds / 60);
+		const secs = totalSeconds % 60;
 		return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 	};
 
@@ -64,35 +77,65 @@
 				color: '#22c55e'
 			};
 
-	const updateUI = () => {
-		const { label, duration, color } = getModeConfig();
-		if (labelElement) {
-			labelElement.textContent = label;
-			labelElement.style.color = color;
-		}
-		if (timeElement) {
-			timeElement.textContent = formatTime(remaining);
-		}
-		if (progressCircle) {
-			const elapsed = duration - remaining;
-			const progressRatio = Math.min(Math.max(elapsed / duration, 0), 1);
-			progressCircle.style.stroke = color;
-			progressCircle.style.strokeDashoffset = `${circumference * (1 - progressRatio)}`;
-		}
+	const applyModeVisuals = (config) => {
+		labelElement.textContent = config.label;
+		labelElement.style.color = config.color;
+		progressCircle.style.stroke = config.color;
 	};
 
-	const switchMode = () => {
-		isFocus = !isFocus;
-		remaining = getModeConfig().duration;
+	const startMode = (timestamp = performance.now()) => {
+		const config = getModeConfig();
+		currentDuration = config.duration;
+		periodStart = timestamp;
+		prefillStart = timestamp;
+		isPrefill = true;
+		applyModeVisuals(config);
+		timeElement.textContent = formatTime(currentDuration);
+		progressCircle.style.strokeDashoffset = `${circumference}`;
 	};
 
-	updateUI();
+	const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
-	setInterval(() => {
-		remaining -= 1;
-		if (remaining < 0) {
-			switchMode();
+	const updateFrame = (timestamp) => {
+		const durationMs = currentDuration * 1000;
+
+		if (isPrefill) {
+			const elapsedPrefill = timestamp - prefillStart;
+			const clampedPrefill = Math.min(elapsedPrefill, durationMs);
+			const ratioPrefill = clampedPrefill / durationMs;
+			const eased = easeOutCubic(Math.min(elapsedPrefill / prefillDurationMs, 1));
+			const targetOffset = circumference * ratioPrefill;
+			const interpolatedOffset = circumference - (circumference - targetOffset) * eased;
+			progressCircle.style.strokeDashoffset = `${interpolatedOffset}`;
+			const remainingSeconds = Math.max((durationMs - clampedPrefill) / 1000, 0);
+			timeElement.textContent = formatTime(remainingSeconds);
+			if (elapsedPrefill >= prefillDurationMs || clampedPrefill >= durationMs) {
+				isPrefill = false;
+				periodStart = timestamp - clampedPrefill;
+			}
+		} else {
+			const elapsedMs = timestamp - periodStart;
+			const clampedElapsed = Math.min(elapsedMs, durationMs);
+			const progressRatio = clampedElapsed / durationMs;
+			const remainingSeconds = Math.max((durationMs - clampedElapsed) / 1000, 0);
+			timeElement.textContent = formatTime(remainingSeconds);
+			progressCircle.style.strokeDashoffset = `${circumference * progressRatio}`;
+			if (elapsedMs >= durationMs) {
+				isFocus = !isFocus;
+				startMode(timestamp);
+			}
 		}
-		updateUI();
-	}, 1000);
+
+		animationFrameId = requestAnimationFrame(updateFrame);
+	};
+
+	const start = () => {
+		startMode();
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+		}
+		animationFrameId = requestAnimationFrame(updateFrame);
+	};
+
+	start();
 </script>

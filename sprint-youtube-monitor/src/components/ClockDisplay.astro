@@ -1,6 +1,35 @@
+---
+const alignmentMap = {
+	center: 'items-center text-center',
+	end: 'items-end text-right',
+} as const;
+
+type AlignmentKey = keyof typeof alignmentMap;
+
+type ClockProps = {
+	class?: string;
+	floating?: boolean;
+	align?: AlignmentKey;
+	radiusClass?: string;
+};
+
+const {
+	class: className = '',
+	floating = false,
+	align = 'end',
+	radiusClass = 'rounded-[36px]',
+} = (Astro.props as ClockProps) ?? {};
+
+const alignmentClass = alignmentMap[align ?? 'end'];
+const baseClass = `flex flex-col ${alignmentClass} gap-1.5`;
+const floatingContainer = `absolute right-6 top-6 w-auto ${radiusClass} bg-slate-900/80 px-6 py-4 text-white shadow-lg backdrop-blur ${baseClass}`;
+const inlineContainer = `w-full ${baseClass}`;
+const containerClass = floating ? floatingContainer : inlineContainer;
+---
+
 <div
 	id="clock-display"
-	class="absolute right-6 top-6 inline-flex flex-col items-end gap-1.5 rounded-2xl bg-slate-900/80 px-6 py-4 text-white shadow-lg backdrop-blur"
+	class={`${containerClass} ${className}`.trim()}
 	aria-live="polite"
 	role="status"
 ></div>
@@ -8,33 +37,25 @@
 <script>
 	const clockElement = document.getElementById('clock-display');
 
-	const formatTime = (date) => {
+	const formatTime = (date: Date) => {
 		const year = date.getFullYear();
 		const month = String(date.getMonth() + 1).padStart(2, '0');
 		const day = String(date.getDate()).padStart(2, '0');
 		const hour = String(date.getHours()).padStart(2, '0');
 		const minute = String(date.getMinutes()).padStart(2, '0');
-		const second = String(date.getSeconds()).padStart(2, '0');
-		const offsetMinutesTotal = date.getTimezoneOffset();
-		const sign = offsetMinutesTotal <= 0 ? '+' : '-';
-		const offsetMinutesAbs = Math.abs(offsetMinutesTotal);
-		const offsetHours = String(Math.floor(offsetMinutesAbs / 60)).padStart(2, '0');
-		const offsetMinutes = String(offsetMinutesAbs % 60).padStart(2, '0');
 		return {
 			date: `${year}-${month}-${day}`,
-			time: `${hour}:${minute}:${second}`,
-			offset: `UTC${sign}${offsetHours}:${offsetMinutes}`
+			time: `${hour}:${minute}`,
 		};
 	};
 
 	const updateClock = () => {
 		if (!clockElement) return;
 		const now = new Date();
-		const { date, time, offset } = formatTime(now);
+		const { date, time } = formatTime(now);
 		clockElement.innerHTML = `
 			<span class="font-display text-2xl font-semibold tracking-[0.35em] text-slate-200">${date}</span>
 			<span class="font-mono tabular-nums text-[3.5rem] font-black leading-tight tracking-[0.15em] text-white" style="font-feature-settings: 'tnum', 'lnum'">${time}</span>
-			<span class="font-display text-xl font-medium tracking-[0.4em] text-slate-300">${offset}</span>
 		`;
 	};
 
