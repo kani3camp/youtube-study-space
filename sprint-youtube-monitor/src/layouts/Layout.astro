@@ -3,15 +3,49 @@ import '../styles/tailwind.css';
 ---
 
 <!doctype html>
-<html lang="en" class="h-full">
+<html lang="ja" class="h-full">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<title>Sprint YouTube Monitor</title>
 	</head>
-	<body class="min-h-screen w-full m-0 bg-slate-950 text-slate-900">
+	<body class="relative min-h-screen w-full m-0 bg-slate-950 text-slate-100">
+		<div
+			id="clock"
+			class="absolute right-4 top-4 inline-flex items-center rounded-full bg-slate-900/80 px-4 py-2 text-xs font-semibold tracking-[0.3em] text-white shadow-lg backdrop-blur"
+			aria-live="polite"
+			role="status"
+		></div>
 		<slot />
+
+		<script>
+			const clockElement = document.getElementById('clock');
+
+			const formatTime = (date) => {
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				const hour = String(date.getHours()).padStart(2, '0');
+				const minute = String(date.getMinutes()).padStart(2, '0');
+				const second = String(date.getSeconds()).padStart(2, '0');
+				const offsetMinutesTotal = date.getTimezoneOffset();
+				const sign = offsetMinutesTotal <= 0 ? '+' : '-';
+				const offsetMinutesAbs = Math.abs(offsetMinutesTotal);
+				const offsetHours = String(Math.floor(offsetMinutesAbs / 60)).padStart(2, '0');
+				const offsetMinutes = String(offsetMinutesAbs % 60).padStart(2, '0');
+				return `${year}-${month}-${day} ${hour}:${minute}:${second} (UTC${sign}${offsetHours}:${offsetMinutes})`;
+			};
+
+			const updateClock = () => {
+				if (!clockElement) return;
+				const now = new Date();
+				clockElement.textContent = formatTime(now);
+			};
+
+			updateClock();
+			setInterval(updateClock, 1000);
+		</script>
 	</body>
 </html>

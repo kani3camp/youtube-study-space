@@ -1,13 +1,17 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const pageTitle = 'Sprint YouTube Monitor';
 ---
 
 <Layout>
-	<div class="flex min-h-screen items-center justify-center bg-slate-950">
-		<Welcome />
-	</div>
+	<main class="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-950 px-6 text-center">
+		<h1 class="text-3xl font-semibold text-white sm:text-4xl">{pageTitle}</h1>
+		<p class="max-w-xl text-sm text-slate-200 sm:text-base">
+			YouTube の分析と勉強をサポートするためのダッシュボードを、ここから組み立てていきましょう。
+		</p>
+		<div class="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-xs text-slate-300">
+			次のステップとして、必要なウィジェットやチャートをこの画面に追加してください。
+		</div>
+	</main>
 </Layout>
