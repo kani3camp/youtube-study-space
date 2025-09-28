@@ -1,5 +1,9 @@
+---
+import '../styles/tailwind.css';
+---
+
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
@@ -7,16 +11,7 @@
 		<meta name="generator" content={Astro.generator} />
 		<title>Astro Basics</title>
 	</head>
-	<body>
+	<body class="min-h-screen w-full m-0 bg-slate-950 text-slate-900">
 		<slot />
 	</body>
 </html>
-
-<style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
-</style>

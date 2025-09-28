@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+	html,
+	body {
+		@apply h-full w-full m-0;
+	}
+
+	body {
+		@apply min-h-screen bg-slate-950 text-slate-100 antialiased font-sans;
+	}
+}
+
