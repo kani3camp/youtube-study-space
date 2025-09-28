@@ -1,21 +1,21 @@
 {
-  "name": "sprint-youtube-monitor",
-  "type": "module",
-  "version": "0.0.1",
-  "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro",
-    "lint": "biome lint",
-    "format": "biome format"
-  },
-  "dependencies": {
-    "astro": "^5.14.1"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.2.4",
-    "@tailwindcss/vite": "^4.1.13",
-    "tailwindcss": "^4.1.13"
-  }
+	"name": "sprint-youtube-monitor",
+	"type": "module",
+	"version": "0.0.1",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"astro": "astro",
+		"lint": "biome lint",
+		"format": "biome format --write"
+	},
+	"dependencies": {
+		"astro": "^5.14.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.4",
+		"@tailwindcss/vite": "^4.1.13",
+		"tailwindcss": "^4.1.13"
+	}
 }
