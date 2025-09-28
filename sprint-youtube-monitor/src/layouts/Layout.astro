@@ -14,7 +14,7 @@ import '../styles/tailwind.css';
 	<body class="relative m-0 flex h-[1080px] w-[1920px] items-center justify-center bg-slate-950 text-slate-100">
 		<div
 			id="clock"
-			class="absolute right-4 top-4 inline-flex items-center rounded-full bg-slate-900/80 px-4 py-2 text-xs font-semibold tracking-[0.3em] text-white shadow-lg backdrop-blur"
+			class="absolute right-6 top-6 inline-flex flex-col items-end gap-1.5 rounded-2xl bg-slate-900/80 px-6 py-4 text-white shadow-lg backdrop-blur"
 			aria-live="polite"
 			role="status"
 		></div>
@@ -23,26 +23,35 @@ import '../styles/tailwind.css';
 		<script>
 			const clockElement = document.getElementById('clock');
 
-			const formatTime = (date) => {
-				const year = date.getFullYear();
-				const month = String(date.getMonth() + 1).padStart(2, '0');
-				const day = String(date.getDate()).padStart(2, '0');
-				const hour = String(date.getHours()).padStart(2, '0');
-				const minute = String(date.getMinutes()).padStart(2, '0');
-				const second = String(date.getSeconds()).padStart(2, '0');
-				const offsetMinutesTotal = date.getTimezoneOffset();
-				const sign = offsetMinutesTotal <= 0 ? '+' : '-';
-				const offsetMinutesAbs = Math.abs(offsetMinutesTotal);
-				const offsetHours = String(Math.floor(offsetMinutesAbs / 60)).padStart(2, '0');
-				const offsetMinutes = String(offsetMinutesAbs % 60).padStart(2, '0');
-				return `${year}-${month}-${day} ${hour}:${minute}:${second} (UTC${sign}${offsetHours}:${offsetMinutes})`;
+		const formatTime = (date) => {
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			const hour = String(date.getHours()).padStart(2, '0');
+			const minute = String(date.getMinutes()).padStart(2, '0');
+			const second = String(date.getSeconds()).padStart(2, '0');
+			const offsetMinutesTotal = date.getTimezoneOffset();
+			const sign = offsetMinutesTotal <= 0 ? '+' : '-';
+			const offsetMinutesAbs = Math.abs(offsetMinutesTotal);
+			const offsetHours = String(Math.floor(offsetMinutesAbs / 60)).padStart(2, '0');
+			const offsetMinutes = String(offsetMinutesAbs % 60).padStart(2, '0');
+			return {
+				date: `${year}-${month}-${day}`,
+				time: `${hour}:${minute}:${second}`,
+				offset: `UTC${sign}${offsetHours}:${offsetMinutes}`
 			};
+		};
 
-			const updateClock = () => {
-				if (!clockElement) return;
-				const now = new Date();
-				clockElement.textContent = formatTime(now);
-			};
+		const updateClock = () => {
+			if (!clockElement) return;
+			const now = new Date();
+			const { date, time, offset } = formatTime(now);
+			clockElement.innerHTML = `
+				<span class="text-2xl font-semibold tracking-[0.35em] text-slate-200">${date}</span>
+				<span class="text-[3.5rem] font-black leading-tight tracking-[0.3em]">${time}</span>
+				<span class="text-xl font-medium tracking-[0.4em] text-slate-300">${offset}</span>
+			`;
+		};
 
 			updateClock();
 			setInterval(updateClock, 1000);
