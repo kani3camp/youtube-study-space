@@ -41,7 +41,6 @@ export type WorkNameTrend = {
 		genre: string
 		count: number
 		examples: string[]
-		note: string
 	}[]
 	ranked_at: Timestamp
 }
