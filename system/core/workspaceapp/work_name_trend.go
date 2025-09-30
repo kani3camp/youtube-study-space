@@ -98,12 +98,8 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 												"description": "作業項目名",
 											},
 										},
-										"note": map[string]interface{}{
-											"type":        "string",
-											"description": "備考",
-										},
 									},
-									"required":             []string{"rank", "genre", "count", "examples", "note"},
+									"required":             []string{"rank", "genre", "count", "examples"},
 									"additionalProperties": false,
 								},
 								"minItems": 0,
