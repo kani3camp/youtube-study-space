@@ -245,17 +245,17 @@ func getArgs(meta metaDataType, ns, key string) ([]string, bool) {
 
 func countPlaceholders(s string) int {
 	matches := phRe.FindAllStringSubmatch(s, -1)
-	max := -1
+	maxIdx := -1
 	for _, g := range matches {
 		if len(g) < 2 {
 			continue
 		}
 		idx := atoiSafe(g[1])
-		if idx > max {
-			max = idx
+		if idx > maxIdx {
+			maxIdx = idx
 		}
 	}
-	return max + 1
+	return maxIdx + 1
 }
 
 // validateSequentialPlaceholders ensures placeholders are sequentially
