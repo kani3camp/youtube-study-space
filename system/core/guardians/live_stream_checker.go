@@ -59,9 +59,9 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("broadcasts.List: %w", err)
 	}
-	var usingStreamIds []string
+	usingStreamIds := make(map[string]bool)
 	for _, broadcast := range broadcastsListResponse.Items {
-		usingStreamIds = append(usingStreamIds, broadcast.ContentDetails.BoundStreamId)
+		usingStreamIds[broadcast.ContentDetails.BoundStreamId] = true
 		slog.Info("active broadcast info.",
 			"id", broadcast.Id,
 			"BoundStreamId", broadcast.ContentDetails.BoundStreamId,
@@ -75,7 +75,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 		return fmt.Errorf("in streamsService.List: %w", err)
 	}
 
-	for _, usingStreamId := range usingStreamIds {
+	for usingStreamId := range usingStreamIds {
 		for _, stream := range liveStreamListResponse.Items {
 			if stream.Id == usingStreamId {
 				streamStatus := stream.Status.StreamStatus
