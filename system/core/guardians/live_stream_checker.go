@@ -93,6 +93,8 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 				if healthStatus != "good" && healthStatus != "ok" {
 					_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
 				}
+
+				break
 			}
 		}
 	}
