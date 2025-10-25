@@ -13,13 +13,6 @@ import (
 	"google.golang.org/api/youtube/v3"
 )
 
-type LiveStreamsListResponse struct {
-	Kind      string `json:"access_token"`
-	ExpiresIn int    `json:"expires_in"`
-	Scope     string `json:"scope"`
-	TokenType string `json:"token_type"`
-}
-
 type LiveStreamChecker struct {
 	YoutubeLiveChatBot  youtubebot.LiveChatBot
 	alertOwnerBot       moderatorbot.MessageBot
@@ -60,22 +53,50 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("in youtube.NewService: %w", err)
 	}
+
+	broadcastsService := youtube.NewLiveBroadcastsService(service)
+	broadcastsListResponse, err := broadcastsService.List([]string{"snippet", "contentDetails"}).BroadcastStatus("active").Do()
+	if err != nil {
+		return fmt.Errorf("broadcasts.List: %w", err)
+	}
+	usingStreamIds := make(map[string]bool)
+	for _, broadcast := range broadcastsListResponse.Items {
+		usingStreamIds[broadcast.ContentDetails.BoundStreamId] = true
+		slog.Info("active broadcast info.",
+			"id", broadcast.Id,
+			"BoundStreamId", broadcast.ContentDetails.BoundStreamId,
+			"title", broadcast.Snippet.Title,
+		)
+	}
+
 	streamsService := youtube.NewLiveStreamsService(service)
 	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
 	if err != nil {
 		return fmt.Errorf("in streamsService.List: %w", err)
 	}
 
-	streamStatus := liveStreamListResponse.Items[0].Status.StreamStatus
-	healthStatus := liveStreamListResponse.Items[0].Status.HealthStatus.Status
+	for usingStreamId := range usingStreamIds {
+		for _, stream := range liveStreamListResponse.Items {
+			if stream.Id == usingStreamId {
+				streamStatus := stream.Status.StreamStatus
+				healthStatus := stream.Status.HealthStatus.Status
 
-	slog.Info("live stream status.", "streamStatus", streamStatus, "healthStatus", healthStatus)
+				slog.Info("live stream status.",
+					"liveStreamId", stream.Id,
+					"streamStatus", streamStatus,
+					"healthStatus", healthStatus,
+				)
 
-	if streamStatus != "active" && streamStatus != "ready" {
-		_ = checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus)
-	}
-	if healthStatus != "good" && healthStatus != "ok" && healthStatus != "noData" {
-		_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
+				if streamStatus != "active" && streamStatus != "ready" {
+					_ = checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus)
+				}
+				if healthStatus != "good" && healthStatus != "ok" {
+					_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
+				}
+
+				break
+			}
+		}
 	}
 
 	return nil
