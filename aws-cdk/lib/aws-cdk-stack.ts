@@ -748,8 +748,8 @@ export class AwsCdkStack extends cdk.Stack {
 			],
 		})
 
-		new events.Rule(this, '5minutes', {
-			schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+		new events.Rule(this, '15minutes', {
+			schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
 			targets: [new targets.LambdaFunction(updateWorkNameTrendFunction)],
 		})
 	}
