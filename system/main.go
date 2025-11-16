@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"os"
 	"strconv"
 	"time"
 
@@ -15,54 +14,17 @@ import (
 	"github.com/kr/pretty"
 
 	"app.modules/core/utils"
-	"github.com/pkg/errors"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 )
 
 const MaxRetryIntervalSeconds = 300
 const RetryIntervalCalculationBase = 1.2
 
-func Init() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv(".env")
-	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
-
-	ctx := context.Background()
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-
-	creds, err := transport.Creds(ctx, clientOption)
-	if err != nil {
-		return nil, nil, err
-	}
-	fmt.Printf("Project ID: %s\n", creds.ProjectID)
-	fmt.Println("Is this the correct project ID? (yes/no)")
-	var s string
-	_, _ = fmt.Scanln(&s)
-	if s != "yes" {
-		return nil, nil, errors.New("aborted")
-	}
-
-	return clientOption, ctx, nil
-}
-
-func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
-	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
-	if err != nil {
-		app.MessageToOwnerWithError(ctx, "failed core.NewWorkspaceApp()", err)
-		return
-	}
-
-	app.MessageToOwner(ctx, "居座り防止プログラムが起動しました。")
-
-	app.GoroutineCheckLongTimeSitting(ctx)
-}
-
 func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
 }
 
-func Bot(ctx context.Context, clientOption option.ClientOption) {
-	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
+func Bot(ctx context.Context) {
+	app, err := workspaceapp.NewWorkspaceApp(ctx)
 	if err != nil {
 		app.MessageToOwnerWithError(ctx, "failed core.NewWorkspaceApp()", err)
 		return
@@ -70,12 +32,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 	app.MessageToOwner(ctx, "Botが起動しました。\n"+app.GetInfoString())
 	defer func() { // when error occurred
-		app.CloseFirestoreClient()
 		app.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		app.MessageToOwner(ctx, "app stopped!!")
 	}()
-
-	go CheckLongTimeSitting(ctx, clientOption) // 居座り防止処理を並行実行
 
 	checkDesiredMaxSeatsIntervalSec := app.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 
@@ -199,10 +158,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 }
 
 func main() {
-	clientOption, ctx, err := Init()
-	if err != nil {
-		panic(err)
-	}
-
-	Bot(ctx, clientOption)
+	utils.LoadEnv(".env")
+	ctx := context.Background()
+	Bot(ctx)
 }

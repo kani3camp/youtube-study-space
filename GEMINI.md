@@ -1,11 +1,11 @@
-# CLAUDE.md
+# GEMINI.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Gemini when working with code in this repository.
 
 ## Custom Instructions
 
 ### Communication
-- **Primary Language**: 日本語でのやりとりを基本とする (Use Japanese as the primary communication language)
+- **Primary Language**: English
 
 ### External Content Management
 - **MCP Server Changes**: MCPサーバーで外部コンテンツに変更を加える時は、必ず事前に確認をとること (Always seek confirmation before making changes to external content via MCP servers)
