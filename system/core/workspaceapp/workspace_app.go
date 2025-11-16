@@ -36,19 +36,11 @@ func NewWorkspaceApp(ctx context.Context) (*WorkspaceApp, error) {
 		return nil, fmt.Errorf("in LoadLocaleFolderFS(): %w", err)
 	}
 
-	mongoController, err := repository.NewMongoController()
-	if err != nil {
-		return nil, fmt.Errorf("in NewMongoController(): %w", err)
-	}
-
-	// credentials
-	credentialsDoc, err := mongoController.ReadCredentialsConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("in ReadCredentialsConfig(): %w", err)
-	}
+	userRepository := repository.NewUserRepository()
+	studySessionRepository := repository.NewStudySessionRepository()
 
 	// YouTube live chatbot
-	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatId, mongoController, ctx)
+	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot("", nil, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
 	}
@@ -61,12 +53,12 @@ func NewWorkspaceApp(ctx context.Context) (*WorkspaceApp, error) {
 
 	configs := Configs{
 		Constants:            constantsConfig,
-		LiveChatBotChannelId: credentialsDoc.YoutubeBotChannelId,
+		LiveChatBotChannelId: "",
 	}
 
 	return &WorkspaceApp{
 		Configs:    &configs,
-		Repository: mongoController,
+		Repository: nil, // This will be handled by the individual repositories
 		LiveChatBot: liveChatBot,
 	}, nil
 }

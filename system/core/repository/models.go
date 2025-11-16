@@ -117,6 +117,13 @@ type SeatDoc struct {
 	UserProfileImageUrl    string         `json:"user_profile_image_url" firestore:"user-profile-image-url" bson:"user-profile-image-url"`
 }
 
+type StudySession struct {
+	ID        string    `firestore:"id" bson:"id"`
+	UserID    string    `firestore:"user_id" bson:"user_id"`
+	StartTime time.Time `firestore:"start_time" bson:"start_time"`
+	EndTime   time.Time `firestore:"end_time" bson:"end_time"`
+}
+
 // SeatLimitDoc defines limitations of a seat.
 type SeatLimitDoc struct { // used for both collections seat-limits-black-list and seat-limits-white-list
 	SeatId    int       `firestore:"seat-id" bson:"seat-id"`
@@ -126,47 +133,16 @@ type SeatLimitDoc struct { // used for both collections seat-limits-black-list a
 }
 
 type UserDoc struct {
-	// 当日の累計作業時間
-	DailyTotalStudySec int `json:"daily_total_study_sec" firestore:"daily-total-study-sec" bson:"daily-total-study-sec"`
-
-	// 累計作業時間
-	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec" bson:"total-study-sec"`
-
-	// 登録日
-	RegistrationDate time.Time `json:"registration_date" firestore:"registration-date" bson:"registration-date"`
-
-	// ステータスメッセージ（今は使用されていない）
-	StatusMessage string `json:"status_message" firestore:"status-message" bson:"status-message"`
-
-	// 前回の入室日時
-	LastEntered time.Time `json:"last_entered" firestore:"last-entered" bson:"last-entered"`
-
-	// 前回の退室日時
-	LastExited time.Time `json:"last_exited" firestore:"last-exited" bson:"last-exited"`
-
-	// ランク表示をするかどうか
-	RankVisible bool `json:"rank_visible" firestore:"rank-visible" bson:"rank-visible"`
-
-	// そのユーザーのデフォルト入室時間（分）
-	DefaultStudyMin int `json:"default_study_min" firestore:"default-study-min" bson:"default-study-min"`
-
-	// ランクポイント。ランク表示のオンオフに関わらずランクの計算は行われる
-	RankPoint int `json:"rank_point" firestore:"rank-point" bson:"rank-point"`
-
-	// 前回RP更新をした日付（同日に処理が重複しないように）
-	LastRPProcessed time.Time `json:"last_rp_processed" firestore:"last-rp-processed" bson:"last-rp-processed"`
-
-	// 前回の連続非アクティブ日数によるRPペナルティ処理が行われたときの、該当非アクティブ連続日数
-	LastPenaltyImposedDays int `json:"last_penalty_imposed_days" firestore:"last-penalty-imposed-days" bson:"last-penalty-imposed-days"`
-
-	// 昨日までで、連続日数でアクティブか
-	IsContinuousActive bool `json:"is_continuous_active" firestore:"is-continuous-active" bson:"is-continuous-active"`
-
-	// 昨日までの状態（アクティブor非アクティブ）が始まった日付
-	CurrentActivityStateStarted time.Time `json:"current_activity_state_started" firestore:"current-activity-state-started" bson:"current-activity-state-started"`
-
-	// お気に入りの色のカラーコード
-	FavoriteColor string `json:"favorite_color" firestore:"favorite-color" bson:"favorite-color"`
+	YouTubeUserID         string    `firestore:"youtube_user_id" bson:"youtube_user_id"`
+	DisplayName           string    `firestore:"display_name" bson:"display_name"`
+	ProfileImageURL       string    `firestore:"profile_image_url" bson:"profile_image_url"`
+	LastStudyTime         time.Time `firestore:"last_study_time" bson:"last_study_time"`
+	TotalStudyTime        int       `firestore:"total_study_time" bson:"total_study_time"`
+	TotalStudySessions    int       `firestore:"total_study_sessions" bson:"total_study_sessions"`
+	ConsecutiveStudyDays  int       `firestore:"consecutive_study_days" bson:"consecutive_study_days"`
+	LastStreakDate        time.Time `firestore:"last_streak_date" bson:"last_streak_date"`
+	RankPoint             int       `firestore:"rank_point" bson:"rank_point"`
+	CurrentStudySessionID string    `firestore:"current_study_session_id,omitempty" bson:"current_study_session_id,omitempty"`
 }
 
 type LiveChatHistoryDoc struct {
@@ -212,6 +188,7 @@ type OrderHistoryDoc struct {
 }
 
 type WorkNameTrendDoc struct {
+	WorkName string                 `json:"work_name" firestore:"work_name" bson:"work_name"`
 	Ranking  []WorkNameTrendRanking `json:"ranking" firestore:"ranking" bson:"ranking"`
 	RankedAt time.Time              `json:"ranked_at" firestore:"ranked-at" bson:"ranked-at"`
 }

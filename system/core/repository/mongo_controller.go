@@ -17,6 +17,7 @@ import (
 var (
 	mongoClient *mongo.Client
 	once        sync.Once
+	mongoErr    error
 )
 
 // NewMongoClient initializes and returns a singleton MongoDB client.
@@ -25,21 +26,24 @@ func NewMongoClient() (*mongo.Client, error) {
 	once.Do(func() {
 		uri := os.Getenv("MONGODB_URI")
 		if uri == "" {
-			log.Fatal("You must set your 'MONGODB_URI' environmental variable.")
+			log.Fatal("FATAL: The 'MONGODB_URI' environment variable is not set.")
 		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 		if err != nil {
-			log.Fatalf("failed to connect to mongo: %v", err)
+			mongoErr = err
+			return
 		}
-
 		mongoClient = client
 	})
+	return mongoClient, mongoErr
+}
 
-	return mongoClient, nil
+// GetDB returns a handle to the database named "study_space_db".
+func GetDB(client *mongo.Client) *mongo.Database {
+	return client.Database("study_space_db")
 }
 
 type MongoController struct {
@@ -636,8 +640,8 @@ func (c *MongoController) CreateSeatLimitInWHITEList(ctx context.Context, seatId
 	collectionName := getSeatLimitCollectionName(isMemberSeat, false)
 	collection := c.DB.Collection(collectionName)
 	seatLimitDoc := SeatLimitDoc{
-		SeatID:    seatId,
-		UserID:    userId,
+		SeatId:    seatId,
+		UserId:    userId,
 		CreatedAt: createdAt,
 		Until:     until,
 	}
@@ -652,8 +656,8 @@ func (c *MongoController) CreateSeatLimitInBLACKList(ctx context.Context, seatId
 	collectionName := getSeatLimitCollectionName(isMemberSeat, true)
 	collection := c.DB.Collection(collectionName)
 	seatLimitDoc := SeatLimitDoc{
-		SeatID:    seatId,
-		UserID:    userId,
+		SeatId:    seatId,
+		UserId:    userId,
 		CreatedAt: createdAt,
 		Until:     until,
 	}
