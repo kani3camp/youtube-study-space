@@ -118,10 +118,10 @@ type SeatDoc struct {
 }
 
 type StudySession struct {
-	ID        string    `firestore:"id" bson:"id"`
-	UserID    string    `firestore:"user_id" bson:"user_id"`
-	StartTime time.Time `firestore:"start_time" bson:"start_time"`
-	EndTime   time.Time `firestore:"end_time" bson:"end_time"`
+ ID string `firestore:"id" bson:"id"`
+ UserID string `firestore:"user_id" bson:"user_id"`
+ StartTime time.Time `firestore:"start_time" bson:"start_time"`
+ EndTime time.Time `firestore:"end_time" bson:"end_time"`
 }
 
 // SeatLimitDoc defines limitations of a seat.
