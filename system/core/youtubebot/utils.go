@@ -1,6 +1,8 @@
 package youtubebot
 
 import (
+	"strings"
+
 	"google.golang.org/api/youtube/v3"
 )
 
@@ -65,7 +67,10 @@ func ExtractAuthorChannelId(chat *youtube.LiveChatMessage) string {
 }
 
 func ExtractAuthorDisplayName(chat *youtube.LiveChatMessage) string {
-	return chat.AuthorDetails.DisplayName
+	displayName := chat.AuthorDetails.DisplayName
+	// YouTubeハンドル対応: @から始まる場合はその@を除外する
+	displayName = strings.TrimPrefix(displayName, "@")
+	return displayName
 }
 
 func ExtractAuthorProfileImageUrl(chat *youtube.LiveChatMessage) string {
