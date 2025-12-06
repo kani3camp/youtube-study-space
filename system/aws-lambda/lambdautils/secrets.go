@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
 // SecretStringFromSecretsManager is a common function to get secret value (string) from Secrets Manager.
@@ -22,10 +22,13 @@ func SecretStringFromSecretsManager(ctx context.Context, secretName string) (str
 		return "", fmt.Errorf("AWS_REGION/AWS_DEFAULT_REGION not set")
 	}
 
-	sess := session.Must(session.NewSession())
-	sm := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return "", fmt.Errorf("in config.LoadDefaultConfig: %w", err)
+	}
+	sm := secretsmanager.NewFromConfig(cfg)
 
-	out, err := sm.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	out, err := sm.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(secretName),
 	})
 	if err != nil {
