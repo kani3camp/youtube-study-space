@@ -14,6 +14,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+func init() {
+	lambdautils.InitLogger()
+}
+
 type SetMaxSeatsParams struct {
 	DesiredMaxSeats       int `json:"desired_max_seats"`
 	DesiredMemberMaxSeats int `json:"desired_member_max_seats"`
