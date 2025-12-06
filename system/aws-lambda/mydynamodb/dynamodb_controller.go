@@ -1,13 +1,15 @@
 package mydynamodb
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 type SecretData struct {
@@ -22,25 +24,28 @@ func FetchFirebaseCredentialsAsBytes() ([]byte, error) {
 	if region == "" {
 		return nil, fmt.Errorf("AWS_REGION/AWS_DEFAULT_REGION not set")
 	}
-	sess := session.Must(session.NewSession())
-	db := dynamodb.New(sess, aws.NewConfig().WithRegion(region))
+
+	ctx := context.Background()
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("in config.LoadDefaultConfig: %w", err)
+	}
+	db := dynamodb.NewFromConfig(cfg)
 
 	params := &dynamodb.GetItemInput{
 		TableName: aws.String("secrets"),
-		Key: map[string]*dynamodb.AttributeValue{
-			"secret_name": {
-				S: aws.String(SecretNameFirestore),
-			},
+		Key: map[string]types.AttributeValue{
+			"secret_name": &types.AttributeValueMemberS{Value: SecretNameFirestore},
 		},
 	}
 
-	result, err := db.GetItem(params)
+	result, err := db.GetItem(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("in db.GetItem: %w", err)
 	}
 	secretData := SecretData{}
-	if err := dynamodbattribute.UnmarshalMap(result.Item, &secretData); err != nil {
-		return nil, fmt.Errorf("in dynamodbattribute.UnmarshalMap: %w", err)
+	if err := attributevalue.UnmarshalMap(result.Item, &secretData); err != nil {
+		return nil, fmt.Errorf("in attributevalue.UnmarshalMap: %w", err)
 	}
 	return []byte(secretData.SecretData), nil
 }
