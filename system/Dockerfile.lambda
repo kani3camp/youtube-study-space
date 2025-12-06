@@ -3,16 +3,18 @@ WORKDIR /var/task
 COPY . .
 ENV GOCACHE=/root/.cache/go-build
 
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o start_daily_batch aws-lambda/start_daily_batch/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o start_daily_batch aws-lambda/start_daily_batch/main.go
+RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
 
 # Copy artifacts to a clean image
 FROM public.ecr.aws/lambda/provided:al2023
 WORKDIR /app
+
+ENV TZ=Asia/Tokyo
 
 COPY --from=build /var/task/set_desired_max_seats ./set_desired_max_seats
 COPY --from=build /var/task/youtube_organize_database ./youtube_organize_database
