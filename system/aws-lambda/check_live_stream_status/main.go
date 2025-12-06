@@ -10,6 +10,10 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
+func init() {
+	lambdautils.InitLogger()
+}
+
 type CheckLiveStreamResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`

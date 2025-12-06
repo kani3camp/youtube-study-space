@@ -7,11 +7,16 @@ import (
 	"os"
 	"time"
 
+	"app.modules/aws-lambda/lambdautils"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 )
+
+func init() {
+	lambdautils.InitLogger()
+}
 
 const (
 	jstOffsetSeconds = 9 * 60 * 60

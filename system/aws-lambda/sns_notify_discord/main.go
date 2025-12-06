@@ -13,6 +13,10 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
+func init() {
+	lambdautils.InitLogger()
+}
+
 func handler(evt events.SNSEvent) error {
 	ctx := context.Background()
 

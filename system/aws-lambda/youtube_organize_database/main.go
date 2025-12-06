@@ -10,6 +10,10 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
+func init() {
+	lambdautils.InitLogger()
+}
+
 type OrganizeDatabaseResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
