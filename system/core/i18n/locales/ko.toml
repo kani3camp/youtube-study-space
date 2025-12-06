@@ -3,40 +3,40 @@
 "break" = "쉬는중입니다☕"
 "on" = "ON"
 "off" = "OFF"
-"sir" = "@{0}님, "
+"sir" = "@{0} 님, "
 "vip-seat-id" = "VIP{0}"    # 0: SeatId
 
 [command]
-"option-warn" = "@{0}님, 옵션이 올바르게 설정되어 있는지 확인해주세요🙏" # 0: Username
-"error" = "@{0}님, 오류가 발생하였습니다. 다시 시도해주세요🔄" # 0: Username
+"option-warn" = "@{0} 님, 옵션이 올바르게 설정되어 있는지 확인해주세요🙏" # 0: Username
+"error" = "@{0} 님, 오류가 발생하였습니다. 다시 시도해주세요🔄" # 0: Username
 "rp-earned" = "（+ {0} RP✨）" # 0: Earned
-"not-enter" = "@{0}님은 아직 입장하지 않으셨습니다. 「{1}」 명령어로 입장해주세요!📝" # 0: Username, 1: InCommand
+"not-enter" = "@{0} 님은 아직 입장하지 않으셨습니다. 「{1}」 명령어로 입장해주세요!📝" # 0: Username, 1: InCommand
 "enter-only" = "입장 중에만 사용할 수 있는 명령어입니다🚪"
-"permission" = "@{0}님은 「{1}」 명령어를 사용할 수 없습니다🔒" # 0: Username, 1: Command
-"exit"= "@{0}님이 퇴장하셨습니다🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
-"unused" = "@{0}님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다🪑" # 0: UserName
-"sent" = "@{0}님, 정보를 전송하였습니다📨" # 0: UserName
-"rank" = "@{0}님의 순위 표시가 {1}로 설정되었습니다🎯" # 0: UserName, 1: Value
+"permission" = "@{0} 님은 「{1}」 명령어를 사용할 수 없습니다🔒" # 0: Username, 1: Command
+"exit"= "@{0} 님이 퇴장하셨습니다🚪 （+ {1}분, {2}번 좌석）{3}" # 0: Username, 1: WorkedTime, 2: Seat, 3: earn
+"unused" = "@{0} 님, 해당 번호의 좌석은 아무도 사용하고 있지 않습니다🪑" # 0: UserName
+"sent" = "@{0} 님, 정보를 전송하였습니다📨" # 0: UserName
+"rank" = "@{0} 님의 순위 표시가 {1}로 설정되었습니다🎯" # 0: UserName, 1: Value
 
 [command-in]
 # 0: Username, 1: Seat
-"no-seat" = "@{0}님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요🪑"
-"no-availability" = "@{0}님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요⏳"
-"already-seat" = "@{0}님은 {1}번 좌석에 앉아 있습니다🪑"
+"no-seat" = "@{0} 님, 해당 번호의 좌석은 현재 사용 불가합니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요🪑"
+"no-availability" = "@{0} 님, 해당 번호의 좌석은 제한 시간으로 인해 현재 사용할 수 없습니다. 다른 빈 좌석을 선택하거나 「{1}」 명령어로 좌석을 지정하지 않고 입장해주세요⏳"
+"already-seat" = "@{0} 님은 {1}번 좌석에 앉아 있습니다🪑"
 # 0: Username, 1: CurrentSeat, 2: NewSeat, 3: time, 4: earn, 5: Until Exit
-"seat-move" = "@{0}님이 좌석을 이동하였습니다🚶（작업 내용: \"{1}\"）（{2}→{3}번 좌석）（+ {4}분）{5}（{6}분 후 자동 퇴장）"
-"start" = "@{0}님이 작업을 시작했습니다🔥（작업 내용: \"{1}\"、최대 {2}분, {3}번 좌석）" # 0: Username, 1: workName, 2: Until Exit, 3: Seat
-"member-seat-forbidden" = "@{0}님, 멤버 전용 좌석에 앉으려면 멤버 등록이 필요합니다🍀"
-"membership-disabled" = "@{0}님, 멤버십 기능은 사용할 수 없습니다."
+"seat-move" = "@{0} 님이 좌석을 이동하였습니다🚶（작업 내용: \"{1}\"）（{2}→{3}번 좌석）（+ {4}분）{5}（{6}분 후 자동 퇴장）"
+"start" = "@{0} 님이 작업을 시작했습니다🔥（작업 내용: \"{1}\"、최대 {2}분, {3}번 좌석）" # 0: Username, 1: workName, 2: Until Exit, 3: Seat
+"member-seat-forbidden" = "@{0} 님, 멤버 전용 좌석에 앉으려면 멤버 등록이 필요합니다🍀"
+"membership-disabled" = "@{0} 님, 멤버십 기능은 사용할 수 없습니다."
 "ordered" = "{0}의 주문을 접수했습니다🍽（오늘 {1}회째）" # 0: menuName, 1: orderNum
 "too-many-orders" = "오늘의 주문 횟수가 상한({0}회)에 도달했습니다😔" # 0: maxOrderCount
 
 [command-out]
-"already-exit" = "@{0}님, 이미 퇴장하셨습니다 🚶" # 0: Username
-"already-exit-with-last-exit-time" = "@{0}님, 이미 퇴장하셨습니다（마지막 퇴장 시간：{1}시 {2}분）⏰" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
+"already-exit" = "@{0} 님, 이미 퇴장하셨습니다 🚶" # 0: Username
+"already-exit-with-last-exit-time" = "@{0} 님, 이미 퇴장하셨습니다（마지막 퇴장 시간：{1}시 {2}분）⏰" # 0: Username, 1: Last Exit Time Hour, 2: Last Exit Time Minute
 
 [command-user-info]
-"base" = "@{0}님 ［⏱️오늘의 작업 시간: {1}] ［📊총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
+"base" = "@{0} 님 ［⏱️오늘의 작업 시간: {1}] ［📊총 작업 시간: {2}]" # 0: Username, 1: Daily Total Time, 2: Total Time
 "rank" = "［🎯랭킹 포인트: {0} RP]" # 0: RP
 "rank-on" = "［🏆랭크 표시: ON］"
 "rank-on-continuous" = "［🏃연속 {0}일째（연속 일수: {1}）］" # 0: continuousActiveDays, 1: continuousActiveDays
@@ -50,21 +50,21 @@
 [command-seat-info]
 "break-until" = "작업 재개까지 {0}분 남았습니다 ⏳" # 0: Value
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
-"base" = "@{0}님은 {1}번 좌석에서 {2} 상태로 {3}분째 입장 중이며, 작업 시간은 {4}분, 자동 퇴장까지 {5}분 남았습니다📊 {6}"
+"base" = "@{0} 님은 {1}번 좌석에서 {2} 상태로 {3}분째 입장 중이며, 작업 시간은 {4}분, 자동 퇴장까지 {5}분 남았습니다📊 {6}"
 # 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
 "details" = "최근 {0}분 이내에 {1}번 좌석에 총 {2}분 앉아 있었습니다🪑"
 
 [command-report]
-"no-message" = "@{0}님, 공백을 넣고 메시지를 작성해주세요." # 0: Username
+"no-message" = "@{0} 님, 공백을 넣고 메시지를 작성해주세요." # 0: Username
 "owner" = "【{0} 수신】\n채널 ID: {1}\n채널 이름: {2}\n\n{3}" # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
 "moderators" = "【{0} 수신】\n채널 이름: `{1}`\n메시지: `{2}`"    # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
-"alert" = "@{0}님, 관리자에게 메시지를 전송하였습니다⚠" # 0: UserName
+"alert" = "@{0} 님, 관리자에게 메시지를 전송하였습니다⚠" # 0: UserName
 
 [command-kick]
-"kick" = "@{0}님, {1}번 좌석의 {2}님을 퇴장시킵니다 🚫" # 0: Username, 1: SeatId, 2: seat user
+"kick" = "@{0} 님, {1}번 좌석의 {2}님을 퇴장시킵니다 🚫" # 0: Username, 1: SeatId, 2: seat user
 
 [command-block]
-"block" = "@{0}님, {1}번 좌석의 {2}님을 차단합니다 🚫"  # 0: UserName, 1: seatId, 2: TargetUserName
+"block" = "@{0} 님, {1}번 좌석의 {2}님을 차단합니다 🚫"  # 0: UserName, 1: seatId, 2: TargetUserName
 
 [command-my]
 "already-rank" = "랭크 표시 모드는 이미 {0}입니다 🎯" # 0: Status
@@ -92,23 +92,23 @@
 "reply" = "현재 {0}분째 입실 중이며, 자동 퇴실까지 {1}분 남았습니다⏳"
 
 [command-break]
-"work-only" = "@{0}님, 작업 중에만 사용할 수 있는 명령어입니다🙏"
-"warn" = "@{0}님, 작업 시작 후 {1}분 동안은 휴식을 할 수 없습니다⚠️ 현재 {2}분 작업 중입니다"
-"break" = "@{0}님이 휴식에 들어갑니다☕（휴식 내용: \"{1}\", 최대 {2}분, {3}번 좌석）"
+"work-only" = "@{0} 님, 작업 중에만 사용할 수 있는 명령어입니다🙏"
+"warn" = "@{0} 님, 작업 시작 후 {1}분 동안은 휴식을 할 수 없습니다⚠️ 현재 {2}분 작업 중입니다"
+"break" = "@{0} 님이 휴식에 들어갑니다☕（휴식 내용: \"{1}\", 최대 {2}분, {3}번 좌석）"
 
 [command-resume]
-"break-only" = "@{0}님, 휴식 중에만 사용할 수 있는 명령어입니다🙏"
-"work" = "@{0}님이 작업을 재개합니다🔥（{1}번 좌석, 자동 퇴실까지 {2}분 남았습니다）"
+"break-only" = "@{0} 님, 휴식 중에만 사용할 수 있는 명령어입니다🙏"
+"work" = "@{0} 님이 작업을 재개합니다🔥（{1}번 좌석, 자동 퇴실까지 {2}분 남았습니다）"
 
 [command-order]
-"too-many-orders" = "@{0}님, 오늘의 주문 횟수가 상한({1}회)에 도달했습니다😔" # 0: userName, 1: maxOrderCount
-"ordered" = "@{0}님, {1}의 주문을 접수했습니다🍽（오늘 {2}회째）" # 0: userName, 1: menuName
-"cleared" = "@{0}님, 식기를 치웠습니다🍽️" # 0: userName
+"too-many-orders" = "@{0} 님, 오늘의 주문 횟수가 상한({1}회)에 도달했습니다😔" # 0: userName, 1: maxOrderCount
+"ordered" = "@{0} 님, {1}의 주문을 접수했습니다🍽（오늘 {2}회째）" # 0: userName, 1: menuName
+"cleared" = "@{0} 님, 식기를 치웠습니다🍽️" # 0: userName
 
 [others]
-"force-move" = "@{0}님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
-"clear-work" = "@{0}님, 작업 내용을 리셋했습니다🧹({1}번 좌석)"
-"clear-break" = "@{0}님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatId
+"force-move" = "@{0} 님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
+"clear-work" = "@{0} 님, 작업 내용을 리셋했습니다🧹({1}번 좌석)"
+"clear-break" = "@{0} 님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatId
 
 [parse]
 "isolated-!" = "느낌표는 옆 문자와 붙여서 사용하세요 ✍️"
