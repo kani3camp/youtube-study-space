@@ -35,7 +35,7 @@ var showUserInfoTestCases = []struct {
 		},
 		userIsMember:         false,
 		currentSeatDoc:       nil,
-		expectedReplyMessage: "@テストユーザーさん ［⏱️本日の作業時間：0分] ［📊累計作業時間：0分]",
+		expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：0分] ［📊累計作業時間：0分]",
 	},
 	{
 		name: "ユーザー情報表示（入室時）",
@@ -50,7 +50,7 @@ var showUserInfoTestCases = []struct {
 			EnteredAt:             time.Now().Add(-10 * time.Minute),
 			CurrentStateStartedAt: time.Now().Add(-10 * time.Minute),
 		},
-		expectedReplyMessage: "@テストユーザーさん ［⏱️本日の作業時間：10分] ［📊累計作業時間：10分]",
+		expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：10分] ［📊累計作業時間：10分]",
 	},
 }
 
@@ -121,7 +121,7 @@ var rankTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさんのランク表示をオンにしました🎯",
+		expectedReplyMessage: "@テストユーザー さんのランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モード切り替え（オフ）",
@@ -135,7 +135,7 @@ var rankTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさんのランク表示をオフにしました🎯",
+		expectedReplyMessage: "@テストユーザー さんのランク表示をオフにしました🎯",
 	},
 }
 
@@ -214,7 +214,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示をオンにしました🎯",
+		expectedReplyMessage: "@テストユーザー さん、ランク表示をオンにしました🎯",
 	},
 	{
 		name: "ランク表示モードオフ",
@@ -234,7 +234,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示をオフにしました🎯",
+		expectedReplyMessage: "@テストユーザー さん、ランク表示をオフにしました🎯",
 	},
 	{
 		name: "ランク表示モードオン（すでにオン）",
@@ -254,7 +254,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: true,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオンです🎯",
+		expectedReplyMessage: "@テストユーザー さん、ランク表示モードはすでにオンです🎯",
 	},
 	{
 		name: "ランク表示モードオフ（すでにオフ）",
@@ -274,7 +274,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			RankVisible: false,
 		},
-		expectedReplyMessage: "@テストユーザーさん、ランク表示モードはすでにオフです🎯",
+		expectedReplyMessage: "@テストユーザー さん、ランク表示モードはすでにオフです🎯",
 	},
 	{
 		name: "お気に入り作業時間設定",
@@ -294,7 +294,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			DefaultStudyMin: 30,
 		},
-		expectedReplyMessage: "@テストユーザーさん、デフォルトの作業時間を60分に設定しました⏱️",
+		expectedReplyMessage: "@テストユーザー さん、デフォルトの作業時間を60分に設定しました⏱️",
 	},
 	{
 		name: "お気に入りカラーを設定（まだ使用不可）",
@@ -314,7 +314,7 @@ var myTestCases = []struct {
 		currentUserDoc: repository.UserDoc{
 			FavoriteColor: "000000",
 		},
-		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました🎨（累計作業時間が1000時間を超えるとお気に入りカラーが使えるようになります）",
+		expectedReplyMessage: "@テストユーザー さん、お気に入りカラーを更新しました🎨（累計作業時間が1000時間を超えるとお気に入りカラーが使えるようになります）",
 	},
 	{
 		name: "お気に入りカラー設定（使用可能）",
@@ -335,7 +335,7 @@ var myTestCases = []struct {
 			FavoriteColor: "",
 			TotalStudySec: int(1000 * time.Hour),
 		},
-		expectedReplyMessage: "@テストユーザーさん、お気に入りカラーを更新しました🎨",
+		expectedReplyMessage: "@テストユーザー さん、お気に入りカラーを更新しました🎨",
 	},
 }
 
