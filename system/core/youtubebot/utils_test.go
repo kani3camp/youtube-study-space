@@ -59,4 +59,3 @@ func TestExtractAuthorDisplayName(t *testing.T) {
 		})
 	}
 }
-
