@@ -12,8 +12,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=build /out/batch /app/batch
 ENV TZ=Asia/Tokyo
+COPY --from=build /out/batch /app/batch
 USER nonroot:nonroot
 ENTRYPOINT ["/app/batch"]
 
