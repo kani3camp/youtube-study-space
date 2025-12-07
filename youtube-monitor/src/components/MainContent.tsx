@@ -542,13 +542,11 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 
 	if (pageProps.length > 0) {
 		return (
-			<>
-				<div css={mainContent}>
-					{layoutPagesMemo}
-					{messageMemo}
-					{tickerMemo}
-				</div>
-			</>
+			<div css={mainContent}>
+				{layoutPagesMemo}
+				{messageMemo}
+				{tickerMemo}
+			</div>
 		)
 	}
 	return <CenterLoading />

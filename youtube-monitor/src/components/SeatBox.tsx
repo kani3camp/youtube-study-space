@@ -55,7 +55,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 		imgSrc: string,
 	) => {
 		console.error(`retrying to load image... ' + ${imgSrc}`)
-		e.currentTarget.src = `${imgSrc}?${new Date().getTime().toString()}`
+		e.currentTarget.src = `${imgSrc}?${Date.now().toString()}`
 	}
 
 	const colorGradientKeyframes = keyframes`

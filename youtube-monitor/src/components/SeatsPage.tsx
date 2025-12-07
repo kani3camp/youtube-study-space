@@ -112,28 +112,27 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 
 	const seatList = useMemo(
 		() =>
-			propsMemo.roomLayout.seats.map((seat, index) => {
+			propsMemo.roomLayout.seats.map((_seat, index) => {
 				const globalSeatId = propsMemo.firstSeatId + index
 				const isUsed = usedSeatIds.includes(globalSeatId)
 				const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
 
-				const minutesElapsed = isUsed
-					? Math.floor(
-							(new Date().valueOf() -
-								new Date(processingSeat.entered_at.toMillis()).valueOf()) /
-								1000 /
-								60,
-						)
-					: 0
+			const minutesElapsed = isUsed
+				? Math.floor(
+						(Date.now() -
+							new Date(processingSeat.entered_at.toMillis()).valueOf()) /
+							1000 /
+							60,
+					)
+				: 0
 				const hoursElapsed = isUsed ? Math.floor(minutesElapsed / 60) : 0
-				const minutesRemaining = isUsed
-					? Math.floor(
-							(new Date(processingSeat.until.toMillis()).valueOf() -
-								new Date().valueOf()) /
-								1000 /
-								60,
-						)
-					: 0
+			const minutesRemaining = isUsed
+				? Math.floor(
+						(new Date(processingSeat.until.toMillis()).valueOf() - Date.now()) /
+							1000 /
+							60,
+					)
+				: 0
 				const hoursRemaining = isUsed ? Math.floor(minutesRemaining / 60) : 0
 
 				return (
@@ -188,36 +187,34 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 	)
 
 	return (
-		<>
-			<div
-				css={styles.roomLayout}
-				style={
-					propsMemo.display
-						? {
-								display: 'block',
-								width: roomShape.widthPx,
-								height: roomShape.heightPx,
-							}
-						: {
-								display: 'none',
-							}
-				}
-			>
-				{propsMemo.roomLayout.floor_image && (
-					<Image
-						alt="room image"
-						src={propsMemo.roomLayout.floor_image}
-						width={roomShape.widthPx}
-						height={roomShape.heightPx}
-						priority={true}
-					/>
-				)}
+		<div
+			css={styles.roomLayout}
+			style={
+				propsMemo.display
+					? {
+							display: 'block',
+							width: roomShape.widthPx,
+							height: roomShape.heightPx,
+						}
+					: {
+							display: 'none',
+						}
+			}
+		>
+			{propsMemo.roomLayout.floor_image && (
+				<Image
+					alt="room image"
+					src={propsMemo.roomLayout.floor_image}
+					width={roomShape.widthPx}
+					height={roomShape.heightPx}
+					priority={true}
+				/>
+			)}
 
-				{seatList}
+			{seatList}
 
-				{partitionList}
-			</div>
-		</>
+			{partitionList}
+		</div>
 	)
 }
 
