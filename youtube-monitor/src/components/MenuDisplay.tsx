@@ -1,8 +1,8 @@
 import { useTranslation } from 'next-i18next'
-import { type FC, useEffect, useState, useCallback } from 'react'
+import { type FC, useCallback, useEffect, useState } from 'react'
 import { useInterval } from '../lib/common'
-import * as styles from '../styles/Menu.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+import * as styles from '../styles/Menu.styles'
 import type { Menu } from '../types/api'
 import MenuBox, { type MenuBoxProps } from './MenuBox'
 
@@ -65,8 +65,7 @@ const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
 
 	const refreshPageIndex = () => {
 		if (menuItems.length > 0) {
-			const newPageIndex =
-				(pageIndex + 1) % Math.ceil(menuItems.length / 2)
+			const newPageIndex = (pageIndex + 1) % Math.ceil(menuItems.length / 2)
 			setPageIndex(newPageIndex)
 		}
 	}

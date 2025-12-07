@@ -1,8 +1,7 @@
+import { css, Global as EmotionGlobal } from '@emotion/react'
+import { withThemeFromJSXProvider } from '@storybook/addon-themes'
 import type { Preview } from '@storybook/react'
 import React from 'react'
-
-import { Global as EmotionGlobal, css } from '@emotion/react'
-import { withThemeFromJSXProvider } from '@storybook/addon-themes'
 import { globalStyle } from '../src/styles/global.styles'
 
 const GlobalStyles = () => <EmotionGlobal styles={globalStyle} />

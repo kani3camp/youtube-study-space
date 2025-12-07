@@ -1,6 +1,25 @@
+import { initializeApp } from 'firebase/app'
+import {
+	collection,
+	doc,
+	getFirestore,
+	onSnapshot,
+	query,
+	Timestamp,
+} from 'firebase/firestore'
+import { useRouter } from 'next/router'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import api from '../lib/api-config'
+import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
+import { Constants } from '../lib/constants'
 import fetcher from '../lib/fetcher'
+import {
+	firestoreConstantsConverter,
+	firestoreSeatConverter,
+	firestoreWorkNameTrendConverter,
+	getFirebaseConfig,
+	type SystemConstants,
+} from '../lib/firestore'
 import {
 	allRooms,
 	numSeatsInGeneralAllBasicRooms,
@@ -16,28 +35,8 @@ import type {
 import type { RoomLayout } from '../types/room-layout'
 import CenterLoading from './CenterLoading'
 import Message from './Message'
-import TickerBoard from './TickerBoard'
 import SeatsPage, { type LayoutPageProps } from './SeatsPage'
-
-import { initializeApp } from 'firebase/app'
-import {
-	collection,
-	doc,
-	getFirestore,
-	onSnapshot,
-	query,
-	Timestamp,
-} from 'firebase/firestore'
-import { useRouter } from 'next/router'
-import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
-import { Constants } from '../lib/constants'
-import {
-	type SystemConstants,
-	firestoreConstantsConverter,
-	firestoreSeatConverter,
-	firestoreWorkNameTrendConverter,
-	getFirebaseConfig,
-} from '../lib/firestore'
+import TickerBoard from './TickerBoard'
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 

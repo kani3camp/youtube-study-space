@@ -1,7 +1,7 @@
 import { useTranslation } from 'next-i18next'
 import type { FC } from 'react'
-import * as styles from '../styles/Message.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+import * as styles from '../styles/Message.styles'
 import type { Seat } from '../types/api'
 
 type Props = {

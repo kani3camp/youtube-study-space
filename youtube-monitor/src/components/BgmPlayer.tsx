@@ -1,10 +1,10 @@
 import { Wave } from '@foobar404/wave'
-import { parseWebStream, parseBlob, type IAudioMetadata } from 'music-metadata'
+import { type IAudioMetadata, parseBlob, parseWebStream } from 'music-metadata'
 import type React from 'react'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
-import { SectionType, getCurrentSection } from '../lib/time-table'
+import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
 
