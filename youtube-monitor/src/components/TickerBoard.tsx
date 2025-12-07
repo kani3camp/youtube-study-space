@@ -1,9 +1,9 @@
+import { useTranslation } from 'next-i18next'
 import type { FC } from 'react'
 import Marquee from 'react-fast-marquee'
-import * as styles from '../styles/TickerBoard.styles'
 import { componentBackground } from '../styles/common.style'
+import * as styles from '../styles/TickerBoard.styles'
 import type { WorkNameTrend } from '../types/api'
-import { useTranslation } from 'next-i18next'
 
 type Props = {
 	workNameTrend: WorkNameTrend

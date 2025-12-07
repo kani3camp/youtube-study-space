@@ -1,5 +1,4 @@
 import { css } from '@emotion/react'
-import { sourceCodeProFontFamily } from '../lib/common'
 import { Constants } from '../lib/constants'
 
 export const shape = css`

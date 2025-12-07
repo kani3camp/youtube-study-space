@@ -2,13 +2,13 @@ import { useTranslation } from 'next-i18next'
 import { type FC, useState } from 'react'
 import { useInterval } from '../lib/common'
 import {
-	SectionType,
 	getCurrentSection,
 	getNextSection,
 	remainingTime,
+	SectionType,
 } from '../lib/time-table'
-import * as styles from '../styles/Timer.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+import * as styles from '../styles/Timer.styles'
 
 const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
 

@@ -1,4 +1,10 @@
-import type { FirebaseOptions } from 'firebase/app'
+import {
+	type FirebaseApp,
+	type FirebaseOptions,
+	getApp,
+	getApps,
+	initializeApp,
+} from 'firebase/app'
 import type {
 	DocumentData,
 	FirestoreDataConverter,
@@ -19,6 +25,10 @@ export const getFirebaseConfig = (): FirebaseOptions => {
 		apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
 		projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 	}
+}
+
+export const getFirebaseApp = (): FirebaseApp => {
+	return getApps().length === 0 ? initializeApp(getFirebaseConfig()) : getApp()
 }
 
 export type SystemConstants = {
@@ -113,6 +123,7 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
 		return {
 			code: menu.code,
 			name: menu.name,
+			image: menu.image,
 		}
 	},
 	fromFirestore(
@@ -123,6 +134,7 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
 		return {
 			code: data.code,
 			name: data.name,
+			image: data.image ?? '',
 		}
 	},
 }
