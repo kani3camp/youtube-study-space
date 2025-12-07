@@ -24,7 +24,7 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 				>
 					{workNameTrend.ranking.map((r) => {
 						return (
-							<span css={styles.genreItem} key={`tb-${r.genre}`}>
+							<span css={styles.genreItem} key={`tb-${r.rank}-${r.genre}`}>
 								<span css={styles.rankBadge}>
 									{t('work_name_trend.trend_rank', { rank: r.rank })}
 								</span>
@@ -34,9 +34,12 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 									{t('work_name_trend.count', { value: r.count })}
 								</span>
 								<span css={styles.examplesWrapper}>
-									{r.examples.map((e) => {
+									{r.examples.map((e, exampleIndex) => {
 										return (
-											<span css={styles.exampleChip} key={`tb-${r.rank}-${e}`}>
+											<span
+												css={styles.exampleChip}
+												key={`tb-${r.rank}-${exampleIndex}-${e}`}
+											>
 												{e}
 											</span>
 										)
