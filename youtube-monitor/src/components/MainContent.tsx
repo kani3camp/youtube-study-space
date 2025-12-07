@@ -255,7 +255,7 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 		() =>
 			pageProps.map((pageProp) => (
 				<SeatsPage
-					key={pageProp.firstSeatId}
+					key={`${pageProp.memberOnly ? 'member' : 'general'}-${pageProp.firstSeatId}`}
 					firstSeatId={pageProp.firstSeatId}
 					roomLayout={pageProp.roomLayout}
 					usedSeats={pageProp.usedSeats}
