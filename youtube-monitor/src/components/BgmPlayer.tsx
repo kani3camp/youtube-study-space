@@ -86,7 +86,9 @@ const BgmPlayer: React.FC = () => {
 				metadata = await parseBlob(blob)
 			} else {
 				const contentLength = response.headers.get('Content-Length')
-				const size = contentLength ? Number.parseInt(contentLength, 10) : undefined
+				const size = contentLength
+					? Number.parseInt(contentLength, 10)
+					: undefined
 				metadata = await parseWebStream(response.body, {
 					mimeType: response.headers.get('Content-Type') ?? undefined,
 					size,

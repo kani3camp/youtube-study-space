@@ -117,22 +117,23 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 				const isUsed = usedSeatIds.includes(globalSeatId)
 				const processingSeat = seatWithSeatId(globalSeatId, propsMemo.usedSeats)
 
-			const minutesElapsed = isUsed
-				? Math.floor(
-						(Date.now() -
-							new Date(processingSeat.entered_at.toMillis()).valueOf()) /
-							1000 /
-							60,
-					)
-				: 0
+				const minutesElapsed = isUsed
+					? Math.floor(
+							(Date.now() -
+								new Date(processingSeat.entered_at.toMillis()).valueOf()) /
+								1000 /
+								60,
+						)
+					: 0
 				const hoursElapsed = isUsed ? Math.floor(minutesElapsed / 60) : 0
-			const minutesRemaining = isUsed
-				? Math.floor(
-						(new Date(processingSeat.until.toMillis()).valueOf() - Date.now()) /
-							1000 /
-							60,
-					)
-				: 0
+				const minutesRemaining = isUsed
+					? Math.floor(
+							(new Date(processingSeat.until.toMillis()).valueOf() -
+								Date.now()) /
+								1000 /
+								60,
+						)
+					: 0
 				const hoursRemaining = isUsed ? Math.floor(minutesRemaining / 60) : 0
 
 				return (
