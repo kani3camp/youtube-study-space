@@ -8,6 +8,7 @@ import {
 } from '../rooms/rooms-config'
 import { mainContent } from '../styles/MainContent.styles'
 import type {
+	Menu,
 	Seat,
 	SetDesiredMaxSeatsResponse,
 	WorkNameTrend,
@@ -40,7 +41,11 @@ import {
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
-const Seats: FC = () => {
+type SeatsProps = {
+	menuItems: Menu[]
+}
+
+const Seats: FC<SeatsProps> = ({ menuItems }) => {
 	const router = useRouter()
 
 	const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
@@ -62,6 +67,15 @@ const Seats: FC = () => {
 			ranked_at: Timestamp.now(),
 		},
 	)
+
+	// menu_codeから画像URLへのマッピングを作成
+	const menuImageMap = useMemo(() => {
+		const map = new Map<string, string>()
+		for (const item of menuItems) {
+			map.set(item.code, item.image || '/images/menu_default.svg')
+		}
+		return map
+	}, [menuItems])
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
 	useEffect(() => {
@@ -108,6 +122,7 @@ const Seats: FC = () => {
 		latestMemberSeats,
 		latestGeneralLayouts,
 		latestMemberLayouts,
+		menuImageMap,
 	])
 
 	/**
@@ -248,9 +263,10 @@ const Seats: FC = () => {
 					usedSeats={pageProp.usedSeats}
 					display={pageProp.display}
 					memberOnly={pageProp.memberOnly}
+					menuImageMap={menuImageMap}
 				/>
 			)),
-		[pageProps],
+		[pageProps, menuImageMap],
 	)
 
 	/**
@@ -470,6 +486,7 @@ const Seats: FC = () => {
 					usedSeats: usedSeatsInLayout,
 					display: false, // set later in this function
 					memberOnly: member_only,
+					menuImageMap,
 				}
 			}
 

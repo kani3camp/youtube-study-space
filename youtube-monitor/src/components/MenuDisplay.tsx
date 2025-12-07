@@ -1,91 +1,54 @@
-import { initializeApp } from 'firebase/app'
-import {
-	collection,
-	getFirestore,
-	onSnapshot,
-	orderBy,
-	query,
-} from 'firebase/firestore'
 import { useTranslation } from 'next-i18next'
-import { type FC, useEffect, useMemo, useState, useCallback } from 'react'
+import { type FC, useEffect, useState, useCallback } from 'react'
 import { useInterval } from '../lib/common'
-import { firestoreMenuConverter, getFirebaseConfig } from '../lib/firestore'
 import * as styles from '../styles/Menu.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import type { Menu } from '../types/api'
 import MenuBox, { type MenuBoxProps } from './MenuBox'
 
-export const checkImageExists = (url: string): Promise<boolean> =>
-	new Promise((resolve) => {
-		console.log('checkImageExists:', url)
-		const img = new globalThis.Image()
-		img.onload = () => resolve(true)
-		img.onerror = () => resolve(false)
-		img.src = url
-	})
+const DEFAULT_MENU_IMAGE = '/images/menu_default.svg'
 
 export type MenuItemAndImage = {
 	item: Menu
 	imageUrl: string
 }
 
-const MenuDisplay: FC = () => {
+type MenuDisplayProps = {
+	menuItems: Menu[]
+}
+
+const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
 	const PAGING_INTERVAL_SEC = 5
 
 	const { t } = useTranslation()
 
-	const app = initializeApp(getFirebaseConfig())
-	const db = getFirestore(app)
-
-	const [latestMenuItems, setLatestMenuItems] = useState<Menu[]>([])
 	const [menuBoxList, setMenuBoxList] = useState<MenuBoxProps[]>([])
 	const [pageIndex, setPageIndex] = useState<number>(0)
-	const menuConverter = firestoreMenuConverter
 
-	const menuQuery = useMemo(
-		() =>
-			query(collection(db, 'menu'), orderBy('code', 'asc')).withConverter(
-				menuConverter,
-			),
-		[db, menuConverter],
-	)
-	useEffect(() => {
-		const unsubscribe = onSnapshot(menuQuery, (querySnapshot) => {
-			const menuItems: Menu[] = []
-			for (const doc of querySnapshot.docs) {
-				menuItems.push(doc.data())
-			}
-			setLatestMenuItems(menuItems)
-		})
-
-		return () => {
-			unsubscribe()
-		}
-	}, [menuQuery])
-
-	const updateMenuItems = useCallback(async () => {
-		const menuItemAndImages = await Promise.all(
-			latestMenuItems.map(async (item: Menu) => {
-				let imageUrl = `/images/menu/${item.code}.svg`
-				const imageExists = await checkImageExists(imageUrl)
-				if (!imageExists) {
-					imageUrl = '/images/menu_default.svg'
-				}
+	const updateMenuItems = useCallback(() => {
+		const menuItemAndImages: MenuItemAndImage[] = menuItems.map(
+			(item: Menu) => {
+				const imageUrl = item.image || DEFAULT_MENU_IMAGE
 				return { item, imageUrl }
-			}),
+			},
 		)
-		const menuBoxList: MenuBoxProps[] = []
+		const newMenuBoxList: MenuBoxProps[] = []
 		for (let i = 0; i < menuItemAndImages.length; i += 2) {
 			const first = menuItemAndImages[i]
 			const second = menuItemAndImages[i + 1] ? menuItemAndImages[i + 1] : null
 			const firstNumber = i + 1
 			const secondNumber = second ? i + 2 : null
 			const display = i === 0
-			menuBoxList.push({ first, firstNumber, second, secondNumber, display })
+			newMenuBoxList.push({
+				first,
+				firstNumber,
+				second,
+				secondNumber,
+				display,
+			})
 		}
-		setMenuBoxList(menuBoxList)
-		console.log(menuBoxList)
-	}, [latestMenuItems])
+		setMenuBoxList(newMenuBoxList)
+	}, [menuItems])
 
 	useEffect(() => {
 		updateMenuItems()
@@ -101,9 +64,9 @@ const MenuDisplay: FC = () => {
 	}, [pageIndex])
 
 	const refreshPageIndex = () => {
-		if (latestMenuItems.length > 0) {
+		if (menuItems.length > 0) {
 			const newPageIndex =
-				(pageIndex + 1) % Math.ceil(latestMenuItems.length / 2)
+				(pageIndex + 1) % Math.ceil(menuItems.length / 2)
 			setPageIndex(newPageIndex)
 		}
 	}

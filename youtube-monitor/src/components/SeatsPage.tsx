@@ -12,6 +12,7 @@ export type LayoutPageProps = {
 	firstSeatId: number
 	display: boolean // 表示するページの場合はtrue、それ以外はfalse
 	memberOnly: boolean
+	menuImageMap: Map<string, string>
 }
 
 export const SeatState = {
@@ -150,6 +151,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						minutesRemaining={minutesRemaining}
 						hoursRemaining={hoursRemaining}
 						roomShape={roomShape}
+						menuImageMap={propsMemo.menuImageMap}
 					/>
 				)
 			}),
@@ -164,6 +166,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 			usedSeatIds,
 			seatFontSizePx,
 			seatWithSeatId,
+			propsMemo.menuImageMap,
 		],
 	)
 

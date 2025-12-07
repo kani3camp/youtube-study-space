@@ -31,6 +31,7 @@ export type SeatProps = {
 		widthPx: number
 		heightPx: number
 	}
+	menuImageMap: Map<string, string>
 }
 
 const SeatBox: FC<SeatProps> = (props) => {
@@ -202,15 +203,18 @@ const SeatBox: FC<SeatProps> = (props) => {
 			)}
 
 			{/* menu item */}
-			{props.isUsed && !isBreak && validateString(menuCode) && (
-				<Image
-					alt="menu item"
-					src={`/images/menu/${menuCode}.svg`}
-					css={styles.menuItem}
-					width={props.seatFontSizePx * 1.55}
-					height={props.seatFontSizePx * 1.55}
-				/>
-			)}
+			{props.isUsed &&
+				!isBreak &&
+				validateString(menuCode) &&
+				props.menuImageMap.get(menuCode) && (
+					<Image
+						alt="menu item"
+						src={props.menuImageMap.get(menuCode) as string}
+						css={styles.menuItem}
+						width={props.seatFontSizePx * 1.55}
+						height={props.seatFontSizePx * 1.55}
+					/>
+				)}
 
 			{/* ★Mark */}
 			{numStars > 0 && (

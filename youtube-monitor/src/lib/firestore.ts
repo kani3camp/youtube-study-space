@@ -113,6 +113,7 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
 		return {
 			code: menu.code,
 			name: menu.name,
+			image: menu.image,
 		}
 	},
 	fromFirestore(
@@ -123,6 +124,7 @@ export const firestoreMenuConverter: FirestoreDataConverter<Menu> = {
 		return {
 			code: data.code,
 			name: data.name,
+			image: data.image ?? '',
 		}
 	},
 }
