@@ -1,10 +1,10 @@
 import { Wave } from '@foobar404/wave'
-import { parseWebStream, parseBlob, type IAudioMetadata } from 'music-metadata'
+import { type IAudioMetadata, parseBlob, parseWebStream } from 'music-metadata'
 import type React from 'react'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
-import { SectionType, getCurrentSection } from '../lib/time-table'
+import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
 
@@ -59,13 +59,6 @@ const BgmPlayer: React.FC = () => {
 		setLastSectionType(currentSection.sectionType)
 	}, [lastSectionType])
 
-	type ID3Tag = {
-		tags: {
-			title: string | null
-			artist: string | null
-		}
-	}
-
 	const audioNext = useCallback(async () => {
 		try {
 			const audio = document.getElementById(
@@ -93,7 +86,9 @@ const BgmPlayer: React.FC = () => {
 				metadata = await parseBlob(blob)
 			} else {
 				const contentLength = response.headers.get('Content-Length')
-				const size = contentLength ? Number.parseInt(contentLength) : undefined
+				const size = contentLength
+					? Number.parseInt(contentLength, 10)
+					: undefined
 				metadata = await parseWebStream(response.body, {
 					mimeType: response.headers.get('Content-Type') ?? undefined,
 					size,
@@ -124,7 +119,7 @@ const BgmPlayer: React.FC = () => {
 		audioNext()
 	}, [audioNext])
 
-	const stop = () => {
+	const _stop = () => {
 		const audio = document.getElementById(audioDivId) as HTMLAudioElement
 		audio.pause()
 		setAudioTitle('BGM TITLE')

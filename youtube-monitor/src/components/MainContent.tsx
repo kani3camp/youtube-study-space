@@ -1,24 +1,3 @@
-import { type FC, useEffect, useMemo, useState } from 'react'
-import api from '../lib/api-config'
-import fetcher from '../lib/fetcher'
-import {
-	allRooms,
-	numSeatsInGeneralAllBasicRooms,
-	numSeatsInMemberAllBasicRooms,
-} from '../rooms/rooms-config'
-import { mainContent } from '../styles/MainContent.styles'
-import type {
-	Seat,
-	SetDesiredMaxSeatsResponse,
-	WorkNameTrend,
-} from '../types/api'
-import type { RoomLayout } from '../types/room-layout'
-import CenterLoading from './CenterLoading'
-import Message from './Message'
-import TickerBoard from './TickerBoard'
-import SeatsPage, { type LayoutPageProps } from './SeatsPage'
-
-import { initializeApp } from 'firebase/app'
 import {
 	collection,
 	doc,
@@ -28,19 +7,43 @@ import {
 	Timestamp,
 } from 'firebase/firestore'
 import { useRouter } from 'next/router'
+import { type FC, useEffect, useMemo, useState } from 'react'
+import api from '../lib/api-config'
 import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
+import fetcher from '../lib/fetcher'
 import {
-	type SystemConstants,
 	firestoreConstantsConverter,
 	firestoreSeatConverter,
 	firestoreWorkNameTrendConverter,
-	getFirebaseConfig,
+	getFirebaseApp,
+	type SystemConstants,
 } from '../lib/firestore'
+import {
+	allRooms,
+	numSeatsInGeneralAllBasicRooms,
+	numSeatsInMemberAllBasicRooms,
+} from '../rooms/rooms-config'
+import { mainContent } from '../styles/MainContent.styles'
+import type {
+	Menu,
+	Seat,
+	SetDesiredMaxSeatsResponse,
+	WorkNameTrend,
+} from '../types/api'
+import type { RoomLayout } from '../types/room-layout'
+import CenterLoading from './CenterLoading'
+import Message from './Message'
+import SeatsPage, { type LayoutPageProps } from './SeatsPage'
+import TickerBoard from './TickerBoard'
 
 const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
-const Seats: FC = () => {
+type SeatsProps = {
+	menuItems: Menu[]
+}
+
+const Seats: FC<SeatsProps> = ({ menuItems }) => {
 	const router = useRouter()
 
 	const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
@@ -62,6 +65,15 @@ const Seats: FC = () => {
 			ranked_at: Timestamp.now(),
 		},
 	)
+
+	// menu_codeから画像URLへのマッピングを作成
+	const menuImageMap = useMemo(() => {
+		const map = new Map<string, string>()
+		for (const item of menuItems) {
+			map.set(item.code, item.image || '/images/menu_default.svg')
+		}
+		return map
+	}, [menuItems])
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
 	useEffect(() => {
@@ -108,6 +120,7 @@ const Seats: FC = () => {
 		latestMemberSeats,
 		latestGeneralLayouts,
 		latestMemberLayouts,
+		menuImageMap,
 	])
 
 	/**
@@ -153,7 +166,7 @@ const Seats: FC = () => {
 	}
 
 	const initFirestore = () => {
-		const app = initializeApp(getFirebaseConfig())
+		const app = getFirebaseApp()
 		const db = getFirestore(app)
 
 		const constantsConverter = firestoreConstantsConverter
@@ -242,15 +255,16 @@ const Seats: FC = () => {
 		() =>
 			pageProps.map((pageProp) => (
 				<SeatsPage
-					key={pageProp.firstSeatId}
+					key={`${pageProp.memberOnly ? 'member' : 'general'}-${pageProp.firstSeatId}`}
 					firstSeatId={pageProp.firstSeatId}
 					roomLayout={pageProp.roomLayout}
 					usedSeats={pageProp.usedSeats}
 					display={pageProp.display}
 					memberOnly={pageProp.memberOnly}
+					menuImageMap={menuImageMap}
 				/>
 			)),
-		[pageProps],
+		[pageProps, menuImageMap],
 	)
 
 	/**
@@ -470,6 +484,7 @@ const Seats: FC = () => {
 					usedSeats: usedSeatsInLayout,
 					display: false, // set later in this function
 					memberOnly: member_only,
+					menuImageMap,
 				}
 			}
 
@@ -526,13 +541,11 @@ const Seats: FC = () => {
 
 	if (pageProps.length > 0) {
 		return (
-			<>
-				<div css={mainContent}>
-					{layoutPagesMemo}
-					{messageMemo}
-					{tickerMemo}
-				</div>
-			</>
+			<div css={mainContent}>
+				{layoutPagesMemo}
+				{messageMemo}
+				{tickerMemo}
+			</div>
 		)
 	}
 	return <CenterLoading />

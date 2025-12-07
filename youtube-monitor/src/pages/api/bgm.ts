@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 let mp3Files: string[] = []
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(_req: NextApiRequest, res: NextApiResponse) {
 	if (mp3Files.length === 0) {
 		const directoryPath = path.join(process.cwd(), 'public', 'audio')
 		mp3Files = findMp3Files(directoryPath, fs, path)

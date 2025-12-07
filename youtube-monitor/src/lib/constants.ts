@@ -1,4 +1,5 @@
 import { validateString } from './common'
+
 if (
 	process.env.NEXT_PUBLIC_DEBUG !== 'true' &&
 	process.env.NEXT_PUBLIC_DEBUG !== 'false'
