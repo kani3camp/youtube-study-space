@@ -1,4 +1,3 @@
-import { initializeApp } from 'firebase/app'
 import {
 	collection,
 	getFirestore,
@@ -16,14 +15,14 @@ import Seats from '../components/MainContent'
 import MenuDisplay from '../components/MenuDisplay'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
-import { firestoreMenuConverter, getFirebaseConfig } from '../lib/firestore'
+import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
 import type { Menu } from '../types/api'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
 
 	useEffect(() => {
-		const app = initializeApp(getFirebaseConfig())
+		const app = getFirebaseApp()
 		const db = getFirestore(app)
 
 		const menuQuery = query(

@@ -1,4 +1,3 @@
-import { initializeApp } from 'firebase/app'
 import {
 	collection,
 	doc,
@@ -17,7 +16,7 @@ import {
 	firestoreConstantsConverter,
 	firestoreSeatConverter,
 	firestoreWorkNameTrendConverter,
-	getFirebaseConfig,
+	getFirebaseApp,
 	type SystemConstants,
 } from '../lib/firestore'
 import {
@@ -167,7 +166,7 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 	}
 
 	const initFirestore = () => {
-		const app = initializeApp(getFirebaseConfig())
+		const app = getFirebaseApp()
 		const db = getFirestore(app)
 
 		const constantsConverter = firestoreConstantsConverter
