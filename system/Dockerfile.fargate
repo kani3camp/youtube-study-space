@@ -1,4 +1,4 @@
-FROM golang:1.23 AS build
+FROM golang:1.24 AS build
 WORKDIR /src
 COPY . .
 
@@ -8,10 +8,11 @@ ARG BUILD_TARGET=./cmd/batch
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=${GOARCH} GOCACHE=/root/.cache/go-build
 RUN --mount=type=cache,target=/go/pkg/mod \
   --mount=type=cache,target=/root/.cache/go-build \
-  go build -trimpath -ldflags="-s -w" -o /out/batch ${BUILD_TARGET}
+  go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/batch ${BUILD_TARGET}
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
+ENV TZ=Asia/Tokyo
 COPY --from=build /out/batch /app/batch
 USER nonroot:nonroot
 ENTRYPOINT ["/app/batch"]

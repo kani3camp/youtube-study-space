@@ -7,11 +7,16 @@ import (
 	"os"
 	"time"
 
+	"app.modules/aws-lambda/lambdautils"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	sfn "github.com/aws/aws-sdk-go/service/sfn"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
 )
+
+func init() {
+	lambdautils.InitLogger()
+}
 
 const (
 	jstOffsetSeconds = 9 * 60 * 60
@@ -37,10 +42,14 @@ func handler(ctx context.Context) error {
 	today := time.Now().In(jst).Format("20060102")
 	execName := fmt.Sprintf("daily-batch-%s", today)
 
-	sess := session.Must(session.NewSession())
-	client := sfn.New(sess, aws.NewConfig().WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to load AWS config", "err", err)
+		return fmt.Errorf("in config.LoadDefaultConfig: %w", err)
+	}
+	client := sfn.NewFromConfig(cfg)
 
-	_, err := client.StartExecutionWithContext(ctx, &sfn.StartExecutionInput{
+	_, err = client.StartExecution(ctx, &sfn.StartExecutionInput{
 		StateMachineArn: aws.String(stateMachineArn),
 		Name:            aws.String(execName),
 		Input:           aws.String(emptyJSONInput),

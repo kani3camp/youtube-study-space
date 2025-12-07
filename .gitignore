@@ -101,3 +101,11 @@ fabric.properties
 **/.next/
 
 .mcp.json
+
+# JetBrains plugin / 個人環境の設定は全部無視
+.idea/cfnlintPlugin.xml
+.idea/discord.xml
+.idea/watcherTasks.xml
+.idea/sqldialects.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/copilot.data.migration.agent.xml

@@ -13,6 +13,10 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
+func init() {
+	lambdautils.InitLogger()
+}
+
 func UpdateWorkNameTrend(ctx context.Context) error {
 	slog.Info(utils.NameOf(UpdateWorkNameTrend))
 
