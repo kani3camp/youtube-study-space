@@ -1,5 +1,11 @@
 FROM golang:1.24 AS build
 WORKDIR /src
+
+# 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# アプリコードをコピー
 COPY . .
 
 # Build for linux/${GOARCH}, static, no cgo
