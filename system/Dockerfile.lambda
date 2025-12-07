@@ -1,14 +1,34 @@
-FROM golang:1.24 as build
+FROM golang:1.24 AS build
 WORKDIR /var/task
-COPY . .
-ENV GOCACHE=/root/.cache/go-build
 
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o start_daily_batch aws-lambda/start_daily_batch/main.go
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -tags lambda.norpc,timetzdata -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
+# 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# アプリコードをコピー
+COPY . .
+
+# Build for linux, static, no cgo
+ENV CGO_ENABLED=0 GOOS=linux GOCACHE=/root/.cache/go-build
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch aws-lambda/start_daily_batch/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
 
 # Copy artifacts to a clean image
 FROM public.ecr.aws/lambda/provided:al2023
