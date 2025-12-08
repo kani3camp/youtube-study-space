@@ -128,7 +128,7 @@ async function main(): Promise<void> {
 	// Puppeteerブラウザを起動
 	console.log('ブラウザを起動中...')
 	const browser = await puppeteer.launch({
-		headless: 'new',
+		headless: 'new', // v21系では新しいHeadlessモードを明示的に指定
 		args: ['--no-sandbox', '--disable-setuid-sandbox'],
 	})
 	console.log('ブラウザ起動完了')
@@ -162,9 +162,6 @@ async function main(): Promise<void> {
 
 	console.log('\n=== 完了 ===')
 	console.log(`出力先: ${OUTPUT_DIR}`)
-
-	// 即座にプロセスを終了
-	process.exit(0)
 }
 
 // エントリポイント

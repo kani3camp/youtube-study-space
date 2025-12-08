@@ -69,6 +69,15 @@ export async function fetchMenuItems(): Promise<MenuItemWithNumber[]> {
 			)
 		}
 
+		// imageフィールドが有効なURLか検証
+		try {
+			new URL(data.image)
+		} catch {
+			throw new Error(
+				`メニュー "${data.name || doc.id}" (code: ${data.code || 'undefined'}) のimageフィールドが有効なURLではありません: ${data.image}`,
+			)
+		}
+
 		menuItems.push({
 			code: data.code || '',
 			name: data.name || '',

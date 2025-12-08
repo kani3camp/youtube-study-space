@@ -5,6 +5,9 @@ import type { MenuItemWithNumber } from '../types'
  * HSLからHEXに変換
  */
 function hslToHex(h: number, s: number, l: number): string {
+	// hue値を[0, 360)の範囲に正規化
+	h = ((h % 360) + 360) % 360
+
 	const sNorm = s / 100
 	const lNorm = l / 100
 
