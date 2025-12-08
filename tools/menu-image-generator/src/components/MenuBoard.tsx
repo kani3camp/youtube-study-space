@@ -173,7 +173,7 @@ const LAYOUT_CONFIG = {
 
 /**
  * アイテム数に応じた最適な列数を計算する
- * 1-4個→2列, 5-8個→3列, 9-12個→4列（最大3行x4列）
+ * 1-4個→2列, 5-8個→3列, 9個以上→4列（最大3行x4列）
  */
 function calculateColumns(itemCount: number): number {
 	if (itemCount <= LAYOUT_CONFIG.thresholds[0]) return 2
