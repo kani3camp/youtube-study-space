@@ -11,8 +11,6 @@
 		"format": "biome format .",
 		"format:fix": "biome format --write ."
 	},
-	"keywords": [],
-	"author": "",
 	"license": "ISC",
 	"dependencies": {
 		"dotenv": "^16.3.1",
