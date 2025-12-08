@@ -1,4 +1,3 @@
-import type React from 'react'
 import type { MenuItemWithNumber } from '../types'
 
 /**
@@ -222,11 +221,11 @@ type MenuBoardProps = {
 /**
  * メニュー表のReactコンポーネント
  */
-export const MenuBoard: React.FC<MenuBoardProps> = ({
+export const MenuBoard = ({
 	items,
 	pageNumber,
 	totalPages,
-}) => {
+}: MenuBoardProps): JSX.Element => {
 	// レイアウト計算
 	const columns = calculateColumns(items.length)
 	const layout = calculateLayout(items.length)
