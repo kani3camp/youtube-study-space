@@ -14,7 +14,7 @@ Firestoreの`menu`コレクションからメニュー表画像（JPEG）を生�
 ### 1. 依存関係のインストール
 
 ```bash
-npm install
+bun install
 ```
 
 ### 2. Firebase認証の設定
@@ -34,7 +34,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json
 ## 使い方
 
 ```bash
-npm run generate
+bun run generate
 ```
 
 出力先: `output/menu_1.jpg`（アイテム数に応じて`menu_2.jpg`...）
