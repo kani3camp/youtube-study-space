@@ -156,8 +156,8 @@ async function main(): Promise<void> {
 
 		console.log('\nブラウザを終了中...')
 	} finally {
-		// 強制終了で高速化（通常のclose()はクリーンアップに時間がかかる）
-		browser.process()?.kill('SIGINT')
+		// Puppeteerのclose()でクリーンアップを行う
+		await browser.close()
 	}
 
 	console.log('\n=== 完了 ===')
