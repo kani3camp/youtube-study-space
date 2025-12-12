@@ -18,7 +18,7 @@
 	"dependencies": {
 		"@emotion/react": "^11.10.0",
 		"jsmediatags": "^3.9.7",
-		"next": "15.5.7",
+		"next": "15.5.9",
 		"next-i18next": "^12.0.1",
 		"react": "18.2.0",
 		"react-circular-progressbar": "^2.1.0",
