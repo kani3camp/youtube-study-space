@@ -1,12 +1,14 @@
 package main
 
 import (
-	"app.modules/core/workspaceapp"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
+	"app.modules/core/workspaceapp"
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
@@ -19,26 +21,47 @@ type OrganizeDatabaseResponse struct {
 	Message string `json:"message"`
 }
 
-func OrganizeDatabase() (OrganizeDatabaseResponse, error) {
+func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	slog.Info(utils.NameOf(OrganizeDatabase))
 
-	ctx := context.Background()
+	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
+	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	defer cancel()
+
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
-		return OrganizeDatabaseResponse{}, nil
+		return OrganizeDatabaseResponse{}, fmt.Errorf("in FirestoreClientOption: %w", err)
 	}
-	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
+
+	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
-		return OrganizeDatabaseResponse{}, nil
+		if errors.Is(err, context.DeadlineExceeded) {
+			// 初期化中のタイムアウト（appがないのでDiscord通知不可）
+			return OrganizeDatabaseResponse{}, fmt.Errorf("timeout during NewWorkspaceApp: %w", err)
+		}
+		return OrganizeDatabaseResponse{}, fmt.Errorf("in NewWorkspaceApp: %w", err)
 	}
 	defer app.CloseFirestoreClient()
 
-	if err := app.OrganizeDB(ctx, true); err != nil {
-		app.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
+	if err := app.OrganizeDB(gracefulCtx, true); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("OrganizeDB (member room)でタイムアウト: %w", err)); notifyErr != nil {
+				return OrganizeDatabaseResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
+			}
+			return OrganizeDatabaseResponse{Result: "timeout_warning", Message: err.Error()}, nil
+		}
+		app.MessageToOwnerWithError(gracefulCtx, "failed to OrganizeDB (member room)", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
-	if err := app.OrganizeDB(ctx, false); err != nil {
-		app.MessageToOwnerWithError(ctx, "failed to OrganizeDB", err)
+
+	if err := app.OrganizeDB(gracefulCtx, false); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("OrganizeDB (general room)でタイムアウト: %w", err)); notifyErr != nil {
+				return OrganizeDatabaseResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
+			}
+			return OrganizeDatabaseResponse{Result: "timeout_warning", Message: err.Error()}, nil
+		}
+		app.MessageToOwnerWithError(gracefulCtx, "failed to OrganizeDB (general room)", err)
 		return OrganizeDatabaseResponse{}, nil
 	}
 

@@ -4,8 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
+)
+
+const (
+	// discordHTTPTimeout はDiscord APIへのHTTPリクエストのタイムアウト時間
+	discordHTTPTimeout = 10 * time.Second
 )
 
 type DiscordBot struct {
@@ -17,6 +24,12 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		return nil, err
+	}
+
+	// HTTPクライアントにタイムアウトを設定
+	// NOTE: discordgoはcontextを受け取らないため、HTTPクライアントレベルでタイムアウトを設定する
+	session.Client = &http.Client{
+		Timeout: discordHTTPTimeout,
 	}
 
 	return &DiscordBot{
