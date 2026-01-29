@@ -262,16 +262,17 @@ func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message st
 func (app *WorkspaceApp) NotifyTimeoutToOwner(ctx context.Context, timeoutErr error) error {
 	const maxDiscordMessageLength = 2000
 	const prefix = "timeout warning:\n"
+	const truncatedSuffix = "\n...(truncated)"
 
 	errStr := fmt.Sprintf("%+v", timeoutErr)
 	message := prefix + errStr
 
 	// Discordの2000文字制限を超える場合はトランケートする
 	if len(message) > maxDiscordMessageLength {
-		// 末尾に省略表示を追加するための余白を確保
-		const truncatedSuffix = "\n...(truncated)"
 		maxErrLength := maxDiscordMessageLength - len(prefix) - len(truncatedSuffix)
-		message = prefix + errStr[:maxErrLength] + truncatedSuffix
+		// UTF-8のマルチバイト文字境界を考慮してトランケート
+		truncatedErr := utils.TruncateStringUTF8(errStr, maxErrLength)
+		message = prefix + truncatedErr + truncatedSuffix
 	}
 
 	return app.alertOwnerBot.SendMessage(ctx, message)

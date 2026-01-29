@@ -13,7 +13,6 @@ import (
 	"app.modules/core/workspaceapp"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	pkgerrors "github.com/pkg/errors"
 )
 
 func init() {
@@ -58,11 +57,21 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 
 	if app.Configs.Constants.YoutubeMembershipEnabled {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats <= 0 {
-			return events.APIGatewayProxyResponse{}, pkgerrors.New("invalid parameter")
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"})
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusBadRequest,
+				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
+				Body:       string(body),
+			}, nil
 		}
 	} else {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats != 0 {
-			return events.APIGatewayProxyResponse{}, pkgerrors.New("invalid parameter")
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"})
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusBadRequest,
+				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
+				Body:       string(body),
+			}, nil
 		}
 	}
 

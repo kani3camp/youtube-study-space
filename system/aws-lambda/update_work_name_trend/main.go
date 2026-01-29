@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 
@@ -27,7 +26,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	secretName := os.Getenv("SECRET_NAME")
 	if secretName == "" {
-		log.Fatal("環境変数 SECRET_NAME を設定してください")
+		return fmt.Errorf("環境変数 SECRET_NAME を設定してください")
 	}
 
 	apiKey, err := lambdautils.SecretFieldFromSecretsManager(gracefulCtx, secretName, "OPENAI_API_KEY")
@@ -55,7 +54,8 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	if err := app.UpdateWorkNameTrend(gracefulCtx, apiKey); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("UpdateWorkNameTrendでタイムアウト: %w", err)); notifyErr != nil {
+			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
+			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateWorkNameTrendでタイムアウト: %w", err)); notifyErr != nil {
 				return fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			return nil // タイムアウト警告はDiscord通知成功で、成功として返す

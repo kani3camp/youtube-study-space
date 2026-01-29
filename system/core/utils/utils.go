@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"app.modules/core/repository"
 	"github.com/joho/godotenv"
@@ -197,4 +198,17 @@ func MatchEmojiCommandString(text string) bool {
 
 func NameOf(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+}
+
+// TruncateStringUTF8 は文字列をmaxBytesバイト以内にトランケートする。
+// UTF-8のマルチバイト文字の途中で切れないよう、文字境界を考慮する。
+func TruncateStringUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	// maxBytesバイト以内に収まる最後の有効なルーン境界を探す
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
+	}
+	return s[:maxBytes]
 }
