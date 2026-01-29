@@ -69,7 +69,8 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	// transaction not necessary
 	if err := app.Repository.UpdateDesiredMaxSeats(gracefulCtx, nil, params.DesiredMaxSeats); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("UpdateDesiredMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
+			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
+			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateDesiredMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
 				return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()})
@@ -85,7 +86,8 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 
 	if err := app.Repository.UpdateDesiredMemberMaxSeats(gracefulCtx, nil, params.DesiredMemberMaxSeats); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("UpdateDesiredMemberMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
+			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
+			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateDesiredMemberMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
 				return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()})

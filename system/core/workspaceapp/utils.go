@@ -260,7 +260,20 @@ func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message st
 // NotifyTimeoutToOwner はタイムアウトをDiscordのOwnerチャンネルに通知し、通知失敗時はエラーを返す。
 // NOTE: 通常のMessageToOwnerWithErrorと異なり、通知失敗時にエラーを返す（CloudWatchアラーム発火のため）
 func (app *WorkspaceApp) NotifyTimeoutToOwner(ctx context.Context, timeoutErr error) error {
-	message := "timeout warning:\n" + fmt.Sprintf("%+v", timeoutErr)
+	const maxDiscordMessageLength = 2000
+	const prefix = "timeout warning:\n"
+
+	errStr := fmt.Sprintf("%+v", timeoutErr)
+	message := prefix + errStr
+
+	// Discordの2000文字制限を超える場合はトランケートする
+	if len(message) > maxDiscordMessageLength {
+		// 末尾に省略表示を追加するための余白を確保
+		const truncatedSuffix = "\n...(truncated)"
+		maxErrLength := maxDiscordMessageLength - len(prefix) - len(truncatedSuffix)
+		message = prefix + errStr[:maxErrLength] + truncatedSuffix
+	}
+
 	return app.alertOwnerBot.SendMessage(ctx, message)
 }
 
