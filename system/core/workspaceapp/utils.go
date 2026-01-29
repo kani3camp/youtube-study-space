@@ -257,9 +257,9 @@ func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message st
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
-// NotifyTimeoutWarning はタイムアウト警告をDiscordに通知し、通知失敗時はエラーを返す。
+// NotifyTimeoutToOwner はタイムアウトをDiscordのOwnerチャンネルに通知し、通知失敗時はエラーを返す。
 // NOTE: 通常のMessageToOwnerWithErrorと異なり、通知失敗時にエラーを返す（CloudWatchアラーム発火のため）
-func (app *WorkspaceApp) NotifyTimeoutWarning(ctx context.Context, timeoutErr error) error {
+func (app *WorkspaceApp) NotifyTimeoutToOwner(ctx context.Context, timeoutErr error) error {
 	message := "timeout warning:\n" + fmt.Sprintf("%+v", timeoutErr)
 	return app.alertOwnerBot.SendMessage(ctx, message)
 }

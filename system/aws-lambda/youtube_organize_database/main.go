@@ -45,7 +45,7 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 
 	if err := app.OrganizeDB(gracefulCtx, true); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("OrganizeDB (member room)でタイムアウト: %w", err)); notifyErr != nil {
+			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("OrganizeDB (member room)でタイムアウト: %w", err)); notifyErr != nil {
 				return OrganizeDatabaseResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			return OrganizeDatabaseResponse{Result: "timeout_warning", Message: err.Error()}, nil
@@ -56,7 +56,7 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 
 	if err := app.OrganizeDB(gracefulCtx, false); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("OrganizeDB (general room)でタイムアウト: %w", err)); notifyErr != nil {
+			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("OrganizeDB (general room)でタイムアウト: %w", err)); notifyErr != nil {
 				return OrganizeDatabaseResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			return OrganizeDatabaseResponse{Result: "timeout_warning", Message: err.Error()}, nil

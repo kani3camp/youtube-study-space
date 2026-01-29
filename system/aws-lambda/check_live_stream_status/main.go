@@ -46,7 +46,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 
 	if err := app.CheckLiveStreamStatus(gracefulCtx); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("CheckLiveStreamStatusでタイムアウト: %w", err)); notifyErr != nil {
+			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("CheckLiveStreamStatusでタイムアウト: %w", err)); notifyErr != nil {
 				return CheckLiveStreamResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			return CheckLiveStreamResponse{Result: "timeout_warning", Message: err.Error()}, nil

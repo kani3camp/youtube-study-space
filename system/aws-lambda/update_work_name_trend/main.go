@@ -55,7 +55,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	if err := app.UpdateWorkNameTrend(gracefulCtx, apiKey); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			if notifyErr := app.NotifyTimeoutWarning(gracefulCtx, fmt.Errorf("UpdateWorkNameTrendでタイムアウト: %w", err)); notifyErr != nil {
+			if notifyErr := app.NotifyTimeoutToOwner(gracefulCtx, fmt.Errorf("UpdateWorkNameTrendでタイムアウト: %w", err)); notifyErr != nil {
 				return fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
 			return nil // タイムアウト警告はDiscord通知成功で、成功として返す
