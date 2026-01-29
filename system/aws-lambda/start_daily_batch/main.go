@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,6 +25,10 @@ const (
 )
 
 func handler(ctx context.Context) error {
+	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
+	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	defer cancel()
+
 	stateMachineArn := os.Getenv("STATE_MACHINE_ARN")
 	if stateMachineArn == "" {
 		return fmt.Errorf("STATE_MACHINE_ARN is not set")
@@ -42,23 +47,32 @@ func handler(ctx context.Context) error {
 	today := time.Now().In(jst).Format("20060102")
 	execName := fmt.Sprintf("daily-batch-%s", today)
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(gracefulCtx, config.WithRegion(region))
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to load AWS config", "err", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			// NOTE: このLambdaはWorkspaceAppを使用していないため、Discord通知はできない（ログのみ）
+			slog.ErrorContext(gracefulCtx, "timeout warning in start_daily_batch during LoadDefaultConfig", "err", err)
+			return nil // タイムアウト警告はログのみで、成功として返す
+		}
+		slog.ErrorContext(gracefulCtx, "failed to load AWS config", "err", err)
 		return fmt.Errorf("in config.LoadDefaultConfig: %w", err)
 	}
 	client := sfn.NewFromConfig(cfg)
 
-	_, err = client.StartExecution(ctx, &sfn.StartExecutionInput{
+	_, err = client.StartExecution(gracefulCtx, &sfn.StartExecutionInput{
 		StateMachineArn: aws.String(stateMachineArn),
 		Name:            aws.String(execName),
 		Input:           aws.String(emptyJSONInput),
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to start state machine execution", "name", execName, "err", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.ErrorContext(gracefulCtx, "timeout warning in start_daily_batch during StartExecution", "err", err)
+			return nil // タイムアウト警告はログのみで、成功として返す
+		}
+		slog.ErrorContext(gracefulCtx, "failed to start state machine execution", "name", execName, "err", err)
 		return err
 	}
-	slog.InfoContext(ctx, "started state machine execution", "name", execName)
+	slog.InfoContext(gracefulCtx, "started state machine execution", "name", execName)
 	return nil
 }
 
