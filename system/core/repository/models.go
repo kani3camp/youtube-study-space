@@ -198,6 +198,33 @@ type UserActivityDoc struct {
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
 }
 
+// WorkSegmentDoc records detailed activity history.
+type WorkSegmentDoc struct {
+	UserId       string `json:"user_id" firestore:"user-id"`
+	SeatID       int    `json:"seat_id" firestore:"seat-id"`
+	IsMemberSeat bool   `json:"is_member_seat" firestore:"is-member-seat"`
+
+	// 1回の入室〜退室を紐付けるためのID (UUID等)
+	SessionID string `json:"session_id" firestore:"session-id"`
+
+	WorkName    string    `json:"work_name" firestore:"work-name"`
+	SegmentType string    `json:"segment_type" firestore:"segment-type"` // "work" or "break"
+	StartedAt   time.Time `json:"started_at" firestore:"started-at"`
+	EndedAt     time.Time `json:"ended_at" firestore:"ended-at"`
+	DurationSec int       `json:"duration_sec" firestore:"duration-sec"`
+}
+
+// DailyUserWorkHistoryDoc stores daily totals.
+type DailyUserWorkHistoryDoc struct {
+	UserID string    `json:"user_id" firestore:"user-id"`
+	Date   time.Time `json:"date" firestore:"date"`
+
+	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec"`
+	TotalBreakSec int `json:"total_break_sec" firestore:"total-break-sec"`
+
+	TimezoneName string `json:"timezone_name" firestore:"timezone-name"`
+}
+
 type MenuDoc struct {
 	Code string `json:"code" firestore:"code"`
 	Name string `json:"name" firestore:"name"`
