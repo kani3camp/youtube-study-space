@@ -54,18 +54,21 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		return nil, fmt.Errorf("in LoadLocaleFolderFS(): %w", err)
 	}
 
+	slog.InfoContext(ctx, "initializing firestore client...")
 	firestoreController, err := repository.NewFirestoreController(ctx, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in NewFirestoreController(): %w", err)
 	}
 
 	// credentials
+	slog.InfoContext(ctx, "reading credentials config...")
 	credentialsDoc, err := firestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadCredentialsConfig(): %w", err)
 	}
 
 	// YouTube live chatbot
+	slog.InfoContext(ctx, "initializing youtube live chat bot...")
 	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatId, firestoreController, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
@@ -88,6 +91,7 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 	}
 
 	// core constant values
+	slog.InfoContext(ctx, "reading system constants config...")
 	constantsConfig, err := firestoreController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadSystemConstantsConfig(): %w", err)
@@ -125,19 +129,23 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		}
 	}
 
+	slog.InfoContext(ctx, "initializing spreadsheet reader...")
 	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, configs.Constants.BotConfigSpreadsheetId, "01", "02")
 	if err != nil {
 		return nil, fmt.Errorf("in NewSpreadsheetReader(): %w", err)
 	}
-	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes()
+	slog.InfoContext(ctx, "reading block regexes...")
+	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadBlockRegexes(): %w", err)
 	}
-	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes()
+	slog.InfoContext(ctx, "reading notification regexes...")
+	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadNotificationRegexes(): %w", err)
 	}
 
+	slog.InfoContext(ctx, "reading menu docs...")
 	sortedMenuItems, err := firestoreController.ReadAllMenuDocsOrderByCode(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadAllMenuDocsOrderByCode(): %w", err)

@@ -1,6 +1,8 @@
 package wordsreader
 
+import "context"
+
 type WordsReader interface {
-	ReadBlockRegexes() (chatRegexes []string, channelRegexes []string, err error)
-	ReadNotificationRegexes() (chatRegexes []string, channelRegexes []string, err error)
+	ReadBlockRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error)
+	ReadNotificationRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error)
 }

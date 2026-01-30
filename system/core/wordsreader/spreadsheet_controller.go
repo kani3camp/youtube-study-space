@@ -29,7 +29,7 @@ func NewSpreadsheetReader(
 		return nil, fmt.Errorf("in sheets.NewService: %w", err)
 	}
 
-	ss, err := service.Spreadsheets.Get(spreadsheetId).Do()
+	ss, err := service.Spreadsheets.Get(spreadsheetId).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("in service.Spreadsheets.Get: %w", err)
 	}
@@ -59,9 +59,9 @@ func NewSpreadsheetReader(
 	}, nil
 }
 
-func (sc *SpreadsheetReader) ReadBlockRegexes() (chatRegexes []string, channelRegexes []string, err error) {
+func (sc *SpreadsheetReader) ReadBlockRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error) {
 	readRange := fmt.Sprintf("%s!A2:C999", sc.blockRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
+	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Context(ctx).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
@@ -101,9 +101,9 @@ func (sc *SpreadsheetReader) ReadBlockRegexes() (chatRegexes []string, channelRe
 	return
 }
 
-func (sc *SpreadsheetReader) ReadNotificationRegexes() (chatRegexes []string, channelRegexes []string, err error) {
+func (sc *SpreadsheetReader) ReadNotificationRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error) {
 	readRange := fmt.Sprintf("%s!A2:C999", sc.notificationRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Do()
+	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Context(ctx).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
