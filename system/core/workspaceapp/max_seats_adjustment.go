@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"app.modules/core/timeutil"
+	"app.modules/core/utils"
 )
 
 // AdjustMaxSeats 一般席とメンバー席の数を調整する

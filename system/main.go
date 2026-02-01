@@ -14,8 +14,8 @@ import (
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
-	"app.modules/core/utils"
 	"app.modules/core/timeutil"
+	"app.modules/core/utils"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"

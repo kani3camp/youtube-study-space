@@ -13,4 +13,3 @@ func InitLogger() {
 	})
 	slog.SetDefault(slog.New(handler))
 }
-

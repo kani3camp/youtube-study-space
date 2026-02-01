@@ -13,8 +13,8 @@ import (
 	"google.golang.org/api/iterator"
 
 	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"app.modules/core/timeutil"
+	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 
 	"github.com/stretchr/testify/assert"

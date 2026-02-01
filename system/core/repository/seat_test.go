@@ -421,7 +421,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		actualAdded, remainingBreak, remainingExit := seat.ExtendBreakDuration(now, 200, 60) // 200分延長希望、最大60分
 
 		// 休憩開始から最大60分（13:00まで）
-		assert.Equal(t, 30, actualAdded) // 12:30 → 13:00 = 30分
+		assert.Equal(t, 30, actualAdded)    // 12:30 → 13:00 = 30分
 		assert.Equal(t, 45, remainingBreak) // 12:15 → 13:00 = 45分
 		assert.Equal(t, 345, remainingExit) // 12:15 → 18:00 = 345分
 		assert.Equal(t, mustParseTime(layout, "2026-02-01 13:00:00"), seat.CurrentStateUntil)
@@ -493,9 +493,9 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		actualAdded, remainingBreak, remainingExit := seat.ExtendBreakDuration(now, 100, 60) // 100分希望、最大60分
 
 		// 開始から60分 = 18:30
-		assert.Equal(t, 45, actualAdded) // 17:45 → 18:30 = 45分
+		assert.Equal(t, 45, actualAdded)    // 17:45 → 18:30 = 45分
 		assert.Equal(t, 50, remainingBreak) // 17:40 → 18:30 = 50分
-		assert.Equal(t, 50, remainingExit) // Untilも18:30
+		assert.Equal(t, 50, remainingExit)  // Untilも18:30
 		assert.Equal(t, mustParseTime(layout, "2026-02-01 18:30:00"), seat.CurrentStateUntil)
 		assert.Equal(t, mustParseTime(layout, "2026-02-01 18:30:00"), seat.Until)
 	})

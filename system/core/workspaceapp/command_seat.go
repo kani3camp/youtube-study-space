@@ -223,11 +223,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 						replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
-				} else { // それ以外なら延長
-					currentSeat.SetWorkDuration(requestedUntil)
-					remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-					replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
-				}
+					} else { // それ以外なら延長
+						currentSeat.SetWorkDuration(requestedUntil)
+						remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
+						replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					}
 				case repository.BreakState:
 					// 休憩時間を変更
 					realtimeBreakDuration := timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
@@ -468,15 +468,15 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RealtimeEntryDurationMin: realtimeEntryDurationMin,
 						RemainingWorkMin:         remainingWorkMin,
 					})
-			} else { // それ以外なら延長
-				newSeat.SetWorkDuration(requestedUntil)
-				remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-				result.Add(usecase.ChangeWorkDurationUpdated{
-					RequestedMin:             changeOption.DurationMin,
-					RealtimeEntryDurationMin: realtimeEntryDurationMin,
-					RemainingWorkMin:         remainingWorkMin,
-				})
-			}
+				} else { // それ以外なら延長
+					newSeat.SetWorkDuration(requestedUntil)
+					remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
+					result.Add(usecase.ChangeWorkDurationUpdated{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
+				}
 			case repository.BreakState:
 				// 休憩時間を変更
 				realtimeBreakDuration := timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
@@ -546,51 +546,51 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		var addedMin int              // 最終的な延長時間（分）
 		var remainingUntilExitMin int // 最終的な自動退室予定時刻までの残り時間（分）
 
-	switch currentSeat.State {
-	case repository.WorkState:
-		// オーバーフロー対策。延長時間が最大作業時間を超えていたら、最大作業時間で上書き。
-		if moreOption.IsDurationMinSet && moreOption.DurationMin > app.Configs.Constants.MaxWorkTimeMin {
-			moreOption.DurationMin = app.Configs.Constants.MaxWorkTimeMin
-		}
+		switch currentSeat.State {
+		case repository.WorkState:
+			// オーバーフロー対策。延長時間が最大作業時間を超えていたら、最大作業時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > app.Configs.Constants.MaxWorkTimeMin {
+				moreOption.DurationMin = app.Configs.Constants.MaxWorkTimeMin
+			}
 
-		// 延長時間が指定されていなかったら、最大延長。
-		if !moreOption.IsDurationMinSet {
-			moreOption.DurationMin = app.Configs.Constants.MaxWorkTimeMin
-		}
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
+				moreOption.DurationMin = app.Configs.Constants.MaxWorkTimeMin
+			}
 
-		// 作業時間を延長
-		addedMin, remainingUntilExitMin = newSeat.ExtendWorkDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxWorkTimeMin)
+			// 作業時間を延長
+			addedMin, remainingUntilExitMin = newSeat.ExtendWorkDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxWorkTimeMin)
 
-		// 最大作業時間に制限された場合の通知
-		if remainingUntilExitMin >= app.Configs.Constants.MaxWorkTimeMin {
-			result.Add(usecase.MoreMaxWork{
-				MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin,
-			})
-		}
-	case repository.BreakState:
-		// オーバーフロー対策。延長時間が最大休憩時間を超えていたら、最大休憩時間で上書き。
-		if moreOption.IsDurationMinSet && moreOption.DurationMin > app.Configs.Constants.MaxBreakDurationMin {
-			moreOption.DurationMin = app.Configs.Constants.MaxBreakDurationMin
-		}
+			// 最大作業時間に制限された場合の通知
+			if remainingUntilExitMin >= app.Configs.Constants.MaxWorkTimeMin {
+				result.Add(usecase.MoreMaxWork{
+					MaxWorkTimeMin: app.Configs.Constants.MaxWorkTimeMin,
+				})
+			}
+		case repository.BreakState:
+			// オーバーフロー対策。延長時間が最大休憩時間を超えていたら、最大休憩時間で上書き。
+			if moreOption.IsDurationMinSet && moreOption.DurationMin > app.Configs.Constants.MaxBreakDurationMin {
+				moreOption.DurationMin = app.Configs.Constants.MaxBreakDurationMin
+			}
 
-		// 延長時間が指定されていなかったら、最大延長。
-		if !moreOption.IsDurationMinSet {
-			moreOption.DurationMin = app.Configs.Constants.MaxBreakDurationMin
-		}
+			// 延長時間が指定されていなかったら、最大延長。
+			if !moreOption.IsDurationMinSet {
+				moreOption.DurationMin = app.Configs.Constants.MaxBreakDurationMin
+			}
 
-		// 休憩時間を延長
-		var newRemainingBreakMin int
-		addedMin, newRemainingBreakMin, remainingUntilExitMin = newSeat.ExtendBreakDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxBreakDurationMin)
+			// 休憩時間を延長
+			var newRemainingBreakMin int
+			addedMin, newRemainingBreakMin, remainingUntilExitMin = newSeat.ExtendBreakDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxBreakDurationMin)
 
-		// 最大休憩時間に制限された場合の通知
-		breakDuration := int(timeutil.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(currentSeat.CurrentStateStartedAt)).Minutes())
-		if breakDuration >= app.Configs.Constants.MaxBreakDurationMin {
-			result.Add(usecase.MoreMaxBreak{
-				MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin,
-			})
+			// 最大休憩時間に制限された場合の通知
+			breakDuration := int(timeutil.NoNegativeDuration(newSeat.CurrentStateUntil.Sub(currentSeat.CurrentStateStartedAt)).Minutes())
+			if breakDuration >= app.Configs.Constants.MaxBreakDurationMin {
+				result.Add(usecase.MoreMaxBreak{
+					MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin,
+				})
+			}
+			_ = newRemainingBreakMin // 使用しないが戻り値として受け取る
 		}
-		_ = newRemainingBreakMin // 使用しないが戻り値として受け取る
-	}
 
 		if err := app.Repository.UpdateSeat(ctx, tx, *newSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
@@ -668,9 +668,9 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			breakOption.WorkName = currentSeat.BreakWorkName
 		}
 
-	// 休憩処理
-	jstNow := timeutil.JstNow()
-	currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
+		// 休憩処理
+		jstNow := timeutil.JstNow()
+		currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
@@ -731,17 +731,17 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 			return nil
 		}
 
-	// 再開処理
-	jstNow := timeutil.JstNow()
-	until := currentSeat.Until
-	
-	// 作業名が指定されていなかったら、空文字列を渡して既存の作業名を引継ぎ
-	workName := resumeOption.WorkName
-	if !resumeOption.IsWorkNameSet {
-		workName = ""
-	}
+		// 再開処理
+		jstNow := timeutil.JstNow()
+		until := currentSeat.Until
 
-	currentSeat.ResumeWork(jstNow, workName)
+		// 作業名が指定されていなかったら、空文字列を渡して既存の作業名を引継ぎ
+		workName := resumeOption.WorkName
+		if !resumeOption.IsWorkNameSet {
+			workName = ""
+		}
+
+		currentSeat.ResumeWork(jstNow, workName)
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)

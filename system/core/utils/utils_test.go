@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func TestDivideStringEqually(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -127,7 +126,6 @@ func TestMatchEmojiCommandString(t *testing.T) {
 	}
 }
 
-
 func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -219,7 +217,6 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 	}
 }
 
-
 func TestContains(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -254,4 +251,3 @@ func TestContains(t *testing.T) {
 		})
 	}
 }
-
