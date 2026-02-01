@@ -11,6 +11,7 @@ import (
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
@@ -199,7 +200,7 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 
 	for {
 		slog.Info("checking long time sitting.")
-		start := utils.JstNow()
+		start := timeutil.JstNow()
 
 		{
 			if err := app.CheckLongTimeSitting(ctx, true); err != nil {
@@ -212,10 +213,10 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 			}
 		}
 
-		end := utils.JstNow()
+		end := timeutil.JstNow()
 		duration := end.Sub(start)
 		if duration < minimumInterval {
-			time.Sleep(utils.NoNegativeDuration(minimumInterval - duration))
+			time.Sleep(timeutil.NoNegativeDuration(minimumInterval - duration))
 		}
 	}
 }
@@ -235,7 +236,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+timeutil.JstNow().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.blockRegexesForChannelName, channelName)
 	if err != nil {
@@ -250,7 +251,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+timeutil.JstNow().String())
 	}
 
 	// 通知対象チェック
@@ -264,7 +265,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+timeutil.JstNow().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.notificationRegexesForChannelName, channelName)
 	if err != nil {
@@ -276,7 +277,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+timeutil.JstNow().String())
 	}
 	return false, nil
 }

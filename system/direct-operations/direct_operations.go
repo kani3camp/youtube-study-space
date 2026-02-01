@@ -10,6 +10,7 @@ import (
 
 	"app.modules/core/workspaceapp"
 
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/option"
@@ -79,7 +80,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 		panic(txErr)
 	}
 
-	now := utils.JstNow()
+	now := timeutil.JstNow()
 	dateString := now.Format("2006-01-02_15-04-05")
 	f, err := os.Create("./" + dateString + "_user-total-study-sec-list.json")
 	if err != nil {

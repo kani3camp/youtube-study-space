@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 )
 
@@ -94,7 +95,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
-									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+									DurationMin:      seat.RemainingWorkMin(timeutil.JstNow()),
 								},
 								IsMemberSeat: false,
 							},
@@ -175,7 +176,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
-									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+									DurationMin:      seat.RemainingWorkMin(timeutil.JstNow()),
 								},
 								IsMemberSeat: true,
 							},

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"app.modules/core/timeutil"
 	"github.com/pkg/errors"
 )
 
@@ -62,10 +63,10 @@ func DailyUpdateRankPoint(
 	yesterdayDate := jstNow.AddDate(0, 0, -1)
 	lastActiveAt := LastActiveAt(lastEntered, lastExited, jstNow)
 	// 本日か昨日と同じ日付に入室していたらactive、そうでなければinactive
-	if DateEqualJST(lastActiveAt, yesterdayDate) {
+	if timeutil.DateEqualJST(lastActiveAt, yesterdayDate) {
 		isContinuousActive = true
 		lastPenaltyImposedDays = 0
-	} else if DateEqualJST(lastActiveAt, jstNow) {
+	} else if timeutil.DateEqualJST(lastActiveAt, jstNow) {
 		isContinuousActive = true
 		lastPenaltyImposedDays = 0
 	} else {
@@ -105,7 +106,7 @@ func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastP
 
 // CalcContinuousInactiveDays 連続非アクティブn日のとき、nを返す。
 func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
-	jstNow := JstNow()
+	jstNow := timeutil.JstNow()
 	if lastActiveAt.After(jstNow) {
 		return 0, errors.New("lastActiveAt is after jstNow.")
 	}
@@ -116,7 +117,7 @@ func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 
 // CalcContinuousActiveDays 連続アクティブn日目のとき、n-1を返す。
 func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted time.Time, lastActiveAt time.Time) (int, error) {
-	jstNow := JstNow()
+	jstNow := timeutil.JstNow()
 
 	// 未来の日付がある場合はエラー
 	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
@@ -129,11 +130,11 @@ func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted
 	}
 
 	startDate0AM := time.Date(currentStateStarted.Year(), currentStateStarted.Month(), currentStateStarted.Day(),
-		0, 0, 0, 0, JapanLocation())
-	if DateEqualJST(lastActiveAt, jstNow) {
+		0, 0, 0, 0, timeutil.JapanLocation())
+	if timeutil.DateEqualJST(lastActiveAt, jstNow) {
 		return int(jstNow.Sub(startDate0AM).Hours() / 24), nil
 	} else { // 今日はまだ入室してないが、今日非アクティブとは断定できない。昨日までの連続日数を返す。
-		yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day()-1, 0, 0, 0, 0, JapanLocation())
+		yesterday := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day()-1, 0, 0, 0, 0, timeutil.JapanLocation())
 		return int(yesterday.Sub(startDate0AM).Hours() / 24), nil
 	}
 }

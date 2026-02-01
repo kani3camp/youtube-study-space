@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	i18nmsg "app.modules/core/i18n/typed"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
@@ -138,8 +139,8 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		sinceMinutes := int(utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes())
-		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
+		sinceMinutes := int(timeutil.NoNegativeDuration(timeutil.JstNow().Sub(seat.EnteredAt)).Minutes())
+		untilMinutes := seat.RemainingWorkMin(timeutil.JstNow())
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/api/iterator"
 
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 
@@ -46,7 +47,7 @@ func TestEnterRoom(t *testing.T) {
 		ColorGradientEnabled: true,
 	}
 	expectedUntilExitMin := 30
-	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, utils.JapanLocation())
+	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, timeutil.JapanLocation())
 	expectedUntil := enteredAt.Add(time.Duration(expectedUntilExitMin) * time.Minute)
 
 	ctx := context.Background()
