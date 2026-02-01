@@ -884,6 +884,32 @@ var moreTestCases = []struct {
 		expectedExtraTimeMin: 270,
 		expectedReplyMessage: "@テストユーザー さん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
 	},
+	{
+		name: "作業時間延長（最大値ちょうどでキャップなし）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.More,
+			MoreOption: utils.MoreOption{
+				IsDurationMinSet: true,
+				DurationMin:      270, // ちょうど360分になる延長
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute), // 90分残り
+		},
+		expectedExtraTimeMin: 270,
+		expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り359分です⏳",
+	},
 }
 
 func TestSystem_More(t *testing.T) {
