@@ -14,6 +14,18 @@ func (s *SeatDoc) RemainingWorkDuration(now time.Time) time.Duration {
 	return s.Until.Sub(now)
 }
 
+// RemainingWorkMin は自動退室予定時刻までの残り時間（分）を返す。
+// 負の値の場合は0を返す。
+func (s *SeatDoc) RemainingWorkMin(now time.Time) int {
+	return int(timeutil.NoNegativeDuration(s.Until.Sub(now)).Minutes())
+}
+
+// RemainingBreakMin は休憩終了予定時刻までの残り時間（分）を返す。
+// 負の値の場合は0を返す。
+func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
+	return int(timeutil.NoNegativeDuration(s.CurrentStateUntil.Sub(now)).Minutes())
+}
+
 // StartBreak は作業状態から休憩状態に遷移する。
 // 現在の作業時間を累積し、日付跨ぎを考慮して当日の累積時間を計算する。
 //

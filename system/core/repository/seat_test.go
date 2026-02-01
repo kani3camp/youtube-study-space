@@ -369,6 +369,91 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 }
 
+func TestSeatDoc_RemainingWorkMin(t *testing.T) {
+	layout := "2006-01-02 15:04:05"
+
+	t.Run("正の残り時間", func(t *testing.T) {
+		seat := SeatDoc{
+			Until: mustParseTime(layout, "2026-02-01 18:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 17:00:00")
+		remaining := seat.RemainingWorkMin(now)
+
+		assert.Equal(t, 60, remaining)
+	})
+
+	t.Run("負の残り時間は0", func(t *testing.T) {
+		seat := SeatDoc{
+			Until: mustParseTime(layout, "2026-02-01 17:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 18:00:00") // 既に過ぎている
+		remaining := seat.RemainingWorkMin(now)
+
+		assert.Equal(t, 0, remaining)
+	})
+
+	t.Run("0分残り", func(t *testing.T) {
+		seat := SeatDoc{
+			Until: mustParseTime(layout, "2026-02-01 17:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 17:00:00")
+		remaining := seat.RemainingWorkMin(now)
+
+		assert.Equal(t, 0, remaining)
+	})
+
+	t.Run("数秒残りは切り捨て", func(t *testing.T) {
+		seat := SeatDoc{
+			Until: mustParseTime(layout, "2026-02-01 17:00:30"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 17:00:00")
+		remaining := seat.RemainingWorkMin(now)
+
+		assert.Equal(t, 0, remaining) // 30秒は0分
+	})
+}
+
+func TestSeatDoc_RemainingBreakMin(t *testing.T) {
+	layout := "2006-01-02 15:04:05"
+
+	t.Run("正の残り時間", func(t *testing.T) {
+		seat := SeatDoc{
+			CurrentStateUntil: mustParseTime(layout, "2026-02-01 13:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 12:30:00")
+		remaining := seat.RemainingBreakMin(now)
+
+		assert.Equal(t, 30, remaining)
+	})
+
+	t.Run("負の残り時間は0", func(t *testing.T) {
+		seat := SeatDoc{
+			CurrentStateUntil: mustParseTime(layout, "2026-02-01 13:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 14:00:00") // 既に過ぎている
+		remaining := seat.RemainingBreakMin(now)
+
+		assert.Equal(t, 0, remaining)
+	})
+
+	t.Run("0分残り", func(t *testing.T) {
+		seat := SeatDoc{
+			CurrentStateUntil: mustParseTime(layout, "2026-02-01 13:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 13:00:00")
+		remaining := seat.RemainingBreakMin(now)
+
+		assert.Equal(t, 0, remaining)
+	})
+}
+
 func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 	layout := "2006-01-02 15:04:05"
 
