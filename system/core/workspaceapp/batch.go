@@ -13,6 +13,7 @@ import (
 	"app.modules/core/mybigquery"
 	"app.modules/core/mystorage"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
@@ -49,7 +50,7 @@ func (app *WorkspaceApp) OrganizeDB(ctx context.Context, isMemberRoom bool) erro
 }
 
 func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bool) error {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	candidateSeatsSnapshot, err := app.Repository.ReadSeatsExpiredUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredUntil(): %w", err)
@@ -80,7 +81,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 				return fmt.Errorf("in ReadUser(): %w", err)
 			}
 
-			autoExit := seat.Until.Before(utils.JstNow()) // 自動退室時刻を過ぎていたら自動退室
+			autoExit := seat.Until.Before(timeutil.JstNow()) // 自動退室時刻を過ぎていたら自動退室
 
 			// 以下書き込みのみ
 
@@ -112,7 +113,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 }
 
 func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool) error {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	candidateSeatsSnapshot, err := app.Repository.ReadSeatsExpiredBreakUntil(ctx, jstNow, isMemberRoom)
 	if err != nil {
 		return fmt.Errorf("in ReadSeatsExpiredBreakUntil(): %w", err)
@@ -138,17 +139,17 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				return nil
 			}
 
-			resume := seat.State == repository.BreakState && seat.CurrentStateUntil.Before(utils.JstNow())
+			resume := seat.State == repository.BreakState && seat.CurrentStateUntil.Before(timeutil.JstNow())
 
 			// 以下書き込みのみ
 
 			if resume { // 作業再開処理
-				jstNow := utils.JstNow()
+				jstNow := timeutil.JstNow()
 				until := seat.Until
-				breakSec := int(utils.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
+				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
 				// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
 				var dailyCumulativeWorkSec = seat.DailyCumulativeWorkSec
-				if breakSec > utils.SecondsOfDay(jstNow) {
+				if breakSec > timeutil.SecondsOfDay(jstNow) {
 					dailyCumulativeWorkSec = 0
 				}
 
@@ -165,14 +166,14 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 					ActivityType: repository.EndBreakActivity,
 					SeatId:       seat.SeatId,
 					IsMemberSeat: isMemberRoom,
-					TakenAt:      utils.JstNow(),
+					TakenAt:      timeutil.JstNow(),
 				}
 				if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
 				}
 				seatIdStr := presenter.SeatIDStr(seat.SeatId, isMemberRoom)
 
-				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIdStr, int(utils.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
+				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIdStr, int(timeutil.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
 			}
 			return nil
 		})
@@ -188,7 +189,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 }
 
 func (app *WorkspaceApp) OrganizeDBDeleteExpiredSeatLimits(ctx context.Context, isMemberRoom bool) error {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	// white list
 	for {
 		iter := app.Repository.Get500SeatLimitsAfterUntilInWHITEList(ctx, jstNow, isMemberRoom)
@@ -276,7 +277,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 						IsDurationMinSet: true,
 						IsOrderSet:       isOrderSet,
 						WorkName:         seatSnapshot.WorkName,
-						DurationMin:      int(utils.NoNegativeDuration(seatSnapshot.Until.Sub(utils.JstNow())).Minutes()),
+						DurationMin:      seatSnapshot.RemainingWorkMin(timeutil.JstNow()),
 						OrderNum:         menuNum,
 					},
 					IsMemberSeat: isMemberSeat,
@@ -317,9 +318,9 @@ func (app *WorkspaceApp) DailyOrganizeDB(ctx context.Context) ([]string, error) 
 func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	slog.Info(utils.NameOf(app.ResetDailyTotalStudyTime))
 	// 時間がかかる処理なのでトランザクションはなし
-	previousDate := app.Configs.Constants.LastResetDailyTotalStudySec.In(utils.JapanLocation())
-	now := utils.JstNow()
-	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !utils.DateEqualJST(now, previousDate)
+	previousDate := app.Configs.Constants.LastResetDailyTotalStudySec.In(timeutil.JapanLocation())
+	now := timeutil.JstNow()
+	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !timeutil.DateEqualJST(now, previousDate)
 	if isDifferentDay && now.After(previousDate) {
 		userIter := app.Repository.GetAllNonDailyZeroUserDocs(ctx)
 		count := 0
@@ -347,12 +348,12 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 }
 
 func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) []string {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	startTime := jstNow
 	var doneUserIds []string
 	for _, userId := range userIds {
 		// 時間チェック
-		duration := utils.JstNow().Sub(startTime)
+		duration := timeutil.JstNow().Sub(startTime)
 		if int(duration.Seconds()) > timeLimitSeconds {
 			return userIds
 		}
@@ -385,7 +386,7 @@ func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userId string, jstNow
 		}
 
 		// 同日の重複処理防止チェック
-		if utils.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
+		if timeutil.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
 			slog.Warn("user " + userId + " is already RP processed today, skipping.")
 			return nil
 		}
@@ -425,8 +426,8 @@ func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userId string, jstNow
 func (app *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery(ctx context.Context, clientOption option.ClientOption) error {
 	slog.Info(utils.NameOf(app.BackupCollectionHistoryFromGcsToBigquery))
 	// 時間がかかる処理なのでトランザクションはなし
-	previousDate := app.Configs.Constants.LastTransferCollectionHistoryBigquery.In(utils.JapanLocation())
-	now := utils.JstNow()
+	previousDate := app.Configs.Constants.LastTransferCollectionHistoryBigquery.In(timeutil.JapanLocation())
+	now := timeutil.JstNow()
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day()
 	if isDifferentDay && now.After(previousDate) {
 		gcsClient, err := mystorage.NewStorageClient(ctx, clientOption, app.Configs.Constants.GcpRegion)
@@ -463,7 +464,7 @@ func (app *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery(ctx context.Co
 
 		// 一定期間前のライブチャットおよびユーザー行動ログを削除
 		// 何日以降分を保持するか求める
-		retentionFromDate := utils.JstNow().Add(-time.Duration(app.Configs.Constants.CollectionHistoryRetentionDays*24) * time.
+		retentionFromDate := timeutil.JstNow().Add(-time.Duration(app.Configs.Constants.CollectionHistoryRetentionDays*24) * time.
 			Hour)
 		retentionFromDate = time.Date(retentionFromDate.Year(), retentionFromDate.Month(), retentionFromDate.Day(),
 			0, 0, 0, 0, retentionFromDate.Location())

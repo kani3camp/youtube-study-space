@@ -10,6 +10,7 @@ import (
 	"app.modules/core/i18n"
 	"app.modules/core/repository"
 	mock_repository "app.modules/core/repository/mocks"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
 	"cloud.google.com/go/firestore"
@@ -238,12 +239,37 @@ var inTestCases = []struct {
 			SeatId:                1,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
 		},
 		currentSeatDeleted:   true,
 		seatMoved:            true,
 		expectedReplyMessage: "@テストユーザー さんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
+	},
+	{
+		name: "空の作業名で入室",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:  true,
+				IsMemberSeat: false,
+				SeatId:       1,
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
+					IsWorkNameSet:    true,
+					WorkName:         "", // 空文字列で明示的に設定
+					IsDurationMinSet: true,
+					DurationMin:      60,
+				},
+			},
+		},
+		userIsMember:         false,
+		currentSeatOfUser:    nil,
+		currentSeatDeleted:   false,
+		seatMoved:            false,
+		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大60分、1番席）",
 	},
 }
 
@@ -455,9 +481,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -483,9 +509,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{},
 		memberSeats: []repository.SeatDoc{
@@ -514,9 +540,9 @@ var showSeatInfoTestCases = []struct {
 			SeatId:                3,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		generalSeats: []repository.SeatDoc{
 			{
@@ -615,9 +641,9 @@ var changeTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
@@ -643,11 +669,66 @@ var changeTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
+	},
+	{
+		name: "作業名を空にクリア（WorkState）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Change,
+			ChangeOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				IsDurationMinSet: false,
+				WorkName:         "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "既存の作業",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さん、作業内容を\"\"に更新しました✍️（5番席）",
+	},
+	{
+		name: "休憩作業名を空にクリア（BreakState）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Change,
+			ChangeOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				IsDurationMinSet: false,
+				WorkName:         "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			BreakWorkName:         "既存の休憩作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+			CurrentStateUntil:     timeutil.JstNow().Add(20 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さん、休憩内容を\"\"に更新しました✍️（5番席）",
 	},
 }
 
@@ -673,8 +754,20 @@ func TestSystem_Change(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-				assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
-				assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
+
+				// 時間が指定されている場合のみ検証
+				if tt.commandDetails.ChangeOption.IsDurationMinSet {
+					assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
+				}
+
+				// 作業名が指定されている場合のみ検証
+				if tt.commandDetails.ChangeOption.IsWorkNameSet {
+					if seat.State == repository.WorkState {
+						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
+					} else {
+						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.BreakWorkName)
+					}
+				}
 				return nil
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -732,9 +825,9 @@ var moreTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
@@ -759,9 +852,9 @@ var moreTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedExtraTimeMin: 30,
 		expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
@@ -784,12 +877,38 @@ var moreTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedExtraTimeMin: 270,
 		expectedReplyMessage: "@テストユーザー さん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
+	},
+	{
+		name: "作業時間延長（最大値ちょうどでキャップなし）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.More,
+			MoreOption: utils.MoreOption{
+				IsDurationMinSet: true,
+				DurationMin:      270, // ちょうど360分になる延長
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute), // 90分残り
+		},
+		expectedExtraTimeMin: 270,
+		expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り359分です⏳",
 	},
 }
 
@@ -871,9 +990,9 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 	},
@@ -892,9 +1011,9 @@ var breakTestCases = []struct {
 			SeatId:                7,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、VIP7番席）",
 	},
@@ -912,9 +1031,9 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さん、作業中のみ使えるコマンドです🙏",
 	},
@@ -938,11 +1057,38 @@ var breakTestCases = []struct {
 			SeatId:                5,
 			UserId:                "test_user_id",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
+	},
+	{
+		name: "休憩開始（休憩作業名を空に設定）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                10,
+			DefaultBreakDurationMin: 30,
+			MinBreakIntervalMin:     10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Break,
+			BreakOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				WorkName:         "", // 空文字列で明示的に設定
+				IsDurationMinSet: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			BreakWorkName:         "既存の休憩作業",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-15 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-15 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 	},
 }
 
@@ -1014,15 +1160,19 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: false,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
@@ -1034,15 +1184,19 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: true,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.BreakState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（VIP7番席、自動退室まで89分）",
 	},
@@ -1053,17 +1207,92 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: false,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.WorkState,
-			CurrentStateStartedAt: utils.JstNow().Add(-10 * time.Minute),
-			EnteredAt:             utils.JstNow().Add(-10 * time.Minute),
-			Until:                 utils.JstNow().Add(90 * time.Minute),
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さん、座席で休憩中のみ使えるコマンドです🙏",
+	},
+	{
+		name: "作業再開（作業名引継ぎ）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false, // 作業名未指定
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "既存の作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+	},
+	{
+		name: "作業再開（作業名を明示的にクリア）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: true,
+				WorkName:      "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "クリアされる作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+	},
+	{
+		name: "作業再開（作業名を変更）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: true,
+				WorkName:      "新しい作業",
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "古い作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
 }
 
@@ -1090,7 +1319,15 @@ func TestSystem_Resume(t *testing.T) {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
 				assert.Equal(t, repository.WorkState, seat.State)
-				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
+
+				// 作業名の検証
+				if tt.commandDetails.ResumeOption.IsWorkNameSet {
+					// 明示的に指定された作業名
+					assert.Equal(t, tt.commandDetails.ResumeOption.WorkName, seat.WorkName)
+				} else {
+					// 未指定なら既存の作業名を引き継ぐ
+					assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
+				}
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()

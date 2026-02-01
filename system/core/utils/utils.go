@@ -7,30 +7,16 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
-	"strconv"
 	"time"
 	"unicode/utf8"
 
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )
-
-func JapanLocation() *time.Location {
-	return time.FixedZone("Asia/Tokyo", 9*60*60)
-}
-
-// JstNow 日本時間におけるtime.Now()を返す。
-func JstNow() time.Time {
-	return time.Now().UTC().In(JapanLocation())
-}
-
-// SecondsOfDay tの0時0分からの経過時間（秒）
-func SecondsOfDay(t time.Time) int {
-	return t.Second() + int(time.Minute.Seconds())*t.Minute() + int(time.Hour.Seconds())*t.Hour()
-}
 
 // LoadEnv TODO さらに上の階層に書くべき
 func LoadEnv(relativeEnvPath string) {
@@ -38,12 +24,6 @@ func LoadEnv(relativeEnvPath string) {
 		slog.Error("Error loading .env file")
 		panic(err)
 	}
-}
-
-// SecondsToHours 秒を時間に換算。切り捨て。
-func SecondsToHours(seconds int) int {
-	duration := time.Duration(seconds) * time.Second
-	return int(duration.Hours())
 }
 
 // NumTrue from https://stackoverflow.com/questions/57983764/how-to-get-sum-of-true-bools
@@ -55,30 +35,6 @@ func NumTrue(b ...bool) int {
 		}
 	}
 	return n
-}
-
-// DateEqualJST from https://stackoverflow.com/questions/21053427/check-if-two-time-objects-are-on-the-same-date-in-go
-func DateEqualJST(date1, date2 time.Time) bool {
-	y1, m1, d1 := date1.In(JapanLocation()).Date()
-	y2, m2, d2 := date2.In(JapanLocation()).Date()
-	return y1 == y2 && m1 == m2 && d1 == d2
-}
-
-// DurationToString for Japanese. // TODO: support other languages using i18n
-func DurationToString(duration time.Duration) string {
-	if duration < time.Hour {
-		return strconv.Itoa(int(duration.Minutes())) + "分"
-	} else {
-		return strconv.Itoa(int(duration.Hours())) + "時間" + strconv.Itoa(int(duration.Minutes())%60) + "分"
-	}
-}
-
-// NoNegativeDuration 負の値であれば0に修正する。
-func NoNegativeDuration(duration time.Duration) time.Duration {
-	if duration < 0 {
-		return time.Duration(0)
-	}
-	return duration
 }
 
 func DivideStringEqually(batchSize int, values []string) [][]string {
@@ -133,7 +89,7 @@ func RealTimeTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (t
 	var duration time.Duration
 	switch seat.State {
 	case repository.WorkState:
-		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
+		duration = time.Duration(seat.CumulativeWorkSec)*time.Second + timeutil.NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
 	case repository.BreakState:
 		duration = time.Duration(seat.CumulativeWorkSec) * time.Second
 	default:
@@ -145,10 +101,10 @@ func RealTimeTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (t
 func RealTimeDailyTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Time) (time.Duration, error) {
 	var duration time.Duration
 	// 今のstateになってから日付が変っている可能性
-	if DateEqualJST(seat.CurrentStateStartedAt, now) { // 日付変わってない
+	if timeutil.DateEqualJST(seat.CurrentStateStartedAt, now) { // 日付変わってない
 		switch seat.State {
 		case repository.WorkState:
-			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
+			duration = time.Duration(seat.DailyCumulativeWorkSec)*time.Second + timeutil.NoNegativeDuration(now.Sub(seat.CurrentStateStartedAt))
 		case repository.BreakState:
 			duration = time.Duration(seat.DailyCumulativeWorkSec) * time.Second
 		default:
@@ -157,7 +113,7 @@ func RealTimeDailyTotalStudyDurationOfSeat(seat repository.SeatDoc, now time.Tim
 	} else { // 日付変わってる
 		switch seat.State {
 		case repository.WorkState:
-			duration = time.Duration(SecondsOfDay(now)) * time.Second
+			duration = time.Duration(timeutil.SecondsOfDay(now)) * time.Second
 		case repository.BreakState:
 			duration = time.Duration(0)
 		}

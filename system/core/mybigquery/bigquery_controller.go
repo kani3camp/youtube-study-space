@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"app.modules/core/repository"
-	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 	"cloud.google.com/go/bigquery"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -74,7 +74,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		}
 
 		// 取得する始まりと終わりの日時を求める
-		jstNow := utils.JstNow()
+		jstNow := timeutil.JstNow()
 		yesterday := jstNow.AddDate(0, 0, -1)
 		yesterdayStart := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, yesterday.Location())
 		yesterdayEnd := time.Date(jstNow.Year(), jstNow.Month(), jstNow.Day(), 0, 0, 0, 0, jstNow.Location())
