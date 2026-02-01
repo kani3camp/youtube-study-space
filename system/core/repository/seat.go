@@ -2,6 +2,8 @@ package repository
 
 import (
 	"time"
+
+	"app.modules/core/timeutil"
 )
 
 func (s *SeatDoc) RealtimeEntryDurationMin(now time.Time) time.Duration {
@@ -10,19 +12,6 @@ func (s *SeatDoc) RealtimeEntryDurationMin(now time.Time) time.Duration {
 
 func (s *SeatDoc) RemainingWorkDuration(now time.Time) time.Duration {
 	return s.Until.Sub(now)
-}
-
-// noNegativeDuration は負の値であれば0に修正する。
-func noNegativeDuration(duration time.Duration) time.Duration {
-	if duration < 0 {
-		return time.Duration(0)
-	}
-	return duration
-}
-
-// secondsOfDay はその日の0時からの経過秒数を返す。
-func secondsOfDay(t time.Time) int {
-	return t.Second() + int(time.Minute.Seconds())*t.Minute() + int(time.Hour.Seconds())*t.Hour()
 }
 
 // StartBreak は作業状態から休憩状態に遷移する。
@@ -36,13 +25,13 @@ func secondsOfDay(t time.Time) int {
 // 前提条件: s.State == WorkState
 func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) {
 	breakUntil := now.Add(time.Duration(breakDurationMin) * time.Minute)
-	workedSec := int(noNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
+	workedSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 	cumulativeWorkSec := s.CumulativeWorkSec + workedSec
 
 	// 日付跨ぎを考慮して当日の累積時間を計算
 	var dailyCumulativeWorkSec int
-	if workedSec > secondsOfDay(now) {
-		dailyCumulativeWorkSec = secondsOfDay(now)
+	if workedSec > timeutil.SecondsOfDay(now) {
+		dailyCumulativeWorkSec = timeutil.SecondsOfDay(now)
 	} else {
 		dailyCumulativeWorkSec = s.DailyCumulativeWorkSec + workedSec
 	}
@@ -64,11 +53,11 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 //
 // 前提条件: s.State == BreakState
 func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
-	breakSec := int(noNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
+	breakSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 
 	// 日付跨ぎを考慮して当日の累積時間を調整
 	dailyCumulativeWorkSec := s.DailyCumulativeWorkSec
-	if breakSec > secondsOfDay(now) {
+	if breakSec > timeutil.SecondsOfDay(now) {
 		dailyCumulativeWorkSec = 0
 	}
 
@@ -110,17 +99,17 @@ func (s *SeatDoc) SetWorkDuration(newUntil time.Time) {
 // 前提条件: s.State == WorkState
 func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWorkTimeMin int) (actualAddedMin int, newRemainingMin int) {
 	newUntil := s.Until.Add(time.Duration(requestedAddMin) * time.Minute)
-	remainingMin := int(noNegativeDuration(newUntil.Sub(now)).Minutes())
+	remainingMin := int(timeutil.NoNegativeDuration(newUntil.Sub(now)).Minutes())
 
 	// 最大作業時間を超えないように調整
 	if remainingMin > maxWorkTimeMin {
 		newUntil = now.Add(time.Duration(maxWorkTimeMin) * time.Minute)
 	}
 
-	actualAddedMin = int(noNegativeDuration(newUntil.Sub(s.Until)).Minutes())
+	actualAddedMin = int(timeutil.NoNegativeDuration(newUntil.Sub(s.Until)).Minutes())
 	s.Until = newUntil
 	s.CurrentStateUntil = newUntil
-	newRemainingMin = int(noNegativeDuration(newUntil.Sub(now)).Minutes())
+	newRemainingMin = int(timeutil.NoNegativeDuration(newUntil.Sub(now)).Minutes())
 
 	return actualAddedMin, newRemainingMin
 }
@@ -141,14 +130,14 @@ func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWork
 // 前提条件: s.State == BreakState
 func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBreakDurationMin int) (actualAddedMin int, newRemainingBreakMin int, newRemainingUntilExitMin int) {
 	newBreakUntil := s.CurrentStateUntil.Add(time.Duration(requestedAddMin) * time.Minute)
-	newBreakDuration := noNegativeDuration(newBreakUntil.Sub(s.CurrentStateStartedAt))
+	newBreakDuration := timeutil.NoNegativeDuration(newBreakUntil.Sub(s.CurrentStateStartedAt))
 
 	// 最大休憩時間を超えないように調整
 	if int(newBreakDuration.Minutes()) > maxBreakDurationMin {
 		newBreakUntil = s.CurrentStateStartedAt.Add(time.Duration(maxBreakDurationMin) * time.Minute)
 	}
 
-	actualAddedMin = int(noNegativeDuration(newBreakUntil.Sub(s.CurrentStateUntil)).Minutes())
+	actualAddedMin = int(timeutil.NoNegativeDuration(newBreakUntil.Sub(s.CurrentStateUntil)).Minutes())
 	s.CurrentStateUntil = newBreakUntil
 
 	// 休憩終了時刻がUntilを超える場合はUntilも延長
@@ -156,8 +145,8 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 		s.Until = newBreakUntil
 	}
 
-	newRemainingBreakMin = int(noNegativeDuration(s.CurrentStateUntil.Sub(now)).Minutes())
-	newRemainingUntilExitMin = int(noNegativeDuration(s.Until.Sub(now)).Minutes())
+	newRemainingBreakMin = int(timeutil.NoNegativeDuration(s.CurrentStateUntil.Sub(now)).Minutes())
+	newRemainingUntilExitMin = int(timeutil.NoNegativeDuration(s.Until.Sub(now)).Minutes())
 
 	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin
 }
