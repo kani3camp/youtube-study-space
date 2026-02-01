@@ -223,11 +223,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := int(currentSeat.Until.Sub(jstNow).Minutes())
 						replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
-					} else { // それ以外なら延長
-						currentSeat.SetWorkDuration(requestedUntil)
-						remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-						replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
-					}
+				} else { // それ以外なら延長
+					currentSeat.SetWorkDuration(requestedUntil)
+					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
+					replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+				}
 				case repository.BreakState:
 					// 休憩時間を変更
 					realtimeBreakDuration := timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
@@ -360,7 +360,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 			if err != nil {
 				return fmt.Errorf("in RealTimeTotalStudyDurationOfSeat(): %w", err)
 			}
-			remainingMinutes := int(timeutil.NoNegativeDuration(currentSeat.Until.Sub(timeutil.JstNow())).Minutes())
+			remainingMinutes := currentSeat.RemainingWorkMin(timeutil.JstNow())
 			var stateStr string
 			var breakUntilStr string
 			switch currentSeat.State {
@@ -468,15 +468,15 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RealtimeEntryDurationMin: realtimeEntryDurationMin,
 						RemainingWorkMin:         remainingWorkMin,
 					})
-				} else { // それ以外なら延長
-					newSeat.SetWorkDuration(requestedUntil)
-					remainingWorkMin := int(timeutil.NoNegativeDuration(requestedUntil.Sub(jstNow)).Minutes())
-					result.Add(usecase.ChangeWorkDurationUpdated{
-						RequestedMin:             changeOption.DurationMin,
-						RealtimeEntryDurationMin: realtimeEntryDurationMin,
-						RemainingWorkMin:         remainingWorkMin,
-					})
-				}
+			} else { // それ以外なら延長
+				newSeat.SetWorkDuration(requestedUntil)
+				remainingWorkMin := newSeat.RemainingWorkMin(jstNow)
+				result.Add(usecase.ChangeWorkDurationUpdated{
+					RequestedMin:             changeOption.DurationMin,
+					RealtimeEntryDurationMin: realtimeEntryDurationMin,
+					RemainingWorkMin:         remainingWorkMin,
+				})
+			}
 			case repository.BreakState:
 				// 休憩時間を変更
 				realtimeBreakDuration := timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))

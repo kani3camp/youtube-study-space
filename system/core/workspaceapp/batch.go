@@ -277,7 +277,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 						IsDurationMinSet: true,
 						IsOrderSet:       isOrderSet,
 						WorkName:         seatSnapshot.WorkName,
-						DurationMin:      int(timeutil.NoNegativeDuration(seatSnapshot.Until.Sub(timeutil.JstNow())).Minutes()),
+						DurationMin:      seatSnapshot.RemainingWorkMin(timeutil.JstNow()),
 						OrderNum:         menuNum,
 					},
 					IsMemberSeat: isMemberSeat,

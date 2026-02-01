@@ -914,7 +914,7 @@ func (app *WorkspaceApp) moveSeat(
 	if option.IsDurationMinSet {
 		workMin = option.DurationMin
 	} else {
-		workMin = int(timeutil.NoNegativeDuration(previousSeat.Until.Sub(jstNow)).Minutes())
+		workMin = previousSeat.RemainingWorkMin(jstNow)
 	}
 	newTotalStudyDuration := time.Duration(previousUserDoc.TotalStudySec+workedTimeSec) * time.Second
 	newRP := previousUserDoc.RankPoint + addedRP
