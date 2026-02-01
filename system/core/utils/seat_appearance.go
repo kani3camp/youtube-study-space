@@ -1,10 +1,12 @@
 package utils
 
 import (
-	"app.modules/core/repository"
-	"github.com/pkg/errors"
 	"reflect"
 	"strconv"
+
+	"app.modules/core/repository"
+	"app.modules/core/timeutil"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -81,17 +83,17 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 }
 
 func CanUseFavoriteColor(totalStudySec int) bool {
-	hours := SecondsToHours(totalStudySec)
+	hours := timeutil.SecondsToHours(totalStudySec)
 	return hours >= FavoriteColorAvailableThresholdHours
 }
 
 func TotalStudySecToNumStars(totalStudySec int) int {
-	hours := SecondsToHours(totalStudySec)
+	hours := timeutil.SecondsToHours(totalStudySec)
 	return hours / 1e3
 }
 
 func TotalStudySecToColorCode(totalStudySec int) (string, error) {
-	totalHours := SecondsToHours(totalStudySec)
+	totalHours := timeutil.SecondsToHours(totalStudySec)
 	return TotalStudyHoursToColorCode(totalHours)
 }
 

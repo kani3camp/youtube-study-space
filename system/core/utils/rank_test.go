@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"app.modules/core/timeutil"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,8 +32,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         57 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 57,
@@ -43,8 +44,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         57 * time.Minute,
 				IsWorkNameSet:            true,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 62,
@@ -55,8 +56,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         57 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: true,
-				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 31),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour * 24 * 31),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 74, // 57 * (1 + 0.31)
@@ -67,8 +68,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         40 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Minute * 40),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Minute * 40),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 40,
@@ -79,8 +80,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         100 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Hour * 2),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour * 2),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        50000,
 			},
 			Output: 50070, // 100 * 0.7 + 50000
@@ -91,8 +92,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         100 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Hour * 2),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour * 2),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        90000,
 			},
 			Output: 90030, // 100 * 0.3 + 90000
@@ -103,8 +104,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         100 * time.Minute,
 				IsWorkNameSet:            true,
 				YesterdayContinuedActive: true,
-				CurrentStateStarted:      JstNow().Add(-time.Hour * 24 * 2),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour * 24 * 2),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        0,
 			},
 			Output: 112, // 100 * 1.1 * (1 + 0.02) = 112.2
@@ -115,8 +116,8 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 				NetStudyDuration:         57 * time.Minute,
 				IsWorkNameSet:            false,
 				YesterdayContinuedActive: false,
-				CurrentStateStarted:      JstNow().Add(-time.Hour),
-				LastActiveAt:             JstNow(),
+				CurrentStateStarted:      timeutil.JstNow().Add(-time.Hour),
+				LastActiveAt:             timeutil.JstNow(),
 				PreviousRankPoint:        99990,
 			},
 			Output: 99999, // 99,990 + 57 * 0.3 = 99,990 + 17 = 100,007 > 99,999
@@ -157,7 +158,7 @@ type TestCaseDailyUpdateRankPoint struct {
 }
 
 func TestDailyUpdateRankPoint(t *testing.T) {
-	jstNow := JstNow()
+	jstNow := timeutil.JstNow()
 	testCases := []TestCaseDailyUpdateRankPoint{
 		{
 			Name: "だいぶ前に登録だけした人",
@@ -304,9 +305,9 @@ func TestDailyUpdateRankPoint(t *testing.T) {
 }
 
 func TestLastActiveAt(t *testing.T) {
-	TIME1 := time.Date(2020, 1, 1, 0, 0, 0, 0, JapanLocation())
-	TIME2 := time.Date(2020, 1, 2, 0, 0, 0, 0, JapanLocation())
-	TIME3 := time.Date(2020, 1, 3, 0, 0, 0, 0, JapanLocation())
+	TIME1 := time.Date(2020, 1, 1, 0, 0, 0, 0, timeutil.JapanLocation())
+	TIME2 := time.Date(2020, 1, 2, 0, 0, 0, 0, timeutil.JapanLocation())
+	TIME3 := time.Date(2020, 1, 3, 0, 0, 0, 0, timeutil.JapanLocation())
 
 	type args struct {
 		lastEntered time.Time
@@ -372,31 +373,31 @@ func TestCalcContinuousInactiveDays(t *testing.T) {
 	}{
 		{
 			name:          "1日間非アクティブ",
-			lastActiveAt:  JstNow().AddDate(0, 0, -1),
+			lastActiveAt:  timeutil.JstNow().AddDate(0, 0, -1),
 			expectedDays:  1,
 			expectedError: false,
 		},
 		{
 			name:          "3日間非アクティブ",
-			lastActiveAt:  JstNow().AddDate(0, 0, -3),
+			lastActiveAt:  timeutil.JstNow().AddDate(0, 0, -3),
 			expectedDays:  3,
 			expectedError: false,
 		},
 		{
 			name:          "7日間非アクティブ",
-			lastActiveAt:  JstNow().AddDate(0, 0, -7),
+			lastActiveAt:  timeutil.JstNow().AddDate(0, 0, -7),
 			expectedDays:  7,
 			expectedError: false,
 		},
 		{
 			name:          "30日間非アクティブ",
-			lastActiveAt:  JstNow().AddDate(0, 0, -30),
+			lastActiveAt:  timeutil.JstNow().AddDate(0, 0, -30),
 			expectedDays:  30,
 			expectedError: false,
 		},
 		{
 			name:          "未来の日付（エラーケース）",
-			lastActiveAt:  JstNow().AddDate(0, 0, 1),
+			lastActiveAt:  timeutil.JstNow().AddDate(0, 0, 1),
 			expectedDays:  0,
 			expectedError: true,
 		},
@@ -418,7 +419,7 @@ func TestCalcContinuousInactiveDays(t *testing.T) {
 }
 
 func TestCalcContinuousActiveDays(t *testing.T) {
-	jstNow := JstNow()
+	jstNow := timeutil.JstNow()
 
 	tests := []struct {
 		name                     string
@@ -719,7 +720,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "ペナルティ不要 - 同日",
 			previousRP:             100,
-			lastActiveAt:           JstNow(),
+			lastActiveAt:           timeutil.JstNow(),
 			lastPenaltyImposedDays: 0,
 			expectedRP:             100,
 			expectedDays:           0,
@@ -728,7 +729,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "ペナルティ不要 - 既に適用済み",
 			previousRP:             100,
-			lastActiveAt:           JstNow().AddDate(0, 0, -3),
+			lastActiveAt:           timeutil.JstNow().AddDate(0, 0, -3),
 			lastPenaltyImposedDays: 3,
 			expectedRP:             100,
 			expectedDays:           3,
@@ -737,7 +738,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "3日間ペナルティ",
 			previousRP:             100,
-			lastActiveAt:           JstNow().AddDate(0, 0, -3),
+			lastActiveAt:           timeutil.JstNow().AddDate(0, 0, -3),
 			lastPenaltyImposedDays: 0,
 			expectedRP:             80, // 100 * 0.8
 			expectedDays:           3,
@@ -746,7 +747,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "7日間ペナルティ",
 			previousRP:             100,
-			lastActiveAt:           JstNow().AddDate(0, 0, -7),
+			lastActiveAt:           timeutil.JstNow().AddDate(0, 0, -7),
 			lastPenaltyImposedDays: 0,
 			expectedRP:             50, // 100 * 0.5
 			expectedDays:           7,
@@ -755,7 +756,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "30日間ペナルティ",
 			previousRP:             100,
-			lastActiveAt:           JstNow().AddDate(0, 0, -30),
+			lastActiveAt:           timeutil.JstNow().AddDate(0, 0, -30),
 			lastPenaltyImposedDays: 0,
 			expectedRP:             0, // 100 * 0.0
 			expectedDays:           30,
@@ -764,7 +765,7 @@ func TestCalcNewRPContinuousInactivity(t *testing.T) {
 		{
 			name:                   "エラーケース - lastPenaltyImposedDays > inactiveDays",
 			previousRP:             100,
-			lastActiveAt:           JstNow().AddDate(0, 0, -3),
+			lastActiveAt:           timeutil.JstNow().AddDate(0, 0, -3),
 			lastPenaltyImposedDays: 5,
 			expectedRP:             0,
 			expectedDays:           0,
