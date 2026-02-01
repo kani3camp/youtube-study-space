@@ -735,10 +735,10 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		jstNow := timeutil.JstNow()
 		until := currentSeat.Until
 
-		// 作業名が指定されていなかったら、空文字列を渡して既存の作業名を引継ぎ
+		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
 		workName := resumeOption.WorkName
 		if !resumeOption.IsWorkNameSet {
-			workName = ""
+			workName = currentSeat.WorkName
 		}
 
 		currentSeat.ResumeWork(jstNow, workName)

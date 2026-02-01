@@ -61,7 +61,7 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 //
 // 引数:
 //   - now: 作業再開時刻（JSTを想定）
-//   - workName: 作業名（空文字列の場合は既存のWorkNameを保持）
+//   - workName: 設定する作業名（呼び出し側で引継ぎ判定を行う）
 //
 // 前提条件: s.State == BreakState
 func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
@@ -77,11 +77,7 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 	s.CurrentStateStartedAt = now
 	s.CurrentStateUntil = s.Until
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
-
-	// 作業名が指定されていれば更新
-	if workName != "" {
-		s.WorkName = workName
-	}
+	s.WorkName = workName
 }
 
 // SetWorkDuration は作業時間（入室から退室まで）を変更する。

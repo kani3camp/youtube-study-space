@@ -1015,11 +1015,15 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: false,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.BreakState,
 			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
 			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
@@ -1035,11 +1039,15 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: true,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                7,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.BreakState,
 			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
 			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
@@ -1054,17 +1062,92 @@ var resumeTestCases = []struct {
 		},
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false,
+			},
 		},
 		userIsMember: false,
 		currentSeatDoc: &repository.SeatDoc{
 			SeatId:                5,
 			UserId:                "test_user_id",
+			WorkName:              "既存作業",
 			State:                 repository.WorkState,
 			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
 			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
 			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さん、座席で休憩中のみ使えるコマンドです🙏",
+	},
+	{
+		name: "作業再開（作業名引継ぎ）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: false, // 作業名未指定
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "既存の作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+	},
+	{
+		name: "作業再開（作業名を明示的にクリア）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: true,
+				WorkName:      "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "クリアされる作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+	},
+	{
+		name: "作業再開（作業名を変更）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Resume,
+			ResumeOption: utils.WorkNameOption{
+				IsWorkNameSet: true,
+				WorkName:      "新しい作業",
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "古い作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
 	},
 }
 
@@ -1091,7 +1174,15 @@ func TestSystem_Resume(t *testing.T) {
 				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
 				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
 				assert.Equal(t, repository.WorkState, seat.State)
-				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
+
+				// 作業名の検証
+				if tt.commandDetails.ResumeOption.IsWorkNameSet {
+					// 明示的に指定された作業名
+					assert.Equal(t, tt.commandDetails.ResumeOption.WorkName, seat.WorkName)
+				} else {
+					// 未指定なら既存の作業名を引き継ぐ
+					assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
+				}
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()

@@ -104,7 +104,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 func TestSeatDoc_ResumeWork(t *testing.T) {
 	layout := "2006-01-02 15:04:05"
 
-	t.Run("通常の作業再開", func(t *testing.T) {
+	t.Run("通常の作業再開_作業名変更", func(t *testing.T) {
 		seat := SeatDoc{
 			State:                  BreakState,
 			CurrentStateStartedAt:  mustParseTime(layout, "2026-02-01 12:00:00"),
@@ -123,19 +123,35 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		assert.Equal(t, 7200, seat.DailyCumulativeWorkSec) // 変化なし
 	})
 
-	t.Run("WorkName引継ぎ_空文字列指定で既存維持", func(t *testing.T) {
+	t.Run("WorkName引継ぎ_呼び出し側で既存の作業名を渡す", func(t *testing.T) {
 		seat := SeatDoc{
 			State:                  BreakState,
 			CurrentStateStartedAt:  mustParseTime(layout, "2026-02-01 12:00:00"),
 			Until:                  mustParseTime(layout, "2026-02-01 18:00:00"),
-			WorkName:               "維持する作業名",
+			WorkName:               "既存の作業名",
 			DailyCumulativeWorkSec: 3600,
 		}
 
 		now := mustParseTime(layout, "2026-02-01 12:30:00")
-		seat.ResumeWork(now, "") // 空文字列
+		// 呼び出し側で既存の作業名を渡す
+		seat.ResumeWork(now, seat.WorkName)
 
-		assert.Equal(t, "維持する作業名", seat.WorkName) // 変更されない
+		assert.Equal(t, "既存の作業名", seat.WorkName)
+	})
+
+	t.Run("WorkNameクリア_空文字列を明示的に設定", func(t *testing.T) {
+		seat := SeatDoc{
+			State:                  BreakState,
+			CurrentStateStartedAt:  mustParseTime(layout, "2026-02-01 12:00:00"),
+			Until:                  mustParseTime(layout, "2026-02-01 18:00:00"),
+			WorkName:               "クリアする作業名",
+			DailyCumulativeWorkSec: 3600,
+		}
+
+		now := mustParseTime(layout, "2026-02-01 12:30:00")
+		seat.ResumeWork(now, "") // 空文字列で明示的にクリア
+
+		assert.Equal(t, "", seat.WorkName) // クリアされる
 	})
 
 	t.Run("日付跨ぎなし_当日中の休憩後に再開", func(t *testing.T) {
