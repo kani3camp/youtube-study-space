@@ -147,15 +147,21 @@ func TestDateEqualJST(t *testing.T) {
 			date2:    time.Date(2021, 2, 1, 12, 0, 0, 0, JapanLocation()),
 			expected: false,
 		},
-		{
-			name:     "Different year",
-			date1:    time.Date(2021, 1, 1, 12, 0, 0, 0, JapanLocation()),
-			date2:    time.Date(2022, 1, 1, 12, 0, 0, 0, JapanLocation()),
-			expected: false,
-		},
-	}
+	{
+		name:     "Different year",
+		date1:    time.Date(2021, 1, 1, 12, 0, 0, 0, JapanLocation()),
+		date2:    time.Date(2022, 1, 1, 12, 0, 0, 0, JapanLocation()),
+		expected: false,
+	},
+	{
+		name:     "Zero time values",
+		date1:    time.Time{},
+		date2:    time.Time{},
+		expected: true,
+	},
+}
 
-	for _, tt := range tests {
+for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := DateEqualJST(tt.date1, tt.date2)
 			assert.Equal(t, tt.expected, result)
