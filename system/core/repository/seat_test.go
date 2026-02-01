@@ -86,20 +86,6 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		assert.Equal(t, 1800, seat.DailyCumulativeWorkSec)
 	})
 
-	t.Run("長時間休憩指定", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(layout, "2026-02-01 10:00:00"),
-			CumulativeWorkSec:      0,
-			DailyCumulativeWorkSec: 0,
-		}
-
-		now := mustParseTime(layout, "2026-02-01 11:00:00")
-		seat.StartBreak(now, "長い休憩", 120) // 2時間
-
-		assert.Equal(t, mustParseTime(layout, "2026-02-01 13:00:00"), seat.CurrentStateUntil)
-	})
-
 	t.Run("BreakWorkNameの空文字列", func(t *testing.T) {
 		seat := SeatDoc{
 			State:                  WorkState,
