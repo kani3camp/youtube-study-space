@@ -254,9 +254,9 @@ var inTestCases = []struct {
 		commandDetails: utils.CommandDetails{
 			CommandType: utils.In,
 			InOption: utils.InOption{
-				IsSeatIdSet:        true,
-				IsMemberSeat:       false,
-				SeatId:             1,
+				IsSeatIdSet:  true,
+				IsMemberSeat: false,
+				SeatId:       1,
 				MinWorkOrderOption: &utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					WorkName:         "", // 空文字列で明示的に設定
@@ -751,25 +751,25 @@ func TestSystem_Change(t *testing.T) {
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-		mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-			assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-			assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
-			
-			// 時間が指定されている場合のみ検証
-			if tt.commandDetails.ChangeOption.IsDurationMinSet {
-				assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
-			}
-			
-			// 作業名が指定されている場合のみ検証
-			if tt.commandDetails.ChangeOption.IsWorkNameSet {
-				if seat.State == repository.WorkState {
-					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
-				} else {
-					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.BreakWorkName)
+			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
+				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
+				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+
+				// 時間が指定されている場合のみ検証
+				if tt.commandDetails.ChangeOption.IsDurationMinSet {
+					assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
 				}
-			}
-			return nil
-		}).Times(1)
+
+				// 作業名が指定されている場合のみ検証
+				if tt.commandDetails.ChangeOption.IsWorkNameSet {
+					if seat.State == repository.WorkState {
+						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
+					} else {
+						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.BreakWorkName)
+					}
+				}
+				return nil
+			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)

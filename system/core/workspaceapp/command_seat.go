@@ -215,14 +215,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					realtimeEntryDurationMin := int(timeutil.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
 					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
-				if requestedUntil.Before(jstNow) {
-					// もし現在時刻が指定時間を経過していたら却下
-					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-					replyMessage += i18nmsg.CommandChangeWorkDurationBefore(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
-				} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
-					// もし現在時刻より最大延長可能時間以上後なら却下
-					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-					replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
+					if requestedUntil.Before(jstNow) {
+						// もし現在時刻が指定時間を経過していたら却下
+						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
+						replyMessage += i18nmsg.CommandChangeWorkDurationBefore(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+					} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
+						// もし現在時刻より最大延長可能時間以上後なら却下
+						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
+						replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else { // それ以外なら延長
 						currentSeat.SetWorkDuration(requestedUntil)
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
@@ -452,22 +452,22 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				realtimeEntryDurationMin := int(timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.DurationMin) * time.Minute)
 
-			if requestedUntil.Before(jstNow) {
-				// もし現在時刻が指定時間を経過していたら却下
-				remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-				result.Add(usecase.ChangeWorkDurationRejectedBefore{
-					RequestedMin:             changeOption.DurationMin,
-					RealtimeEntryDurationMin: realtimeEntryDurationMin,
-					RemainingWorkMin:         remainingWorkMin,
-				})
-			} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
-				// もし現在時刻より最大延長可能時間以上後なら却下
-				remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-				result.Add(usecase.ChangeWorkDurationRejectedAfter{
-					MaxWorkTimeMin:           app.Configs.Constants.MaxWorkTimeMin,
-					RealtimeEntryDurationMin: realtimeEntryDurationMin,
-					RemainingWorkMin:         remainingWorkMin,
-				})
+				if requestedUntil.Before(jstNow) {
+					// もし現在時刻が指定時間を経過していたら却下
+					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
+					result.Add(usecase.ChangeWorkDurationRejectedBefore{
+						RequestedMin:             changeOption.DurationMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
+				} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
+					// もし現在時刻より最大延長可能時間以上後なら却下
+					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
+					result.Add(usecase.ChangeWorkDurationRejectedAfter{
+						MaxWorkTimeMin:           app.Configs.Constants.MaxWorkTimeMin,
+						RealtimeEntryDurationMin: realtimeEntryDurationMin,
+						RemainingWorkMin:         remainingWorkMin,
+					})
 				} else { // それ以外なら延長
 					newSeat.SetWorkDuration(requestedUntil)
 					remainingWorkMin := newSeat.RemainingWorkMin(jstNow)
