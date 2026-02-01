@@ -69,6 +69,9 @@ type Repository interface {
 	GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetUsersActiveAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 
+	// Work Segment Operations
+	CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error
+
 	// Seat Limit Operations
 	ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error)
 	ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error)

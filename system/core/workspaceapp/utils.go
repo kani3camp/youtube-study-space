@@ -748,22 +748,28 @@ func (app *WorkspaceApp) enterRoom(
 		currentStateUntil = breakUntil
 	}
 
+	sessionId, err := utils.GenerateRandomString(20)
+	if err != nil {
+		return 0, fmt.Errorf("in GenerateRandomString: %w", err)
+	}
 	newSeat := repository.SeatDoc{
-		SeatId:                 seatId,
-		UserId:                 userId,
-		UserDisplayName:        userDisplayName,
-		UserProfileImageUrl:    userProfileImageUrl,
-		WorkName:               workName,
-		BreakWorkName:          breakWorkName,
-		EnteredAt:              enterDate,
-		Until:                  exitDate,
-		Appearance:             seatAppearance,
-		MenuCode:               menuCode,
-		State:                  state,
-		CurrentStateStartedAt:  currentStateStartedAt,
-		CurrentStateUntil:      currentStateUntil,
-		CumulativeWorkSec:      0,
-		DailyCumulativeWorkSec: 0,
+		SeatId:                  seatId,
+		UserId:                  userId,
+		SessionId:               sessionId,
+		UserDisplayName:         userDisplayName,
+		UserProfileImageUrl:     userProfileImageUrl,
+		WorkName:                workName,
+		BreakWorkName:           breakWorkName,
+		EnteredAt:               enterDate,
+		Until:                   exitDate,
+		Appearance:              seatAppearance,
+		MenuCode:                menuCode,
+		State:                   state,
+		CurrentStateStartedAt:   currentStateStartedAt,
+		CurrentStateUntil:       currentStateUntil,
+		CurrentSegmentStartedAt: enterDate,
+		CumulativeWorkSec:       0,
+		DailyCumulativeWorkSec:  0,
 	}
 	if err := app.Repository.CreateSeat(tx, newSeat, isMemberSeat); err != nil {
 		return 0, fmt.Errorf("in CreateSeat: %w", err)
@@ -838,7 +844,7 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in DeleteSeat: %w", err)
 	}
 
-	// ログ記録
+	// DEPRECATED: activityログ記録
 	exitActivity := repository.UserActivityDoc{
 		UserId:       previousSeat.UserId,
 		ActivityType: repository.ExitRoomActivity,
@@ -848,6 +854,24 @@ func (app *WorkspaceApp) exitRoom(
 	}
 	if err := app.Repository.CreateUserActivityDoc(ctx, tx, exitActivity); err != nil {
 		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
+	}
+	// work segmentログ記録
+	workSegmentStartedAt := previousSeat.CurrentStateStartedAt // FIXME: 途中の作業名変更の可能性を考慮する必要
+	workSegmentEndedAt := exitDate
+	workSegmentDuration := workSegmentEndedAt.Sub(workSegmentStartedAt)
+	workSegment := repository.WorkSegmentDoc{
+		UserId:       previousSeat.UserId,
+		SeatId:       previousSeat.SeatId,
+		IsMemberSeat: isMemberSeat,
+		SessionId:    previousSeat.SessionId,
+		WorkName:     previousSeat.WorkName,
+		SegmentType:  previousSeat.State,
+		StartedAt:    workSegmentStartedAt,
+		EndedAt:      workSegmentEndedAt,
+		DurationSec:  int(workSegmentDuration.Seconds()),
+	}
+	if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+		return 0, 0, fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 	}
 	// 退室時刻を記録
 	if err := app.Repository.UpdateUserLastExitedDate(tx, previousSeat.UserId, exitDate); err != nil {

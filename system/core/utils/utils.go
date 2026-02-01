@@ -2,7 +2,9 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
 	"log/slog"
+	"math/big"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -211,4 +213,20 @@ func TruncateStringUTF8(s string, maxBytes int) string {
 		maxBytes--
 	}
 	return s[:maxBytes]
+}
+
+// 読みやすさとURLセーフさを考慮して英数字（大小区別）を使用
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// GenerateRandomString generates a secure random string of length n.
+func GenerateRandomString(n int) (string, error) {
+	ret := make([]byte, n)
+	for i := 0; i < n; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			return "", err
+		}
+		ret[i] = letters[num.Int64()]
+	}
+	return string(ret), nil
 }

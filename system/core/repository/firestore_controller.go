@@ -118,6 +118,10 @@ func (c *FirestoreControllerImplements) userActivitiesCollection() *firestore.Co
 	return c.firestoreClient.Collection(UserActivities)
 }
 
+func (c *FirestoreControllerImplements) workSegmentsCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(WorkSegments)
+}
+
 func (c *FirestoreControllerImplements) generalSeatLimitsBLACKListCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(SeatLimitsBlackList)
 }
@@ -513,6 +517,11 @@ func (c *FirestoreControllerImplements) GetExitRoomUserActivityDocIdsAfterDateFo
 // GetUsersActiveAfterDate date以後に入室したことのあるuserを全て取得
 func (c *FirestoreControllerImplements) GetUsersActiveAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
 	return c.usersCollection().Where(LastEnteredDocProperty, ">=", date).Documents(ctx)
+}
+
+func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error {
+	ref := c.workSegmentsCollection().NewDoc()
+	return c.create(ctx, tx, ref, workSegment)
 }
 
 func (c *FirestoreControllerImplements) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(

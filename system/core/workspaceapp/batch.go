@@ -155,6 +155,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				seat.State = repository.WorkState
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
+				seat.CurrentSegmentStartedAt = jstNow
 				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 				if err := app.Repository.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)

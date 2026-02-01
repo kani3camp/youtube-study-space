@@ -100,21 +100,23 @@ type SeatAppearance struct {
 }
 
 type SeatDoc struct {
-	SeatId                 int            `json:"seat_id" firestore:"seat-id"` // 席番号
-	UserId                 string         `json:"user_id" firestore:"user-id"`
-	UserDisplayName        string         `json:"user_display_name" firestore:"user-display-name"`
-	WorkName               string         `json:"work_name" firestore:"work-name"`             // 作業名
-	BreakWorkName          string         `json:"break_work_name" firestore:"break-work-name"` // 休憩中の作業名
-	EnteredAt              time.Time      `json:"entered_at" firestore:"entered-at"`           // 入室日時
-	Until                  time.Time      `json:"until" firestore:"until"`                     // 自動退室予定時刻
-	Appearance             SeatAppearance `json:"appearance" firestore:"appearance"`           // 席の見え方
-	MenuCode               string         `json:"menu_code" firestore:"menu-code"`             // メニューコード
-	State                  SeatState      `json:"state" firestore:"state"`
-	CurrentStateStartedAt  time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
-	CurrentStateUntil      time.Time      `json:"current_state_until" firestore:"current-state-until"`
-	CumulativeWorkSec      int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
-	DailyCumulativeWorkSec int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
-	UserProfileImageUrl    string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
+	SeatId                  int            `json:"seat_id" firestore:"seat-id"` // 席番号
+	UserId                  string         `json:"user_id" firestore:"user-id"`
+	SessionId               string         `json:"session_id" firestore:"session-id"`
+	UserDisplayName         string         `json:"user_display_name" firestore:"user-display-name"`
+	WorkName                string         `json:"work_name" firestore:"work-name"`             // 作業名
+	BreakWorkName           string         `json:"break_work_name" firestore:"break-work-name"` // 休憩中の作業名
+	EnteredAt               time.Time      `json:"entered_at" firestore:"entered-at"`           // 入室日時
+	Until                   time.Time      `json:"until" firestore:"until"`                     // 自動退室予定時刻
+	Appearance              SeatAppearance `json:"appearance" firestore:"appearance"`           // 席の見え方
+	MenuCode                string         `json:"menu_code" firestore:"menu-code"`             // メニューコード
+	State                   SeatState      `json:"state" firestore:"state"`
+	CurrentStateStartedAt   time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
+	CurrentStateUntil       time.Time      `json:"current_state_until" firestore:"current-state-until"`
+	CurrentSegmentStartedAt time.Time      `json:"current_segment_started_at" firestore:"current-segment-started-at"`
+	CumulativeWorkSec       int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
+	DailyCumulativeWorkSec  int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
+	UserProfileImageUrl     string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
 }
 
 // SeatLimitDoc defines limitations of a seat.
@@ -201,14 +203,14 @@ type UserActivityDoc struct {
 // WorkSegmentDoc records detailed activity history.
 type WorkSegmentDoc struct {
 	UserId       string `json:"user_id" firestore:"user-id"`
-	SeatID       int    `json:"seat_id" firestore:"seat-id"`
+	SeatId       int    `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool   `json:"is_member_seat" firestore:"is-member-seat"`
 
 	// 1回の入室〜退室を紐付けるためのID (UUID等)
-	SessionID string `json:"session_id" firestore:"session-id"`
+	SessionId string `json:"session_id" firestore:"session-id"`
 
 	WorkName    string    `json:"work_name" firestore:"work-name"`
-	SegmentType string    `json:"segment_type" firestore:"segment-type"` // "work" or "break"
+	SegmentType SeatState `json:"segment_type" firestore:"segment-type"` // "work" or "break"
 	StartedAt   time.Time `json:"started_at" firestore:"started-at"`
 	EndedAt     time.Time `json:"ended_at" firestore:"ended-at"`
 	DurationSec int       `json:"duration_sec" firestore:"duration-sec"`
@@ -216,7 +218,7 @@ type WorkSegmentDoc struct {
 
 // DailyUserWorkHistoryDoc stores daily totals.
 type DailyUserWorkHistoryDoc struct {
-	UserID string    `json:"user_id" firestore:"user-id"`
+	UserId string    `json:"user_id" firestore:"user-id"`
 	Date   time.Time `json:"date" firestore:"date"`
 
 	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec"`
