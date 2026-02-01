@@ -6,11 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"app.modules/core/timeutil"
+	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
-
-	"app.modules/core/utils"
-	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
 )
 
@@ -41,7 +40,7 @@ func (controller *StorageController) CloseClient() {
 
 func (controller *StorageController) GetGcsYesterdayExportFolderName(ctx context.Context, bucketName string) (string,
 	error) {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	yesterday := jstNow.AddDate(0, 0, -1)
 	searchPrefix := yesterday.Format("2006-01-02")
 	query := &storage.Query{

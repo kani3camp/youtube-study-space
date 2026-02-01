@@ -15,6 +15,7 @@ import (
 	"github.com/kr/pretty"
 
 	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -79,7 +80,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 	checkDesiredMaxSeatsIntervalSec := app.Configs.Constants.CheckDesiredMaxSeatsIntervalSec
 
-	lastCheckedDesiredMaxSeats := utils.JstNow()
+	lastCheckedDesiredMaxSeats := timeutil.JstNow()
 
 	const MinimumTryTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
@@ -91,7 +92,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 
 	for {
 		// max_seatsを変えるか確認
-		if utils.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
+		if timeutil.JstNow().After(lastCheckedDesiredMaxSeats.Add(time.Duration(checkDesiredMaxSeatsIntervalSec) * time.Second)) {
 			slog.Info("checking desired max seats")
 			constants, err := app.Repository.ReadSystemConstantsConfig(ctx, nil)
 			if err != nil {
@@ -103,7 +104,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 					}
 				}
 			}
-			lastCheckedDesiredMaxSeats = utils.JstNow()
+			lastCheckedDesiredMaxSeats = timeutil.JstNow()
 		}
 
 		// page token取得
@@ -134,7 +135,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
-		lastChatFetched = utils.JstNow()
+		lastChatFetched = timeutil.JstNow()
 
 		// save nextPageToken
 		if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
@@ -189,9 +190,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 		}
 
-		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - utils.
+		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - timeutil.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(app.Configs.Constants.SleepIntervalMilli)*time.Millisecond - utils.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
+		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(app.Configs.Constants.SleepIntervalMilli)*time.Millisecond - timeutil.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
 		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)

@@ -8,6 +8,7 @@ import (
 
 	"app.modules/core/repository"
 	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 )
 
 // AdjustMaxSeats 一般席とメンバー席の数を調整する
@@ -94,7 +95,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
-									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+									DurationMin:      int(timeutil.NoNegativeDuration(seat.Until.Sub(timeutil.JstNow())).Minutes()),
 								},
 								IsMemberSeat: false,
 							},
@@ -175,7 +176,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 									IsWorkNameSet:    true,
 									IsDurationMinSet: true,
 									WorkName:         seat.WorkName,
-									DurationMin:      int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes()),
+									DurationMin:      int(timeutil.NoNegativeDuration(seat.Until.Sub(timeutil.JstNow())).Minutes()),
 								},
 								IsMemberSeat: true,
 							},

@@ -13,6 +13,7 @@ import (
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
@@ -96,7 +97,7 @@ func (app *WorkspaceApp) CreateUser(ctx context.Context, tx *firestore.Transacti
 	userData := repository.UserDoc{
 		DailyTotalStudySec: 0,
 		TotalStudySec:      0,
-		RegistrationDate:   utils.JstNow(),
+		RegistrationDate:   timeutil.JstNow(),
 	}
 	return app.Repository.CreateUser(ctx, tx, app.ProcessedUserId, userData)
 }
@@ -155,11 +156,11 @@ func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context,
 			return 0, 0, fmt.Errorf("failed s.CurrentSeat(): %w", err)
 		}
 
-		realtimeDuration, err = utils.RealTimeTotalStudyDurationOfSeat(currentSeat, utils.JstNow())
+		realtimeDuration, err = utils.RealTimeTotalStudyDurationOfSeat(currentSeat, timeutil.JstNow())
 		if err != nil {
 			return 0, 0, fmt.Errorf("in RealTimeTotalStudyDurationOfSeat: %w", err)
 		}
-		realtimeDailyDuration, err = utils.RealTimeDailyTotalStudyDurationOfSeat(currentSeat, utils.JstNow())
+		realtimeDailyDuration, err = utils.RealTimeDailyTotalStudyDurationOfSeat(currentSeat, timeutil.JstNow())
 		if err != nil {
 			return 0, 0, fmt.Errorf("in RealTimeDailyTotalStudyDurationOfSeat: %w", err)
 		}
@@ -310,7 +311,7 @@ func (app *WorkspaceApp) CheckLiveStreamStatus(ctx context.Context) error {
 
 func (app *WorkspaceApp) GetUserIdsToProcessRP(ctx context.Context) ([]string, error) {
 	slog.Info(utils.NameOf(app.GetUserIdsToProcessRP))
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
 	iter := app.Repository.GetUsersActiveAfterDate(ctx, _31daysAgo)
@@ -408,7 +409,7 @@ func (app *WorkspaceApp) AddLiveChatHistoryDoc(ctx context.Context, chatMessage 
 	if err != nil {
 		return fmt.Errorf("failed to Parse publishedAt: %w", err)
 	}
-	publishedAt = publishedAt.In(utils.JapanLocation())
+	publishedAt = publishedAt.In(timeutil.JapanLocation())
 
 	liveChatHistoryDoc := repository.LiveChatHistoryDoc{
 		AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
@@ -496,7 +497,7 @@ func (app *WorkspaceApp) DeleteIteratorDocs(ctx context.Context, iter *firestore
 }
 
 func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId string, seatId int, isMemberSeat bool) (bool, error) {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 
 	// ホワイトリスト・ブラックリストを検索
 	whiteListForUserAndSeat, err := app.Repository.ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx, seatId, userId, isMemberSeat)
@@ -569,7 +570,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 }
 
 func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, userId string, seatId int, isMemberSeat bool) (time.Duration, error) {
-	checkDurationFrom := utils.JstNow().Add(-time.Duration(app.Configs.Constants.RecentRangeMin) * time.Minute)
+	checkDurationFrom := timeutil.JstNow().Add(-time.Duration(app.Configs.Constants.RecentRangeMin) * time.Minute)
 
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
 	enterRoomActivities, err := app.Repository.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId, isMemberSeat)
@@ -602,12 +603,12 @@ func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, us
 			lastEnteredTimestamp = activity.TakenAt
 			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
 				entryCount += 1
-				totalEntryDuration += utils.NoNegativeDuration(utils.JstNow().Sub(activity.TakenAt))
+				totalEntryDuration += timeutil.NoNegativeDuration(timeutil.JstNow().Sub(activity.TakenAt))
 			}
 			continue
 		} else if activity.ActivityType == repository.ExitRoomActivity {
 			entryCount += 1
-			totalEntryDuration += utils.NoNegativeDuration(activity.TakenAt.Sub(lastEnteredTimestamp))
+			totalEntryDuration += timeutil.NoNegativeDuration(activity.TakenAt.Sub(lastEnteredTimestamp))
 		}
 	}
 	return totalEntryDuration, nil
@@ -700,7 +701,7 @@ func (app *WorkspaceApp) RandomAvailableSeatIdForUser(ctx context.Context, tx *f
 
 	if len(vacantSeatIdList) > 0 {
 		// 入室制限にかからない席を選ぶ
-		r := rand.New(rand.NewSource(utils.JstNow().UnixNano()))
+		r := rand.New(rand.NewSource(timeutil.JstNow().UnixNano()))
 		r.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
 		for _, seatId := range vacantSeatIdList {
 			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userId, seatId, isMemberSeat)
@@ -809,25 +810,25 @@ func (app *WorkspaceApp) exitRoom(
 	previousUserDoc *repository.UserDoc,
 ) (int, int, error) {
 	// 作業時間を計算
-	exitDate := utils.JstNow()
+	exitDate := timeutil.JstNow()
 	var addedWorkedTimeSec int
 	var addedDailyWorkedTimeSec int
 	switch previousSeat.State {
 	case repository.BreakState:
 		addedWorkedTimeSec = previousSeat.CumulativeWorkSec
 		// もし直前の休憩で日付を跨いでたら
-		justBreakTimeSec := int(utils.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
-		if justBreakTimeSec > utils.SecondsOfDay(exitDate) {
+		justBreakTimeSec := int(timeutil.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
+		if justBreakTimeSec > timeutil.SecondsOfDay(exitDate) {
 			addedDailyWorkedTimeSec = 0
 		} else {
 			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec
 		}
 	case repository.WorkState:
-		justWorkedTimeSec := int(utils.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
+		justWorkedTimeSec := int(timeutil.NoNegativeDuration(exitDate.Sub(previousSeat.CurrentStateStartedAt)).Seconds())
 		addedWorkedTimeSec = previousSeat.CumulativeWorkSec + justWorkedTimeSec
 		// もし日付変更を跨いで入室してたら、当日の累計時間は日付変更からの時間にする
-		if justWorkedTimeSec > utils.SecondsOfDay(exitDate) {
-			addedDailyWorkedTimeSec = utils.SecondsOfDay(exitDate)
+		if justWorkedTimeSec > timeutil.SecondsOfDay(exitDate) {
+			addedDailyWorkedTimeSec = timeutil.SecondsOfDay(exitDate)
 		} else {
 			addedDailyWorkedTimeSec = previousSeat.DailyCumulativeWorkSec + justWorkedTimeSec
 		}
@@ -889,7 +890,7 @@ func (app *WorkspaceApp) moveSeat(
 	previousSeat repository.SeatDoc,
 	previousUserDoc *repository.UserDoc,
 ) (int, int, int, error) {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 
 	// 値チェック
 	if targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat {
@@ -913,7 +914,7 @@ func (app *WorkspaceApp) moveSeat(
 	if option.IsDurationMinSet {
 		workMin = option.DurationMin
 	} else {
-		workMin = int(utils.NoNegativeDuration(previousSeat.Until.Sub(jstNow)).Minutes())
+		workMin = int(timeutil.NoNegativeDuration(previousSeat.Until.Sub(jstNow)).Minutes())
 	}
 	newTotalStudyDuration := time.Duration(previousUserDoc.TotalStudySec+workedTimeSec) * time.Second
 	newRP := previousUserDoc.RankPoint + addedRP
@@ -940,7 +941,7 @@ func (app *WorkspaceApp) moveSeat(
 		previousUserDoc.IsContinuousActive,
 		previousSeat.CurrentStateStartedAt,
 		previousSeat.CurrentStateUntil,
-		utils.JstNow())
+		timeutil.JstNow())
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to enterRoom for %s: %w", previousSeat.UserId, err)
 	}

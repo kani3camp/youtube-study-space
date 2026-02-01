@@ -14,6 +14,7 @@ import (
 
 	"app.modules/core/repository"
 	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 	"cloud.google.com/go/firestore"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestEnterRoom(t *testing.T) {
 		ColorGradientEnabled: true,
 	}
 	expectedUntilExitMin := 30
-	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, utils.JapanLocation())
+	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, timeutil.JapanLocation())
 	expectedUntil := enteredAt.Add(time.Duration(expectedUntilExitMin) * time.Minute)
 
 	ctx := context.Background()
