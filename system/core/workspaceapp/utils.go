@@ -857,7 +857,7 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
 	}
 	// work segmentログ記録
-	workSegmentStartedAt := previousSeat.CurrentStateStartedAt // FIXME: 途中の作業名変更の可能性を考慮する必要
+	workSegmentStartedAt := previousSeat.CurrentSegmentStartedAt
 	workSegmentEndedAt := exitDate
 	workSegmentDuration := workSegmentEndedAt.Sub(workSegmentStartedAt)
 	workSegment := repository.WorkSegmentDoc{

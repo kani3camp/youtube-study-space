@@ -426,41 +426,47 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 
 		// これ以降は書き込みのみ可。
 
-		newSeat := &currentSeat
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
-			newSeat.CurrentSegmentStartedAt = jstNow
+			// 元の値を先に保存
+			previousSegmentStartedAt := currentSeat.CurrentSegmentStartedAt
+			previousWorkName := currentSeat.WorkName
+			if currentSeat.State == repository.BreakState {
+				previousWorkName = currentSeat.BreakWorkName
+			}
 
+			// work segment記録（変更前の値を使用）
+			workSegment := repository.WorkSegmentDoc{
+				UserId:       app.ProcessedUserId,
+				SeatId:       currentSeat.SeatId,
+				IsMemberSeat: isInMemberRoom,
+				SessionId:    currentSeat.SessionId,
+				WorkName:     previousWorkName,
+				SegmentType:  currentSeat.State,
+				StartedAt:    previousSegmentStartedAt,
+				EndedAt:      jstNow,
+				DurationSec:  int(jstNow.Sub(previousSegmentStartedAt).Seconds()),
+			}
+			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+			}
+
+			// seatを更新
+			currentSeat.CurrentSegmentStartedAt = jstNow
 			switch currentSeat.State {
 			case repository.WorkState:
-				newSeat.WorkName = changeOption.WorkName
+				currentSeat.WorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedWork{
 					WorkName:     changeOption.WorkName,
 					SeatID:       currentSeat.SeatId,
 					IsMemberSeat: isInMemberRoom,
 				})
 			case repository.BreakState:
-				newSeat.BreakWorkName = changeOption.WorkName
+				currentSeat.BreakWorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedBreak{
 					WorkName:     changeOption.WorkName,
 					SeatID:       currentSeat.SeatId,
 					IsMemberSeat: isInMemberRoom,
 				})
-			}
-
-			// work segment記録
-			workSegment := repository.WorkSegmentDoc{
-				UserId:       app.ProcessedUserId,
-				SeatId:       currentSeat.SeatId,
-				IsMemberSeat: isInMemberRoom,
-				SessionId:    currentSeat.SessionId,
-				WorkName:     currentSeat.WorkName,
-				SegmentType:  currentSeat.State,
-				StartedAt:    currentSeat.CurrentSegmentStartedAt,
-				EndedAt:      jstNow,
-				DurationSec:  int(jstNow.Sub(currentSeat.CurrentSegmentStartedAt).Seconds()),
-			}
-			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
-				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 			}
 		}
 		if changeOption.IsDurationMinSet {
@@ -487,8 +493,8 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RemainingWorkMin:         remainingWorkMin,
 					})
 				} else { // それ以外なら延長
-					newSeat.SetWorkDuration(requestedUntil)
-					remainingWorkMin := newSeat.RemainingWorkMin(jstNow)
+					currentSeat.SetWorkDuration(requestedUntil)
+					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
 					result.Add(usecase.ChangeWorkDurationUpdated{
 						RequestedMin:             changeOption.DurationMin,
 						RealtimeEntryDurationMin: realtimeEntryDurationMin,
@@ -509,7 +515,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RemainingBreakMin:        int(remainingBreakDuration.Minutes()),
 					})
 				} else { // それ以外ならuntilを変更
-					newSeat.CurrentStateUntil = requestedUntil
+					currentSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
 					result.Add(usecase.ChangeBreakDurationUpdated{
 						RequestedMin:             changeOption.DurationMin,
@@ -519,7 +525,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				}
 			}
 		}
-		if err := app.Repository.UpdateSeat(ctx, tx, *newSeat, isInMemberRoom); err != nil {
+		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in UpdateSeats: %w", err)
 		}
 
@@ -688,8 +694,8 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// work segmentログ記録
-		workSegmentStartedAt := currentSeat.CurrentStateStartedAt
-		workSegmentEndedAt := utils.JstNow()
+		workSegmentStartedAt := currentSeat.CurrentSegmentStartedAt
+		workSegmentEndedAt := timeutil.JstNow()
 		workSegmentDuration := workSegmentEndedAt.Sub(workSegmentStartedAt)
 		workSegment := repository.WorkSegmentDoc{
 			UserId:       app.ProcessedUserId,
@@ -709,7 +715,6 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		// 休憩処理
 		jstNow := timeutil.JstNow()
 		currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
-		currentSeat.CurrentSegmentStartedAt = jstNow
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
@@ -782,7 +787,6 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 
 		currentSeat.ResumeWork(jstNow, workName)
-		currentSeat.CurrentSegmentStartedAt = jstNow
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
@@ -793,13 +797,29 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 			ActivityType: repository.EndBreakActivity,
 			SeatId:       currentSeat.SeatId,
 			IsMemberSeat: isInMemberRoom,
-			TakenAt:      timeutil.JstNow(),
+			TakenAt:      jstNow,
 		}
 		if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
 		}
 		// work segmentログ記録
-		// TODO
+		breakSegmentStartedAt := currentSeat.CurrentSegmentStartedAt
+		breakSegmentEndedAt := jstNow
+		breakSegmentDuration := breakSegmentEndedAt.Sub(breakSegmentStartedAt)
+		breakSegment := repository.WorkSegmentDoc{
+			UserId:       app.ProcessedUserId,
+			SeatId:       currentSeat.SeatId,
+			IsMemberSeat: isInMemberRoom,
+			SessionId:    currentSeat.SessionId,
+			WorkName:     currentSeat.BreakWorkName,
+			SegmentType:  repository.BreakState,
+			StartedAt:    breakSegmentStartedAt,
+			EndedAt:      breakSegmentEndedAt,
+			DurationSec:  int(breakSegmentDuration.Seconds()),
+		}
+		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		}
 
 		untilExitDuration := timeutil.NoNegativeDuration(until.Sub(jstNow))
 		result.Add(usecase.ResumeStarted{
@@ -909,7 +929,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 }
 
 func (app *WorkspaceApp) Clear(ctx context.Context) error {
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -939,9 +959,9 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 			SessionId:    seat.SessionId,
 			WorkName:     seat.WorkName,
 			SegmentType:  seat.State,
-			StartedAt:    seat.CurrentStateStartedAt,
+			StartedAt:    seat.CurrentSegmentStartedAt,
 			EndedAt:      jstNow,
-			DurationSec:  int(jstNow.Sub(seat.CurrentStateStartedAt).Seconds()),
+			DurationSec:  int(jstNow.Sub(seat.CurrentSegmentStartedAt).Seconds()),
 		}
 		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
@@ -956,7 +976,6 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 			seat.BreakWorkName = ""
 			result.Add(usecase.ClearBreak{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		}
-
 		seat.CurrentSegmentStartedAt = jstNow
 
 		err = app.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)

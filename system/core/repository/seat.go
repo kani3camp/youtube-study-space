@@ -51,6 +51,7 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	s.State = BreakState
 	s.CurrentStateStartedAt = now
 	s.CurrentStateUntil = breakUntil
+	s.CurrentSegmentStartedAt = now
 	s.CumulativeWorkSec = cumulativeWorkSec
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.BreakWorkName = breakWorkName
@@ -76,6 +77,7 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 	s.State = WorkState
 	s.CurrentStateStartedAt = now
 	s.CurrentStateUntil = s.Until
+	s.CurrentSegmentStartedAt = now
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.WorkName = workName
 }

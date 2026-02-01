@@ -340,6 +340,7 @@ func TestSystem_In(t *testing.T) {
 				mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			}
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
@@ -421,6 +422,7 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
@@ -771,6 +773,9 @@ func TestSystem_Change(t *testing.T) {
 				return nil
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			if tt.commandDetails.ChangeOption.IsWorkNameSet {
+				mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
@@ -1119,6 +1124,7 @@ func TestSystem_Break(t *testing.T) {
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
@@ -1331,6 +1337,7 @@ func TestSystem_Resume(t *testing.T) {
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
