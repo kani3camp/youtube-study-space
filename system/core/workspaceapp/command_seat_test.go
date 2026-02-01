@@ -246,6 +246,31 @@ var inTestCases = []struct {
 		seatMoved:            true,
 		expectedReplyMessage: "@テストユーザー さんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
 	},
+	{
+		name: "空の作業名で入室",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats: 10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.In,
+			InOption: utils.InOption{
+				IsSeatIdSet:        true,
+				IsMemberSeat:       false,
+				SeatId:             1,
+				MinWorkOrderOption: &utils.MinWorkOrderOption{
+					IsWorkNameSet:    true,
+					WorkName:         "", // 空文字列で明示的に設定
+					IsDurationMinSet: true,
+					DurationMin:      60,
+				},
+			},
+		},
+		userIsMember:         false,
+		currentSeatOfUser:    nil,
+		currentSeatDeleted:   false,
+		seatMoved:            false,
+		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大60分、1番席）",
+	},
 }
 
 func TestSystem_In(t *testing.T) {
@@ -650,6 +675,61 @@ var changeTestCases = []struct {
 		},
 		expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
 	},
+	{
+		name: "作業名を空にクリア（WorkState）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Change,
+			ChangeOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				IsDurationMinSet: false,
+				WorkName:         "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			WorkName:              "既存の作業",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さん、作業内容を\"\"に更新しました✍️（5番席）",
+	},
+	{
+		name: "休憩作業名を空にクリア（BreakState）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:       10,
+			MinWorkTimeMin: 5,
+			MaxWorkTimeMin: 360,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Change,
+			ChangeOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				IsDurationMinSet: false,
+				WorkName:         "", // 空文字列で明示的にクリア
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			BreakWorkName:         "既存の休憩作業",
+			State:                 repository.BreakState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+			CurrentStateUntil:     timeutil.JstNow().Add(20 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さん、休憩内容を\"\"に更新しました✍️（5番席）",
+	},
 }
 
 func TestSystem_Change(t *testing.T) {
@@ -671,13 +751,25 @@ func TestSystem_Change(t *testing.T) {
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+		mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
+			assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
+			assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+			
+			// 時間が指定されている場合のみ検証
+			if tt.commandDetails.ChangeOption.IsDurationMinSet {
 				assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
-				assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
-				return nil
-			}).Times(1)
+			}
+			
+			// 作業名が指定されている場合のみ検証
+			if tt.commandDetails.ChangeOption.IsWorkNameSet {
+				if seat.State == repository.WorkState {
+					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
+				} else {
+					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.BreakWorkName)
+				}
+			}
+			return nil
+		}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
@@ -944,6 +1036,33 @@ var breakTestCases = []struct {
 			Until:                 timeutil.JstNow().Add(90 * time.Minute),
 		},
 		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
+	},
+	{
+		name: "休憩開始（休憩作業名を空に設定）",
+		constantsConfig: repository.ConstantsConfigDoc{
+			MaxSeats:                10,
+			DefaultBreakDurationMin: 30,
+			MinBreakIntervalMin:     10,
+		},
+		commandDetails: utils.CommandDetails{
+			CommandType: utils.Break,
+			BreakOption: utils.MinWorkOrderOption{
+				IsWorkNameSet:    true,
+				WorkName:         "", // 空文字列で明示的に設定
+				IsDurationMinSet: false,
+			},
+		},
+		userIsMember: false,
+		currentSeatDoc: &repository.SeatDoc{
+			SeatId:                5,
+			UserId:                "test_user_id",
+			BreakWorkName:         "既存の休憩作業",
+			State:                 repository.WorkState,
+			CurrentStateStartedAt: timeutil.JstNow().Add(-15 * time.Minute),
+			EnteredAt:             timeutil.JstNow().Add(-15 * time.Minute),
+			Until:                 timeutil.JstNow().Add(90 * time.Minute),
+		},
+		expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 	},
 }
 
