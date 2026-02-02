@@ -748,6 +748,11 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		// 再開処理
 		jstNow := timeutil.JstNow()
 		until := currentSeat.Until
+		// work segmentログ記録
+		breakSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		}
 
 		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
 		workName := resumeOption.WorkName
@@ -770,11 +775,6 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 		if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
-		}
-		// work segmentログ記録
-		breakSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
-		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
-			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 		}
 
 		untilExitDuration := timeutil.NoNegativeDuration(until.Sub(jstNow))
