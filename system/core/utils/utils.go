@@ -2,18 +2,18 @@ package utils
 
 import (
 	"context"
-	"crypto/rand"
 	"log/slog"
-	"math/big"
 	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
@@ -171,18 +171,7 @@ func TruncateStringUTF8(s string, maxBytes int) string {
 	return s[:maxBytes]
 }
 
-// 読みやすさとURLセーフさを考慮して英数字（大小区別）を使用
-const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-// GenerateRandomString generates a secure random string of length n.
-func GenerateRandomString(n int) (string, error) {
-	ret := make([]byte, n)
-	for i := 0; i < n; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		if err != nil {
-			return "", err
-		}
-		ret[i] = letters[num.Int64()]
-	}
-	return string(ret), nil
+// GenerateSessionId generates a UUID v4 string with hyphens removed (32 chars).
+func GenerateSessionId() string {
+	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }

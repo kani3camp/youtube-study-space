@@ -749,14 +749,10 @@ func (app *WorkspaceApp) enterRoom(
 		currentStateUntil = breakUntil
 	}
 
-	sessionId, err := utils.GenerateRandomString(20)
-	if err != nil {
-		return 0, fmt.Errorf("in GenerateRandomString: %w", err)
-	}
 	newSeat := repository.SeatDoc{
 		SeatId:                  seatId,
 		UserId:                  userId,
-		SessionId:               sessionId,
+		SessionId:               utils.GenerateSessionId(),
 		UserDisplayName:         userDisplayName,
 		UserProfileImageUrl:     userProfileImageUrl,
 		WorkName:                workName,

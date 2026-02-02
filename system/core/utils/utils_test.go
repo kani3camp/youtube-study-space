@@ -251,3 +251,15 @@ func TestContains(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateSessionId(t *testing.T) {
+	const iterations = 100
+	generated := make(map[string]bool)
+
+	for i := 0; i < iterations; i++ {
+		result := GenerateSessionId()
+		generated[result] = true
+	}
+
+	assert.Equal(t, iterations, len(generated), "all %d generated session IDs must be unique", iterations)
+}
