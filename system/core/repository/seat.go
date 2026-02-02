@@ -177,6 +177,6 @@ func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) WorkSegm
 		SegmentType:  s.State,
 		StartedAt:    s.CurrentSegmentStartedAt,
 		EndedAt:      now,
-		DurationSec:  int(now.Sub(s.CurrentSegmentStartedAt).Seconds()),
+		DurationSec:  int(timeutil.NoNegativeDuration(now.Sub(s.CurrentSegmentStartedAt)).Seconds()),
 	}
 }

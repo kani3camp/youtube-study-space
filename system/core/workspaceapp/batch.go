@@ -146,8 +146,13 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 			if resume { // 作業再開処理
 				jstNow := timeutil.JstNow()
 				until := seat.Until
-				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
+				breakSegment := seat.GenerateWorkSegment(jstNow, isMemberRoom)
+				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+					return fmt.Errorf("in CreateWorkSegmentDoc(): %w", err)
+				}
+
 				// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
+				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
 				var dailyCumulativeWorkSec = seat.DailyCumulativeWorkSec
 				if breakSec > timeutil.SecondsOfDay(jstNow) {
 					dailyCumulativeWorkSec = 0
@@ -161,13 +166,13 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				if err := app.Repository.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)
 				}
-				// activityログ記録
+				// DEPRECATED: activityログ記録
 				endBreakActivity := repository.UserActivityDoc{
 					UserId:       app.ProcessedUserId,
 					ActivityType: repository.EndBreakActivity,
 					SeatId:       seat.SeatId,
 					IsMemberSeat: isMemberRoom,
-					TakenAt:      timeutil.JstNow(),
+					TakenAt:      jstNow,
 				}
 				if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
