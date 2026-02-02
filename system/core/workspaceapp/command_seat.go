@@ -636,6 +636,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		jstNow := timeutil.JstNow()
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
@@ -658,7 +659,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// 前回の入室または再開から、最低休憩間隔経っているか？
-		currentWorkedMin := int(timeutil.NoNegativeDuration(timeutil.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
+		currentWorkedMin := int(timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt)).Minutes())
 		if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
 			result.Add(usecase.BreakWarn{
 				MinBreakIntervalMin: app.Configs.Constants.MinBreakIntervalMin,
@@ -676,13 +677,12 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// work segmentログ記録
-		workSegment := currentSeat.GenerateWorkSegment(timeutil.JstNow(), isInMemberRoom)
+		workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
 		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 		}
 
 		// 休憩処理
-		jstNow := timeutil.JstNow()
 		currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
@@ -695,7 +695,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			ActivityType: repository.StartBreakActivity,
 			SeatId:       currentSeat.SeatId,
 			IsMemberSeat: isInMemberRoom,
-			TakenAt:      timeutil.JstNow(),
+			TakenAt:      jstNow,
 		}
 		if err := app.Repository.CreateUserActivityDoc(ctx, tx, startBreakActivity); err != nil {
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
