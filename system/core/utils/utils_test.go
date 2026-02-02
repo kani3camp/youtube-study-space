@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -253,13 +254,24 @@ func TestContains(t *testing.T) {
 }
 
 func TestGenerateSessionId(t *testing.T) {
-	const iterations = 100
-	generated := make(map[string]bool)
+	hexRegex := regexp.MustCompile("^[0-9a-f]{32}$")
 
-	for i := 0; i < iterations; i++ {
-		result := GenerateSessionId()
-		generated[result] = true
-	}
+	t.Run("format", func(t *testing.T) {
+		const n = 5
+		for i := 0; i < n; i++ {
+			result := GenerateSessionId()
+			assert.Len(t, result, 32, "session ID must be 32 characters")
+			assert.True(t, hexRegex.MatchString(result), "session ID must contain only hex digits (0-9, a-f), no hyphens")
+		}
+	})
 
-	assert.Equal(t, iterations, len(generated), "all %d generated session IDs must be unique", iterations)
+	t.Run("no_collision", func(t *testing.T) {
+		const iterations = 100
+		generated := make(map[string]bool)
+		for i := 0; i < iterations; i++ {
+			result := GenerateSessionId()
+			generated[result] = true
+		}
+		assert.Equal(t, iterations, len(generated), "all %d generated session IDs must be unique (no collision)", iterations)
+	})
 }
