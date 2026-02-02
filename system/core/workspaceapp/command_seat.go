@@ -198,6 +198,12 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
+				// work segmentログ記録
+				workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+					return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+				}
+
 				switch currentSeat.State {
 				case repository.WorkState:
 					currentSeat.WorkName = inOption.MinWorkOrderOption.WorkName
@@ -206,6 +212,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					currentSeat.BreakWorkName = inOption.MinWorkOrderOption.WorkName
 					replyMessage += i18nmsg.CommandChangeUpdateBreak(inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				}
+				currentSeat.CurrentSegmentStartedAt = jstNow
 			}
 
 			if inOption.MinWorkOrderOption.IsDurationMinSet {
