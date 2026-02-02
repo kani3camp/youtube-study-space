@@ -160,3 +160,23 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 
 	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin
 }
+
+func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) WorkSegmentDoc {
+	var workName string
+	if s.State == WorkState {
+		workName = s.WorkName
+	} else {
+		workName = s.BreakWorkName
+	}
+	return WorkSegmentDoc{
+		UserId:       s.UserId,
+		SeatId:       s.SeatId,
+		IsMemberSeat: isMemberSeat,
+		SessionId:    s.SessionId,
+		WorkName:     workName,
+		SegmentType:  s.State,
+		StartedAt:    s.CurrentSegmentStartedAt,
+		EndedAt:      now,
+		DurationSec:  int(now.Sub(s.CurrentSegmentStartedAt).Seconds()),
+	}
+}
