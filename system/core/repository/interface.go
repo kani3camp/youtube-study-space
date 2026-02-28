@@ -71,7 +71,7 @@ type Repository interface {
 
 	// Work Segment Operations
 	CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error
-	ReadWorkSegmentsBySessionId(ctx context.Context, sessionId string) ([]WorkSegmentDoc, error)
+	ReadWorkStateSegmentsBySessionId(ctx context.Context, sessionId string) ([]WorkSegmentDoc, error)
 
 	// Seat Limit Operations
 	ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]SeatLimitDoc, error)

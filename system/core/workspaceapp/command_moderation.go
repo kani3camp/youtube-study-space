@@ -67,9 +67,9 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, targetSeat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkSegmentsBySessionId: %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
 		}
 
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
@@ -209,9 +209,9 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, targetSeat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkSegmentsBySessionId: %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
 		}
 
 		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)

@@ -136,9 +136,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 		var workSegments []repository.WorkSegmentDoc
 		if isInRoom && inOption.IsSeatIdSet {
-			workSegments, err = app.Repository.ReadWorkSegmentsBySessionId(ctx, currentSeat.SessionId)
+			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionId(ctx, currentSeat.SessionId)
 			if err != nil {
-				return fmt.Errorf("in ReadWorkSegmentsBySessionId(): %w", err)
+				return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
 			}
 		}
 
@@ -334,9 +334,9 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 			return fmt.Errorf("in CurrentSeat(): %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, seat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkSegmentsBySessionId(): %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
 		}
 
 		// 退室処理

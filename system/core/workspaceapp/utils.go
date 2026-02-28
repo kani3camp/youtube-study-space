@@ -212,9 +212,9 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 					return fmt.Errorf("in ReadUser: %w", err)
 				}
 
-				workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, seat.SessionId)
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
 				if err != nil {
-					return fmt.Errorf("in ReadWorkSegmentsBySessionId: %w", err)
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
 				}
 
 				// 退室処理
