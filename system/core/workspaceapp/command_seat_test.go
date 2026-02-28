@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"app.modules/core/i18n"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	mock_repository "app.modules/core/repository/mocks"
 	"app.modules/core/timeutil"
@@ -353,6 +354,7 @@ func TestSystem_In(t *testing.T) {
 				},
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				ProcessedUserIsMember:    tt.userIsMember,
@@ -431,8 +433,9 @@ func TestSystem_Out(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 			}
 
@@ -596,8 +599,9 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -784,8 +788,9 @@ func TestSystem_Change(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -955,8 +960,9 @@ func TestSystem_More(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1133,8 +1139,9 @@ func TestSystem_Break(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1346,8 +1353,9 @@ func TestSystem_Resume(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1547,9 +1555,10 @@ func TestSystem_Order(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
+				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
-				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,

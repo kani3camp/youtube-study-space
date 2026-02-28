@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"app.modules/core/i18n"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	mock_myfirestore "app.modules/core/repository/mocks"
 	"app.modules/core/utils"
@@ -84,8 +85,9 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 			}
 
@@ -168,8 +170,9 @@ func TestSystem_Rank(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -370,8 +373,9 @@ func TestSystem_My(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
