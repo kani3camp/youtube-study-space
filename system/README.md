@@ -55,9 +55,24 @@ cd system
 ```
 
 ### mockファイルを作成する
-* Repositoryの場合
+いずれも **system ディレクトリで** 実行する。以下のコマンドは Windows / macOS の両方で動作確認済み（パスはスラッシュで統一）。
+
+* **Repository**
 ```shell
-mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
+mockgen -source ./core/repository/interface.go -destination ./core/repository/mocks/interface.go -package mock_repository
+```
+
+* **moderatorbot（MessageBot）**
+```shell
+mockgen app.modules/core/moderatorbot MessageBot > core/moderatorbot/mocks/interface.go
+```
+
+* **youtubebot（LiveChatBot）**  
+  先に `core/youtubebot` に移動してから実行する。
+```shell
+cd core/youtubebot
+mockgen -source ./types_live_chat.go -destination ./mocks/types_live_chat.go
+cd ../..
 ```
 
 

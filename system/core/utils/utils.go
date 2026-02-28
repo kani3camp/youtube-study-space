@@ -7,11 +7,13 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
@@ -167,4 +169,9 @@ func TruncateStringUTF8(s string, maxBytes int) string {
 		maxBytes--
 	}
 	return s[:maxBytes]
+}
+
+// GenerateSessionId generates a UUID v4 string with hyphens removed (32 chars).
+func GenerateSessionId() string {
+	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }

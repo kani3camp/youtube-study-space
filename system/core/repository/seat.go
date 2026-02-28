@@ -51,6 +51,7 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	s.State = BreakState
 	s.CurrentStateStartedAt = now
 	s.CurrentStateUntil = breakUntil
+	s.CurrentSegmentStartedAt = now
 	s.CumulativeWorkSec = cumulativeWorkSec
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.BreakWorkName = breakWorkName
@@ -76,6 +77,7 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 	s.State = WorkState
 	s.CurrentStateStartedAt = now
 	s.CurrentStateUntil = s.Until
+	s.CurrentSegmentStartedAt = now
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.WorkName = workName
 }
@@ -157,4 +159,24 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 	newRemainingUntilExitMin = int(timeutil.NoNegativeDuration(s.Until.Sub(now)).Minutes())
 
 	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin
+}
+
+func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) WorkSegmentDoc {
+	var workName string
+	if s.State == WorkState {
+		workName = s.WorkName
+	} else {
+		workName = s.BreakWorkName
+	}
+	return WorkSegmentDoc{
+		UserId:       s.UserId,
+		SeatId:       s.SeatId,
+		IsMemberSeat: isMemberSeat,
+		SessionId:    s.SessionId,
+		WorkName:     workName,
+		SegmentType:  s.State,
+		StartedAt:    s.CurrentSegmentStartedAt,
+		EndedAt:      now,
+		DurationSec:  int(timeutil.NoNegativeDuration(now.Sub(s.CurrentSegmentStartedAt)).Seconds()),
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"app.modules/core/i18n"
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	mock_repository "app.modules/core/repository/mocks"
 	"app.modules/core/timeutil"
@@ -323,6 +324,7 @@ func TestSystem_In(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).AnyTimes()
 			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
@@ -340,6 +342,7 @@ func TestSystem_In(t *testing.T) {
 				mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+				mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			}
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
@@ -351,6 +354,7 @@ func TestSystem_In(t *testing.T) {
 				},
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				ProcessedUserIsMember:    tt.userIsMember,
@@ -416,19 +420,22 @@ func TestSystem_Out(t *testing.T) {
 				UserId: "test_user_id",
 			}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
 			mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 			}
 
@@ -592,8 +599,9 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -771,14 +779,18 @@ func TestSystem_Change(t *testing.T) {
 				return nil
 			}).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			if tt.commandDetails.ChangeOption.IsWorkNameSet {
+				mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -948,8 +960,9 @@ func TestSystem_More(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1119,14 +1132,16 @@ func TestSystem_Break(t *testing.T) {
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1331,14 +1346,16 @@ func TestSystem_Resume(t *testing.T) {
 				return nil
 			}).MaxTimes(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 			mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), tt.expectedReplyMessage).Return(nil).Times(1)
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
-				ProcessedUserId:          "test_user_id",
 				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
+				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1538,9 +1555,10 @@ func TestSystem_Order(t *testing.T) {
 
 			app := WorkspaceApp{
 				Repository:               mockDB,
+				LiveChatBot:              mockLiveChatBot,
+				alertOwnerBot:            moderatorbot.DummyMessageBot{},
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
-				LiveChatBot:              mockLiveChatBot,
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,

@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/api/iterator"
 
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
@@ -57,7 +58,8 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(clientErr)
 	}
 	app := WorkspaceApp{
-		Repository: &repository.FirestoreControllerImplements{firestoreClient: client},
+		Repository:    &repository.FirestoreControllerImplements{firestoreClient: client},
+		alertOwnerBot: moderatorbot.DummyMessageBot{},
 	}
 	t.Cleanup(func() {
 		app.CloseFirestoreClient()

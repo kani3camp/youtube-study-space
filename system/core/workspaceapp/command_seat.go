@@ -134,6 +134,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
+		var workSegments []repository.WorkSegmentDoc
+		if isInRoom && inOption.IsSeatIdSet {
+			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionId(ctx, currentSeat.SessionId)
+			if err != nil {
+				return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+			}
+		}
+
 		// =========== 以降は書き込み処理のみ ===========
 
 		// メニュー注文されている場合は、メニューコードをセット
@@ -171,7 +179,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				isTargetMemberSeat,
 				*inOption.MinWorkOrderOption,
 				currentSeat,
-				&userDoc)
+				&userDoc,
+				workSegments)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 			}
@@ -198,6 +207,12 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
+				// work segmentログ記録
+				workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+					return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+				}
+
 				switch currentSeat.State {
 				case repository.WorkState:
 					currentSeat.WorkName = inOption.MinWorkOrderOption.WorkName
@@ -206,6 +221,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					currentSeat.BreakWorkName = inOption.MinWorkOrderOption.WorkName
 					replyMessage += i18nmsg.CommandChangeUpdateBreak(inOption.MinWorkOrderOption.WorkName, seatIdStr)
 				}
+				currentSeat.CurrentSegmentStartedAt = jstNow
 			}
 
 			if inOption.MinWorkOrderOption.IsDurationMinSet {
@@ -318,8 +334,13 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 			return fmt.Errorf("in CurrentSeat(): %w", err)
 		}
 
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+		}
+
 		// 退室処理
-		workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isInMemberRoom, seat, &userDoc)
+		workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isInMemberRoom, seat, &userDoc, workSegments)
 		if err != nil {
 			return fmt.Errorf("in exitRoom(): %w", err)
 		}
@@ -426,18 +447,24 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 
 		// これ以降は書き込みのみ可。
 
-		newSeat := &currentSeat
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
+			workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+			}
+
+			// seatを更新
+			currentSeat.CurrentSegmentStartedAt = jstNow
 			switch currentSeat.State {
 			case repository.WorkState:
-				newSeat.WorkName = changeOption.WorkName
+				currentSeat.WorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedWork{
 					WorkName:     changeOption.WorkName,
 					SeatID:       currentSeat.SeatId,
 					IsMemberSeat: isInMemberRoom,
 				})
 			case repository.BreakState:
-				newSeat.BreakWorkName = changeOption.WorkName
+				currentSeat.BreakWorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedBreak{
 					WorkName:     changeOption.WorkName,
 					SeatID:       currentSeat.SeatId,
@@ -469,8 +496,8 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RemainingWorkMin:         remainingWorkMin,
 					})
 				} else { // それ以外なら延長
-					newSeat.SetWorkDuration(requestedUntil)
-					remainingWorkMin := newSeat.RemainingWorkMin(jstNow)
+					currentSeat.SetWorkDuration(requestedUntil)
+					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
 					result.Add(usecase.ChangeWorkDurationUpdated{
 						RequestedMin:             changeOption.DurationMin,
 						RealtimeEntryDurationMin: realtimeEntryDurationMin,
@@ -491,7 +518,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RemainingBreakMin:        int(remainingBreakDuration.Minutes()),
 					})
 				} else { // それ以外ならuntilを変更
-					newSeat.CurrentStateUntil = requestedUntil
+					currentSeat.CurrentStateUntil = requestedUntil
 					remainingBreakDuration := requestedUntil.Sub(jstNow)
 					result.Add(usecase.ChangeBreakDurationUpdated{
 						RequestedMin:             changeOption.DurationMin,
@@ -501,8 +528,8 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				}
 			}
 		}
-		if err := app.Repository.UpdateSeat(ctx, tx, *newSeat, isInMemberRoom); err != nil {
-			return fmt.Errorf("in UpdateSeats: %w", err)
+		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
+			return fmt.Errorf("in UpdateSeat: %w", err)
 		}
 
 		return nil
@@ -630,6 +657,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		jstNow := timeutil.JstNow()
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
@@ -652,7 +680,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// 前回の入室または再開から、最低休憩間隔経っているか？
-		currentWorkedMin := int(timeutil.NoNegativeDuration(timeutil.JstNow().Sub(currentSeat.CurrentStateStartedAt)).Minutes())
+		currentWorkedMin := int(timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt)).Minutes())
 		if currentWorkedMin < app.Configs.Constants.MinBreakIntervalMin {
 			result.Add(usecase.BreakWarn{
 				MinBreakIntervalMin: app.Configs.Constants.MinBreakIntervalMin,
@@ -669,20 +697,26 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			breakOption.WorkName = currentSeat.BreakWorkName
 		}
 
+		// work segmentログ記録
+		workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		}
+
 		// 休憩処理
-		jstNow := timeutil.JstNow()
 		currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
 		}
-		// activityログ記録
+
+		// DEPRECATED: activityログ記録
 		startBreakActivity := repository.UserActivityDoc{
 			UserId:       app.ProcessedUserId,
 			ActivityType: repository.StartBreakActivity,
 			SeatId:       currentSeat.SeatId,
 			IsMemberSeat: isInMemberRoom,
-			TakenAt:      timeutil.JstNow(),
+			TakenAt:      jstNow,
 		}
 		if err := app.Repository.CreateUserActivityDoc(ctx, tx, startBreakActivity); err != nil {
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
@@ -735,6 +769,11 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		// 再開処理
 		jstNow := timeutil.JstNow()
 		until := currentSeat.Until
+		// work segmentログ記録
+		breakSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		}
 
 		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
 		workName := resumeOption.WorkName
@@ -747,13 +786,13 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
 		}
-		// activityログ記録
+		// DEPRECATED: activityログ記録
 		endBreakActivity := repository.UserActivityDoc{
 			UserId:       app.ProcessedUserId,
 			ActivityType: repository.EndBreakActivity,
 			SeatId:       currentSeat.SeatId,
 			IsMemberSeat: isInMemberRoom,
-			TakenAt:      timeutil.JstNow(),
+			TakenAt:      jstNow,
 		}
 		if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
@@ -867,6 +906,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 }
 
 func (app *WorkspaceApp) Clear(ctx context.Context) error {
+	jstNow := timeutil.JstNow()
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -888,6 +928,12 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 
 		// これ以降は書き込みのみ
 
+		// work segmentログ記録
+		workSegment := seat.GenerateWorkSegment(jstNow, isInMemberRoom)
+		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		}
+
 		// 作業内容をクリアする
 		switch seat.State {
 		case repository.WorkState:
@@ -897,6 +943,7 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 			seat.BreakWorkName = ""
 			result.Add(usecase.ClearBreak{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
 		}
+		seat.CurrentSegmentStartedAt = jstNow
 
 		err = app.Repository.UpdateSeat(ctx, tx, seat, isInMemberRoom)
 		if err != nil {

@@ -7,6 +7,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	USERS                     = "users"
 	LiveChatHistory           = "live-chat-history"
 	UserActivities            = "user-activities"
+	WorkSegments              = "work-segments"
 	MENU                      = "menu"
 	OrderHistory              = "order-history"
 	SeatLimitsBlackList       = "seat-limits-black-list"
@@ -33,6 +34,9 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CurrentStateUntilDocProperty = "current-state-until"
 
 	ActivityTypeDocProperty = "activity-type"
+
+	SessionIdDocProperty   = "session-id"
+	SegmentTypeDocProperty = "segment-type"
 
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"

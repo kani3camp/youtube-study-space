@@ -87,7 +87,12 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 
 			// 自動退室時刻による退室処理
 			if autoExit {
-				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc)
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seatSnapshot.SessionId)
+				if err != nil {
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+				}
+
+				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
 					return fmt.Errorf("%sさん（%s）の退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 				}
@@ -146,8 +151,13 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 			if resume { // 作業再開処理
 				jstNow := timeutil.JstNow()
 				until := seat.Until
-				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
+				breakSegment := seat.GenerateWorkSegment(jstNow, isMemberRoom)
+				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+					return fmt.Errorf("in CreateWorkSegmentDoc(): %w", err)
+				}
+
 				// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
+				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
 				var dailyCumulativeWorkSec = seat.DailyCumulativeWorkSec
 				if breakSec > timeutil.SecondsOfDay(jstNow) {
 					dailyCumulativeWorkSec = 0
@@ -156,17 +166,18 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				seat.State = repository.WorkState
 				seat.CurrentStateStartedAt = jstNow
 				seat.CurrentStateUntil = until
+				seat.CurrentSegmentStartedAt = jstNow
 				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 				if err := app.Repository.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)
 				}
-				// activityログ記録
+				// DEPRECATED: activityログ記録
 				endBreakActivity := repository.UserActivityDoc{
 					UserId:       app.ProcessedUserId,
 					ActivityType: repository.EndBreakActivity,
 					SeatId:       seat.SeatId,
 					IsMemberSeat: isMemberRoom,
-					TakenAt:      timeutil.JstNow(),
+					TakenAt:      jstNow,
 				}
 				if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)

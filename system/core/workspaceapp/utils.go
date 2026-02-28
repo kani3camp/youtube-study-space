@@ -211,8 +211,14 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				if err != nil {
 					return fmt.Errorf("in ReadUser: %w", err)
 				}
+
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
+				if err != nil {
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+				}
+
 				// 退室処理
-				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc)
+				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
 					return fmt.Errorf("failed to exitRoom for %s: %w", app.ProcessedUserId, err)
 				}
@@ -750,21 +756,23 @@ func (app *WorkspaceApp) enterRoom(
 	}
 
 	newSeat := repository.SeatDoc{
-		SeatId:                 seatId,
-		UserId:                 userId,
-		UserDisplayName:        userDisplayName,
-		UserProfileImageUrl:    userProfileImageUrl,
-		WorkName:               workName,
-		BreakWorkName:          breakWorkName,
-		EnteredAt:              enterDate,
-		Until:                  exitDate,
-		Appearance:             seatAppearance,
-		MenuCode:               menuCode,
-		State:                  state,
-		CurrentStateStartedAt:  currentStateStartedAt,
-		CurrentStateUntil:      currentStateUntil,
-		CumulativeWorkSec:      0,
-		DailyCumulativeWorkSec: 0,
+		SeatId:                  seatId,
+		UserId:                  userId,
+		SessionId:               utils.GenerateSessionId(),
+		UserDisplayName:         userDisplayName,
+		UserProfileImageUrl:     userProfileImageUrl,
+		WorkName:                workName,
+		BreakWorkName:           breakWorkName,
+		EnteredAt:               enterDate,
+		Until:                   exitDate,
+		Appearance:              seatAppearance,
+		MenuCode:                menuCode,
+		State:                   state,
+		CurrentStateStartedAt:   currentStateStartedAt,
+		CurrentStateUntil:       currentStateUntil,
+		CurrentSegmentStartedAt: enterDate,
+		CumulativeWorkSec:       0,
+		DailyCumulativeWorkSec:  0,
 	}
 	if err := app.Repository.CreateSeat(tx, newSeat, isMemberSeat); err != nil {
 		return 0, fmt.Errorf("in CreateSeat: %w", err)
@@ -808,6 +816,7 @@ func (app *WorkspaceApp) exitRoom(
 	isMemberSeat bool,
 	previousSeat repository.SeatDoc,
 	previousUserDoc *repository.UserDoc,
+	previousWorkSegments []repository.WorkSegmentDoc,
 ) (int, int, error) {
 	// 作業時間を計算
 	exitDate := timeutil.JstNow()
@@ -839,7 +848,7 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in DeleteSeat: %w", err)
 	}
 
-	// ログ記録
+	// DEPRECATED: activityログ記録
 	exitActivity := repository.UserActivityDoc{
 		UserId:       previousSeat.UserId,
 		ActivityType: repository.ExitRoomActivity,
@@ -850,10 +859,39 @@ func (app *WorkspaceApp) exitRoom(
 	if err := app.Repository.CreateUserActivityDoc(ctx, tx, exitActivity); err != nil {
 		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
 	}
+	// work segmentログ記録
+	workSegment := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
+	if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+		return 0, 0, fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+	}
 	// 退室時刻を記録
 	if err := app.Repository.UpdateUserLastExitedDate(tx, previousSeat.UserId, exitDate); err != nil {
 		return 0, 0, fmt.Errorf("in UpdateUserLastExitedDate: %w", err)
 	}
+
+	// 検算
+	{
+		onlyWorkSegmentSec := 0
+		if workSegment.SegmentType == repository.WorkState {
+			onlyWorkSegmentSec += workSegment.DurationSec
+		}
+		for _, segment := range previousWorkSegments {
+			if segment.SegmentType == repository.WorkState {
+				onlyWorkSegmentSec += segment.DurationSec
+			}
+		}
+		if onlyWorkSegmentSec != addedWorkedTimeSec {
+			app.MessageToOwner(ctx, fmt.Sprintf("検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d (userId=%s, seatId=%d)",
+				onlyWorkSegmentSec, addedWorkedTimeSec, previousSeat.UserId, previousSeat.SeatId))
+		} else {
+			slog.DebugContext(ctx, "検算成功: onlyWorkSegmentSec == addedWorkedTimeSec",
+				"userId", previousSeat.UserId,
+				"seatId", previousSeat.SeatId,
+				"onlyWorkSegmentSec", onlyWorkSegmentSec,
+				"addedWorkedTimeSec", addedWorkedTimeSec)
+		}
+	}
+
 	// 累計作業時間を更新
 	if err := app.UpdateTotalWorkTime(tx, previousSeat.UserId, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec); err != nil {
 		return 0, 0, fmt.Errorf("in UpdateTotalWorkTime: %w", err)
@@ -889,6 +927,7 @@ func (app *WorkspaceApp) moveSeat(
 	option utils.MinWorkOrderOption,
 	previousSeat repository.SeatDoc,
 	previousUserDoc *repository.UserDoc,
+	previousWorkSegments []repository.WorkSegmentDoc,
 ) (int, int, int, error) {
 	jstNow := timeutil.JstNow()
 
@@ -898,7 +937,7 @@ func (app *WorkspaceApp) moveSeat(
 	}
 
 	// 退室
-	workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc)
+	workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc, previousWorkSegments)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("in exitRoom for %s: %w", app.ProcessedUserId, err)
 	}
