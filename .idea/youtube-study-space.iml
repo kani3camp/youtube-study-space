@@ -4,6 +4,8 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/aws-cdk/cdk.out" />
+      <excludeFolder url="file://$MODULE_DIR$/tools/video-maker/1000-minutes-simulator/.next" />
+      <excludeFolder url="file://$MODULE_DIR$/youtube-monitor/.next" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

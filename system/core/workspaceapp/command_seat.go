@@ -134,6 +134,14 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
+		var workSegments []repository.WorkSegmentDoc
+		if isInRoom && inOption.IsSeatIdSet {
+			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionId(ctx, currentSeat.SessionId)
+			if err != nil {
+				return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+			}
+		}
+
 		// =========== 以降は書き込み処理のみ ===========
 
 		// メニュー注文されている場合は、メニューコードをセット
@@ -171,7 +179,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				isTargetMemberSeat,
 				*inOption.MinWorkOrderOption,
 				currentSeat,
-				&userDoc)
+				&userDoc,
+				workSegments)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 			}
@@ -325,8 +334,13 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 			return fmt.Errorf("in CurrentSeat(): %w", err)
 		}
 
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+		}
+
 		// 退室処理
-		workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isInMemberRoom, seat, &userDoc)
+		workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isInMemberRoom, seat, &userDoc, workSegments)
 		if err != nil {
 			return fmt.Errorf("in exitRoom(): %w", err)
 		}

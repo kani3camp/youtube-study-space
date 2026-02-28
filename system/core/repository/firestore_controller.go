@@ -524,6 +524,15 @@ func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context
 	return c.create(ctx, tx, ref, workSegment)
 }
 
+// ReadWorkSegmentsBySessionId returns work-state segments (SegmentType == WorkState only) for the given session ID.
+func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionId(ctx context.Context, sessionId string) ([]WorkSegmentDoc, error) {
+	iter := c.workSegmentsCollection().
+		Where(SessionIdDocProperty, "==", sessionId).
+		Where(SegmentTypeDocProperty, "==", WorkState).
+		Documents(ctx)
+	return getDocDataFromIterator[WorkSegmentDoc](iter)
+}
+
 func (c *FirestoreControllerImplements) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(
 	ctx context.Context, tx *firestore.Transaction, userId string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
 	ref := c.usersCollection().Doc(userId)

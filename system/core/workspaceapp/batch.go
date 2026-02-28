@@ -87,7 +87,12 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 
 			// 自動退室時刻による退室処理
 			if autoExit {
-				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc)
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seatSnapshot.SessionId)
+				if err != nil {
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+				}
+
+				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
 					return fmt.Errorf("%sさん（%s）の退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
 				}
