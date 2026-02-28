@@ -134,9 +134,12 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, currentSeat.SessionId)
-		if err != nil {
-			return fmt.Errorf("in ReadWorkSegmentsBySessionId(): %w", err)
+		var workSegments []repository.WorkSegmentDoc
+		if isInRoom && inOption.IsSeatIdSet {
+			workSegments, err = app.Repository.ReadWorkSegmentsBySessionId(ctx, currentSeat.SessionId)
+			if err != nil {
+				return fmt.Errorf("in ReadWorkSegmentsBySessionId(): %w", err)
+			}
 		}
 
 		// =========== 以降は書き込み処理のみ ===========
