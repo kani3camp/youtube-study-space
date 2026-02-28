@@ -1,6 +1,7 @@
 {
 	"name": "youtube-monitor",
 	"version": "1.0.0",
+	"packageManager": "pnpm@10.4.0",
 	"description": "",
 	"main": "index.js",
 	"scripts": {

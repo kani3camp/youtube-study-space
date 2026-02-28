@@ -43,22 +43,22 @@ go mod tidy
 ### Frontend (`youtube-monitor/`)
 ```bash
 # Development server
-npm run dev
+pnpm dev
 
 # Production build
-npm run build
+pnpm build
 
 # Run tests
-npm run test
+pnpm test
 
 # Linting and formatting (using Biome)
-npm run lint
-npm run lint:fix
-npm run format:fix
+pnpm lint
+pnpm lint:fix
+pnpm format:fix
 
 # Storybook for component development
-npm run storybook
-npm run build-storybook
+pnpm storybook
+pnpm build-storybook
 ```
 
 ### AWS Infrastructure (`aws-cdk/`)
@@ -209,7 +209,7 @@ The system recognizes these chat commands:
 
 ### Local Development
 - The `system/main.go` runs the live chat bot locally
-- Frontend runs on port 18080 (`npm start`)
+- Frontend runs on port 18080 (`pnpm start`)
 - Storybook runs on port 6006
 - Use `.env` files for local configuration
 
