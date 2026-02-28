@@ -324,7 +324,7 @@ func TestSystem_In(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadWorkSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).AnyTimes()
 			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
@@ -420,7 +420,7 @@ func TestSystem_Out(t *testing.T) {
 				UserId: "test_user_id",
 			}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadWorkSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
 			mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()

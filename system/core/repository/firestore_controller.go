@@ -524,7 +524,7 @@ func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context
 	return c.create(ctx, tx, ref, workSegment)
 }
 
-// ReadWorkSegmentsBySessionId returns work-state segments (SegmentType == WorkState only) for the given session ID.
+// ReadWorkStateSegmentsBySessionId returns work-state segments for the given session ID.
 func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionId(ctx context.Context, sessionId string) ([]WorkSegmentDoc, error) {
 	iter := c.workSegmentsCollection().
 		Where(SessionIdDocProperty, "==", sessionId).
