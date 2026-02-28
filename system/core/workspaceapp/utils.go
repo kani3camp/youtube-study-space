@@ -884,7 +884,7 @@ func (app *WorkspaceApp) exitRoom(
 			app.MessageToOwner(ctx, fmt.Sprintf("検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d (userId=%s, seatId=%d)",
 				onlyWorkSegmentSec, addedWorkedTimeSec, previousSeat.UserId, previousSeat.SeatId))
 		} else {
-			slog.InfoContext(ctx, "検算成功: onlyWorkSegmentSec == addedWorkedTimeSec",
+			slog.DebugContext(ctx, "検算成功: onlyWorkSegmentSec == addedWorkedTimeSec",
 				"userId", previousSeat.UserId,
 				"seatId", previousSeat.SeatId,
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
