@@ -251,6 +251,9 @@ func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) 
 }
 
 func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
+	if app.alertOwnerBot == nil {
+		return
+	}
 	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
 		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
 	}
@@ -258,6 +261,9 @@ func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 }
 
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
+	if app.alertOwnerBot == nil {
+		return
+	}
 	if err := app.alertOwnerBot.SendMessageWithError(ctx, message, argErr); err != nil {
 		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
 	}
