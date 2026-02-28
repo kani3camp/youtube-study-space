@@ -67,6 +67,11 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
+		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, targetSeat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkSegmentsBySessionId: %w", err)
+		}
+
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
@@ -76,7 +81,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)
 		if exitErr != nil {
 			return fmt.Errorf("%sさんのkick退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
@@ -204,7 +209,12 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workSegments, err := app.Repository.ReadWorkSegmentsBySessionId(ctx, targetSeat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkSegmentsBySessionId: %w", err)
+		}
+
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)
 		if exitErr != nil {
 			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}

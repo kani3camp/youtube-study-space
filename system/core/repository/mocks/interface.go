@@ -707,6 +707,21 @@ func (mr *MockRepositoryMockRecorder) ReadUser(ctx, tx, userId any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadUser", reflect.TypeOf((*MockRepository)(nil).ReadUser), ctx, tx, userId)
 }
 
+// ReadWorkSegmentsBySessionId mocks base method.
+func (m *MockRepository) ReadWorkSegmentsBySessionId(ctx context.Context, sessionId string) ([]repository.WorkSegmentDoc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadWorkSegmentsBySessionId", ctx, sessionId)
+	ret0, _ := ret[0].([]repository.WorkSegmentDoc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadWorkSegmentsBySessionId indicates an expected call of ReadWorkSegmentsBySessionId.
+func (mr *MockRepositoryMockRecorder) ReadWorkSegmentsBySessionId(ctx, sessionId any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadWorkSegmentsBySessionId", reflect.TypeOf((*MockRepository)(nil).ReadWorkSegmentsBySessionId), ctx, sessionId)
+}
+
 // ResetDailyTotalStudyTime mocks base method.
 func (m *MockRepository) ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error {
 	m.ctrl.T.Helper()

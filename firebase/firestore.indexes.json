@@ -149,6 +149,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "work-segments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`session-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`segment-type`",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

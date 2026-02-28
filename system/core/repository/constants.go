@@ -35,6 +35,9 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 
 	ActivityTypeDocProperty = "activity-type"
 
+	SessionIdDocProperty   = "session-id"
+	SegmentTypeDocProperty = "segment-type"
+
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
