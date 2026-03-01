@@ -72,6 +72,7 @@ jobs:
         env:
           # 依存関係インストール時（lint/build 用）はブラウザ不要のため Chromium ダウンロードをスキップ（タイムアウト防止）
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 1
+          PUPPETEER_SKIP_DOWNLOAD: 1
       - name: Run lint
         run: bun run lint
       - name: Run build
