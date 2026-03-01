@@ -10,6 +10,9 @@ const meta = {
 	parameters: {},
 	tags: ['autodocs'],
 	argTypes: {},
+	args: {
+		menuImageMap: new Map<string, string>([['coffee', '/images/menu_default.svg']]),
+	},
 } satisfies Meta<typeof SeatBox>
 
 export default meta
