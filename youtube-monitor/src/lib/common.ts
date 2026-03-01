@@ -45,6 +45,7 @@ const mPlusRounded1c = M_PLUS_Rounded_1c({
 	subsets: ['latin'],
 	weight: ['100', '300', '400', '500', '700', '800', '900'],
 	display: 'swap',
+	adjustFontFallback: false,
 })
 const fontFamilyString = mPlusRounded1c.style.fontFamily
 export const fontFamily = fontFamilyString.includes(' ')
@@ -55,6 +56,7 @@ const sourceCodePro = Source_Code_Pro({
 	subsets: ['latin'],
 	weight: ['200', '300', '400', '500', '600', '700', '800', '900'],
 	display: 'swap',
+	adjustFontFallback: false,
 })
 const sourceCodeProFontFamilyString = sourceCodePro.style.fontFamily
 export const sourceCodeProFontFamily = sourceCodeProFontFamilyString
