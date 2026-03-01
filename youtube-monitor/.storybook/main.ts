@@ -14,10 +14,15 @@ const config: StorybookConfig = {
 	},
 	staticDirs: ['../public'],
 	async viteFinal(viteConfig) {
+		// Vite の esbuild は ESBuildOptions | false になり得るため、object の場合のみマージ
+		const baseEsbuildConfig =
+			typeof viteConfig.esbuild === 'object' && viteConfig.esbuild !== null
+				? viteConfig.esbuild
+				: {}
 		return {
 			...viteConfig,
 			esbuild: {
-				...(viteConfig.esbuild ?? {}),
+				...baseEsbuildConfig,
 				jsx: 'automatic',
 				jsxImportSource: '@emotion/react',
 			},
