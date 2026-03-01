@@ -44,7 +44,9 @@ const BgmPlayer: React.FC = () => {
 		const el = chimeSingleRef.current
 		if (el) {
 			el.volume = Constants.chimeVolume
-			el.play()
+			void el.play().catch((err) => {
+				console.error('Chime single play failed:', err)
+			})
 		}
 	}, [])
 
@@ -52,7 +54,9 @@ const BgmPlayer: React.FC = () => {
 		const el = chimeDoubleRef.current
 		if (el) {
 			el.volume = Constants.chimeVolume
-			el.play()
+			void el.play().catch((err) => {
+				console.error('Chime double play failed:', err)
+			})
 		}
 	}, [])
 
