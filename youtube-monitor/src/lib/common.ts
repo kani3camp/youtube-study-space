@@ -10,6 +10,7 @@ export const useInterval = (
 		callbackRef.current = callback
 	}, [callback])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: interval is set once on mount; changing intervalMilliSec later is not intended
 	useEffect(() => {
 		const tick = () => {
 			callbackRef.current()

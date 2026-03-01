@@ -15,20 +15,16 @@ const BgmPlayer: React.FC = () => {
 
 	const audioDivId = 'music'
 	const audioCanvasId = 'audioCanvas'
-	const chimeSingleDivId = 'chimeSingle'
-	const chimeDoubleDivId = 'chimeDouble'
 
 	const waveRef = useRef<Wave | null>(null)
+	const chimeSingleRef = useRef<HTMLAudioElement>(null)
+	const chimeDoubleRef = useRef<HTMLAudioElement>(null)
 
+	// マウント時にチャイム用 audio 要素の準備（load / error ハンドラ登録）を一度だけ実行
 	useEffect(() => {
-		checkChimeCanPlay()
-	}, [])
-
-	const checkChimeCanPlay = async () => {
-		console.log('checking chime audio files.')
-		const chimeDivIdList = [chimeSingleDivId, chimeDoubleDivId]
-		for (const divId of chimeDivIdList) {
-			const chime = document.getElementById(divId) as HTMLAudioElement
+		const chimeList = [chimeSingleRef.current, chimeDoubleRef.current]
+		for (const chime of chimeList) {
+			if (!chime) continue
 			chime.addEventListener('error', () => {
 				alert(`error loading: ${chime.src}`)
 			})
@@ -37,7 +33,28 @@ const BgmPlayer: React.FC = () => {
 			}
 			chime.load()
 		}
-	}
+		console.log('checking chime audio files.')
+	}, [])
+
+	const playChimeSingle = useCallback(() => {
+		const el = chimeSingleRef.current
+		if (el) {
+			el.volume = Constants.chimeVolume
+			void el.play().catch((err) => {
+				console.error('Chime single play failed:', err)
+			})
+		}
+	}, [])
+
+	const playChimeDouble = useCallback(() => {
+		const el = chimeDoubleRef.current
+		if (el) {
+			el.volume = Constants.chimeVolume
+			void el.play().catch((err) => {
+				console.error('Chime double play failed:', err)
+			})
+		}
+	}, [])
 
 	const updateState = useCallback(() => {
 		const currentSection = getCurrentSection()
@@ -57,7 +74,7 @@ const BgmPlayer: React.FC = () => {
 			playChimeDouble()
 		}
 		setLastSectionType(currentSection.sectionType)
-	}, [lastSectionType])
+	}, [lastSectionType, playChimeSingle, playChimeDouble])
 
 	const audioNext = useCallback(async () => {
 		try {
@@ -126,22 +143,6 @@ const BgmPlayer: React.FC = () => {
 		setAudioArtist('BGM ARTIST')
 	}
 
-	const playChimeSingle = () => {
-		const chimeSingle = document.getElementById(
-			chimeSingleDivId,
-		) as HTMLAudioElement
-		chimeSingle.volume = Constants.chimeVolume
-		chimeSingle.play()
-	}
-
-	const playChimeDouble = () => {
-		const chimeDouble = document.getElementById(
-			chimeDoubleDivId,
-		) as HTMLAudioElement
-		chimeDouble.volume = Constants.chimeVolume
-		chimeDouble.play()
-	}
-
 	useEffect(() => {
 		if (!waveRef.current) {
 			const audioElement = document.getElementById(
@@ -182,10 +183,10 @@ const BgmPlayer: React.FC = () => {
 					<track kind="captions" />
 				</audio>
 
-				<audio id={chimeSingleDivId} src={Constants.chimeSingleFilePath}>
+				<audio ref={chimeSingleRef} src={Constants.chimeSingleFilePath}>
 					<track kind="captions" />
 				</audio>
-				<audio id={chimeDoubleDivId} src={Constants.chimeDoubleFilePath}>
+				<audio ref={chimeDoubleRef} src={Constants.chimeDoubleFilePath}>
 					<track kind="captions" />
 				</audio>
 				<h4>♪ {audioTitle}</h4>
