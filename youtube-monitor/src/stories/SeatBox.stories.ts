@@ -1,8 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import React from 'react'
 
 import SeatBox, { type SeatProps } from '../components/SeatBox'
 import { SeatState } from '../components/SeatsPage'
 import type { Seat } from '../types/api'
+
+/** ストーリー用。Map は Controls でシリアライズされないため decorator で注入する */
+const defaultMenuImageMap = new Map<string, string>([
+	['coffee', '/images/menu_default.svg'],
+])
 
 const meta = {
 	title: 'SeatBox',
@@ -10,6 +16,13 @@ const meta = {
 	parameters: {},
 	tags: ['autodocs'],
 	argTypes: {},
+	decorators: [
+		(_Story, context) =>
+			React.createElement(SeatBox, {
+				...context.args,
+				menuImageMap: defaultMenuImageMap,
+			} as SeatProps),
+	],
 } satisfies Meta<typeof SeatBox>
 
 export default meta
@@ -114,8 +127,7 @@ export const InUseMember: Story = {
 			},
 			menu_code: '',
 			state: SeatState.Work,
-			user_profile_image_url:
-				'https://yt3.ggpht.com/exjUpNy_ufpwI6oAdz-UVAp17C67z9ObW8j_QK-wMlXVEI4eXq0736r3VeWf6Kyd5zjljD1PozQ=s108-c-k-c0x00ffffff-no-rj',
+			user_profile_image_url: '/images/sample_profile.svg',
 		} as Seat,
 		seatPosition,
 		seatShape: memberSeatShape,
@@ -176,8 +188,7 @@ export const InUseMemberWithMenu: Story = {
 			},
 			menu_code: 'coffee',
 			state: SeatState.Work,
-			user_profile_image_url:
-				'https://yt3.ggpht.com/exjUpNy_ufpwI6oAdz-UVAp17C67z9ObW8j_QK-wMlXVEI4eXq0736r3VeWf6Kyd5zjljD1PozQ=s108-c-k-c0x00ffffff-no-rj',
+			user_profile_image_url: '/images/sample_profile.svg',
 		} as Seat,
 		seatPosition,
 		seatShape: memberSeatShape,
