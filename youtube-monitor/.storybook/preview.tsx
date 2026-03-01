@@ -1,6 +1,7 @@
-import { css, Global as EmotionGlobal } from '@emotion/react'
+import { Global as EmotionGlobal } from '@emotion/react'
 import { withThemeFromJSXProvider } from '@storybook/addon-themes'
 import type { Preview } from '@storybook/react'
+// biome-ignore lint/correctness/noUnusedImports: JSX の型チェックで React がスコープに必要（jsx: preserve）
 import React from 'react'
 import { globalStyle } from '../src/styles/global.styles'
 

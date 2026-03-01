@@ -58,6 +58,7 @@ const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
 		refreshPageIndex()
 	}, PAGING_INTERVAL_SEC * 1000)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: changePage は引数の pageIndex のみで十分
 	useEffect(() => {
 		console.log('[currentMenuPageIndex]:', pageIndex)
 		changePage(pageIndex)
