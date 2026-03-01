@@ -1,5 +1,6 @@
 .env
 .next/
+*.tsbuildinfo
 node_modules/
 out/
 public/audio/*
