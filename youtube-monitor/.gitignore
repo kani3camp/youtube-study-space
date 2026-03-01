@@ -7,6 +7,7 @@ public/audio/*
 public/chime/*
 public/images/*
 !public/images/menu_default.svg
+!public/images/sample_profile.svg
 *storybook.log
 storybook-static/
 doctor-storybook.log

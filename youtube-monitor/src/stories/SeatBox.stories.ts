@@ -117,8 +117,7 @@ export const InUseMember: Story = {
 			},
 			menu_code: '',
 			state: SeatState.Work,
-			user_profile_image_url:
-				'https://yt3.ggpht.com/exjUpNy_ufpwI6oAdz-UVAp17C67z9ObW8j_QK-wMlXVEI4eXq0736r3VeWf6Kyd5zjljD1PozQ=s108-c-k-c0x00ffffff-no-rj',
+			user_profile_image_url: '/images/sample_profile.svg',
 		} as Seat,
 		seatPosition,
 		seatShape: memberSeatShape,
@@ -179,8 +178,7 @@ export const InUseMemberWithMenu: Story = {
 			},
 			menu_code: 'coffee',
 			state: SeatState.Work,
-			user_profile_image_url:
-				'https://yt3.ggpht.com/exjUpNy_ufpwI6oAdz-UVAp17C67z9ObW8j_QK-wMlXVEI4eXq0736r3VeWf6Kyd5zjljD1PozQ=s108-c-k-c0x00ffffff-no-rj',
+			user_profile_image_url: '/images/sample_profile.svg',
 		} as Seat,
 		seatPosition,
 		seatShape: memberSeatShape,
