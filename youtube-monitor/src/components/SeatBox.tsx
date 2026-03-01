@@ -206,7 +206,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 			{props.isUsed &&
 				!isBreak &&
 				validateString(menuCode) &&
-				props.menuImageMap?.get(menuCode) && (
+				props.menuImageMap.get(menuCode) && (
 					<Image
 						alt="menu item"
 						src={props.menuImageMap.get(menuCode) as string}

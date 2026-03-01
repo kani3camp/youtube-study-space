@@ -1,8 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import React from 'react'
 
 import SeatBox, { type SeatProps } from '../components/SeatBox'
 import { SeatState } from '../components/SeatsPage'
 import type { Seat } from '../types/api'
+
+/** ストーリー用。Map は Controls でシリアライズされないため decorator で注入する */
+const defaultMenuImageMap = new Map<string, string>([
+	['coffee', '/images/menu_default.svg'],
+])
 
 const meta = {
 	title: 'SeatBox',
@@ -10,11 +16,13 @@ const meta = {
 	parameters: {},
 	tags: ['autodocs'],
 	argTypes: {},
-	args: {
-		menuImageMap: new Map<string, string>([
-			['coffee', '/images/menu_default.svg'],
-		]),
-	},
+	decorators: [
+		(_Story, context) =>
+			React.createElement(SeatBox, {
+				...context.args,
+				menuImageMap: defaultMenuImageMap,
+			} as SeatProps),
+	],
 } satisfies Meta<typeof SeatBox>
 
 export default meta

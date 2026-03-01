@@ -13,11 +13,11 @@ const config: StorybookConfig = {
 		options: {},
 	},
 	staticDirs: ['../public'],
-	async viteFinal(config) {
+	async viteFinal(viteConfig) {
 		return {
-			...config,
+			...viteConfig,
 			esbuild: {
-				...config.esbuild,
+				...(viteConfig.esbuild ?? {}),
 				jsx: 'automatic',
 				jsxImportSource: '@emotion/react',
 			},
