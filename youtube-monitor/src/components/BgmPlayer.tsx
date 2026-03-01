@@ -20,8 +20,8 @@ const BgmPlayer: React.FC = () => {
 	const chimeSingleRef = useRef<HTMLAudioElement>(null)
 	const chimeDoubleRef = useRef<HTMLAudioElement>(null)
 
-	const checkChimeCanPlay = async () => {
-		console.log('checking chime audio files.')
+	// マウント時にチャイム用 audio 要素の準備（load / error ハンドラ登録）を一度だけ実行
+	useEffect(() => {
 		const chimeList = [chimeSingleRef.current, chimeDoubleRef.current]
 		for (const chime of chimeList) {
 			if (!chime) continue
@@ -33,11 +33,7 @@ const BgmPlayer: React.FC = () => {
 			}
 			chime.load()
 		}
-	}
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount to prepare chime elements
-	useEffect(() => {
-		checkChimeCanPlay()
+		console.log('checking chime audio files.')
 	}, [])
 
 	const playChimeSingle = useCallback(() => {
