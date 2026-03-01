@@ -57,7 +57,7 @@ jobs:
   menu-image-generator-lint-build:
     name: Menu Image Generator Lint & Build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: tools/menu-image-generator
@@ -69,6 +69,10 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install
+        env:
+          # 依存関係インストール時（lint/build 用）はブラウザ不要のため Chromium ダウンロードをスキップ（タイムアウト防止）
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 1
+          PUPPETEER_SKIP_DOWNLOAD: 1
       - name: Run lint
         run: bun run lint
       - name: Run build
