@@ -13,7 +13,7 @@ The copyright and all intellectual property rights of the Software belong to the
 ### 3. Prohibitions and Restrictions
 * **No Derivative Projects:** You are strictly prohibited from publishing, distributing, or selling the Software (including modified versions) as a separate project or under a different name/repository.
 * **No Redistribution as a Standalone Project:** You may not redistribute the source code or binaries of the Software to third parties as a separate product or as part of another project without the prior written consent of the author. (This does not prohibit sharing a link to this repository or making a private backup copy for personal use.)
-* **Forking Policy:** GitHub's "Fork" feature may only be used for the purpose of contributing back to this repository via Pull Requests. Maintaining a public fork for the purpose of creating a standalone project or bypassing these terms is prohibited.
+* **Note on Forks:** GitHub's "Fork" feature is provided under GitHub's own terms of service. Any public forks or use of forked copies must also comply with these Terms of Use, including the prohibitions on redistribution and derivative projects. Creating or maintaining public forks whose primary purpose is to redistribute the Software as a separate project or to circumvent these terms is prohibited.
 
 ### 4. Contributions
 By submitting a Pull Request or any contribution to this repository, you grant **kani3camp** a non-exclusive, irrevocable, perpetual, worldwide, royalty-free, and sublicensable license to use, modify, and distribute your contribution as part of this project.
