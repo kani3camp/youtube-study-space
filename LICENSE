@@ -1,21 +1,25 @@
-MIT License
+# Terms of Use
 
-Copyright (c) 2021 sorarideblog
+By using, copying, modifying, or contributing to this software (the "Software"), you agree to be bound by the following terms.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### 1. Copyright
+The copyright and all intellectual property rights of the Software belong to the original author, **kani3camp**.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+### 2. Permissions
+* You may view the source code of the Software.
+* You may download, run, and use the Software for personal, educational, or testing purposes within your local environment.
+* You are encouraged to contribute to the Software by submitting Pull Requests or Issues to this repository.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+### 3. Prohibitions and Restrictions
+* **No Derivative Projects:** You are strictly prohibited from publishing, distributing, or selling the Software (including modified versions) as a separate project or under a different name/repository.
+* **No Redistribution as a Standalone Project:** You may not redistribute the source code or binaries of the Software to third parties as a separate product or as part of another project without the prior written consent of the author. (This does not prohibit sharing a link to this repository or making a private backup copy for personal use.)
+* **Note on Forks:** GitHub's "Fork" feature is provided under GitHub's own terms of service. Any public forks or use of forked copies must also comply with these Terms of Use, including the prohibitions on redistribution and derivative projects. Creating or maintaining public forks whose primary purpose is to redistribute the Software as a separate project or to circumvent these terms is prohibited.
+
+### 4. Contributions
+By submitting a Pull Request or any contribution to this repository, you grant **kani3camp** a non-exclusive, irrevocable, perpetual, worldwide, royalty-free, and sublicensable license to use, modify, and distribute your contribution as part of this project.
+
+### 5. Disclaimer
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### 6. Governing Law
+These terms shall be governed by and construed in accordance with the laws of Japan.

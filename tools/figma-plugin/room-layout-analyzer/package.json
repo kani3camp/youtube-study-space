@@ -9,7 +9,7 @@
     "watch": "npm run build -- --watch"
   },
   "author": "",
-  "license": "",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@figma/plugin-typings": "^1.64.0",
     "typescript": "^5.0.4"
