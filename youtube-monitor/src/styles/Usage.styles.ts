@@ -37,21 +37,20 @@ export const description = css`
 `
 
 export const command = css`
-    margin: 0.2rem;
-    font-size: 0.55rem;
+    margin: 0.0rem;
 `
 
 export const commandCode = css`
-    font-family: ${sourceCodeProFontFamily};
+    /* font-family: ${sourceCodeProFontFamily}; */
     font-weight: 700;
-    font-size: 0.98rem;
+    font-size: 0.88rem;
     letter-spacing: 0.01em;
     font-variant-ligatures: none;
     display: inline-block;
     background-color: rgba(0, 0, 0, 0.08);
     border-radius: 0.22rem;
     padding: 0.12rem 0.5rem;
-    margin: 0.07rem 0.18rem 0.07rem 0;
+    margin: 0.0rem 0.18rem;
     line-height: 1.35;
 `
 

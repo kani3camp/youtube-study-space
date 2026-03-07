@@ -14,7 +14,7 @@ const Usage: FC = () => {
 					{t('usage.description')}
 				</h4>
 				<div css={styles.command}>
-					<span css={styles.commandCode}>!in {t('usage.work')}</span>
+					<span css={styles.commandCode}>!in　{t('usage.work')}</span>
 					<span css={styles.commandDesc}>{t('usage.in')}</span>
 				</div>
 				<div css={styles.command}>
