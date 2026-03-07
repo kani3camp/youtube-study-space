@@ -85,7 +85,7 @@ const Timer: FC = memo(function Timer() {
 	const { remainingSec, percentage, isStudy, nextLabel, nextDurationMin } =
 		useMemo(() => (now ? computeRemaining(now) : FALLBACK_REMAINING), [now])
 
-	const mm = String(Math.floor(remainingSec / 60)).padStart(2, '0')
+	const mm = String(Math.floor(remainingSec / 60))
 	const ss = String(remainingSec % 60).padStart(2, '0')
 
 	return (
@@ -124,7 +124,9 @@ const Timer: FC = memo(function Timer() {
 								)}
 							</div>
 							<div css={styles.remaining}>
-								{mm}:{ss}
+								<span css={styles.remainingMinutes}>{mm}</span>
+								<span css={styles.remainingDivider}>:</span>
+								<span css={styles.remainingSeconds}>{ss}</span>
 							</div>
 						</div>
 					</CircularProgressbarWithChildren>

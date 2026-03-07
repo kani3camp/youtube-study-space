@@ -78,10 +78,29 @@ export const stateLabelBreak = css`
 
 export const remaining = css`
     font-family: ${fontFamily};
-    font-size: 1.45rem;
+    font-size: 1.35rem;
     line-height: 1;
     font-weight: bold;
     letter-spacing: 0.03em;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+`
+
+export const remainingMinutes = css`
+    width: 2ch;
+    text-align: right;
+`
+
+export const remainingDivider = css`
+    width: 0.6ch;
+    text-align: center;
+`
+
+export const remainingSeconds = css`
+    width: 2ch;
+    text-align: left;
 `
 
 export const nextRow = css`
