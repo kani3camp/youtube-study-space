@@ -1,97 +1,143 @@
+/** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next'
-import { type FC, useState } from 'react'
+import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+	buildStyles,
+	CircularProgressbarWithChildren,
+} from 'react-circular-progressbar'
+import { AiFillFire } from 'react-icons/ai'
+import { MdFreeBreakfast } from 'react-icons/md'
 import { useInterval } from '../lib/common'
+import { Constants } from '../lib/constants'
 import {
 	getCurrentSection,
 	getNextSection,
-	remainingTime,
+	getSectionDateRange,
 	SectionType,
 } from '../lib/time-table'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
+import 'react-circular-progressbar/dist/styles.css'
 
-const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
+const UPDATE_INTERVAL_MS = 100
 
-const Timer: FC = () => {
+const FALLBACK_REMAINING = {
+	remainingSec: 0,
+	percentage: 0,
+	isStudy: true,
+	nextLabel: '',
+	nextDurationMin: 0,
+}
+
+function computeRemaining(now: Date): {
+	remainingSec: number
+	percentage: number
+	isStudy: boolean
+	nextLabel: string
+	nextDurationMin: number
+} {
+	const section = getCurrentSection()
+	const { startsAt, endsAt } = getSectionDateRange(section, now)
+	const sectionDurationSec = Math.max(
+		1,
+		Math.floor((endsAt.getTime() - startsAt.getTime()) / 1000),
+	)
+	const remainingSec = Math.max(
+		0,
+		Math.floor((endsAt.getTime() - now.getTime()) / 1000),
+	)
+	const percentage = (remainingSec / sectionDurationSec) * 100
+	const isStudy = section.sectionType === SectionType.Study
+	const next = getNextSection()
+	let nextLabel = ''
+	let nextDurationMin = 0
+	if (next) {
+		const nextRange = getSectionDateRange(next, endsAt)
+		nextDurationMin = Math.floor(
+			(nextRange.endsAt.getTime() - nextRange.startsAt.getTime()) / 60000,
+		)
+		nextLabel = next.sectionType === SectionType.Study ? 'study' : 'break'
+	}
+	return {
+		remainingSec,
+		percentage,
+		isStudy,
+		nextLabel,
+		nextDurationMin,
+	}
+}
+
+const Timer: FC = memo(function Timer() {
 	const { t } = useTranslation()
+	const [now, setNow] = useState<Date | null>(null)
 
-	const [sectionType, setSectionType] = useState<string>(SectionType.Break)
-	const [sectionMessage, setSectionMessage] = useState<string>('')
-	const [remainingMin, setRemainingMin] = useState<number>(0)
-	const [remainingSec, setRemainingSec] = useState<number>(0)
-	const [nextSectionDuration, setNextSectionDuration] = useState<number>(0)
-	const [nextSection, setNextSection] = useState<string>('')
+	useEffect(() => {
+		setNow(new Date())
+	}, [])
 
-	useInterval(() => {
-		// フレームごとの更新
+	useInterval(
+		useCallback(() => {
+			setNow((prev) => (prev ? new Date() : null))
+		}, []),
+		UPDATE_INTERVAL_MS,
+	)
 
-		const now: Date = new Date()
-		const currentSection = getCurrentSection()
-		if (currentSection !== null) {
-			let remaining_min: number = remainingTime(
-				now.getHours(),
-				now.getMinutes(),
-				currentSection.ends.h,
-				currentSection.ends.m,
-			)
-			const remaining_sec: number = (60 - now.getSeconds()) % 60
-			if (remaining_sec !== 0) remaining_min -= 1
+	const { remainingSec, percentage, isStudy, nextLabel, nextDurationMin } =
+		useMemo(() => (now ? computeRemaining(now) : FALLBACK_REMAINING), [now])
 
-			const nextSection = getNextSection()
-			if (nextSection !== null) {
-				setRemainingMin(remaining_min)
-				setRemainingSec(remaining_sec)
-				setNextSectionDuration(
-					remainingTime(
-						nextSection.starts.h,
-						nextSection.starts.m,
-						nextSection.ends.h,
-						nextSection.ends.m,
-					),
-				)
-				setNextSection(
-					currentSection.sectionType === SectionType.Study
-						? t('break')
-						: t('study'),
-				)
-				setSectionType(currentSection.sectionType)
-				setSectionMessage(
-					currentSection.sectionType === SectionType.Study
-						? `✏️ ${t('study')} ✏️`
-						: `☕️ ${t('break')} ☕️`,
-				)
-			}
-		}
-	}, TIME_UPDATE_INTERVAL_MILLI_SEC)
+	const mm = String(Math.floor(remainingSec / 60)).padStart(2, '0')
+	const ss = String(remainingSec % 60).padStart(2, '0')
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} suppressHydrationWarning>
 			<div css={[styles.timer, componentStyle]}>
-				<div css={styles.timerTitle}>
-					<div
-						css={[
-							styles.sectionColor,
-							sectionType === SectionType.Study
-								? styles.studyMode
-								: styles.breakMode,
-						]}
+				<div css={styles.progressBarContainer}>
+					<CircularProgressbarWithChildren
+						value={percentage}
+						strokeWidth={10}
+						styles={buildStyles({
+							strokeLinecap: 'round',
+							pathTransitionDuration: 0,
+							pathColor: isStudy
+								? Constants.timerProgressStudyColor
+								: Constants.timerProgressBreakColor,
+							trailColor: 'rgba(255,255,255,0.35)',
+							backgroundColor: 'transparent',
+						})}
 					>
-						{sectionMessage}
+						<div css={styles.progressInner}>
+							<div css={styles.stateRow}>
+								{isStudy ? (
+									<>
+										<AiFillFire size={22} css={styles.studyIcon} />
+										<span css={[styles.stateLabel, styles.stateLabelStudy]}>
+											{t('study')}
+										</span>
+									</>
+								) : (
+									<>
+										<MdFreeBreakfast size={22} css={styles.breakIcon} />
+										<span css={[styles.stateLabel, styles.stateLabelBreak]}>
+											{t('break')}
+										</span>
+									</>
+								)}
+							</div>
+							<div css={styles.remaining}>
+								{mm}:{ss}
+							</div>
+						</div>
+					</CircularProgressbarWithChildren>
+				</div>
+				{nextLabel && (
+					<div css={styles.nextRow}>
+						{t('next')} {nextDurationMin}
+						{t('minutes')} {t(nextLabel)}
 					</div>
-				</div>
-				<div css={styles.remaining}>
-					{remainingMin}：
-					{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
-				</div>
-				<div>
-					<span>{`${t('next')} `}</span>
-					<span>{nextSectionDuration}</span>
-					<span>{`${t('minutes')} `}</span>
-					<span>{nextSection}</span>
-				</div>
+				)}
 			</div>
 		</div>
 	)
-}
+})
 
 export default Timer
