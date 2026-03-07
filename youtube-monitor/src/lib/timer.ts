@@ -16,7 +16,7 @@ export type RemainingInfo = {
 export const FALLBACK_REMAINING: RemainingInfo = {
 	remainingSec: 0,
 	percentage: 0,
-	isStudy: true,
+	isStudy: false,
 	nextLabel: '',
 	nextDurationMin: 0,
 }
@@ -35,15 +35,11 @@ export function computeRemaining(now: Date): RemainingInfo {
 	const percentage = (remainingSec / sectionDurationSec) * 100
 	const isStudy = section.sectionType === SectionType.Study
 	const next = getNextSection(now)
-	let nextLabel = ''
-	let nextDurationMin = 0
-	if (next) {
-		const nextRange = getSectionDateRange(next, endsAt)
-		nextDurationMin = Math.floor(
-			(nextRange.endsAt.getTime() - nextRange.startsAt.getTime()) / 60000,
-		)
-		nextLabel = next.sectionType === SectionType.Study ? 'study' : 'break'
-	}
+	const nextRange = getSectionDateRange(next, endsAt)
+	const nextDurationMin = Math.floor(
+		(nextRange.endsAt.getTime() - nextRange.startsAt.getTime()) / 60000,
+	)
+	const nextLabel = next.sectionType === SectionType.Study ? 'study' : 'break'
 	return {
 		remainingSec,
 		percentage,

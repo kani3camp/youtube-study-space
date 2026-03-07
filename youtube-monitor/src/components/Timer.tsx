@@ -38,13 +38,14 @@ const Timer = memo(function Timer() {
 		useMemo(() => (now ? computeRemaining(now) : FALLBACK_REMAINING), [now])
 
 	const { minutes, seconds } = formatRemainingTime(remainingSec)
+	const isReady = now !== null
 
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.timer, componentStyle]}>
 				<div css={styles.progressBarContainer}>
 					<CircularProgressbarWithChildren
-						value={percentage}
+						value={isReady ? percentage : 0}
 						strokeWidth={10}
 						styles={buildStyles({
 							strokeLinecap: 'round',
@@ -58,31 +59,41 @@ const Timer = memo(function Timer() {
 					>
 						<div css={styles.progressInner}>
 							<div css={styles.stateRow}>
-								{isStudy ? (
-									<>
-										<AiFillFire size={22} css={styles.studyIcon} />
-										<span css={[styles.stateLabel, styles.stateLabelStudy]}>
-											{t('study')}
-										</span>
-									</>
+								{isReady ? (
+									isStudy ? (
+										<>
+											<AiFillFire size={22} css={styles.studyIcon} />
+											<span css={[styles.stateLabel, styles.stateLabelStudy]}>
+												{t('study')}
+											</span>
+										</>
+									) : (
+										<>
+											<MdFreeBreakfast size={22} css={styles.breakIcon} />
+											<span css={[styles.stateLabel, styles.stateLabelBreak]}>
+												{t('break')}
+											</span>
+										</>
+									)
 								) : (
-									<>
-										<MdFreeBreakfast size={22} css={styles.breakIcon} />
-										<span css={[styles.stateLabel, styles.stateLabelBreak]}>
-											{t('break')}
-										</span>
-									</>
+									<span css={styles.statePlaceholder}>--</span>
 								)}
 							</div>
 							<div css={styles.remaining}>
-								<span css={styles.remainingMinutes}>{minutes}</span>
-								<span css={styles.remainingDivider}>:</span>
-								<span css={styles.remainingSeconds}>{seconds}</span>
+								{isReady ? (
+									<>
+										<span css={styles.remainingMinutes}>{minutes}</span>
+										<span css={styles.remainingDivider}>:</span>
+										<span css={styles.remainingSeconds}>{seconds}</span>
+									</>
+								) : (
+									<span css={styles.remainingPlaceholder}>--:--</span>
+								)}
 							</div>
 						</div>
 					</CircularProgressbarWithChildren>
 				</div>
-				{nextLabel && (
+				{isReady && (
 					<div css={styles.nextRow}>
 						{t('next')} {nextDurationMin}
 						{t('minutes')} {t(nextLabel)}

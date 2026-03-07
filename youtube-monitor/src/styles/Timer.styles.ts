@@ -76,6 +76,12 @@ export const stateLabelBreak = css`
     color: ${Constants.timerProgressBreakColor};
 `
 
+export const statePlaceholder = css`
+    font-size: 1.1rem;
+    font-weight: bold;
+    opacity: 0.45;
+`
+
 export const remaining = css`
     font-family: ${fontFamily};
     font-size: 1.35rem;
@@ -101,6 +107,13 @@ export const remainingDivider = css`
 export const remainingSeconds = css`
     width: 2ch;
     text-align: left;
+`
+
+export const remainingPlaceholder = css`
+    display: inline-block;
+    width: 4.6ch;
+    text-align: center;
+    opacity: 0.45;
 `
 
 export const nextRow = css`

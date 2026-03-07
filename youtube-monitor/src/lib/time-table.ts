@@ -106,9 +106,9 @@ export function getNextSection(now: Date = new Date()): TimeSection {
 }
 
 /**
- * Returns the concrete start/end Date range for the section instance that
- * contains `now` or is adjacent to it when the section spans midnight.
- */
+ * 指定されたセクションについて、`now` が含まれる、または
+ * 日付をまたぐセクションの場合に `now` に隣接する
+ * 開始日時・終了日時の具体的な Date 範囲を返します.`n */
 export function getSectionDateRange(
 	section: TimeSection,
 	now: Date,
