@@ -30,7 +30,7 @@ export function computeRemaining(now: Date): RemainingInfo {
 	)
 	const remainingSec = Math.max(
 		0,
-		Math.floor((endsAt.getTime() - now.getTime()) / 1000),
+		Math.ceil((endsAt.getTime() - now.getTime()) / 1000),
 	)
 	const percentage = (remainingSec / sectionDurationSec) * 100
 	const isStudy = section.sectionType === SectionType.Study

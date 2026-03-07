@@ -108,7 +108,8 @@ export function getNextSection(now: Date = new Date()): TimeSection {
 /**
  * 指定されたセクションについて、`now` が含まれる、または
  * 日付をまたぐセクションの場合に `now` に隣接する
- * 開始日時・終了日時の具体的な Date 範囲を返します.`n */
+ * 開始日時・終了日時の具体的な Date 範囲を返します。
+ */
 export function getSectionDateRange(
 	section: TimeSection,
 	now: Date,

@@ -1,7 +1,11 @@
 import { computeRemaining, formatRemainingTime } from './timer'
 
-const createDate = (hours: number, minutes: number, seconds = 0) =>
-	new Date(2026, 2, 7, hours, minutes, seconds)
+const createDate = (
+	hours: number,
+	minutes: number,
+	seconds = 0,
+	milliseconds = 0,
+) => new Date(2026, 2, 7, hours, minutes, seconds, milliseconds)
 
 describe('computeRemaining', () => {
 	test('日中の作業セクションで残り時間と次セクションを正しく計算する', () => {
@@ -14,6 +18,12 @@ describe('computeRemaining', () => {
 			nextLabel: 'break',
 			nextDurationMin: 5,
 		})
+	})
+
+	test('ミリ秒を含んでも秒表示が早く減らない', () => {
+		const remaining = computeRemaining(createDate(7, 10, 0, 900))
+
+		expect(remaining.remainingSec).toBe(15 * 60)
 	})
 
 	test('日中の休憩セクションで残り時間と次セクションを正しく計算する', () => {
