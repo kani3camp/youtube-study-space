@@ -24,9 +24,9 @@ export function getCurrentSection(now: Date = new Date()): TimeSection {
 		const ends = section.ends
 
 		// 適当に初期化
-		let startsDate = now
-		let endsDate = now
-		endsDate.setDate(now.getDate() - 1)
+		let startsDate = new Date(now)
+		let endsDate = new Date(now)
+		endsDate.setDate(endsDate.getDate() - 1)
 
 		if (starts.h <= ends.h) {
 			startsDate = new Date(
@@ -91,16 +91,14 @@ export function getCurrentSection(now: Date = new Date()): TimeSection {
 	return TimeTable[0]
 }
 
-export function getNextSection(now: Date = new Date()): TimeSection | null {
+export function getNextSection(now: Date = new Date()): TimeSection {
 	const currentSection = getCurrentSection(now)
-	if (currentSection !== null) {
-		for (const section of TimeTable) {
-			if (
-				currentSection.ends.h === section.starts.h &&
-				currentSection.ends.m === section.starts.m
-			) {
-				return section
-			}
+	for (const section of TimeTable) {
+		if (
+			currentSection.ends.h === section.starts.h &&
+			currentSection.ends.m === section.starts.m
+		) {
+			return section
 		}
 	}
 	console.error('no next section.')

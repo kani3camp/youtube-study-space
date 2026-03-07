@@ -1,6 +1,6 @@
 /** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next'
-import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import {
 	buildStyles,
 	CircularProgressbarWithChildren,
@@ -66,7 +66,7 @@ function computeRemaining(now: Date): {
 	}
 }
 
-const Timer: FC = memo(function Timer() {
+const Timer = memo(function Timer() {
 	const { t } = useTranslation()
 	const [now, setNow] = useState<Date | null>(null)
 
