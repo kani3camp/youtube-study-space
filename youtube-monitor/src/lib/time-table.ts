@@ -17,17 +17,16 @@ export type TimeSection = {
 	partType: string
 }
 
-export function getCurrentSection(): TimeSection {
+export function getCurrentSection(now: Date = new Date()): TimeSection {
 	// startsとendsの差は23時間未満とする
-	const now: Date = new Date()
 	for (const section of TimeTable) {
 		const starts = section.starts
 		const ends = section.ends
 
 		// 適当に初期化
-		let startsDate = now
-		let endsDate = now
-		endsDate.setDate(now.getDate() - 1)
+		let startsDate = new Date(now)
+		let endsDate = new Date(now)
+		endsDate.setDate(endsDate.getDate() - 1)
 
 		if (starts.h <= ends.h) {
 			startsDate = new Date(
@@ -92,20 +91,85 @@ export function getCurrentSection(): TimeSection {
 	return TimeTable[0]
 }
 
-export function getNextSection(): TimeSection | null {
-	const currentSection = getCurrentSection()
-	if (currentSection !== null) {
-		for (const section of TimeTable) {
-			if (
-				currentSection.ends.h === section.starts.h &&
-				currentSection.ends.m === section.starts.m
-			) {
-				return section
-			}
+export function getNextSection(now: Date = new Date()): TimeSection {
+	const currentSection = getCurrentSection(now)
+	for (const section of TimeTable) {
+		if (
+			currentSection.ends.h === section.starts.h &&
+			currentSection.ends.m === section.starts.m
+		) {
+			return section
 		}
 	}
 	console.error('no next section.')
 	return currentSection
+}
+
+/**
+ * 指定されたセクションについて、`now` が含まれる、または
+ * 日付をまたぐセクションの場合に `now` に隣接する
+ * 開始日時・終了日時の具体的な Date 範囲を返します。
+ */
+export function getSectionDateRange(
+	section: TimeSection,
+	now: Date,
+): { startsAt: Date; endsAt: Date } {
+	const starts = section.starts
+	const ends = section.ends
+	let startsAt: Date
+	let endsAt: Date
+	if (starts.h <= ends.h) {
+		startsAt = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+			starts.h,
+			starts.m,
+		)
+		endsAt = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+			ends.h,
+			ends.m,
+		)
+	} else {
+		if (
+			(starts.h === now.getHours() && starts.m <= now.getMinutes()) ||
+			starts.h < now.getHours()
+		) {
+			startsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate(),
+				starts.h,
+				starts.m,
+			)
+			endsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate() + 1,
+				ends.h,
+				ends.m,
+			)
+		} else {
+			startsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate() - 1,
+				starts.h,
+				starts.m,
+			)
+			endsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate(),
+				ends.h,
+				ends.m,
+			)
+		}
+	}
+	return { startsAt, endsAt }
 }
 
 export function remainingTime(

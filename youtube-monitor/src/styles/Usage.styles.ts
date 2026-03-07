@@ -1,5 +1,10 @@
 import { css } from '@emotion/react'
-import { Constants } from '../lib/constants'
+import { sourceCodeProFontFamily } from '../lib/common'
+import {
+	Constants,
+	sidebarCardHorizontalInsetPx,
+	sidebarCardVerticalInsetPx,
+} from '../lib/constants'
 
 export const shape = css`
     height: ${Constants.usageHeight}px;
@@ -14,69 +19,41 @@ export const usage = css`
     text-align: center;
     color: ${Constants.primaryTextColor};
     box-sizing: border-box;
-    height: 95%;
-    width: 90%;
+    height: calc(100% - ${sidebarCardVerticalInsetPx}px);
+    width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     padding: 0.4rem;
     border-radius: 0.6rem;
     background-color: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(0.5rem);
-`
-
-export const seatId = css`
-    margin: 0 auto;
-    font-size: 0.7em;
-    color: #414141;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.35rem;
 `
 
 export const description = css`
     margin: 0.2rem;
-`
-
-export const seat = css`
-    background-color: rgba(243, 236, 236, 0.523);
-    width: 6rem;
-    height: 3.5rem;
-    margin: 0.2rem auto;
-    margin-bottom: 0.3rem;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border-radius: 0.15rem;
-`
-
-export const workName = css`
-    margin: 0;
-    font-size: 0.8em;
-    color: #28292d;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-`
-
-export const userDisplayName = css`
-    margin: 0;
-    font-size: 1em;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    color: #202020;
+    font-weight: bold;
 `
 
 export const command = css`
-    margin: 0.2rem;
-    font-size: 0.85rem;
+    margin: 0.0rem;
 `
 
 export const commandCode = css`
-    font-weight: bold;
+    font-family: ${sourceCodeProFontFamily};
+    font-weight: 700;
+    font-size: 0.88rem;
+    letter-spacing: 0.01em;
+    font-variant-ligatures: none;
     display: inline-block;
-    background-color: #eee;
-    border-radius: 0.15rem;
-    padding: 0 0.3rem;
-    margin: 0.07rem;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 0.22rem;
+    padding: 0.12rem 0.5rem;
+    margin: 0.0rem 0.18rem;
+    line-height: 1.35;
+`
+
+export const commandDesc = css`
+    font-size: 0.9rem;
 `

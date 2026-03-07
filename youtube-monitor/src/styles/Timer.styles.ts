@@ -1,65 +1,123 @@
 import { css } from '@emotion/react'
 import { fontFamily } from '../lib/common'
-import { Constants } from '../lib/constants'
+import {
+	Constants,
+	sidebarBgmHeight,
+	sidebarCardHorizontalInsetPx,
+	sidebarCardVerticalInsetPx,
+} from '../lib/constants'
 
 export const shape = css`
     height: ${Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
-    bottom: 0;
+    bottom: ${sidebarBgmHeight}px;
     right: 0;
 `
 
 export const timer = css`
-    height: 90%;
-    width: 90%;
+    height: calc(100% - ${sidebarCardVerticalInsetPx}px);
+    width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     border-radius: 0.6rem;
     font-size: 0.9rem;
     text-align: center;
     color: ${Constants.primaryTextColor};
     background-color: rgba(255, 255, 255, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
 `
 
-export const timerTitle = css`
-    font-size: 1.2rem;
+export const progressBarContainer = css`
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+`
+
+export const progressInner = css`
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+`
+
+export const stateRow = css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    line-height: 1.1;
+`
+
+export const stateLabel = css`
+    font-size: 1.1rem;
+    vertical-align: middle;
     font-weight: bold;
 `
 
-export const sectionColor = css`
-    display: inline-block;
-    padding: 0 0.4rem;
-    margin-top: 0.4rem;
-    border-radius: 0.5rem;
+export const studyIcon = css`
+    color: ${Constants.timerProgressStudyColor};
 `
 
-export const spacer = css`
-    margin: 0.2rem;
+export const breakIcon = css`
+    color: ${Constants.timerProgressBreakColor};
+`
+
+export const stateLabelStudy = css`
+    color: ${Constants.timerProgressStudyColor};
+`
+
+export const stateLabelBreak = css`
+    color: ${Constants.timerProgressBreakColor};
+`
+
+export const statePlaceholder = css`
+    font-size: 1.1rem;
+    font-weight: bold;
+    opacity: 0.45;
 `
 
 export const remaining = css`
     font-family: ${fontFamily};
-    font-size: 1.8rem;
-    line-height: 2.4rem;
+    font-size: 1.35rem;
+    line-height: 1;
     font-weight: bold;
-`
-export const studyMode = css`
-    background: rgb(253, 225, 254);
-    background: linear-gradient(
-        60deg,
-        rgba(255, 130, 255, 0.6) 0%,
-        rgba(253, 225, 254, 0.6) 40%,
-        rgba(253, 225, 254, 0.6) 60%,
-        rgba(255, 130, 255, 0.6) 100%
-    );
+    letter-spacing: 0.03em;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
 `
 
-export const breakMode = css`
-    background: rgb(227, 254, 225);
-    background: linear-gradient(
-        60deg,
-        rgba(130, 255, 165, 0.6) 0%,
-        rgba(227, 255, 225, 0.6) 40%,
-        rgba(227, 255, 225, 0.6) 60%,
-        rgba(130, 255, 165, 0.6) 100%
-    );
+export const remainingMinutes = css`
+    width: 2ch;
+    text-align: right;
+`
+
+export const remainingDivider = css`
+    width: 0.6ch;
+    text-align: center;
+`
+
+export const remainingSeconds = css`
+    width: 2ch;
+    text-align: left;
+`
+
+export const remainingPlaceholder = css`
+    display: inline-block;
+    width: 4.6ch;
+    text-align: center;
+    opacity: 0.45;
+`
+
+export const nextRow = css`
+    font-size: 0.82rem;
+    text-align: center;
+    line-height: 1.2;
 `

@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { type FC, memo, useCallback, useEffect, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Menu.styles'
@@ -120,4 +120,4 @@ const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
 	)
 }
 
-export default MenuDisplay
+export default memo(MenuDisplay)
