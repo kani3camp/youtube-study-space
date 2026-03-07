@@ -18,13 +18,13 @@ export const clockStyle = css`
 `
 
 export const dateStringStyle = css`
-    font-size: 1.2rem;
+    font-size: 0.92rem;
     text-align: center;
 `
 
 export const timeStringStyle = css`
-    font-size: 2rem;
+    font-size: 1.5rem;
     text-align: center;
     font-weight: bold;
-    line-height: 2rem;
+    line-height: 1.6rem;
 `

@@ -1,7 +1,7 @@
 import { Wave } from '@foobar404/wave'
 import { type IAudioMetadata, parseBlob, parseWebStream } from 'music-metadata'
 import type React from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
 import { Constants } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
@@ -200,4 +200,4 @@ const BgmPlayer: React.FC = () => {
 	)
 }
 
-export default BgmPlayer
+export default memo(BgmPlayer)

@@ -108,6 +108,72 @@ export function getNextSection(): TimeSection | null {
 	return currentSection
 }
 
+/**
+ * Returns start and end Date for the given section on the day of `now`.
+ * Handles day wrap (e.g. section ending after midnight).
+ */
+export function getSectionDateRange(
+	section: TimeSection,
+	now: Date,
+): { startsAt: Date; endsAt: Date } {
+	const starts = section.starts
+	const ends = section.ends
+	let startsAt: Date
+	let endsAt: Date
+	if (starts.h <= ends.h) {
+		startsAt = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+			starts.h,
+			starts.m,
+		)
+		endsAt = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+			ends.h,
+			ends.m,
+		)
+	} else {
+		if (
+			(starts.h === now.getHours() && starts.m <= now.getMinutes()) ||
+			starts.h < now.getHours()
+		) {
+			startsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate(),
+				starts.h,
+				starts.m,
+			)
+			endsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate() + 1,
+				ends.h,
+				ends.m,
+			)
+		} else {
+			startsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate() - 1,
+				starts.h,
+				starts.m,
+			)
+			endsAt = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate(),
+				ends.h,
+				ends.m,
+			)
+		}
+	}
+	return { startsAt, endsAt }
+}
+
 export function remainingTime(
 	currentHours: number,
 	currentMinutes: number,
