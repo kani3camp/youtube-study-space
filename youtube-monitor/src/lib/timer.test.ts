@@ -26,6 +26,12 @@ describe('computeRemaining', () => {
 		expect(remaining.remainingSec).toBe(15 * 60)
 	})
 
+	test('ミリ秒を含む場合はプログレス計算が秒単位に丸められない', () => {
+		const remaining = computeRemaining(createDate(7, 10, 0, 900))
+
+		expect(remaining.percentage).toBeCloseTo(59.94, 2)
+	})
+
 	test('日中の休憩セクションで残り時間と次セクションを正しく計算する', () => {
 		const remaining = computeRemaining(createDate(7, 27))
 

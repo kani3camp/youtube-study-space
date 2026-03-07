@@ -17,7 +17,7 @@ import {
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
 
-const UPDATE_INTERVAL_MS = 1000
+const UPDATE_INTERVAL_MS = 100
 
 const Timer = memo(function Timer() {
 	const { t } = useTranslation()

@@ -24,15 +24,10 @@ export const FALLBACK_REMAINING: RemainingInfo = {
 export function computeRemaining(now: Date): RemainingInfo {
 	const section = getCurrentSection(now)
 	const { startsAt, endsAt } = getSectionDateRange(section, now)
-	const sectionDurationSec = Math.max(
-		1,
-		Math.floor((endsAt.getTime() - startsAt.getTime()) / 1000),
-	)
-	const remainingSec = Math.max(
-		0,
-		Math.ceil((endsAt.getTime() - now.getTime()) / 1000),
-	)
-	const percentage = (remainingSec / sectionDurationSec) * 100
+	const sectionDurationMs = Math.max(1, endsAt.getTime() - startsAt.getTime())
+	const remainingMs = Math.max(0, endsAt.getTime() - now.getTime())
+	const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000))
+	const percentage = (remainingMs / sectionDurationMs) * 100
 	const isStudy = section.sectionType === SectionType.Study
 	const next = getNextSection(now)
 	const nextRange = getSectionDateRange(next, endsAt)
