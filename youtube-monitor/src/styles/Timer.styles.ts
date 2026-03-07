@@ -1,18 +1,23 @@
 import { css } from '@emotion/react'
 import { fontFamily } from '../lib/common'
-import { Constants } from '../lib/constants'
+import {
+	Constants,
+	sidebarBgmHeight,
+	sidebarCardHorizontalInsetPx,
+	sidebarCardVerticalInsetPx,
+} from '../lib/constants'
 
 export const shape = css`
     height: ${Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
-    bottom: 0;
+    bottom: ${sidebarBgmHeight}px;
     right: 0;
 `
 
 export const timer = css`
-    height: 90%;
-    width: 90%;
+    height: calc(100% - ${sidebarCardVerticalInsetPx}px);
+    width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     border-radius: 0.6rem;
     font-size: 0.9rem;
     text-align: center;
@@ -26,8 +31,8 @@ export const timer = css`
 `
 
 export const progressBarContainer = css`
-    width: 152px;
-    height: 152px;
+    width: 200px;
+    height: 200px;
     margin: 0 auto;
 `
 
@@ -50,6 +55,7 @@ export const stateRow = css`
 `
 
 export const stateLabel = css`
+    font-size: 1.1rem;
     vertical-align: middle;
     font-weight: bold;
 `
@@ -72,7 +78,7 @@ export const stateLabelBreak = css`
 
 export const remaining = css`
     font-family: ${fontFamily};
-    font-size: 1.55rem;
+    font-size: 1.45rem;
     line-height: 1;
     font-weight: bold;
     letter-spacing: 0.03em;

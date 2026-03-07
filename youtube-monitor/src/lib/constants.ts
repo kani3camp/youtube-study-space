@@ -25,16 +25,19 @@ if (!validateString(process.env.NEXT_PUBLIC_ROOM_CONFIG)) {
 }
 export const ROOM_CONFIG = process.env.NEXT_PUBLIC_ROOM_CONFIG
 
+export const sidebarCardVerticalInsetPx = 16
+export const sidebarCardHorizontalInsetPx = 40
+
 export const Constants = {
 	screenWidth: 1920,
 	screenHeight: 1080,
 	sideBarWidth: 400,
 	tickerWidth: 600,
 	messageBarHeight: 80,
-	clockHeight: 118,
-	usageHeight: 230,
+	clockHeight: 110,
+	usageHeight: 200,
 	menuHeight: 310,
-	timerHeight: 240,
+	timerHeight: 350,
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
 	chimeVolume: 0.7,
@@ -51,5 +54,12 @@ export const Constants = {
 	memberSmallIconSize: 38.391,
 	menuIconSize: 45,
 }
+
+export const sidebarBgmHeight =
+	Constants.screenHeight -
+	Constants.clockHeight -
+	Constants.usageHeight -
+	Constants.menuHeight -
+	Constants.timerHeight
 
 export const debug = false
