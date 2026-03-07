@@ -109,8 +109,8 @@ export function getNextSection(): TimeSection | null {
 }
 
 /**
- * Returns start and end Date for the given section on the day of `now`.
- * Handles day wrap (e.g. section ending after midnight).
+ * Returns the concrete start/end Date range for the section instance that
+ * contains `now` or is adjacent to it when the section spans midnight.
  */
 export function getSectionDateRange(
 	section: TimeSection,

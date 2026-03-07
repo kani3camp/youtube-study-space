@@ -41,7 +41,7 @@ export const command = css`
 `
 
 export const commandCode = css`
-    /* font-family: ${sourceCodeProFontFamily}; */
+    font-family: ${sourceCodeProFontFamily};
     font-weight: 700;
     font-size: 0.88rem;
     letter-spacing: 0.01em;

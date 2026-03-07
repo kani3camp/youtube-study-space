@@ -18,7 +18,7 @@ const Clock: FC = () => {
 	}, 1000)
 
 	return (
-		<div css={[styles.shape, componentBackground]} suppressHydrationWarning>
+		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.clockStyle, componentStyle]}>
 				<div css={styles.dateStringStyle}>
 					{now

@@ -19,7 +19,7 @@ import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
 import 'react-circular-progressbar/dist/styles.css'
 
-const UPDATE_INTERVAL_MS = 100
+const UPDATE_INTERVAL_MS = 1000
 
 const FALLBACK_REMAINING = {
 	remainingSec: 0,
@@ -89,7 +89,7 @@ const Timer: FC = memo(function Timer() {
 	const ss = String(remainingSec % 60).padStart(2, '0')
 
 	return (
-		<div css={[styles.shape, componentBackground]} suppressHydrationWarning>
+		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.timer, componentStyle]}>
 				<div css={styles.progressBarContainer}>
 					<CircularProgressbarWithChildren

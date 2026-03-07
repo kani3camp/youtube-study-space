@@ -8,11 +8,9 @@ const Usage: FC = () => {
 	const { t } = useTranslation()
 
 	return (
-		<div css={[styles.shape, componentBackground]} suppressHydrationWarning>
+		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.usage, componentStyle]}>
-				<h4 css={styles.description} suppressHydrationWarning>
-					{t('usage.description')}
-				</h4>
+				<h4 css={styles.description}>{t('usage.description')}</h4>
 				<div css={styles.command}>
 					<span css={styles.commandCode}>!in　{t('usage.work')}</span>
 					<span css={styles.commandDesc}>{t('usage.in')}</span>
