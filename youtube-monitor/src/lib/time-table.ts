@@ -17,9 +17,8 @@ export type TimeSection = {
 	partType: string
 }
 
-export function getCurrentSection(): TimeSection {
+export function getCurrentSection(now: Date = new Date()): TimeSection {
 	// startsとendsの差は23時間未満とする
-	const now: Date = new Date()
 	for (const section of TimeTable) {
 		const starts = section.starts
 		const ends = section.ends
@@ -92,8 +91,8 @@ export function getCurrentSection(): TimeSection {
 	return TimeTable[0]
 }
 
-export function getNextSection(): TimeSection | null {
-	const currentSection = getCurrentSection()
+export function getNextSection(now: Date = new Date()): TimeSection | null {
+	const currentSection = getCurrentSection(now)
 	if (currentSection !== null) {
 		for (const section of TimeTable) {
 			if (

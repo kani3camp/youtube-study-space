@@ -17,7 +17,6 @@ import {
 } from '../lib/time-table'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
-import 'react-circular-progressbar/dist/styles.css'
 
 const UPDATE_INTERVAL_MS = 1000
 
@@ -36,7 +35,7 @@ function computeRemaining(now: Date): {
 	nextLabel: string
 	nextDurationMin: number
 } {
-	const section = getCurrentSection()
+	const section = getCurrentSection(now)
 	const { startsAt, endsAt } = getSectionDateRange(section, now)
 	const sectionDurationSec = Math.max(
 		1,
@@ -48,7 +47,7 @@ function computeRemaining(now: Date): {
 	)
 	const percentage = (remainingSec / sectionDurationSec) * 100
 	const isStudy = section.sectionType === SectionType.Study
-	const next = getNextSection()
+	const next = getNextSection(now)
 	let nextLabel = ''
 	let nextDurationMin = 0
 	if (next) {
