@@ -447,13 +447,23 @@ func TestIsIncludedInColorNames(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "Valid color name - 白",
+			name:     "Valid color name - しろ",
 			value:    ColorName0To5,
 			expected: true,
 		},
 		{
-			name:     "Valid color name - ピンク",
+			name:     "Valid color name - ぴんく",
 			value:    ColorNameFrom1000,
+			expected: true,
+		},
+		{
+			name:     "Valid color name - Legacy 白",
+			value:    LegacyColorName0To5,
+			expected: true,
+		},
+		{
+			name:     "Valid color name - Legacy ピンク",
+			value:    LegacyColorNameFrom1000,
 			expected: true,
 		},
 		{
@@ -483,19 +493,24 @@ func TestColorNameToColorCode(t *testing.T) {
 		expected  string
 	}{
 		{
-			name:      "白",
+			name:      "しろ",
 			colorName: ColorName0To5,
 			expected:  ColorHours0To5,
 		},
 		{
-			name:      "うすももいろ",
+			name:      "うすぴんく",
 			colorName: ColorName5To10,
 			expected:  ColorHours5To10,
 		},
 		{
-			name:      "ピンク",
+			name:      "ぴんく",
 			colorName: ColorNameFrom1000,
 			expected:  ColorHoursFrom1000,
+		},
+		{
+			name:      "Legacy ピンク",
+			colorName: LegacyColorNameFrom1000,
+			expected:  LegacyColorHoursFrom1000,
 		},
 		{
 			name:      "Invalid color name",
@@ -519,14 +534,19 @@ func TestColorCodeToColorName(t *testing.T) {
 		expected  string
 	}{
 		{
-			name:      "White color code",
+			name:      "しろの色コード",
 			colorCode: ColorHours0To5,
 			expected:  ColorName0To5,
 		},
 		{
-			name:      "Pink color code",
+			name:      "ぴんくの色コード",
 			colorCode: ColorHoursFrom1000,
 			expected:  ColorNameFrom1000,
+		},
+		{
+			name:      "Legacy pink color code",
+			colorCode: LegacyColorHoursFrom1000,
+			expected:  LegacyColorNameFrom1000,
 		},
 		{
 			name:      "Invalid color code",
