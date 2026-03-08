@@ -34,10 +34,11 @@ export const Constants = {
 	sideBarWidth: 400,
 	tickerWidth: 600,
 	messageBarHeight: 80,
-	clockHeight: 110,
-	usageHeight: 230,
+	clockHeight: 105,
+	usageHeight: 200,
+	colorBarHeight: 100,
 	menuHeight: 310,
-	timerHeight: 310,
+	timerHeight: 260,
 	seatBackgroundColor: '#F4EFE7',
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
@@ -59,6 +60,7 @@ export const sidebarBgmHeight =
 	Constants.clockHeight -
 	Constants.usageHeight -
 	Constants.menuHeight -
-	Constants.timerHeight
+	Constants.timerHeight -
+	Constants.colorBarHeight
 
 export const debug = false

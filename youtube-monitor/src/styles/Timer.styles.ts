@@ -2,7 +2,6 @@ import { css } from '@emotion/react'
 import { fontFamily } from '../lib/common'
 import {
 	Constants,
-	sidebarBgmHeight,
 	sidebarCardHorizontalInsetPx,
 	sidebarCardVerticalInsetPx,
 } from '../lib/constants'
@@ -11,7 +10,7 @@ export const shape = css`
     height: ${Constants.timerHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
-    bottom: ${sidebarBgmHeight}px;
+    top: ${Constants.clockHeight + Constants.usageHeight + Constants.menuHeight}px;
     right: 0;
 `
 
@@ -31,8 +30,8 @@ export const timer = css`
 `
 
 export const progressBarContainer = css`
-    width: 200px;
-    height: 200px;
+    width: 180px;
+    height: 180px;
     margin: 0 auto;
 `
 
@@ -50,12 +49,11 @@ export const stateRow = css`
     align-items: center;
     justify-content: center;
     gap: 0.3rem;
-    font-size: 0.85rem;
     line-height: 1.1;
 `
 
 export const stateLabel = css`
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     vertical-align: middle;
     font-weight: bold;
 `
@@ -84,7 +82,7 @@ export const statePlaceholder = css`
 
 export const remaining = css`
     font-family: ${fontFamily};
-    font-size: 1.35rem;
+    font-size: 1.25rem;
     line-height: 1;
     font-weight: bold;
     letter-spacing: 0.03em;
@@ -117,7 +115,7 @@ export const remainingPlaceholder = css`
 `
 
 export const nextRow = css`
-    font-size: 0.82rem;
+    font-size: 0.65rem;
     text-align: center;
     line-height: 1.2;
 `
