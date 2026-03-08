@@ -2,7 +2,7 @@
 import { css, keyframes } from '@emotion/react'
 import Image from 'next/image'
 import type { FC } from 'react'
-import { fontFamily, validateString } from '../lib/common'
+import { validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
 import type { Seat } from '../types/api'
@@ -37,16 +37,16 @@ export type SeatProps = {
 const SeatBox: FC<SeatProps> = (props) => {
 	const workName = props.isUsed ? props.processingSeat.work_name : ''
 	const breakWorkName = props.isUsed ? props.processingSeat.break_work_name : ''
-	const seatColor = props.isUsed
-		? props.processingSeat.appearance.color_code1
-		: Constants.emptySeatColor
 	const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
 	const menuCode = props.isUsed ? props.processingSeat.menu_code : ''
 	const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
 	const profileImageUrl = props.isUsed
 		? props.processingSeat.user_profile_image_url
 		: ''
-
+	const displayName = props.isUsed ? props.processingSeat.user_display_name : ''
+	const seatColor = props.isUsed
+		? props.processingSeat.appearance.color_code1
+		: ''
 	const colorGradientEnabled =
 		props.isUsed && props.processingSeat.appearance.color_gradient_enabled
 
@@ -64,7 +64,7 @@ const SeatBox: FC<SeatProps> = (props) => {
     100%{background-position:0% 50%}
 `
 
-	const colorGradientStyle = colorGradientEnabled
+	const topBarGradientStyle = colorGradientEnabled
 		? css`
               background-image: linear-gradient(
                   90deg,
@@ -74,118 +74,76 @@ const SeatBox: FC<SeatProps> = (props) => {
               background-size: 400% 400%;
               animation: ${colorGradientKeyframes} 4s linear infinite;
           `
-		: css`
-              animation: none;
-              box-shadow: none;
-          `
+		: css``
 
-	const displayName = props.isUsed ? props.processingSeat.user_display_name : ''
+	const topBarHeight = Math.max(3, props.seatFontSizePx * 0.17)
+	const seatNumberFontSize = props.seatFontSizePx * 0.5
+	const workNameFontSize = props.seatFontSizePx * 0.78
+	const userNameFontSize = props.seatFontSizePx * 0.58
+	const emptyNumberFontSize = props.seatFontSizePx * 1.3
+	const emptyLabelFontSize = props.seatFontSizePx * 0.55
+	const timeRemainingFontSize = props.seatFontSizePx * 0.5
+	const timeElapsedFontSize = props.seatFontSizePx * 0.4
 
-	let seatNo = <></>
-	let userDisplayName = <></>
-	if (props.isUsed) {
-		if (props.memberOnly) {
-			seatNo = <div css={styles.seatIdMember}>{props.globalSeatId}</div>
-			userDisplayName = (
-				<div css={styles.userDisplayNameMember}>{displayName}</div>
-			)
-		} else {
-			seatNo = <div css={styles.seatId}>{props.globalSeatId}</div>
-			userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
-		}
-	} else {
-		seatNo = (
-			<div css={styles.seatId} style={{ fontWeight: 'bold' }}>
-				{props.memberOnly ? '/' : '!'}
-				{props.globalSeatId}
-			</div>
-		)
-		userDisplayName = <div css={styles.userDisplayName}>{displayName}</div>
-	}
+	const workContent = props.isUsed
+		? !isBreak && workName
+			? workName
+			: isBreak && breakWorkName
+				? breakWorkName
+				: ''
+		: ''
+	const hasWorkContent = workContent !== ''
 
-	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
-	let workNameFontSizePx = props.seatFontSizePx
-	if (props.isUsed && (workName !== '' || breakWorkName !== '')) {
-		const canvas: HTMLCanvasElement = document.createElement('canvas')
-		const context = canvas.getContext('2d')
-		if (context) {
-			context.font = `${workNameFontSizePx.toString()}px ${fontFamily}`
-			const metrics = context.measureText(isBreak ? breakWorkName : workName)
-			let actualSeatWidth = props.seatShape.widthPx
-			if (props.memberOnly) {
-				actualSeatWidth =
-					(Constants.memberSeatWorkNameWidthPercent * actualSeatWidth) / 100
-			}
-			if (metrics.width > actualSeatWidth) {
-				workNameFontSizePx *= actualSeatWidth / metrics.width
-				workNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
-				if (workNameFontSizePx < props.seatFontSizePx * 0.7) {
-					workNameFontSizePx = props.seatFontSizePx * 0.7 // 最小でもデフォルトの0.7倍のフォントサイズ
-				}
-			}
-		}
-	}
-
-	let workNameDisplay = <></>
-	if (props.isUsed) {
-		const content =
-			!isBreak && workName
-				? workName
-				: isBreak && breakWorkName
-					? breakWorkName
-					: ''
-		if (props.memberOnly) {
-			workNameDisplay = (
-				<div
-					css={content !== '' && styles.workNameMemberBalloon}
-					style={{ fontSize: `${workNameFontSizePx}px` }}
-				>
-					<div css={content !== '' && styles.workNameMemberText}>{content}</div>
-				</div>
-			)
-		} else {
-			workNameDisplay = (
-				<div
-					css={styles.workName}
-					style={{
-						fontSize: `${workNameFontSizePx}px`,
-					}}
-				>
-					{content}
-				</div>
-			)
-		}
-	}
+	const paddingTop = props.isUsed ? topBarHeight + seatNumberFontSize * 1.3 : 0
+	const paddingBottom =
+		props.isUsed && props.memberOnly ? timeRemainingFontSize * 1.6 : 0
 
 	return (
 		<div
-			key={props.globalSeatId}
-			css={css`
-                ${styles.seat};
-                ${colorGradientStyle};
-            `}
+			css={styles.seat}
 			style={{
-				backgroundColor: seatColor,
+				backgroundColor: props.isUsed
+					? Constants.occupiedSeatColor
+					: Constants.emptySeatColor,
 				left: `${props.seatPosition.x}%`,
 				top: `${props.seatPosition.y}%`,
 				transform: `rotate(${props.seatPosition.rotate}deg)`,
 				width: `${props.seatShape.widthPx}px`,
 				height: `${props.seatShape.heightPx}px`,
-				fontSize: props.isUsed
-					? `${props.seatFontSizePx}px`
-					: `${props.seatFontSizePx * 2}px`,
+				fontSize: `${props.seatFontSizePx}px`,
+				paddingTop: `${paddingTop}px`,
+				paddingBottom: `${paddingBottom}px`,
 			}}
 		>
-			{/* seat No. */}
-			{seatNo}
+			{/* Top color bar */}
+			{props.isUsed && (
+				<div
+					css={css`
+                        ${styles.topBar};
+                        ${topBarGradientStyle};
+                    `}
+					style={{
+						height: `${topBarHeight}px`,
+						backgroundColor: !colorGradientEnabled ? seatColor : undefined,
+					}}
+				/>
+			)}
 
-			{/* work name */}
-			{workNameDisplay}
+			{/* Seat number (top-left) */}
+			{props.isUsed && (
+				<div
+					css={styles.seatNumber}
+					style={{
+						fontSize: `${seatNumberFontSize}px`,
+						top: `${topBarHeight + 2}px`,
+						left: '5%',
+					}}
+				>
+					{props.globalSeatId}
+				</div>
+			)}
 
-			{/* display name */}
-			{userDisplayName}
-
-			{/* break mode */}
+			{/* Break badge */}
 			{isBreak && (
 				<div
 					css={styles.breakBadge}
@@ -202,7 +160,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 				</div>
 			)}
 
-			{/* menu item */}
+			{/* Menu icon */}
 			{props.isUsed &&
 				!isBreak &&
 				validateString(menuCode) &&
@@ -228,37 +186,91 @@ const SeatBox: FC<SeatProps> = (props) => {
 				</div>
 			)}
 
-			{/* profile image */}
-			{props.isUsed && props.memberOnly && (
-				<Image
-					alt="profile image"
-					css={
-						(isBreak ? breakWorkName : workName !== '')
-							? styles.profileImageMemberWithWorkName
-							: styles.profileImageMemberNoWorkName
-					}
-					src={profileImageUrl}
-					width={
-						(isBreak ? breakWorkName : workName !== '')
-							? Constants.memberSmallIconSize
-							: Constants.memberBigIconSize
-					}
-					height={
-						(isBreak ? breakWorkName : workName !== '')
-							? Constants.memberSmallIconSize
-							: Constants.memberBigIconSize
-					}
-					onError={(event) => reloadImage(event, profileImageUrl)}
-					priority={true}
-				/>
+			{/* Work name (center, largest text) */}
+			{props.isUsed && hasWorkContent && (
+				<div
+					css={styles.workName}
+					style={{ fontSize: `${workNameFontSize}px` }}
+				>
+					{workContent}
+				</div>
 			)}
 
-			{/* time elapsed */}
+			{/* User display name — general seat */}
+			{props.isUsed && !props.memberOnly && (
+				<div
+					css={styles.userName}
+					style={{ fontSize: `${userNameFontSize}px` }}
+				>
+					{displayName}
+				</div>
+			)}
+
+			{/* User display name with small avatar — member seat, has work name */}
+			{props.isUsed && props.memberOnly && hasWorkContent && (
+				<div
+					css={styles.userNameRow}
+					style={{ fontSize: `${userNameFontSize}px` }}
+				>
+					<Image
+						alt="profile image"
+						css={styles.profileImageSmall}
+						src={profileImageUrl}
+						width={Constants.memberSmallIconSize}
+						height={Constants.memberSmallIconSize}
+						onError={(event) => reloadImage(event, profileImageUrl)}
+						priority={true}
+					/>
+					<span css={styles.userName}>{displayName}</span>
+				</div>
+			)}
+
+			{/* Large avatar + user name — member seat, no work name */}
+			{props.isUsed && props.memberOnly && !hasWorkContent && (
+				<>
+					<Image
+						alt="profile image"
+						css={styles.profileImageLarge}
+						src={profileImageUrl}
+						width={Constants.memberBigIconSize}
+						height={Constants.memberBigIconSize}
+						onError={(event) => reloadImage(event, profileImageUrl)}
+						priority={true}
+					/>
+					<div
+						css={styles.userName}
+						style={{ fontSize: `${userNameFontSize}px` }}
+					>
+						{displayName}
+					</div>
+				</>
+			)}
+
+			{/* Empty seat content */}
+			{!props.isUsed && (
+				<>
+					<div
+						css={styles.emptyNumber}
+						style={{ fontSize: `${emptyNumberFontSize}px` }}
+					>
+						{props.memberOnly ? '/' : '!'}
+						{props.globalSeatId}
+					</div>
+					<div
+						css={styles.emptyLabel}
+						style={{ fontSize: `${emptyLabelFontSize}px` }}
+					>
+						空席
+					</div>
+				</>
+			)}
+
+			{/* Time elapsed (sub display) — member only */}
 			{props.isUsed && props.memberOnly && (
 				<div
 					css={styles.timeElapsed}
 					style={{
-						fontSize: `${props.seatFontSizePx * 0.6}px`,
+						fontSize: `${timeElapsedFontSize}px`,
 					}}
 				>
 					{props.hoursElapsed > 0
@@ -267,12 +279,12 @@ const SeatBox: FC<SeatProps> = (props) => {
 				</div>
 			)}
 
-			{/* time remaining */}
+			{/* Time remaining (main display) — member only */}
 			{props.isUsed && props.memberOnly && (
 				<div
 					css={styles.timeRemaining}
 					style={{
-						fontSize: `${props.seatFontSizePx * 0.6}px`,
+						fontSize: `${timeRemainingFontSize}px`,
 					}}
 				>
 					あと
