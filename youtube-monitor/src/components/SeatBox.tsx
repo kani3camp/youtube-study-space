@@ -201,8 +201,8 @@ const SeatBox: FC<SeatProps> = (props) => {
 									alt="menu item"
 									src={menuImageSrc}
 									css={styles.menuItem}
-									width={props.seatFontSizePx * 0.78}
-									height={props.seatFontSizePx * 0.78}
+									width={props.seatFontSizePx * 1.0}
+									height={props.seatFontSizePx * 1.0}
 								/>
 							)}
 						</div>
