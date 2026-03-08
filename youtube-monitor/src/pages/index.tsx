@@ -11,13 +11,13 @@ import { type FC, useEffect, useState } from 'react'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
+import ColorBar from '../components/ColorBar'
 import Seats from '../components/MainContent'
 import MenuDisplay from '../components/MenuDisplay'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
 import type { Menu } from '../types/api'
-import ColorBar from '../components/ColorBar'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])

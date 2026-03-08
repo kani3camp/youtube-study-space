@@ -6,6 +6,7 @@
 	"usage.in": "で入室",
 	"usage.out": "で退室",
 	"usage.work": "作業内容",
+	"colorBar.title": "累計作業時間",
 	"menu.title": "メニュー",
 	"menu.notice": "※これは架空の注文機能であり、料金の請求は発生しません。",
 	"break": "休憩",
