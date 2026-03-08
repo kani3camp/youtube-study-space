@@ -9,9 +9,17 @@ const defaultMenuImageMap = new Map<string, string>([
 	['coffee', '/images/menu_default.svg'],
 ])
 
+type SeatStoryProps = Omit<SeatProps, 'menuImageMap'>
+
+const SeatBoxStory = (props: SeatStoryProps) =>
+	React.createElement(SeatBox, {
+		...props,
+		menuImageMap: defaultMenuImageMap,
+	})
+
 const meta = {
 	title: 'SeatBox',
-	component: SeatBox,
+	component: SeatBoxStory,
 	parameters: {
 		docs: {
 			story: {
@@ -22,17 +30,10 @@ const meta = {
 	},
 	tags: ['autodocs'],
 	argTypes: {},
-	decorators: [
-		(_Story, context) =>
-			React.createElement(SeatBox, {
-				...context.args,
-				menuImageMap: defaultMenuImageMap,
-			} as SeatProps),
-	],
-} satisfies Meta<typeof SeatBox>
+} satisfies Meta<typeof SeatBoxStory>
 
 export default meta
-type Story = StoryObj<typeof SeatBox>
+type Story = StoryObj<typeof meta>
 
 const GENERAL_SEAT_FONT_SIZE = 22.8
 const MEMBER_SEAT_FONT_SIZE = 25.84
@@ -74,229 +75,182 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat =>
 	}) as Seat
 
 const createBaseArgs = (
-	overrides: Partial<SeatProps> = {},
-): Partial<SeatProps> => ({
+	overrides: Partial<SeatStoryProps> = {},
+): SeatStoryProps => ({
 	globalSeatId: 123,
+	isUsed: false,
+	memberOnly: false,
 	hoursRemaining: 0,
 	minutesRemaining: 10,
 	hoursElapsed: 1,
 	minutesElapsed: 3,
+	seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
+	processingSeat: createSeat(),
 	seatPosition,
+	seatShape: generalSeatShape,
 	roomShape,
 	...overrides,
 })
 
 export const Vacant: Story = {
 	name: '一般席 空席',
-	args: {
-		...createBaseArgs({
-			isUsed: false,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-		}),
-	} as SeatProps,
+	args: createBaseArgs(),
 }
 
 export const InUseNoWorkName: Story = {
 	name: '一般席 作業名なし',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat({
-				work_name: '',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			work_name: '',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUse: Story = {
 	name: '一般席',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat(),
-		}),
-	} as SeatProps,
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat(),
+	}),
 }
 
 export const InUseWithMenu: Story = {
 	name: '一般席 メニューアイテム',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat({
-				menu_code: 'coffee',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			menu_code: 'coffee',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseWithLongWorkName: Story = {
 	name: '一般席 長い作業内容',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat({
-				work_name:
-					'作業内容が長い場合はある程度までフォントサイズが自動調整されることを確認する',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			work_name:
+				'作業内容が長い場合はある程度までフォントサイズが自動調整されることを確認する',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseInBreak: Story = {
 	name: '一般席 休憩中',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat({
-				work_name: '実装タスク',
-				break_work_name: 'コーヒー休憩',
-				state: SeatState.Break,
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			work_name: '実装タスク',
+			break_work_name: 'コーヒー休憩',
+			state: SeatState.Break,
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseWithRankGradient: Story = {
 	name: '一般席 ランク表示グラデーション',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: false,
-			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-			seatShape: generalSeatShape,
-			processingSeat: createSeat({
-				appearance: {
-					color_code1: '#5BD27D',
-					color_code2: '#008CFF',
-					num_stars: 5,
-					color_gradient_enabled: true,
-				},
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			appearance: {
+				color_code1: '#5BD27D',
+				color_code2: '#008CFF',
+				num_stars: 5,
+				color_gradient_enabled: true,
+			},
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const VacantMember: Story = {
 	name: 'メンバー席 空席',
-	args: {
-		...createBaseArgs({
-			isUsed: false,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-		}),
-	} as SeatProps,
+	args: createBaseArgs({
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+	}),
 }
 
 export const InUseNoWorkNameMember: Story = {
 	name: 'メンバー席 作業名なし',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({
-				work_name: '',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({
+			work_name: '',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseMember: Story = {
 	name: 'メンバー席',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({}),
-		}),
-	} as SeatProps,
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({}),
+	}),
 }
 
 export const InUseMemberWithTwoLinesWorkName: Story = {
 	name: 'メンバー席 作業内容2行まで表示',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({
-				work_name: '作業内容は2行まで表示',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({
+			work_name: '作業内容は2行まで表示',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseMemberWithMenu: Story = {
 	name: 'メンバー席 メニューアイテム',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({
-				menu_code: 'coffee',
-				work_name: '執筆と資料確認',
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({
+			menu_code: 'coffee',
+			work_name: '執筆と資料確認',
 		}),
-	} as SeatProps,
+	}),
 }
 
 export const InUseMemberInBreak: Story = {
 	name: 'メンバー席 休憩中',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({
-				work_name: '実装タスク',
-				break_work_name: 'コーヒー休憩',
-				state: SeatState.Break,
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({
+			work_name: '実装タスク',
+			break_work_name: 'コーヒー休憩',
+			state: SeatState.Break,
 		}),
-	} as SeatProps,
+	}),
 }
 export const InUseMemberWithRankGradient: Story = {
 	name: 'メンバー席 ランク表示グラデーション',
-	args: {
-		...createBaseArgs({
-			isUsed: true,
-			memberOnly: true,
-			seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-			seatShape: memberSeatShape,
-			processingSeat: createSeat({
-				appearance: {
-					color_code1: '#5BD27D',
-					color_code2: '#008CFF',
-					num_stars: 5,
-					color_gradient_enabled: true,
-				},
-			}),
+	args: createBaseArgs({
+		isUsed: true,
+		memberOnly: true,
+		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
+		seatShape: memberSeatShape,
+		processingSeat: createSeat({
+			appearance: {
+				color_code1: '#5BD27D',
+				color_code2: '#008CFF',
+				num_stars: 5,
+				color_gradient_enabled: true,
+			},
 		}),
-	} as SeatProps,
+	}),
 }
