@@ -112,8 +112,6 @@ export const memberMain = css`
     gap: 0.14em;
     min-height: 0;
     text-align: center;
-    display: flex;
-    justify-content: center;
     margin-top: auto;
 `
 

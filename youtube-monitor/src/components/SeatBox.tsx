@@ -100,7 +100,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 				generalWorkNameFontSizePx *= actualSeatWidth / metrics.width
 				generalWorkNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
 				if (generalWorkNameFontSizePx < props.seatFontSizePx * 0.5) {
-					generalWorkNameFontSizePx = props.seatFontSizePx * 0.5 // 最小でもデフォルトの0.7倍のフォントサイズ
+					generalWorkNameFontSizePx = props.seatFontSizePx * 0.5
 				}
 			}
 		}
@@ -145,14 +145,14 @@ const SeatBox: FC<SeatProps> = (props) => {
                     background-color: ${props.processingSeat.appearance.color_code1};
                     mask-image: linear-gradient(
                         rgba(0, 0, 0, 1) 0%,
-						rgba(0, 0, 0, 0.5)30%,
+						rgba(0, 0, 0, 0.5) 30%,
                         rgba(0, 0, 0, 0) 100%
                     );
                 `
 												: css`
                	background-color: rgba(0, 0, 0, 0);
             `
-										};
+										}
                 `}
 					style={{
 						height: `${Math.max(
