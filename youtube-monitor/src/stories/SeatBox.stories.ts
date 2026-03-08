@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+import { Timestamp } from 'firebase/firestore'
 import React from 'react'
 
 import SeatBox, { type SeatProps } from '../components/SeatBox'
@@ -55,13 +56,17 @@ const memberSeatShape = {
 	heightPx: 150,
 }
 
-const createSeat = (overrides: Partial<Seat> = {}): Seat =>
-	({
+const createSeat = (overrides: Partial<Seat> = {}): Seat => {
+	const now = Timestamp.now()
+
+	const baseSeat = {
 		seat_id: 1,
 		user_id: 'user1',
 		user_display_name: 'ユーザー名',
 		work_name: '作業内容',
 		break_work_name: '',
+		entered_at: now,
+		until: now,
 		appearance: {
 			color_code1: '#5BD27D',
 			color_code2: '#008CFF',
@@ -70,9 +75,18 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat =>
 		},
 		menu_code: '',
 		state: SeatState.Work,
+		current_state_started_at: now,
+		current_state_until: now,
+		cumulative_work_sec: 60 * 60,
+		daily_cumulative_work_sec: 60 * 60,
 		user_profile_image_url: '/images/sample_profile.svg',
+	} satisfies Seat
+
+	return {
+		...baseSeat,
 		...overrides,
-	}) as Seat
+	}
+}
 
 const createBaseArgs = (
 	overrides: Partial<SeatStoryProps> = {},

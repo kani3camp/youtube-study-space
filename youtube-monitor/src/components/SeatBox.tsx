@@ -79,6 +79,33 @@ const SeatBox: FC<SeatProps> = (props) => {
 		props.hoursElapsed > 0
 			? `${props.hoursElapsed}h ${props.minutesElapsed % 60}m`
 			: `${Math.max(props.minutesElapsed, 0)}m`
+	const accentBarStyle = props.isUsed
+		? props.processingSeat.appearance.color_gradient_enabled
+			? css`
+              background-image: linear-gradient(
+                  90deg,
+                  ${props.processingSeat.appearance.color_code1},
+                  ${props.processingSeat.appearance.color_code2}
+              );
+              background-size: 300% 300%;
+              animation: ${colorGradientKeyframes} 4s linear infinite;
+              mask-image: linear-gradient(
+                  rgba(0, 0, 0, 1) 0%,
+                  rgba(0, 0, 0, 0.75) 35%,
+                  rgba(0, 0, 0, 0) 100%
+              );
+          `
+			: css`
+              background-color: ${props.processingSeat.appearance.color_code1};
+              mask-image: linear-gradient(
+                  rgba(0, 0, 0, 1) 0%,
+                  rgba(0, 0, 0, 0.5) 30%,
+                  rgba(0, 0, 0, 0) 100%
+              );
+          `
+		: css`
+                background-color: rgba(0, 0, 0, 0);
+            `
 
 	const seatIdLabel = props.isUsed
 		? `${props.globalSeatId}`
@@ -122,38 +149,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 			{/* Accent Bar */}
 			{props.isUsed && (
 				<div
-					css={css`
-                    ${styles.accentBar};
-                    ${
-											props.isUsed
-												? props.processingSeat.appearance.color_gradient_enabled
-													? css`
-                    background-image: linear-gradient(
-                        90deg,
-                        ${props.processingSeat.appearance.color_code1},
-                        ${props.processingSeat.appearance.color_code2}
-                    );
-                    background-size: 300% 300%;
-                    animation: ${colorGradientKeyframes} 4s linear infinite;
-                    mask-image: linear-gradient(
-                        rgba(0, 0, 0, 1) 0%,
-                        rgba(0, 0, 0, 0.75) 35%,
-                        rgba(0, 0, 0, 0) 100%
-                    );
-                `
-													: css`
-                    background-color: ${props.processingSeat.appearance.color_code1};
-                    mask-image: linear-gradient(
-                        rgba(0, 0, 0, 1) 0%,
-						rgba(0, 0, 0, 0.5) 30%,
-                        rgba(0, 0, 0, 0) 100%
-                    );
-                `
-												: css`
-               	background-color: rgba(0, 0, 0, 0);
-            `
-										}
-                `}
+					css={[styles.accentBar, accentBarStyle]}
 					style={{
 						height: `${Math.max(
 							18,
