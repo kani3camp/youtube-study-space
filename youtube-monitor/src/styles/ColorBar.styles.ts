@@ -45,9 +45,10 @@ export const title = css`
 
 export const scaleWrapper = css`
     position: relative;
-    width: 100%;
+    width: calc(100% - 1.2rem);
     padding-top: 0.8rem;
     margin: 0 0.6rem;
+    box-sizing: border-box;
 `
 
 export const labels = css`
@@ -99,10 +100,4 @@ export const colorBarStrip = css`
 export const colorBox = css`
     flex: 1;
     height: 100%;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    cursor: pointer;
-
-    &:hover {
-        opacity: 0.8;
-    }
 `
