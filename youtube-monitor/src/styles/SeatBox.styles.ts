@@ -2,75 +2,155 @@ import { css } from '@emotion/react'
 import { fontFamily } from '../lib/common'
 import { Constants } from '../lib/constants'
 
-export const emptySeatNum = css`
-    margin: 0;
-    color: #414141;
-`
-export const usedSeatNum = css``
-
 export const seat = css`
     position: absolute;
     display: flex;
     flex-direction: column;
+    transform-origin: top left;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid rgba(84, 75, 62, 0.12);
+    box-shadow: 0 0.2rem 0.55rem rgba(70, 58, 43, 0.08);
+    font-family: ${fontFamily};
+    background-color: ${Constants.seatBackgroundColor};
+`
+
+export const accentBar = css`
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 100%;
+    box-sizing: border-box;
+    pointer-events: none;
+`
+
+export const seatBody = css`
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.35em 0.5em 0.34em;
+`
+
+export const headerRow = css`
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    height: 0.7rem;
+`
+
+export const headerLeft = css`
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+    gap: 0.2rem;
+`
+
+export const generalSeatId = css`
+    margin: 0;
+    color: #5a5146;
+    line-height: 1;
+    font-size: 0.6em;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+`
+
+export const memberSeatId = css`
+    margin: 0;
+    color: #5a5146;
+    line-height: 1;
+    font-size: 0.68em;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+`
+
+export const menuItem = css`
+    flex-shrink: 0;
+    opacity: 0.72;
+`
+
+export const breakBadge = css`
+    color: #2f3d19;
+    background-color: rgba(199, 230, 146, 0.95);
+    z-index: ${Constants.breakBadgeZIndex};
+    font-weight: 700;
+    line-height: 1;
+    border: 1px solid rgba(67, 90, 29, 0.22);
+`
+
+export const starsBadge = css`
+    color: rgba(77, 63, 19, 0.96);
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translateY(1px);
+`
+
+export const memberContent = css`
+    position: relative;
+    display: flex;
+    gap: 0.2rem;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+`
+
+export const memberMain = css`
+    display: flex;
+    flex: 1;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    transform-origin: top left;
-    font-family: ${fontFamily};
-`
-
-export const seatId = css`
-    margin: 0;
-    position: relative;
-    color: #414141;
-    font-weight: bold;
-`
-export const seatIdMember = css`
-    position: absolute;
-    margin: 0;
-    top: 0;
-    color: #414141;
-    font-weight: bold;
-`
-
-export const workName = css`
-    margin: 0;
-    color: #24317e;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    font-weight: bolder;
-`
-export const workNameMemberBalloon = css`
-    position: absolute;
-    bottom: 38%;
-    left: 23%;
+    gap: 0.14em;
+    min-height: 0;
     text-align: center;
-    min-width: 30%;
-    max-width: ${Constants.memberSeatWorkNameWidthPercent}%;
-    max-height: 1.65rem;
-    margin-left: 0.5rem;
-    padding: 0.08rem 0.2rem;
-    border-radius: 0.3rem;
-    background-color: #ffffffa0;
-    color: #24317e;
-    font-weight: bolder;
-
-    &::before {
-        position: absolute;
-        bottom: 25%;
-        left: -0.5rem;
-        width: 0.5rem;
-        height: 0.4rem;
-        clip-path: polygon(0 50%, 100% 0, 100% 100%);
-        content: '';
-        background-color: inherit;
-    }
+    display: flex;
+    justify-content: center;
+    margin-top: auto;
 `
 
-export const workNameMemberText = css`
-    max-height: inherit;
+export const emptyContent = css`
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    min-height: 0;
+    text-align: center;
+`
+
+export const emptySeatCommand = css`
+    margin: 0;
+    color: #4a4338;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+`
+
+export const memberWorkNameFrame = css`
+    align-self: center;
+    min-width: 50%;
+    padding: 0.1em 0.22em;
+    box-sizing: border-box;
+    border-radius: 0.3rem;
+    background-color: rgba(255, 255, 255, 0.63);
+    text-align: center;
+    padding-top: 0.2em;
+
+`
+
+export const memberWorkName = css`
+    color: #24317e;
     text-overflow: ellipsis;
+    font-weight: 800;
+    line-height: 1.18;
     overflow: hidden;
     word-wrap: break-word;
     display: -webkit-box;
@@ -78,82 +158,84 @@ export const workNameMemberText = css`
     -webkit-box-orient: vertical;
 `
 
-export const userDisplayName = css`
-    margin: 0;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    color: #202020;
-`
-export const userDisplayNameMember = css`
-    position: absolute;
-    margin: 0;
-    width: 100%;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    color: #202020;
-    right: 0;
-    bottom: 14%;
+export const generalContent = css`
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 0;
     text-align: center;
 `
 
-export const breakBadge = css`
-    color: black;
-    background-color: #5af87fe7;
-    z-index: ${Constants.breakBadgeZIndex};
-    position: absolute;
-    font-weight: bold;
-    border: solid;
+export const generalWorkName = css`
+    width: 100%;
+    color: #24317e;
+    font-weight: 800;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 `
 
-export const menuItem = css`
-    position: absolute;
-    top: 0.1rem;
-    left: 0.2rem;
-`
-
-export const starsBadge = css`
-    color: black;
-    position: absolute;
-    top: 0;
-    right: 0;
-    overflow-wrap: anywhere;
-    padding-right: 0.2rem;
-`
-
-export const profileImageMemberWithWorkName = css`
+export const generalDisplayName = css`
     margin: 0;
-    position: absolute;
-    top: 35%;
-    left: 12%;
-    width: 1.2rem;
-    height: 1.2rem;
-    transform: translate(-50%, 0);
-    border-radius: 50%;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #38322b;
+    font-size: 0.58em;
+    line-height: 1.15;
 `
-export const profileImageMemberNoWorkName = css`
-    margin: 0;
-    position: absolute;
-    top: 24%;
-    left: 50%;
-    width: 1.8rem;
-    height: 1.8rem;
-    transform: translate(-50%, 0);
-    border-radius: 50%;
+
+export const memberIdentityRow = css`
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    gap: 0.22em;
+    max-width: 100%;
+`
+
+export const memberDisplayName = css`
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #38322b;
+    font-size: 0.56em;
+    line-height: 1.15;
+    text-align: center;
+`
+
+export const profileImage = css`
+    border-radius: 999px;
+    object-fit: cover;
+    opacity: 0.92;
+    flex-shrink: 0;
 `
 
 export const timeElapsed = css`
-    color: #000;
+    color: rgba(46, 41, 36, 0.72);
+    font-size: 0.42em;
+    line-height: 1;
+    white-space: nowrap;
+    padding-left: 0;
     position: absolute;
-    bottom: 1%;
-    left: 2%;
+    left: 0.2rem;
+    bottom: 0.2rem;
+
 `
 
 export const timeRemaining = css`
-    color: black;
+    color: #2a241d;
+    font-size: 0.42em;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
     position: absolute;
-    bottom: 1%;
-    right: 2%;
+    right: 0.2rem;
+    bottom: 0.2rem;
+
 `
