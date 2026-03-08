@@ -62,7 +62,7 @@ export const name = css`
 
 export const commandCode = css`
     padding: 0.15rem;
-    background-color: #eee;
+    background-color: rgba(0, 0, 0, 0.08);
     border-radius: 0.2rem;
     font-size: 0.75em;
     font-weight: bold;

@@ -1,5 +1,4 @@
 import { css } from '@emotion/react'
-import { sourceCodeProFontFamily } from '../lib/common'
 import {
 	Constants,
 	sidebarCardHorizontalInsetPx,
@@ -28,7 +27,7 @@ export const usage = css`
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 0.15rem;
 `
 
 export const description = css`
@@ -41,9 +40,8 @@ export const command = css`
 `
 
 export const commandCode = css`
-    font-family: ${sourceCodeProFontFamily};
     font-weight: 700;
-    font-size: 0.88rem;
+    font-size: 0.8rem;
     letter-spacing: 0.01em;
     font-variant-ligatures: none;
     display: inline-block;
@@ -55,5 +53,5 @@ export const commandCode = css`
 `
 
 export const commandDesc = css`
-    font-size: 0.9rem;
+    font-size: 0.8rem;
 `

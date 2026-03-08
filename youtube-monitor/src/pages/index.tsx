@@ -17,6 +17,7 @@ import Timer from '../components/Timer'
 import Usage from '../components/Usage'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
 import type { Menu } from '../types/api'
+import ColorBar from '../components/ColorBar'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
@@ -58,6 +59,7 @@ const Home: FC = () => {
 			<Usage />
 			<MenuDisplay menuItems={menuItems} />
 			<Timer />
+			<ColorBar />
 			<Seats menuItems={menuItems} />
 		</div>
 	)
