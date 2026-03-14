@@ -28,7 +28,7 @@ jobs:
           go test -shuffle=on -v ./...
 
   youtube-monitor-test:
-    name: Youtube Monitor Test
+    name: YouTube Monitor Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
