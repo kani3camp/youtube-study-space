@@ -16,6 +16,7 @@
 </head>
 <body>
   <button id="getFramesButton">Get Frames</button>
+  <div id="errorMessage" role="alert" aria-live="polite" style="color: #e03e3e; margin: 8px 0; display: none;"></div>
   <ul id="frameList"></ul>
   
   <select id="download-frame-select">
@@ -33,7 +34,10 @@
 
     window.onmessage = (event) => {
         const msg = event.data.pluginMessage;
+        const errorEl = document.getElementById('errorMessage');
         if (msg.type === 'frameList') {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
             const frameList = document.getElementById('frameList');
             frameList.innerHTML = '';
 
@@ -53,6 +57,9 @@
                 option.innerText = frame.frameName;
                 downloadFrameSelect.appendChild(option);
             });
+        } else if (msg.type === 'error') {
+            errorEl.textContent = 'エラー: ' + msg.message;
+            errorEl.style.display = 'block';
         }
     };
     
