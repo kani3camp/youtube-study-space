@@ -34,7 +34,7 @@ go test -shuffle=on -v ./...
 go test ./core/youtubebot/...
 
 # Generate mocks
-mockgen -source=core/repository/firestore_controller_interface.go -destination=core/repository/mocks/firestore_controller_interface.go -package=mock_myfirestore
+mockgen -source ./core/repository/interface.go -destination ./core/repository/mocks/interface.go -package mock_repository
 
 # Update dependencies
 go mod tidy
