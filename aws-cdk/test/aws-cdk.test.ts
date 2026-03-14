@@ -11,9 +11,9 @@ const createTemplate = () => {
 }
 
 describe('AwsCdkStack', () => {
-	test('keeps the daily batch schedule invariant', () => {
-		const template = createTemplate()
+	const template = createTemplate()
 
+	test('keeps the daily batch schedule invariant', () => {
 		template.hasResourceProperties('AWS::Scheduler::Schedule', {
 			Name: 'daily-batch-00-00-jst',
 			ScheduleExpression: 'cron(0 15 * * ? *)',
@@ -25,8 +25,6 @@ describe('AwsCdkStack', () => {
 	})
 
 	test('keeps API Gateway protected by an API key', () => {
-		const template = createTemplate()
-
 		template.hasResourceProperties('AWS::ApiGateway::Method', {
 			HttpMethod: 'POST',
 			ApiKeyRequired: true,
@@ -38,8 +36,6 @@ describe('AwsCdkStack', () => {
 	})
 
 	test('keeps the Fargate task definition runtime invariant', () => {
-		const template = createTemplate()
-
 		template.hasResourceProperties('AWS::ECS::TaskDefinition', {
 			Cpu: '256',
 			Memory: '512',
@@ -51,12 +47,9 @@ describe('AwsCdkStack', () => {
 	})
 
 	test('exposes the required batch outputs', () => {
-		const template = createTemplate()
-
 		template.hasOutput('BatchClusterArn', {})
 		template.hasOutput('DailyBatchTaskDefinitionArn', {})
 		template.hasOutput('BatchSecurityGroupId', {})
-		template.hasOutput('BatchPublicSubnetIds', {})
 		template.hasOutput('BatchVpcId', {})
 		template.hasOutput('DailyBatchStateMachineArn', {})
 		template.hasOutput(

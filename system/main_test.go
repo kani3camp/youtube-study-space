@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-func newWorkspaceApp() workspaceapp.WorkspaceApp {
-	return workspaceapp.WorkspaceApp{}
+func newWorkspaceApp() *workspaceapp.WorkspaceApp {
+	return &workspaceapp.WorkspaceApp{}
 }
 
-func assertProcessedUserInitialState(t *testing.T, app workspaceapp.WorkspaceApp) {
+func assertProcessedUserInitialState(t *testing.T, app *workspaceapp.WorkspaceApp) {
 	t.Helper()
 
 	assert.Equal(t, "", app.ProcessedUserId)

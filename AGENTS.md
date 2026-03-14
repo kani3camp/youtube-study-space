@@ -211,7 +211,7 @@ The system recognizes these chat commands:
 ## Development Environment
 
 ### Required Setup
-1. Go 1.23+ for backend development
+1. Go 1.24.0+ for backend development
 2. Node.js 18+ and `pnpm` for frontend development (`youtube-monitor/` uses `pnpm@10.4.0`)
 3. Google Cloud credentials for Firestore/BigQuery access
 4. AWS credentials for Lambda deployment
