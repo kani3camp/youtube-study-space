@@ -26,24 +26,21 @@ type AllRoomsConfig = {
 const prodAllRooms: AllRoomsConfig = {
 	generalBasicRooms: [
 		Chabio2Room,
-		Freepik4Room,
+		CampRoom,
 		Freepik6Room,
 		Anonymous1Room,
 		Freepik8Room,
 	],
 	generalTemporaryRooms: [
+		CampRoom,
 		Chabio1Room,
 		Freepik3Room,
 		Freepik5Room,
 		Freepik8Room,
 		Freepik7Room,
 	],
-	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, MemberIllustratedRoom1],
-	memberTemporaryRooms: [
-		MemberBoxRooms2,
-		MemberBoxRooms3,
-		MemberIllustratedRoom1,
-	],
+	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, ResortSeaRoom],
+	memberTemporaryRooms: [MemberBoxRooms2, MemberBoxRooms3, ResortSeaRoom],
 }
 
 const testAllRooms: AllRoomsConfig = {
