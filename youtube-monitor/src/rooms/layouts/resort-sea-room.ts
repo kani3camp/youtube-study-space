@@ -18,8 +18,8 @@ export const ResortSeaRoom: RoomLayout = {
 		{ id: 3, x: 1131, y: 34, rotate: 0 },
 		{ id: 4, x: 54, y: 542, rotate: 0 },
 		{ id: 5, x: 380, y: 604, rotate: 0 },
-		{ id: 5, x: 702, y: 837, rotate: 0 },
-		{ id: 6, x: 1046, y: 837, rotate: 0 },
+		{ id: 6, x: 702, y: 837, rotate: 0 },
+		{ id: 7, x: 1046, y: 837, rotate: 0 },
 	],
 	partitions: [],
 }
