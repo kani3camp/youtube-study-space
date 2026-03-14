@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  go-test:
-    name: Go Test
+  system-go-test:
+    name: System Go Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -27,8 +27,8 @@ jobs:
           go mod tidy
           go test -shuffle=on -v ./...
 
-  jest:
-    name: Jest
+  youtube-monitor-test:
+    name: Youtube Monitor Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -50,3 +50,21 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run tests
         run: pnpm test
+
+  aws-cdk-test:
+    name: AWS CDK Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: aws-cdk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
