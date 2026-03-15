@@ -63,20 +63,26 @@ jobs:
         working-directory: tools/menu-image-generator
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          package_json_file: tools/menu-image-generator/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: tools/menu-image-generator/pnpm-lock.yaml
       - name: Install dependencies
-        run: bun install
+        run: pnpm install --frozen-lockfile
         env:
           # 依存関係インストール時（lint/build 用）はブラウザ不要のため Chromium ダウンロードをスキップ（タイムアウト防止）
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 1
           PUPPETEER_SKIP_DOWNLOAD: 1
       - name: Run lint
-        run: bun run lint
+        run: pnpm lint
       - name: Run build
-        run: bun run build
+        run: pnpm build
 
   biome-lint:
     name: Biome Lint (youtube-monitor)
@@ -104,5 +110,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Biome
+      - name: Run check
         run: pnpm exec biome check . --reporter=github
