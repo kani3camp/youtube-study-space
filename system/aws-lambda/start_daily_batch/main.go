@@ -81,7 +81,7 @@ func handler(ctx context.Context) error {
 			return fmt.Errorf("timeout in StartExecution: %w", err)
 		}
 		slog.ErrorContext(gracefulCtx, "failed to start state machine execution", "name", execName, "err", err)
-		return err
+		return fmt.Errorf("in StartExecution: %w", err)
 	}
 	slog.InfoContext(gracefulCtx, "started state machine execution", "name", execName)
 	return nil
