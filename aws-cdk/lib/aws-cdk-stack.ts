@@ -542,7 +542,7 @@ export class AwsCdkStack extends cdk.Stack {
 		startDailyBatchFunction.grantInvoke(schedulerRole)
 		dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction)
 
-		const dailyBatchSchedule = new scheduler.CfnSchedule(
+		new scheduler.CfnSchedule(
 			this,
 			'DailyBatchScheduler',
 			{
