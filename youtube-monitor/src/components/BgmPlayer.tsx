@@ -23,10 +23,15 @@ const BgmPlayer: React.FC = () => {
 	// マウント時にチャイム用 audio 要素の準備（load / error ハンドラ登録）を一度だけ実行
 	useEffect(() => {
 		const chimeList = [chimeSingleRef.current, chimeDoubleRef.current]
+		const cleanupFns: Array<() => void> = []
 		for (const chime of chimeList) {
 			if (!chime) continue
-			chime.addEventListener('error', () => {
+			const handleError = () => {
 				alert(`error loading: ${chime.src}`)
+			}
+			chime.addEventListener('error', handleError)
+			cleanupFns.push(() => {
+				chime.removeEventListener('error', handleError)
 			})
 			if (!chime.src) {
 				alert(`invalid chime src: ${chime.src}`)
@@ -34,6 +39,12 @@ const BgmPlayer: React.FC = () => {
 			chime.load()
 		}
 		console.log('checking chime audio files.')
+
+		return () => {
+			for (const cleanup of cleanupFns) {
+				cleanup()
+			}
+		}
 	}, [])
 
 	const playChimeSingle = useCallback(() => {

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
+	coreutils "app.modules/core/utils"
 	"app.modules/core/workspaceapp"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -17,6 +18,11 @@ import (
 func init() {
 	lambdautils.InitLogger()
 }
+
+const (
+	maxDiscordMessageBytes = 1800
+	truncatedSuffix        = "... (truncated)"
+)
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
@@ -62,8 +68,8 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 		// Log full message before truncation for console inspection
 		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
-		if len(message) > 1800 {
-			message = message[:1800] + "... (truncated)"
+		if len(message) > maxDiscordMessageBytes {
+			message = coreutils.TruncateStringUTF8(message, maxDiscordMessageBytes-len(truncatedSuffix)) + truncatedSuffix
 		}
 
 		notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
