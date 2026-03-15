@@ -35,6 +35,7 @@ const BgmPlayer: React.FC = () => {
 			})
 			if (!chime.src) {
 				alert(`invalid chime src: ${chime.src}`)
+				continue
 			}
 			chime.load()
 		}

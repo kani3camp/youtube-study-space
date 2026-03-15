@@ -145,6 +145,9 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnMemberTimeout(t *testing.T) {
 	if resp.Result != "timeout_warning" {
 		t.Fatalf("expected timeout_warning result, got %#v", resp)
 	}
+	if !strings.Contains(resp.Message, "member room") {
+		t.Fatalf("expected timeout warning message to include room label, got %#v", resp)
+	}
 	if len(callOrder) != 1 || callOrder[0] != true {
 		t.Fatalf("expected processing to stop after member timeout, got %#v", callOrder)
 	}
@@ -179,6 +182,9 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnGeneralTimeout(t *testing.T) {
 	}
 	if resp.Result != "timeout_warning" {
 		t.Fatalf("expected timeout_warning result, got %#v", resp)
+	}
+	if !strings.Contains(resp.Message, "general room") {
+		t.Fatalf("expected timeout warning message to include room label, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[1] != false {
 		t.Fatalf("expected member then general execution, got %#v", callOrder)

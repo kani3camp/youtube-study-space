@@ -113,7 +113,7 @@ func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app org
 				abort: true,
 			}
 		}
-		return organizeRoomResult{timeoutWarningMessage: err.Error()}
+		return organizeRoomResult{timeoutWarningMessage: timeoutErr.Error()}
 	}
 
 	wrappedErr := fmt.Errorf("in OrganizeDB (%s): %w", roomLabel, err)
