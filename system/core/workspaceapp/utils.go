@@ -860,7 +860,10 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
 	}
 	// work segmentログ記録
-	workSegment := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
+	workSegment, err := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
+	if err != nil {
+		return 0, 0, fmt.Errorf("in GenerateWorkSegment: %w", err)
+	}
 	if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 		return 0, 0, fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 	}
