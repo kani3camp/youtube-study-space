@@ -30,7 +30,7 @@
 		},
 		{
 			"name": "menu-image-generator",
-			"path": "tools/video-maker/menu-image-generator"
+			"path": "tools/menu-image-generator"
 		},
 		{
 			"name": "root",
