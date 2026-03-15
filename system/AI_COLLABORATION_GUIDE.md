@@ -2,200 +2,191 @@
 
 ## プロジェクト概要
 
-Youtube Study Spaceは、YouTubeのライブ配信を活用したオンライン学習・作業スペースを提供するサービスです。ユーザーはYouTubeのライブチャットを通じてコマンドを送信し、バーチャルな「席」を確保して学習や作業を行うことができます。
-
-### 主要機能
-- ユーザーがライブチャットで席の予約・退席などのコマンドを送信
-- 一般席とメンバー限定席の管理
-- 作業時間の記録と統計
-- 長時間席を占有しているユーザーの検出
-- モデレーター機能（キック、ブロックなど）
-- 休憩機能
-
-### ターゲットユーザー
-- オンラインで集中して学習・作業したいユーザー
-- YouTubeのライブ配信を視聴しながら学習コミュニティに参加したい人
-- チャンネルのメンバーシップ会員（特別席の利用が可能）
+Youtube Study Space は、YouTube ライブ配信のチャットコマンドを使って入退室や作業管理を行うオンライン自習室です。`system/` は、そのバックエンド、定期実行ジョブ、Lambda ハンドラをまとめた Go ベースの実装です。
 
 ### 現在のステータス
-本システムは稼働中のプロダクトで、AWS Lambdaを含むクラウドサービス上で運用されています。プロジェクトは継続的に機能追加やバグ修正が行われています。
-また、system/main.goはローカルで実行するライブチャットbotプログラムです。
+- 稼働中のプロダクトであり、Firestore を中心に状態を管理している
+- ローカル実行用のライブチャット bot は `system/main.go`
+- 日次バッチ本体は `system/cmd/batch/`
+- 定期実行 Lambda は `system/aws-lambda/`
 
 ## 技術スタック
 
-### プログラミング言語
-- Go言語 (v1.23)
-
-### 主要ライブラリ/フレームワーク
-- Google Cloud Firestore: データベース
-- Google Cloud BigQuery: 分析用データストア
-- Google Cloud Storage: ファイルストレージ
-- YouTube API v3: YouTubeライブチャット連携
-- AWS Lambda: サーバーレス関数
-- AWS SDK: AWSサービス連携
-
-### 開発環境
-- ローカル開発環境: Go, Docker
-- 本番環境: AWS Lambda, Google Cloud
-
-### 外部サービス連携
-- YouTube Data API
+### 言語と主要依存
+- Go 1.24.0
 - Firestore
 - BigQuery
-- Discord (通知用)
+- Cloud Storage
+- YouTube Data API v3
+- AWS Lambda
+- AWS Step Functions
+- AWS ECS Fargate
+- AWS EventBridge / EventBridge Scheduler
+- DynamoDB
+- `go.uber.org/mock`
+
+### 開発環境
+- ローカル開発: Go, Docker, `.env`
+- 本番運用: AWS Lambda, Step Functions, ECS Fargate, Google Cloud
 
 ## コードベース構造
 
-### ディレクトリ構造
-- `/` - プロジェクトルート
-  - `main.go` - アプリケーションのエントリーポイント
-  - `core/` - システムのコアロジック
-    - `system.go` - メインのシステム機能
-    - `youtubebot/` - YouTubeライブチャット連携
-    - `repository/` - データストアへのアクセス層
-    - `utils/` - ユーティリティ関数
-    - `i18n/` - 国際化対応
-    - `guardians/` - セキュリティ関連機能
-    - `moderatorbot/` - モデレーター機能
-    - `mybigquery/` - BigQuery連携
-    - `mystorage/` - ストレージ連携
-  - `direct-operations/` - 直接操作用のツール
-  - `aws-lambda/` - AWS Lambda関数
-  - `Dockerfile.lambda` - Lambda用コンテナ定義
-  - `Dockerfile.fargate` - ECS Fargate用バッチコンテナ定義
+このガイドは `system/` ディレクトリを前提に読む。
+
+### 主要ディレクトリ
+- `main.go`
+  - ローカルでライブチャット bot を起動するエントリーポイント
+- `core/workspaceapp/`
+  - コマンド処理、席管理、休憩、バリデーション、日次バッチ処理の中核
+- `core/repository/`
+  - Firestore とのデータアクセス層
+- `core/youtubebot/`
+  - YouTube Live Chat API との連携
+- `core/guardians/`
+  - ライブ状態の監視やガード処理
+- `core/moderatorbot/`
+  - Discord 通知やモデレーション関連
+- `core/mybigquery/`
+  - BigQuery 連携
+- `core/i18n/`
+  - ロケール定義と型付き翻訳ラッパー
+- `cmd/batch/`
+  - Fargate 上で動く日次バッチ本体
+- `aws-lambda/`
+  - 定期実行・補助処理の Lambda ハンドラ
+- `internal/logging/`
+  - ロガー初期化
+- `Dockerfile.lambda`
+  - Lambda 群のコンテナビルド定義
+- `Dockerfile.fargate`
+  - Fargate 用日次バッチのコンテナビルド定義
 
 ### 主要ファイル
-- `main.go`: アプリケーションのエントリーポイント。`Bot`関数と`CheckLongTimeSitting`関数を起動
-- `core/system.go`: システムの中核機能。コマンド処理、席管理などの主要ロジックを含む
-- `core/type_system.go`: システムの型定義
-- `core/repository/interface.go`: Firestoreとのインターフェース（`Repository`/`DBClient`）
+- `main.go`
+  - `Bot` と `CheckLongTimeSitting` を起動し、ライブチャットをポーリングする
+- `core/workspaceapp/workspace_app.go`
+  - `WorkspaceApp` の初期化と主要依存の束ね込み
+- `core/workspaceapp/command_seat.go`
+  - 入室、退室、休憩、延長、注文など席関連コマンド
+- `core/workspaceapp/command_user.go`
+  - `!my`、`!rank`、`!info` などのユーザー系コマンド
+- `core/workspaceapp/command_moderation.go`
+  - `!kick`、`!block`、`!report` などモデレーション系コマンド
+- `core/repository/interface.go`
+  - `Repository` / `DBClient` のインターフェース
+- `core/i18n/generate.go`
+  - 型付き翻訳コード生成の `go:generate` エントリ
+- `cmd/batch/main.go`
+  - 日次バッチのジョブ切り替えと実行順管理
 
-## データモデルと処理フロー
+## 処理フロー
 
-### 主要データモデル
-- `SeatDoc`: 席の情報（ユーザーID、入室時間、作業内容など）
-- `UserDoc`: ユーザー情報（累計学習時間、プロフィールなど）
-- `ConstantsConfigDoc`: システム定数（最大席数、ポーリング間隔など）
-- `CredentialsConfigDoc`: 認証情報
+### ライブチャット処理
+1. YouTube Live Chat API からメッセージを取得
+2. コマンドを解析して `workspaceapp` に渡す
+3. Firestore トランザクションを使って状態を更新する
+4. 必要に応じて YouTube Live Chat や Discord に返信する
 
-### 主要処理フロー
-1. YouTubeライブチャットからメッセージを取得
-2. コマンドを解析して適切な処理を実行
-3. Firestoreのデータを更新
-4. 結果をYouTubeライブチャットに返信
+### 定期実行
+- **1 分ごと**
+  - `youtube_organize_database`
+  - `check_live_stream_status`
+- **15 分ごと**
+  - `update_work_name_trend`
+- **毎日 00:00 JST**
+  - EventBridge Scheduler が `start_daily_batch` Lambda を起動
+  - `start_daily_batch` が Step Functions を開始
+  - Step Functions が ECS Fargate 上の `cmd/batch` を実行
+
+### 日次バッチの主な役割
+- 日次学習時間のリセット
+- RP 更新
+- Firestore / GCS から BigQuery への履歴転送
+
+## データモデル
+
+### 主要エンティティ
+- `SeatDoc`
+  - 席情報、ユーザー ID、入室時刻、作業内容など
+- `UserDoc`
+  - ユーザー情報、累計時間、各種設定など
+- `ConstantsConfigDoc`
+  - 最大席数やポーリング間隔などのシステム定数
+- `CredentialsConfigDoc`
+  - 認証や外部接続に関する設定参照
 
 ### 状態管理
-- Firestoreを使用してユーザーの状態、席の状態を永続化
-- トランザクション処理によるデータ整合性の確保
+- Firestore を使って席状態とユーザー状態を永続化する
+- 席関連更新はトランザクションで整合性を保つ
 
-## 開発規約とガイドライン
+## 開発規約と協業ルール
 
 ### コーディング規約
-- Go標準のコーディング規約に準拠
-- エラーハンドリングは適切に行い、エラーメッセージには文脈情報を含める
-- 関数は単一責任の原則に従って設計
+- Go 標準のコーディング規約に従う
+- エラーメッセージには文脈情報を含める
+- 単一責任を意識して関数を分割する
+- `NOTE` コメントは重要な意図を含むため削除しない
+- 一時的な補足コメントは `[NOTE FOR REVIEW]` を使う
 
-### 命名規則
-- 変数・関数名: キャメルケース（`myVariable`, `MyFunction`）
-- パッケージ名: 小文字のみ（`repository`, `utils`）
-- 定数: 大文字スネークケース（`MAX_RETRY_ATTEMPTS`）
-
-### テスト戦略
-- ユニットテスト: `*_test.go`ファイルで実装
-- モックを使用したテスト: `go.uber.org/mock`を使用
+### テスト方針
+- ユニットテストは `*_test.go` で実装する
+- モック生成は `go.uber.org/mock` を使う
+- 主要なコマンド解析、Firestore リポジトリ、`workspaceapp` の振る舞いを優先して検証する
 
 ### AI協業の運用ルール
-- ブランチ作成: 許可不要（子ブランチは親機能ブランチから切る）
-- 差分作成/提案: 許可不要（エディタ上の未保存変更やdiff提示はOK）
-- コミット: 事前許可が必要。実施前に変更要約・影響範囲・コミットメッセージ案を提示
-- プッシュ: 事前許可が必要。push先ブランチ名を明示
-- PR作成/更新: 事前許可が必要。PRタイトル/概要/チェックリストを提示
-- 長時間ジョブ・デプロイ・破壊的操作のコマンド実行: 事前許可が必要
-- 既定の動作: 非破壊（DRY-RUN/コマンド提示のみ）。承認後に実行
-- ログ/証跡: 実行・提案コマンドは会話中に明示し、非対話フラグを付与
-- セキュリティ: 機密値は表示しない。必要に応じて取得方法のみ案内
+- 差分提案や非破壊な確認コマンドは許可不要
+- コミット、プッシュ、PR 作成、デプロイ、破壊的操作は事前確認を取る
+- 実行したコマンドや確認内容は会話上で明示する
+- 機密値は表示せず、必要なら取得方法のみ案内する
 
-## テストとQA
+## よく使う開発コマンド
 
-### テストフレームワーク
-- Go標準のテストパッケージ
-- テストモック: `go.uber.org/mock`
+`system/` で実行する。
 
-### テストカバレッジ
-- 主要なビジネスロジックに対してユニットテストを実施
-- モックを使用して外部依存（Firestore、YouTube API）を置き換えてテスト
-
-## 既知の課題と制約
-
-### パフォーマンス
-- YouTubeライブチャットAPIのクォータ制限
-- 長時間実行時のメモリ使用量
-
-### セキュリティ
-- 認証情報（`.env`ファイル、Googleサービスアカウント）の適切な管理
-- ユーザー入力のバリデーション
-
-## よくある開発タスク
-
-### 環境設定
-1. リポジトリをクローン
-2. `.env`ファイルを設定
-3. 必要なCredentialsファイルを配置
-4. `go mod download`で依存関係をインストール
-
-### ローカル開発
 ```bash
-# 開発環境の起動
+# ライブチャット bot を起動
 go run main.go
 
-# テストの実行
-go test ./...
+# テスト実行
+go test -shuffle=on -v ./...
 
-# モックの生成
-mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
+# 特定パッケージだけ実行
+go test ./core/youtubebot/...
+
+# Repository モック生成
+mockgen -source ./core/repository/interface.go -destination ./core/repository/mocks/interface.go -package mock_repository
+
+# 型付き i18n ラッパー再生成
+go generate ./...
+
+# 依存整理
+go mod tidy
 ```
-
-### デプロイ
-デプロイには AWS CDK を使用します。
-
-デプロイの詳細な手順については、プロジェクトのルートディレクトリの親ディレクトリにある `aws-cdk` ディレクトリの README.md を参照してください。AWS CDKを使用することで、インフラストラクチャをコードとして管理しています。
-
-## 用語集
-
-| 用語          | 説明                                                    |
-| ------------- | ------------------------------------------------------- |
-| 席（Seat）    | ユーザーが作業するための仮想的なスペース                |
-| 一般席        | 誰でも利用可能な席                                      |
-| メンバー席    | YouTubeチャンネルのメンバーシップ会員のみが利用可能な席 |
-| 入室（In）    | 席を確保すること                                        |
-| 退室（Out）   | 席を解放すること                                        |
-| 休憩（Break） | 一時的に作業を中断すること                              |
-| RP            | リワードポイント（報酬ポイント）システム                |
 
 ## コマンド一覧
 
-システムで使用できる主なコマンド：
+実装上の主なチャットコマンド:
 
-- `!in` - 入室（一般席）
-- `/in` - 入室（メンバー席）
+- `!in` - 一般席に入室
+- `/in` - メンバー席に入室
 - `!out` - 退室
-- `!break` または `!rest` または `!chill` - 休憩開始
+- `!break` / `!rest` / `!chill` - 休憩開始
 - `!resume` - 休憩終了
-- `!my` - 自分の情報表示
+- `!my` - 自分の情報表示や設定変更
 - `!rank` - ランキング表示
-- `!check` - 席の状態確認
 - `!info` - ユーザー情報表示
 - `!seat` - 席情報表示
 - `!change` - 作業内容変更
-- `!more` または `!okawari` - 作業時間延長
+- `!more` / `!okawari` - 作業時間延長
 - `!report` - 報告
-- `!order` - 注文（メンバー機能）
-- `!kick` - キック（モデレーター機能）
-- `!block` - ブロック（モデレーター機能）
+- `!order` - 注文関連
+- `!check` - 席状態確認
+- `!kick` - キック
+- `!block` - ブロック
 
-## 参考リソース
+## 参考
 
-- [Go言語公式ドキュメント](https://golang.org/doc/)
+- [Go言語公式ドキュメント](https://go.dev/doc/)
 - [YouTube Data API ドキュメント](https://developers.google.com/youtube/v3)
 - [Google Cloud Firestore ドキュメント](https://cloud.google.com/firestore/docs)
-- [AWS Lambda ドキュメント](https://docs.aws.amazon.com/lambda/) 
+- [AWS Lambda ドキュメント](https://docs.aws.amazon.com/lambda/)
