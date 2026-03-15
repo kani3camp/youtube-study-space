@@ -546,20 +546,19 @@ export class AwsCdkStack extends cdk.Stack {
 			this,
 			'DailyBatchScheduler',
 			{
-			flexibleTimeWindow: { mode: 'OFF' },
-			scheduleExpression: 'cron(0 15 * * ? *)',
-			target: {
-				arn: startDailyBatchFunction.functionArn,
-				roleArn: schedulerRole.roleArn,
+				flexibleTimeWindow: { mode: 'OFF' },
+				scheduleExpression: 'cron(0 15 * * ? *)',
+				target: {
+					arn: startDailyBatchFunction.functionArn,
+					roleArn: schedulerRole.roleArn,
+					retryPolicy: {
+						maximumRetryAttempts: 0,
+					},
+				},
+				name: 'daily-batch-00-00-jst',
+				description: 'Start daily batch SFN with idempotent name',
+				state: 'ENABLED',
 			},
-			name: 'daily-batch-00-00-jst',
-			description: 'Start daily batch SFN with idempotent name',
-			state: 'ENABLED',
-			},
-		)
-		dailyBatchSchedule.addOverride(
-			'Properties.Target.RetryPolicy',
-			{ MaximumRetryAttempts: 0 },
 		)
 
 		// Lambda function
@@ -748,26 +747,17 @@ export class AwsCdkStack extends cdk.Stack {
 		})
 
 		// EventBridge
-		const oneMinuteRule = new events.Rule(this, '1minute', {
+		new events.Rule(this, '1minute', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
 			targets: [
-				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
-				new targets.LambdaFunction(checkLiveStreamStatusFunction),
+				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction, {
+					retryAttempts: 0,
+				}),
+				new targets.LambdaFunction(checkLiveStreamStatusFunction, {
+					retryAttempts: 0,
+				}),
 			],
 		})
-		const oneMinuteRuleCfn = oneMinuteRule.node.defaultChild as events.CfnRule
-		oneMinuteRuleCfn.addOverride('Properties.Targets', [
-			{
-				Arn: youtubeOrganizeDatabaseFunction.functionArn,
-				Id: 'Target0',
-				RetryPolicy: { MaximumRetryAttempts: 0 },
-			},
-			{
-				Arn: checkLiveStreamStatusFunction.functionArn,
-				Id: 'Target1',
-				RetryPolicy: { MaximumRetryAttempts: 0 },
-			},
-		])
 
 		new events.Rule(this, '15minutes', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
