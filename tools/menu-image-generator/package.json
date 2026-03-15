@@ -1,6 +1,7 @@
 {
 	"name": "menu-image-generator",
 	"version": "1.0.0",
+	"packageManager": "pnpm@10.4.0",
 	"description": "Firestoreのmenuコレクションからメニュー表画像を生成するCLIツール",
 	"main": "dist/index.js",
 	"scripts": {

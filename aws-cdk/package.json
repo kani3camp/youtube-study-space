@@ -1,6 +1,7 @@
 {
   "name": "aws-cdk",
   "version": "0.1.0",
+  "packageManager": "pnpm@10.4.0",
   "bin": {
     "aws-cdk": "bin/aws-cdk.js"
   },
