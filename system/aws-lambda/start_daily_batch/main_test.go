@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
+	sfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 )
 
 type mockStepFunctionsClient struct {
@@ -102,5 +103,33 @@ func TestHandlerWrapsErrorWhenStartExecutionFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "in StartExecution") {
 		t.Fatalf("expected context in error message, got %v", err)
+	}
+}
+
+func TestHandlerSucceedsWhenExecutionAlreadyExists(t *testing.T) {
+	t.Setenv("STATE_MACHINE_ARN", "arn:aws:states:ap-northeast-1:123456789012:stateMachine:test")
+	t.Setenv("AWS_REGION", "ap-northeast-1")
+
+	originalLoadDefaultConfig := loadDefaultConfig
+	originalNewSFNClient := newSFNClient
+	t.Cleanup(func() {
+		loadDefaultConfig = originalLoadDefaultConfig
+		newSFNClient = originalNewSFNClient
+	})
+
+	loadDefaultConfig = func(context.Context, ...func(*awsconfig.LoadOptions) error) (aws.Config, error) {
+		return aws.Config{}, nil
+	}
+	newSFNClient = func(cfg aws.Config) stepFunctionsClient {
+		return mockStepFunctionsClient{
+			startExecution: func(ctx context.Context, params *sfn.StartExecutionInput, optFns ...func(*sfn.Options)) (*sfn.StartExecutionOutput, error) {
+				return nil, &sfntypes.ExecutionAlreadyExists{}
+			},
+		}
+	}
+
+	err := handler(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error when execution already exists, got %v", err)
 	}
 }

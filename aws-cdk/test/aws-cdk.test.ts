@@ -21,6 +21,24 @@ describe('AwsCdkStack', () => {
 			FlexibleTimeWindow: {
 				Mode: 'OFF',
 			},
+			Target: {
+				RetryPolicy: {
+					MaximumRetryAttempts: 0,
+				},
+			},
+		})
+	})
+
+	test('disables retry for the 1 minute organize database target', () => {
+		template.hasResourceProperties('AWS::Events::Rule', {
+			ScheduleExpression: 'rate(1 minute)',
+			Targets: Match.arrayWith([
+				Match.objectLike({
+					RetryPolicy: {
+						MaximumRetryAttempts: 0,
+					},
+				}),
+			]),
 		})
 	})
 

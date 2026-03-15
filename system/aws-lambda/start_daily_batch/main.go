@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
+	sfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 )
 
 type stepFunctionsClient interface {
@@ -79,6 +80,11 @@ func handler(ctx context.Context) error {
 		if errors.Is(err, context.DeadlineExceeded) {
 			slog.ErrorContext(gracefulCtx, "timeout warning in start_daily_batch during StartExecution", "err", err)
 			return fmt.Errorf("timeout in StartExecution: %w", err)
+		}
+		var executionAlreadyExistsErr *sfntypes.ExecutionAlreadyExists
+		if errors.As(err, &executionAlreadyExistsErr) {
+			slog.WarnContext(gracefulCtx, "state machine execution already exists", "name", execName, "err", err)
+			return nil
 		}
 		slog.ErrorContext(gracefulCtx, "failed to start state machine execution", "name", execName, "err", err)
 		return fmt.Errorf("in StartExecution: %w", err)

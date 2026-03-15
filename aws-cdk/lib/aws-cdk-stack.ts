@@ -542,7 +542,10 @@ export class AwsCdkStack extends cdk.Stack {
 		startDailyBatchFunction.grantInvoke(schedulerRole)
 		dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction)
 
-		new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
+		const dailyBatchSchedule = new scheduler.CfnSchedule(
+			this,
+			'DailyBatchScheduler',
+			{
 			flexibleTimeWindow: { mode: 'OFF' },
 			scheduleExpression: 'cron(0 15 * * ? *)',
 			target: {
@@ -552,7 +555,12 @@ export class AwsCdkStack extends cdk.Stack {
 			name: 'daily-batch-00-00-jst',
 			description: 'Start daily batch SFN with idempotent name',
 			state: 'ENABLED',
-		})
+			},
+		)
+		dailyBatchSchedule.addOverride(
+			'Properties.Target.RetryPolicy',
+			{ MaximumRetryAttempts: 0 },
+		)
 
 		// Lambda function
 		const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(
@@ -740,13 +748,18 @@ export class AwsCdkStack extends cdk.Stack {
 		})
 
 		// EventBridge
-		new events.Rule(this, '1minute', {
+		const oneMinuteRule = new events.Rule(this, '1minute', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
 			targets: [
 				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
 				new targets.LambdaFunction(checkLiveStreamStatusFunction),
 			],
 		})
+		const oneMinuteRuleCfn = oneMinuteRule.node.defaultChild as events.CfnRule
+		oneMinuteRuleCfn.addOverride(
+			'Properties.Targets.0.RetryPolicy',
+			{ MaximumRetryAttempts: 0 },
+		)
 
 		new events.Rule(this, '15minutes', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
