@@ -32,7 +32,7 @@
 		"firebase": "^11.10.0",
 		"framer-motion": "^10.18.0",
 		"music-metadata": "^11.12.1",
-		"next": "^14.2.35",
+		"next": "^15.5.10",
 		"next-i18next": "^15.4.3",
 		"react": "^18.3.1",
 		"react-circular-progressbar": "^2.2.0",
