@@ -1,8 +1,8 @@
-# Youtube Study Space - AI協業ガイド
+# YouTube Study Space - AI協業ガイド
 
 ## プロジェクト概要
 
-Youtube Study Space は、YouTube ライブ配信のチャットコマンドを使って入退室や作業管理を行うオンライン自習室です。`system/` は、そのバックエンド、定期実行ジョブ、Lambda ハンドラをまとめた Go ベースの実装です。
+YouTube Study Space は、YouTube ライブ配信のチャットコマンドを使って入退室や作業管理を行うオンライン自習室です。`system/` は、そのバックエンド、定期実行ジョブ、Lambda ハンドラをまとめた Go ベースの実装です。
 
 ### 現在のステータス
 - 稼働中のプロダクトであり、Firestore を中心に状態を管理している
