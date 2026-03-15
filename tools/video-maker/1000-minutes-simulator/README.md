@@ -2,7 +2,13 @@ This is a simulator for 1000 minutes of video content.
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```shell
+pnpm install
+```
+
+Then, run the development server:
 
 ```shell
 pnpm dev
