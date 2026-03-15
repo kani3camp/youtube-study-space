@@ -12,71 +12,37 @@ import (
 const (
 	FavoriteColorAvailableThresholdHours = 1000
 
-	// Color* は席表示のデフォルト。
-	ColorHours0To5      = "#F2F1EE"
-	ColorHours5To10     = "#F0D6D2"
-	ColorHours10To20    = "#E8B4A8"
-	ColorHours20To30    = "#E8C09C"
-	ColorHours30To50    = "#E7D796"
-	ColorHours50To70    = "#D2DEA0"
-	ColorHours70To100   = "#BDD7A8"
-	ColorHours100To150  = "#A9D6B5"
-	ColorHours150To200  = "#A8D8C7"
-	ColorHours200To300  = "#A9D6D2"
-	ColorHours300To400  = "#AFCFE8"
-	ColorHours400To500  = "#AFC2E8"
-	ColorHours500To700  = "#B5B2E8"
-	ColorHours700To1000 = "#CBB6E8"
-	ColorHoursFrom1000  = "#E7A9CF"
+	ColorHours0To5      = "#FFF"
+	ColorHours5To10     = "#FFD4CC"
+	ColorHours10To20    = "#FF9580"
+	ColorHours20To30    = "#FFC880"
+	ColorHours30To50    = "#FFFB7F"
+	ColorHours50To70    = "#D0FF80"
+	ColorHours70To100   = "#9DFF7F"
+	ColorHours100To150  = "#80FF95"
+	ColorHours150To200  = "#80FFC8"
+	ColorHours200To300  = "#80FFFB"
+	ColorHours300To400  = "#80D0FF"
+	ColorHours400To500  = "#809EFF"
+	ColorHours500To700  = "#947FFF"
+	ColorHours700To1000 = "#C880FF"
+	ColorHoursFrom1000  = "#FF7FFF"
 
-	// Legacy* は既存のお気に入りカラーの後方互換用。
-	LegacyColorHours0To5      = "#FFF"
-	LegacyColorHours5To10     = "#FFD4CC"
-	LegacyColorHours10To20    = "#FF9580"
-	LegacyColorHours20To30    = "#FFC880"
-	LegacyColorHours30To50    = "#FFFB7F"
-	LegacyColorHours50To70    = "#D0FF80"
-	LegacyColorHours70To100   = "#9DFF7F"
-	LegacyColorHours100To150  = "#80FF95"
-	LegacyColorHours150To200  = "#80FFC8"
-	LegacyColorHours200To300  = "#80FFFB"
-	LegacyColorHours300To400  = "#80D0FF"
-	LegacyColorHours400To500  = "#809EFF"
-	LegacyColorHours500To700  = "#947FFF"
-	LegacyColorHours700To1000 = "#C880FF"
-	LegacyColorHoursFrom1000  = "#FF7FFF"
-
-	ColorName0To5      = "しろ"
-	ColorName5To10     = "うすぴんく"
-	ColorName10To20    = "さんご"
-	ColorName20To30    = "あんず"
-	ColorName30To50    = "きいろ"
-	ColorName50To70    = "きみどり"
-	ColorName70To100   = "みどり"
-	ColorName100To150  = "みんと"
-	ColorName150To200  = "あくあ"
-	ColorName200To300  = "みずいろ"
-	ColorName300To400  = "そらいろ"
-	ColorName400To500  = "あお"
-	ColorName500To700  = "あい"
-	ColorName700To1000 = "むらさき"
-	ColorNameFrom1000  = "ぴんく"
-
-	LegacyColorName0To5      = "白"
-	LegacyColorName5To10     = "うすももいろ"
-	LegacyColorName10To20    = "ライトサーモン"
-	LegacyColorName20To30    = "オレンジ"
-	LegacyColorName30To50    = "黄色"
-	LegacyColorName50To70    = "黄緑"
-	LegacyColorName70To100   = "ペールグリーン"
-	LegacyColorName100To150  = "ミントグリーン"
-	LegacyColorName150To200  = "アクアマリン"
-	LegacyColorName200To300  = "水色"
-	LegacyColorName300To400  = "スカイブルー"
-	LegacyColorName400To500  = "ロイヤルブルー"
-	LegacyColorName500To700  = "青紫"
-	LegacyColorName700To1000 = "紫"
-	LegacyColorNameFrom1000  = "ピンク"
+	ColorName0To5      = "白"
+	ColorName5To10     = "うすももいろ"
+	ColorName10To20    = "ライトサーモン"
+	ColorName20To30    = "オレンジ"
+	ColorName30To50    = "黄色"
+	ColorName50To70    = "黄緑"
+	ColorName70To100   = "ペールグリーン"
+	ColorName100To150  = "ミントグリーン"
+	ColorName150To200  = "アクアマリン"
+	ColorName200To300  = "水色"
+	ColorName300To400  = "スカイブルー"
+	ColorName400To500  = "ロイヤルブルー"
+	ColorName500To700  = "青紫"
+	ColorName700To1000 = "紫"
+	ColorNameFrom1000  = "ピンク"
 
 	ColorRank1         = "#D8D8D8"
 	ColorRank2         = "#93FF66"
@@ -171,11 +137,7 @@ func IsIncludedInColorNames(value string) bool {
 	return value == ColorName0To5 || value == ColorName5To10 || value == ColorName10To20 || value == ColorName20To30 ||
 		value == ColorName30To50 || value == ColorName50To70 || value == ColorName70To100 || value == ColorName100To150 ||
 		value == ColorName150To200 || value == ColorName200To300 || value == ColorName300To400 || value == ColorName400To500 ||
-		value == ColorName500To700 || value == ColorName700To1000 || value == ColorNameFrom1000 ||
-		value == LegacyColorName0To5 || value == LegacyColorName5To10 || value == LegacyColorName10To20 || value == LegacyColorName20To30 ||
-		value == LegacyColorName30To50 || value == LegacyColorName50To70 || value == LegacyColorName70To100 || value == LegacyColorName100To150 ||
-		value == LegacyColorName150To200 || value == LegacyColorName200To300 || value == LegacyColorName300To400 || value == LegacyColorName400To500 ||
-		value == LegacyColorName500To700 || value == LegacyColorName700To1000 || value == LegacyColorNameFrom1000
+		value == ColorName500To700 || value == ColorName700To1000 || value == ColorNameFrom1000
 }
 
 func ColorNameToColorCode(colorName string) string {
@@ -210,42 +172,12 @@ func ColorNameToColorCode(colorName string) string {
 		return ColorHours700To1000
 	case ColorNameFrom1000:
 		return ColorHoursFrom1000
-	case LegacyColorName0To5:
-		return LegacyColorHours0To5
-	case LegacyColorName5To10:
-		return LegacyColorHours5To10
-	case LegacyColorName10To20:
-		return LegacyColorHours10To20
-	case LegacyColorName20To30:
-		return LegacyColorHours20To30
-	case LegacyColorName30To50:
-		return LegacyColorHours30To50
-	case LegacyColorName50To70:
-		return LegacyColorHours50To70
-	case LegacyColorName70To100:
-		return LegacyColorHours70To100
-	case LegacyColorName100To150:
-		return LegacyColorHours100To150
-	case LegacyColorName150To200:
-		return LegacyColorHours150To200
-	case LegacyColorName200To300:
-		return LegacyColorHours200To300
-	case LegacyColorName300To400:
-		return LegacyColorHours300To400
-	case LegacyColorName400To500:
-		return LegacyColorHours400To500
-	case LegacyColorName500To700:
-		return LegacyColorHours500To700
-	case LegacyColorName700To1000:
-		return LegacyColorHours700To1000
-	case LegacyColorNameFrom1000:
-		return LegacyColorHoursFrom1000
 	default:
 		return ""
 	}
 }
 
-// ColorCodeToColorName 累計時間の分け方で使用されている色（新パレット＋Legacy）に対応。
+// ColorCodeToColorName 累計時間の分け方で使用されている色のみ対応。
 func ColorCodeToColorName(colorCode string) string {
 	switch colorCode {
 	case ColorHours0To5:
@@ -278,36 +210,6 @@ func ColorCodeToColorName(colorCode string) string {
 		return ColorName700To1000
 	case ColorHoursFrom1000:
 		return ColorNameFrom1000
-	case LegacyColorHours0To5:
-		return LegacyColorName0To5
-	case LegacyColorHours5To10:
-		return LegacyColorName5To10
-	case LegacyColorHours10To20:
-		return LegacyColorName10To20
-	case LegacyColorHours20To30:
-		return LegacyColorName20To30
-	case LegacyColorHours30To50:
-		return LegacyColorName30To50
-	case LegacyColorHours50To70:
-		return LegacyColorName50To70
-	case LegacyColorHours70To100:
-		return LegacyColorName70To100
-	case LegacyColorHours100To150:
-		return LegacyColorName100To150
-	case LegacyColorHours150To200:
-		return LegacyColorName150To200
-	case LegacyColorHours200To300:
-		return LegacyColorName200To300
-	case LegacyColorHours300To400:
-		return LegacyColorName300To400
-	case LegacyColorHours400To500:
-		return LegacyColorName400To500
-	case LegacyColorHours500To700:
-		return LegacyColorName500To700
-	case LegacyColorHours700To1000:
-		return LegacyColorName700To1000
-	case LegacyColorHoursFrom1000:
-		return LegacyColorNameFrom1000
 	default:
 		return "不明"
 	}

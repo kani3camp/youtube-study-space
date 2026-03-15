@@ -14,21 +14,21 @@ const SCALE_LABELS = SCALE_VALUES.map((value, i) => ({
 }))
 
 const COLOR_BOXES: { hex: string }[] = [
-	{ hex: '#F2F1EE' }, // 0-5h
-	{ hex: '#F0D6D2' }, // 5-10h
-	{ hex: '#E8B4A8' }, // 10-20h
-	{ hex: '#E8C09C' }, // 20-30h
-	{ hex: '#E7D796' }, // 30-50h
-	{ hex: '#D2DEA0' }, // 50-70h
-	{ hex: '#BDD7A8' }, // 70-100h
-	{ hex: '#A9D6B5' }, // 100-150h
-	{ hex: '#A8D8C7' }, // 150-200h
-	{ hex: '#A9D6D2' }, // 200-300h
-	{ hex: '#AFCFE8' }, // 300-400h
-	{ hex: '#AFC2E8' }, // 400-500h
-	{ hex: '#B5B2E8' }, // 500-700h
-	{ hex: '#CBB6E8' }, // 700-1000h
-	{ hex: '#E7A9CF' }, // 1000h+
+	{ hex: '#FFF' }, // 0-5h
+	{ hex: '#FFD4CC' }, // 5-10h
+	{ hex: '#FF9580' }, // 10-20h
+	{ hex: '#FFC880' }, // 20-30h
+	{ hex: '#FFFB7F' }, // 30-50h
+	{ hex: '#D0FF80' }, // 50-70h
+	{ hex: '#9DFF7F' }, // 70-100h
+	{ hex: '#80FF95' }, // 100-150h
+	{ hex: '#80FFC8' }, // 150-200h
+	{ hex: '#80FFFB' }, // 200-300h
+	{ hex: '#80D0FF' }, // 300-400h
+	{ hex: '#809EFF' }, // 400-500h
+	{ hex: '#947FFF' }, // 500-700h
+	{ hex: '#C880FF' }, // 700-1000h
+	{ hex: '#FF7FFF' }, // 1000h+
 ]
 
 const ColorBar: FC = () => {
