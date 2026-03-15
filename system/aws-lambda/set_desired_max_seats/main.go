@@ -11,12 +11,13 @@ import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
 func init() {
-	lambdautils.InitLogger()
+	logging.InitLogger()
 }
 
 type SetMaxSeatsParams struct {

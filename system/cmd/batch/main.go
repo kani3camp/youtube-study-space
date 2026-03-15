@@ -10,11 +10,14 @@ import (
 	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/timeutil"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/logging"
 
 	"google.golang.org/api/option"
 )
 
 func main() {
+	logging.InitLogger()
+
 	ctx := context.Background()
 
 	clientOption, err := lambdautils.FirestoreClientOption()

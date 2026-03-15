@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"app.modules/aws-lambda/lambdautils"
+	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,7 +22,7 @@ type stepFunctionsClient interface {
 }
 
 func init() {
-	lambdautils.InitLogger()
+	logging.InitLogger()
 }
 
 const (
