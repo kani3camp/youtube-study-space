@@ -52,7 +52,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 			}
 			return CheckLiveStreamResponse{Result: "timeout_warning", Message: err.Error()}, nil
 		}
-		app.MessageToOwnerWithError(gracefulCtx, "failed to check live stream status", err)
+		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return CheckLiveStreamResponse{}, err
 	}
 

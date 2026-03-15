@@ -89,7 +89,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 				Body:       string(body),
 			}, nil
 		}
-		app.MessageToOwnerWithError(gracefulCtx, "failed UpdateDesiredMaxSeats", err)
+		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 
@@ -106,7 +106,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 				Body:       string(body),
 			}, nil
 		}
-		app.MessageToOwnerWithError(gracefulCtx, "failed UpdateDesiredMemberMaxSeats", err)
+		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
 
