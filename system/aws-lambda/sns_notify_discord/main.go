@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
+	coreutils "app.modules/core/utils"
 	"app.modules/core/workspaceapp"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -17,6 +18,12 @@ import (
 func init() {
 	lambdautils.InitLogger()
 }
+
+const (
+	maxDiscordMessageBytes = 1800
+	truncatedSuffix        = "... (truncated)"
+	notifyPrefix           = "[SNS] "
+)
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
@@ -62,11 +69,7 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 		// Log full message before truncation for console inspection
 		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
-		if len(message) > 1800 {
-			message = message[:1800] + "... (truncated)"
-		}
-
-		notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
+		notify := buildDiscordNotification(subject, message)
 		app.MessageToOwner(gracefulCtx, notify)
 	}
 
@@ -80,4 +83,19 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 
 func main() {
 	lambda.Start(handler)
+}
+
+func buildDiscordNotification(subject string, message string) string {
+	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
+	if len(notify) <= maxDiscordMessageBytes {
+		return notify
+	}
+
+	availableMessageBytes := maxDiscordMessageBytes - len(notifyPrefix) - len(subject) - 1
+	if availableMessageBytes <= len(truncatedSuffix) {
+		return coreutils.TruncateStringUTF8(notify, maxDiscordMessageBytes)
+	}
+
+	truncatedMessage := coreutils.TruncateStringUTF8(message, availableMessageBytes-len(truncatedSuffix)) + truncatedSuffix
+	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }
