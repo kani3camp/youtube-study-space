@@ -37,8 +37,9 @@ var (
 )
 
 type organizeRoomResult struct {
-	err       error
-	isTimeout bool
+	err                   error
+	timeoutWarningMessage string
+	abort                 bool
 }
 
 func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
@@ -66,16 +67,22 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	var roomErrors []error
 
 	memberResult := runOrganizeDBRoom(ctx, gracefulCtx, app, true, "member room")
-	if memberResult.isTimeout {
-		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: memberResult.err.Error()}, nil
+	if memberResult.timeoutWarningMessage != "" {
+		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: memberResult.timeoutWarningMessage}, nil
+	}
+	if memberResult.abort {
+		return OrganizeDatabaseResponse{}, memberResult.err
 	}
 	if memberResult.err != nil {
 		roomErrors = append(roomErrors, memberResult.err)
 	}
 
 	generalResult := runOrganizeDBRoom(ctx, gracefulCtx, app, false, "general room")
-	if generalResult.isTimeout {
-		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: generalResult.err.Error()}, nil
+	if generalResult.timeoutWarningMessage != "" {
+		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: generalResult.timeoutWarningMessage}, nil
+	}
+	if generalResult.abort {
+		return OrganizeDatabaseResponse{}, generalResult.err
 	}
 	if generalResult.err != nil {
 		roomErrors = append(roomErrors, generalResult.err)
@@ -101,9 +108,12 @@ func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app org
 		timeoutErr := fmt.Errorf("OrganizeDB (%s)でタイムアウト: %w", roomLabel, err)
 		// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
 		if notifyErr := app.NotifyTimeoutToOwner(ctx, timeoutErr); notifyErr != nil {
-			return organizeRoomResult{err: fmt.Errorf("timeout notification failed: %w", notifyErr), isTimeout: true}
+			return organizeRoomResult{
+				err:   fmt.Errorf("timeout notification failed: %w", notifyErr),
+				abort: true,
+			}
 		}
-		return organizeRoomResult{err: err, isTimeout: true}
+		return organizeRoomResult{timeoutWarningMessage: err.Error()}
 	}
 
 	wrappedErr := fmt.Errorf("in OrganizeDB (%s): %w", roomLabel, err)

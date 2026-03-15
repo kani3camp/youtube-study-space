@@ -188,6 +188,36 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnGeneralTimeout(t *testing.T) {
 	}
 }
 
+func TestOrganizeDatabaseReturnsErrorWhenTimeoutNotificationFails(t *testing.T) {
+	var callOrder []bool
+	app := &mockOrganizeDatabaseApp{
+		organizeDBFunc: func(ctx context.Context, isMemberRoom bool) error {
+			callOrder = append(callOrder, isMemberRoom)
+			return context.DeadlineExceeded
+		},
+		notifyTimeoutToOwnerFunc: func(ctx context.Context, err error) error {
+			return errors.New("notify failed")
+		},
+	}
+
+	restore := stubOrganizeDatabaseDeps(t, app, nil, nil)
+	defer restore()
+
+	resp, err := OrganizeDatabase(context.Background())
+	if err == nil {
+		t.Fatal("expected timeout notification failure to be returned")
+	}
+	if resp != (OrganizeDatabaseResponse{}) {
+		t.Fatalf("expected empty response on notification failure, got %#v", resp)
+	}
+	if len(callOrder) != 1 || callOrder[0] != true {
+		t.Fatalf("expected processing to stop after member timeout notification failure, got %#v", callOrder)
+	}
+	if !strings.Contains(err.Error(), "timeout notification failed") {
+		t.Fatalf("expected timeout notification failure context, got %v", err)
+	}
+}
+
 func TestOrganizeDatabaseReturnsInitializationError(t *testing.T) {
 	initErr := errors.New("credential failed")
 	restore := stubOrganizeDatabaseDeps(t, nil, initErr, nil)
