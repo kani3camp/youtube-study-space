@@ -40,10 +40,11 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 	t.Run("日付跨ぎなし_当日中の作業後に休憩", func(t *testing.T) {
 		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(layout, "2026-02-01 09:00:00"),
-			CumulativeWorkSec:      0,
-			DailyCumulativeWorkSec: 0,
+			State:                   WorkState,
+			CurrentStateStartedAt:   mustParseTime(layout, "2026-02-01 09:00:00"),
+			CurrentSegmentStartedAt: mustParseTime(layout, "2026-02-01 09:00:00"),
+			CumulativeWorkSec:       0,
+			DailyCumulativeWorkSec:  0,
 		}
 
 		now := mustParseTime(layout, "2026-02-01 12:00:00") // 3時間作業
