@@ -1,6 +1,0 @@
-{
-	"biome.lsp.bin": {
-		"win32-x64": "youtube-monitor/node_modules/.bin/biome",
-		"darwin-arm64": "youtube-monitor/node_modules/.bin/biome"
-	}
-}
