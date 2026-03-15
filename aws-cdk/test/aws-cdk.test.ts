@@ -44,11 +44,13 @@ describe('AwsCdkStack', () => {
 				}
 			}
 		>
-		const [oneMinuteRule] = Object.values(resources).filter(
+		const oneMinuteRules = Object.values(resources).filter(
 			(resource) =>
 				resource.Type === 'AWS::Events::Rule' &&
 				resource.Properties?.ScheduleExpression === 'rate(1 minute)',
 		)
+		expect(oneMinuteRules).toHaveLength(1)
+		const [oneMinuteRule] = oneMinuteRules
 		const targets = oneMinuteRule?.Properties?.Targets
 
 		expect(oneMinuteRule).toBeDefined()
