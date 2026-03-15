@@ -22,6 +22,7 @@ func init() {
 const (
 	maxDiscordMessageBytes = 1800
 	truncatedSuffix        = "... (truncated)"
+	notifyPrefix           = "[SNS] "
 )
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
@@ -68,11 +69,7 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 		// Log full message before truncation for console inspection
 		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
-		if len(message) > maxDiscordMessageBytes {
-			message = coreutils.TruncateStringUTF8(message, maxDiscordMessageBytes-len(truncatedSuffix)) + truncatedSuffix
-		}
-
-		notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
+		notify := buildDiscordNotification(subject, message)
 		app.MessageToOwner(gracefulCtx, notify)
 	}
 
@@ -86,4 +83,19 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 
 func main() {
 	lambda.Start(handler)
+}
+
+func buildDiscordNotification(subject string, message string) string {
+	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
+	if len(notify) <= maxDiscordMessageBytes {
+		return notify
+	}
+
+	availableMessageBytes := maxDiscordMessageBytes - len(notifyPrefix) - len(subject) - 1
+	if availableMessageBytes <= len(truncatedSuffix) {
+		return coreutils.TruncateStringUTF8(notify, maxDiscordMessageBytes)
+	}
+
+	truncatedMessage := coreutils.TruncateStringUTF8(message, availableMessageBytes-len(truncatedSuffix)) + truncatedSuffix
+	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }
