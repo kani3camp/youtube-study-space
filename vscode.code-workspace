@@ -21,12 +21,20 @@
 			"path": "firebase"
 		},
 		{
-			"name": "tools",
-			"path": "tools"
+			"name": "1000-minutes-simulator",
+			"path": "tools/video-maker/1000-minutes-simulator"
 		},
 		{
-			"name": ".github",
-			"path": ".github"
+			"name": "room-layout-analyzer",
+			"path": "tools/figma-plugin/room-layout-analyzer"
+		},
+		{
+			"name": "menu-image-generator",
+			"path": "tools/video-maker/menu-image-generator"
+		},
+		{
+			"name": "root",
+			"path": "."
 		}
 	]
 }
