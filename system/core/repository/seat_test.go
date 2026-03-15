@@ -592,6 +592,61 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 	layout := "2006-01-02 15:04:05"
 
+	t.Run("通常の作業セグメントを生成できること", func(t *testing.T) {
+		seat := SeatDoc{
+			UserId:                  "user-1",
+			SeatId:                  3,
+			SessionId:               "session-1",
+			State:                   WorkState,
+			WorkName:                "数学",
+			CurrentSegmentStartedAt: mustParseTime(layout, "2026-02-01 09:15:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 10:45:30")
+		workSegment, err := seat.GenerateWorkSegment(now, true)
+
+		assert.NoError(t, err)
+		assert.Equal(t, WorkSegmentDoc{
+			UserId:       "user-1",
+			SeatId:       3,
+			IsMemberSeat: true,
+			SessionId:    "session-1",
+			WorkName:     "数学",
+			SegmentType:  WorkState,
+			StartedAt:    mustParseTime(layout, "2026-02-01 09:15:00"),
+			EndedAt:      now,
+			DurationSec:  5430,
+		}, workSegment)
+	})
+
+	t.Run("休憩セグメントではBreakWorkNameを返すこと", func(t *testing.T) {
+		seat := SeatDoc{
+			UserId:                  "user-2",
+			SeatId:                  8,
+			SessionId:               "session-2",
+			State:                   BreakState,
+			WorkName:                "英語",
+			BreakWorkName:           "昼休み",
+			CurrentSegmentStartedAt: mustParseTime(layout, "2026-02-01 12:00:00"),
+		}
+
+		now := mustParseTime(layout, "2026-02-01 12:10:00")
+		workSegment, err := seat.GenerateWorkSegment(now, false)
+
+		assert.NoError(t, err)
+		assert.Equal(t, WorkSegmentDoc{
+			UserId:       "user-2",
+			SeatId:       8,
+			IsMemberSeat: false,
+			SessionId:    "session-2",
+			WorkName:     "昼休み",
+			SegmentType:  BreakState,
+			StartedAt:    mustParseTime(layout, "2026-02-01 12:00:00"),
+			EndedAt:      now,
+			DurationSec:  600,
+		}, workSegment)
+	})
+
 	t.Run("CurrentSegmentStartedAtがゼロ値だった場合にエラーを返すこと", func(t *testing.T) {
 		seat := SeatDoc{
 			State: WorkState,
