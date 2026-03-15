@@ -15,7 +15,7 @@ func TestSecondsOfDay(t *testing.T) {
 	}{
 		{
 			name:      "Time with hours, minutes, and seconds",
-			inputTime: time.Date(2021, 0, 1, 3, 40, 4, 0, JapanLocation()),
+			inputTime: time.Date(2021, 1, 1, 3, 40, 4, 0, JapanLocation()),
 			expectedSeconds: int((time.Duration(3)*time.Hour +
 				time.Duration(40)*time.Minute +
 				time.Duration(4)*time.Second).Seconds()),
