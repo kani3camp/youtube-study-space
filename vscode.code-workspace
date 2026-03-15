@@ -1,0 +1,32 @@
+{
+	"folders": [
+		{
+			"name": "youtube-monitor",
+			"path": "youtube-monitor"
+		},
+		{
+			"name": "system",
+			"path": "system"
+		},
+		{
+			"name": "aws-cdk",
+			"path": "aws-cdk"
+		},
+		{
+			"name": "docs-site",
+			"path": "docs-site"
+		},
+		{
+			"name": "firebase",
+			"path": "firebase"
+		},
+		{
+			"name": "tools",
+			"path": "tools"
+		},
+		{
+			"name": ".github",
+			"path": ".github"
+		}
+	]
+}

@@ -1,7 +1,7 @@
 {
 	"biome.lsp.bin": {
-		"win32-x64": "node_modules/.pnpm/@biomejs+cli-win32-x64@2.0.6/node_modules/@biomejs/cli-win32-x64/biome.exe",
-		"darwin-arm64": "node_modules/.bin/biome"
+		"win32-x64": "node_modules/.pnpm/node_modules/@biomejs/cli-win32-x64/bin",
+		"darwin-arm64": "node_modules/.pnpm/node_modules/@biomejs/cli-darwin-arm64/bin"
 	},
 	"editor.defaultFormatter": "biomejs.biome",
 	"editor.formatOnPaste": false,
