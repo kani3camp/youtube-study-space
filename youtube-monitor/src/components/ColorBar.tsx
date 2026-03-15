@@ -14,7 +14,7 @@ const SCALE_LABELS = SCALE_VALUES.map((value, i) => ({
 }))
 
 const COLOR_BOXES: { hex: string }[] = [
-	{ hex: '#FFFFFF' }, // 0-5h
+	{ hex: '#FFF' }, // 0-5h
 	{ hex: '#FFD4CC' }, // 5-10h
 	{ hex: '#FF9580' }, // 10-20h
 	{ hex: '#FFC880' }, // 20-30h
