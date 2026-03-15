@@ -1,6 +1,6 @@
 {
-    "biome.lsp.bin": {
-        "win32-x64": "youtube-monitor/node_modules/.pnpm/@biomejs+cli-win32-x64@2.0.6/node_modules/@biomejs/cli-win32-x64/biome.exe",
-        "darwin-arm64": "youtube-monitor/node_modules/.bin/biome"
-    }
+	"biome.lsp.bin": {
+		"win32-x64": "youtube-monitor/node_modules/.bin/biome",
+		"darwin-arm64": "youtube-monitor/node_modules/.bin/biome"
+	}
 }
