@@ -151,7 +151,10 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 			if resume { // 作業再開処理
 				jstNow := timeutil.JstNow()
 				until := seat.Until
-				breakSegment := seat.GenerateWorkSegment(jstNow, isMemberRoom)
+				breakSegment, err := seat.GenerateWorkSegment(jstNow, isMemberRoom)
+				if err != nil {
+					return fmt.Errorf("in GenerateWorkSegment(): %w", err)
+				}
 				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
 					return fmt.Errorf("in CreateWorkSegmentDoc(): %w", err)
 				}

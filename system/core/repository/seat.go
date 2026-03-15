@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"app.modules/core/timeutil"
@@ -161,7 +162,11 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin
 }
 
-func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) WorkSegmentDoc {
+func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) (WorkSegmentDoc, error) {
+	if s.CurrentSegmentStartedAt.IsZero() {
+		return WorkSegmentDoc{}, fmt.Errorf("currentSegmentStartedAt is zero for seatId: %d, userId: %s, isMemberSeat: %v", s.SeatId, s.UserId, isMemberSeat)
+	}
+
 	var workName string
 	if s.State == WorkState {
 		workName = s.WorkName
@@ -178,5 +183,5 @@ func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) WorkSegm
 		StartedAt:    s.CurrentSegmentStartedAt,
 		EndedAt:      now,
 		DurationSec:  int(timeutil.NoNegativeDuration(now.Sub(s.CurrentSegmentStartedAt)).Seconds()),
-	}
+	}, nil
 }

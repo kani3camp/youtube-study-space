@@ -208,7 +208,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				// work segmentログ記録
-				workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+				workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+				if err != nil {
+					return fmt.Errorf("in GenerateWorkSegment: %w", err)
+				}
 				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 					return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 				}
@@ -448,7 +451,10 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		// これ以降は書き込みのみ可。
 
 		if changeOption.IsWorkNameSet { // 作業名もしくは休憩作業名を書きかえ
-			workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			if err != nil {
+				return fmt.Errorf("in GenerateWorkSegment: %w", err)
+			}
 			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 			}
@@ -697,10 +703,15 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 			breakOption.WorkName = currentSeat.BreakWorkName
 		}
 
-		// work segmentログ記録
-		workSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
-		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
-			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		{
+			// work segmentログ記録
+			workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			if err != nil {
+				return fmt.Errorf("in GenerateWorkSegment: %w", err)
+			}
+			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+			}
 		}
 
 		// 休憩処理
@@ -769,10 +780,16 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		// 再開処理
 		jstNow := timeutil.JstNow()
 		until := currentSeat.Until
-		// work segmentログ記録
-		breakSegment := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
-		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
-			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		{
+			// work segmentログ記録
+			breakSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			if err != nil {
+				return fmt.Errorf("in GenerateWorkSegment: %w", err)
+			}
+
+			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
+				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+			}
 		}
 
 		// 作業名が指定されていなかったら、既存の作業名を引継ぎ
@@ -783,19 +800,24 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 
 		currentSeat.ResumeWork(jstNow, workName)
 
-		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
-			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
+		{
+			if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
+				return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
+			}
 		}
-		// DEPRECATED: activityログ記録
-		endBreakActivity := repository.UserActivityDoc{
-			UserId:       app.ProcessedUserId,
-			ActivityType: repository.EndBreakActivity,
-			SeatId:       currentSeat.SeatId,
-			IsMemberSeat: isInMemberRoom,
-			TakenAt:      jstNow,
-		}
-		if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
-			return fmt.Errorf("in CreateUserActivityDoc: %w", err)
+
+		{
+			// DEPRECATED: activityログ記録
+			endBreakActivity := repository.UserActivityDoc{
+				UserId:       app.ProcessedUserId,
+				ActivityType: repository.EndBreakActivity,
+				SeatId:       currentSeat.SeatId,
+				IsMemberSeat: isInMemberRoom,
+				TakenAt:      jstNow,
+			}
+			if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
+				return fmt.Errorf("in CreateUserActivityDoc: %w", err)
+			}
 		}
 
 		untilExitDuration := timeutil.NoNegativeDuration(until.Sub(jstNow))
@@ -928,10 +950,15 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 
 		// これ以降は書き込みのみ
 
-		// work segmentログ記録
-		workSegment := seat.GenerateWorkSegment(jstNow, isInMemberRoom)
-		if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
-			return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+		{
+			// work segmentログ記録
+			workSegment, err := seat.GenerateWorkSegment(jstNow, isInMemberRoom)
+			if err != nil {
+				return fmt.Errorf("in GenerateWorkSegment: %w", err)
+			}
+			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
+				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
+			}
 		}
 
 		// 作業内容をクリアする

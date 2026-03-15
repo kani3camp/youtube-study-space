@@ -13,22 +13,22 @@ const SCALE_LABELS = SCALE_VALUES.map((value, i) => ({
 	leftPercent: (100 * SCALE_POSITIONS[i]) / SEGMENTS,
 }))
 
-const COLOR_BOXES: { hex: string; title: string }[] = [
-	{ hex: '#F2F1EE', title: '0〜5時間' },
-	{ hex: '#F0D6D2', title: '5〜10時間' },
-	{ hex: '#E8B4A8', title: '10〜20時間' },
-	{ hex: '#E8C09C', title: '20〜30時間' },
-	{ hex: '#E7D796', title: '30〜50時間' },
-	{ hex: '#D2DEA0', title: '50〜70時間' },
-	{ hex: '#BDD7A8', title: '70〜100時間' },
-	{ hex: '#A9D6B5', title: '100〜150時間' },
-	{ hex: '#A8D8C7', title: '150〜200時間' },
-	{ hex: '#A9D6D2', title: '200〜300時間' },
-	{ hex: '#AFCFE8', title: '300〜400時間' },
-	{ hex: '#AFC2E8', title: '400〜500時間' },
-	{ hex: '#B5B2E8', title: '500〜700時間' },
-	{ hex: '#CBB6E8', title: '700〜1000時間' },
-	{ hex: '#E7A9CF', title: '1000時間〜' },
+const COLOR_BOXES: { hex: string }[] = [
+	{ hex: '#F2F1EE' }, // 0-5h
+	{ hex: '#F0D6D2' }, // 5-10h
+	{ hex: '#E8B4A8' }, // 10-20h
+	{ hex: '#E8C09C' }, // 20-30h
+	{ hex: '#E7D796' }, // 30-50h
+	{ hex: '#D2DEA0' }, // 50-70h
+	{ hex: '#BDD7A8' }, // 70-100h
+	{ hex: '#A9D6B5' }, // 100-150h
+	{ hex: '#A8D8C7' }, // 150-200h
+	{ hex: '#A9D6D2' }, // 200-300h
+	{ hex: '#AFCFE8' }, // 300-400h
+	{ hex: '#AFC2E8' }, // 400-500h
+	{ hex: '#B5B2E8' }, // 500-700h
+	{ hex: '#CBB6E8' }, // 700-1000h
+	{ hex: '#E7A9CF' }, // 1000h+
 ]
 
 const ColorBar: FC = () => {
@@ -50,12 +50,11 @@ const ColorBar: FC = () => {
 						))}
 					</div>
 					<div css={styles.colorBarStrip}>
-						{COLOR_BOXES.map(({ hex, title }) => (
+						{COLOR_BOXES.map(({ hex }) => (
 							<div
 								key={hex}
 								css={styles.colorBox}
 								style={{ backgroundColor: hex }}
-								title={title}
 							/>
 						))}
 					</div>
