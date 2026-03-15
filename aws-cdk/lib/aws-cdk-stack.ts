@@ -756,10 +756,18 @@ export class AwsCdkStack extends cdk.Stack {
 			],
 		})
 		const oneMinuteRuleCfn = oneMinuteRule.node.defaultChild as events.CfnRule
-		oneMinuteRuleCfn.addOverride(
-			'Properties.Targets.0.RetryPolicy',
-			{ MaximumRetryAttempts: 0 },
-		)
+		oneMinuteRuleCfn.addOverride('Properties.Targets', [
+			{
+				Arn: youtubeOrganizeDatabaseFunction.functionArn,
+				Id: 'Target0',
+				RetryPolicy: { MaximumRetryAttempts: 0 },
+			},
+			{
+				Arn: checkLiveStreamStatusFunction.functionArn,
+				Id: 'Target1',
+				RetryPolicy: { MaximumRetryAttempts: 0 },
+			},
+		])
 
 		new events.Rule(this, '15minutes', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(15)),

@@ -29,17 +29,36 @@ describe('AwsCdkStack', () => {
 		})
 	})
 
-	test('disables retry for the 1 minute organize database target', () => {
-		template.hasResourceProperties('AWS::Events::Rule', {
-			ScheduleExpression: 'rate(1 minute)',
-			Targets: Match.arrayWith([
-				Match.objectLike({
-					RetryPolicy: {
-						MaximumRetryAttempts: 0,
-					},
-				}),
-			]),
-		})
+	test('disables retry for all 1 minute rule targets', () => {
+		const resources = template.toJSON().Resources as Record<
+			string,
+			{
+				Type: string
+				Properties?: {
+					ScheduleExpression?: string
+					Targets?: Array<{
+						RetryPolicy?: {
+							MaximumRetryAttempts?: number
+						}
+					}>
+				}
+			}
+		>
+		const [oneMinuteRule] = Object.values(resources).filter(
+			(resource) =>
+				resource.Type === 'AWS::Events::Rule' &&
+				resource.Properties?.ScheduleExpression === 'rate(1 minute)',
+		)
+		const targets = oneMinuteRule?.Properties?.Targets
+
+		expect(oneMinuteRule).toBeDefined()
+		expect(targets).toBeDefined()
+		expect(targets).toHaveLength(2)
+		for (const target of targets ?? []) {
+			expect(target.RetryPolicy).toEqual({
+				MaximumRetryAttempts: 0,
+			})
+		}
 	})
 
 	test('keeps API Gateway protected by an API key', () => {
