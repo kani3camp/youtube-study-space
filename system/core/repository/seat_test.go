@@ -588,3 +588,19 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, mustParseTime(layout, "2026-02-01 18:30:00"), seat.Until)
 	})
 }
+
+func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
+	layout := "2006-01-02 15:04:05"
+
+	t.Run("CurrentSegmentStartedAtがゼロ値だった場合にエラーを返すこと", func(t *testing.T) {
+		seat := SeatDoc{
+			State: WorkState,
+		}
+
+		now := mustParseTime(layout, "2026-02-01 12:00:00")
+		workSegment, err := seat.GenerateWorkSegment(now, false)
+
+		assert.Error(t, err)
+		assert.Zero(t, workSegment)
+	})
+}
