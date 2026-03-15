@@ -5,7 +5,7 @@
 - `pnpm build` compile typescript to js
 - `pnpm watch` watch for changes and compile
 - `pnpm test` perform the jest unit tests
-- `cdk bootstrap` 当該 AWS アカウント環境で初めての場合
+- `pnpm cdk:bootstrap` 当該 AWS アカウント環境で初めての場合
 - `pnpm cdk:deploy` deploy this stack to your default AWS account/region
 - `pnpm cdk:diff` compare deployed stack with current state
 - `pnpm cdk:synth` emits the synthesized CloudFormation template
