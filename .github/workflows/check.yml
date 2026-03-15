@@ -111,4 +111,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run check
-        run: pnpm check
+        run: pnpm biome lint --reporter=github
