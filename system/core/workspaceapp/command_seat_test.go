@@ -25,6 +25,8 @@ func TestSystem_In(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
+
 	var inTestCases = []struct {
 		name                          string
 		constantsConfig               repository.ConstantsConfigDoc
@@ -244,9 +246,9 @@ func TestSystem_In(t *testing.T) {
 				SeatId:                  1,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
 			},
 			currentSeatDeleted:   true,
 			seatMoved:            true,
@@ -359,6 +361,7 @@ func TestSystem_In(t *testing.T) {
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				ProcessedUserIsMember:    tt.userIsMember,
+				nowFunc:                  func() time.Time { return fixedNow },
 			}
 			if err := i18n.LoadLocaleFolderFS(); err != nil {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
@@ -375,6 +378,8 @@ func TestSystem_In(t *testing.T) {
 func TestSystem_Out(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
 	var outTestCases = []struct {
 		name                 string
@@ -419,7 +424,7 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
 				SeatId:                  1,
 				UserId:                  "test_user_id",
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-time.Hour), // 適当な値
+				CurrentSegmentStartedAt: fixedNow.Add(-time.Hour), // 適当な値
 			}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
@@ -439,6 +444,7 @@ func TestSystem_Out(t *testing.T) {
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
 				ProcessedUserId:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
+				nowFunc:                  func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {

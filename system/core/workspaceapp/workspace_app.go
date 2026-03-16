@@ -210,7 +210,7 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 
 	for {
 		slog.Info("checking long time sitting.")
-		start := timeutil.JstNow()
+		start := app.currentTime()
 
 		{
 			if err := app.CheckLongTimeSitting(ctx, true); err != nil {
@@ -223,7 +223,7 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 			}
 		}
 
-		end := timeutil.JstNow()
+		end := app.currentTime()
 		duration := end.Sub(start)
 		if duration < minimumInterval {
 			time.Sleep(timeutil.NoNegativeDuration(minimumInterval - duration))
@@ -246,7 +246,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+timeutil.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.blockRegexesForChannelName, channelName)
 	if err != nil {
@@ -261,7 +261,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+timeutil.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 
 	// 通知対象チェック
@@ -275,7 +275,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+timeutil.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.notificationRegexesForChannelName, channelName)
 	if err != nil {
@@ -287,7 +287,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+timeutil.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	return false, nil
 }

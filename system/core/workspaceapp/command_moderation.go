@@ -113,6 +113,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 }
 
 func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
+	jstNow := app.currentTime()
 	targetSeatId := checkOption.SeatId
 	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
@@ -144,8 +145,8 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		sinceMinutes := int(timeutil.NoNegativeDuration(timeutil.JstNow().Sub(seat.EnteredAt)).Minutes())
-		untilMinutes := seat.RemainingWorkMin(timeutil.JstNow())
+		sinceMinutes := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.EnteredAt)).Minutes())
+		untilMinutes := seat.RemainingWorkMin(jstNow)
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
