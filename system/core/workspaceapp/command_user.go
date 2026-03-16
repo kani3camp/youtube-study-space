@@ -42,7 +42,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 			}
 
 			if userDoc.IsContinuousActive {
-				continuousActiveDays := int(timeutil.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
+				continuousActiveDays := int(app.currentTime().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
 				replyMessage += i18nmsg.CommandUserInfoRankOnContinuous(continuousActiveDays+1, continuousActiveDays)
 			}
 
