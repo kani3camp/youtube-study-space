@@ -102,6 +102,9 @@ fabric.properties
 
 .mcp.json
 
+# Cursor
+.cursor/
+
 # JetBrains plugin / 個人環境の設定は全部無視
 .idea/cfnlintPlugin.xml
 .idea/discord.xml
