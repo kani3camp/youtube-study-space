@@ -12,7 +12,7 @@ const createTemplate = () => {
 
 describe('AwsCdkStack', () => {
 	const template = createTemplate()
-	const resources = template.toJSON().Resources as Record<
+	const allResources = template.toJSON().Resources as Record<
 		string,
 		{
 			Type: string
@@ -111,7 +111,7 @@ describe('AwsCdkStack', () => {
 	})
 
 	test('keeps all CloudWatch log groups at infinite retention', () => {
-		const logGroups = Object.values(resources).filter(
+		const logGroups = Object.values(allResources).filter(
 			(resource) => resource.Type === 'AWS::Logs::LogGroup',
 		)
 
