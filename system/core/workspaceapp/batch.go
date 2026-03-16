@@ -361,18 +361,18 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 }
 
 func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) []string {
-	jstNow := app.currentTime()
-	startTime := jstNow
+	startTime := app.currentTime()
 	var doneUserIds []string
 	for _, userId := range userIds {
 		// 時間チェック
-		duration := jstNow.Sub(startTime)
+		now := app.currentTime()
+		duration := now.Sub(startTime)
 		if int(duration.Seconds()) > timeLimitSeconds {
 			return userIds
 		}
 
 		// 処理
-		if err := app.UpdateUserRP(ctx, userId, jstNow); err != nil {
+		if err := app.UpdateUserRP(ctx, userId, now); err != nil {
 			app.MessageToOwnerWithError(ctx, "failed to UpdateUserRP, while processing "+userId, err)
 			// pass. mark user as done
 		}
