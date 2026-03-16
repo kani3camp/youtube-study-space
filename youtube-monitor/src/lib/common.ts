@@ -52,6 +52,8 @@ const fontFamilyString = mPlusRounded1c.style.fontFamily
 export const fontFamily = fontFamilyString.includes(' ')
 	? `'${fontFamilyString}'`
 	: fontFamilyString
+/** Next.js 15ではフォントを有効にするため、ルート要素にこの className を付与する必要がある */
+export const fontClassName = mPlusRounded1c.className
 
 const sourceCodePro = Source_Code_Pro({
 	subsets: ['latin'],
@@ -61,3 +63,4 @@ const sourceCodePro = Source_Code_Pro({
 })
 const sourceCodeProFontFamilyString = sourceCodePro.style.fontFamily
 export const sourceCodeProFontFamily = sourceCodeProFontFamilyString
+export const sourceCodeProClassName = sourceCodePro.className

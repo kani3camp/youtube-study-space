@@ -2,14 +2,12 @@ import { numSeatsOfRoomLayouts } from './common'
 
 jest.mock('next/font/google', () => ({
 	M_PLUS_Rounded_1c: jest.fn(() => ({
-		style: {
-			fontFamily: 'mock-font-name',
-		},
+		style: { fontFamily: 'mock-font-name' },
+		className: 'mock-font-class',
 	})),
 	Source_Code_Pro: jest.fn(() => ({
-		style: {
-			fontFamily: 'mock-font-name',
-		},
+		style: { fontFamily: 'mock-font-name' },
+		className: 'mock-source-code-pro-class',
 	})),
 }))
 
