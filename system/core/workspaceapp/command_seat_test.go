@@ -21,263 +21,263 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var inTestCases = []struct {
-	name                          string
-	constantsConfig               repository.ConstantsConfigDoc
-	commandDetails                utils.CommandDetails
-	userIsMember                  bool
-	targetSeatDoc                 *repository.SeatDoc
-	currentSeatOfUserIsMemberSeat bool
-	currentSeatOfUser             *repository.SeatDoc
-	currentSeatDeleted            bool
-	seatMoved                     bool
-	expectedReplyMessage          string
-}{
-	{
-		name: "一般席入室",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet: true,
-				SeatId:      1,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					IsDurationMinSet: true,
-					DurationMin:      30,
-					WorkName:         "テスト作業",
-				},
-				IsMemberSeat: false,
-			},
-		},
-		userIsMember:         false,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、1番席）",
-	},
-	{
-		name: "メンバー席入室",
-		constantsConfig: repository.ConstantsConfigDoc{
-			YoutubeMembershipEnabled: true,
-			MemberMaxSeats:           10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet: true,
-				SeatId:      1,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					IsDurationMinSet: true,
-					DurationMin:      30,
-					WorkName:         "テスト作業",
-				},
-				IsMemberSeat: true,
-			},
-		},
-		userIsMember:         true,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、VIP1番席）",
-	},
-	{
-		name: "メンバー以外はメンバー席に入室できない",
-		constantsConfig: repository.ConstantsConfigDoc{
-			YoutubeMembershipEnabled: true,
-			MemberMaxSeats:           10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet: true,
-				SeatId:      1,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					IsDurationMinSet: true,
-					DurationMin:      30,
-					WorkName:         "テスト作業",
-				},
-				IsMemberSeat: true,
-			},
-		},
-		userIsMember:         false,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さん、メンバー限定席に座るには、メンバー登録が必要です🍀",
-	},
-	{
-		name: "一般席：座席指定なし",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 1,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:        false,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-				IsMemberSeat:       false,
-			},
-		},
-		userIsMember:         false,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大100分、1番席）",
-	},
-	{
-		name: "一般席：指定した座席が空いていない",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet: true,
-				SeatId:      1,
-			},
-		},
-		userIsMember: false,
-		targetSeatDoc: &repository.SeatDoc{
-			SeatId: 1,
-			UserId: "test_user_id",
-		},
-		expectedReplyMessage: "@テストユーザー さん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
-	},
-	{
-		name: "一般席：座席が存在しない",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:        true,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-				SeatId:             999,
-			},
-		},
-		userIsMember:         false,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
-	},
-	{
-		name: "メンバー席：座席指定なし",
-		constantsConfig: repository.ConstantsConfigDoc{
-			YoutubeMembershipEnabled: true,
-			MemberMaxSeats:           1,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:        false,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-				IsMemberSeat:       true,
-			},
-		},
-		userIsMember:         true,
-		targetSeatDoc:        nil,
-		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大100分、VIP1番席）",
-	},
-	{
-		name: "一般席入室：すでに入室中",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:        false,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-				IsMemberSeat:       false,
-			},
-		},
-		userIsMember: false,
-		currentSeatOfUser: &repository.SeatDoc{
-			SeatId: 1,
-			UserId: "test_user_id",
-			State:  repository.WorkState,
-		},
-		expectedReplyMessage: "@テストユーザー さんは1番の席に座っています🪑",
-	},
-	{
-		name: "メンバー席入室：すでに入室中",
-		constantsConfig: repository.ConstantsConfigDoc{
-			YoutubeMembershipEnabled: true,
-			MemberMaxSeats:           10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsMemberSeat:       true,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-			},
-		},
-		userIsMember:                  true,
-		currentSeatOfUserIsMemberSeat: true,
-		currentSeatOfUser: &repository.SeatDoc{
-			SeatId: 1,
-			UserId: "test_user_id",
-			State:  repository.WorkState,
-		},
-		expectedReplyMessage: "@テストユーザー さんはVIP1番の席に座っています🪑",
-	},
-	{
-		name: "一般席入室：すでにメンバー席に入室中なので席移動",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats:                 10,
-			YoutubeMembershipEnabled: true,
-			MemberMaxSeats:           10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:        true,
-				IsMemberSeat:       false,
-				SeatId:             1,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{},
-			},
-		},
-		userIsMember:                  false,
-		currentSeatOfUserIsMemberSeat: true,
-		currentSeatOfUser: &repository.SeatDoc{
-			SeatId:                  1,
-			UserId:                  "test_user_id",
-			State:                   repository.WorkState,
-			EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-			CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-			CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-		},
-		currentSeatDeleted:   true,
-		seatMoved:            true,
-		expectedReplyMessage: "@テストユーザー さんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
-	},
-	{
-		name: "空の作業名で入室",
-		constantsConfig: repository.ConstantsConfigDoc{
-			MaxSeats: 10,
-		},
-		commandDetails: utils.CommandDetails{
-			CommandType: utils.In,
-			InOption: utils.InOption{
-				IsSeatIdSet:  true,
-				IsMemberSeat: false,
-				SeatId:       1,
-				MinWorkOrderOption: &utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					WorkName:         "", // 空文字列で明示的に設定
-					IsDurationMinSet: true,
-					DurationMin:      60,
-				},
-			},
-		},
-		userIsMember:         false,
-		currentSeatOfUser:    nil,
-		currentSeatDeleted:   false,
-		seatMoved:            false,
-		expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大60分、1番席）",
-	},
-}
-
 func TestSystem_In(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	var inTestCases = []struct {
+		name                          string
+		constantsConfig               repository.ConstantsConfigDoc
+		commandDetails                utils.CommandDetails
+		userIsMember                  bool
+		targetSeatDoc                 *repository.SeatDoc
+		currentSeatOfUserIsMemberSeat bool
+		currentSeatOfUser             *repository.SeatDoc
+		currentSeatDeleted            bool
+		seatMoved                     bool
+		expectedReplyMessage          string
+	}{
+		{
+			name: "一般席入室",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						DurationMin:      30,
+						WorkName:         "テスト作業",
+					},
+					IsMemberSeat: false,
+				},
+			},
+			userIsMember:         false,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、1番席）",
+		},
+		{
+			name: "メンバー席入室",
+			constantsConfig: repository.ConstantsConfigDoc{
+				YoutubeMembershipEnabled: true,
+				MemberMaxSeats:           10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						DurationMin:      30,
+						WorkName:         "テスト作業",
+					},
+					IsMemberSeat: true,
+				},
+			},
+			userIsMember:         true,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、VIP1番席）",
+		},
+		{
+			name: "メンバー以外はメンバー席に入室できない",
+			constantsConfig: repository.ConstantsConfigDoc{
+				YoutubeMembershipEnabled: true,
+				MemberMaxSeats:           10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						DurationMin:      30,
+						WorkName:         "テスト作業",
+					},
+					IsMemberSeat: true,
+				},
+			},
+			userIsMember:         false,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さん、メンバー限定席に座るには、メンバー登録が必要です🍀",
+		},
+		{
+			name: "一般席：座席指定なし",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 1,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:        false,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+					IsMemberSeat:       false,
+				},
+			},
+			userIsMember:         false,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大100分、1番席）",
+		},
+		{
+			name: "一般席：指定した座席が空いていない",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet: true,
+					SeatId:      1,
+				},
+			},
+			userIsMember: false,
+			targetSeatDoc: &repository.SeatDoc{
+				SeatId: 1,
+				UserId: "test_user_id",
+			},
+			expectedReplyMessage: "@テストユーザー さん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
+		},
+		{
+			name: "一般席：座席が存在しない",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:        true,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+					SeatId:             999,
+				},
+			},
+			userIsMember:         false,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
+		},
+		{
+			name: "メンバー席：座席指定なし",
+			constantsConfig: repository.ConstantsConfigDoc{
+				YoutubeMembershipEnabled: true,
+				MemberMaxSeats:           1,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:        false,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+					IsMemberSeat:       true,
+				},
+			},
+			userIsMember:         true,
+			targetSeatDoc:        nil,
+			expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大100分、VIP1番席）",
+		},
+		{
+			name: "一般席入室：すでに入室中",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:        false,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+					IsMemberSeat:       false,
+				},
+			},
+			userIsMember: false,
+			currentSeatOfUser: &repository.SeatDoc{
+				SeatId: 1,
+				UserId: "test_user_id",
+				State:  repository.WorkState,
+			},
+			expectedReplyMessage: "@テストユーザー さんは1番の席に座っています🪑",
+		},
+		{
+			name: "メンバー席入室：すでに入室中",
+			constantsConfig: repository.ConstantsConfigDoc{
+				YoutubeMembershipEnabled: true,
+				MemberMaxSeats:           10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsMemberSeat:       true,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+				},
+			},
+			userIsMember:                  true,
+			currentSeatOfUserIsMemberSeat: true,
+			currentSeatOfUser: &repository.SeatDoc{
+				SeatId: 1,
+				UserId: "test_user_id",
+				State:  repository.WorkState,
+			},
+			expectedReplyMessage: "@テストユーザー さんはVIP1番の席に座っています🪑",
+		},
+		{
+			name: "一般席入室：すでにメンバー席に入室中なので席移動",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats:                 10,
+				YoutubeMembershipEnabled: true,
+				MemberMaxSeats:           10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:        true,
+					IsMemberSeat:       false,
+					SeatId:             1,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{},
+				},
+			},
+			userIsMember:                  false,
+			currentSeatOfUserIsMemberSeat: true,
+			currentSeatOfUser: &repository.SeatDoc{
+				SeatId:                  1,
+				UserId:                  "test_user_id",
+				State:                   repository.WorkState,
+				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
+				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
+			},
+			currentSeatDeleted:   true,
+			seatMoved:            true,
+			expectedReplyMessage: "@テストユーザー さんが席を移動しました🚶（作業内容：\"\"）（VIP1→1番席）（+ 10分）（0分後に自動退室）",
+		},
+		{
+			name: "空の作業名で入室",
+			constantsConfig: repository.ConstantsConfigDoc{
+				MaxSeats: 10,
+			},
+			commandDetails: utils.CommandDetails{
+				CommandType: utils.In,
+				InOption: utils.InOption{
+					IsSeatIdSet:  true,
+					IsMemberSeat: false,
+					SeatId:       1,
+					MinWorkOrderOption: &utils.MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						WorkName:         "", // 空文字列で明示的に設定
+						IsDurationMinSet: true,
+						DurationMin:      60,
+					},
+				},
+			},
+			userIsMember:         false,
+			currentSeatOfUser:    nil,
+			currentSeatDeleted:   false,
+			seatMoved:            false,
+			expectedReplyMessage: "@テストユーザー さんが作業を始めました🔥（作業内容：\"\"、最大60分、1番席）",
+		},
+	}
 
 	for _, tt := range inTestCases {
 		t.Run(tt.name, func(t *testing.T) {
