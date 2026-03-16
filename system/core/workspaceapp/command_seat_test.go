@@ -419,7 +419,7 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
 				SeatId:                  1,
 				UserId:                  "test_user_id",
-				CurrentSegmentStartedAt: time.Now().Add(-time.Hour), // 適当な値
+				CurrentSegmentStartedAt: timeutil.JstNow().Add(-time.Hour), // 適当な値
 			}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
