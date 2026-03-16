@@ -12,6 +12,15 @@ const createTemplate = () => {
 
 describe('AwsCdkStack', () => {
 	const template = createTemplate()
+	const allResources = template.toJSON().Resources as Record<
+		string,
+		{
+			Type: string
+			Properties?: {
+				RetentionInDays?: number
+			}
+		}
+	>
 
 	test('keeps the daily batch schedule invariant', () => {
 		template.hasResourceProperties('AWS::Scheduler::Schedule', {
@@ -99,5 +108,16 @@ describe('AwsCdkStack', () => {
 				},
 			}),
 		)
+	})
+
+	test('keeps all CloudWatch log groups at infinite retention', () => {
+		const logGroups = Object.values(allResources).filter(
+			(resource) => resource.Type === 'AWS::Logs::LogGroup',
+		)
+
+		expect(logGroups.length).toBeGreaterThan(0)
+		for (const logGroup of logGroups) {
+			expect(logGroup.Properties?.RetentionInDays).toBeUndefined()
+		}
 	})
 })
