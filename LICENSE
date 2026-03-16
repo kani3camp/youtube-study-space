@@ -1,9 +1,11 @@
 # Terms of Use
 
-By using, copying, modifying, or contributing to this software (the "Software"), you agree to be bound by the following terms.
+By using, copying, modifying, or contributing to the original source code and original content authored for this repository by **kani3camp** (the "Software"), you agree to be bound by the following terms.
+
+For the avoidance of doubt, the term "Software" does **not** include any third-party software, dependencies, libraries, frameworks, tools, or other materials that may be referenced by, required by, or used with this repository (including, without limitation, packages identified in `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `go.mod`, or `go.sum`). Such third-party components remain subject to their own respective license terms.
 
 ### 1. Copyright
-The copyright and all intellectual property rights of the Software belong to the original author, **kani3camp**.
+The copyright and other intellectual property rights in the Software belong to the original author, **kani3camp**.
 
 ### 2. Permissions
 * You may view the source code of the Software.
@@ -13,7 +15,7 @@ The copyright and all intellectual property rights of the Software belong to the
 ### 3. Prohibitions and Restrictions
 * **No Derivative Projects:** You are strictly prohibited from publishing, distributing, or selling the Software (including modified versions) as a separate project or under a different name/repository.
 * **No Redistribution as a Standalone Project:** You may not redistribute the source code or binaries of the Software to third parties as a separate product or as part of another project without the prior written consent of the author. (This does not prohibit sharing a link to this repository or making a private backup copy for personal use.)
-* **Note on Forks:** GitHub's "Fork" feature is provided under GitHub's own terms of service. Any public forks or use of forked copies must also comply with these Terms of Use, including the prohibitions on redistribution and derivative projects. Creating or maintaining public forks whose primary purpose is to redistribute the Software as a separate project or to circumvent these terms is prohibited.
+* **Note on Forks:** Use of GitHub's "Fork" feature for purposes such as review, testing, or contributing back to this repository is permitted. However, you may not use a forked copy of the Software to publish, distribute, maintain, or promote the Software (including modified versions) as a separate project, substitute, or competing version under a different name, repository, or branding, without the prior written consent of the author.
 
 ### 4. Contributions
 By submitting a Pull Request or any contribution to this repository, you grant **kani3camp** a non-exclusive, irrevocable, perpetual, worldwide, royalty-free, and sublicensable license to use, modify, and distribute your contribution as part of this project.
