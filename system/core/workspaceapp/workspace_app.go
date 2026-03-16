@@ -41,6 +41,8 @@ type WorkspaceApp struct {
 	notificationRegexesForChannelName []string
 
 	SortedMenuItems []repository.MenuDoc // メニューコードで昇順ソートして格納
+
+	nowFunc func() time.Time // テストの時刻注入用
 }
 
 // Configs WorkspaceApp生成時に初期化すべきフィールド値
@@ -165,7 +167,15 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		notificationRegexesForChatMessage: notificationRegexesForChatMessage,
 		notificationRegexesForChannelName: notificationRegexesForChannelName,
 		SortedMenuItems:                   sortedMenuItems,
+		nowFunc:                           nil,
 	}, nil
+}
+
+func (app *WorkspaceApp) currentTime() time.Time {
+	if app.nowFunc != nil {
+		return app.nowFunc()
+	}
+	return timeutil.JstNow()
 }
 
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {

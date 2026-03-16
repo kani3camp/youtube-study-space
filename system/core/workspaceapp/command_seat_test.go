@@ -457,6 +457,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
+
 	var showSeatInfoTestCases = []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
@@ -494,9 +496,9 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				SeatId:                3,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			generalSeats: []repository.SeatDoc{
 				{
@@ -506,7 +508,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				},
 			},
 			memberSeats:          []repository.SeatDoc{},
-			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
+			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
 		},
 		{
 			name: "座席表示（メンバー席）",
@@ -522,9 +524,9 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				SeatId:                3,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			generalSeats: []repository.SeatDoc{},
 			memberSeats: []repository.SeatDoc{
@@ -534,7 +536,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 					State:  repository.WorkState,
 				},
 			},
-			expectedReplyMessage: "@テストユーザー さんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊",
+			expectedReplyMessage: "@テストユーザー さんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
 		},
 		{
 			name: "座席表示（一般席：詳細あり）",
@@ -553,9 +555,9 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				SeatId:                3,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			generalSeats: []repository.SeatDoc{
 				{
@@ -565,7 +567,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				},
 			},
 			memberSeats:          []repository.SeatDoc{},
-			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り89分です📊過去1440分以内に3番席に合計0分着席しています🪑",
+			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊過去1440分以内に3番席に合計0分着席しています🪑",
 		},
 	}
 
@@ -608,6 +610,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
+				nowFunc: func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {
@@ -625,6 +628,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 func TestSystem_Change(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
 	var changeTestCases = []struct {
 		name                 string
@@ -655,12 +660,12 @@ func TestSystem_Change(t *testing.T) {
 				SeatId:                  5,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
+			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り350分です⏱️",
 		},
 		{
 			name: "作業内容・入室時間変更（メンバー席）",
@@ -684,12 +689,12 @@ func TestSystem_Change(t *testing.T) {
 				SeatId:                  7,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り349分です⏱️",
+			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り350分です⏱️",
 		},
 		{
 			name: "作業名を空にクリア（WorkState）",
@@ -712,10 +717,10 @@ func TestSystem_Change(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "既存の作業",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さん、作業内容を\"\"に更新しました✍️（5番席）",
 		},
@@ -740,11 +745,11 @@ func TestSystem_Change(t *testing.T) {
 				UserId:                  "test_user_id",
 				BreakWorkName:           "既存の休憩作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
-				CurrentStateUntil:       timeutil.JstNow().Add(20 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
+				CurrentStateUntil:       fixedNow.Add(20 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さん、休憩内容を\"\"に更新しました✍️（5番席）",
 		},
@@ -801,6 +806,7 @@ func TestSystem_Change(t *testing.T) {
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
+				nowFunc: func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {
@@ -818,6 +824,8 @@ func TestSystem_Change(t *testing.T) {
 func TestSystem_More(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
 	var moreTestCases = []struct {
 		name                 string
@@ -844,15 +852,16 @@ func TestSystem_More(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                5,
-				UserId:                "test_user_id",
-				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				SeatId:                  5,
+				UserId:                  "test_user_id",
+				State:                   repository.WorkState,
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 30,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り120分です⏳",
 		},
 		{
 			name: "作業時間延長（メンバー席）",
@@ -874,12 +883,12 @@ func TestSystem_More(t *testing.T) {
 				SeatId:                7,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 30,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り119分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り120分です⏳",
 		},
 		{
 			name: "作業時間延長（延長時間指定なし）",
@@ -899,9 +908,9 @@ func TestSystem_More(t *testing.T) {
 				SeatId:                5,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 270,
 			expectedReplyMessage: "@テストユーザー さん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
@@ -925,12 +934,12 @@ func TestSystem_More(t *testing.T) {
 				SeatId:                5,
 				UserId:                "test_user_id",
 				State:                 repository.WorkState,
-				CurrentStateStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:             timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                 timeutil.JstNow().Add(90 * time.Minute), // 90分残り
+				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:             fixedNow.Add(-10 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute), // 90分残り
 			},
 			expectedExtraTimeMin: 270,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り359分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
 		},
 	}
 
@@ -973,6 +982,7 @@ func TestSystem_More(t *testing.T) {
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
+				nowFunc: func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {
@@ -990,6 +1000,8 @@ func TestSystem_More(t *testing.T) {
 func TestSystem_Break(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
 	var breakTestCases = []struct {
 		name                 string
@@ -1013,10 +1025,10 @@ func TestSystem_Break(t *testing.T) {
 				SeatId:                  5,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 		},
@@ -1035,10 +1047,10 @@ func TestSystem_Break(t *testing.T) {
 				SeatId:                  7,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、VIP7番席）",
 		},
@@ -1056,10 +1068,10 @@ func TestSystem_Break(t *testing.T) {
 				SeatId:                  5,
 				UserId:                  "test_user_id",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さん、作業中のみ使えるコマンドです🙏",
 		},
@@ -1083,10 +1095,10 @@ func TestSystem_Break(t *testing.T) {
 				SeatId:                  5,
 				UserId:                  "test_user_id",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
 		},
@@ -1111,10 +1123,10 @@ func TestSystem_Break(t *testing.T) {
 				UserId:                  "test_user_id",
 				BreakWorkName:           "既存の休憩作業",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-15 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-15 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-15 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-15 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-15 * time.Minute),
+				EnteredAt:               fixedNow.Add(-15 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
 		},
@@ -1157,6 +1169,7 @@ func TestSystem_Break(t *testing.T) {
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
+				nowFunc: func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {
@@ -1174,6 +1187,8 @@ func TestSystem_Break(t *testing.T) {
 func TestSystem_Resume(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
 	var resumeTestCases = []struct {
 		name                 string
@@ -1200,12 +1215,12 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで90分）",
 		},
 		{
 			name: "作業再開（メンバー席）",
@@ -1225,12 +1240,12 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（VIP7番席、自動退室まで89分）",
+			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（VIP7番席、自動退室まで90分）",
 		},
 		{
 			name: "作業再開（一般席：作業中）",
@@ -1249,10 +1264,10 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.WorkState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedReplyMessage: "@テストユーザー さん、座席で休憩中のみ使えるコマンドです🙏",
 		},
@@ -1273,12 +1288,12 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "既存の作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで90分）",
 		},
 		{
 			name: "作業再開（作業名を明示的にクリア）",
@@ -1298,12 +1313,12 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "クリアされる作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで90分）",
 		},
 		{
 			name: "作業再開（作業名を変更）",
@@ -1323,12 +1338,12 @@ func TestSystem_Resume(t *testing.T) {
 				UserId:                  "test_user_id",
 				WorkName:                "古い作業",
 				State:                   repository.BreakState,
-				CurrentStateStartedAt:   timeutil.JstNow().Add(-10 * time.Minute),
-				CurrentSegmentStartedAt: timeutil.JstNow().Add(-10 * time.Minute),
-				EnteredAt:               timeutil.JstNow().Add(-10 * time.Minute),
-				Until:                   timeutil.JstNow().Add(90 * time.Minute),
+				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
+				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
+				EnteredAt:               fixedNow.Add(-10 * time.Minute),
+				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで89分）",
+			expectedReplyMessage: "@テストユーザー さんが作業を再開します🔥（5番席、自動退室まで90分）",
 		},
 	}
 
@@ -1377,6 +1392,7 @@ func TestSystem_Resume(t *testing.T) {
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
 				},
+				nowFunc: func() time.Time { return fixedNow },
 			}
 
 			if err := i18n.LoadLocaleFolderFS(); err != nil {

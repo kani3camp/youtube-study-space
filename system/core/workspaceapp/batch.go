@@ -334,7 +334,7 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 	// 時間がかかる処理なのでトランザクションはなし
 	previousDate := app.Configs.Constants.LastResetDailyTotalStudySec.In(timeutil.JapanLocation())
 	now := timeutil.JstNow()
-	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !timeutil.DateEqualJST(now, previousDate)
+	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !timeutil.DateEqualJST(nowFunc, previousDate)
 	if isDifferentDay && now.After(previousDate) {
 		userIter := app.Repository.GetAllNonDailyZeroUserDocs(ctx)
 		count := 0

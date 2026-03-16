@@ -18,7 +18,7 @@ import (
 )
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
-	jstNow := timeutil.JstNow()
+	jstNow := app.currentTime()
 	var replyMessage string
 	result := usecase.Result{}
 	isTargetMemberSeat := inOption.IsMemberSeat
@@ -364,6 +364,7 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 }
 
 func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.SeatOption) error {
+	jstNow := app.currentTime()
 	showDetails := seatOption.ShowDetails
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -379,12 +380,12 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 				return fmt.Errorf("in app.CurrentSeat(): %w", err)
 			}
 
-			realtimeSittingDurationMin := int(timeutil.NoNegativeDuration(timeutil.JstNow().Sub(currentSeat.EnteredAt)).Minutes())
-			realtimeTotalStudyDurationOfSeat, err := utils.RealTimeTotalStudyDurationOfSeat(currentSeat, timeutil.JstNow())
+			realtimeSittingDurationMin := int(timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
+			realtimeTotalStudyDurationOfSeat, err := utils.RealTimeTotalStudyDurationOfSeat(currentSeat, jstNow)
 			if err != nil {
 				return fmt.Errorf("in RealTimeTotalStudyDurationOfSeat(): %w", err)
 			}
-			remainingMinutes := currentSeat.RemainingWorkMin(timeutil.JstNow())
+			remainingMinutes := currentSeat.RemainingWorkMin(jstNow)
 			var stateStr string
 			var breakUntilStr string
 			switch currentSeat.State {
@@ -393,7 +394,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 				breakUntilStr = ""
 			case repository.BreakState:
 				stateStr = i18nmsg.CommonBreak()
-				breakUntilDuration := timeutil.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(timeutil.JstNow()))
+				breakUntilDuration := timeutil.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(jstNow))
 				breakUntilStr = i18nmsg.CommandSeatInfoBreakUntil(int(breakUntilDuration.Minutes()))
 			}
 			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
@@ -420,7 +421,7 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 }
 
 func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWorkOrderOption) error {
-	jstNow := timeutil.JstNow()
+	jstNow := app.currentTime()
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -555,7 +556,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		jstNow := timeutil.JstNow()
+		jstNow := app.currentTime()
 
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
@@ -663,7 +664,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		jstNow := timeutil.JstNow()
+		jstNow := app.currentTime()
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
 		if err != nil {
@@ -778,7 +779,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 
 		// 再開処理
-		jstNow := timeutil.JstNow()
+		jstNow := app.currentTime()
 		until := currentSeat.Until
 		{
 			// work segmentログ記録
@@ -855,7 +856,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		}
 
 		// メンバーでないなら本日の注文回数をチェック
-		todayOrderCount, err := app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, timeutil.JstNow())
+		todayOrderCount, err := app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, app.currentTime())
 		if err != nil {
 			return fmt.Errorf("in CountUserOrdersOfTheDay: %w", err)
 		}
@@ -897,7 +898,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 			MenuCode:     targetMenuItem.Code,
 			SeatId:       currentSeat.SeatId,
 			IsMemberSeat: isInMemberRoom,
-			OrderedAt:    timeutil.JstNow(),
+			OrderedAt:    app.currentTime(),
 		}
 		if err := app.Repository.CreateOrderHistoryDoc(ctx, tx, orderHistoryDoc); err != nil {
 			return fmt.Errorf("in CreateOrderHistoryDoc: %w", err)
@@ -928,7 +929,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 }
 
 func (app *WorkspaceApp) Clear(ctx context.Context) error {
-	jstNow := timeutil.JstNow()
+	jstNow := app.currentTime()
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
