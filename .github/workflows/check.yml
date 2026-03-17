@@ -43,16 +43,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: system/go.mod
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64
+          version: v2.11.3
           working-directory: system
-          args: --timeout=5m
+          args: --config=.golangci.yml
 
   menu-image-generator-lint-build:
     name: Menu Image Generator Lint & Build
