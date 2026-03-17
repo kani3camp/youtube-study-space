@@ -56,11 +56,21 @@ jobs:
         id: collect
         uses: actions/github-script@v7
         env:
-          CURSOR_TRIGGER_PAT: ${{ secrets.CURSOR_TRIGGER_PAT }}
+          CURSOR_TRIGGER_LOGIN: ${{ vars.CURSOR_TRIGGER_LOGIN }}
         with:
           script: |
             const run = require('./.github/scripts/copilot-review-loop.js');
             await run({ github, context, core });
+
+      - name: Validate Cursor trigger PAT
+        if: steps.collect.outputs.action == 'comment' || steps.collect.outputs.action == 'stop'
+        env:
+          CURSOR_TRIGGER_PAT: ${{ secrets.CURSOR_TRIGGER_PAT }}
+        run: |
+          if [ -z "${CURSOR_TRIGGER_PAT}" ]; then
+            echo "CURSOR_TRIGGER_PAT is required to post top-level PR comments as the service account." >&2
+            exit 1
+          fi
 
       - name: Post PR conversation comment via service account
         if: steps.collect.outputs.action == 'comment' || steps.collect.outputs.action == 'stop'
@@ -79,8 +89,10 @@ jobs:
         if: steps.collect.outputs.action == 'none'
         run: echo "No new actionable Copilot comments or CI failures for an ai-loop PR."
 
-    # Required secret:
+    # Required configuration:
     # - CURSOR_TRIGGER_PAT: PAT for the service account that posts top-level PR comments with @cursor.
+    # - CURSOR_TRIGGER_LOGIN: repository variable for that service account login. This is read by the
+    #   collect step so the loop can trust only metadata comments authored by the trigger account.
     # Security note:
     # - The script only trusts loop metadata from comments authored by that service account.
     # - The script also ignores PRs whose head repository differs from github.repository.

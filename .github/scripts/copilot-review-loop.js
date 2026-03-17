@@ -145,34 +145,9 @@ async function resolveServiceAccountLogin() {
     return configuredLogin;
   }
 
-  const token = process.env.CURSOR_TRIGGER_PAT;
-  if (!token) {
-    throw new Error(
-      "CURSOR_TRIGGER_PAT is required to resolve the trusted service account login and post top-level PR comments.",
-    );
-  }
-
-  const response = await fetch("https://api.github.com/user", {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": WORKFLOW_NAME,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to resolve service account login from CURSOR_TRIGGER_PAT: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  const data = await response.json();
-  const login = normalizeLogin(data.login);
-  if (!login) {
-    throw new Error("CURSOR_TRIGGER_PAT resolved without a login.");
-  }
-
-  return login;
+  throw new Error(
+    "CURSOR_TRIGGER_LOGIN is required so the loop can trust only metadata comments authored by the trigger service account.",
+  );
 }
 
 function getPullNumber(context) {
