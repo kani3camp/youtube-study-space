@@ -148,7 +148,7 @@ async function resolveServiceAccountLogin() {
   const token = process.env.CURSOR_TRIGGER_PAT;
   if (!token) {
     throw new Error(
-      "CURSOR_TRIGGER_PAT is required to resolve the trusted service account login.",
+      "CURSOR_TRIGGER_PAT is required to resolve the trusted service account login and post top-level PR comments.",
     );
   }
 
