@@ -2,7 +2,11 @@ const AI_LOOP_LABEL = "ai-loop";
 const COMMENT_MARKER = "copilot-review-loop";
 const MAX_ROUNDS = 10;
 const WORKFLOW_NAME = "Copilot Review Loop";
+const WORKFLOW_JOB_NAME = "Orchestrate Copilot-Cursor Loop";
 const COPILOT_ACTOR_LOGINS = new Set(["copilot", "github-copilot[bot]"]);
+const MAX_PROMPT_COMMENT_LENGTH = 60000;
+const MAX_SECTION_ITEMS = 20;
+const COMMENT_METADATA_RESERVE = 4000;
 
 module.exports = async ({ github, context, core }) => {
   const pullNumber = getPullNumber(context);
@@ -100,9 +104,6 @@ module.exports = async ({ github, context, core }) => {
       stopped: "max-round",
     };
     core.setOutput("action", "stop");
-    core.setOutput("owner", owner);
-    core.setOutput("repo", repo);
-    core.setOutput("pull_number", String(pullNumber));
     core.setOutput(
       "comment_body",
       buildStopComment({
@@ -113,28 +114,16 @@ module.exports = async ({ github, context, core }) => {
     return;
   }
 
-  const metadata = {
-    round: nextRound,
-    headSha,
-    reviewIds: reviewBodies.map((review) => review.id),
-    reviewCommentIds: reviewComments.map((comment) => comment.id),
-    checkKeys: ciFailures.checkRuns.map((run) => makeCheckKey(headSha, run)),
-    statusKeys: ciFailures.statuses.map((status) => makeStatusKey(headSha, status)),
-  };
-
   core.setOutput("action", "comment");
-  core.setOutput("owner", owner);
-  core.setOutput("repo", repo);
-  core.setOutput("pull_number", String(pullNumber));
   core.setOutput(
     "comment_body",
     buildPromptComment({
       round: nextRound,
       maxRounds: MAX_ROUNDS,
+      headSha,
       reviewComments,
       reviewBodies,
       ciFailures,
-      metadata,
     }),
   );
 };
@@ -219,7 +208,7 @@ async function loadLoopState({ github, owner, repo, pullNumber, trustedLogin }) 
 
 function parseMetadata(body) {
   const match = body.match(
-    new RegExp(`<!--\\s*${escapeRegExp(COMMENT_MARKER)}:(\\{[\\s\\S]*\\})\\s*-->`),
+    new RegExp(`<!--\\s*${escapeRegExp(COMMENT_MARKER)}:(\\{[\\s\\S]*?\\})\\s*-->`),
   );
   if (!match) {
     return null;
@@ -314,7 +303,11 @@ async function collectCiFailures({ github, owner, repo, headSha, state }) {
   );
   const latestCheckRunByName = new Map();
   for (const run of checkRuns) {
-    if (!run.name || run.name === WORKFLOW_NAME) {
+    if (
+      !run.name ||
+      run.name === WORKFLOW_NAME ||
+      run.name === WORKFLOW_JOB_NAME
+    ) {
       continue;
     }
 
@@ -407,10 +400,10 @@ function makeStatusKey(headSha, status) {
 function buildPromptComment({
   round,
   maxRounds,
+  headSha,
   reviewComments,
   reviewBodies,
   ciFailures,
-  metadata,
 }) {
   const lines = [
     "@cursor Copilot review 指摘または CI failure の対応候補があります。",
@@ -423,27 +416,55 @@ function buildPromptComment({
     "- `NOTE` コメントは消さず、既存の repo 規約に従ってください。",
     "- 必要なら関連テストやチェックを実行してください。",
   ];
+  const included = {
+    reviewBodies: [],
+    reviewComments: [],
+    checkRuns: [],
+    statuses: [],
+  };
 
   if (reviewComments.length > 0 || reviewBodies.length > 0) {
-    lines.push("", "### Copilot review");
-    for (const review of reviewBodies) {
-      lines.push(formatReviewBody(review));
-    }
-    for (const comment of reviewComments) {
-      lines.push(formatReviewComment(comment));
-    }
+    appendBoundedSection({
+      lines,
+      title: "### Copilot review",
+      entries: [
+        ...reviewBodies.map((review) => ({
+          text: formatReviewBody(review),
+          include: () => included.reviewBodies.push(review),
+        })),
+        ...reviewComments.map((comment) => ({
+          text: formatReviewComment(comment),
+          include: () => included.reviewComments.push(comment),
+        })),
+      ],
+    });
   }
 
   if (ciFailures.checkRuns.length > 0 || ciFailures.statuses.length > 0) {
-    lines.push("", "### CI failures");
-    for (const run of ciFailures.checkRuns) {
-      lines.push(formatCheckRun(run));
-    }
-    for (const status of ciFailures.statuses) {
-      lines.push(formatStatus(status));
-    }
+    appendBoundedSection({
+      lines,
+      title: "### CI failures",
+      entries: [
+        ...ciFailures.checkRuns.map((run) => ({
+          text: formatCheckRun(run),
+          include: () => included.checkRuns.push(run),
+        })),
+        ...ciFailures.statuses.map((status) => ({
+          text: formatStatus(status),
+          include: () => included.statuses.push(status),
+        })),
+      ],
+    });
   }
 
+  const metadata = {
+    round,
+    headSha,
+    reviewIds: included.reviewBodies.map((review) => review.id),
+    reviewCommentIds: included.reviewComments.map((comment) => comment.id),
+    checkKeys: included.checkRuns.map((run) => makeCheckKey(headSha, run)),
+    statusKeys: included.statuses.map((status) => makeStatusKey(headSha, status)),
+  };
   lines.push("", buildMetadataComment(metadata));
   return lines.join("\n");
 }
@@ -460,6 +481,37 @@ function buildStopComment({ maxRounds, metadata }) {
 
 function buildMetadataComment(metadata) {
   return `<!-- ${COMMENT_MARKER}:${JSON.stringify(metadata)} -->`;
+}
+
+function appendBoundedSection({ lines, title, entries }) {
+  if (entries.length === 0) {
+    return;
+  }
+
+  lines.push("", title);
+  let includedCount = 0;
+  let omittedCount = 0;
+  for (const entry of entries) {
+    const projectedLength =
+      lines.join("\n").length +
+      entry.text.length +
+      COMMENT_METADATA_RESERVE;
+    if (
+      includedCount >= MAX_SECTION_ITEMS ||
+      projectedLength > MAX_PROMPT_COMMENT_LENGTH
+    ) {
+      omittedCount += 1;
+      continue;
+    }
+
+    lines.push(entry.text);
+    entry.include();
+    includedCount += 1;
+  }
+
+  if (omittedCount > 0) {
+    lines.push(`- 他 ${omittedCount} 件は省略しました。`);
+  }
 }
 
 function formatReviewBody(review) {
