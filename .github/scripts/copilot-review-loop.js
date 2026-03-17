@@ -325,12 +325,16 @@ async function collectCopilotReviewBodies({
 }
 
 async function collectCiFailures({ github, owner, repo, headSha, state }) {
-  const checkRuns = await github.paginate(github.rest.checks.listForRef, {
-    owner,
-    repo,
-    ref: headSha,
-    per_page: 100,
-  });
+  const checkRuns = await github.paginate(
+    github.rest.checks.listForRef,
+    {
+      owner,
+      repo,
+      ref: headSha,
+      per_page: 100,
+    },
+    (response) => response.data.check_runs ?? [],
+  );
   const latestCheckRunByName = new Map();
   for (const run of checkRuns) {
     if (!run.name || run.name === WORKFLOW_NAME) {
