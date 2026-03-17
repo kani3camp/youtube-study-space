@@ -104,7 +104,7 @@ jobs:
             const source = Buffer.from(file.content, file.encoding || 'base64').toString('utf8');
             const Module = require('module');
             const modulePath = `${process.cwd()}/${scriptPath}`;
-            const loadedModule = new Module(modulePath, module);
+            const loadedModule = new Module(modulePath);
             loadedModule.filename = modulePath;
             loadedModule.paths = Module._nodeModulePaths(process.cwd());
             loadedModule._compile(source, modulePath);
