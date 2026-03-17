@@ -2,6 +2,7 @@ const AI_LOOP_LABEL = "ai-loop";
 const COMMENT_MARKER = "copilot-review-loop";
 const MAX_ROUNDS = 10;
 const WORKFLOW_NAME = "Copilot Review Loop";
+const COPILOT_ACTOR_LOGINS = new Set(["copilot", "github-copilot[bot]"]);
 
 module.exports = async ({ github, context, core }) => {
   const pullNumber = getPullNumber(context);
@@ -27,7 +28,20 @@ module.exports = async ({ github, context, core }) => {
     return;
   }
 
-  const state = await loadLoopState({ github, owner, repo, pullNumber });
+  if (pullRequest.head.repo.full_name !== `${owner}/${repo}`) {
+    core.notice(`PR #${pullNumber} comes from a fork. Skipping for safety.`);
+    core.setOutput("action", "none");
+    return;
+  }
+
+  const serviceAccountLogin = await resolveServiceAccountLogin();
+  const state = await loadLoopState({
+    github,
+    owner,
+    repo,
+    pullNumber,
+    trustedLogin: serviceAccountLogin,
+  });
   const headSha = pullRequest.head.sha;
   const {
     newComments: reviewComments,
@@ -125,6 +139,42 @@ module.exports = async ({ github, context, core }) => {
   );
 };
 
+async function resolveServiceAccountLogin() {
+  const configuredLogin = normalizeLogin(process.env.CURSOR_TRIGGER_LOGIN);
+  if (configuredLogin) {
+    return configuredLogin;
+  }
+
+  const token = process.env.CURSOR_TRIGGER_PAT;
+  if (!token) {
+    throw new Error(
+      "CURSOR_TRIGGER_PAT is required to resolve the trusted service account login.",
+    );
+  }
+
+  const response = await fetch("https://api.github.com/user", {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "User-Agent": WORKFLOW_NAME,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to resolve service account login from CURSOR_TRIGGER_PAT: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const data = await response.json();
+  const login = normalizeLogin(data.login);
+  if (!login) {
+    throw new Error("CURSOR_TRIGGER_PAT resolved without a login.");
+  }
+
+  return login;
+}
+
 function getPullNumber(context) {
   if (context.payload.pull_request?.number) {
     return context.payload.pull_request.number;
@@ -137,7 +187,7 @@ function getPullNumber(context) {
   return null;
 }
 
-async function loadLoopState({ github, owner, repo, pullNumber }) {
+async function loadLoopState({ github, owner, repo, pullNumber, trustedLogin }) {
   const comments = await github.paginate(github.rest.issues.listComments, {
     owner,
     repo,
@@ -155,6 +205,10 @@ async function loadLoopState({ github, owner, repo, pullNumber }) {
   };
 
   for (const comment of comments) {
+    if (normalizeLogin(comment.user?.login) !== trustedLogin) {
+      continue;
+    }
+
     const metadata = parseMetadata(comment.body ?? "");
     if (!metadata) {
       continue;
@@ -343,8 +397,7 @@ function isNewerStatus(candidate, current) {
 }
 
 function isCopilotActor(actor) {
-  const login = actor?.login?.toLowerCase();
-  return Boolean(login && login.includes("copilot"));
+  return COPILOT_ACTOR_LOGINS.has(normalizeLogin(actor?.login));
 }
 
 function isFailingCheckRun(run) {
@@ -458,6 +511,10 @@ function formatStatus(status) {
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeLogin(login) {
+  return String(login ?? "").trim().toLowerCase();
 }
 
 function truncateText(text, maxLength) {

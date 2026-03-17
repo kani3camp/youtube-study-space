@@ -47,6 +47,8 @@ jobs:
       - name: Collect new Copilot comments and CI failures
         id: collect
         uses: actions/github-script@v7
+        env:
+          CURSOR_TRIGGER_PAT: ${{ secrets.CURSOR_TRIGGER_PAT }}
         with:
           script: |
             const run = require('./.github/scripts/copilot-review-loop.js');
@@ -81,3 +83,6 @@ jobs:
 
     # Required secret:
     # - CURSOR_TRIGGER_PAT: PAT for the service account that posts top-level PR comments with @cursor.
+    # Security note:
+    # - The script only trusts loop metadata from comments authored by that service account.
+    # - The script also ignores PRs whose head repository differs from github.repository.
