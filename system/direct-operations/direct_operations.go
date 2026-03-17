@@ -86,7 +86,11 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	if err != nil {
 		panic(err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			panic(cerr)
+		}
+	}()
 
 	jsonEnc := json.NewEncoder(f)
 	//jsonEnc.SetIndent("", "\t")

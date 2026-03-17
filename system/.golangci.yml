@@ -7,4 +7,3 @@ linters:
       check-blank: true
       check-type-assertions: true
       exclude-functions:
-        - json.Marshal

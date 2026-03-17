@@ -118,11 +118,11 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		query.WriteDisposition = bigquery.WriteAppend // 追加
 		switch collectionName {
 		case repository.LiveChatHistory:
-			query.QueryConfig.Dst = dataset.Table(LiveChatHistoryMainTableName)
+			query.Dst = dataset.Table(LiveChatHistoryMainTableName)
 		case repository.UserActivities:
-			query.QueryConfig.Dst = dataset.Table(UserActivityHistoryMainTableName)
+			query.Dst = dataset.Table(UserActivityHistoryMainTableName)
 		case repository.OrderHistory:
-			query.QueryConfig.Dst = dataset.Table(OrderHistoryMainTableName)
+			query.Dst = dataset.Table(OrderHistoryMainTableName)
 		}
 		job, err = query.Run(ctx)
 		if err != nil {

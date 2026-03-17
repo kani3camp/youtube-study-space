@@ -677,7 +677,10 @@ func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Cont
 		return -1, errors.New("firestore: couldn't get alias for COUNT from results")
 	}
 
-	countValue := count.(*firestorepb.Value)
+	countValue, ok := count.(*firestorepb.Value)
+	if !ok {
+		return -1, fmt.Errorf("unexpected count type: %T", count)
+	}
 
 	return countValue.GetIntegerValue(), nil
 }
