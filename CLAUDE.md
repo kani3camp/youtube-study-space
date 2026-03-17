@@ -259,4 +259,3 @@ Representative chat commands:
 ### Third-Party
 - **Discord**: Notification webhooks for moderation and failures
 - **OpenAI API**: Work name trend generation
-- **FOSSA**: License compliance scanning
