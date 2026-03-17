@@ -67,19 +67,43 @@ jobs:
               repo,
               pull_number: pullNumber,
             });
-            const { data: file } = await github.rest.repos.getContent({
-              owner,
-              repo,
-              path: '.github/scripts/copilot-review-loop.js',
-              ref: pullRequest.base.sha,
-            });
+            const scriptPath = '.github/scripts/copilot-review-loop.js';
+            let file;
+            let scriptRef = pullRequest.base.sha;
+            try {
+              ({ data: file } = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path: scriptPath,
+                ref: scriptRef,
+              }));
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+
+              // Bootstrap fallback for the PR that first introduces this script.
+              scriptRef = pullRequest.head.sha;
+              core.notice(
+                `Trusted base ref ${pullRequest.base.sha} does not contain ${scriptPath}; ` +
+                  `falling back to PR head ${scriptRef} for bootstrap.`,
+              );
+              ({ data: file } = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path: scriptPath,
+                ref: scriptRef,
+              }));
+            }
             if (Array.isArray(file) || typeof file.content !== 'string') {
-              throw new Error('Failed to load copilot-review-loop.js from the trusted base ref.');
+              throw new Error(
+                `Failed to load copilot-review-loop.js from ref ${scriptRef}.`,
+              );
             }
 
             const source = Buffer.from(file.content, file.encoding || 'base64').toString('utf8');
             const Module = require('module');
-            const modulePath = `${process.cwd()}/.github/scripts/copilot-review-loop.js`;
+            const modulePath = `${process.cwd()}/${scriptPath}`;
             const loadedModule = new Module(modulePath, module);
             loadedModule.filename = modulePath;
             loadedModule.paths = Module._nodeModulePaths(process.cwd());
@@ -119,7 +143,9 @@ jobs:
     # - CURSOR_TRIGGER_LOGIN: repository variable for that service account login. This is read by the
     #   collect step so the loop can trust only metadata comments authored by the trigger account.
     # Security note:
-    # - The collect step loads .github/scripts/copilot-review-loop.js from the PR base SHA, not from the PR head.
+    # - The collect step loads .github/scripts/copilot-review-loop.js from the PR base SHA.
+    #   If that ref does not contain the script yet (for the PR that first introduces it), the step falls back
+    #   to the PR head SHA only for bootstrap. PAT is still not exposed to the collect step.
     # - The script only trusts loop metadata from comments authored by that service account.
     # - The script also ignores PRs whose head repository differs from github.repository.
     # - The job itself is limited to same-repo PR contexts, including workflow_run events linked to pull requests.
