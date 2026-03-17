@@ -52,7 +52,7 @@ jobs:
         with:
           version: v2.11.3
           working-directory: system
-          args: --config=.golangci.yml
+          args: --timeout=5m --config=.golangci.yml
 
   menu-image-generator-lint-build:
     name: Menu Image Generator Lint & Build
