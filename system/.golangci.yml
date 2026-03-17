@@ -6,4 +6,3 @@ linters:
     errcheck:
       check-blank: true
       check-type-assertions: true
-      exclude-functions:
