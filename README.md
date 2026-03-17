@@ -13,4 +13,4 @@ Despite the title "study space," various tasks other than studying (walking, yog
 
 ## License
 
-This project is released under the [BSD Zero Clause License](./LICENSE).
+Use of this project is subject to the repository's [Terms of Use](./LICENSE).
