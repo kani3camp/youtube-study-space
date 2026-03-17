@@ -243,7 +243,9 @@ async function loadLoopState({ github, owner, repo, pullNumber, trustedLogin }) 
 }
 
 function parseMetadata(body) {
-  const match = body.match(/<!--\s*copilot-review-loop:(\{[\s\S]*\})\s*-->/);
+  const match = body.match(
+    new RegExp(`<!--\\s*${escapeRegExp(COMMENT_MARKER)}:(\\{[\\s\\S]*\\})\\s*-->`),
+  );
   if (!match) {
     return null;
   }
@@ -519,6 +521,10 @@ function normalizeText(text) {
 
 function normalizeLogin(login) {
   return String(login ?? "").trim().toLowerCase();
+}
+
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function truncateText(text, maxLength) {

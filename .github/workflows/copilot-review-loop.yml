@@ -35,14 +35,22 @@ concurrency:
 jobs:
   orchestrate:
     name: Orchestrate Copilot-Cursor Loop
+    if: >
+      (github.event_name != 'workflow_run' &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0] &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout base workflow files
+      - name: Checkout orchestration files
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          ref: ${{ github.event.pull_request.base.ref || github.event.workflow_run.pull_requests[0].base.ref || github.event.repository.default_branch }}
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
 
       - name: Collect new Copilot comments and CI failures
         id: collect
@@ -76,3 +84,4 @@ jobs:
     # Security note:
     # - The script only trusts loop metadata from comments authored by that service account.
     # - The script also ignores PRs whose head repository differs from github.repository.
+    # - The job itself is limited to same-repo PR contexts, including workflow_run events linked to pull requests.
