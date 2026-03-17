@@ -1,0 +1,83 @@
+name: Copilot Review Loop
+
+on:
+  pull_request_target:
+    types:
+      - labeled
+      - synchronize
+      - reopened
+      - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
+  pull_request_review_comment:
+    types:
+      - created
+  workflow_run:
+    workflows:
+      - Check
+      - Test
+      - Test docs deployment
+    types:
+      - completed
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  checks: read
+  statuses: read
+
+concurrency:
+  group: copilot-review-loop-${{ github.repository }}-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    name: Orchestrate Copilot-Cursor Loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout base workflow files
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.base.ref || github.event.workflow_run.pull_requests[0].base.ref || github.event.repository.default_branch }}
+
+      - name: Collect new Copilot comments and CI failures
+        id: collect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = require('./.github/scripts/copilot-review-loop.js');
+            await run({ github, context, core });
+
+      - name: Validate Cursor trigger PAT
+        if: steps.collect.outputs.action == 'comment' || steps.collect.outputs.action == 'stop'
+        env:
+          CURSOR_TRIGGER_PAT: ${{ secrets.CURSOR_TRIGGER_PAT }}
+        run: |
+          if [ -z "${CURSOR_TRIGGER_PAT}" ]; then
+            echo "CURSOR_TRIGGER_PAT is required to post top-level PR comments as the service account." >&2
+            exit 1
+          fi
+
+      - name: Post PR conversation comment via service account
+        if: steps.collect.outputs.action == 'comment' || steps.collect.outputs.action == 'stop'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CURSOR_TRIGGER_PAT }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: '${{ steps.collect.outputs.owner }}',
+              repo: '${{ steps.collect.outputs.repo }}',
+              issue_number: Number('${{ steps.collect.outputs.pull_number }}'),
+              body: ${{ toJSON(steps.collect.outputs.comment_body) }},
+            });
+
+      - name: Log skipped state
+        if: steps.collect.outputs.action == 'none'
+        run: echo "No new actionable Copilot comments or CI failures for an ai-loop PR."
+
+    # Required secret:
+    # - CURSOR_TRIGGER_PAT: PAT for the service account that posts top-level PR comments with @cursor.
