@@ -890,13 +890,15 @@ func (app *WorkspaceApp) exitRoom(
 		if diffSec < 0 {
 			diffSec = -diffSec
 		}
-		if diffSec > 10 {
+		const allowedDiffSec = 10
+		if diffSec > allowedDiffSec {
 			app.MessageToOwner(ctx, fmt.Sprintf(
 				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d (userId=%s, seatId=%d)",
 				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, previousSeat.UserId, previousSeat.SeatId,
 			))
 		} else {
-			slog.DebugContext(ctx, "検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= 10",
+			slog.DebugContext(ctx,
+				fmt.Sprintf("検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= %d", allowedDiffSec),
 				"userId", previousSeat.UserId,
 				"seatId", previousSeat.SeatId,
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
