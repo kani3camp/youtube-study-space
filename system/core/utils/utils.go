@@ -152,13 +152,9 @@ func MatchEmojiCommand(text string, commandName string) bool {
 	return r.MatchString(text)
 }
 
-var emojiCommandStringRe = regexp.MustCompile(
-	EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide,
-)
-
 // MatchEmojiCommandString partial match.
 func MatchEmojiCommandString(text string) bool {
-	return emojiCommandStringRe.MatchString(text)
+	return emojiCommandRegex.MatchString(text)
 }
 
 func NameOf(i interface{}) string {

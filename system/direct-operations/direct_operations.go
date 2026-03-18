@@ -88,7 +88,7 @@ func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOp
 	}
 	defer func() {
 		if cerr := f.Close(); cerr != nil {
-			panic(cerr)
+			slog.Error("failed to close exported json file", "error", cerr)
 		}
 	}()
 
