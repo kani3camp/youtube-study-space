@@ -58,7 +58,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 
 	if app.Configs.Constants.YoutubeMembershipEnabled {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats <= 0 {
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"})
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusBadRequest,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -67,7 +67,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		}
 	} else {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats != 0 {
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"})
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusBadRequest,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -83,7 +83,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateDesiredMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
 				return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()})
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()}) //nolint:errcheck
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusOK,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -100,7 +100,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateDesiredMemberMaxSeatsでタイムアウト: %w", err)); notifyErr != nil {
 				return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
 			}
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()})
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "timeout_warning", Message: err.Error()}) //nolint:errcheck
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusOK,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -111,7 +111,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		return events.APIGatewayProxyResponse{}, err
 	}
 
-	body, _ := json.Marshal(SetMaxSeatsResponse{
+	body, _ := json.Marshal(SetMaxSeatsResponse{ //nolint:errcheck
 		Result:  lambdautils.OK,
 		Message: "",
 	})

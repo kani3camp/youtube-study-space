@@ -38,7 +38,9 @@ func Init() (option.ClientOption, context.Context, error) {
 	fmt.Printf("Project ID: %s\n", creds.ProjectID)
 	fmt.Println("Is this the correct project ID? (yes/no)")
 	var s string
-	_, _ = fmt.Scanln(&s)
+	if _, err := fmt.Scanln(&s); err != nil {
+		return nil, nil, errors.Wrap(err, "failed to read project confirmation")
+	}
 	if s != "yes" {
 		return nil, nil, errors.New("aborted")
 	}

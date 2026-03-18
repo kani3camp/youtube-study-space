@@ -144,14 +144,17 @@ func CheckEnterExitActivityOrder(activityDocs []repository.UserActivityDoc) bool
 }
 
 func MatchEmojiCommand(text string, commandName string) bool {
-	r, _ := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
+	r, err := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
+	if err != nil {
+		slog.Error("failed to compile regex in MatchEmojiCommand", "error", err, "commandName", commandName)
+		return false
+	}
 	return r.MatchString(text)
 }
 
 // MatchEmojiCommandString partial match.
 func MatchEmojiCommandString(text string) bool {
-	r, _ := regexp.Compile(EmojiCommandPrefix + `[^` + EmojiSide + `]*` + EmojiSide)
-	return r.MatchString(text)
+	return emojiCommandRegex.MatchString(text)
 }
 
 func NameOf(i interface{}) string {

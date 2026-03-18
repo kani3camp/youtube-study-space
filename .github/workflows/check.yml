@@ -13,7 +13,7 @@ jobs:
         working-directory: system
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -43,16 +43,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
           go-version-file: system/go.mod
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64
+          version: v2.11.3
           working-directory: system
-          args: --timeout=5m
+          args: --timeout=5m --config=.golangci.yml
 
   menu-image-generator-lint-build:
     name: Menu Image Generator Lint & Build
@@ -62,7 +64,7 @@ jobs:
       run:
         working-directory: tools/menu-image-generator
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -93,7 +95,7 @@ jobs:
         working-directory: youtube-monitor
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
