@@ -265,3 +265,25 @@ func TestGenerateSessionId(t *testing.T) {
 		}
 	})
 }
+
+func TestTruncateStringUTF8(t *testing.T) {
+	t.Run("negative maxBytes should not panic", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			got := TruncateStringUTF8("hello", -1)
+			assert.Equal(t, "", got)
+		})
+	})
+
+	t.Run("zero maxBytes should not panic", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			got := TruncateStringUTF8("hello", 0)
+			assert.Equal(t, "", got)
+		})
+	})
+
+	t.Run("utf8 rune boundary should not split", func(t *testing.T) {
+		// Each "あ" is 3 bytes in UTF-8. So 3 bytes should keep only the first rune.
+		s := "あいう"
+		assert.Equal(t, "あ", TruncateStringUTF8(s, 3))
+	})
+}

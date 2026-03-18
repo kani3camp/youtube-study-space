@@ -164,6 +164,9 @@ func NameOf(i interface{}) string {
 // TruncateStringUTF8 は文字列をmaxBytesバイト以内にトランケートする。
 // UTF-8のマルチバイト文字の途中で切れないよう、文字境界を考慮する。
 func TruncateStringUTF8(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
 	if len(s) <= maxBytes {
 		return s
 	}
