@@ -886,15 +886,26 @@ func (app *WorkspaceApp) exitRoom(
 				onlyWorkSegmentSec += segment.DurationSec
 			}
 		}
-		if onlyWorkSegmentSec != addedWorkedTimeSec {
-			app.MessageToOwner(ctx, fmt.Sprintf("検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d (userId=%s, seatId=%d)",
-				onlyWorkSegmentSec, addedWorkedTimeSec, previousSeat.UserId, previousSeat.SeatId))
+		diffSec := onlyWorkSegmentSec - addedWorkedTimeSec
+		if diffSec < 0 {
+			diffSec = -diffSec
+		}
+		const allowedDiffSec = 10
+		if diffSec > allowedDiffSec {
+			app.MessageToOwner(ctx, fmt.Sprintf(
+				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d, allowedDiffSec = %d (userId=%s, seatId=%d)",
+				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, allowedDiffSec, previousSeat.UserId, previousSeat.SeatId,
+			))
 		} else {
-			slog.DebugContext(ctx, "検算成功: onlyWorkSegmentSec == addedWorkedTimeSec",
+			slog.DebugContext(ctx,
+				"検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= allowedDiffSec",
+				"allowedDiffSec", allowedDiffSec,
 				"userId", previousSeat.UserId,
 				"seatId", previousSeat.SeatId,
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
-				"addedWorkedTimeSec", addedWorkedTimeSec)
+				"addedWorkedTimeSec", addedWorkedTimeSec,
+				"diffSec", diffSec,
+			)
 		}
 	}
 
