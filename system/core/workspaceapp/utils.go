@@ -893,8 +893,8 @@ func (app *WorkspaceApp) exitRoom(
 		const allowedDiffSec = 10
 		if diffSec > allowedDiffSec {
 			app.MessageToOwner(ctx, fmt.Sprintf(
-				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d (userId=%s, seatId=%d)",
-				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, previousSeat.UserId, previousSeat.SeatId,
+				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d, allowedDiffSec = %d (userId=%s, seatId=%d)",
+				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, allowedDiffSec, previousSeat.UserId, previousSeat.SeatId,
 			))
 		} else {
 			slog.DebugContext(ctx,
