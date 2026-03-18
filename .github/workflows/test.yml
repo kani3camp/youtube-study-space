@@ -20,12 +20,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: system/go.mod
-        id: go
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
 
-      - name: Get dependencies and run tests
-        run: |
-          go mod tidy
-          go test -shuffle=on -v ./...
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
 
   youtube-monitor-test:
     name: YouTube Monitor Test

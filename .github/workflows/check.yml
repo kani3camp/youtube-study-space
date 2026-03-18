@@ -19,6 +19,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
 
       - name: Download deps
         run: go mod download
@@ -49,6 +53,10 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
