@@ -31,7 +31,7 @@
 		"chroma-js": "^2.6.0",
 		"firebase": "^11.10.0",
 		"framer-motion": "^10.18.0",
-		"music-metadata": "^11.12.1",
+		"music-metadata": "^11.12.3",
 		"next": "^15.5.10",
 		"next-i18next": "^15.4.3",
 		"react": "^18.3.1",
