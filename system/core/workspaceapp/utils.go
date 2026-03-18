@@ -898,7 +898,8 @@ func (app *WorkspaceApp) exitRoom(
 			))
 		} else {
 			slog.DebugContext(ctx,
-				fmt.Sprintf("検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= %d", allowedDiffSec),
+				"検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= allowedDiffSec",
+				"allowedDiffSec", allowedDiffSec,
 				"userId", previousSeat.UserId,
 				"seatId", previousSeat.SeatId,
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
