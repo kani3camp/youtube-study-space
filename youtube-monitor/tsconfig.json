@@ -4,7 +4,7 @@
 		"noImplicitAny": true,
 		"module": "esnext",
 		"target": "es2020",
-		"jsx": "preserve",
+		"jsx": "react-jsx",
 		"jsxImportSource": "@emotion/react",
 		"lib": ["dom", "dom.iterable", "esnext"],
 		"allowJs": true,

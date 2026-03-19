@@ -7,13 +7,25 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!**/.next", "!**/node_modules", "!**/storybook-static"]
+		"includes": [
+			"**",
+			"!**/.next",
+			"!**/node_modules",
+			"!**/storybook-static",
+			"!**/next-env.d.ts"
+		]
 	},
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab"
 	},
-	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
 	"linter": {
 		"enabled": true,
 		"rules": {
