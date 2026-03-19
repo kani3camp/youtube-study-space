@@ -39,25 +39,16 @@ go generate ./...
 ## テスト用mockファイルの作成
 使用ツール：https://github.com/uber-go/mock
 
-### mockgenをインストールする
-```shell
-go install go.uber.org/mock/mockgen@latest
-```
-
-### mockgenのバージョン確認
-```shell
-mockgen --version
-```
-
 ### systemディレクトリに移動する
 ```shell
 cd system
 ```
 
 ### mockファイルを作成する
-* Repositoryの場合
+**system ディレクトリで** `go generate ./...` を実行してください（CIと同じ手順で、モック生成もここに統合しています）。
+
 ```shell
-mockgen -source=core/repository/interface.go -destination=core/repository/mocks/interface.go -package=mock_repository
+go generate ./...
 ```
 
 

@@ -519,12 +519,12 @@ func TestColorCodeToColorName(t *testing.T) {
 		expected  string
 	}{
 		{
-			name:      "White color code",
+			name:      "白の色コード",
 			colorCode: ColorHours0To5,
 			expected:  ColorName0To5,
 		},
 		{
-			name:      "Pink color code",
+			name:      "ピンクの色コード",
 			colorCode: ColorHoursFrom1000,
 			expected:  ColorNameFrom1000,
 		},

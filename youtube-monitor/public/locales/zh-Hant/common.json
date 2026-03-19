@@ -1,11 +1,12 @@
 {
-	"usage.description": "座位使用說明",
+	"usage.description": "透過聊天室參加",
 	"usage.seat.id": "座位編號",
 	"usage.seat.work_name": "工作內容",
 	"usage.seat.user_display_name": "名稱",
 	"usage.in": "進入房間",
 	"usage.out": "離開房間",
 	"usage.work": "工作內容",
+	"colorBar.title": "累計作業時間",
 	"menu.title": "選單",
 	"menu.notice": "※這是虛擬點餐功能，不會產生實際費用。",
 	"break": "休息",

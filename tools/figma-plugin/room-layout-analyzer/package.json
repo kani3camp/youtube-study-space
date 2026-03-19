@@ -1,15 +1,16 @@
 {
   "name": "room-layout-analyzer",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.4.0",
   "description": "Your Figma Plugin",
   "main": "code.js",
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc -p tsconfig.json",
-    "watch": "npm run build -- --watch"
+    "watch": "tsc -p tsconfig.json --watch"
   },
   "author": "",
-  "license": "",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@figma/plugin-typings": "^1.64.0",
     "typescript": "^5.0.4"

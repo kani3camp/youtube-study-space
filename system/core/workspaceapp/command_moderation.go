@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	i18nmsg "app.modules/core/i18n/typed"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"cloud.google.com/go/firestore"
@@ -66,6 +67,11 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+		}
+
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
 
@@ -75,7 +81,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)
 		if exitErr != nil {
 			return fmt.Errorf("%sさんのkick退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}
@@ -107,6 +113,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 }
 
 func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
+	jstNow := app.currentTime()
 	targetSeatId := checkOption.SeatId
 	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
@@ -138,8 +145,8 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 			}
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		sinceMinutes := int(utils.NoNegativeDuration(utils.JstNow().Sub(seat.EnteredAt)).Minutes())
-		untilMinutes := int(utils.NoNegativeDuration(seat.Until.Sub(utils.JstNow())).Minutes())
+		sinceMinutes := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.EnteredAt)).Minutes())
+		untilMinutes := seat.RemainingWorkMin(jstNow)
 		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
@@ -203,7 +210,12 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
+		if err != nil {
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+		}
+
+		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)
 		if exitErr != nil {
 			return fmt.Errorf("%sさんの強制退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, exitErr)
 		}

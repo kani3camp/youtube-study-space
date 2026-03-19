@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-YouTube Study Space is a 24/7 automated online study room livestreamed on YouTube. Users can join/leave virtual study sessions through YouTube live chat commands, featuring a fully automated entry/exit system with unlimited capacity. The system supports both general seats and member-exclusive seats, with comprehensive user management, work time tracking, and moderation features.
+YouTube Study Space is a 24/7 automated online study room livestreamed on YouTube. Users can join and leave virtual study sessions through YouTube live chat commands. The system supports both general seats and member-exclusive seats, tracks work time, and provides moderation and automation features.
 
 ## Development Commands
 
@@ -30,147 +30,165 @@ go run main.go
 # Run all tests with randomization
 go test -shuffle=on -v ./...
 
-# Run tests for specific package
+# Run tests for a specific package
 go test ./core/youtubebot/...
 
-# Generate mocks
-mockgen -source=core/repository/firestore_controller_interface.go -destination=core/repository/mocks/firestore_controller_interface.go -package=mock_myfirestore
+# Generate repository mocks
+mockgen -source ./core/repository/interface.go -destination ./core/repository/mocks/interface.go -package mock_repository
 
 # Update dependencies
 go mod tidy
+
+# Regenerate typed i18n wrappers
+go generate ./...
 ```
 
 ### Frontend (`youtube-monitor/`)
 ```bash
+# Install dependencies
+pnpm install
+
 # Development server
-npm run dev
+pnpm dev
 
 # Production build
-npm run build
+pnpm build
+
+# Production server
+pnpm start
 
 # Run tests
-npm run test
+pnpm test
 
 # Linting and formatting (using Biome)
-npm run lint
-npm run lint:fix
-npm run format:fix
+pnpm format
+pnpm lint
+pnpm lint:fix
+pnpm format:fix
 
 # Storybook for component development
-npm run storybook
-npm run build-storybook
+pnpm storybook
+pnpm build-storybook
 ```
 
 ### AWS Infrastructure (`aws-cdk/`)
 ```bash
-# Deploy infrastructure
-cdk deploy
+# Install dependencies
+pnpm install
 
 # Preview infrastructure changes
-cdk diff
+pnpm cdk:diff
+
+# Deploy infrastructure
+pnpm cdk:deploy
 
 # Build CDK code
-npm run build
+pnpm build
 
 # Run CDK tests
-npm run test
+pnpm test
 ```
 
 ### Documentation Site (`docs-site/`)
 ```bash
+# Install dependencies
+pnpm install
+
 # Local development server
-npm start
+pnpm start
 
 # Build static site
-npm run build
+pnpm build
 
 # Formatting and linting
-npm run format
-npm run lint
+pnpm format
+pnpm lint
 ```
+
+- `youtube-monitor/`, `aws-cdk/`, and `docs-site/` use `pnpm` (`packageManager: pnpm@10.4.0`).
+- Do not use `npm` or `yarn` for these directories unless explicitly required.
 
 ## Architecture
 
 ### High-Level Structure
-- **`system/`** - Go backend with core business logic, YouTube bot, and Lambda functions
+- **`system/`** - Go backend, scheduled jobs, and AWS Lambda entrypoints
 - **`youtube-monitor/`** - Next.js frontend for the study room interface
-- **`aws-cdk/`** - Infrastructure as Code for AWS resources
+- **`aws-cdk/`** - AWS infrastructure as code
 - **`docs-site/`** - Docusaurus documentation site with i18n support
-- **`firebase/`** - Firestore database configuration
+- **`firebase/`** - Firestore configuration
 
 ### Core Architecture Patterns
 
-**Event-Driven Serverless**: The system uses AWS Lambda functions triggered by EventBridge for scheduled tasks:
-- **1-minute interval**: `youtube_organize_database` + `check_live_stream_status`
-- **Daily at midnight JST**: `daily_organize_database`
-- **Daily at 1 AM JST**: `transfer_collection_history_bigquery`
+**Event-Driven Serverless**:
+- **Every 1 minute**: `youtube_organize_database` + `check_live_stream_status`
+- **Every 15 minutes**: `update_work_name_trend`
+- **Daily at 00:00 JST**: EventBridge Scheduler starts `start_daily_batch`, which launches the Step Functions and Fargate daily batch flow
 
 **Multi-Database Strategy**:
-- **Firestore**: Real-time user sessions, room state, chat history
-- **DynamoDB**: Configuration secrets for AWS Lambda functions
-- **BigQuery**: Historical analytics and data warehousing
+- **Firestore**: Real-time user sessions, room state, chat history, configuration
+- **DynamoDB**: Configuration and secret lookup for Lambda-side operations
+- **BigQuery**: Historical analytics and archival processing
+- **Cloud Storage**: Transfer source for BigQuery import jobs
 
 **Command Processing Flow**:
 1. YouTube Live Chat API retrieves messages
 2. Commands are parsed and validated
-3. Firestore transactions ensure data consistency
-4. Responses are sent back to YouTube Live Chat
-5. Discord notifications for moderation events
+3. `workspaceapp` processes seat, break, user, and moderation behavior
+4. Firestore transactions persist state changes
+5. Replies and notifications are posted to YouTube Live Chat and Discord when needed
 
 ### Key Components
 
 **Backend (`system/core/`)**:
-- `system.go` - Main command processing and seat management logic
+- `workspaceapp/` - Main application layer for command handling, presenters, validation, and batch jobs
 - `youtubebot/` - YouTube Live Chat API integration
-- `repository/` - Data access layer with Firestore controllers
-- `guardians/` - Security and anti-spam systems
-- `moderatorbot/` - Moderation features (kick, block, etc.)
-- `mybigquery/` - Analytics data pipeline
-- `i18n/` - Multi-language support (EN, JA, KO)
+- `repository/` - Firestore data access layer
+- `guardians/` - Live stream monitoring and guard logic
+- `moderatorbot/` - Moderation and Discord notification integrations
+- `mybigquery/` - BigQuery transfer logic
+- `i18n/` - Locales and typed translation wrappers
+
+**Backend Entrypoints (`system/`)**:
+- `main.go` - Local live chat bot runner
+- `cmd/batch/` - Daily batch executable for Fargate
+- `aws-lambda/` - Lambda handlers such as `youtube_organize_database`, `check_live_stream_status`, `start_daily_batch`, `set_desired_max_seats`, and `update_work_name_trend`
 
 **Frontend Architecture**:
-- **Next.js** with TypeScript for type safety
+- **Next.js** with TypeScript
 - **Redux Toolkit** for state management
 - **Emotion** for CSS-in-JS styling
 - **SWR** for data fetching
 - **Framer Motion** for animations
-- **React H5 Audio Player** with music metadata parsing
-
-**Batch Processing System**: See the detailed batch design documentation in Notion for:
-- OrganizeDB (1-minute interval): User state management, auto-exit, break resumption
-- DailyOrganizeDB: Daily stats reset and RP processing coordination
-- Parallel RP Processing: Scalable user ranking point calculations
-- BigQuery Transfer: Historical data archival from Firestore
+- **next-i18next** for localization
 
 ## Data Models
 
 ### Core Entities
-- **SeatDoc**: Seat information (user ID, entry time, work content, etc.)
-- **UserDoc**: User profiles (total study time, achievements, etc.)
-- **ConstantsConfigDoc**: System constants (max seats, polling intervals)
-- **CredentialsConfigDoc**: Authentication credentials
+- **SeatDoc**: Seat information such as user ID, entry time, and work content
+- **UserDoc**: User profiles and accumulated activity
+- **ConstantsConfigDoc**: Runtime constants such as seat counts and polling settings
+- **CredentialsConfigDoc**: Authentication and configuration references
 
 ### State Management
-- Firestore transactions ensure atomicity for seat assignments
+- Firestore transactions ensure atomicity for seat assignment and updates
 - User sessions persist across reconnections
-- Real-time updates via Firestore listeners in frontend
+- Frontend consumes real-time data via Firebase and SWR-based flows
 
 ## Testing Strategy
 
 ### Go Backend
-- Standard Go testing with `testify` assertions
+- Standard Go testing with `testify`
 - Mock generation using `go.uber.org/mock`
-- Integration tests with Firestore emulator
-- Test coverage for critical business logic
+- Package-level tests around command parsing, repository behavior, and workspace flows
 
 ### Frontend
 - **Jest** with **React Testing Library**
 - **ts-jest** for TypeScript support
 - **jsdom** environment for DOM testing
-- Component testing with **Storybook**
+- Component development and verification with **Storybook**
 
 ### Infrastructure
-- CDK unit tests for infrastructure validation
+- CDK unit tests for schedule and infrastructure invariants
 - GitHub Actions CI/CD pipeline
 
 ## Code Guidelines
@@ -182,57 +200,62 @@ npm run lint
 - **Transaction safety**: Use Firestore transactions for data consistency
 
 ### Command System
-The system recognizes these chat commands:
+Representative chat commands:
 - `!in` - General seat entry
-- `/in` - Member seat entry  
+- `/in` - Member seat entry
 - `!out` - Exit seat
-- `!break`/`!rest`/`!chill` - Start break
+- `!break` / `!rest` / `!chill` - Start break
 - `!resume` - End break
-- `!my` - Show personal stats
+- `!my` - Show personal stats or update personal settings
 - `!rank` - Display rankings
-- `!more`/`!okawari` - Extend work time
-- Moderation: `!kick`, `!block` (moderator only)
+- `!more` / `!okawari` - Extend work time
+- Moderation: `!kick`, `!block`
 
 ### Internationalization
-- Support for English, Japanese, Korean
-- Message templates in `core/i18n/`
+- Support for English, Japanese, and Korean locale files
+- Message templates live under `system/core/i18n/`
+- Typed wrappers are generated from locale metadata with `go generate ./...`
 - Frontend uses `next-i18next`
 
 ## Development Environment
 
 ### Required Setup
-1. Go 1.23+ for backend development
-2. Node.js 18+ for frontend and infrastructure
-3. Google Cloud credentials for Firestore/BigQuery access
-4. AWS credentials for Lambda deployment
+1. Go 1.24.0+ for backend development
+2. Node.js 18+ and `pnpm` for frontend and TypeScript-based subprojects
+3. Google Cloud credentials for Firestore, Cloud Storage, and BigQuery access
+4. AWS credentials for Lambda, Step Functions, Scheduler, and CDK operations
 5. YouTube Data API credentials
 
 ### Local Development
-- The `system/main.go` runs the live chat bot locally
-- Frontend runs on port 18080 (`npm start`)
-- Storybook runs on port 6006
+- `system/main.go` runs the live chat bot locally
+- Install frontend dependencies with `pnpm install` in `youtube-monitor/`
+- Start the frontend dev server with `pnpm dev` in `youtube-monitor/`
+- Start the frontend production server with `pnpm start` in `youtube-monitor/` on port `18080`
+- Storybook runs on port `6006`
 - Use `.env` files for local configuration
 
 ### Deployment
-- AWS Lambda functions are containerized and deployed via CDK
-- Frontend can be deployed as static site or Next.js app
-- Documentation site deploys to GitHub Pages
-- Infrastructure changes require CDK deployment
+- AWS Lambda functions are containerized with `system/Dockerfile.lambda`
+- Daily batch jobs run on ECS Fargate via `system/Dockerfile.fargate`
+- Daily orchestration is driven by EventBridge Scheduler and Step Functions
+- Infrastructure changes are managed through `aws-cdk/`
 
 ## External Integrations
 
 ### Google Services
 - **YouTube Data API v3**: Live chat message retrieval and posting
-- **Firestore**: Primary database for real-time data
-- **BigQuery**: Analytics and historical data storage
-- **Cloud Storage**: File storage for exports and backups
+- **Firestore**: Primary real-time datastore
+- **BigQuery**: Analytics and history transfer target
+- **Cloud Storage**: Export and transfer staging
 
 ### AWS Services
-- **Lambda**: Serverless compute for batch operations
-- **EventBridge**: Scheduled triggers for automation
+- **Lambda**: Scheduled and on-demand compute
+- **EventBridge / EventBridge Scheduler**: Periodic execution and daily scheduling
+- **Step Functions**: Daily batch orchestration
+- **ECS Fargate**: Daily batch runtime
 - **DynamoDB**: Configuration storage for Lambda functions
-- **API Gateway**: REST API with authentication
+- **API Gateway**: Authenticated REST API
 
 ### Third-Party
-- **Discord**: Notification webhooks for moderation events
-- **FOSSA**: License compliance scanning
+- **Discord**: Notification webhooks for moderation and failures
+- **OpenAI API**: Work name trend generation

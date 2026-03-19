@@ -102,6 +102,9 @@ fabric.properties
 
 .mcp.json
 
+# Cursor
+.cursor/
+
 # JetBrains plugin / 個人環境の設定は全部無視
 .idea/cfnlintPlugin.xml
 .idea/discord.xml
@@ -109,3 +112,7 @@ fabric.properties
 .idea/sqldialects.xml
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/copilot.data.migration.agent.xml
+.idea/copilot.data.migration.ask.xml
+.idea/copilot.data.migration.ask2agent.xml
+.idea/copilot.data.migration.edit.xml
+.idea/go.imports.xml

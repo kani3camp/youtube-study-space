@@ -25,29 +25,42 @@ if (!validateString(process.env.NEXT_PUBLIC_ROOM_CONFIG)) {
 }
 export const ROOM_CONFIG = process.env.NEXT_PUBLIC_ROOM_CONFIG
 
+export const sidebarCardVerticalInsetPx = 16
+export const sidebarCardHorizontalInsetPx = 40
+
 export const Constants = {
 	screenWidth: 1920,
 	screenHeight: 1080,
 	sideBarWidth: 400,
 	tickerWidth: 600,
 	messageBarHeight: 80,
-	clockHeight: 160,
-	usageHeight: 315,
+	clockHeight: 105,
+	usageHeight: 200,
+	colorBarHeight: 100,
 	menuHeight: 310,
-	timerHeight: 210,
+	timerHeight: 260,
+	seatBackgroundColor: '#F4EFE7',
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
 	chimeVolume: 0.7,
 	chimeSingleFilePath: '/chime/chime1.mp3',
 	chimeDoubleFilePath: '/chime/chime2.mp3',
 	pagingIntervalSeconds: 8,
-	emptySeatColor: '#F3E8DC',
+	timerProgressStudyColor: '#e03c00',
+	timerProgressBreakColor: '#008c36',
 	primaryTextColor: '#3a1e86',
 	secondaryTextColor: '#f1e8f2',
-	memberSeatWorkNameWidthPercent: 60,
-	memberBigIconSize: 57.598,
-	memberSmallIconSize: 38.391,
+	memberBigIconSize: 44,
+	memberSmallIconSize: 26,
 	menuIconSize: 45,
 }
+
+export const sidebarBgmHeight =
+	Constants.screenHeight -
+	Constants.clockHeight -
+	Constants.usageHeight -
+	Constants.menuHeight -
+	Constants.timerHeight -
+	Constants.colorBarHeight
 
 export const debug = false

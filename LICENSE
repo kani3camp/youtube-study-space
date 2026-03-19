@@ -1,21 +1,27 @@
-MIT License
+# Terms of Use
 
-Copyright (c) 2021 sorarideblog
+By using, copying, modifying, or contributing to the original source code and original content authored for this repository by **kani3camp** (the "Software"), you agree to be bound by the following terms.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+For the avoidance of doubt, the term "Software" does **not** include any third-party software, dependencies, libraries, frameworks, tools, or other materials that may be referenced by, required by, or used with this repository (including, without limitation, packages identified in `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `go.mod`, or `go.sum`). Such third-party components remain subject to their own respective license terms.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+### 1. Copyright
+The copyright and other intellectual property rights in the Software belong to the original author, **kani3camp**.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+### 2. Permissions
+* You may view the source code of the Software.
+* You may download, run, and use the Software for personal, educational, or testing purposes within your local environment.
+* You are encouraged to contribute to the Software by submitting Pull Requests or Issues to this repository.
+
+### 3. Prohibitions and Restrictions
+* **No Derivative Projects:** You are strictly prohibited from publishing, distributing, or selling the Software (including modified versions) as a separate project or under a different name/repository.
+* **No Redistribution as a Standalone Project:** You may not redistribute the source code or binaries of the Software to third parties as a separate product or as part of another project without the prior written consent of the author. (This does not prohibit sharing a link to this repository or making a private backup copy for personal use.)
+* **Note on Forks:** Use of GitHub's "Fork" feature for purposes such as review, testing, or contributing back to this repository is permitted. However, you may not use a forked copy of the Software to publish, distribute, maintain, or promote the Software (including modified versions) as a separate project, substitute, or competing version under a different name, repository, or branding, without the prior written consent of the author.
+
+### 4. Contributions
+By submitting a Pull Request or any contribution to this repository, you grant **kani3camp** a non-exclusive, irrevocable, perpetual, worldwide, royalty-free, and sublicensable license to use, modify, and distribute your contribution as part of this project.
+
+### 5. Disclaimer
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### 6. Governing Law
+These terms shall be governed by and construed in accordance with the laws of Japan.

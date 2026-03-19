@@ -88,10 +88,14 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 				)
 
 				if streamStatus != "active" && streamStatus != "ready" {
-					_ = checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus)
+					if err := checker.alertOwnerBot.SendMessage(ctx, "stream status is now : "+streamStatus); err != nil {
+						slog.ErrorContext(ctx, "failed to send alert message", "error", err)
+					}
 				}
 				if healthStatus != "good" && healthStatus != "ok" {
-					_ = checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus)
+					if err := checker.alertOwnerBot.SendMessage(ctx, "stream HEALTH status is now : "+healthStatus); err != nil {
+						slog.ErrorContext(ctx, "failed to send alert message", "error", err)
+					}
 				}
 
 				break

@@ -1,11 +1,12 @@
 {
-	"usage.description": "좌석 사용법",
+	"usage.description": "채팅으로 참여",
 	"usage.seat.id": "좌석 No.",
 	"usage.seat.work_name": "작업 내용",
 	"usage.seat.user_display_name": "이름",
 	"usage.in": "입실하기",
 	"usage.out": "퇴실하기",
 	"usage.work": "작업 내용",
+	"colorBar.title": "누적 작업 시간",
 	"menu.title": "메뉴",
 	"menu.notice": "※이것은 가상 주문 기능이며, 요금 청구는 발생하지 않습니다.",
 	"break": "휴식",

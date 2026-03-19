@@ -1,17 +1,123 @@
-// import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as AwsCdk from '../lib/aws-cdk-stack';
+import * as cdk from 'aws-cdk-lib'
+import { Match, Template } from 'aws-cdk-lib/assertions'
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/aws-cdk-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new AwsCdk.AwsCdkStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
+import { AwsCdkStack } from '../lib/aws-cdk-stack'
 
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
-});
+const createTemplate = () => {
+	const app = new cdk.App()
+	const stack = new AwsCdkStack(app, 'TestStack')
+
+	return Template.fromStack(stack)
+}
+
+describe('AwsCdkStack', () => {
+	const template = createTemplate()
+	const allResources = template.toJSON().Resources as Record<
+		string,
+		{
+			Type: string
+			Properties?: {
+				RetentionInDays?: number
+			}
+		}
+	>
+
+	test('keeps the daily batch schedule invariant', () => {
+		template.hasResourceProperties('AWS::Scheduler::Schedule', {
+			Name: 'daily-batch-00-00-jst',
+			ScheduleExpression: 'cron(0 15 * * ? *)',
+			State: 'ENABLED',
+			FlexibleTimeWindow: {
+				Mode: 'OFF',
+			},
+			Target: {
+				RetryPolicy: {
+					MaximumRetryAttempts: 0,
+				},
+			},
+		})
+	})
+
+	test('disables retry for all 1 minute rule targets', () => {
+		const resources = template.toJSON().Resources as Record<
+			string,
+			{
+				Type: string
+				Properties?: {
+					ScheduleExpression?: string
+					Targets?: Array<{
+						RetryPolicy?: {
+							MaximumRetryAttempts?: number
+						}
+					}>
+				}
+			}
+		>
+		const oneMinuteRules = Object.values(resources).filter(
+			(resource) =>
+				resource.Type === 'AWS::Events::Rule' &&
+				resource.Properties?.ScheduleExpression === 'rate(1 minute)',
+		)
+		expect(oneMinuteRules).toHaveLength(1)
+		const [oneMinuteRule] = oneMinuteRules
+		const targets = oneMinuteRule?.Properties?.Targets
+
+		expect(oneMinuteRule).toBeDefined()
+		expect(targets).toBeDefined()
+		expect(targets).toHaveLength(2)
+		for (const target of targets ?? []) {
+			expect(target.RetryPolicy).toEqual({
+				MaximumRetryAttempts: 0,
+			})
+		}
+	})
+
+	test('keeps API Gateway protected by an API key', () => {
+		template.hasResourceProperties('AWS::ApiGateway::Method', {
+			HttpMethod: 'POST',
+			ApiKeyRequired: true,
+			Integration: {
+				Type: 'AWS_PROXY',
+			},
+		})
+		template.hasOutput('ApiEndpointUrl', {})
+	})
+
+	test('keeps the Fargate task definition runtime invariant', () => {
+		template.hasResourceProperties('AWS::ECS::TaskDefinition', {
+			Cpu: '256',
+			Memory: '512',
+			RuntimePlatform: {
+				CpuArchitecture: 'ARM64',
+				OperatingSystemFamily: 'LINUX',
+			},
+		})
+	})
+
+	test('exposes the required batch outputs', () => {
+		template.hasOutput('BatchClusterArn', {})
+		template.hasOutput('DailyBatchTaskDefinitionArn', {})
+		template.hasOutput('BatchSecurityGroupId', {})
+		template.hasOutput('BatchVpcId', {})
+		template.hasOutput('DailyBatchStateMachineArn', {})
+		template.hasOutput(
+			'BatchPublicSubnetIds',
+			Match.objectLike({
+				Export: {
+					Name: 'BatchPublicSubnetIds',
+				},
+			}),
+		)
+	})
+
+	test('keeps all CloudWatch log groups at infinite retention', () => {
+		const logGroups = Object.values(allResources).filter(
+			(resource) => resource.Type === 'AWS::Logs::LogGroup',
+		)
+
+		expect(logGroups.length).toBeGreaterThan(0)
+		for (const logGroup of logGroups) {
+			expect(logGroup.Properties?.RetentionInDays).toBeUndefined()
+		}
+	})
+})

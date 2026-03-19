@@ -3,30 +3,47 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
+	coreutils "app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/logging"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
 func init() {
-	lambdautils.InitLogger()
+	logging.InitLogger()
 }
 
-func handler(evt events.SNSEvent) error {
-	ctx := context.Background()
+const (
+	maxDiscordMessageBytes = 1800
+	truncatedSuffix        = "... (truncated)"
+	notifyPrefix           = "[SNS] "
+)
+
+func handler(ctx context.Context, evt events.SNSEvent) error {
+	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
+	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	defer cancel()
 
 	clientOption, err := lambdautils.FirestoreClientOption()
 	if err != nil {
 		slog.Error("failed to get Firestore client option", "err", err)
 		return err
 	}
-	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
+
+	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			// NOTE: このLambdaは通知Lambda自体なので、タイムアウト時はログに出力するのみ（自分自身への通知は循環になる）
+			slog.Error("timeout warning in sns_notify_discord during initialization", "err", err)
+			return nil
+		}
 		slog.Error("failed to init WorkspaceApp", "err", err)
 		return err
 	}
@@ -51,18 +68,35 @@ func handler(evt events.SNSEvent) error {
 		}
 
 		// Log full message before truncation for console inspection
-		slog.InfoContext(ctx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
+		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
-		if len(message) > 1800 {
-			message = message[:1800] + "... (truncated)"
-		}
-
-		notify := fmt.Sprintf("[SNS] %s\n%s", subject, message)
-		app.MessageToOwner(ctx, notify)
+		notify := buildDiscordNotification(subject, message)
+		app.MessageToOwner(gracefulCtx, notify)
 	}
+
+	// 処理完了後にコンテキストがキャンセルされていたらログ出力
+	if errors.Is(gracefulCtx.Err(), context.DeadlineExceeded) {
+		slog.Error("timeout warning in sns_notify_discord after processing", "processed_records", len(evt.Records))
+	}
+
 	return nil
 }
 
 func main() {
 	lambda.Start(handler)
+}
+
+func buildDiscordNotification(subject string, message string) string {
+	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
+	if len(notify) <= maxDiscordMessageBytes {
+		return notify
+	}
+
+	availableMessageBytes := maxDiscordMessageBytes - len(notifyPrefix) - len(subject) - 1
+	if availableMessageBytes <= len(truncatedSuffix) {
+		return coreutils.TruncateStringUTF8(notify, maxDiscordMessageBytes)
+	}
+
+	truncatedMessage := coreutils.TruncateStringUTF8(message, availableMessageBytes-len(truncatedSuffix)) + truncatedSuffix
+	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }

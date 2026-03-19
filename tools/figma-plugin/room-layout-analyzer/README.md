@@ -5,11 +5,11 @@
 
 ## 使い方
 ```shell
-npm i
+pnpm install
 ```
 
 ```shell
-npm run dev
+pnpm dev
 ```
 
 Figmaデスクトップアプリを開く。

@@ -11,6 +11,7 @@ import (
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
@@ -40,6 +41,8 @@ type WorkspaceApp struct {
 	notificationRegexesForChannelName []string
 
 	SortedMenuItems []repository.MenuDoc // メニューコードで昇順ソートして格納
+
+	nowFunc func() time.Time // テストの時刻注入用
 }
 
 // Configs WorkspaceApp生成時に初期化すべきフィールド値
@@ -54,18 +57,21 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		return nil, fmt.Errorf("in LoadLocaleFolderFS(): %w", err)
 	}
 
+	slog.InfoContext(ctx, "initializing firestore client...")
 	firestoreController, err := repository.NewFirestoreController(ctx, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in NewFirestoreController(): %w", err)
 	}
 
 	// credentials
+	slog.InfoContext(ctx, "reading credentials config...")
 	credentialsDoc, err := firestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadCredentialsConfig(): %w", err)
 	}
 
 	// YouTube live chatbot
+	slog.InfoContext(ctx, "initializing youtube live chat bot...")
 	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatId, firestoreController, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
@@ -88,6 +94,7 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 	}
 
 	// core constant values
+	slog.InfoContext(ctx, "reading system constants config...")
 	constantsConfig, err := firestoreController.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadSystemConstantsConfig(): %w", err)
@@ -125,19 +132,23 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		}
 	}
 
+	slog.InfoContext(ctx, "initializing spreadsheet reader...")
 	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, configs.Constants.BotConfigSpreadsheetId, "01", "02")
 	if err != nil {
 		return nil, fmt.Errorf("in NewSpreadsheetReader(): %w", err)
 	}
-	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes()
+	slog.InfoContext(ctx, "reading block regexes...")
+	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadBlockRegexes(): %w", err)
 	}
-	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes()
+	slog.InfoContext(ctx, "reading notification regexes...")
+	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadNotificationRegexes(): %w", err)
 	}
 
+	slog.InfoContext(ctx, "reading menu docs...")
 	sortedMenuItems, err := firestoreController.ReadAllMenuDocsOrderByCode(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in ReadAllMenuDocsOrderByCode(): %w", err)
@@ -156,7 +167,15 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		notificationRegexesForChatMessage: notificationRegexesForChatMessage,
 		notificationRegexesForChannelName: notificationRegexesForChannelName,
 		SortedMenuItems:                   sortedMenuItems,
+		nowFunc:                           nil,
 	}, nil
+}
+
+func (app *WorkspaceApp) currentTime() time.Time {
+	if app.nowFunc != nil {
+		return app.nowFunc()
+	}
+	return timeutil.JstNow()
 }
 
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
@@ -191,7 +210,7 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 
 	for {
 		slog.Info("checking long time sitting.")
-		start := utils.JstNow()
+		start := app.currentTime()
 
 		{
 			if err := app.CheckLongTimeSitting(ctx, true); err != nil {
@@ -204,10 +223,10 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 			}
 		}
 
-		end := utils.JstNow()
+		end := app.currentTime()
 		duration := end.Sub(start)
 		if duration < minimumInterval {
-			time.Sleep(utils.NoNegativeDuration(minimumInterval - duration))
+			time.Sleep(timeutil.NoNegativeDuration(minimumInterval - duration))
 		}
 	}
 }
@@ -227,7 +246,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.blockRegexesForChannelName, channelName)
 	if err != nil {
@@ -242,7 +261,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 
 	// 通知対象チェック
@@ -256,7 +275,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	found, index, err = utils.ContainsRegexWithIndex(app.notificationRegexesForChannelName, channelName)
 	if err != nil {
@@ -268,7 +287,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userId+
 			"\nチャット内容: `"+message+"`"+
-			"\n日時: "+utils.JstNow().String())
+			"\n日時: "+app.currentTime().String())
 	}
 	return false, nil
 }

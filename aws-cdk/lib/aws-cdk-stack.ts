@@ -109,7 +109,7 @@ export class AwsCdkStack extends cdk.Stack {
 		const cluster = new ecs.Cluster(this, 'BatchCluster', { vpc })
 
 		const batchLogGroup = new logs.LogGroup(this, 'BatchLogGroup', {
-			retention: logs.RetentionDays.ONE_MONTH,
+			retention: logs.RetentionDays.INFINITE,
 		})
 
 		const batchImageAsset = new ecr_assets.DockerImageAsset(
@@ -363,7 +363,7 @@ export class AwsCdkStack extends cdk.Stack {
 				tracingEnabled: false,
 				logs: {
 					destination: new logs.LogGroup(this, 'DailyBatchSfnLogs', {
-						retention: logs.RetentionDays.ONE_MONTH,
+						retention: logs.RetentionDays.INFINITE,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
@@ -420,7 +420,7 @@ export class AwsCdkStack extends cdk.Stack {
 				tracingEnabled: false,
 				logs: {
 					destination: new logs.LogGroup(this, 'ManualResetDailyTotalSfnLogs', {
-						retention: logs.RetentionDays.ONE_MONTH,
+						retention: logs.RetentionDays.INFINITE,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
@@ -462,7 +462,7 @@ export class AwsCdkStack extends cdk.Stack {
 				tracingEnabled: false,
 				logs: {
 					destination: new logs.LogGroup(this, 'ManualUpdateRpSfnLogs', {
-						retention: logs.RetentionDays.ONE_MONTH,
+						retention: logs.RetentionDays.INFINITE,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
@@ -504,7 +504,7 @@ export class AwsCdkStack extends cdk.Stack {
 				tracingEnabled: false,
 				logs: {
 					destination: new logs.LogGroup(this, 'ManualTransferBqSfnLogs', {
-						retention: logs.RetentionDays.ONE_MONTH,
+						retention: logs.RetentionDays.INFINITE,
 					}),
 					level: sfn.LogLevel.ERROR,
 				},
@@ -542,17 +542,24 @@ export class AwsCdkStack extends cdk.Stack {
 		startDailyBatchFunction.grantInvoke(schedulerRole)
 		dailyBatchStateMachine.grantStartExecution(startDailyBatchFunction)
 
-		new scheduler.CfnSchedule(this, 'DailyBatchScheduler', {
-			flexibleTimeWindow: { mode: 'OFF' },
-			scheduleExpression: 'cron(0 15 * * ? *)',
-			target: {
-				arn: startDailyBatchFunction.functionArn,
-				roleArn: schedulerRole.roleArn,
+		new scheduler.CfnSchedule(
+			this,
+			'DailyBatchScheduler',
+			{
+				flexibleTimeWindow: { mode: 'OFF' },
+				scheduleExpression: 'cron(0 15 * * ? *)',
+				target: {
+					arn: startDailyBatchFunction.functionArn,
+					roleArn: schedulerRole.roleArn,
+					retryPolicy: {
+						maximumRetryAttempts: 0,
+					},
+				},
+				name: 'daily-batch-00-00-jst',
+				description: 'Start daily batch SFN with idempotent name',
+				state: 'ENABLED',
 			},
-			name: 'daily-batch-00-00-jst',
-			description: 'Start daily batch SFN with idempotent name',
-			state: 'ENABLED',
-		})
+		)
 
 		// Lambda function
 		const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(
@@ -743,8 +750,12 @@ export class AwsCdkStack extends cdk.Stack {
 		new events.Rule(this, '1minute', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
 			targets: [
-				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction),
-				new targets.LambdaFunction(checkLiveStreamStatusFunction),
+				new targets.LambdaFunction(youtubeOrganizeDatabaseFunction, {
+					retryAttempts: 0,
+				}),
+				new targets.LambdaFunction(checkLiveStreamStatusFunction, {
+					retryAttempts: 0,
+				}),
 			],
 		})
 

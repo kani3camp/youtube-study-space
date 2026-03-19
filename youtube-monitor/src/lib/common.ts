@@ -10,6 +10,7 @@ export const useInterval = (
 		callbackRef.current = callback
 	}, [callback])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: interval is set once on mount; changing intervalMilliSec later is not intended
 	useEffect(() => {
 		const tick = () => {
 			callbackRef.current()
@@ -45,16 +46,21 @@ const mPlusRounded1c = M_PLUS_Rounded_1c({
 	subsets: ['latin'],
 	weight: ['100', '300', '400', '500', '700', '800', '900'],
 	display: 'swap',
+	adjustFontFallback: false,
 })
 const fontFamilyString = mPlusRounded1c.style.fontFamily
 export const fontFamily = fontFamilyString.includes(' ')
 	? `'${fontFamilyString}'`
 	: fontFamilyString
+/** Next.js 15ではフォントを有効にするため、ルート要素にこの className を付与する必要がある */
+export const fontClassName = mPlusRounded1c.className
 
 const sourceCodePro = Source_Code_Pro({
 	subsets: ['latin'],
 	weight: ['200', '300', '400', '500', '600', '700', '800', '900'],
 	display: 'swap',
+	adjustFontFallback: false,
 })
 const sourceCodeProFontFamilyString = sourceCodePro.style.fontFamily
 export const sourceCodeProFontFamily = sourceCodeProFontFamilyString
+export const sourceCodeProClassName = sourceCodePro.className

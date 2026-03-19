@@ -8,13 +8,16 @@ import (
 	"strconv"
 
 	"app.modules/aws-lambda/lambdautils"
-	"app.modules/core/utils"
+	"app.modules/core/timeutil"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/logging"
 
 	"google.golang.org/api/option"
 )
 
 func main() {
+	logging.InitLogger()
+
 	ctx := context.Background()
 
 	clientOption, err := lambdautils.FirestoreClientOption()
@@ -91,7 +94,7 @@ func doUpdateRP(ctx context.Context, app *workspaceapp.WorkspaceApp) error {
 	if err != nil {
 		return fmt.Errorf("GetUserIdsToProcessRP: %w", err)
 	}
-	jstNow := utils.JstNow()
+	jstNow := timeutil.JstNow()
 
 	var success, failed int
 	for _, uid := range userIds {

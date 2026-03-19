@@ -12,7 +12,9 @@ import (
 
 	"google.golang.org/api/iterator"
 
+	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 
@@ -46,7 +48,7 @@ func TestEnterRoom(t *testing.T) {
 		ColorGradientEnabled: true,
 	}
 	expectedUntilExitMin := 30
-	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, utils.JapanLocation())
+	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, timeutil.JapanLocation())
 	expectedUntil := enteredAt.Add(time.Duration(expectedUntilExitMin) * time.Minute)
 
 	ctx := context.Background()
@@ -56,7 +58,8 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(clientErr)
 	}
 	app := WorkspaceApp{
-		Repository: &repository.FirestoreControllerImplements{firestoreClient: client},
+		Repository:    &repository.FirestoreControllerImplements{firestoreClient: client},
+		alertOwnerBot: moderatorbot.DummyMessageBot{},
 	}
 	t.Cleanup(func() {
 		app.CloseFirestoreClient()

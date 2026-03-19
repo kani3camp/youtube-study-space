@@ -1,20 +1,18 @@
 import { ROOM_CONFIG } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
+import { CafeRainyRoom } from './layouts/cafe-rainy-room'
+import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
-import { Freepik1Room } from './layouts/freepik1-room'
-import { Freepik2Room } from './layouts/freepik2-room'
 import { Freepik3Room } from './layouts/freepik3-room'
-import { Freepik4Room } from './layouts/freepik4-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
+import { Freepik8Room } from './layouts/freepik8-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
-import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
-import { OtomeGameCafeRoom1 } from './layouts/otome-game-cafe-room-1'
-import { OtomeGameCafeRoom2 } from './layouts/otome-game-cafe-room-2'
-import { SeaOfSeatRoom } from './layouts/sea-of-seat-room'
+import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
+import { ResortSeaRoom } from './layouts/resort-sea-room'
 
 type AllRoomsConfig = {
 	generalBasicRooms: RoomLayout[]
@@ -24,43 +22,36 @@ type AllRoomsConfig = {
 }
 
 const prodAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [Chabio2Room, Freepik7Room, Freepik1Room, Freepik4Room],
+	generalBasicRooms: [
+		Chabio2Room,
+		CampRoom,
+		CafeRainyRoom,
+		Anonymous1Room,
+		Freepik8Room,
+	],
 	generalTemporaryRooms: [
+		CampRoom,
 		Chabio1Room,
 		Freepik3Room,
-		Freepik2Room,
-		Chabio2Room,
+		CafeRainyRoom,
 		Freepik5Room,
+		Freepik8Room,
+		Freepik7Room,
 	],
-	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, MemberIllustratedRoom1],
+	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, ResortSeaRoom],
 	memberTemporaryRooms: [
+		MemberIllustratedRoomSpring,
 		MemberBoxRooms2,
 		MemberBoxRooms3,
-		MemberIllustratedRoom1,
+		ResortSeaRoom,
 	],
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [Chabio2Room, Freepik7Room],
-	generalTemporaryRooms: [SeaOfSeatRoom],
-	memberBasicRooms: [],
-	memberTemporaryRooms: [],
-}
-
-const otomeGameCafeRooms: AllRoomsConfig = {
-	generalBasicRooms: [OtomeGameCafeRoom1, OtomeGameCafeRoom2],
-	generalTemporaryRooms: [
-		Anonymous1Room,
-		Chabio1Room,
-		Freepik1Room,
-		Freepik4Room,
-		Freepik3Room,
-		Freepik2Room,
-		Chabio2Room,
-		Freepik5Room,
-	],
-	memberBasicRooms: [],
-	memberTemporaryRooms: [],
+	generalBasicRooms: [CampRoom, Freepik8Room],
+	generalTemporaryRooms: [CafeRainyRoom, CampRoom, Freepik8Room],
+	memberBasicRooms: [ResortSeaRoom],
+	memberTemporaryRooms: [ResortSeaRoom],
 }
 
 export const allRooms: AllRoomsConfig = (function getAllRooms() {
@@ -69,8 +60,6 @@ export const allRooms: AllRoomsConfig = (function getAllRooms() {
 			return prodAllRooms
 		case 'DEV':
 			return testAllRooms
-		case 'OTOME-GAME-CAFE':
-			return otomeGameCafeRooms
 		default:
 			throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
 	}

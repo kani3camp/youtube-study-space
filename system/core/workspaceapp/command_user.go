@@ -7,6 +7,7 @@ import (
 
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 
 	"cloud.google.com/go/firestore"
@@ -19,8 +20,8 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 		if err != nil {
 			return fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
 		}
-		dailyTotalTimeStr := utils.DurationToString(dailyTotalStudyDuration)
-		totalTimeStr := utils.DurationToString(totalStudyDuration)
+		dailyTotalTimeStr := timeutil.DurationToString(dailyTotalStudyDuration)
+		totalTimeStr := timeutil.DurationToString(totalStudyDuration)
 		replyMessage += i18nmsg.CommandUserInfoBase(app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
@@ -41,7 +42,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 			}
 
 			if userDoc.IsContinuousActive {
-				continuousActiveDays := int(utils.JstNow().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
+				continuousActiveDays := int(app.currentTime().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
 				replyMessage += i18nmsg.CommandUserInfoRankOnContinuous(continuousActiveDays+1, continuousActiveDays)
 			}
 
@@ -57,7 +58,7 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 				replyMessage += i18nmsg.CommandUserInfoFavoriteColor(utils.ColorCodeToColorName(userDoc.FavoriteColor))
 			}
 
-			replyMessage += i18nmsg.CommandUserInfoRegisterDate(userDoc.RegistrationDate.In(utils.JapanLocation()).Format("2006年01月02日"))
+			replyMessage += i18nmsg.CommandUserInfoRegisterDate(userDoc.RegistrationDate.In(timeutil.JapanLocation()).Format("2006年01月02日"))
 		}
 		return nil
 	})

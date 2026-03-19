@@ -1,13 +1,17 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+This is a simulator for 1000 minutes of video content.
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
 
-```bash
-npm run dev
-# or
-yarn dev
+```shell
+pnpm install
+```
+
+Then, run the development server:
+
+```shell
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

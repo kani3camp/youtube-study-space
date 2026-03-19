@@ -118,6 +118,10 @@ func (c *FirestoreControllerImplements) userActivitiesCollection() *firestore.Co
 	return c.firestoreClient.Collection(UserActivities)
 }
 
+func (c *FirestoreControllerImplements) workSegmentsCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(WorkSegments)
+}
+
 func (c *FirestoreControllerImplements) generalSeatLimitsBLACKListCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(SeatLimitsBlackList)
 }
@@ -515,6 +519,20 @@ func (c *FirestoreControllerImplements) GetUsersActiveAfterDate(ctx context.Cont
 	return c.usersCollection().Where(LastEnteredDocProperty, ">=", date).Documents(ctx)
 }
 
+func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error {
+	ref := c.workSegmentsCollection().NewDoc()
+	return c.create(ctx, tx, ref, workSegment)
+}
+
+// ReadWorkStateSegmentsBySessionId returns work-state segments for the given session ID.
+func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionId(ctx context.Context, sessionId string) ([]WorkSegmentDoc, error) {
+	iter := c.workSegmentsCollection().
+		Where(SessionIdDocProperty, "==", sessionId).
+		Where(SegmentTypeDocProperty, "==", WorkState).
+		Documents(ctx)
+	return getDocDataFromIterator[WorkSegmentDoc](iter)
+}
+
 func (c *FirestoreControllerImplements) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(
 	ctx context.Context, tx *firestore.Transaction, userId string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
 	ref := c.usersCollection().Doc(userId)
@@ -659,7 +677,10 @@ func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Cont
 		return -1, errors.New("firestore: couldn't get alias for COUNT from results")
 	}
 
-	countValue := count.(*firestorepb.Value)
+	countValue, ok := count.(*firestorepb.Value)
+	if !ok {
+		return -1, fmt.Errorf("unexpected count type: %T", count)
+	}
 
 	return countValue.GetIntegerValue(), nil
 }

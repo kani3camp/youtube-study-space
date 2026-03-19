@@ -1,97 +1,107 @@
+/** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next'
-import { type FC, useState } from 'react'
-import { useInterval } from '../lib/common'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import {
-	getCurrentSection,
-	getNextSection,
-	remainingTime,
-	SectionType,
-} from '../lib/time-table'
+	buildStyles,
+	CircularProgressbarWithChildren,
+} from 'react-circular-progressbar'
+import { AiFillFire } from 'react-icons/ai'
+import { MdFreeBreakfast } from 'react-icons/md'
+import { useInterval } from '../lib/common'
+import { Constants } from '../lib/constants'
+import {
+	computeRemaining,
+	FALLBACK_REMAINING,
+	formatRemainingTime,
+} from '../lib/timer'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
 
-const TIME_UPDATE_INTERVAL_MILLI_SEC = (1 / 30) * 1000 // 30fps
+const UPDATE_INTERVAL_MS = 100
 
-const Timer: FC = () => {
+const Timer = memo(function Timer() {
 	const { t } = useTranslation()
+	const [now, setNow] = useState<Date | null>(null)
 
-	const [sectionType, setSectionType] = useState<string>(SectionType.Break)
-	const [sectionMessage, setSectionMessage] = useState<string>('')
-	const [remainingMin, setRemainingMin] = useState<number>(0)
-	const [remainingSec, setRemainingSec] = useState<number>(0)
-	const [nextSectionDuration, setNextSectionDuration] = useState<number>(0)
-	const [nextSection, setNextSection] = useState<string>('')
+	useEffect(() => {
+		setNow(new Date())
+	}, [])
 
-	useInterval(() => {
-		// フレームごとの更新
+	useInterval(
+		useCallback(() => {
+			setNow((prev) => (prev ? new Date() : null))
+		}, []),
+		UPDATE_INTERVAL_MS,
+	)
 
-		const now: Date = new Date()
-		const currentSection = getCurrentSection()
-		if (currentSection !== null) {
-			let remaining_min: number = remainingTime(
-				now.getHours(),
-				now.getMinutes(),
-				currentSection.ends.h,
-				currentSection.ends.m,
-			)
-			const remaining_sec: number = (60 - now.getSeconds()) % 60
-			if (remaining_sec !== 0) remaining_min -= 1
+	const { remainingSec, percentage, isStudy, nextLabel, nextDurationMin } =
+		useMemo(() => (now ? computeRemaining(now) : FALLBACK_REMAINING), [now])
 
-			const nextSection = getNextSection()
-			if (nextSection !== null) {
-				setRemainingMin(remaining_min)
-				setRemainingSec(remaining_sec)
-				setNextSectionDuration(
-					remainingTime(
-						nextSection.starts.h,
-						nextSection.starts.m,
-						nextSection.ends.h,
-						nextSection.ends.m,
-					),
-				)
-				setNextSection(
-					currentSection.sectionType === SectionType.Study
-						? t('break')
-						: t('study'),
-				)
-				setSectionType(currentSection.sectionType)
-				setSectionMessage(
-					currentSection.sectionType === SectionType.Study
-						? `✏️ ${t('study')} ✏️`
-						: `☕️ ${t('break')} ☕️`,
-				)
-			}
-		}
-	}, TIME_UPDATE_INTERVAL_MILLI_SEC)
+	const { minutes, seconds } = formatRemainingTime(remainingSec)
+	const isReady = now !== null
 
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.timer, componentStyle]}>
-				<div css={styles.timerTitle}>
-					<div
-						css={[
-							styles.sectionColor,
-							sectionType === SectionType.Study
-								? styles.studyMode
-								: styles.breakMode,
-						]}
+				<div css={styles.progressBarContainer}>
+					<CircularProgressbarWithChildren
+						value={isReady ? percentage : 0}
+						strokeWidth={10}
+						styles={buildStyles({
+							strokeLinecap: 'round',
+							pathTransitionDuration: 0,
+							pathColor: isStudy
+								? Constants.timerProgressStudyColor
+								: Constants.timerProgressBreakColor,
+							trailColor: 'rgba(255,255,255,0.35)',
+							backgroundColor: 'transparent',
+						})}
 					>
-						{sectionMessage}
+						<div css={styles.progressInner}>
+							<div css={styles.stateRow}>
+								{isReady ? (
+									isStudy ? (
+										<>
+											<AiFillFire size={22} css={styles.studyIcon} />
+											<span css={[styles.stateLabel, styles.stateLabelStudy]}>
+												{t('study')}
+											</span>
+										</>
+									) : (
+										<>
+											<MdFreeBreakfast size={22} css={styles.breakIcon} />
+											<span css={[styles.stateLabel, styles.stateLabelBreak]}>
+												{t('break')}
+											</span>
+										</>
+									)
+								) : (
+									<span css={styles.statePlaceholder}>--</span>
+								)}
+							</div>
+							<div css={styles.remaining}>
+								{isReady ? (
+									<>
+										<span css={styles.remainingMinutes}>{minutes}</span>
+										<span css={styles.remainingDivider}>:</span>
+										<span css={styles.remainingSeconds}>{seconds}</span>
+									</>
+								) : (
+									<span css={styles.remainingPlaceholder}>--:--</span>
+								)}
+							</div>
+						</div>
+					</CircularProgressbarWithChildren>
+				</div>
+				{isReady && (
+					<div css={styles.nextRow}>
+						{t('next')} {nextDurationMin}
+						{t('minutes')} {t(nextLabel)}
 					</div>
-				</div>
-				<div css={styles.remaining}>
-					{remainingMin}：
-					{String(Math.floor(Number(remainingSec) % 60)).padStart(2, '0')}
-				</div>
-				<div>
-					<span>{`${t('next')} `}</span>
-					<span>{nextSectionDuration}</span>
-					<span>{`${t('minutes')} `}</span>
-					<span>{nextSection}</span>
-				</div>
+				)}
 			</div>
 		</div>
 	)
-}
+})
 
 export default Timer

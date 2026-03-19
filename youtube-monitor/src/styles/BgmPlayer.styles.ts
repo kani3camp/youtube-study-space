@@ -1,23 +1,22 @@
 import { css } from '@emotion/react'
-import { Constants } from '../lib/constants'
+import {
+	Constants,
+	sidebarBgmHeight,
+	sidebarCardHorizontalInsetPx,
+	sidebarCardVerticalInsetPx,
+} from '../lib/constants'
 
 export const shape = css`
-    height: ${
-			Constants.screenHeight -
-			Constants.clockHeight -
-			Constants.usageHeight -
-			Constants.menuHeight -
-			Constants.timerHeight
-		}px;
+    height: ${sidebarBgmHeight}px;
     width: ${Constants.sideBarWidth}px;
     position: absolute;
     right: 0;
-    bottom: ${Constants.timerHeight}px;
+    bottom: 0;
 `
 
 export const bgmPlayer = css`
-    height: 90%;
-    width: 90%;
+    height: calc(100% - ${sidebarCardVerticalInsetPx}px);
+    width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     background-color: rgba(53, 49, 49, 0.3);
     position: absolute;
     text-align: center;
