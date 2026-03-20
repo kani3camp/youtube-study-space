@@ -146,7 +146,7 @@ func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context,
 	// 入室中ならばリアルタイムの作業時間も加算する
 	realtimeDuration := time.Duration(0)
 	realtimeDailyDuration := time.Duration(0)
-	isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
+	isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, userID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed IsUserInRoom: %w", err)
 	}
