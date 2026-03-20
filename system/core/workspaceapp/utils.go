@@ -131,7 +131,7 @@ func (app *WorkspaceApp) UpdateTotalWorkTime(tx *firestore.Transaction, userID s
 
 	// 累計作業時間が減るなんてことがないか確認
 	if newTotalSec < previousTotalSec {
-		return errors.New(fmt.Sprintf("newTotalSec < previousTotalSec ??!! 処理を中断します。userID: %s,newTotalSec: %d, previousTotalSec: %d", userID, newTotalSec, previousTotalSec))
+		return fmt.Errorf("newTotalSec < previousTotalSec ??!! 処理を中断します。userID: %s,newTotalSec: %d, previousTotalSec: %d", userID, newTotalSec, previousTotalSec)
 	}
 
 	if err := app.Repository.UpdateUserTotalTime(tx, userID, newTotalSec, newDailyTotalSec); err != nil {
