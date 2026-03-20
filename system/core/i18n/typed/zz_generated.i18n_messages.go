@@ -32,8 +32,8 @@ func CommonSir(username string) string {
 }
 
 // CommonVipSeatId: key "common:vip-seat-id"
-func CommonVipSeatId(seatId int) string {
-	return engine.TranslateDefault("common:vip-seat-id", seatId)
+func CommonVipSeatId(seatID int) string {
+	return engine.TranslateDefault("common:vip-seat-id", seatID)
 }
 
 // CommandOptionWarn: key "command:option-warn"
@@ -202,8 +202,8 @@ func CommandSeatInfoBase(username string, seat string, state string, sitDuration
 }
 
 // CommandSeatInfoDetails: key "command-seat-info:details"
-func CommandSeatInfoDetails(recentRangeMin int, seatId string, recentTotalEntryDurationMin int) string {
-	return engine.TranslateDefault("command-seat-info:details", recentRangeMin, seatId, recentTotalEntryDurationMin)
+func CommandSeatInfoDetails(recentRangeMin int, seatID string, recentTotalEntryDurationMin int) string {
+	return engine.TranslateDefault("command-seat-info:details", recentRangeMin, seatID, recentTotalEntryDurationMin)
 }
 
 // CommandReportNoMessage: key "command-report:no-message"
@@ -212,8 +212,8 @@ func CommandReportNoMessage(username string) string {
 }
 
 // CommandReportOwner: key "command-report:owner"
-func CommandReportOwner(reportCommand string, userId string, userDisplayName string, message string) string {
-	return engine.TranslateDefault("command-report:owner", reportCommand, userId, userDisplayName, message)
+func CommandReportOwner(reportCommand string, userID string, userDisplayName string, message string) string {
+	return engine.TranslateDefault("command-report:owner", reportCommand, userID, userDisplayName, message)
 }
 
 // CommandReportModerators: key "command-report:moderators"

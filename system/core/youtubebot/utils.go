@@ -62,7 +62,7 @@ func IsChatMessageByMember(chat *youtube.LiveChatMessage) bool {
 	return chat.AuthorDetails.IsChatSponsor
 }
 
-func ExtractAuthorChannelId(chat *youtube.LiveChatMessage) string {
+func ExtractAuthorChannelID(chat *youtube.LiveChatMessage) string {
 	return chat.AuthorDetails.ChannelId
 }
 
@@ -73,6 +73,6 @@ func ExtractAuthorDisplayName(chat *youtube.LiveChatMessage) string {
 	return displayName
 }
 
-func ExtractAuthorProfileImageUrl(chat *youtube.LiveChatMessage) string {
+func ExtractAuthorProfileImageURL(chat *youtube.LiveChatMessage) string {
 	return chat.AuthorDetails.ProfileImageUrl
 }

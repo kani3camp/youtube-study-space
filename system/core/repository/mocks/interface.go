@@ -129,18 +129,18 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // CountUserOrdersOfTheDay mocks base method.
-func (m *MockRepository) CountUserOrdersOfTheDay(ctx context.Context, userId string, date time.Time) (int64, error) {
+func (m *MockRepository) CountUserOrdersOfTheDay(ctx context.Context, userID string, date time.Time) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountUserOrdersOfTheDay", ctx, userId, date)
+	ret := m.ctrl.Call(m, "CountUserOrdersOfTheDay", ctx, userID, date)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CountUserOrdersOfTheDay indicates an expected call of CountUserOrdersOfTheDay.
-func (mr *MockRepositoryMockRecorder) CountUserOrdersOfTheDay(ctx, userId, date any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CountUserOrdersOfTheDay(ctx, userID, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserOrdersOfTheDay", reflect.TypeOf((*MockRepository)(nil).CountUserOrdersOfTheDay), ctx, userId, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserOrdersOfTheDay", reflect.TypeOf((*MockRepository)(nil).CountUserOrdersOfTheDay), ctx, userID, date)
 }
 
 // CreateLiveChatHistoryDoc mocks base method.
@@ -186,45 +186,45 @@ func (mr *MockRepositoryMockRecorder) CreateSeat(tx, seat, isMemberSeat any) *go
 }
 
 // CreateSeatLimitInBLACKList mocks base method.
-func (m *MockRepository) CreateSeatLimitInBLACKList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
+func (m *MockRepository) CreateSeatLimitInBLACKList(ctx context.Context, seatID int, userID string, createdAt, until time.Time, isMemberSeat bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSeatLimitInBLACKList", ctx, seatId, userId, createdAt, until, isMemberSeat)
+	ret := m.ctrl.Call(m, "CreateSeatLimitInBLACKList", ctx, seatID, userID, createdAt, until, isMemberSeat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateSeatLimitInBLACKList indicates an expected call of CreateSeatLimitInBLACKList.
-func (mr *MockRepositoryMockRecorder) CreateSeatLimitInBLACKList(ctx, seatId, userId, createdAt, until, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateSeatLimitInBLACKList(ctx, seatID, userID, createdAt, until, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSeatLimitInBLACKList", reflect.TypeOf((*MockRepository)(nil).CreateSeatLimitInBLACKList), ctx, seatId, userId, createdAt, until, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSeatLimitInBLACKList", reflect.TypeOf((*MockRepository)(nil).CreateSeatLimitInBLACKList), ctx, seatID, userID, createdAt, until, isMemberSeat)
 }
 
 // CreateSeatLimitInWHITEList mocks base method.
-func (m *MockRepository) CreateSeatLimitInWHITEList(ctx context.Context, seatId int, userId string, createdAt, until time.Time, isMemberSeat bool) error {
+func (m *MockRepository) CreateSeatLimitInWHITEList(ctx context.Context, seatID int, userID string, createdAt, until time.Time, isMemberSeat bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSeatLimitInWHITEList", ctx, seatId, userId, createdAt, until, isMemberSeat)
+	ret := m.ctrl.Call(m, "CreateSeatLimitInWHITEList", ctx, seatID, userID, createdAt, until, isMemberSeat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateSeatLimitInWHITEList indicates an expected call of CreateSeatLimitInWHITEList.
-func (mr *MockRepositoryMockRecorder) CreateSeatLimitInWHITEList(ctx, seatId, userId, createdAt, until, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateSeatLimitInWHITEList(ctx, seatID, userID, createdAt, until, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSeatLimitInWHITEList", reflect.TypeOf((*MockRepository)(nil).CreateSeatLimitInWHITEList), ctx, seatId, userId, createdAt, until, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSeatLimitInWHITEList", reflect.TypeOf((*MockRepository)(nil).CreateSeatLimitInWHITEList), ctx, seatID, userID, createdAt, until, isMemberSeat)
 }
 
 // CreateUser mocks base method.
-func (m *MockRepository) CreateUser(ctx context.Context, tx *firestore.Transaction, userId string, userData repository.UserDoc) error {
+func (m *MockRepository) CreateUser(ctx context.Context, tx *firestore.Transaction, userID string, userData repository.UserDoc) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateUser", ctx, tx, userId, userData)
+	ret := m.ctrl.Call(m, "CreateUser", ctx, tx, userID, userData)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateUser indicates an expected call of CreateUser.
-func (mr *MockRepositoryMockRecorder) CreateUser(ctx, tx, userId, userData any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateUser(ctx, tx, userID, userData any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockRepository)(nil).CreateUser), ctx, tx, userId, userData)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockRepository)(nil).CreateUser), ctx, tx, userID, userData)
 }
 
 // CreateUserActivityDoc mocks base method.
@@ -270,45 +270,45 @@ func (mr *MockRepositoryMockRecorder) DeleteDocRef(ctx, tx, ref any) *gomock.Cal
 }
 
 // DeleteSeat mocks base method.
-func (m *MockRepository) DeleteSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) error {
+func (m *MockRepository) DeleteSeat(ctx context.Context, tx *firestore.Transaction, seatID int, isMemberSeat bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSeat", ctx, tx, seatId, isMemberSeat)
+	ret := m.ctrl.Call(m, "DeleteSeat", ctx, tx, seatID, isMemberSeat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSeat indicates an expected call of DeleteSeat.
-func (mr *MockRepositoryMockRecorder) DeleteSeat(ctx, tx, seatId, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteSeat(ctx, tx, seatID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeat", reflect.TypeOf((*MockRepository)(nil).DeleteSeat), ctx, tx, seatId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeat", reflect.TypeOf((*MockRepository)(nil).DeleteSeat), ctx, tx, seatID, isMemberSeat)
 }
 
 // DeleteSeatLimitInBLACKList mocks base method.
-func (m *MockRepository) DeleteSeatLimitInBLACKList(ctx context.Context, docId string, isMemberSeat bool) error {
+func (m *MockRepository) DeleteSeatLimitInBLACKList(ctx context.Context, docID string, isMemberSeat bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSeatLimitInBLACKList", ctx, docId, isMemberSeat)
+	ret := m.ctrl.Call(m, "DeleteSeatLimitInBLACKList", ctx, docID, isMemberSeat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSeatLimitInBLACKList indicates an expected call of DeleteSeatLimitInBLACKList.
-func (mr *MockRepositoryMockRecorder) DeleteSeatLimitInBLACKList(ctx, docId, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteSeatLimitInBLACKList(ctx, docID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeatLimitInBLACKList", reflect.TypeOf((*MockRepository)(nil).DeleteSeatLimitInBLACKList), ctx, docId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeatLimitInBLACKList", reflect.TypeOf((*MockRepository)(nil).DeleteSeatLimitInBLACKList), ctx, docID, isMemberSeat)
 }
 
 // DeleteSeatLimitInWHITEList mocks base method.
-func (m *MockRepository) DeleteSeatLimitInWHITEList(ctx context.Context, docId string, isMemberSeat bool) error {
+func (m *MockRepository) DeleteSeatLimitInWHITEList(ctx context.Context, docID string, isMemberSeat bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSeatLimitInWHITEList", ctx, docId, isMemberSeat)
+	ret := m.ctrl.Call(m, "DeleteSeatLimitInWHITEList", ctx, docID, isMemberSeat)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSeatLimitInWHITEList indicates an expected call of DeleteSeatLimitInWHITEList.
-func (mr *MockRepositoryMockRecorder) DeleteSeatLimitInWHITEList(ctx, docId, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) DeleteSeatLimitInWHITEList(ctx, docID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeatLimitInWHITEList", reflect.TypeOf((*MockRepository)(nil).DeleteSeatLimitInWHITEList), ctx, docId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSeatLimitInWHITEList", reflect.TypeOf((*MockRepository)(nil).DeleteSeatLimitInWHITEList), ctx, docID, isMemberSeat)
 }
 
 // FirestoreClient mocks base method.
@@ -325,32 +325,32 @@ func (mr *MockRepositoryMockRecorder) FirestoreClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FirestoreClient", reflect.TypeOf((*MockRepository)(nil).FirestoreClient))
 }
 
-// Get500LiveChatHistoryDocIdsBeforeDate mocks base method.
-func (m *MockRepository) Get500LiveChatHistoryDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
+// Get500LiveChatHistoryDocIDsBeforeDate mocks base method.
+func (m *MockRepository) Get500LiveChatHistoryDocIDsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get500LiveChatHistoryDocIdsBeforeDate", ctx, date)
+	ret := m.ctrl.Call(m, "Get500LiveChatHistoryDocIDsBeforeDate", ctx, date)
 	ret0, _ := ret[0].(*firestore.DocumentIterator)
 	return ret0
 }
 
-// Get500LiveChatHistoryDocIdsBeforeDate indicates an expected call of Get500LiveChatHistoryDocIdsBeforeDate.
-func (mr *MockRepositoryMockRecorder) Get500LiveChatHistoryDocIdsBeforeDate(ctx, date any) *gomock.Call {
+// Get500LiveChatHistoryDocIDsBeforeDate indicates an expected call of Get500LiveChatHistoryDocIDsBeforeDate.
+func (mr *MockRepositoryMockRecorder) Get500LiveChatHistoryDocIDsBeforeDate(ctx, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500LiveChatHistoryDocIdsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500LiveChatHistoryDocIdsBeforeDate), ctx, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500LiveChatHistoryDocIDsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500LiveChatHistoryDocIDsBeforeDate), ctx, date)
 }
 
-// Get500OrderHistoryDocIdsBeforeDate mocks base method.
-func (m *MockRepository) Get500OrderHistoryDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
+// Get500OrderHistoryDocIDsBeforeDate mocks base method.
+func (m *MockRepository) Get500OrderHistoryDocIDsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get500OrderHistoryDocIdsBeforeDate", ctx, date)
+	ret := m.ctrl.Call(m, "Get500OrderHistoryDocIDsBeforeDate", ctx, date)
 	ret0, _ := ret[0].(*firestore.DocumentIterator)
 	return ret0
 }
 
-// Get500OrderHistoryDocIdsBeforeDate indicates an expected call of Get500OrderHistoryDocIdsBeforeDate.
-func (mr *MockRepositoryMockRecorder) Get500OrderHistoryDocIdsBeforeDate(ctx, date any) *gomock.Call {
+// Get500OrderHistoryDocIDsBeforeDate indicates an expected call of Get500OrderHistoryDocIDsBeforeDate.
+func (mr *MockRepositoryMockRecorder) Get500OrderHistoryDocIDsBeforeDate(ctx, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500OrderHistoryDocIdsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500OrderHistoryDocIdsBeforeDate), ctx, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500OrderHistoryDocIDsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500OrderHistoryDocIDsBeforeDate), ctx, date)
 }
 
 // Get500SeatLimitsAfterUntilInBLACKList mocks base method.
@@ -381,18 +381,18 @@ func (mr *MockRepositoryMockRecorder) Get500SeatLimitsAfterUntilInWHITEList(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500SeatLimitsAfterUntilInWHITEList", reflect.TypeOf((*MockRepository)(nil).Get500SeatLimitsAfterUntilInWHITEList), ctx, thresholdTime, isMemberSeat)
 }
 
-// Get500UserActivityDocIdsBeforeDate mocks base method.
-func (m *MockRepository) Get500UserActivityDocIdsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
+// Get500UserActivityDocIDsBeforeDate mocks base method.
+func (m *MockRepository) Get500UserActivityDocIDsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get500UserActivityDocIdsBeforeDate", ctx, date)
+	ret := m.ctrl.Call(m, "Get500UserActivityDocIDsBeforeDate", ctx, date)
 	ret0, _ := ret[0].(*firestore.DocumentIterator)
 	return ret0
 }
 
-// Get500UserActivityDocIdsBeforeDate indicates an expected call of Get500UserActivityDocIdsBeforeDate.
-func (mr *MockRepositoryMockRecorder) Get500UserActivityDocIdsBeforeDate(ctx, date any) *gomock.Call {
+// Get500UserActivityDocIDsBeforeDate indicates an expected call of Get500UserActivityDocIDsBeforeDate.
+func (mr *MockRepositoryMockRecorder) Get500UserActivityDocIDsBeforeDate(ctx, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500UserActivityDocIdsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500UserActivityDocIdsBeforeDate), ctx, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get500UserActivityDocIDsBeforeDate", reflect.TypeOf((*MockRepository)(nil).Get500UserActivityDocIDsBeforeDate), ctx, date)
 }
 
 // GetAllNonDailyZeroUserDocs mocks base method.
@@ -409,18 +409,18 @@ func (mr *MockRepositoryMockRecorder) GetAllNonDailyZeroUserDocs(ctx any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllNonDailyZeroUserDocs", reflect.TypeOf((*MockRepository)(nil).GetAllNonDailyZeroUserDocs), ctx)
 }
 
-// GetAllUserActivityDocIdsAfterDate mocks base method.
-func (m *MockRepository) GetAllUserActivityDocIdsAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
+// GetAllUserActivityDocIDsAfterDate mocks base method.
+func (m *MockRepository) GetAllUserActivityDocIDsAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllUserActivityDocIdsAfterDate", ctx, date)
+	ret := m.ctrl.Call(m, "GetAllUserActivityDocIDsAfterDate", ctx, date)
 	ret0, _ := ret[0].(*firestore.DocumentIterator)
 	return ret0
 }
 
-// GetAllUserActivityDocIdsAfterDate indicates an expected call of GetAllUserActivityDocIdsAfterDate.
-func (mr *MockRepositoryMockRecorder) GetAllUserActivityDocIdsAfterDate(ctx, date any) *gomock.Call {
+// GetAllUserActivityDocIDsAfterDate indicates an expected call of GetAllUserActivityDocIDsAfterDate.
+func (mr *MockRepositoryMockRecorder) GetAllUserActivityDocIDsAfterDate(ctx, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUserActivityDocIdsAfterDate", reflect.TypeOf((*MockRepository)(nil).GetAllUserActivityDocIdsAfterDate), ctx, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUserActivityDocIDsAfterDate", reflect.TypeOf((*MockRepository)(nil).GetAllUserActivityDocIDsAfterDate), ctx, date)
 }
 
 // GetAllUserDocRefs mocks base method.
@@ -438,34 +438,34 @@ func (mr *MockRepositoryMockRecorder) GetAllUserDocRefs(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUserDocRefs", reflect.TypeOf((*MockRepository)(nil).GetAllUserDocRefs), ctx)
 }
 
-// GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat mocks base method.
-func (m *MockRepository) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]repository.UserActivityDoc, error) {
+// GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat mocks base method.
+func (m *MockRepository) GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userID string, seatID int, isMemberSeat bool) ([]repository.UserActivityDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat", ctx, date, userId, seatId, isMemberSeat)
+	ret := m.ctrl.Call(m, "GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat", ctx, date, userID, seatID, isMemberSeat)
 	ret0, _ := ret[0].([]repository.UserActivityDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat indicates an expected call of GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat.
-func (mr *MockRepositoryMockRecorder) GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, date, userId, seatId, isMemberSeat any) *gomock.Call {
+// GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat indicates an expected call of GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat.
+func (mr *MockRepositoryMockRecorder) GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx, date, userID, seatID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat", reflect.TypeOf((*MockRepository)(nil).GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat), ctx, date, userId, seatId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat", reflect.TypeOf((*MockRepository)(nil).GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat), ctx, date, userID, seatID, isMemberSeat)
 }
 
-// GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat mocks base method.
-func (m *MockRepository) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userId string, seatId int, isMemberSeat bool) ([]repository.UserActivityDoc, error) {
+// GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat mocks base method.
+func (m *MockRepository) GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userID string, seatID int, isMemberSeat bool) ([]repository.UserActivityDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat", ctx, date, userId, seatId, isMemberSeat)
+	ret := m.ctrl.Call(m, "GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat", ctx, date, userID, seatID, isMemberSeat)
 	ret0, _ := ret[0].([]repository.UserActivityDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat indicates an expected call of GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat.
-func (mr *MockRepositoryMockRecorder) GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, date, userId, seatId, isMemberSeat any) *gomock.Call {
+// GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat indicates an expected call of GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat.
+func (mr *MockRepositoryMockRecorder) GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx, date, userID, seatID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat", reflect.TypeOf((*MockRepository)(nil).GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat), ctx, date, userId, seatId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat", reflect.TypeOf((*MockRepository)(nil).GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat), ctx, date, userID, seatID, isMemberSeat)
 }
 
 // GetUsersActiveAfterDate mocks base method.
@@ -542,19 +542,19 @@ func (mr *MockRepositoryMockRecorder) ReadGeneralSeats(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadGeneralSeats", reflect.TypeOf((*MockRepository)(nil).ReadGeneralSeats), ctx)
 }
 
-// ReadLiveChatId mocks base method.
-func (m *MockRepository) ReadLiveChatId(ctx context.Context, tx *firestore.Transaction) (string, error) {
+// ReadLiveChatID mocks base method.
+func (m *MockRepository) ReadLiveChatID(ctx context.Context, tx *firestore.Transaction) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadLiveChatId", ctx, tx)
+	ret := m.ctrl.Call(m, "ReadLiveChatID", ctx, tx)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadLiveChatId indicates an expected call of ReadLiveChatId.
-func (mr *MockRepositoryMockRecorder) ReadLiveChatId(ctx, tx any) *gomock.Call {
+// ReadLiveChatID indicates an expected call of ReadLiveChatID.
+func (mr *MockRepositoryMockRecorder) ReadLiveChatID(ctx, tx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadLiveChatId", reflect.TypeOf((*MockRepository)(nil).ReadLiveChatId), ctx, tx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadLiveChatID", reflect.TypeOf((*MockRepository)(nil).ReadLiveChatID), ctx, tx)
 }
 
 // ReadMemberSeats mocks base method.
@@ -588,63 +588,63 @@ func (mr *MockRepositoryMockRecorder) ReadNextPageToken(ctx, tx any) *gomock.Cal
 }
 
 // ReadSeat mocks base method.
-func (m *MockRepository) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (repository.SeatDoc, error) {
+func (m *MockRepository) ReadSeat(ctx context.Context, tx *firestore.Transaction, seatID int, isMemberSeat bool) (repository.SeatDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadSeat", ctx, tx, seatId, isMemberSeat)
+	ret := m.ctrl.Call(m, "ReadSeat", ctx, tx, seatID, isMemberSeat)
 	ret0, _ := ret[0].(repository.SeatDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadSeat indicates an expected call of ReadSeat.
-func (mr *MockRepositoryMockRecorder) ReadSeat(ctx, tx, seatId, isMemberSeat any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ReadSeat(ctx, tx, seatID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeat", reflect.TypeOf((*MockRepository)(nil).ReadSeat), ctx, tx, seatId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeat", reflect.TypeOf((*MockRepository)(nil).ReadSeat), ctx, tx, seatID, isMemberSeat)
 }
 
-// ReadSeatLimitsBLACKListWithSeatIdAndUserId mocks base method.
-func (m *MockRepository) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]repository.SeatLimitDoc, error) {
+// ReadSeatLimitsBLACKListWithSeatIDAndUserID mocks base method.
+func (m *MockRepository) ReadSeatLimitsBLACKListWithSeatIDAndUserID(ctx context.Context, seatID int, userID string, isMemberSeat bool) ([]repository.SeatLimitDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadSeatLimitsBLACKListWithSeatIdAndUserId", ctx, seatId, userId, isMemberSeat)
+	ret := m.ctrl.Call(m, "ReadSeatLimitsBLACKListWithSeatIDAndUserID", ctx, seatID, userID, isMemberSeat)
 	ret0, _ := ret[0].([]repository.SeatLimitDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadSeatLimitsBLACKListWithSeatIdAndUserId indicates an expected call of ReadSeatLimitsBLACKListWithSeatIdAndUserId.
-func (mr *MockRepositoryMockRecorder) ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx, seatId, userId, isMemberSeat any) *gomock.Call {
+// ReadSeatLimitsBLACKListWithSeatIDAndUserID indicates an expected call of ReadSeatLimitsBLACKListWithSeatIDAndUserID.
+func (mr *MockRepositoryMockRecorder) ReadSeatLimitsBLACKListWithSeatIDAndUserID(ctx, seatID, userID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatLimitsBLACKListWithSeatIdAndUserId", reflect.TypeOf((*MockRepository)(nil).ReadSeatLimitsBLACKListWithSeatIdAndUserId), ctx, seatId, userId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatLimitsBLACKListWithSeatIDAndUserID", reflect.TypeOf((*MockRepository)(nil).ReadSeatLimitsBLACKListWithSeatIDAndUserID), ctx, seatID, userID, isMemberSeat)
 }
 
-// ReadSeatLimitsWHITEListWithSeatIdAndUserId mocks base method.
-func (m *MockRepository) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx context.Context, seatId int, userId string, isMemberSeat bool) ([]repository.SeatLimitDoc, error) {
+// ReadSeatLimitsWHITEListWithSeatIDAndUserID mocks base method.
+func (m *MockRepository) ReadSeatLimitsWHITEListWithSeatIDAndUserID(ctx context.Context, seatID int, userID string, isMemberSeat bool) ([]repository.SeatLimitDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadSeatLimitsWHITEListWithSeatIdAndUserId", ctx, seatId, userId, isMemberSeat)
+	ret := m.ctrl.Call(m, "ReadSeatLimitsWHITEListWithSeatIDAndUserID", ctx, seatID, userID, isMemberSeat)
 	ret0, _ := ret[0].([]repository.SeatLimitDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadSeatLimitsWHITEListWithSeatIdAndUserId indicates an expected call of ReadSeatLimitsWHITEListWithSeatIdAndUserId.
-func (mr *MockRepositoryMockRecorder) ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx, seatId, userId, isMemberSeat any) *gomock.Call {
+// ReadSeatLimitsWHITEListWithSeatIDAndUserID indicates an expected call of ReadSeatLimitsWHITEListWithSeatIDAndUserID.
+func (mr *MockRepositoryMockRecorder) ReadSeatLimitsWHITEListWithSeatIDAndUserID(ctx, seatID, userID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatLimitsWHITEListWithSeatIdAndUserId", reflect.TypeOf((*MockRepository)(nil).ReadSeatLimitsWHITEListWithSeatIdAndUserId), ctx, seatId, userId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatLimitsWHITEListWithSeatIDAndUserID", reflect.TypeOf((*MockRepository)(nil).ReadSeatLimitsWHITEListWithSeatIDAndUserID), ctx, seatID, userID, isMemberSeat)
 }
 
-// ReadSeatWithUserId mocks base method.
-func (m *MockRepository) ReadSeatWithUserId(ctx context.Context, userId string, isMemberSeat bool) (repository.SeatDoc, error) {
+// ReadSeatWithUserID mocks base method.
+func (m *MockRepository) ReadSeatWithUserID(ctx context.Context, userID string, isMemberSeat bool) (repository.SeatDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadSeatWithUserId", ctx, userId, isMemberSeat)
+	ret := m.ctrl.Call(m, "ReadSeatWithUserID", ctx, userID, isMemberSeat)
 	ret0, _ := ret[0].(repository.SeatDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadSeatWithUserId indicates an expected call of ReadSeatWithUserId.
-func (mr *MockRepositoryMockRecorder) ReadSeatWithUserId(ctx, userId, isMemberSeat any) *gomock.Call {
+// ReadSeatWithUserID indicates an expected call of ReadSeatWithUserID.
+func (mr *MockRepositoryMockRecorder) ReadSeatWithUserID(ctx, userID, isMemberSeat any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatWithUserId", reflect.TypeOf((*MockRepository)(nil).ReadSeatWithUserId), ctx, userId, isMemberSeat)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSeatWithUserID", reflect.TypeOf((*MockRepository)(nil).ReadSeatWithUserID), ctx, userID, isMemberSeat)
 }
 
 // ReadSeatsExpiredBreakUntil mocks base method.
@@ -693,33 +693,33 @@ func (mr *MockRepositoryMockRecorder) ReadSystemConstantsConfig(ctx, tx any) *go
 }
 
 // ReadUser mocks base method.
-func (m *MockRepository) ReadUser(ctx context.Context, tx *firestore.Transaction, userId string) (repository.UserDoc, error) {
+func (m *MockRepository) ReadUser(ctx context.Context, tx *firestore.Transaction, userID string) (repository.UserDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadUser", ctx, tx, userId)
+	ret := m.ctrl.Call(m, "ReadUser", ctx, tx, userID)
 	ret0, _ := ret[0].(repository.UserDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadUser indicates an expected call of ReadUser.
-func (mr *MockRepositoryMockRecorder) ReadUser(ctx, tx, userId any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ReadUser(ctx, tx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadUser", reflect.TypeOf((*MockRepository)(nil).ReadUser), ctx, tx, userId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadUser", reflect.TypeOf((*MockRepository)(nil).ReadUser), ctx, tx, userID)
 }
 
-// ReadWorkStateSegmentsBySessionId mocks base method.
-func (m *MockRepository) ReadWorkStateSegmentsBySessionId(ctx context.Context, sessionId string) ([]repository.WorkSegmentDoc, error) {
+// ReadWorkStateSegmentsBySessionID mocks base method.
+func (m *MockRepository) ReadWorkStateSegmentsBySessionID(ctx context.Context, sessionID string) ([]repository.WorkSegmentDoc, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadWorkStateSegmentsBySessionId", ctx, sessionId)
+	ret := m.ctrl.Call(m, "ReadWorkStateSegmentsBySessionID", ctx, sessionID)
 	ret0, _ := ret[0].([]repository.WorkSegmentDoc)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReadWorkStateSegmentsBySessionId indicates an expected call of ReadWorkStateSegmentsBySessionId.
-func (mr *MockRepositoryMockRecorder) ReadWorkStateSegmentsBySessionId(ctx, sessionId any) *gomock.Call {
+// ReadWorkStateSegmentsBySessionID indicates an expected call of ReadWorkStateSegmentsBySessionID.
+func (mr *MockRepositoryMockRecorder) ReadWorkStateSegmentsBySessionID(ctx, sessionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadWorkStateSegmentsBySessionId", reflect.TypeOf((*MockRepository)(nil).ReadWorkStateSegmentsBySessionId), ctx, sessionId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadWorkStateSegmentsBySessionID", reflect.TypeOf((*MockRepository)(nil).ReadWorkStateSegmentsBySessionID), ctx, sessionID)
 }
 
 // ResetDailyTotalStudyTime mocks base method.
@@ -834,18 +834,18 @@ func (mr *MockRepositoryMockRecorder) UpdateLastTransferCollectionHistoryBigquer
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateLastTransferCollectionHistoryBigquery", reflect.TypeOf((*MockRepository)(nil).UpdateLastTransferCollectionHistoryBigquery), ctx, timestamp)
 }
 
-// UpdateLiveChatId mocks base method.
-func (m *MockRepository) UpdateLiveChatId(ctx context.Context, tx *firestore.Transaction, liveChatId string) error {
+// UpdateLiveChatID mocks base method.
+func (m *MockRepository) UpdateLiveChatID(ctx context.Context, tx *firestore.Transaction, liveChatID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateLiveChatId", ctx, tx, liveChatId)
+	ret := m.ctrl.Call(m, "UpdateLiveChatID", ctx, tx, liveChatID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateLiveChatId indicates an expected call of UpdateLiveChatId.
-func (mr *MockRepositoryMockRecorder) UpdateLiveChatId(ctx, tx, liveChatId any) *gomock.Call {
+// UpdateLiveChatID indicates an expected call of UpdateLiveChatID.
+func (mr *MockRepositoryMockRecorder) UpdateLiveChatID(ctx, tx, liveChatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateLiveChatId", reflect.TypeOf((*MockRepository)(nil).UpdateLiveChatId), ctx, tx, liveChatId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateLiveChatID", reflect.TypeOf((*MockRepository)(nil).UpdateLiveChatID), ctx, tx, liveChatID)
 }
 
 // UpdateMaxSeats mocks base method.
@@ -905,157 +905,157 @@ func (mr *MockRepositoryMockRecorder) UpdateSeat(ctx, tx, seat, isMemberSeat any
 }
 
 // UpdateUserDefaultStudyMin mocks base method.
-func (m *MockRepository) UpdateUserDefaultStudyMin(tx *firestore.Transaction, userId string, defaultStudyMin int) error {
+func (m *MockRepository) UpdateUserDefaultStudyMin(tx *firestore.Transaction, userID string, defaultStudyMin int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserDefaultStudyMin", tx, userId, defaultStudyMin)
+	ret := m.ctrl.Call(m, "UpdateUserDefaultStudyMin", tx, userID, defaultStudyMin)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserDefaultStudyMin indicates an expected call of UpdateUserDefaultStudyMin.
-func (mr *MockRepositoryMockRecorder) UpdateUserDefaultStudyMin(tx, userId, defaultStudyMin any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserDefaultStudyMin(tx, userID, defaultStudyMin any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDefaultStudyMin", reflect.TypeOf((*MockRepository)(nil).UpdateUserDefaultStudyMin), tx, userId, defaultStudyMin)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDefaultStudyMin", reflect.TypeOf((*MockRepository)(nil).UpdateUserDefaultStudyMin), tx, userID, defaultStudyMin)
 }
 
 // UpdateUserFavoriteColor mocks base method.
-func (m *MockRepository) UpdateUserFavoriteColor(tx *firestore.Transaction, userId, colorCode string) error {
+func (m *MockRepository) UpdateUserFavoriteColor(tx *firestore.Transaction, userID, colorCode string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserFavoriteColor", tx, userId, colorCode)
+	ret := m.ctrl.Call(m, "UpdateUserFavoriteColor", tx, userID, colorCode)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserFavoriteColor indicates an expected call of UpdateUserFavoriteColor.
-func (mr *MockRepositoryMockRecorder) UpdateUserFavoriteColor(tx, userId, colorCode any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserFavoriteColor(tx, userID, colorCode any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserFavoriteColor", reflect.TypeOf((*MockRepository)(nil).UpdateUserFavoriteColor), tx, userId, colorCode)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserFavoriteColor", reflect.TypeOf((*MockRepository)(nil).UpdateUserFavoriteColor), tx, userID, colorCode)
 }
 
 // UpdateUserIsContinuousActiveAndCurrentActivityStateStarted mocks base method.
-func (m *MockRepository) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx context.Context, tx *firestore.Transaction, userId string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
+func (m *MockRepository) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx context.Context, tx *firestore.Transaction, userID string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", ctx, tx, userId, isContinuousActive, currentActivityStateStarted)
+	ret := m.ctrl.Call(m, "UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", ctx, tx, userID, isContinuousActive, currentActivityStateStarted)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserIsContinuousActiveAndCurrentActivityStateStarted indicates an expected call of UpdateUserIsContinuousActiveAndCurrentActivityStateStarted.
-func (mr *MockRepositoryMockRecorder) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userID, isContinuousActive, currentActivityStateStarted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", reflect.TypeOf((*MockRepository)(nil).UpdateUserIsContinuousActiveAndCurrentActivityStateStarted), ctx, tx, userId, isContinuousActive, currentActivityStateStarted)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserIsContinuousActiveAndCurrentActivityStateStarted", reflect.TypeOf((*MockRepository)(nil).UpdateUserIsContinuousActiveAndCurrentActivityStateStarted), ctx, tx, userID, isContinuousActive, currentActivityStateStarted)
 }
 
 // UpdateUserLastEnteredDate mocks base method.
-func (m *MockRepository) UpdateUserLastEnteredDate(tx *firestore.Transaction, userId string, enteredDate time.Time) error {
+func (m *MockRepository) UpdateUserLastEnteredDate(tx *firestore.Transaction, userID string, enteredDate time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserLastEnteredDate", tx, userId, enteredDate)
+	ret := m.ctrl.Call(m, "UpdateUserLastEnteredDate", tx, userID, enteredDate)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserLastEnteredDate indicates an expected call of UpdateUserLastEnteredDate.
-func (mr *MockRepositoryMockRecorder) UpdateUserLastEnteredDate(tx, userId, enteredDate any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserLastEnteredDate(tx, userID, enteredDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastEnteredDate", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastEnteredDate), tx, userId, enteredDate)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastEnteredDate", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastEnteredDate), tx, userID, enteredDate)
 }
 
 // UpdateUserLastExitedDate mocks base method.
-func (m *MockRepository) UpdateUserLastExitedDate(tx *firestore.Transaction, userId string, exitedDate time.Time) error {
+func (m *MockRepository) UpdateUserLastExitedDate(tx *firestore.Transaction, userID string, exitedDate time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserLastExitedDate", tx, userId, exitedDate)
+	ret := m.ctrl.Call(m, "UpdateUserLastExitedDate", tx, userID, exitedDate)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserLastExitedDate indicates an expected call of UpdateUserLastExitedDate.
-func (mr *MockRepositoryMockRecorder) UpdateUserLastExitedDate(tx, userId, exitedDate any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserLastExitedDate(tx, userID, exitedDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastExitedDate", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastExitedDate), tx, userId, exitedDate)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastExitedDate", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastExitedDate), tx, userID, exitedDate)
 }
 
 // UpdateUserLastPenaltyImposedDays mocks base method.
-func (m *MockRepository) UpdateUserLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userId string, lastPenaltyImposedDays int) error {
+func (m *MockRepository) UpdateUserLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string, lastPenaltyImposedDays int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserLastPenaltyImposedDays", ctx, tx, userId, lastPenaltyImposedDays)
+	ret := m.ctrl.Call(m, "UpdateUserLastPenaltyImposedDays", ctx, tx, userID, lastPenaltyImposedDays)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserLastPenaltyImposedDays indicates an expected call of UpdateUserLastPenaltyImposedDays.
-func (mr *MockRepositoryMockRecorder) UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserLastPenaltyImposedDays(ctx, tx, userID, lastPenaltyImposedDays any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastPenaltyImposedDays", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastPenaltyImposedDays), ctx, tx, userId, lastPenaltyImposedDays)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastPenaltyImposedDays", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastPenaltyImposedDays), ctx, tx, userID, lastPenaltyImposedDays)
 }
 
 // UpdateUserLastRPProcessed mocks base method.
-func (m *MockRepository) UpdateUserLastRPProcessed(tx *firestore.Transaction, userId string, date time.Time) error {
+func (m *MockRepository) UpdateUserLastRPProcessed(tx *firestore.Transaction, userID string, date time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserLastRPProcessed", tx, userId, date)
+	ret := m.ctrl.Call(m, "UpdateUserLastRPProcessed", tx, userID, date)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserLastRPProcessed indicates an expected call of UpdateUserLastRPProcessed.
-func (mr *MockRepositoryMockRecorder) UpdateUserLastRPProcessed(tx, userId, date any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserLastRPProcessed(tx, userID, date any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastRPProcessed", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastRPProcessed), tx, userId, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLastRPProcessed", reflect.TypeOf((*MockRepository)(nil).UpdateUserLastRPProcessed), tx, userID, date)
 }
 
 // UpdateUserRPAndLastPenaltyImposedDays mocks base method.
-func (m *MockRepository) UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userId string, newRP, newLastPenaltyImposedDays int) error {
+func (m *MockRepository) UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string, newRP, newLastPenaltyImposedDays int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserRPAndLastPenaltyImposedDays", ctx, tx, userId, newRP, newLastPenaltyImposedDays)
+	ret := m.ctrl.Call(m, "UpdateUserRPAndLastPenaltyImposedDays", ctx, tx, userID, newRP, newLastPenaltyImposedDays)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserRPAndLastPenaltyImposedDays indicates an expected call of UpdateUserRPAndLastPenaltyImposedDays.
-func (mr *MockRepositoryMockRecorder) UpdateUserRPAndLastPenaltyImposedDays(ctx, tx, userId, newRP, newLastPenaltyImposedDays any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserRPAndLastPenaltyImposedDays(ctx, tx, userID, newRP, newLastPenaltyImposedDays any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRPAndLastPenaltyImposedDays", reflect.TypeOf((*MockRepository)(nil).UpdateUserRPAndLastPenaltyImposedDays), ctx, tx, userId, newRP, newLastPenaltyImposedDays)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRPAndLastPenaltyImposedDays", reflect.TypeOf((*MockRepository)(nil).UpdateUserRPAndLastPenaltyImposedDays), ctx, tx, userID, newRP, newLastPenaltyImposedDays)
 }
 
 // UpdateUserRankPoint mocks base method.
-func (m *MockRepository) UpdateUserRankPoint(tx *firestore.Transaction, userId string, rp int) error {
+func (m *MockRepository) UpdateUserRankPoint(tx *firestore.Transaction, userID string, rp int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserRankPoint", tx, userId, rp)
+	ret := m.ctrl.Call(m, "UpdateUserRankPoint", tx, userID, rp)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserRankPoint indicates an expected call of UpdateUserRankPoint.
-func (mr *MockRepositoryMockRecorder) UpdateUserRankPoint(tx, userId, rp any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserRankPoint(tx, userID, rp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRankPoint", reflect.TypeOf((*MockRepository)(nil).UpdateUserRankPoint), tx, userId, rp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRankPoint", reflect.TypeOf((*MockRepository)(nil).UpdateUserRankPoint), tx, userID, rp)
 }
 
 // UpdateUserRankVisible mocks base method.
-func (m *MockRepository) UpdateUserRankVisible(tx *firestore.Transaction, userId string, rankVisible bool) error {
+func (m *MockRepository) UpdateUserRankVisible(tx *firestore.Transaction, userID string, rankVisible bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserRankVisible", tx, userId, rankVisible)
+	ret := m.ctrl.Call(m, "UpdateUserRankVisible", tx, userID, rankVisible)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserRankVisible indicates an expected call of UpdateUserRankVisible.
-func (mr *MockRepositoryMockRecorder) UpdateUserRankVisible(tx, userId, rankVisible any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserRankVisible(tx, userID, rankVisible any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRankVisible", reflect.TypeOf((*MockRepository)(nil).UpdateUserRankVisible), tx, userId, rankVisible)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRankVisible", reflect.TypeOf((*MockRepository)(nil).UpdateUserRankVisible), tx, userID, rankVisible)
 }
 
 // UpdateUserTotalTime mocks base method.
-func (m *MockRepository) UpdateUserTotalTime(tx *firestore.Transaction, userId string, newTotalTimeSec, newDailyTotalTimeSec int) error {
+func (m *MockRepository) UpdateUserTotalTime(tx *firestore.Transaction, userID string, newTotalTimeSec, newDailyTotalTimeSec int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserTotalTime", tx, userId, newTotalTimeSec, newDailyTotalTimeSec)
+	ret := m.ctrl.Call(m, "UpdateUserTotalTime", tx, userID, newTotalTimeSec, newDailyTotalTimeSec)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateUserTotalTime indicates an expected call of UpdateUserTotalTime.
-func (mr *MockRepositoryMockRecorder) UpdateUserTotalTime(tx, userId, newTotalTimeSec, newDailyTotalTimeSec any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateUserTotalTime(tx, userID, newTotalTimeSec, newDailyTotalTimeSec any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTotalTime", reflect.TypeOf((*MockRepository)(nil).UpdateUserTotalTime), tx, userId, newTotalTimeSec, newDailyTotalTimeSec)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTotalTime", reflect.TypeOf((*MockRepository)(nil).UpdateUserTotalTime), tx, userID, newTotalTimeSec, newDailyTotalTimeSec)
 }
 
 // UpdateWorkNameTrend mocks base method.

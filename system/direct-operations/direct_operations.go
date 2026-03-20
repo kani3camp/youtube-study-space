@@ -44,7 +44,7 @@ func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
 	slog.Info("全ルームの全ユーザーを退室させました。")
 }
 
-func ExitSpecificUser(ctx context.Context, userId string, clientOption option.ClientOption) {
+func ExitSpecificUser(ctx context.Context, userID string, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
@@ -52,22 +52,22 @@ func ExitSpecificUser(ctx context.Context, userId string, clientOption option.Cl
 
 	app.MessageToOwner(ctx, "direct op: ExitSpecificUser")
 
-	app.SetProcessedUser(userId, "**", "**", false, false, true)
+	app.SetProcessedUser(userID, "**", "**", false, false, true)
 
 	if err = app.Out(ctx); err != nil {
 		panic(err)
 	}
 }
 
-func ExportUsersCollectionJson(ctx context.Context, clientOption option.ClientOption) {
+func ExportUsersCollectionJSON(ctx context.Context, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
 		panic(err)
 	}
 
-	app.MessageToOwner(ctx, "direct op: ExportUsersCollectionJson")
+	app.MessageToOwner(ctx, "direct op: ExportUsersCollectionJSON")
 
-	var allUsersTotalStudySecList []utils.UserIdTotalStudySecSet
+	var allUsersTotalStudySecList []utils.UserIDTotalStudySecSet
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		var err error
 		allUsersTotalStudySecList, err = app.GetAllUsersTotalStudySecList(ctx)
@@ -108,13 +108,13 @@ func UpdateUsersRP(ctx context.Context, clientOption option.ClientOption) {
 
 	app.MessageToOwner(ctx, "direct op: UpdateUsersRP")
 
-	userIdsToProcessRP, err := app.GetUserIdsToProcessRP(ctx)
+	userIDsToProcessRP, err := app.GetUserIDsToProcessRP(ctx)
 	if err != nil {
-		slog.Error("error in GetUserIdsToProcessRP.", "err", err)
+		slog.Error("error in GetUserIDsToProcessRP.", "err", err)
 		panic(err)
 	}
 
-	remainingUserIds := app.UpdateUserRPBatch(ctx, userIdsToProcessRP, math.MaxInt)
+	remainingUserIDs := app.UpdateUserRPBatch(ctx, userIDsToProcessRP, math.MaxInt)
 
-	slog.Info("", "remaining user ids", remainingUserIds)
+	slog.Info("", "remaining user ids", remainingUserIDs)
 }

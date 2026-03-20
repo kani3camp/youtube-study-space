@@ -22,8 +22,8 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 
 	PublishedAtDocProperty = "published-at"
 	TakenAtDocProperty     = "taken-at"
-	UserIdDocProperty      = "user-id"
-	SeatIdDocProperty      = "seat-id"
+	UserIDDocProperty      = "user-id"
+	SeatIDDocProperty      = "seat-id"
 
 	UntilDocProperty    = "until"
 	WorkNameDocProperty = "work-name"
@@ -35,7 +35,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 
 	ActivityTypeDocProperty = "activity-type"
 
-	SessionIdDocProperty   = "session-id"
+	SessionIDDocProperty   = "session-id"
 	SegmentTypeDocProperty = "segment-type"
 
 	DesiredMaxSeatsDocProperty                       = "desired-max-seats"
@@ -47,7 +47,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 
 	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	LiveChatIdDocProperty                = "youtube-live-chat-id"
+	LiveChatIDDocProperty                = "youtube-live-chat-id"
 	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
 	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"
 	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"

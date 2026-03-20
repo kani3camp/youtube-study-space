@@ -29,12 +29,12 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(setEnvErr)
 	}
 
-	userId := "test_user_id"
+	userID := "test_user_id"
 	userDisplayName := "test_user_display_name"
-	userProfileImageUrl := "test_user_profile_image_url"
+	userProfileImageURL := "test_user_profile_image_url"
 	inOption := utils.InOption{
-		IsSeatIdSet: true,
-		SeatId:      1,
+		IsSeatIDSet: true,
+		SeatID:      1,
 		MinWorkOrderOption: &utils.MinWorkOrderOption{
 			DurationMin: 30,
 			WorkName:    "test_work_name",
@@ -66,12 +66,12 @@ func TestEnterRoom(t *testing.T) {
 	})
 
 	// ユーザーデータを作成しておく
-	userErr := app.Repository.CreateUser(ctx, nil, userId, repository.UserDoc{})
+	userErr := app.Repository.CreateUser(ctx, nil, userID, repository.UserDoc{})
 	if userErr != nil {
 		t.Fatal(userErr)
 	}
 	t.Cleanup(func() {
-		userRef := app.Repository.FirestoreClient.Collection(repository.USERS).Doc(userId)
+		userRef := app.Repository.FirestoreClient.Collection(repository.USERS).Doc(userID)
 		if err := app.Repository.DeleteDocRef(ctx, nil, userRef); err != nil {
 			t.Fatal(err)
 		}
@@ -82,10 +82,10 @@ func TestEnterRoom(t *testing.T) {
 		untilExitMin, err := app.enterRoom(
 			ctx,
 			tx,
-			userId,
+			userID,
 			userDisplayName,
-			userProfileImageUrl,
-			inOption.SeatId,
+			userProfileImageURL,
+			inOption.SeatID,
 			inOption.IsMemberSeat,
 			inOption.MinWorkOrderOption.WorkName,
 			"",
@@ -107,19 +107,19 @@ func TestEnterRoom(t *testing.T) {
 		t.Fatal(txErr)
 	}
 	t.Cleanup(func() {
-		if err := app.Repository.DeleteSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat); err != nil {
+		if err := app.Repository.DeleteSeat(ctx, nil, inOption.SeatID, inOption.IsMemberSeat); err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	// 入室したことを確認
-	seat, seatErr := app.Repository.ReadSeat(ctx, nil, inOption.SeatId, inOption.IsMemberSeat)
+	seat, seatErr := app.Repository.ReadSeat(ctx, nil, inOption.SeatID, inOption.IsMemberSeat)
 	if seatErr != nil {
 		t.Fatal(seatErr)
 	}
 	assert.Equal(t, repository.SeatDoc{
-		SeatId:                 inOption.SeatId,
-		UserId:                 userId,
+		SeatID:                 inOption.SeatID,
+		UserID:                 userID,
 		UserDisplayName:        userDisplayName,
 		WorkName:               inOption.MinWorkOrderOption.WorkName,
 		BreakWorkName:          "",
@@ -131,11 +131,11 @@ func TestEnterRoom(t *testing.T) {
 		CurrentStateUntil:      expectedUntil.UTC(),
 		CumulativeWorkSec:      0,
 		DailyCumulativeWorkSec: 0,
-		UserProfileImageUrl:    userProfileImageUrl,
+		UserProfileImageURL:    userProfileImageURL,
 	}, seat)
 
 	// 履歴が作成されたことを確認
-	iter := app.Repository.FirestoreClient.Collection(repository.UserActivities).Where(repository.UserIdDocProperty, "==", userId).Documents(ctx)
+	iter := app.Repository.FirestoreClient.Collection(repository.UserActivities).Where(repository.UserIDDocProperty, "==", userID).Documents(ctx)
 	var userActivities []repository.UserActivityDoc
 	for {
 		doc, err := iter.Next()
@@ -161,9 +161,9 @@ func TestEnterRoom(t *testing.T) {
 	assert.Len(t, userActivities, 1)
 	userActivity := userActivities[0]
 	assert.Equal(t, repository.UserActivityDoc{
-		UserId:       userId,
+		UserID:       userID,
 		ActivityType: repository.EnterRoomActivity,
-		SeatId:       inOption.SeatId,
+		SeatID:       inOption.SeatID,
 		IsMemberSeat: inOption.IsMemberSeat,
 		TakenAt:      enteredAt.UTC(),
 	}, userActivity)

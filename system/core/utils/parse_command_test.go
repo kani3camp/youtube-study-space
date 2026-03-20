@@ -232,7 +232,7 @@ func TestParseCommand(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: Kick,
 				KickOption: KickOption{
-					SeatId: 12,
+					SeatID: 12,
 				},
 			},
 		},
@@ -243,7 +243,7 @@ func TestParseCommand(t *testing.T) {
 			Output: &CommandDetails{
 				CommandType: Check,
 				CheckOption: CheckOption{
-					SeatId: 14,
+					SeatID: 14,
 				},
 			},
 		},

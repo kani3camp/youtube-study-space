@@ -1,9 +1,10 @@
 package main
 
 import (
+	"testing"
+
 	"app.modules/core/workspaceapp"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func newWorkspaceApp() *workspaceapp.WorkspaceApp {
@@ -13,9 +14,9 @@ func newWorkspaceApp() *workspaceapp.WorkspaceApp {
 func assertProcessedUserInitialState(t *testing.T, app *workspaceapp.WorkspaceApp) {
 	t.Helper()
 
-	assert.Equal(t, "", app.ProcessedUserId)
+	assert.Equal(t, "", app.ProcessedUserID)
 	assert.Equal(t, "", app.ProcessedUserDisplayName)
-	assert.Equal(t, "", app.ProcessedUserProfileImageUrl)
+	assert.Equal(t, "", app.ProcessedUserProfileImageURL)
 	assert.Equal(t, false, app.ProcessedUserIsModeratorOrOwner)
 	assert.Equal(t, false, app.ProcessedUserIsMember)
 }
@@ -92,9 +93,9 @@ func TestSetProcessedUser(t *testing.T) {
 				tt.isChatMember,
 			)
 
-			assert.Equal(t, userID, app.ProcessedUserId)
+			assert.Equal(t, userID, app.ProcessedUserID)
 			assert.Equal(t, userDisplayName, app.ProcessedUserDisplayName)
-			assert.Equal(t, userProfileImageURL, app.ProcessedUserProfileImageUrl)
+			assert.Equal(t, userProfileImageURL, app.ProcessedUserProfileImageURL)
 			assert.Equal(t, tt.wantModeratorRole, app.ProcessedUserIsModeratorOrOwner)
 			assert.Equal(t, tt.isChatMember, app.ProcessedUserIsMember)
 		})

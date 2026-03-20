@@ -19,10 +19,10 @@ type BigqueryController struct {
 	WorkingRegion string
 }
 
-func NewBigqueryClient(ctx context.Context, projectId string, clientOption option.ClientOption,
+func NewBigqueryClient(ctx context.Context, projectID string, clientOption option.ClientOption,
 	workingRegion string) (*BigqueryController,
 	error) {
-	client, err := bigquery.NewClient(ctx, projectId, clientOption)
+	client, err := bigquery.NewClient(ctx, projectID, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in bigquery.NewClient: %w", err)
 	}
