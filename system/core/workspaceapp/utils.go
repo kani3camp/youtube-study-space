@@ -524,7 +524,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 
 	// 片方しかなければチェックは不要
 	if len(whiteListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
+		return false, fmt.Errorf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in white list. skipping.")
@@ -533,7 +533,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
 	}
 	if len(blackListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
+		return false, fmt.Errorf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in black list. skipping.")
@@ -634,7 +634,7 @@ func (app *WorkspaceApp) BanUser(ctx context.Context, userID string) error {
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
 func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, error) {
 	if len(app.SortedMenuItems) < number {
-		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(app.SortedMenuItems))
+		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
 }

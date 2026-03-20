@@ -177,7 +177,7 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) er
 
 func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) error {
 	if len(message) == 0 {
-		return errors.New("message length is 0.")
+		return errors.New("message length is 0")
 	}
 
 	// メッセージ送信を試行
