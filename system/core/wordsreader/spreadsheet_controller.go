@@ -3,16 +3,17 @@ package wordsreader
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
-	"strconv"
-	"strings"
 )
 
 type SpreadsheetReader struct {
 	client                     *sheets.Service
-	spreadsheetId              string
+	spreadsheetID              string
 	blockRegexSheetName        string
 	notificationRegexSheetName string
 }
@@ -20,7 +21,7 @@ type SpreadsheetReader struct {
 func NewSpreadsheetReader(
 	ctx context.Context,
 	clientOption option.ClientOption,
-	spreadsheetId string,
+	spreadsheetID string,
 	blockRegexSheetNamePrefix,
 	notificationRegexSheetNamePrefix string,
 ) (*SpreadsheetReader, error) {
@@ -29,7 +30,7 @@ func NewSpreadsheetReader(
 		return nil, fmt.Errorf("in sheets.NewService: %w", err)
 	}
 
-	ss, err := service.Spreadsheets.Get(spreadsheetId).Context(ctx).Do()
+	ss, err := service.Spreadsheets.Get(spreadsheetID).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("in service.Spreadsheets.Get: %w", err)
 	}
@@ -53,7 +54,7 @@ func NewSpreadsheetReader(
 
 	return &SpreadsheetReader{
 		client:                     service,
-		spreadsheetId:              spreadsheetId,
+		spreadsheetID:              spreadsheetID,
 		blockRegexSheetName:        blockRegexSheetName,
 		notificationRegexSheetName: notificationRegexSheetName,
 	}, nil
@@ -61,7 +62,7 @@ func NewSpreadsheetReader(
 
 func (sc *SpreadsheetReader) ReadBlockRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error) {
 	readRange := fmt.Sprintf("%s!A2:C999", sc.blockRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Context(ctx).Do()
+	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetID, readRange).Context(ctx).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}
@@ -103,7 +104,7 @@ func (sc *SpreadsheetReader) ReadBlockRegexes(ctx context.Context) (chatRegexes 
 
 func (sc *SpreadsheetReader) ReadNotificationRegexes(ctx context.Context) (chatRegexes []string, channelRegexes []string, err error) {
 	readRange := fmt.Sprintf("%s!A2:C999", sc.notificationRegexSheetName) // 「有効, 文字列, チャンネル名にも適用」2行目スタート。999行目まで。
-	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetId, readRange).Context(ctx).Do()
+	resp, err := sc.client.Spreadsheets.Values.Get(sc.spreadsheetID, readRange).Context(ctx).Do()
 	if err != nil {
 		return nil, nil, fmt.Errorf("in sc.client.Spreadsheets.Values.Get: %w", err)
 	}

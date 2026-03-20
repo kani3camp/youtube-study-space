@@ -21,7 +21,7 @@ func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportO
 		return nil
 	}
 
-	ownerMessage := i18nmsg.CommandReportOwner(utils.ReportCommand, app.ProcessedUserId, app.ProcessedUserDisplayName, reportOption.Message)
+	ownerMessage := i18nmsg.CommandReportOwner(utils.ReportCommand, app.ProcessedUserID, app.ProcessedUserDisplayName, reportOption.Message)
 	app.MessageToOwner(ctx, ownerMessage)
 
 	messageForModerators := i18nmsg.CommandReportModerators(utils.ReportCommand, app.ProcessedUserDisplayName, reportOption.Message)
@@ -34,7 +34,7 @@ func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportO
 }
 
 func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption) error {
-	targetSeatId := kickOption.SeatId
+	targetSeatID := kickOption.SeatID
 	isTargetMemberSeat := kickOption.IsTargetMemberSeat
 	var replyMessage string
 
@@ -47,7 +47,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatID, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
@@ -58,7 +58,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		}
 
 		// ユーザーを強制退室させる
-		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatID, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
 				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
@@ -67,16 +67,16 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionID(ctx, targetSeat.SessionID)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionID: %w", err)
 		}
 
-		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
-		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
+		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
+		replyMessage = i18nmsg.CommandKickKick(app.ProcessedUserDisplayName, seatIDStr, targetSeat.UserDisplayName)
 
 		// app.ProcessedUserが処理の対象ではないことに注意。
-		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
@@ -89,15 +89,15 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		if userDoc.RankVisible {
 			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 
 		{
 			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
-				SeatId)+"番席のユーザーをkickしました。\n"+
+				SeatID)+"番席のユーザーをkickしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
 				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
 				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
-				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserId)
+				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
 			if err != nil {
 				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}
@@ -114,7 +114,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 
 func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
 	jstNow := app.currentTime()
-	targetSeatId := checkOption.SeatId
+	targetSeatID := checkOption.SeatID
 	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
 	var replyMessage string
@@ -127,7 +127,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatVacant, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatVacant, err := app.IfSeatVacant(ctx, tx, targetSeatID, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant: %w", err)
 			}
@@ -137,7 +137,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 			}
 		}
 		// 座席情報を表示する
-		seat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		seat, err := app.Repository.ReadSeat(ctx, tx, targetSeatID, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
 				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
@@ -147,12 +147,12 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		}
 		sinceMinutes := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.EnteredAt)).Minutes())
 		untilMinutes := seat.RemainingWorkMin(jstNow)
-		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
-		message := app.ProcessedUserDisplayName + "さん、" + seatIdStr + "番席のユーザー情報です。\n" +
+		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
+		message := app.ProcessedUserDisplayName + "さん、" + seatIDStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
 			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
-			"チャンネルURL: https://youtube.com/channel/" + seat.UserId
+			"チャンネルURL: https://youtube.com/channel/" + seat.UserID
 		if err := app.LogToModerators(ctx, message); err != nil {
 			return fmt.Errorf("failed LogToModerators(): %w", err)
 		}
@@ -168,7 +168,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 }
 
 func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOption) error {
-	targetSeatId := blockOption.SeatId
+	targetSeatID := blockOption.SeatID
 	isTargetMemberSeat := blockOption.IsTargetMemberSeat
 
 	var replyMessage string
@@ -181,7 +181,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 
 		// ターゲットの座席は誰か使っているか
 		{
-			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatId, isTargetMemberSeat)
+			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatID, isTargetMemberSeat)
 			if err != nil {
 				return fmt.Errorf("in IfSeatVacant(): %w", err)
 			}
@@ -192,7 +192,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 		}
 
 		// ユーザーを強制退室させる
-		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatId, isTargetMemberSeat)
+		targetSeat, err := app.Repository.ReadSeat(ctx, tx, targetSeatID, isTargetMemberSeat)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
 				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
@@ -201,18 +201,18 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			app.MessageToOwnerWithError(ctx, "in ReadSeat", err)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
-		seatIdStr := presenter.SeatIDStr(targetSeatId, isTargetMemberSeat)
-		replyMessage = i18nmsg.CommandBlockBlock(app.ProcessedUserDisplayName, seatIdStr, targetSeat.UserDisplayName)
+		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
+		replyMessage = i18nmsg.CommandBlockBlock(app.ProcessedUserDisplayName, seatIDStr, targetSeat.UserDisplayName)
 
 		// app.ProcessedUserが処理の対象ではないことに注意。
-		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, targetSeat.UserID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser: %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, targetSeat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionID(ctx, targetSeat.SessionID)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionID: %w", err)
 		}
 
 		workedTimeSec, addedRP, exitErr := app.exitRoom(ctx, tx, isTargetMemberSeat, targetSeat, &userDoc, workSegments)
@@ -223,20 +223,20 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 		if userDoc.RankVisible {
 			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 
 		// ブロック
-		if err := app.BanUser(ctx, targetSeat.UserId); err != nil {
+		if err := app.BanUser(ctx, targetSeat.UserID); err != nil {
 			return fmt.Errorf("in BanUser: %w", err)
 		}
 
 		{
 			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
-				SeatId)+"番席のユーザーをblockしました。\n"+
+				SeatID)+"番席のユーザーをblockしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
 				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
 				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
-				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserId)
+				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
 			if err != nil {
 				return fmt.Errorf("failed LogToModerators(): %w", err)
 			}

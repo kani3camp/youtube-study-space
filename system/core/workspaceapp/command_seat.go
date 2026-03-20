@@ -34,18 +34,18 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 席が指定されているか？
-		if inOption.IsSeatIdSet {
+		if inOption.IsSeatIDSet {
 			// 0番席だったら最小番号の空席に決定
-			if inOption.SeatId == 0 {
-				seatId, err := app.MinAvailableSeatIdForUser(ctx, tx, app.ProcessedUserId, isTargetMemberSeat)
+			if inOption.SeatID == 0 {
+				seatID, err := app.MinAvailableSeatIDForUser(ctx, tx, app.ProcessedUserID, isTargetMemberSeat)
 				if err != nil {
-					return fmt.Errorf("in app.MinAvailableSeatIdForUser(): %w", err)
+					return fmt.Errorf("in app.MinAvailableSeatIDForUser(): %w", err)
 				}
-				inOption.SeatId = seatId
+				inOption.SeatID = seatID
 			} else {
 				// その席が空いているか？
 				{
-					isVacant, err := app.IfSeatVacant(ctx, tx, inOption.SeatId, isTargetMemberSeat)
+					isVacant, err := app.IfSeatVacant(ctx, tx, inOption.SeatID, isTargetMemberSeat)
 					if err != nil {
 						return fmt.Errorf("in app.IfSeatVacant(): %w", err)
 					}
@@ -56,7 +56,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
 				{
-					isTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserId, inOption.SeatId, isTargetMemberSeat)
+					isTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserID, inOption.SeatID, isTargetMemberSeat)
 					if err != nil {
 						return fmt.Errorf("in app.CheckIfUserSittingTooMuchForSeat(): %w", err)
 					}
@@ -67,17 +67,17 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				}
 			}
 		} else { // 席の指定なし
-			seatId, err := app.RandomAvailableSeatIdForUser(ctx, tx, app.ProcessedUserId, isTargetMemberSeat)
+			seatID, err := app.RandomAvailableSeatIDForUser(ctx, tx, app.ProcessedUserID, isTargetMemberSeat)
 			if err != nil {
 				if errors.Is(err, studyspaceerror.ErrNoSeatAvailable) {
 					return fmt.Errorf("席数がmax seatに達していて、ユーザーが入室できない事象が発生: %w", err)
 				}
 				return err
 			}
-			inOption.SeatId = seatId
+			inOption.SeatID = seatID
 		}
 
-		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser(): %w", err)
 		}
@@ -92,13 +92,13 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		}
 
 		// ランクから席の色を決定
-		seatAppearance, err := app.GetUserRealtimeSeatAppearance(ctx, tx, app.ProcessedUserId)
+		seatAppearance, err := app.GetUserRealtimeSeatAppearance(ctx, tx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in GetUserRealtimeSeatAppearance(): %w", err)
 		}
 
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in IsUserInRoom(): %w", err)
 		}
@@ -106,7 +106,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		var currentSeat repository.SeatDoc
 		if isInRoom { // 現在座っている席を取得
 			var err error
-			currentSeat, err = app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+			currentSeat, err = app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 			if err != nil {
 				return fmt.Errorf("in CurrentSeat(): %w", err)
 			}
@@ -117,7 +117,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		var orderLimitExceeded bool
 		if inOption.MinWorkOrderOption.IsOrderSet {
 			// メンバーでない場合は、本日の注文回数をチェック
-			totalOrderCount, err = app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, jstNow)
+			totalOrderCount, err = app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserID, jstNow)
 			if err != nil {
 				return fmt.Errorf("in CountUserOrdersOfTheDay(): %w", err)
 			}
@@ -135,10 +135,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		}
 
 		var workSegments []repository.WorkSegmentDoc
-		if isInRoom && inOption.IsSeatIdSet {
-			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionId(ctx, currentSeat.SessionId)
+		if isInRoom && inOption.IsSeatIDSet {
+			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionID(ctx, currentSeat.SessionID)
 			if err != nil {
-				return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+				return fmt.Errorf("in ReadWorkStateSegmentsBySessionID(): %w", err)
 			}
 		}
 
@@ -155,9 +155,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 
 				// 注文履歴を作成
 				orderHistoryDoc := repository.OrderHistoryDoc{
-					UserId:       app.ProcessedUserId,
+					UserID:       app.ProcessedUserID,
 					MenuCode:     targetMenuItem.Code,
-					SeatId:       inOption.SeatId,
+					SeatID:       inOption.SeatID,
 					IsMemberSeat: isTargetMemberSeat,
 					OrderedAt:    jstNow,
 				}
@@ -169,11 +169,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		if isInRoom && inOption.IsSeatIdSet { // 入室中で、席指定があれば、席移動処理
+		if isInRoom && inOption.IsSeatIDSet { // 入室中で、席指定があれば、席移動処理
 			workedTimeSec, addedRP, untilExitMin, err := app.moveSeat(
 				ctx,
 				tx,
-				inOption.SeatId,
+				inOption.SeatID,
 				app.ProcessedUserProfileImageUrl,
 				isInMemberRoom,
 				isTargetMemberSeat,
@@ -182,7 +182,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				&userDoc,
 				workSegments)
 			if err != nil {
-				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
+				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 			}
 
 			var workName string
@@ -192,9 +192,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				workName = currentSeat.WorkName
 			}
 			result.Add(usecase.SeatMoved{
-				FromSeatID:       currentSeat.SeatId,
+				FromSeatID:       currentSeat.SeatID,
 				FromIsMemberSeat: isInMemberRoom,
-				ToSeatID:         inOption.SeatId,
+				ToSeatID:         inOption.SeatID,
 				ToIsMemberSeat:   isTargetMemberSeat,
 				WorkName:         workName,
 				WorkedTimeSec:    workedTimeSec,
@@ -202,9 +202,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				RankVisible:      userDoc.RankVisible,
 				UntilExitMin:     untilExitMin,
 			})
-		} else if isInRoom && !inOption.IsSeatIdSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
-			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
-			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIdStr)
+		} else if isInRoom && !inOption.IsSeatIDSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
+			seatIDStr := presenter.SeatIDStr(currentSeat.SeatID, isInMemberRoom)
+			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIDStr)
 
 			if inOption.MinWorkOrderOption.IsWorkNameSet {
 				// work segmentログ記録
@@ -219,10 +219,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				switch currentSeat.State {
 				case repository.WorkState:
 					currentSeat.WorkName = inOption.MinWorkOrderOption.WorkName
-					replyMessage += i18nmsg.CommandChangeUpdateWork(inOption.MinWorkOrderOption.WorkName, seatIdStr)
+					replyMessage += i18nmsg.CommandChangeUpdateWork(inOption.MinWorkOrderOption.WorkName, seatIDStr)
 				case repository.BreakState:
 					currentSeat.BreakWorkName = inOption.MinWorkOrderOption.WorkName
-					replyMessage += i18nmsg.CommandChangeUpdateBreak(inOption.MinWorkOrderOption.WorkName, seatIdStr)
+					replyMessage += i18nmsg.CommandChangeUpdateBreak(inOption.MinWorkOrderOption.WorkName, seatIDStr)
 				}
 				currentSeat.CurrentSegmentStartedAt = jstNow
 			}
@@ -271,10 +271,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			untilExitMin, err := app.enterRoom(
 				ctx,
 				tx,
-				app.ProcessedUserId,
+				app.ProcessedUserID,
 				app.ProcessedUserDisplayName,
 				app.ProcessedUserProfileImageUrl,
-				inOption.SeatId,
+				inOption.SeatID,
 				isTargetMemberSeat,
 				inOption.MinWorkOrderOption.WorkName,
 				"",
@@ -290,7 +290,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
 			result.Add(usecase.SeatEntered{
-				SeatID:       inOption.SeatId,
+				SeatID:       inOption.SeatID,
 				IsMemberSeat: isTargetMemberSeat,
 				WorkName:     inOption.MinWorkOrderOption.WorkName,
 				UntilExitMin: untilExitMin,
@@ -311,12 +311,12 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 func (app *WorkspaceApp) Out(ctx context.Context) error {
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser(): %w", err)
 		}
 
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in IsUserInRoom(): %w", err)
 		}
@@ -332,14 +332,14 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 		}
 
 		// 現在座っている席を特定
-		seat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		seat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("in CurrentSeat(): %w", err)
 		}
 
-		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
+		workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionID(ctx, seat.SessionID)
 		if err != nil {
-			return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+			return fmt.Errorf("in ReadWorkStateSegmentsBySessionID(): %w", err)
 		}
 
 		// 退室処理
@@ -351,8 +351,8 @@ func (app *WorkspaceApp) Out(ctx context.Context) error {
 		if userDoc.RankVisible {
 			rpEarned = i18nmsg.CommandRpEarned(addedRP)
 		}
-		seatIdStr := presenter.SeatIDStr(seat.SeatId, isInMemberRoom)
-		replyMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+		seatIDStr := presenter.SeatIDStr(seat.SeatID, isInMemberRoom)
+		replyMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 		return nil
 	})
 	if txErr != nil {
@@ -369,13 +369,13 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in IsUserInRoom(): %w", err)
 		}
 		isInRoom := isInMemberRoom || isInGeneralRoom
 		if isInRoom {
-			currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+			currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 			if err != nil {
 				return fmt.Errorf("in app.CurrentSeat(): %w", err)
 			}
@@ -397,15 +397,15 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 				breakUntilDuration := timeutil.NoNegativeDuration(currentSeat.CurrentStateUntil.Sub(jstNow))
 				breakUntilStr = i18nmsg.CommandSeatInfoBreakUntil(int(breakUntilDuration.Minutes()))
 			}
-			seatIdStr := presenter.SeatIDStr(currentSeat.SeatId, isInMemberRoom)
-			replyMessage = i18nmsg.CommandSeatInfoBase(app.ProcessedUserDisplayName, seatIdStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
+			seatIDStr := presenter.SeatIDStr(currentSeat.SeatID, isInMemberRoom)
+			replyMessage = i18nmsg.CommandSeatInfoBase(app.ProcessedUserDisplayName, seatIDStr, stateStr, realtimeSittingDurationMin, int(realtimeTotalStudyDurationOfSeat.Minutes()), remainingMinutes, breakUntilStr)
 
 			if showDetails {
-				recentTotalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, app.ProcessedUserId, currentSeat.SeatId, isInMemberRoom)
+				recentTotalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, app.ProcessedUserID, currentSeat.SeatID, isInMemberRoom)
 				if err != nil {
 					return fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 				}
-				replyMessage += i18nmsg.CommandSeatInfoDetails(app.Configs.Constants.RecentRangeMin, seatIdStr, int(recentTotalEntryDuration.Minutes()))
+				replyMessage += i18nmsg.CommandSeatInfoDetails(app.Configs.Constants.RecentRangeMin, seatIDStr, int(recentTotalEntryDuration.Minutes()))
 			}
 		} else {
 			replyMessage = i18nmsg.CommandNotEnter(app.ProcessedUserDisplayName, utils.InCommand)
@@ -426,7 +426,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// そのユーザーは入室中か？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -438,7 +438,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 			return nil
 		}
 
-		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -467,14 +467,14 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 				currentSeat.WorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedWork{
 					WorkName:     changeOption.WorkName,
-					SeatID:       currentSeat.SeatId,
+					SeatID:       currentSeat.SeatID,
 					IsMemberSeat: isInMemberRoom,
 				})
 			case repository.BreakState:
 				currentSeat.BreakWorkName = changeOption.WorkName
 				result.Add(usecase.ChangeUpdatedBreak{
 					WorkName:     changeOption.WorkName,
-					SeatID:       currentSeat.SeatId,
+					SeatID:       currentSeat.SeatID,
 					IsMemberSeat: isInMemberRoom,
 				})
 			}
@@ -559,7 +559,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 		jstNow := app.currentTime()
 
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -569,7 +569,7 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 			return nil
 		}
 
-		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -666,7 +666,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		jstNow := app.currentTime()
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -677,7 +677,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// stateを確認
-		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -724,9 +724,9 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 
 		// DEPRECATED: activityログ記録
 		startBreakActivity := repository.UserActivityDoc{
-			UserId:       app.ProcessedUserId,
+			UserID:       app.ProcessedUserID,
 			ActivityType: repository.StartBreakActivity,
-			SeatId:       currentSeat.SeatId,
+			SeatID:       currentSeat.SeatID,
 			IsMemberSeat: isInMemberRoom,
 			TakenAt:      jstNow,
 		}
@@ -735,7 +735,7 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		result.Add(usecase.BreakStarted{
-			SeatID:       currentSeat.SeatId,
+			SeatID:       currentSeat.SeatID,
 			IsMemberSeat: isInMemberRoom,
 			WorkName:     breakOption.WorkName,
 			DurationMin:  breakOption.DurationMin,
@@ -758,7 +758,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -769,7 +769,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		}
 
 		// stateを確認
-		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -810,9 +810,9 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 		{
 			// DEPRECATED: activityログ記録
 			endBreakActivity := repository.UserActivityDoc{
-				UserId:       app.ProcessedUserId,
+				UserID:       app.ProcessedUserID,
 				ActivityType: repository.EndBreakActivity,
-				SeatId:       currentSeat.SeatId,
+				SeatID:       currentSeat.SeatID,
 				IsMemberSeat: isInMemberRoom,
 				TakenAt:      jstNow,
 			}
@@ -823,7 +823,7 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 
 		untilExitDuration := timeutil.NoNegativeDuration(until.Sub(jstNow))
 		result.Add(usecase.ResumeStarted{
-			SeatID:                currentSeat.SeatId,
+			SeatID:                currentSeat.SeatID,
 			IsMemberSeat:          isInMemberRoom,
 			RemainingUntilExitMin: int(untilExitDuration.Minutes()),
 		})
@@ -847,7 +847,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		jstNow := app.currentTime()
 
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -858,7 +858,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 		}
 
 		// メンバーでないなら本日の注文回数をチェック
-		todayOrderCount, err := app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserId, jstNow)
+		todayOrderCount, err := app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserID, jstNow)
 		if err != nil {
 			return fmt.Errorf("in CountUserOrdersOfTheDay: %w", err)
 		}
@@ -871,7 +871,7 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 			}
 		}
 
-		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -896,9 +896,9 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 
 		// 注文履歴を作成
 		orderHistoryDoc := repository.OrderHistoryDoc{
-			UserId:       app.ProcessedUserId,
+			UserID:       app.ProcessedUserID,
 			MenuCode:     targetMenuItem.Code,
-			SeatId:       currentSeat.SeatId,
+			SeatID:       currentSeat.SeatID,
 			IsMemberSeat: isInMemberRoom,
 			OrderedAt:    jstNow,
 		}
@@ -936,7 +936,7 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		// 入室しているか？
-		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("failed IsUserInRoom: %w", err)
 		}
@@ -946,7 +946,7 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 			return nil
 		}
 
-		seat, err := app.CurrentSeat(ctx, app.ProcessedUserId, isInMemberRoom)
+		seat, err := app.CurrentSeat(ctx, app.ProcessedUserID, isInMemberRoom)
 		if err != nil {
 			return fmt.Errorf("failed app.CurrentSeat(): %w", err)
 		}
@@ -968,10 +968,10 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 		switch seat.State {
 		case repository.WorkState:
 			seat.WorkName = ""
-			result.Add(usecase.ClearWork{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
+			result.Add(usecase.ClearWork{SeatID: seat.SeatID, IsMemberSeat: isInMemberRoom})
 		case repository.BreakState:
 			seat.BreakWorkName = ""
-			result.Add(usecase.ClearBreak{SeatID: seat.SeatId, IsMemberSeat: isInMemberRoom})
+			result.Add(usecase.ClearBreak{SeatID: seat.SeatID, IsMemberSeat: isInMemberRoom})
 		}
 		seat.CurrentSegmentStartedAt = jstNow
 

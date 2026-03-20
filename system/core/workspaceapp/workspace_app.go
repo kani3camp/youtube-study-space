@@ -29,7 +29,7 @@ type WorkspaceApp struct {
 	alertModeratorsBot moderatorbot.MessageBot
 	logModeratorsBot   moderatorbot.MessageBot
 
-	ProcessedUserId                 string
+	ProcessedUserID                 string
 	ProcessedUserDisplayName        string
 	ProcessedUserProfileImageUrl    string
 	ProcessedUserIsModeratorOrOwner bool
@@ -49,7 +49,7 @@ type WorkspaceApp struct {
 type Configs struct {
 	Constants repository.ConstantsConfigDoc
 
-	LiveChatBotChannelId string
+	LiveChatBotChannelID string
 }
 
 func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.ClientOption) (*WorkspaceApp, error) {
@@ -72,23 +72,23 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 
 	// YouTube live chatbot
 	slog.InfoContext(ctx, "initializing youtube live chat bot...")
-	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatId, firestoreController, ctx)
+	liveChatBot, err := youtubebot.NewYoutubeLiveChatBot(credentialsDoc.YoutubeLiveChatID, firestoreController, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("in NewYoutubeLiveChatBot(): %w", err)
 	}
 
-	discordOwnerBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelId)
+	discordOwnerBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordOwnerBotToken, credentialsDoc.DiscordOwnerBotTextChannelID)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
 
-	discordSharedBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotTextChannelId)
+	discordSharedBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotTextChannelID)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
 
 	// discord bot for logging
-	discordSharedLogBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelId)
+	discordSharedLogBot, err := moderatorbot.NewDiscordBot(credentialsDoc.DiscordSharedBotToken, credentialsDoc.DiscordSharedBotLogChannelID)
 	if err != nil {
 		return nil, fmt.Errorf("in NewDiscordBot(): %w", err)
 	}
@@ -102,7 +102,7 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 
 	configs := Configs{
 		Constants:            constantsConfig,
-		LiveChatBotChannelId: credentialsDoc.YoutubeBotChannelId,
+		LiveChatBotChannelID: credentialsDoc.YoutubeBotChannelID,
 	}
 
 	// 全ての項目が初期化できているか確認
@@ -133,7 +133,7 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 	}
 
 	slog.InfoContext(ctx, "initializing spreadsheet reader...")
-	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, configs.Constants.BotConfigSpreadsheetId, "01", "02")
+	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, configs.Constants.BotConfigSpreadsheetID, "01", "02")
 	if err != nil {
 		return nil, fmt.Errorf("in NewSpreadsheetReader(): %w", err)
 	}
@@ -182,8 +182,8 @@ func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.
 	return app.Repository.FirestoreClient().RunTransaction(ctx, f)
 }
 
-func (app *WorkspaceApp) SetProcessedUser(userId string, userDisplayName string, userProfileImageUrl string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
-	app.ProcessedUserId = userId
+func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageUrl string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
+	app.ProcessedUserID = userID
 	app.ProcessedUserDisplayName = userDisplayName
 	app.ProcessedUserProfileImageUrl = userProfileImageUrl
 	app.ProcessedUserIsModeratorOrOwner = isChatModerator || isChatOwner
@@ -231,20 +231,20 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	}
 }
 
-func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId, message, channelName string) (bool, error) {
+func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID, message, channelName string) (bool, error) {
 	// ブロック対象チェック
 	found, index, err := utils.ContainsRegexWithIndex(app.blockRegexesForChatMessage, message)
 	if err != nil {
 		return false, err
 	}
 	if found {
-		if err := app.BanUser(ctx, userId); err != nil {
+		if err := app.BanUser(ctx, userID); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
 		return true, app.LogToModerators(ctx, "発言から禁止ワードを検出、ユーザーをブロックしました。"+
 			"\n禁止ワード: `"+app.blockRegexesForChatMessage[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
-			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
@@ -253,13 +253,13 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
-		if err := app.BanUser(ctx, userId); err != nil {
+		if err := app.BanUser(ctx, userID); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
 		return true, app.LogToModerators(ctx, "チャンネル名から禁止ワードを検出、ユーザーをブロックしました。"+
 			"\n禁止ワード: `"+app.blockRegexesForChannelName[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
-			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
@@ -273,7 +273,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 		return false, app.MessageToModerators(ctx, "発言から禁止ワードを検出しました。（通知のみ）"+
 			"\n禁止ワード: `"+app.notificationRegexesForChatMessage[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
-			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
@@ -285,7 +285,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 		return false, app.MessageToModerators(ctx, "チャンネルから禁止ワードを検出しました。（通知のみ）"+
 			"\n禁止ワード: `"+app.notificationRegexesForChannelName[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
-			"\nチャンネルURL: https://youtube.com/channel/"+userId+
+			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
@@ -296,24 +296,24 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userId
 func (app *WorkspaceApp) ProcessMessage(
 	ctx context.Context,
 	commandString string,
-	userId string,
+	userID string,
 	userDisplayName string,
 	userProfileImageUrl string,
 	isChatModerator bool,
 	isChatOwner bool,
 	isChatMember bool,
 ) error {
-	if userId == app.Configs.LiveChatBotChannelId {
+	if userID == app.Configs.LiveChatBotChannelID {
 		return nil
 	}
 	if !app.Configs.Constants.YoutubeMembershipEnabled {
 		isChatMember = false
 	}
-	app.SetProcessedUser(userId, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
+	app.SetProcessedUser(userID, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
 
 	// check if an unwanted word included
 	if !isChatModerator && !isChatOwner {
-		blocked, err := app.CheckIfUnwantedWordIncluded(ctx, userId, commandString, userDisplayName)
+		blocked, err := app.CheckIfUnwantedWordIncluded(ctx, userID, commandString, userDisplayName)
 		if err != nil {
 			app.MessageToOwnerWithError(ctx, "in CheckIfUnwantedWordIncluded", err)
 			// continue

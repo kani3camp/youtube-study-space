@@ -180,14 +180,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
-			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
+			channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
 			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
-			profileImageUrl := youtubebot.ExtractAuthorProfileImageUrl(chatMessage)
+			profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			if err := app.ProcessMessage(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember); err != nil {
+			if err := app.ProcessMessage(ctx, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
 				app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
 			}
 		}

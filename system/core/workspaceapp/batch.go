@@ -60,10 +60,10 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			jstNow := app.currentTime() // スナップショットごとに最新の時刻を取得
-			app.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
-			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
+			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -76,7 +76,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 				return nil
 			}
 
-			userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+			userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 			if err != nil {
 				return fmt.Errorf("in ReadUser(): %w", err)
 			}
@@ -87,21 +87,21 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 
 			// 自動退室時刻による退室処理
 			if autoExit {
-				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seatSnapshot.SessionId)
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionID(ctx, seatSnapshot.SessionID)
 				if err != nil {
-					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId(): %w", err)
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionID(): %w", err)
 				}
 
 				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
-					return fmt.Errorf("%sさん（%s）の退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
+					return fmt.Errorf("%sさん（%s）の退室処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 				}
 				var rpEarned string
 				if userDoc.RankVisible {
 					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
-				seatIdStr := presenter.SeatIDStr(seat.SeatId, isMemberRoom)
-				liveChatMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+				seatIDStr := presenter.SeatIDStr(seat.SeatID, isMemberRoom)
+				liveChatMessage = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 			}
 
 			return nil
@@ -128,10 +128,10 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			jstNow := app.currentTime() // snapshotごとに最新の時刻を取得
-			app.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
 
 			// 現在も存在しているか
-			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberRoom)
+			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberRoom)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -175,18 +175,18 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				}
 				// DEPRECATED: activityログ記録
 				endBreakActivity := repository.UserActivityDoc{
-					UserId:       app.ProcessedUserId,
+					UserID:       app.ProcessedUserID,
 					ActivityType: repository.EndBreakActivity,
-					SeatId:       seat.SeatId,
+					SeatID:       seat.SeatID,
 					IsMemberSeat: isMemberRoom,
 					TakenAt:      jstNow,
 				}
 				if err := app.Repository.CreateUserActivityDoc(ctx, tx, endBreakActivity); err != nil {
 					return fmt.Errorf("in CreateUserActivityDoc(): %w", err)
 				}
-				seatIdStr := presenter.SeatIDStr(seat.SeatId, isMemberRoom)
+				seatIDStr := presenter.SeatIDStr(seat.SeatID, isMemberRoom)
 
-				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIdStr, int(timeutil.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
+				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIDStr, int(timeutil.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
 			}
 			return nil
 		})
@@ -234,10 +234,10 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			app.SetProcessedUser(seatSnapshot.UserId, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberSeat)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberSeat)
 
 			// 現在も存在しているか
-			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatId, isMemberSeat)
+			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberSeat)
 			if err != nil {
 				if status.Code(err) == codes.NotFound {
 					slog.Info("すぐ前に退室したということなのでスルー")
@@ -251,9 +251,9 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			}
 
 			{
-				ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserId, seat.SeatId, isMemberSeat)
+				ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserID, seat.SeatID, isMemberSeat)
 				if err != nil {
-					return fmt.Errorf("%sさん（%s）の席移動処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
+					return fmt.Errorf("%sさん（%s）の席移動処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 				}
 				if ifSittingTooMuch {
 					forcedMove = true
@@ -267,8 +267,8 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			continue
 		}
 		if forcedMove { // 長時間入室制限による強制席移動。nested transactionとならないよう、RunTransactionの外側で実行
-			seatIdStr := presenter.SeatIDStr(seatSnapshot.SeatId, isMemberSeat)
-			app.MessageToLiveChat(ctx, i18nmsg.OthersForceMove(app.ProcessedUserDisplayName, seatIdStr))
+			seatIDStr := presenter.SeatIDStr(seatSnapshot.SeatID, isMemberSeat)
+			app.MessageToLiveChat(ctx, i18nmsg.OthersForceMove(app.ProcessedUserDisplayName, seatIDStr))
 
 			var isOrderSet bool
 			var menuNum int
@@ -283,8 +283,8 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			inCommandDetails := &utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: true,
-					SeatId:      0,
+					IsSeatIDSet: true,
+					SeatID:      0,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
@@ -297,7 +297,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 				},
 			}
 			if err := app.In(ctx, &inCommandDetails.InOption); err != nil {
-				return fmt.Errorf("%sさん（%s）の自動席移動処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserId, err)
+				return fmt.Errorf("%sさん（%s）の自動席移動処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 			}
 		}
 	}
@@ -316,16 +316,16 @@ func (app *WorkspaceApp) DailyOrganizeDB(ctx context.Context) ([]string, error) 
 	ownerMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
 
 	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
-	userIdsToProcessRP, err := app.GetUserIdsToProcessRP(ctx)
+	userIDsToProcessRP, err := app.GetUserIDsToProcessRP(ctx)
 	if err != nil {
-		return []string{}, fmt.Errorf("in GetUserIdsToProcessRP(): %w", err)
+		return []string{}, fmt.Errorf("in GetUserIDsToProcessRP(): %w", err)
 	}
 
-	ownerMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIdsToProcessRP))
+	ownerMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIDsToProcessRP))
 	ownerMessage += "\n本日のDailyOrganizeDB()処理が完了しました（RP更新処理以外）。"
 	app.MessageToOwner(ctx, ownerMessage)
 	slog.Info("finished " + utils.NameOf(app.DailyOrganizeDB))
-	return userIdsToProcessRP, nil
+	return userIDsToProcessRP, nil
 }
 
 func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
@@ -360,47 +360,47 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 	}
 }
 
-func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIds []string, timeLimitSeconds int) []string {
+func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIDs []string, timeLimitSeconds int) []string {
 	startTime := app.currentTime()
-	var doneUserIds []string
-	for _, userId := range userIds {
+	var doneUserIDs []string
+	for _, userID := range userIDs {
 		// 時間チェック
 		now := app.currentTime()
 		duration := now.Sub(startTime)
 		if int(duration.Seconds()) > timeLimitSeconds {
-			return userIds
+			return userIDs
 		}
 
 		// 処理
-		if err := app.UpdateUserRP(ctx, userId, now); err != nil {
-			app.MessageToOwnerWithError(ctx, "failed to UpdateUserRP, while processing "+userId, err)
+		if err := app.UpdateUserRP(ctx, userID, now); err != nil {
+			app.MessageToOwnerWithError(ctx, "failed to UpdateUserRP, while processing "+userID, err)
 			// pass. mark user as done
 		}
-		doneUserIds = append(doneUserIds, userId)
+		doneUserIDs = append(doneUserIDs, userID)
 	}
 
-	var remainingUserIds []string
-	for _, userId := range userIds {
-		if utils.Contains(doneUserIds, userId) {
+	var remainingUserIDs []string
+	for _, userID := range userIDs {
+		if utils.Contains(doneUserIDs, userID) {
 			continue
 		} else {
-			remainingUserIds = append(remainingUserIds, userId)
+			remainingUserIDs = append(remainingUserIDs, userID)
 		}
 	}
-	return remainingUserIds
+	return remainingUserIDs
 }
 
-func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userId string, jstNow time.Time) error {
-	slog.Info("processing RP.", "userId", userId)
+func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userID string, jstNow time.Time) error {
+	slog.Info("processing RP.", "userID", userID)
 	return app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		userDoc, err := app.Repository.ReadUser(ctx, tx, userId)
+		userDoc, err := app.Repository.ReadUser(ctx, tx, userID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser(): %w", err)
 		}
 
 		// 同日の重複処理防止チェック
 		if timeutil.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
-			slog.Warn("user " + userId + " is already RP processed today, skipping.")
+			slog.Warn("user " + userID + " is already RP processed today, skipping.")
 			return nil
 		}
 
@@ -413,22 +413,22 @@ func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userId string, jstNow
 
 		// 変更項目がある場合のみ変更
 		if lastPenaltyImposedDays != userDoc.LastPenaltyImposedDays {
-			if err := app.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, lastPenaltyImposedDays); err != nil {
+			if err := app.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userID, lastPenaltyImposedDays); err != nil {
 				return fmt.Errorf("in UpdateUserLastPenaltyImposedDays(): %w", err)
 			}
 		}
 		if isContinuousActive != userDoc.IsContinuousActive || !currentActivityStateStarted.Equal(userDoc.CurrentActivityStateStarted) {
-			if err := app.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, isContinuousActive, currentActivityStateStarted); err != nil {
+			if err := app.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userID, isContinuousActive, currentActivityStateStarted); err != nil {
 				return fmt.Errorf("in UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(): %w", err)
 			}
 		}
 		if rankPoint != userDoc.RankPoint {
-			if err := app.Repository.UpdateUserRankPoint(tx, userId, rankPoint); err != nil {
+			if err := app.Repository.UpdateUserRankPoint(tx, userID, rankPoint); err != nil {
 				return fmt.Errorf("in UpdateUserRankPoint(): %w", err)
 			}
 		}
 
-		if err := app.Repository.UpdateUserLastRPProcessed(tx, userId, jstNow); err != nil {
+		if err := app.Repository.UpdateUserLastRPProcessed(tx, userID, jstNow); err != nil {
 			return fmt.Errorf("in UpdateUserLastRPProcessed(): %w", err)
 		}
 
@@ -449,11 +449,11 @@ func (app *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery(ctx context.Co
 		}
 		defer gcsClient.CloseClient()
 
-		projectId, err := utils.GetGcpProjectId(ctx, clientOption)
+		projectID, err := utils.GetGcpProjectID(ctx, clientOption)
 		if err != nil {
-			return fmt.Errorf("in GetGcpProjectId(): %w", err)
+			return fmt.Errorf("in GetGcpProjectID(): %w", err)
 		}
-		bqClient, err := mybigquery.NewBigqueryClient(ctx, projectId, clientOption, app.Configs.Constants.GcpRegion)
+		bqClient, err := mybigquery.NewBigqueryClient(ctx, projectID, clientOption, app.Configs.Constants.GcpRegion)
 		if err != nil {
 			return fmt.Errorf("in NewBigqueryClient(): %w", err)
 		}

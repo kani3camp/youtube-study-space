@@ -90,24 +90,24 @@ func doResetDailyTotal(ctx context.Context, app *workspaceapp.WorkspaceApp) erro
 }
 
 func doUpdateRP(ctx context.Context, app *workspaceapp.WorkspaceApp) error {
-	userIds, err := app.GetUserIdsToProcessRP(ctx)
+	userIDs, err := app.GetUserIDsToProcessRP(ctx)
 	if err != nil {
-		return fmt.Errorf("GetUserIdsToProcessRP: %w", err)
+		return fmt.Errorf("GetUserIDsToProcessRP: %w", err)
 	}
 	jstNow := timeutil.JstNow()
 
 	var success, failed int
-	for _, uid := range userIds {
-		if err := app.UpdateUserRP(ctx, uid, jstNow); err != nil {
+	for _, userID := range userIDs {
+		if err := app.UpdateUserRP(ctx, userID, jstNow); err != nil {
 			failed++
-			app.MessageToOwnerWithError(ctx, "failed UpdateUserRP: "+uid, err)
+			app.MessageToOwnerWithError(ctx, "failed UpdateUserRP: "+userID, err)
 			continue
 		}
 		success++
 	}
-	app.MessageToOwner(ctx, "update-rp finished. success="+strconv.Itoa(success)+", failed="+strconv.Itoa(failed)+", total="+strconv.Itoa(len(userIds)))
+	app.MessageToOwner(ctx, "update-rp finished. success="+strconv.Itoa(success)+", failed="+strconv.Itoa(failed)+", total="+strconv.Itoa(len(userIDs)))
 	if failed > 0 {
-		return fmt.Errorf("UpdateUserRP failed for %d out of %d users", failed, len(userIds))
+		return fmt.Errorf("UpdateUserRP failed for %d out of %d users", failed, len(userIDs))
 	}
 	return nil
 }

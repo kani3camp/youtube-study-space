@@ -48,16 +48,16 @@ func DivideStringEqually(batchSize int, values []string) [][]string {
 	return batchList
 }
 
-func GetSeatByUserId(seats []repository.SeatDoc, userId string) (repository.SeatDoc, error) {
+func GetSeatByUserID(seats []repository.SeatDoc, userID string) (repository.SeatDoc, error) {
 	for _, seat := range seats {
-		if seat.UserId == userId {
+		if seat.UserID == userID {
 			return seat, nil
 		}
 	}
-	return repository.SeatDoc{}, errors.New("no seat found with user id = " + userId)
+	return repository.SeatDoc{}, errors.New("no seat found with user id = " + userID)
 }
 
-func GetGcpProjectId(ctx context.Context, clientOption option.ClientOption) (string, error) {
+func GetGcpProjectID(ctx context.Context, clientOption option.ClientOption) (string, error) {
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
 		return "", err
@@ -177,7 +177,7 @@ func TruncateStringUTF8(s string, maxBytes int) string {
 	return s[:maxBytes]
 }
 
-// GenerateSessionId generates a UUID v4 string with hyphens removed (32 chars).
-func GenerateSessionId() string {
+// GenerateSessionID generates a UUID v4 string with hyphens removed (32 chars).
+func GenerateSessionID() string {
 	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }

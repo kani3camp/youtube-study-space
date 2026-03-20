@@ -17,10 +17,10 @@ const (
 
 type DiscordBot struct {
 	session       *discordgo.Session
-	textChannelId string
+	textChannelID string
 }
 
-func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
+func NewDiscordBot(token string, textChannelID string) (*DiscordBot, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
 		return nil, err
@@ -34,13 +34,13 @@ func NewDiscordBot(token string, textChannelId string) (*DiscordBot, error) {
 
 	return &DiscordBot{
 		session:       session,
-		textChannelId: textChannelId,
+		textChannelID: textChannelID,
 	}, nil
 }
 
 func (bot *DiscordBot) SendMessage(ctx context.Context, message string) error {
 	slog.InfoContext(ctx, "sending a message to Discord.", "message", message)
-	_, err := bot.session.ChannelMessageSend(bot.textChannelId, message)
+	_, err := bot.session.ChannelMessageSend(bot.textChannelID, message)
 	if err != nil {
 		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)
 	}

@@ -26,25 +26,25 @@ import (
 )
 
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
-func (app *WorkspaceApp) IsSeatExist(ctx context.Context, seatId int, isMemberSeat bool) (bool, error) {
+func (app *WorkspaceApp) IsSeatExist(ctx context.Context, seatID int, isMemberSeat bool) (bool, error) {
 	realtimeConstants, err := app.Repository.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("in ReadSystemConstantsConfig: %w", err)
 	}
 	if isMemberSeat {
-		return 1 <= seatId && seatId <= realtimeConstants.MemberMaxSeats, nil
+		return 1 <= seatID && seatID <= realtimeConstants.MemberMaxSeats, nil
 	} else {
-		return 1 <= seatId && seatId <= realtimeConstants.MaxSeats, nil
+		return 1 <= seatID && seatID <= realtimeConstants.MaxSeats, nil
 	}
 }
 
-// IfSeatVacant 席番号がseatIdの席が空いているかどうか。
-func (app *WorkspaceApp) IfSeatVacant(ctx context.Context, tx *firestore.Transaction, seatId int, isMemberSeat bool) (bool, error) {
-	_, err := app.Repository.ReadSeat(ctx, tx, seatId, isMemberSeat)
+// IfSeatVacant 席番号がseatIDの席が空いているかどうか。
+func (app *WorkspaceApp) IfSeatVacant(ctx context.Context, tx *firestore.Transaction, seatID int, isMemberSeat bool) (bool, error) {
+	_, err := app.Repository.ReadSeat(ctx, tx, seatID, isMemberSeat)
 	if err != nil {
 		if status.Code(err) == codes.NotFound { // その座席のドキュメントは存在しない
 			// maxSeats以内かどうか
-			isExist, err := app.IsSeatExist(ctx, seatId, isMemberSeat)
+			isExist, err := app.IsSeatExist(ctx, seatID, isMemberSeat)
 			if err != nil {
 				return false, fmt.Errorf("in IsSeatExist: %w", err)
 			}
@@ -57,7 +57,7 @@ func (app *WorkspaceApp) IfSeatVacant(ctx context.Context, tx *firestore.Transac
 }
 
 func (app *WorkspaceApp) IfUserRegistered(ctx context.Context, tx *firestore.Transaction) (bool, error) {
-	_, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+	_, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return false, nil
@@ -69,21 +69,21 @@ func (app *WorkspaceApp) IfUserRegistered(ctx context.Context, tx *firestore.Tra
 }
 
 // IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
-func (app *WorkspaceApp) IsUserInRoom(ctx context.Context, userId string) (isInMemberRoom bool, isInGeneralRoom bool, returnErr error) {
+func (app *WorkspaceApp) IsUserInRoom(ctx context.Context, userID string) (isInMemberRoom bool, isInGeneralRoom bool, returnErr error) {
 	isInMemberRoom = true
 	isInGeneralRoom = true
-	if _, err := app.Repository.ReadSeatWithUserId(ctx, userId, true); err != nil {
+	if _, err := app.Repository.ReadSeatWithUserID(ctx, userID, true); err != nil {
 		if status.Code(err) == codes.NotFound {
 			isInMemberRoom = false
 		} else {
-			return false, false, fmt.Errorf("in ReadSeatWithUserId: %w", err)
+			return false, false, fmt.Errorf("in ReadSeatWithUserID: %w", err)
 		}
 	}
-	if _, err := app.Repository.ReadSeatWithUserId(ctx, userId, false); err != nil {
+	if _, err := app.Repository.ReadSeatWithUserID(ctx, userID, false); err != nil {
 		if status.Code(err) == codes.NotFound {
 			isInGeneralRoom = false
 		} else {
-			return false, false, fmt.Errorf("in ReadSeatWithUserId: %w", err)
+			return false, false, fmt.Errorf("in ReadSeatWithUserID: %w", err)
 		}
 	}
 	if isInGeneralRoom && isInMemberRoom {
@@ -99,7 +99,7 @@ func (app *WorkspaceApp) CreateUser(ctx context.Context, tx *firestore.Transacti
 		TotalStudySec:      0,
 		RegistrationDate:   app.currentTime(),
 	}
-	return app.Repository.CreateUser(ctx, tx, app.ProcessedUserId, userData)
+	return app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userData)
 }
 
 func (app *WorkspaceApp) GetNextPageToken(ctx context.Context, tx *firestore.Transaction) (string, error) {
@@ -110,18 +110,18 @@ func (app *WorkspaceApp) SaveNextPageToken(ctx context.Context, nextPageToken st
 	return app.Repository.UpdateNextPageToken(ctx, nextPageToken)
 }
 
-func (app *WorkspaceApp) CurrentSeat(ctx context.Context, userId string, isMemberSeat bool) (repository.SeatDoc, error) {
-	seat, err := app.Repository.ReadSeatWithUserId(ctx, userId, isMemberSeat)
+func (app *WorkspaceApp) CurrentSeat(ctx context.Context, userID string, isMemberSeat bool) (repository.SeatDoc, error) {
+	seat, err := app.Repository.ReadSeatWithUserID(ctx, userID, isMemberSeat)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return repository.SeatDoc{}, studyspaceerror.ErrUserNotInTheRoom
 		}
-		return repository.SeatDoc{}, fmt.Errorf("in ReadSeatWithUserId: %w", err)
+		return repository.SeatDoc{}, fmt.Errorf("in ReadSeatWithUserID: %w", err)
 	}
 	return seat, nil
 }
 
-func (app *WorkspaceApp) UpdateTotalWorkTime(tx *firestore.Transaction, userId string, previousUserDoc *repository.UserDoc, newWorkedTimeSec int, newDailyWorkedTimeSec int) error {
+func (app *WorkspaceApp) UpdateTotalWorkTime(tx *firestore.Transaction, userID string, previousUserDoc *repository.UserDoc, newWorkedTimeSec int, newDailyWorkedTimeSec int) error {
 	// 更新前の値
 	previousTotalSec := previousUserDoc.TotalStudySec
 	previousDailyTotalSec := previousUserDoc.DailyTotalStudySec
@@ -131,28 +131,28 @@ func (app *WorkspaceApp) UpdateTotalWorkTime(tx *firestore.Transaction, userId s
 
 	// 累計作業時間が減るなんてことがないか確認
 	if newTotalSec < previousTotalSec {
-		return errors.New(fmt.Sprintf("newTotalSec < previousTotalSec ??!! 処理を中断します。userId: %s,newTotalSec: %d, previousTotalSec: %d", userId, newTotalSec, previousTotalSec))
+		return errors.New(fmt.Sprintf("newTotalSec < previousTotalSec ??!! 処理を中断します。userID: %s,newTotalSec: %d, previousTotalSec: %d", userID, newTotalSec, previousTotalSec))
 	}
 
-	if err := app.Repository.UpdateUserTotalTime(tx, userId, newTotalSec, newDailyTotalSec); err != nil {
+	if err := app.Repository.UpdateUserTotalTime(tx, userID, newTotalSec, newDailyTotalSec); err != nil {
 		return fmt.Errorf("in UpdateUserTotalTime: %w", err)
 	}
 	return nil
 }
 
 // GetUserRealtimeTotalStudyDurations リアルタイムの累積作業時間・当日累積作業時間を返す。
-func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *firestore.Transaction, userId string) (time.Duration, time.Duration, error) {
+func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context, tx *firestore.Transaction, userID string) (time.Duration, time.Duration, error) {
 	jstNow := app.currentTime()
 	// 入室中ならばリアルタイムの作業時間も加算する
 	realtimeDuration := time.Duration(0)
 	realtimeDailyDuration := time.Duration(0)
-	isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserId)
+	isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed IsUserInRoom: %w", err)
 	}
 	if isInMemberRoom || isInGeneralRoom {
 		// 作業時間を計算
-		currentSeat, err := app.CurrentSeat(ctx, userId, isInMemberRoom)
+		currentSeat, err := app.CurrentSeat(ctx, userID, isInMemberRoom)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed s.CurrentSeat(): %w", err)
 		}
@@ -167,7 +167,7 @@ func (app *WorkspaceApp) GetUserRealtimeTotalStudyDurations(ctx context.Context,
 		}
 	}
 
-	userData, err := app.Repository.ReadUser(ctx, tx, userId)
+	userData, err := app.Repository.ReadUser(ctx, tx, userID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("in ReadUser: %w", err)
 	}
@@ -203,33 +203,33 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 		for _, seatCandidate := range seats {
 			var message string
 			txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-				seat, err := app.Repository.ReadSeat(ctx, tx, seatCandidate.SeatId, isMemberRoom)
+				seat, err := app.Repository.ReadSeat(ctx, tx, seatCandidate.SeatID, isMemberRoom)
 				if err != nil {
 					return fmt.Errorf("in ReadSeat: %w", err)
 				}
-				app.SetProcessedUser(seat.UserId, seat.UserDisplayName, seatCandidate.UserProfileImageUrl, false, false, isMemberRoom)
-				userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserId)
+				app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seatCandidate.UserProfileImageUrl, false, false, isMemberRoom)
+				userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 				if err != nil {
 					return fmt.Errorf("in ReadUser: %w", err)
 				}
 
-				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionId(ctx, seat.SessionId)
+				workSegments, err := app.Repository.ReadWorkStateSegmentsBySessionID(ctx, seat.SessionID)
 				if err != nil {
-					return fmt.Errorf("in ReadWorkStateSegmentsBySessionId: %w", err)
+					return fmt.Errorf("in ReadWorkStateSegmentsBySessionID: %w", err)
 				}
 
 				// 退室処理
 				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
-					return fmt.Errorf("failed to exitRoom for %s: %w", app.ProcessedUserId, err)
+					return fmt.Errorf("failed to exitRoom for %s: %w", app.ProcessedUserID, err)
 				}
 				var rpEarned string
-				var seatIdStr string
+				var seatIDStr string
 				if userDoc.RankVisible {
 					rpEarned = i18nmsg.CommandRpEarned(addedRP)
 				}
-				seatIdStr = presenter.SeatIDStr(seat.SeatId, isMemberRoom)
-				message = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIdStr, rpEarned)
+				seatIDStr = presenter.SeatIDStr(seat.SeatID, isMemberRoom)
+				message = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 				return nil
 			})
 			if txErr != nil { // log txErr but continues
@@ -316,14 +316,14 @@ func (app *WorkspaceApp) CheckLiveStreamStatus(ctx context.Context) error {
 	return checker.Check(ctx)
 }
 
-func (app *WorkspaceApp) GetUserIdsToProcessRP(ctx context.Context) ([]string, error) {
-	slog.Info(utils.NameOf(app.GetUserIdsToProcessRP))
+func (app *WorkspaceApp) GetUserIDsToProcessRP(ctx context.Context) ([]string, error) {
+	slog.Info(utils.NameOf(app.GetUserIDsToProcessRP))
 	jstNow := app.currentTime()
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
 	iter := app.Repository.GetUsersActiveAfterDate(ctx, _31daysAgo)
 
-	var userIds []string
+	var userIDs []string
 	for {
 		doc, err := iter.Next()
 		if errors.Is(err, iterator.Done) {
@@ -332,14 +332,14 @@ func (app *WorkspaceApp) GetUserIdsToProcessRP(ctx context.Context) ([]string, e
 		if err != nil {
 			return []string{}, fmt.Errorf("in iter.Next(): %w", err)
 		}
-		userId := doc.Ref.ID
-		userIds = append(userIds, userId)
+		userID := doc.Ref.ID
+		userIDs = append(userIDs, userID)
 	}
-	return userIds, nil
+	return userIDs, nil
 }
 
-func (app *WorkspaceApp) GetAllUsersTotalStudySecList(ctx context.Context) ([]utils.UserIdTotalStudySecSet, error) {
-	var set []utils.UserIdTotalStudySecSet
+func (app *WorkspaceApp) GetAllUsersTotalStudySecList(ctx context.Context) ([]utils.UserIDTotalStudySecSet, error) {
+	var set []utils.UserIDTotalStudySecSet
 
 	userDocRefs, err := app.Repository.GetAllUserDocRefs(ctx)
 	if err != nil {
@@ -350,16 +350,16 @@ func (app *WorkspaceApp) GetAllUsersTotalStudySecList(ctx context.Context) ([]ut
 		if err != nil {
 			return set, fmt.Errorf("in ReadUser: %w", err)
 		}
-		set = append(set, utils.UserIdTotalStudySecSet{
-			UserId:        userDocRef.ID,
+		set = append(set, utils.UserIDTotalStudySecSet{
+			UserID:        userDocRef.ID,
 			TotalStudySec: userDoc.TotalStudySec,
 		})
 	}
 	return set, nil
 }
 
-// MinAvailableSeatIdForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
-func (app *WorkspaceApp) MinAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string, isMemberSeat bool) (int, error) {
+// MinAvailableSeatIDForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
+func (app *WorkspaceApp) MinAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int, error) {
 	var seats []repository.SeatDoc
 	var err error
 	if isMemberSeat {
@@ -380,32 +380,32 @@ func (app *WorkspaceApp) MinAvailableSeatIdForUser(ctx context.Context, tx *fire
 	}
 
 	// 使用されている座席番号リストを取得
-	var usedSeatIds []int
+	var usedSeatIDs []int
 	for _, seat := range seats {
-		usedSeatIds = append(usedSeatIds, seat.SeatId)
+		usedSeatIDs = append(usedSeatIDs, seat.SeatID)
 	}
 
 	// 使用されていない最小の席番号を求める。1から順に探索
-	searchingSeatId := 1
-	for searchingSeatId <= constants.MaxSeats {
-		// searchingSeatIdがusedSeatIdsに含まれているか
+	searchingSeatID := 1
+	for searchingSeatID <= constants.MaxSeats {
+		// searchingSeatIDがusedSeatIDsに含まれているか
 		isUsed := false
-		for _, usedSeatId := range usedSeatIds {
-			if usedSeatId == searchingSeatId {
+		for _, usedSeatID := range usedSeatIDs {
+			if usedSeatID == searchingSeatID {
 				isUsed = true
 			}
 		}
 		if !isUsed { // 使われていない
 			// 且つ、該当ユーザーが入室制限にかからなければその席番号を返す
-			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userId, searchingSeatId, isMemberSeat)
+			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userID, searchingSeatID, isMemberSeat)
 			if err != nil {
 				return -1, fmt.Errorf("in CheckIfUserSittingTooMuchForSeat(): %w", err)
 			}
 			if !ifSittingTooMuch {
-				return searchingSeatId, nil
+				return searchingSeatID, nil
 			}
 		}
-		searchingSeatId += 1
+		searchingSeatID += 1
 	}
 	return -1, studyspaceerror.ErrNoSeatAvailable
 }
@@ -419,12 +419,12 @@ func (app *WorkspaceApp) AddLiveChatHistoryDoc(ctx context.Context, chatMessage 
 	publishedAt = publishedAt.In(timeutil.JapanLocation())
 
 	liveChatHistoryDoc := repository.LiveChatHistoryDoc{
-		AuthorChannelId:       chatMessage.AuthorDetails.ChannelId,
+		AuthorChannelID:       chatMessage.AuthorDetails.ChannelId,
 		AuthorDisplayName:     chatMessage.AuthorDetails.DisplayName,
-		AuthorProfileImageUrl: chatMessage.AuthorDetails.ProfileImageUrl,
+		AuthorProfileImageURL: chatMessage.AuthorDetails.ProfileImageUrl,
 		AuthorIsChatModerator: chatMessage.AuthorDetails.IsChatModerator,
-		Id:                    chatMessage.Id,
-		LiveChatId:            chatMessage.Snippet.LiveChatId,
+		ID:                    chatMessage.Id,
+		LiveChatID:            chatMessage.Snippet.LiveChatId,
 		MessageText:           youtubebot.ExtractTextMessageByAuthor(chatMessage),
 		PublishedAt:           publishedAt,
 		Type:                  chatMessage.Snippet.Type,
@@ -438,7 +438,7 @@ func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, 
 
 	// date以前の全てのlive chat history docsをクエリで取得
 	for {
-		iter := app.Repository.Get500LiveChatHistoryDocIdsBeforeDate(ctx, date)
+		iter := app.Repository.Get500LiveChatHistoryDocIDsBeforeDate(ctx, date)
 		count, err := app.DeleteIteratorDocs(ctx, iter)
 		numRowsLiveChat += count
 		if err != nil {
@@ -451,7 +451,7 @@ func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, 
 
 	// date以前の全てのuser activity docをクエリで取得
 	for {
-		iter := app.Repository.Get500UserActivityDocIdsBeforeDate(ctx, date)
+		iter := app.Repository.Get500UserActivityDocIDsBeforeDate(ctx, date)
 		count, err := app.DeleteIteratorDocs(ctx, iter)
 		numRowsUserActivity += count
 		if err != nil {
@@ -464,7 +464,7 @@ func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, 
 
 	// date以前の全てのorder history docをクエリで取得
 	for {
-		iter := app.Repository.Get500OrderHistoryDocIdsBeforeDate(ctx, date)
+		iter := app.Repository.Get500OrderHistoryDocIDsBeforeDate(ctx, date)
 		count, err := app.DeleteIteratorDocs(ctx, iter)
 		numRowsOrderHistory += count
 		if err != nil {
@@ -503,17 +503,17 @@ func (app *WorkspaceApp) DeleteIteratorDocs(ctx context.Context, iter *firestore
 	return count, txErr
 }
 
-func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userId string, seatId int, isMemberSeat bool) (bool, error) {
+func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (bool, error) {
 	jstNow := app.currentTime()
 
 	// ホワイトリスト・ブラックリストを検索
-	whiteListForUserAndSeat, err := app.Repository.ReadSeatLimitsWHITEListWithSeatIdAndUserId(ctx, seatId, userId, isMemberSeat)
+	whiteListForUserAndSeat, err := app.Repository.ReadSeatLimitsWHITEListWithSeatIDAndUserID(ctx, seatID, userID, isMemberSeat)
 	if err != nil {
-		return false, fmt.Errorf("in ReadSeatLimitsWHITEListWithSeatIdAndUserId(): %w", err)
+		return false, fmt.Errorf("in ReadSeatLimitsWHITEListWithSeatIDAndUserID(): %w", err)
 	}
-	blackListForUserAndSeat, err := app.Repository.ReadSeatLimitsBLACKListWithSeatIdAndUserId(ctx, seatId, userId, isMemberSeat)
+	blackListForUserAndSeat, err := app.Repository.ReadSeatLimitsBLACKListWithSeatIDAndUserID(ctx, seatID, userID, isMemberSeat)
 	if err != nil {
-		return false, fmt.Errorf("in ReadSeatLimitsBLACKListWithSeatIdAndUserId(): %w", err)
+		return false, fmt.Errorf("in ReadSeatLimitsBLACKListWithSeatIDAndUserID(): %w", err)
 	}
 
 	// もし両方あったら矛盾なのでエラー
@@ -523,32 +523,32 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 
 	// 片方しかなければチェックは不要
 	if len(whiteListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(whiteListForUserAndSeat) > 1, seatId=%d, userId=%s", seatId, userId))
+		return false, errors.New(fmt.Sprintf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
-			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in white list. skipping.")
+			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in white list. skipping.")
 			return false, nil
 		}
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
 	}
 	if len(blackListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(blackListForUserAndSeat) > 1, seatId=%d, userId=%s", seatId, userId))
+		return false, errors.New(fmt.Sprintf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
-			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] found in black list. skipping.")
+			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in black list. skipping.")
 			return true, nil
 		}
 		// ブラックリストに入っているが、期限切れのためチェックを続行
 	}
 
-	totalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, userId, seatId, isMemberSeat)
+	totalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, userID, seatID, isMemberSeat)
 	if err != nil {
 		return false, fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 	}
 
 	slog.Info("",
-		"userId", userId,
-		"seatId", seatId,
+		"userID", userID,
+		"seatID", seatID,
 		"過去何分", app.Configs.Constants.RecentRangeMin,
 		"合計何分", int(totalEntryDuration.Minutes()))
 
@@ -559,36 +559,36 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		until := jstNow.Add(time.Duration(app.Configs.Constants.RecentThresholdMin)*time.Minute - totalEntryDuration)
 		if until.Sub(jstNow) > time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes)*time.Minute {
 			// ホワイトリストに登録
-			if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatId, userId, jstNow, until, isMemberSeat); err != nil {
+			if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
 				return false, fmt.Errorf("in CreateSeatLimitInWHITEList(): %w", err)
 			}
-			slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to white list.")
+			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] saved to white list.")
 		}
 	} else {
 		// ブラックリストに登録
 		until := jstNow.Add(time.Duration(app.Configs.Constants.LongTimeSittingPenaltyMinutes) * time.Minute)
-		if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatId, userId, jstNow, until, isMemberSeat); err != nil {
+		if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
 			return false, fmt.Errorf("in CreateSeatLimitInBLACKList(): %w", err)
 		}
-		slog.Info("[seat " + strconv.Itoa(seatId) + ": " + userId + "] saved to black list.")
+		slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] saved to black list.")
 	}
 
 	return ifSittingTooMuch, nil
 }
 
-func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, userId string, seatId int, isMemberSeat bool) (time.Duration, error) {
+func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (time.Duration, error) {
 	jstNow := app.currentTime()
 
 	checkDurationFrom := jstNow.Add(-time.Duration(app.Configs.Constants.RecentRangeMin) * time.Minute)
 
 	// 指定期間の該当ユーザーの該当座席への入退室ドキュメントを取得する
-	enterRoomActivities, err := app.Repository.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId, isMemberSeat)
+	enterRoomActivities, err := app.Repository.GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx, checkDurationFrom, userID, seatID, isMemberSeat)
 	if err != nil {
-		return 0, fmt.Errorf("in "+utils.NameOf(app.Repository.GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat)+": %w", err)
+		return 0, fmt.Errorf("in "+utils.NameOf(app.Repository.GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat)+": %w", err)
 	}
-	exitRoomActivities, err := app.Repository.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(ctx, checkDurationFrom, userId, seatId, isMemberSeat)
+	exitRoomActivities, err := app.Repository.GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx, checkDurationFrom, userID, seatID, isMemberSeat)
 	if err != nil {
-		return 0, fmt.Errorf("in "+utils.NameOf(app.Repository.GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat)+": %w", err)
+		return 0, fmt.Errorf("in "+utils.NameOf(app.Repository.GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat)+": %w", err)
 	}
 	activityOnlyEnterExitList := append(enterRoomActivities, exitRoomActivities...)
 
@@ -623,8 +623,8 @@ func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, us
 	return totalEntryDuration, nil
 }
 
-func (app *WorkspaceApp) BanUser(ctx context.Context, userId string) error {
-	if err := app.LiveChatBot.BanUser(ctx, userId); err != nil {
+func (app *WorkspaceApp) BanUser(ctx context.Context, userID string) error {
+	if err := app.LiveChatBot.BanUser(ctx, userID); err != nil {
 		return fmt.Errorf("in BanUser: %w", err)
 	}
 	return nil
@@ -648,12 +648,12 @@ func (app *WorkspaceApp) GetMenuNumByCode(code string) (int, error) {
 }
 
 // GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める
-func (app *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *firestore.Transaction, userId string) (repository.SeatAppearance, error) {
-	userDoc, err := app.Repository.ReadUser(ctx, tx, userId)
+func (app *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *firestore.Transaction, userID string) (repository.SeatAppearance, error) {
+	userDoc, err := app.Repository.ReadUser(ctx, tx, userID)
 	if err != nil {
 		return repository.SeatAppearance{}, fmt.Errorf("in ReadUser(): %w", err)
 	}
-	totalStudyDuration, _, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, userId)
+	totalStudyDuration, _, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, userID)
 	if err != nil {
 		return repository.SeatAppearance{}, fmt.Errorf("in GetUserRealtimeTotalStudyDurations(): %w", err)
 	}
@@ -664,10 +664,10 @@ func (app *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *
 	return seatAppearance, nil
 }
 
-// RandomAvailableSeatIdForUser
+// RandomAvailableSeatIDForUser
 // ルームの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
-func (app *WorkspaceApp) RandomAvailableSeatIdForUser(ctx context.Context, tx *firestore.Transaction, userId string, isMemberSeat bool) (int,
+func (app *WorkspaceApp) RandomAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int,
 	error) {
 	var seats []repository.SeatDoc
 	var err error
@@ -694,31 +694,31 @@ func (app *WorkspaceApp) RandomAvailableSeatIdForUser(ctx context.Context, tx *f
 		maxSeats = constants.MaxSeats
 	}
 
-	var vacantSeatIdList []int
+	var vacantSeatIDList []int
 	for id := 1; id <= maxSeats; id++ {
 		isUsed := false
 		for _, seatInUse := range seats {
-			if id == seatInUse.SeatId {
+			if id == seatInUse.SeatID {
 				isUsed = true
 				break
 			}
 		}
 		if !isUsed {
-			vacantSeatIdList = append(vacantSeatIdList, id)
+			vacantSeatIDList = append(vacantSeatIDList, id)
 		}
 	}
 
-	if len(vacantSeatIdList) > 0 {
+	if len(vacantSeatIDList) > 0 {
 		// 入室制限にかからない席を選ぶ
 		r := rand.New(rand.NewSource(app.currentTime().UnixNano()))
-		r.Shuffle(len(vacantSeatIdList), func(i, j int) { vacantSeatIdList[i], vacantSeatIdList[j] = vacantSeatIdList[j], vacantSeatIdList[i] })
-		for _, seatId := range vacantSeatIdList {
-			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userId, seatId, isMemberSeat)
+		r.Shuffle(len(vacantSeatIDList), func(i, j int) { vacantSeatIDList[i], vacantSeatIDList[j] = vacantSeatIDList[j], vacantSeatIDList[i] })
+		for _, seatID := range vacantSeatIDList {
+			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userID, seatID, isMemberSeat)
 			if err != nil {
 				return -1, fmt.Errorf("in CheckIfUserSittingTooMuchForSeat: %w", err)
 			}
 			if !ifSittingTooMuch {
-				return seatId, nil
+				return seatID, nil
 			}
 		}
 	}
@@ -729,10 +729,10 @@ func (app *WorkspaceApp) RandomAvailableSeatIdForUser(ctx context.Context, tx *f
 func (app *WorkspaceApp) enterRoom(
 	ctx context.Context,
 	tx *firestore.Transaction,
-	userId string,
+	userID string,
 	userDisplayName string,
 	userProfileImageUrl string,
-	seatId int,
+	seatID int,
 	isMemberSeat bool,
 	workName string,
 	breakWorkName string,
@@ -742,7 +742,7 @@ func (app *WorkspaceApp) enterRoom(
 	state repository.SeatState,
 	isContinuousActive bool,
 	breakStartedAt time.Time, // set when moving seat
-	breakUntil time.Time, // set when moving seat
+	breakUntil time.Time,     // set when moving seat
 	enterDate time.Time,
 ) (int, error) {
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
@@ -759,9 +759,9 @@ func (app *WorkspaceApp) enterRoom(
 	}
 
 	newSeat := repository.SeatDoc{
-		SeatId:                  seatId,
-		UserId:                  userId,
-		SessionId:               utils.GenerateSessionId(),
+		SeatID:                  seatID,
+		UserID:                  userID,
+		SessionID:               utils.GenerateSessionID(),
 		UserDisplayName:         userDisplayName,
 		UserProfileImageUrl:     userProfileImageUrl,
 		WorkName:                workName,
@@ -782,14 +782,14 @@ func (app *WorkspaceApp) enterRoom(
 	}
 
 	// 入室時刻を記録
-	if err := app.Repository.UpdateUserLastEnteredDate(tx, userId, enterDate); err != nil {
+	if err := app.Repository.UpdateUserLastEnteredDate(tx, userID, enterDate); err != nil {
 		return 0, fmt.Errorf("in UpdateUserLastEnteredDate: %w", err)
 	}
 	// activityログ記録
 	enterActivity := repository.UserActivityDoc{
-		UserId:       userId,
+		UserID:       userID,
 		ActivityType: repository.EnterRoomActivity,
-		SeatId:       seatId,
+		SeatID:       seatID,
 		IsMemberSeat: isMemberSeat,
 		TakenAt:      enterDate,
 	}
@@ -798,10 +798,10 @@ func (app *WorkspaceApp) enterRoom(
 	}
 	// 久しぶりの入室であれば、isContinuousActiveをtrueに、lastPenaltyImposedDaysを0に更新
 	if !isContinuousActive {
-		if err := app.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userId, true, enterDate); err != nil {
+		if err := app.Repository.UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx, tx, userID, true, enterDate); err != nil {
 			return 0, fmt.Errorf("in UpdateUserIsContinuousActiveAndCurrentActivityStateStarted: %w", err)
 		}
-		if err := app.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userId, 0); err != nil {
+		if err := app.Repository.UpdateUserLastPenaltyImposedDays(ctx, tx, userID, 0); err != nil {
 			return 0, fmt.Errorf("in UpdateUserLastPenaltyImposedDays: %w", err)
 		}
 	}
@@ -847,15 +847,15 @@ func (app *WorkspaceApp) exitRoom(
 	}
 
 	// 退室処理
-	if err := app.Repository.DeleteSeat(ctx, tx, previousSeat.SeatId, isMemberSeat); err != nil {
+	if err := app.Repository.DeleteSeat(ctx, tx, previousSeat.SeatID, isMemberSeat); err != nil {
 		return 0, 0, fmt.Errorf("in DeleteSeat: %w", err)
 	}
 
 	// DEPRECATED: activityログ記録
 	exitActivity := repository.UserActivityDoc{
-		UserId:       previousSeat.UserId,
+		UserID:       previousSeat.UserID,
 		ActivityType: repository.ExitRoomActivity,
-		SeatId:       previousSeat.SeatId,
+		SeatID:       previousSeat.SeatID,
 		IsMemberSeat: isMemberSeat,
 		TakenAt:      exitDate,
 	}
@@ -871,7 +871,7 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 	}
 	// 退室時刻を記録
-	if err := app.Repository.UpdateUserLastExitedDate(tx, previousSeat.UserId, exitDate); err != nil {
+	if err := app.Repository.UpdateUserLastExitedDate(tx, previousSeat.UserID, exitDate); err != nil {
 		return 0, 0, fmt.Errorf("in UpdateUserLastExitedDate: %w", err)
 	}
 
@@ -893,15 +893,15 @@ func (app *WorkspaceApp) exitRoom(
 		const allowedDiffSec = 10
 		if diffSec > allowedDiffSec {
 			app.MessageToOwner(ctx, fmt.Sprintf(
-				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d, allowedDiffSec = %d (userId=%s, seatId=%d)",
-				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, allowedDiffSec, previousSeat.UserId, previousSeat.SeatId,
+				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d, allowedDiffSec = %d (userID=%s, seatID=%d)",
+				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, allowedDiffSec, previousSeat.UserID, previousSeat.SeatID,
 			))
 		} else {
 			slog.DebugContext(ctx,
 				"検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= allowedDiffSec",
 				"allowedDiffSec", allowedDiffSec,
-				"userId", previousSeat.UserId,
-				"seatId", previousSeat.SeatId,
+				"userID", previousSeat.UserID,
+				"seatID", previousSeat.SeatID,
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
 				"addedWorkedTimeSec", addedWorkedTimeSec,
 				"diffSec", diffSec,
@@ -910,7 +910,7 @@ func (app *WorkspaceApp) exitRoom(
 	}
 
 	// 累計作業時間を更新
-	if err := app.UpdateTotalWorkTime(tx, previousSeat.UserId, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec); err != nil {
+	if err := app.UpdateTotalWorkTime(tx, previousSeat.UserID, previousUserDoc, addedWorkedTimeSec, addedDailyWorkedTimeSec); err != nil {
 		return 0, 0, fmt.Errorf("in UpdateTotalWorkTime: %w", err)
 	}
 	// RP更新
@@ -919,14 +919,14 @@ func (app *WorkspaceApp) exitRoom(
 	if err != nil {
 		return 0, 0, fmt.Errorf("in CalcNewRPExitRoom: %w", err)
 	}
-	if err := app.Repository.UpdateUserRankPoint(tx, previousSeat.UserId, newRP); err != nil {
+	if err := app.Repository.UpdateUserRankPoint(tx, previousSeat.UserID, newRP); err != nil {
 		return 0, 0, fmt.Errorf("in UpdateUserRP: %w", err)
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
 
 	slog.Info("user exited the room.",
-		"userId", previousSeat.UserId,
-		"seatId", previousSeat.SeatId,
+		"userID", previousSeat.UserID,
+		"seatID", previousSeat.SeatID,
 		"addedWorkedTimeSec", addedWorkedTimeSec,
 		"addedRP", addedRP,
 		"newRP", newRP,
@@ -937,7 +937,7 @@ func (app *WorkspaceApp) exitRoom(
 func (app *WorkspaceApp) moveSeat(
 	ctx context.Context,
 	tx *firestore.Transaction,
-	targetSeatId int,
+	targetSeatID int,
 	latestUserProfileImage string,
 	beforeIsMemberSeat,
 	afterIsMemberSeat bool,
@@ -949,14 +949,14 @@ func (app *WorkspaceApp) moveSeat(
 	jstNow := app.currentTime()
 
 	// 値チェック
-	if targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat {
-		return 0, 0, 0, errors.New("targetSeatId == previousSeat.SeatId && beforeIsMemberSeat == afterIsMemberSeat")
+	if targetSeatID == previousSeat.SeatID && beforeIsMemberSeat == afterIsMemberSeat {
+		return 0, 0, 0, errors.New("targetSeatID == previousSeat.SeatID && beforeIsMemberSeat == afterIsMemberSeat")
 	}
 
 	// 退室
 	workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc, previousWorkSegments)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("in exitRoom for %s: %w", app.ProcessedUserId, err)
+		return 0, 0, 0, fmt.Errorf("in exitRoom for %s: %w", app.ProcessedUserID, err)
 	}
 
 	// 入室の準備
@@ -983,10 +983,10 @@ func (app *WorkspaceApp) moveSeat(
 	untilExitMin, err := app.enterRoom(
 		ctx,
 		tx,
-		previousSeat.UserId,
+		previousSeat.UserID,
 		previousSeat.UserDisplayName,
 		latestUserProfileImage,
-		targetSeatId,
+		targetSeatID,
 		afterIsMemberSeat,
 		workName,
 		previousSeat.BreakWorkName,
@@ -999,7 +999,7 @@ func (app *WorkspaceApp) moveSeat(
 		previousSeat.CurrentStateUntil,
 		jstNow)
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to enterRoom for %s: %w", previousSeat.UserId, err)
+		return 0, 0, 0, fmt.Errorf("failed to enterRoom for %s: %w", previousSeat.UserID, err)
 	}
 
 	return workedTimeSec, addedRP, untilExitMin, nil

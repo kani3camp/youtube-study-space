@@ -253,13 +253,13 @@ func TestContains(t *testing.T) {
 	}
 }
 
-func TestGenerateSessionId(t *testing.T) {
+func TestGenerateSessionID(t *testing.T) {
 	hexRegex := regexp.MustCompile("^[0-9a-f]{32}$")
 
 	t.Run("format", func(t *testing.T) {
 		const n = 5
 		for i := 0; i < n; i++ {
-			result := GenerateSessionId()
+			result := GenerateSessionID()
 			assert.Len(t, result, 32, "session ID must be 32 characters")
 			assert.True(t, hexRegex.MatchString(result), "session ID must contain only hex digits (0-9, a-f), no hyphens")
 		}

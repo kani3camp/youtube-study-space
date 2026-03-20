@@ -56,7 +56,7 @@ type ConstantsConfigDoc struct {
 	NumberOfParallelLambdaToProcessUserRP int `firestore:"number-of-parallel-lambda-to-process-user-rp"`
 
 	// Botの設定（ブロック・通知対象の正規表現など）をまとめたスプレッドシートのID
-	BotConfigSpreadsheetId string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
+	BotConfigSpreadsheetID string `firestore:"bot-config-spreadsheet-id" json:"bot_config_spreadsheet_id"`
 
 	YoutubeMembershipEnabled bool `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
 
@@ -66,22 +66,22 @@ type ConstantsConfigDoc struct {
 // CredentialsConfigDoc defines credentials for various services.
 type CredentialsConfigDoc struct {
 	DiscordOwnerBotToken         string `firestore:"discord-owner-bot-token"`
-	DiscordOwnerBotTextChannelId string `firestore:"discord-owner-bot-text-channel-id"`
+	DiscordOwnerBotTextChannelID string `firestore:"discord-owner-bot-text-channel-id"`
 
 	DiscordSharedBotToken         string `firestore:"discord-shared-bot-token"`
-	DiscordSharedBotTextChannelId string `firestore:"discord-shared-bot-text-channel-id"`
-	DiscordSharedBotLogChannelId  string `firestore:"discord-shared-bot-log-channel-id"`
+	DiscordSharedBotTextChannelID string `firestore:"discord-shared-bot-text-channel-id"`
+	DiscordSharedBotLogChannelID  string `firestore:"discord-shared-bot-log-channel-id"`
 
-	YoutubeBotClientId     string `firestore:"youtube-bot-client-id"`
+	YoutubeBotClientID     string `firestore:"youtube-bot-client-id"`
 	YoutubeBotClientSecret string `firestore:"youtube-bot-client-secret"`
 	YoutubeBotRefreshToken string `firestore:"youtube-bot-refresh-token"`
-	YoutubeBotChannelId    string `firestore:"youtube-bot-channel-id"`
+	YoutubeBotChannelID    string `firestore:"youtube-bot-channel-id"`
 
-	YoutubeChannelClientId     string `firestore:"youtube-channel-client-id"`
+	YoutubeChannelClientID     string `firestore:"youtube-channel-client-id"`
 	YoutubeChannelClientSecret string `firestore:"youtube-channel-client-secret"`
 	YoutubeChannelRefreshToken string `firestore:"youtube-channel-refresh-token"`
 
-	YoutubeLiveChatId            string `firestore:"youtube-live-chat-id"`
+	YoutubeLiveChatID            string `firestore:"youtube-live-chat-id"`
 	YoutubeLiveChatNextPageToken string `firestore:"youtube-live-chat-next-page-token"`
 }
 
@@ -100,9 +100,9 @@ type SeatAppearance struct {
 }
 
 type SeatDoc struct {
-	SeatId                  int            `json:"seat_id" firestore:"seat-id"` // 席番号
-	UserId                  string         `json:"user_id" firestore:"user-id"`
-	SessionId               string         `json:"session_id" firestore:"session-id"`
+	SeatID                  int            `json:"seat_id" firestore:"seat-id"` // 席番号
+	UserID                  string         `json:"user_id" firestore:"user-id"`
+	SessionID               string         `json:"session_id" firestore:"session-id"`
 	UserDisplayName         string         `json:"user_display_name" firestore:"user-display-name"`
 	WorkName                string         `json:"work_name" firestore:"work-name"`             // 作業名
 	BreakWorkName           string         `json:"break_work_name" firestore:"break-work-name"` // 休憩中の作業名
@@ -121,8 +121,8 @@ type SeatDoc struct {
 
 // SeatLimitDoc defines limitations of a seat.
 type SeatLimitDoc struct { // used for both collections seat-limits-black-list and seat-limits-white-list
-	SeatId    int       `firestore:"seat-id"`
-	UserId    string    `firestore:"user-id"`
+	SeatID    int       `firestore:"seat-id"`
+	UserID    string    `firestore:"user-id"`
 	CreatedAt time.Time `firestore:"created-at"`
 	Until     time.Time `firestore:"until"`
 }
@@ -172,12 +172,12 @@ type UserDoc struct {
 }
 
 type LiveChatHistoryDoc struct {
-	AuthorChannelId       string    `json:"author_channel_id" firestore:"author-channel-id"`
+	AuthorChannelID       string    `json:"author_channel_id" firestore:"author-channel-id"`
 	AuthorDisplayName     string    `json:"author_display_name" firestore:"author-display-name"`
-	AuthorProfileImageUrl string    `json:"author_profile_image_url" firestore:"author-profile-image-url"`
+	AuthorProfileImageURL string    `json:"author_profile_image_url" firestore:"author-profile-image-url"`
 	AuthorIsChatModerator bool      `json:"author_is_chat_moderator" firestore:"author-is-chat-moderator"`
-	Id                    string    `json:"id" firestore:"id"`                     // メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
-	LiveChatId            string    `json:"live_chat_id" firestore:"live-chat-id"` // ライブ配信ごとのid。ずっと続く配信だと不変。
+	ID                    string    `json:"id" firestore:"id"`                     // メッセージのID。APIで取得するliveChatMessages resourceで定義されているid
+	LiveChatID            string    `json:"live_chat_id" firestore:"live-chat-id"` // ライブ配信ごとのid。ずっと続く配信だと不変。
 	MessageText           string    `json:"message_text" firestore:"message-text"`
 	PublishedAt           time.Time `json:"published_at" firestore:"published-at"`
 	Type                  string    `json:"type" firestore:"type"`
@@ -193,21 +193,21 @@ const (
 )
 
 type UserActivityDoc struct {
-	UserId       string           `json:"user_id" firestore:"user-id"`
+	UserID       string           `json:"user_id" firestore:"user-id"`
 	ActivityType UserActivityType `json:"activity_type" firestore:"activity-type"`
-	SeatId       int              `json:"seat_id" firestore:"seat-id"`
+	SeatID       int              `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool             `json:"is_member_seat" firestore:"is-member-seat"`
 	TakenAt      time.Time        `json:"taken_at" firestore:"taken-at"`
 }
 
 // WorkSegmentDoc records detailed activity history.
 type WorkSegmentDoc struct {
-	UserId       string `json:"user_id" firestore:"user-id"`
-	SeatId       int    `json:"seat_id" firestore:"seat-id"`
+	UserID       string `json:"user_id" firestore:"user-id"`
+	SeatID       int    `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool   `json:"is_member_seat" firestore:"is-member-seat"`
 
 	// 1回の入室〜退室を紐付けるためのID (UUID等)
-	SessionId string `json:"session_id" firestore:"session-id"`
+	SessionID string `json:"session_id" firestore:"session-id"`
 
 	WorkName    string    `json:"work_name" firestore:"work-name"`
 	SegmentType SeatState `json:"segment_type" firestore:"segment-type"` // "work" or "break"
@@ -218,7 +218,7 @@ type WorkSegmentDoc struct {
 
 // DailyUserWorkHistoryDoc stores daily totals.
 type DailyUserWorkHistoryDoc struct {
-	UserId string    `json:"user_id" firestore:"user-id"`
+	UserID string    `json:"user_id" firestore:"user-id"`
 	Date   time.Time `json:"date" firestore:"date"`
 
 	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec"`
@@ -233,9 +233,9 @@ type MenuDoc struct {
 }
 
 type OrderHistoryDoc struct {
-	UserId       string    `json:"user_id" firestore:"user-id"`
+	UserID       string    `json:"user_id" firestore:"user-id"`
 	MenuCode     string    `json:"menu_code" firestore:"menu-code"`
-	SeatId       int       `json:"seat_id" firestore:"seat-id"`
+	SeatID       int       `json:"seat_id" firestore:"seat-id"`
 	IsMemberSeat bool      `json:"is_member_seat" firestore:"is-member-seat"`
 	OrderedAt    time.Time `json:"ordered_at" firestore:"ordered-at"`
 }
