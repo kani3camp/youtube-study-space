@@ -633,7 +633,7 @@ func (app *WorkspaceApp) BanUser(ctx context.Context, userID string) error {
 
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
 func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, error) {
-	if len(app.SortedMenuItems) < number {
+	if number < 1 || len(app.SortedMenuItems) < number {
 		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
