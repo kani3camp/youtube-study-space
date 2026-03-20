@@ -14,9 +14,10 @@ import (
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
+	"errors"
+
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )
@@ -39,7 +40,7 @@ func Init() (option.ClientOption, context.Context, error) {
 	fmt.Println("Is this the correct project ID? (yes/no)")
 	var s string
 	if _, err := fmt.Scanln(&s); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to read project confirmation")
+		return nil, nil, fmt.Errorf("failed to read project confirmation: %w", err)
 	}
 	if s != "yes" {
 		return nil, nil, errors.New("aborted")

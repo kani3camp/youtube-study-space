@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"errors"
+
 	"app.modules/core/guardians"
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
@@ -18,7 +20,6 @@ import (
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"github.com/kr/pretty"
-	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc/codes"
@@ -633,7 +634,7 @@ func (app *WorkspaceApp) BanUser(ctx context.Context, userID string) error {
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
 func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, error) {
 	if len(app.SortedMenuItems) < number {
-		return repository.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(app.SortedMenuItems))
+		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
 }
@@ -644,7 +645,7 @@ func (app *WorkspaceApp) GetMenuNumByCode(code string) (int, error) {
 			return i + 1, nil
 		}
 	}
-	return -1, errors.Errorf("menu code not found: %s", code)
+	return -1, fmt.Errorf("menu code not found: %s", code)
 }
 
 // GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める

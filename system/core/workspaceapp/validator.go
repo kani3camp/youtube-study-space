@@ -4,7 +4,7 @@ import (
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {

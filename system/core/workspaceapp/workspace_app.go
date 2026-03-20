@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"errors"
+
 	"app.modules/core/i18n"
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/moderatorbot"
@@ -16,7 +18,6 @@ import (
 	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 )
 

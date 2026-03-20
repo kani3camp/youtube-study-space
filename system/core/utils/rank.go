@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"app.modules/core/timeutil"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 const (

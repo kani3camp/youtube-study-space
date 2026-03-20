@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"errors"
+
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
