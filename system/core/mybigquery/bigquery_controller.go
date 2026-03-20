@@ -70,7 +70,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		if status.State == bigquery.Done {
 			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了", "collection", collectionName)
 		} else {
-			slog.Info("GCSからbqの一時テーブルまでデータの読込: %v", "state", status.State, "collection", collectionName)
+			slog.Info("GCSからbqの一時テーブルまでデータの読込", "state", status.State, "collection", collectionName)
 			return fmt.Errorf("failed transfer data from gcs to bigquery temporary table. collection: %s", collectionName)
 		}
 
