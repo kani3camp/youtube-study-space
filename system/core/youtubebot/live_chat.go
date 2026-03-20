@@ -281,7 +281,7 @@ func (b *YoutubeLiveChatBot) fetchActiveBroadcasts() (*youtube.LiveBroadcastList
 	return response, err
 }
 
-// updateLiveChatID LiveChatIdを更新する
+// updateLiveChatID LiveChatIDを更新する
 func (b *YoutubeLiveChatBot) updateLiveChatID(ctx context.Context, newLiveChatID string) error {
 	slog.Info("new live chat id: " + newLiveChatID)
 	if err := b.FirestoreController.UpdateLiveChatID(ctx, nil, newLiveChatID); err != nil {
