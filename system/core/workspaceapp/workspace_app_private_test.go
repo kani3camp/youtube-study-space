@@ -31,7 +31,7 @@ func TestEnterRoom(t *testing.T) {
 
 	userID := "test_user_id"
 	userDisplayName := "test_user_display_name"
-	userProfileImageUrl := "test_user_profile_image_url"
+	userProfileImageURL := "test_user_profile_image_url"
 	inOption := utils.InOption{
 		IsSeatIDSet: true,
 		SeatID:      1,
@@ -84,7 +84,7 @@ func TestEnterRoom(t *testing.T) {
 			tx,
 			userID,
 			userDisplayName,
-			userProfileImageUrl,
+			userProfileImageURL,
 			inOption.SeatID,
 			inOption.IsMemberSeat,
 			inOption.MinWorkOrderOption.WorkName,
@@ -131,7 +131,7 @@ func TestEnterRoom(t *testing.T) {
 		CurrentStateUntil:      expectedUntil.UTC(),
 		CumulativeWorkSec:      0,
 		DailyCumulativeWorkSec: 0,
-		UserProfileImageUrl:    userProfileImageUrl,
+		UserProfileImageURL:    userProfileImageURL,
 	}, seat)
 
 	// 履歴が作成されたことを確認

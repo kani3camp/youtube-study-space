@@ -51,7 +51,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 			app.MessageToLiveChat(ctx, "座席数を"+strconv.Itoa(constants.DesiredMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatID > constants.DesiredMaxSeats {
-					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, false)
 					// 退出させる
 					if err := app.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
@@ -82,7 +82,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 				app.MessageToLiveChat(ctx, "人数が減ったため席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 				for _, seat := range seats {
 					if seat.SeatID > constants.DesiredMaxSeats {
-						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, false)
 						// 移動させる
 						inCommandDetails := &utils.CommandDetails{
 							CommandType: utils.In,
@@ -133,7 +133,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 			app.MessageToLiveChat(ctx, "メンバー限定の座席数を"+strconv.Itoa(constants.DesiredMemberMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatID > constants.DesiredMemberMaxSeats {
-					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, false)
+					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, false)
 					// 退出させる
 					if err := app.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
@@ -163,7 +163,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 				app.MessageToLiveChat(ctx, "人数が減ったためメンバー限定席を減らします↘ 必要な場合は席を移動してもらうことがあります。")
 				for _, seat := range seats {
 					if seat.SeatID > constants.DesiredMemberMaxSeats {
-						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageUrl, false, false, true)
+						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, true)
 						// 移動させる
 						inCommandDetails := &utils.CommandDetails{
 							CommandType: utils.In,

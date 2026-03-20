@@ -116,7 +116,7 @@ type SeatDoc struct {
 	CurrentSegmentStartedAt time.Time      `json:"current_segment_started_at" firestore:"current-segment-started-at"`
 	CumulativeWorkSec       int            `json:"cumulative_work_sec" firestore:"cumulative-work-sec"` // 前回のstateまでの合計作業時間（秒）。休憩時間は含まない。
 	DailyCumulativeWorkSec  int            `json:"daily_cumulative_work_sec" firestore:"daily-cumulative-work-sec"`
-	UserProfileImageUrl     string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
+	UserProfileImageURL     string         `json:"user_profile_image_url" firestore:"user-profile-image-url"`
 }
 
 // SeatLimitDoc defines limitations of a seat.

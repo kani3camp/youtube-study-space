@@ -207,7 +207,7 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				if err != nil {
 					return fmt.Errorf("in ReadSeat: %w", err)
 				}
-				app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seatCandidate.UserProfileImageUrl, false, false, isMemberRoom)
+				app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seatCandidate.UserProfileImageURL, false, false, isMemberRoom)
 				userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 				if err != nil {
 					return fmt.Errorf("in ReadUser: %w", err)
@@ -731,7 +731,7 @@ func (app *WorkspaceApp) enterRoom(
 	tx *firestore.Transaction,
 	userID string,
 	userDisplayName string,
-	userProfileImageUrl string,
+	userProfileImageURL string,
 	seatID int,
 	isMemberSeat bool,
 	workName string,
@@ -742,7 +742,7 @@ func (app *WorkspaceApp) enterRoom(
 	state repository.SeatState,
 	isContinuousActive bool,
 	breakStartedAt time.Time, // set when moving seat
-	breakUntil time.Time,     // set when moving seat
+	breakUntil time.Time, // set when moving seat
 	enterDate time.Time,
 ) (int, error) {
 	exitDate := enterDate.Add(time.Duration(workMin) * time.Minute)
@@ -763,7 +763,7 @@ func (app *WorkspaceApp) enterRoom(
 		UserID:                  userID,
 		SessionID:               utils.GenerateSessionID(),
 		UserDisplayName:         userDisplayName,
-		UserProfileImageUrl:     userProfileImageUrl,
+		UserProfileImageURL:     userProfileImageURL,
 		WorkName:                workName,
 		BreakWorkName:           breakWorkName,
 		EnteredAt:               enterDate,

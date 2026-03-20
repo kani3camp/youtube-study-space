@@ -60,7 +60,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			jstNow := app.currentTime() // スナップショットごとに最新の時刻を取得
-			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
 			// 現在も存在しているか
 			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberRoom)
@@ -128,7 +128,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 			jstNow := app.currentTime() // snapshotごとに最新の時刻を取得
-			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberRoom)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
 			// 現在も存在しているか
 			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberRoom)
@@ -234,7 +234,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageUrl, false, false, isMemberSeat)
+			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberSeat)
 
 			// 現在も存在しているか
 			seat, err := app.Repository.ReadSeat(ctx, tx, seatSnapshot.SeatID, isMemberSeat)

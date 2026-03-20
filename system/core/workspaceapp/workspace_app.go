@@ -31,7 +31,7 @@ type WorkspaceApp struct {
 
 	ProcessedUserID                 string
 	ProcessedUserDisplayName        string
-	ProcessedUserProfileImageUrl    string
+	ProcessedUserProfileImageURL    string
 	ProcessedUserIsModeratorOrOwner bool
 	ProcessedUserIsMember           bool
 
@@ -182,10 +182,10 @@ func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.
 	return app.Repository.FirestoreClient().RunTransaction(ctx, f)
 }
 
-func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageUrl string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
+func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageURL string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
 	app.ProcessedUserID = userID
 	app.ProcessedUserDisplayName = userDisplayName
-	app.ProcessedUserProfileImageUrl = userProfileImageUrl
+	app.ProcessedUserProfileImageURL = userProfileImageURL
 	app.ProcessedUserIsModeratorOrOwner = isChatModerator || isChatOwner
 	app.ProcessedUserIsMember = isChatMember
 }
@@ -298,7 +298,7 @@ func (app *WorkspaceApp) ProcessMessage(
 	commandString string,
 	userID string,
 	userDisplayName string,
-	userProfileImageUrl string,
+	userProfileImageURL string,
 	isChatModerator bool,
 	isChatOwner bool,
 	isChatMember bool,
@@ -309,7 +309,7 @@ func (app *WorkspaceApp) ProcessMessage(
 	if !app.Configs.Constants.YoutubeMembershipEnabled {
 		isChatMember = false
 	}
-	app.SetProcessedUser(userID, userDisplayName, userProfileImageUrl, isChatModerator, isChatOwner, isChatMember)
+	app.SetProcessedUser(userID, userDisplayName, userProfileImageURL, isChatModerator, isChatOwner, isChatMember)
 
 	// check if an unwanted word included
 	if !isChatModerator && !isChatOwner {
