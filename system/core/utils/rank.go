@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"errors"
+
 	"app.modules/core/timeutil"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -108,7 +109,7 @@ func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastP
 func CalcContinuousInactiveDays(lastActiveAt time.Time) (int, error) {
 	jstNow := timeutil.JstNow()
 	if lastActiveAt.After(jstNow) {
-		return 0, errors.New("lastActiveAt is after jstNow.")
+		return 0, errors.New("lastActiveAt is after jstNow")
 	}
 	inactiveDuration := jstNow.Sub(lastActiveAt)
 	inactiveDays := int(inactiveDuration.Hours() / 24)
@@ -121,7 +122,7 @@ func CalcContinuousActiveDays(yesterdayContinuedActive bool, currentStateStarted
 
 	// 未来の日付がある場合はエラー
 	if currentStateStarted.After(jstNow) || lastActiveAt.After(jstNow) {
-		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true.")
+		return 0, errors.New("currentStateStarted.After(jstNow) is true or lastActiveAt.After(jstNow) is true")
 	}
 
 	// 昨日非アクティブだった時点で現在の連続アクティブ日数は0。

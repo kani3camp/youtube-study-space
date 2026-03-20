@@ -13,9 +13,9 @@ import (
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )

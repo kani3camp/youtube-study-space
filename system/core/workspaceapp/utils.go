@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"errors"
+
 	"app.modules/core/guardians"
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
@@ -18,7 +20,6 @@ import (
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"github.com/kr/pretty"
-	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc/codes"
@@ -523,7 +524,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 
 	// 片方しかなければチェックは不要
 	if len(whiteListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
+		return false, fmt.Errorf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in white list. skipping.")
@@ -532,7 +533,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
 	}
 	if len(blackListForUserAndSeat) > 1 {
-		return false, errors.New(fmt.Sprintf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID))
+		return false, fmt.Errorf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
 			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in black list. skipping.")
@@ -632,8 +633,8 @@ func (app *WorkspaceApp) BanUser(ctx context.Context, userID string) error {
 
 // GetMenuItemByNumber メニュー番号からメニューアイテムを取得する。
 func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, error) {
-	if len(app.SortedMenuItems) < number {
-		return repository.MenuDoc{}, errors.Errorf("invalid menu number: %d, menuItems length = %d.", number, len(app.SortedMenuItems))
+	if number < 1 || len(app.SortedMenuItems) < number {
+		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
 }
@@ -644,7 +645,7 @@ func (app *WorkspaceApp) GetMenuNumByCode(code string) (int, error) {
 			return i + 1, nil
 		}
 	}
-	return -1, errors.Errorf("menu code not found: %s", code)
+	return -1, fmt.Errorf("menu code not found: %s", code)
 }
 
 // GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める

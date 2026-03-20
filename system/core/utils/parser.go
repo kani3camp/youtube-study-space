@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
+	"errors"
 
 	i18nmsg "app.modules/core/i18n/typed"
 )

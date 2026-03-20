@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"errors"
+
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 	"cloud.google.com/go/bigquery"
-	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -69,8 +70,8 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 		if status.State == bigquery.Done {
 			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了", "collection", collectionName)
 		} else {
-			slog.Info("GCSからbqの一時テーブルまでデータの読込: %v", "state", status.State, "collection", collectionName)
-			return errors.Errorf("failed transfer data from gcs to bigquery temporary table. collection: %s", collectionName)
+			slog.Info("GCSからbqの一時テーブルまでデータの読込", "state", status.State, "collection", collectionName)
+			return fmt.Errorf("failed transfer data from gcs to bigquery temporary table. collection: %s", collectionName)
 		}
 
 		// 取得する始まりと終わりの日時を求める
@@ -139,7 +140,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			slog.Info("bqの一時テーブルからメインテーブルまでデータの移行が完了", "collection", collectionName)
 		} else {
 			slog.Error("bqの一時テーブルからメインテーブルまでデータの移行結果", "state", status.State, "collection", collectionName)
-			return errors.Errorf("failed transfer data from bigquery temporary table to main table. collection: %s", collectionName)
+			return fmt.Errorf("failed transfer data from bigquery temporary table to main table. collection: %s", collectionName)
 		}
 	}
 	slog.Info("finished all collection's processes.", "collections", collections)

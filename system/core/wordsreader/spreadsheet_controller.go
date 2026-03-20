@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
+	"errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )

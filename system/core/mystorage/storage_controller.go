@@ -8,7 +8,7 @@ import (
 
 	"app.modules/core/timeutil"
 	"cloud.google.com/go/storage"
-	"github.com/pkg/errors"
+	"errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )

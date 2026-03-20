@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"errors"
+
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -176,7 +177,7 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) er
 
 func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) error {
 	if len(message) == 0 {
-		return errors.New("message length is 0.")
+		return errors.New("message length is 0")
 	}
 
 	// メッセージ送信を試行

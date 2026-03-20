@@ -14,7 +14,7 @@ import (
 	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/workspaceapp/usecase"
 	"cloud.google.com/go/firestore"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
