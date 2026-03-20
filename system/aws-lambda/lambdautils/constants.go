@@ -6,5 +6,5 @@ const (
 
 type UserRPParallelRequest struct {
 	ProcessIndex int      `json:"process_index"`
-	UserIDs      []string `json:"user_i_ds"`
+	UserIDs      []string `json:"user_ids"`
 }
