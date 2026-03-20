@@ -54,7 +54,7 @@ func GetSeatByUserID(seats []repository.SeatDoc, userID string) (repository.Seat
 			return seat, nil
 		}
 	}
-	return repository.SeatDoc{}, errors.New("no seat found with user id = " + userID)
+	return repository.SeatDoc{}, errors.New("no seat found with userID = " + userID)
 }
 
 func GetGcpProjectID(ctx context.Context, clientOption option.ClientOption) (string, error) {
