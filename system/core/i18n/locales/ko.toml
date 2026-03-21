@@ -4,7 +4,7 @@
 "on" = "ON"
 "off" = "OFF"
 "sir" = "@{0} 님, "
-"vip-seat-id" = "VIP{0}"    # 0: SeatId
+"vip-seat-id" = "VIP{0}"    # 0: SeatID
 
 [command]
 "option-warn" = "@{0} 님, 옵션이 올바르게 설정되어 있는지 확인해주세요🙏" # 0: Username
@@ -51,20 +51,20 @@
 "break-until" = "작업 재개까지 {0}분 남았습니다 ⏳" # 0: Value
 # 0: Username, 1: SeatID, 2: state, 3: sit duration, 4: studyDuration, 5: remain, 6: breakUntil
 "base" = "@{0} 님은 {1}번 좌석에서 {2} 상태로 {3}분째 입장 중이며, 작업 시간은 {4}분, 자동 퇴장까지 {5}분 남았습니다📊 {6}"
-# 0: RecentRangeMin, 1: SeatId, 2: RecentTotalEntryDurationMin
+# 0: RecentRangeMin, 1: SeatID, 2: RecentTotalEntryDurationMin
 "details" = "최근 {0}분 이내에 {1}번 좌석에 총 {2}분 앉아 있었습니다🪑"
 
 [command-report]
 "no-message" = "@{0} 님, 공백을 넣고 메시지를 작성해주세요." # 0: Username
-"owner" = "【{0} 수신】\n채널 ID: {1}\n채널 이름: {2}\n\n{3}" # 0: ReportCommand, 1: UserId, 2: UserDisplayName, 3: ReportOption.Message
+"owner" = "【{0} 수신】\n채널 ID: {1}\n채널 이름: {2}\n\n{3}" # 0: ReportCommand, 1: UserID, 2: UserDisplayName, 3: ReportOption.Message
 "moderators" = "【{0} 수신】\n채널 이름: `{1}`\n메시지: `{2}`"    # 0: ReportCommand, 1: UserDisplayName, 2: ReportOption.Message
 "alert" = "@{0} 님, 관리자에게 메시지를 전송하였습니다⚠" # 0: UserName
 
 [command-kick]
-"kick" = "@{0} 님, {1}번 좌석의 {2}님을 퇴장시킵니다 🚫" # 0: Username, 1: SeatId, 2: seat user
+"kick" = "@{0} 님, {1}번 좌석의 {2}님을 퇴장시킵니다 🚫" # 0: Username, 1: SeatID, 2: seat user
 
 [command-block]
-"block" = "@{0} 님, {1}번 좌석의 {2}님을 차단합니다 🚫"  # 0: UserName, 1: seatId, 2: TargetUserName
+"block" = "@{0} 님, {1}번 좌석의 {2}님을 차단합니다 🚫"  # 0: UserName, 1: seatID, 2: TargetUserName
 
 [command-my]
 "already-rank" = "랭크 표시 모드는 이미 {0}입니다 🎯" # 0: Status
@@ -106,9 +106,9 @@
 "cleared" = "@{0} 님, 식기를 치웠습니다🍽️" # 0: userName
 
 [others]
-"force-move" = "@{0} 님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatId
+"force-move" = "@{0} 님이 {1}번 좌석의 사용 가능 시간 한도에 도달하여 좌석을 이동합니다💨"   # 0: userName, 1: seatID
 "clear-work" = "@{0} 님, 작업 내용을 리셋했습니다🧹({1}번 좌석)"
-"clear-break" = "@{0} 님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatId
+"clear-break" = "@{0} 님, 휴식 내용을 리셋했습니다🧹({1}번 좌석)"  # 0: userName, 1: seatID
 
 [parse]
 "isolated-!" = "느낌표는 옆 문자와 붙여서 사용하세요 ✍️"

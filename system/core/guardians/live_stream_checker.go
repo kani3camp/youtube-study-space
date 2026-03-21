@@ -38,7 +38,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 		return err
 	}
 	config := &oauth2.Config{
-		ClientID:     credentials.YoutubeChannelClientId,
+		ClientID:     credentials.YoutubeChannelClientID,
 		ClientSecret: credentials.YoutubeChannelClientSecret,
 		Endpoint: oauth2.Endpoint{
 			TokenURL: "https://accounts.google.com/o/oauth2/token",
@@ -59,9 +59,9 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("broadcasts.List: %w", err)
 	}
-	usingStreamIds := make(map[string]bool)
+	usingStreamIDs := make(map[string]bool)
 	for _, broadcast := range broadcastsListResponse.Items {
-		usingStreamIds[broadcast.ContentDetails.BoundStreamId] = true
+		usingStreamIDs[broadcast.ContentDetails.BoundStreamId] = true
 		slog.Info("active broadcast info.",
 			"id", broadcast.Id,
 			"BoundStreamId", broadcast.ContentDetails.BoundStreamId,
@@ -75,9 +75,9 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 		return fmt.Errorf("in streamsService.List: %w", err)
 	}
 
-	for usingStreamId := range usingStreamIds {
+	for usingStreamID := range usingStreamIDs {
 		for _, stream := range liveStreamListResponse.Items {
-			if stream.Id == usingStreamId {
+			if stream.Id == usingStreamID {
 				streamStatus := stream.Status.StreamStatus
 				healthStatus := stream.Status.HealthStatus.Status
 

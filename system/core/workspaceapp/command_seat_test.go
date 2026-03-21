@@ -47,8 +47,8 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: true,
-					SeatId:      1,
+					IsSeatIDSet: true,
+					SeatID:      1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
@@ -71,8 +71,8 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: true,
-					SeatId:      1,
+					IsSeatIDSet: true,
+					SeatID:      1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
@@ -95,8 +95,8 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: true,
-					SeatId:      1,
+					IsSeatIDSet: true,
+					SeatID:      1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						IsDurationMinSet: true,
@@ -118,7 +118,7 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:        false,
+					IsSeatIDSet:        false,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{},
 					IsMemberSeat:       false,
 				},
@@ -135,14 +135,14 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet: true,
-					SeatId:      1,
+					IsSeatIDSet: true,
+					SeatID:      1,
 				},
 			},
 			userIsMember: false,
 			targetSeatDoc: &repository.SeatDoc{
-				SeatId: 1,
-				UserId: "test_user_id",
+				SeatID: 1,
+				UserID: "test_user_id",
 			},
 			expectedReplyMessage: "@テストユーザー さん、その番号の席は今は使えません。他の空いている席を選ぶか、「!in」で席を指定せずに入室してください🪑",
 		},
@@ -154,9 +154,9 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:        true,
+					IsSeatIDSet:        true,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{},
-					SeatId:             999,
+					SeatID:             999,
 				},
 			},
 			userIsMember:         false,
@@ -172,7 +172,7 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:        false,
+					IsSeatIDSet:        false,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{},
 					IsMemberSeat:       true,
 				},
@@ -189,15 +189,15 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:        false,
+					IsSeatIDSet:        false,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{},
 					IsMemberSeat:       false,
 				},
 			},
 			userIsMember: false,
 			currentSeatOfUser: &repository.SeatDoc{
-				SeatId: 1,
-				UserId: "test_user_id",
+				SeatID: 1,
+				UserID: "test_user_id",
 				State:  repository.WorkState,
 			},
 			expectedReplyMessage: "@テストユーザー さんは1番の席に座っています🪑",
@@ -218,8 +218,8 @@ func TestSystem_In(t *testing.T) {
 			userIsMember:                  true,
 			currentSeatOfUserIsMemberSeat: true,
 			currentSeatOfUser: &repository.SeatDoc{
-				SeatId: 1,
-				UserId: "test_user_id",
+				SeatID: 1,
+				UserID: "test_user_id",
 				State:  repository.WorkState,
 			},
 			expectedReplyMessage: "@テストユーザー さんはVIP1番の席に座っています🪑",
@@ -234,17 +234,17 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:        true,
+					IsSeatIDSet:        true,
 					IsMemberSeat:       false,
-					SeatId:             1,
+					SeatID:             1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{},
 				},
 			},
 			userIsMember:                  false,
 			currentSeatOfUserIsMemberSeat: true,
 			currentSeatOfUser: &repository.SeatDoc{
-				SeatId:                  1,
-				UserId:                  "test_user_id",
+				SeatID:                  1,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -262,9 +262,9 @@ func TestSystem_In(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.In,
 				InOption: utils.InOption{
-					IsSeatIdSet:  true,
+					IsSeatIDSet:  true,
 					IsMemberSeat: false,
-					SeatId:       1,
+					SeatID:       1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
 						WorkName:         "", // 空文字列で明示的に設定
@@ -284,7 +284,7 @@ func TestSystem_In(t *testing.T) {
 	for _, tt := range inTestCases {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := mock_repository.NewMockRepository(ctrl)
-			if tt.commandDetails.InOption.IsSeatIdSet {
+			if tt.commandDetails.InOption.IsSeatIDSet {
 				var seatDoc repository.SeatDoc
 				var seatErr error
 				if tt.targetSeatDoc != nil {
@@ -294,16 +294,16 @@ func TestSystem_In(t *testing.T) {
 					seatDoc = repository.SeatDoc{}
 					seatErr = status.Errorf(codes.NotFound, "")
 				}
-				mockDB.EXPECT().ReadSeat(gomock.Any(), gomock.Any(), tt.commandDetails.InOption.SeatId, gomock.Any()).Return(seatDoc, seatErr).AnyTimes()
+				mockDB.EXPECT().ReadSeat(gomock.Any(), gomock.Any(), tt.commandDetails.InOption.SeatID, gomock.Any()).Return(seatDoc, seatErr).AnyTimes()
 			}
 			mockDB.EXPECT().ReadSystemConstantsConfig(gomock.Any(), gomock.Any()).Return(tt.constantsConfig, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIdAndUserId(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
+			mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIDAndUserID(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
 				Return([]repository.SeatLimitDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatLimitsBLACKListWithSeatIdAndUserId(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
+			mockDB.EXPECT().ReadSeatLimitsBLACKListWithSeatIDAndUserID(gomock.Any(), gomock.Any(), "test_user_id", gomock.Any()).
 				Return([]repository.SeatLimitDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			mockDB.EXPECT().GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			mockDB.EXPECT().GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").
 				Return(repository.UserDoc{
@@ -312,12 +312,12 @@ func TestSystem_In(t *testing.T) {
 					IsContinuousActive: false,
 				}, nil).AnyTimes()
 			if tt.currentSeatOfUser != nil {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.currentSeatOfUserIsMemberSeat).
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.currentSeatOfUserIsMemberSeat).
 					Return(*tt.currentSeatOfUser, nil).AnyTimes()
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.currentSeatOfUserIsMemberSeat).
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.currentSeatOfUserIsMemberSeat).
 					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", gomock.Any()).
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", gomock.Any()).
 					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
 			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -327,7 +327,7 @@ func TestSystem_In(t *testing.T) {
 			mockDB.EXPECT().UpdateUserLastPenaltyImposedDays(gomock.Any(), gomock.Any(), "test_user_id", 0).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).AnyTimes()
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionID(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).AnyTimes()
 			mockFirestoreClient := mock_repository.NewMockDBClient(ctrl)
 			mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).
 				DoAndReturn(
@@ -341,7 +341,7 @@ func TestSystem_In(t *testing.T) {
 				mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			}
 			if tt.currentSeatDeleted {
-				mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), tt.currentSeatOfUser.SeatId, tt.currentSeatOfUserIsMemberSeat).Return(nil).Times(1)
+				mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), tt.currentSeatOfUser.SeatID, tt.currentSeatOfUserIsMemberSeat).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserTotalTime(gomock.Any(), "test_user_id", gomock.Any(), gomock.Any()).Return(nil).Times(1)
 				mockDB.EXPECT().UpdateUserRankPoint(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).Times(1)
@@ -358,7 +358,7 @@ func TestSystem_In(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				ProcessedUserIsMember:    tt.userIsMember,
 				nowFunc:                  func() time.Time { return fixedNow },
@@ -421,13 +421,13 @@ func TestSystem_Out(t *testing.T) {
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
-				SeatId:                  1,
-				UserId:                  "test_user_id",
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
+				SeatID:                  1,
+				UserID:                  "test_user_id",
 				CurrentSegmentStartedAt: fixedNow.Add(-time.Hour), // 適当な値
 			}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadWorkStateSegmentsBySessionId(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadWorkStateSegmentsBySessionID(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
 			mockDB.EXPECT().DeleteSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastExitedDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
@@ -442,7 +442,7 @@ func TestSystem_Out(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				nowFunc:                  func() time.Time { return fixedNow },
 			}
@@ -499,8 +499,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                3,
-				UserId:                "test_user_id",
+				SeatID:                3,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -508,8 +508,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			},
 			generalSeats: []repository.SeatDoc{
 				{
-					SeatId: 3,
-					UserId: "test_user_id",
+					SeatID: 3,
+					UserID: "test_user_id",
 					State:  repository.WorkState,
 				},
 			},
@@ -527,8 +527,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                3,
-				UserId:                "test_user_id",
+				SeatID:                3,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -537,8 +537,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			generalSeats: []repository.SeatDoc{},
 			memberSeats: []repository.SeatDoc{
 				{
-					SeatId: 3,
-					UserId: "test_user_id",
+					SeatID: 3,
+					UserID: "test_user_id",
 					State:  repository.WorkState,
 				},
 			},
@@ -558,8 +558,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                3,
-				UserId:                "test_user_id",
+				SeatID:                3,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -567,8 +567,8 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			},
 			generalSeats: []repository.SeatDoc{
 				{
-					SeatId: 3,
-					UserId: "test_user_id",
+					SeatID: 3,
+					UserID: "test_user_id",
 					State:  repository.WorkState,
 				},
 			},
@@ -593,15 +593,15 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return(tt.memberSeats, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			if tt.currentSeatDoc != nil {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-			mockDB.EXPECT().GetEnterRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			mockDB.EXPECT().GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().GetExitRoomUserActivityDocIdsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			mockDB.EXPECT().GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return([]repository.UserActivityDoc{}, nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
@@ -611,7 +611,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -663,8 +663,8 @@ func TestSystem_Change(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -692,8 +692,8 @@ func TestSystem_Change(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  7,
-				UserId:                  "test_user_id",
+				SeatID:                  7,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -719,8 +719,8 @@ func TestSystem_Change(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "既存の作業",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -747,8 +747,8 @@ func TestSystem_Change(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				BreakWorkName:           "既存の休憩作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -774,11 +774,11 @@ func TestSystem_Change(t *testing.T) {
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
+				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 
 				// 時間が指定されている場合のみ検証
 				if tt.commandDetails.ChangeOption.IsDurationMinSet {
@@ -807,7 +807,7 @@ func TestSystem_Change(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -858,8 +858,8 @@ func TestSystem_More(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -886,8 +886,8 @@ func TestSystem_More(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                7,
-				UserId:                "test_user_id",
+				SeatID:                7,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -911,8 +911,8 @@ func TestSystem_More(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                5,
-				UserId:                "test_user_id",
+				SeatID:                5,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -937,8 +937,8 @@ func TestSystem_More(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                5,
-				UserId:                "test_user_id",
+				SeatID:                5,
+				UserID:                "test_user_id",
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
@@ -962,11 +962,11 @@ func TestSystem_More(t *testing.T) {
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
+				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 
 				expectedTime := tt.currentSeatDoc.Until.Add(time.Duration(tt.expectedExtraTimeMin) * time.Minute)
 				assert.WithinDuration(t, expectedTime, seat.Until, 1*time.Second, "時間が1秒以内の誤差であること")
@@ -983,7 +983,7 @@ func TestSystem_More(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1028,8 +1028,8 @@ func TestSystem_Break(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1050,8 +1050,8 @@ func TestSystem_Break(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  7,
-				UserId:                  "test_user_id",
+				SeatID:                  7,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1071,8 +1071,8 @@ func TestSystem_Break(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1098,8 +1098,8 @@ func TestSystem_Break(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1125,8 +1125,8 @@ func TestSystem_Break(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				BreakWorkName:           "既存の休憩作業",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-15 * time.Minute),
@@ -1151,11 +1151,11 @@ func TestSystem_Break(t *testing.T) {
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
+				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 				assert.Equal(t, repository.BreakState, seat.State)
 				assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				return nil
@@ -1170,7 +1170,7 @@ func TestSystem_Break(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1217,8 +1217,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1242,8 +1242,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  7,
-				UserId:                  "test_user_id",
+				SeatID:                  7,
+				UserID:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1266,8 +1266,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "既存作業",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1290,8 +1290,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "既存の作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1315,8 +1315,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "クリアされる作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1340,8 +1340,8 @@ func TestSystem_Resume(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  5,
-				UserId:                  "test_user_id",
+				SeatID:                  5,
+				UserID:                  "test_user_id",
 				WorkName:                "古い作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -1366,11 +1366,11 @@ func TestSystem_Resume(t *testing.T) {
 				).AnyTimes()
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
+				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 				assert.Equal(t, repository.WorkState, seat.State)
 
 				// 作業名の検証
@@ -1393,7 +1393,7 @@ func TestSystem_Resume(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -1456,13 +1456,13 @@ func TestSystem_Order(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:   1,
-				UserId:   "test_user_id",
+				SeatID:   1,
+				UserID:   "test_user_id",
 				MenuCode: "",
 			},
 			alreadyOrderedCountToday: 0,
 			newOrderHistory: &repository.OrderHistoryDoc{
-				UserId:   "test_user_id",
+				UserID:   "test_user_id",
 				MenuCode: "black-tea",
 			},
 			expectedReplyMessage: "@テストユーザー さん、紅茶の注文を受け付けました🍽（本日1回目）",
@@ -1481,13 +1481,13 @@ func TestSystem_Order(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:   1,
-				UserId:   "test_user_id",
+				SeatID:   1,
+				UserID:   "test_user_id",
 				MenuCode: "",
 			},
 			alreadyOrderedCountToday: 0,
 			newOrderHistory: &repository.OrderHistoryDoc{
-				UserId:   "test_user_id",
+				UserID:   "test_user_id",
 				MenuCode: "black-tea",
 			},
 			expectedReplyMessage: "@テストユーザー さん、紅茶の注文を受け付けました🍽（本日1回目）",
@@ -1522,8 +1522,8 @@ func TestSystem_Order(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:   1,
-				UserId:   "test_user_id",
+				SeatID:   1,
+				UserID:   "test_user_id",
 				MenuCode: "",
 			},
 			alreadyOrderedCountToday: 5,
@@ -1543,13 +1543,13 @@ func TestSystem_Order(t *testing.T) {
 			},
 			userIsMember: true,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:   1,
-				UserId:   "test_user_id",
+				SeatID:   1,
+				UserID:   "test_user_id",
 				MenuCode: "",
 			},
 			alreadyOrderedCountToday: 5,
 			newOrderHistory: &repository.OrderHistoryDoc{
-				UserId:   "test_user_id",
+				UserID:   "test_user_id",
 				MenuCode: "black-tea",
 			},
 			expectedReplyMessage: "@テストユーザー さん、紅茶の注文を受け付けました🍽（本日6回目）",
@@ -1572,19 +1572,19 @@ func TestSystem_Order(t *testing.T) {
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 
 			if tt.currentSeatDoc != nil {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().ReadAllMenuDocsOrderByCode(gomock.Any()).Return(menuDocs, nil).AnyTimes()
 			mockDB.EXPECT().CountUserOrdersOfTheDay(gomock.Any(), "test_user_id", gomock.Any()).Return(tt.alreadyOrderedCountToday, nil).AnyTimes()
 			mockDB.EXPECT().CreateOrderHistoryDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
-				assert.Equal(t, tt.currentSeatDoc.SeatId, seat.SeatId)
-				assert.Equal(t, tt.currentSeatDoc.UserId, seat.UserId)
+				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
+				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 				assert.NotEmpty(t, seat.MenuCode)
 				return nil
 			}).MaxTimes(1)
@@ -1596,7 +1596,7 @@ func TestSystem_Order(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserIsMember:    tt.userIsMember,
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{

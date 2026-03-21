@@ -53,8 +53,8 @@ const (
 )
 
 type InOption struct {
-	IsSeatIdSet        bool
-	SeatId             int
+	IsSeatIDSet        bool
+	SeatID             int
 	MinWorkOrderOption *MinWorkOrderOption
 	IsMemberSeat       bool
 }
@@ -71,17 +71,17 @@ type SeatOption struct {
 }
 
 type KickOption struct {
-	SeatId             int
+	SeatID             int
 	IsTargetMemberSeat bool
 }
 
 type CheckOption struct {
-	SeatId             int
+	SeatID             int
 	IsTargetMemberSeat bool
 }
 
 type BlockOption struct {
-	SeatId             int
+	SeatID             int
 	IsTargetMemberSeat bool
 }
 
@@ -117,7 +117,7 @@ func (o *MinWorkOrderOption) NumOptionsSet() int {
 	return NumTrue(o.IsWorkNameSet, o.IsDurationMinSet)
 }
 
-type UserIdTotalStudySecSet struct {
-	UserId        string `json:"user_id"`
+type UserIDTotalStudySecSet struct {
+	UserID        string `json:"user_id"`
 	TotalStudySec int    `json:"total_study_sec"`
 }

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
+	"errors"
 
 	i18nmsg "app.modules/core/i18n/typed"
 )
@@ -248,7 +248,7 @@ func FormatStringToParse(fullString string) string {
 	return fullString
 }
 
-func ParseIn(argStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId int) (*CommandDetails, string) {
+func ParseIn(argStr string, isTargetMemberSeat bool, isSeatIDSet bool, seatID int) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
 
 	options := &MinWorkOrderOption{
@@ -267,8 +267,8 @@ func ParseIn(argStr string, isTargetMemberSeat bool, isSeatIdSet bool, seatId in
 	return &CommandDetails{
 		CommandType: In,
 		InOption: InOption{
-			IsSeatIdSet:        isSeatIdSet,
-			SeatId:             seatId,
+			IsSeatIDSet:        isSeatIDSet,
+			SeatID:             seatID,
 			MinWorkOrderOption: options,
 			IsMemberSeat:       isTargetMemberSeat,
 		},
@@ -395,13 +395,13 @@ func ParseMyOptions(argStr string) ([]MyOption, string) {
 func ParseKick(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
 
-	var kickSeatId int
+	var kickSeatID int
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18nmsg.ParseInvalidSeatId()
 		}
-		kickSeatId = num
+		kickSeatID = num
 	} else {
 		return nil, i18nmsg.ParseMissingSeatId()
 	}
@@ -409,7 +409,7 @@ func ParseKick(argStr string, isTargetMemberSeat bool) (*CommandDetails, string)
 	return &CommandDetails{
 		CommandType: Kick,
 		KickOption: KickOption{
-			SeatId:             kickSeatId,
+			SeatID:             kickSeatID,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, ""
@@ -418,13 +418,13 @@ func ParseKick(argStr string, isTargetMemberSeat bool) (*CommandDetails, string)
 func ParseCheck(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
 
-	var targetSeatId int
+	var targetSeatID int
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18nmsg.ParseInvalidSeatId()
 		}
-		targetSeatId = num
+		targetSeatID = num
 	} else {
 		return nil, i18nmsg.ParseMissingSeatId()
 	}
@@ -432,7 +432,7 @@ func ParseCheck(argStr string, isTargetMemberSeat bool) (*CommandDetails, string
 	return &CommandDetails{
 		CommandType: Check,
 		CheckOption: CheckOption{
-			SeatId:             targetSeatId,
+			SeatID:             targetSeatID,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, ""
@@ -441,13 +441,13 @@ func ParseCheck(argStr string, isTargetMemberSeat bool) (*CommandDetails, string
 func ParseBlock(argStr string, isTargetMemberSeat bool) (*CommandDetails, string) {
 	fields := strings.Fields(argStr)
 
-	var targetSeatId int
+	var targetSeatID int
 	if len(fields) >= 1 {
 		num, err := strconv.Atoi(fields[0])
 		if err != nil {
 			return nil, i18nmsg.ParseInvalidSeatId()
 		}
-		targetSeatId = num
+		targetSeatID = num
 	} else {
 		return nil, i18nmsg.ParseMissingSeatId()
 	}
@@ -455,7 +455,7 @@ func ParseBlock(argStr string, isTargetMemberSeat bool) (*CommandDetails, string
 	return &CommandDetails{
 		CommandType: Block,
 		BlockOption: BlockOption{
-			SeatId:             targetSeatId,
+			SeatID:             targetSeatID,
 			IsTargetMemberSeat: isTargetMemberSeat,
 		},
 	}, ""

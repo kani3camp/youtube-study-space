@@ -164,7 +164,7 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 
 func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) (WorkSegmentDoc, error) {
 	if s.CurrentSegmentStartedAt.IsZero() {
-		return WorkSegmentDoc{}, fmt.Errorf("currentSegmentStartedAt is zero for seatId: %d, userId: %s, isMemberSeat: %v", s.SeatId, s.UserId, isMemberSeat)
+		return WorkSegmentDoc{}, fmt.Errorf("currentSegmentStartedAt is zero for seatID: %d, userID: %s, isMemberSeat: %v", s.SeatID, s.UserID, isMemberSeat)
 	}
 
 	var workName string
@@ -174,10 +174,10 @@ func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) (WorkSeg
 		workName = s.BreakWorkName
 	}
 	return WorkSegmentDoc{
-		UserId:       s.UserId,
-		SeatId:       s.SeatId,
+		UserID:       s.UserID,
+		SeatID:       s.SeatID,
 		IsMemberSeat: isMemberSeat,
-		SessionId:    s.SessionId,
+		SessionID:    s.SessionID,
 		WorkName:     workName,
 		SegmentType:  s.State,
 		StartedAt:    s.CurrentSegmentStartedAt,

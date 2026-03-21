@@ -14,9 +14,10 @@ import (
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
+	"errors"
+
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )
@@ -39,7 +40,7 @@ func Init() (option.ClientOption, context.Context, error) {
 	fmt.Println("Is this the correct project ID? (yes/no)")
 	var s string
 	if _, err := fmt.Scanln(&s); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to read project confirmation")
+		return nil, nil, fmt.Errorf("failed to read project confirmation: %w", err)
 	}
 	if s != "yes" {
 		return nil, nil, errors.New("aborted")
@@ -180,14 +181,14 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 
 			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
-			channelId := youtubebot.ExtractAuthorChannelId(chatMessage)
+			channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
 			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
-			profileImageUrl := youtubebot.ExtractAuthorProfileImageUrl(chatMessage)
+			profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			if err := app.ProcessMessage(ctx, message, channelId, displayName, profileImageUrl, isModerator, isOwner, isMember); err != nil {
+			if err := app.ProcessMessage(ctx, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
 				app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
 			}
 		}

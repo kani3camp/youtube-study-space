@@ -42,17 +42,17 @@ func (m *MockLiveChatBot) EXPECT() *MockLiveChatBotMockRecorder {
 }
 
 // BanUser mocks base method.
-func (m *MockLiveChatBot) BanUser(ctx context.Context, userId string) error {
+func (m *MockLiveChatBot) BanUser(ctx context.Context, userID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BanUser", ctx, userId)
+	ret := m.ctrl.Call(m, "BanUser", ctx, userID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BanUser indicates an expected call of BanUser.
-func (mr *MockLiveChatBotMockRecorder) BanUser(ctx, userId any) *gomock.Call {
+func (mr *MockLiveChatBotMockRecorder) BanUser(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BanUser", reflect.TypeOf((*MockLiveChatBot)(nil).BanUser), ctx, userId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BanUser", reflect.TypeOf((*MockLiveChatBot)(nil).BanUser), ctx, userID)
 }
 
 // ListMessages mocks base method.

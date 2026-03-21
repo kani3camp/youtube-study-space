@@ -4,7 +4,7 @@ import (
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
@@ -58,8 +58,8 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 		}
 	}
 	// 席番号
-	if command.InOption.IsSeatIdSet {
-		if command.InOption.SeatId < 0 {
+	if command.InOption.IsSeatIDSet {
+		if command.InOption.SeatID < 0 {
 			return i18nmsg.ValidateNegativeSeatId()
 		}
 	}
@@ -131,7 +131,7 @@ func (app *WorkspaceApp) ValidateSeat(_ utils.CommandDetails) string {
 
 func (app *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
 	// 指定座席番号
-	if command.KickOption.SeatId <= 0 {
+	if command.KickOption.SeatID <= 0 {
 		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
 
@@ -140,7 +140,7 @@ func (app *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
 
 func (app *WorkspaceApp) ValidateCheck(command utils.CommandDetails) string {
 	// 指定座席番号
-	if command.CheckOption.SeatId <= 0 {
+	if command.CheckOption.SeatID <= 0 {
 		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
 
@@ -149,7 +149,7 @@ func (app *WorkspaceApp) ValidateCheck(command utils.CommandDetails) string {
 
 func (app *WorkspaceApp) ValidateBlock(command utils.CommandDetails) string {
 	// 指定座席番号
-	if command.BlockOption.SeatId <= 0 {
+	if command.BlockOption.SeatID <= 0 {
 		return "席番号は1以上にしてください。"
 	}
 

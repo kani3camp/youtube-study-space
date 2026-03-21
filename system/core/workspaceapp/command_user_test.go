@@ -52,8 +52,8 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			},
 			userIsMember: false,
 			currentSeatDoc: &repository.SeatDoc{
-				SeatId:                  1,
-				UserId:                  "test_user_id",
+				SeatID:                  1,
+				UserID:                  "test_user_id",
 				State:                   repository.WorkState,
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
@@ -77,11 +77,11 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(repository.UserDoc{}, nil).AnyTimes()
 			if tt.currentSeatDoc != nil {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(*tt.currentSeatDoc, nil).AnyTimes()
 			} else {
-				mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 			mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
@@ -91,7 +91,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				nowFunc:                  func() time.Time { return fixedNow },
 			}
@@ -165,8 +165,8 @@ func TestSystem_Rank(t *testing.T) {
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(tt.currentUserDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserRankVisible(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 
@@ -177,7 +177,7 @@ func TestSystem_Rank(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
@@ -366,8 +366,8 @@ func TestSystem_My(t *testing.T) {
 			mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadMemberSeats(gomock.Any()).Return([]repository.SeatDoc{}, nil).AnyTimes()
 			mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(tt.currentUserDoc, nil).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
-			mockDB.EXPECT().ReadSeatWithUserId(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
+			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().UpdateUserRankVisible(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserDefaultStudyMin(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).MaxTimes(1)
@@ -380,7 +380,7 @@ func TestSystem_My(t *testing.T) {
 				Repository:               mockDB,
 				LiveChatBot:              mockLiveChatBot,
 				alertOwnerBot:            moderatorbot.DummyMessageBot{},
-				ProcessedUserId:          "test_user_id",
+				ProcessedUserID:          "test_user_id",
 				ProcessedUserDisplayName: "テストユーザー",
 				Configs: &Configs{
 					Constants: tt.constantsConfig,
