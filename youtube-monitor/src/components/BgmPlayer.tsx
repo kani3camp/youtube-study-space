@@ -13,10 +13,9 @@ const BgmPlayer: React.FC = () => {
 	const [audioTitle, setAudioTitle] = useState('BGM TITLE')
 	const [audioArtist, setAudioArtist] = useState('BGM ARTIST')
 
-	const audioDivId = 'music'
-	const audioCanvasId = 'audioCanvas'
-
 	const waveRef = useRef<Wave | null>(null)
+	const bgmAudioRef = useRef<HTMLAudioElement>(null)
+	const audioCanvasRef = useRef<HTMLCanvasElement>(null)
 	const chimeSingleRef = useRef<HTMLAudioElement>(null)
 	const chimeDoubleRef = useRef<HTMLAudioElement>(null)
 
@@ -90,11 +89,9 @@ const BgmPlayer: React.FC = () => {
 
 	const audioNext = useCallback(async () => {
 		try {
-			const audio = document.getElementById(
-				audioDivId,
-			) as HTMLAudioElement | null
+			const audio = bgmAudioRef.current
 			if (!audio) {
-				console.error(`Audio element with ID '${audioDivId}' not found.`)
+				console.error('BGM audio element ref is not attached.')
 				return
 			}
 
@@ -135,7 +132,10 @@ const BgmPlayer: React.FC = () => {
 	}, [])
 
 	const audioStart = useCallback(() => {
-		const audio = document.getElementById(audioDivId) as HTMLAudioElement
+		const audio = bgmAudioRef.current
+		if (!audio) {
+			return
+		}
 		audio.addEventListener('ended', () => {
 			setAudioTitle('BGM TITLE')
 			setAudioArtist('BGM ARTIST')
@@ -149,7 +149,10 @@ const BgmPlayer: React.FC = () => {
 	}, [audioNext])
 
 	const _stop = () => {
-		const audio = document.getElementById(audioDivId) as HTMLAudioElement
+		const audio = bgmAudioRef.current
+		if (!audio) {
+			return
+		}
 		audio.pause()
 		setAudioTitle('BGM TITLE')
 		setAudioArtist('BGM ARTIST')
@@ -157,12 +160,11 @@ const BgmPlayer: React.FC = () => {
 
 	useEffect(() => {
 		if (!waveRef.current) {
-			const audioElement = document.getElementById(
-				audioDivId,
-			) as HTMLAudioElement
-			const canvasElement = document.getElementById(
-				audioCanvasId,
-			) as HTMLCanvasElement
+			const audioElement = bgmAudioRef.current
+			const canvasElement = audioCanvasRef.current
+			if (!audioElement || !canvasElement) {
+				return
+			}
 
 			const wave = new Wave(audioElement, canvasElement)
 			wave.addAnimation(
@@ -191,7 +193,7 @@ const BgmPlayer: React.FC = () => {
 	return (
 		<div css={[styles.shape, componentBackground]}>
 			<div css={[styles.bgmPlayer, componentStyle]}>
-				<audio autoPlay id={audioDivId}>
+				<audio ref={bgmAudioRef} autoPlay>
 					<track kind="captions" />
 				</audio>
 
@@ -205,7 +207,7 @@ const BgmPlayer: React.FC = () => {
 				<h4>by {audioArtist}</h4>
 
 				<div css={styles.audioCanvasDiv}>
-					<canvas id={audioCanvasId} css={styles.audioCanvas} />
+					<canvas ref={audioCanvasRef} css={styles.audioCanvas} />
 				</div>
 			</div>
 		</div>
