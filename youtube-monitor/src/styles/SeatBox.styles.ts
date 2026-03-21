@@ -183,9 +183,8 @@ export const generalDisplayName = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #38322b;
-    font-size: 0.58em;
-    font-weight: 800;
+    color:rgb(75, 71, 66);
+    font-weight: 700;
     line-height: 1.15;
 `
 
@@ -201,8 +200,8 @@ export const memberDisplayName = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #38322b;
-    font-size: 0.56em;
+    color:rgb(75, 71, 66);
+    font-weight: 700;
     line-height: 1.15;
     text-align: center;
 `

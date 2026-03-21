@@ -40,6 +40,32 @@ const colorGradientKeyframes = keyframes`
     100% { background-position: 0% 50%; }
 `
 
+/** 一般席の1行テキストを座席幅に収める（作業名・作業なし時のディスプレイ名で共通） */
+function fitGeneralSeatLineFontSizePx(
+	text: string,
+	seatFontSizePx: number,
+	seatWidthPx: number,
+): number {
+	let fontSizePx = seatFontSizePx * 0.8
+	if (text === '') {
+		return fontSizePx
+	}
+	const canvas: HTMLCanvasElement = document.createElement('canvas')
+	const context = canvas.getContext('2d')
+	if (context) {
+		context.font = `${fontSizePx.toString()}px ${fontFamily}`
+		const metrics = context.measureText(text)
+		if (metrics.width > seatWidthPx) {
+			fontSizePx *= seatWidthPx / metrics.width
+			fontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
+			if (fontSizePx < seatFontSizePx * 0.5) {
+				fontSizePx = seatFontSizePx * 0.5
+			}
+		}
+	}
+	return fontSizePx
+}
+
 const SeatBox: FC<SeatProps> = (props) => {
 	const workName = props.isUsed ? props.processingSeat.work_name : ''
 	const breakWorkName = props.isUsed ? props.processingSeat.break_work_name : ''
@@ -52,6 +78,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 		: ''
 	const currentWorkName =
 		isBreak && validateString(breakWorkName) ? breakWorkName : workName
+	const hasWorkName = currentWorkName !== ''
 	const hasMemberWorkName = props.memberOnly && validateString(currentWorkName)
 	const menuImageSrc =
 		props.isUsed && !isBreak && validateString(menuCode)
@@ -114,24 +141,26 @@ const SeatBox: FC<SeatProps> = (props) => {
 			: `!${props.globalSeatId}`
 
 	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
-	let generalWorkNameFontSizePx = props.seatFontSizePx * 0.8
-	if (props.isUsed && !props.memberOnly && currentWorkName !== '') {
-		const canvas: HTMLCanvasElement = document.createElement('canvas')
-		const context = canvas.getContext('2d')
-		if (context) {
-			context.font = `${generalWorkNameFontSizePx.toString()}px ${fontFamily}`
-			const metrics = context.measureText(currentWorkName)
-			const actualSeatWidth = props.seatShape.widthPx
+	const generalWorkNameFontSizePx =
+		props.isUsed && !props.memberOnly && hasWorkName
+			? fitGeneralSeatLineFontSizePx(
+					currentWorkName,
+					props.seatFontSizePx,
+					props.seatShape.widthPx,
+				)
+			: props.seatFontSizePx * 0.8
 
-			if (metrics.width > actualSeatWidth) {
-				generalWorkNameFontSizePx *= actualSeatWidth / metrics.width
-				generalWorkNameFontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
-				if (generalWorkNameFontSizePx < props.seatFontSizePx * 0.5) {
-					generalWorkNameFontSizePx = props.seatFontSizePx * 0.5
-				}
-			}
-		}
-	}
+	// メンバー席・空席では使わない（一般席ブロック内でのみ参照）。0 は未使用プレースホルダ。
+	const generalDisplayNameFontSizePx =
+		props.isUsed && !props.memberOnly
+			? hasWorkName
+				? props.seatFontSizePx * 0.58
+				: fitGeneralSeatLineFontSizePx(
+						displayName,
+						props.seatFontSizePx,
+						props.seatShape.widthPx,
+					)
+			: 0
 
 	return (
 		<div
@@ -215,7 +244,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 							<div css={styles.memberContent}>
 								<div css={styles.memberMain}>
 									{/* work name */}
-									{currentWorkName !== '' && (
+									{hasWorkName && (
 										<div css={styles.memberWorkNameFrame}>
 											<div
 												css={styles.memberWorkName}
@@ -239,7 +268,14 @@ const SeatBox: FC<SeatProps> = (props) => {
 												priority={true}
 											/>
 										)}
-										<div css={styles.memberDisplayName}>{displayName}</div>
+										<div
+											css={styles.memberDisplayName}
+											style={{
+												fontSize: `${props.seatFontSizePx * (hasWorkName ? 0.56 : 0.78)}px`,
+											}}
+										>
+											{displayName}
+										</div>
 									</div>
 								</div>
 							</div>
@@ -252,7 +288,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 						</>
 					) : (
 						<div css={styles.generalContent}>
-							{currentWorkName !== '' && (
+							{hasWorkName && (
 								<div
 									css={styles.generalWorkName}
 									style={{ fontSize: `${generalWorkNameFontSizePx}px` }}
@@ -260,7 +296,12 @@ const SeatBox: FC<SeatProps> = (props) => {
 									{currentWorkName}
 								</div>
 							)}
-							<div css={styles.generalDisplayName}>{displayName}</div>
+							<div
+								css={styles.generalDisplayName}
+								style={{ fontSize: `${generalDisplayNameFontSizePx}px` }}
+							>
+								{displayName}
+							</div>
 						</div>
 					)
 				) : (
