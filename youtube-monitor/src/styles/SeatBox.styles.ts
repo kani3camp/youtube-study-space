@@ -1,6 +1,11 @@
 import { css } from '@emotion/react'
 import { fontFamily } from '../lib/common'
 import { Constants } from '../lib/constants'
+import {
+	seatDisplayNameFontWeight,
+	seatIdFontWeight,
+	seatWorkNameFontWeight,
+} from './seatBoxFontWeights'
 
 export const seat = css`
     position: absolute;
@@ -56,7 +61,7 @@ export const generalSeatId = css`
     color: #5a5146;
     line-height: 1;
     font-size: 0.6em;
-    font-weight: 800;
+    font-weight: ${seatIdFontWeight};
     letter-spacing: 0.02em;
 `
 
@@ -65,7 +70,7 @@ export const memberSeatId = css`
     color: #5a5146;
     line-height: 1;
     font-size: 0.68em;
-    font-weight: 800;
+    font-weight: ${seatIdFontWeight};
     letter-spacing: 0.02em;
 `
 
@@ -78,7 +83,7 @@ export const breakBadge = css`
     color: #2f3d19;
     background-color: rgba(199, 230, 146, 0.95);
     z-index: ${Constants.breakBadgeZIndex};
-    font-weight: 700;
+    font-weight: ${seatDisplayNameFontWeight};
     line-height: 1;
     border: 1px solid rgba(67, 90, 29, 0.22);
 `
@@ -88,7 +93,7 @@ export const starsBadge = css`
     position: absolute;
     top: 0.2rem;
     right: 0.2rem;
-    font-weight: 800;
+    font-weight: ${seatWorkNameFontWeight};
     line-height: 1;
     white-space: nowrap;
     transform: translateY(1px);
@@ -128,7 +133,7 @@ export const emptySeatCommand = css`
     margin: 0;
     color: #4a4338;
     line-height: 1;
-    font-weight: 800;
+    font-weight: ${seatWorkNameFontWeight};
     letter-spacing: 0.02em;
 `
 
@@ -147,7 +152,7 @@ export const memberWorkNameFrame = css`
 export const memberWorkName = css`
     color: #24317e;
     text-overflow: ellipsis;
-    font-weight: 800;
+    font-weight: ${seatWorkNameFontWeight};
     line-height: 1.18;
     overflow: hidden;
     word-wrap: break-word;
@@ -170,7 +175,7 @@ export const generalContent = css`
 export const generalWorkName = css`
     width: 100%;
     color: #24317e;
-    font-weight: 800;
+    font-weight: ${seatWorkNameFontWeight};
     line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -183,8 +188,8 @@ export const generalDisplayName = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #38322b;
-    font-size: 0.58em;
+    color: rgb(75, 71, 66);
+    font-weight: ${seatDisplayNameFontWeight};
     line-height: 1.15;
 `
 
@@ -200,8 +205,8 @@ export const memberDisplayName = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #38322b;
-    font-size: 0.56em;
+    color: rgb(75, 71, 66);
+    font-weight: ${seatDisplayNameFontWeight};
     line-height: 1.15;
     text-align: center;
 `
@@ -228,7 +233,7 @@ export const timeElapsed = css`
 export const timeRemaining = css`
     color: #2a241d;
     font-size: 0.42em;
-    font-weight: 800;
+    font-weight: ${seatWorkNameFontWeight};
     line-height: 1;
     white-space: nowrap;
     flex-shrink: 0;
