@@ -5,6 +5,10 @@ import type { FC, SyntheticEvent } from 'react'
 import { fontFamily, validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
+import {
+	seatDisplayNameFontWeight,
+	seatWorkNameFontWeight,
+} from '../styles/seatBoxFontWeights'
 import type { Seat } from '../types/api'
 import { SeatState } from './SeatsPage'
 
@@ -40,20 +44,33 @@ const colorGradientKeyframes = keyframes`
     100% { background-position: 0% 50%; }
 `
 
+let measureTextContext: CanvasRenderingContext2D | null | undefined
+
+function getMeasureTextContext(): CanvasRenderingContext2D | null {
+	if (typeof document === 'undefined') {
+		return null
+	}
+	if (measureTextContext === undefined) {
+		const canvas = document.createElement('canvas')
+		measureTextContext = canvas.getContext('2d')
+	}
+	return measureTextContext
+}
+
 /** 一般席の1行テキストを座席幅に収める（作業名・作業なし時のディスプレイ名で共通） */
 function fitGeneralSeatLineFontSizePx(
 	text: string,
 	seatFontSizePx: number,
 	seatWidthPx: number,
+	fontWeight: number,
 ): number {
 	let fontSizePx = seatFontSizePx * 0.8
 	if (text === '') {
 		return fontSizePx
 	}
-	const canvas: HTMLCanvasElement = document.createElement('canvas')
-	const context = canvas.getContext('2d')
+	const context = getMeasureTextContext()
 	if (context) {
-		context.font = `${fontSizePx.toString()}px ${fontFamily}`
+		context.font = `${fontWeight} ${fontSizePx.toString()}px ${fontFamily}`
 		const metrics = context.measureText(text)
 		if (metrics.width > seatWidthPx) {
 			fontSizePx *= seatWidthPx / metrics.width
@@ -147,6 +164,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 					currentWorkName,
 					props.seatFontSizePx,
 					props.seatShape.widthPx,
+					seatWorkNameFontWeight,
 				)
 			: props.seatFontSizePx * 0.8
 
@@ -159,6 +177,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 						displayName,
 						props.seatFontSizePx,
 						props.seatShape.widthPx,
+						seatDisplayNameFontWeight,
 					)
 			: 0
 
