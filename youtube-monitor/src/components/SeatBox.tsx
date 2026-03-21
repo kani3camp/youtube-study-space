@@ -154,7 +154,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 	const generalDisplayNameFontSizePx =
 		props.isUsed && !props.memberOnly
 			? hasWorkName
-				? props.seatFontSizePx * 0.58
+				? props.seatFontSizePx * 0.63
 				: fitGeneralSeatLineFontSizePx(
 						displayName,
 						props.seatFontSizePx,
@@ -271,7 +271,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 										<div
 											css={styles.memberDisplayName}
 											style={{
-												fontSize: `${props.seatFontSizePx * (hasWorkName ? 0.56 : 0.78)}px`,
+												fontSize: `${props.seatFontSizePx * (hasWorkName ? 0.63 : 0.78)}px`,
 											}}
 										>
 											{displayName}
