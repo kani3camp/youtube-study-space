@@ -185,6 +185,7 @@ export const generalDisplayName = css`
     white-space: nowrap;
     color: #38322b;
     font-size: 0.58em;
+    font-weight: 800;
     line-height: 1.15;
 `
 
