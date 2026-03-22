@@ -602,7 +602,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, time1800, seat.Until)
 	})
 
-	t.Run("Untilとの関係_現在時刻=Until", func(t *testing.T) {
+	t.Run("現在時刻=CurrentStateUntil", func(t *testing.T) {
 		seat := SeatDoc{
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
