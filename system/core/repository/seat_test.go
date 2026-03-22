@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"app.modules/core/timeutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +12,7 @@ const testTimeLayout = "2006-01-02 15:04:05"
 
 // テスト用のヘルパー関数
 func mustParseTime(layout, value string) time.Time {
-	t, err := time.Parse(layout, value)
+	t, err := time.ParseInLocation(layout, value, timeutil.JapanLocation())
 	if err != nil {
 		panic(err)
 	}
@@ -84,16 +85,16 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 	t.Run("日付跨ぎあり_作業時間が当日の秒数を超える", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 00:00:00")
+			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 22:00:00")
 			s.CumulativeWorkSec = 0
 			s.DailyCumulativeWorkSec = 0
 		})
 
-		// 翌日の午前1時に休憩開始（25時間作業）
+		// 翌日の午前1時に休憩開始（3時間作業）
 		now := mustParseTime(testTimeLayout, "2026-02-02 01:00:00")
 		seat.StartBreak(now, "深夜休憩", 10)
 
-		assert.Equal(t, 25*3600, seat.CumulativeWorkSec)     // CumulativeWorkSecは実際の作業時間
+		assert.Equal(t, 3*3600, seat.CumulativeWorkSec)      // CumulativeWorkSecは実際の作業時間
 		assert.Equal(t, 1*3600, seat.DailyCumulativeWorkSec) // DailyCumulativeWorkSecは当日の秒数（1時間分 = 3600秒）
 	})
 
@@ -477,7 +478,7 @@ func TestSeatDoc_RemainingBreakMin(t *testing.T) {
 
 	t.Run("数秒残りは切り捨て", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.CurrentStateUntil = mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
+			s.CurrentStateUntil = mustParseTime(testTimeLayout, "2026-02-01 13:00:30")
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
