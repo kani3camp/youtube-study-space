@@ -114,12 +114,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 	})
 
 	t.Run("BreakWorkNameの空文字列", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
-			CumulativeWorkSec:      0,
-			DailyCumulativeWorkSec: 0,
-		}
+		seat := mustSeat(nil)
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00")
 		seat.StartBreak(now, "", 15)
