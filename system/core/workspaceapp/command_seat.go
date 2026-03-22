@@ -2,11 +2,10 @@ package workspaceapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
-
-	"errors"
 
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
