@@ -45,6 +45,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 		assert.Equal(t, BreakState, seat.State)
 		assert.Equal(t, now, seat.CurrentStateStartedAt)
+		assert.Equal(t, now, seat.CurrentSegmentStartedAt)
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:15:00"), seat.CurrentStateUntil)
 		assert.Equal(t, 3600+3600, seat.CumulativeWorkSec) // 1時間+1時間
 		assert.Equal(t, 3600+3600, seat.DailyCumulativeWorkSec)
@@ -77,10 +78,8 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		now := mustParseTime(testTimeLayout, "2026-02-02 01:00:00")
 		seat.StartBreak(now, "深夜休憩", 10)
 
-		// CumulativeWorkSecは実際の作業時間
-		assert.Equal(t, 25*3600, seat.CumulativeWorkSec)
-		// DailyCumulativeWorkSecは当日の秒数（1時間分 = 3600秒）
-		assert.Equal(t, 1*3600, seat.DailyCumulativeWorkSec)
+		assert.Equal(t, 25*3600, seat.CumulativeWorkSec)     // CumulativeWorkSecは実際の作業時間
+		assert.Equal(t, 1*3600, seat.DailyCumulativeWorkSec) // DailyCumulativeWorkSecは当日の秒数（1時間分 = 3600秒）
 	})
 
 	t.Run("0分作業後の休憩", func(t *testing.T) {
@@ -119,6 +118,7 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			Until:                  mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
 			WorkName:               "既存の作業",
+			CumulativeWorkSec:      7200, // 2時間分
 			DailyCumulativeWorkSec: 7200, // 2時間分
 		}
 
@@ -127,8 +127,10 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 		assert.Equal(t, WorkState, seat.State)
 		assert.Equal(t, now, seat.CurrentStateStartedAt)
+		assert.Equal(t, now, seat.CurrentSegmentStartedAt)
 		assert.Equal(t, seat.Until, seat.CurrentStateUntil)
 		assert.Equal(t, "新しい作業", seat.WorkName)
+		assert.Equal(t, 7200, seat.CumulativeWorkSec)      // 変化なし
 		assert.Equal(t, 7200, seat.DailyCumulativeWorkSec) // 変化なし
 	})
 
@@ -179,17 +181,20 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 	t.Run("日付跨ぎあり_休憩時間が当日の秒数を超える", func(t *testing.T) {
 		seat := SeatDoc{
-			State:                  BreakState,
-			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 00:00:00"),
-			Until:                  mustParseTime(testTimeLayout, "2026-02-02 18:00:00"),
-			DailyCumulativeWorkSec: 5400, // 1.5時間分
+			State:                   BreakState,
+			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 22:00:00"),
+			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 22:00:00"),
+			Until:                   mustParseTime(testTimeLayout, "2026-02-02 18:00:00"),
+			CumulativeWorkSec:       3600, // 1時間分
+			DailyCumulativeWorkSec:  3600, // 1時間分
 		}
 
-		// 翌日の午前2時に再開（26時間休憩）
+		// 翌日の午前2時に再開（4時間休憩）
 		now := mustParseTime(testTimeLayout, "2026-02-02 02:00:00")
 		seat.ResumeWork(now, "翌日再開")
 
-		assert.Equal(t, 0, seat.DailyCumulativeWorkSec) // リセット
+		assert.Equal(t, 3600, seat.CumulativeWorkSec)   // リセットされない
+		assert.Equal(t, 0, seat.DailyCumulativeWorkSec) // リセットされる
 	})
 
 	t.Run("Untilの引継ぎ確認", func(t *testing.T) {
