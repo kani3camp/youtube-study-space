@@ -18,14 +18,27 @@ func mustParseTime(layout, value string) time.Time {
 	return t
 }
 
+func mustSeat(mutate func(doc *SeatDoc)) SeatDoc {
+	seat := SeatDoc{
+		State:                   WorkState,
+		WorkName:                "作業",
+		CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
+		CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
+		CurrentStateUntil:       mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+		Until:                   mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+	}
+	if mutate != nil {
+		mutate(&seat)
+	}
+	return seat
+}
+
 func TestSeatDoc_StartBreak(t *testing.T) {
 	t.Run("通常の休憩開始", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
-			CumulativeWorkSec:      3600, // 既に1時間分累積
-			DailyCumulativeWorkSec: 3600,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.CumulativeWorkSec = 3600 // 既に1時間分累積
+			s.DailyCumulativeWorkSec = 3600
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00") // 1時間作業
 		seat.StartBreak(now, "休憩中", 15)
@@ -39,13 +52,12 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 	})
 
 	t.Run("日付跨ぎなし_当日中の作業後に休憩", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                   WorkState,
-			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 09:00:00"),
-			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 09:00:00"),
-			CumulativeWorkSec:       0,
-			DailyCumulativeWorkSec:  0,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 09:00:00")
+			s.CurrentSegmentStartedAt = mustParseTime(testTimeLayout, "2026-02-01 09:00:00")
+			s.CumulativeWorkSec = 0
+			s.DailyCumulativeWorkSec = 0
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00") // 3時間作業
 		seat.StartBreak(now, "ランチ", 60)
@@ -55,12 +67,11 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 	})
 
 	t.Run("日付跨ぎあり_作業時間が当日の秒数を超える", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 00:00:00"),
-			CumulativeWorkSec:      0,
-			DailyCumulativeWorkSec: 0,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 00:00:00")
+			s.CumulativeWorkSec = 0
+			s.DailyCumulativeWorkSec = 0
+		})
 
 		// 翌日の午前1時に休憩開始（25時間作業）
 		now := mustParseTime(testTimeLayout, "2026-02-02 01:00:00")
@@ -73,12 +84,11 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 	})
 
 	t.Run("0分作業後の休憩", func(t *testing.T) {
-		seat := SeatDoc{
-			State:                  WorkState,
-			CurrentStateStartedAt:  mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
-			CumulativeWorkSec:      1800,
-			DailyCumulativeWorkSec: 1800,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 10:00:00")
+			s.CumulativeWorkSec = 1800
+			s.DailyCumulativeWorkSec = 1800
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00") // 同じ時刻
 		seat.StartBreak(now, "即休憩", 5)
@@ -214,11 +224,7 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 func TestSeatDoc_SetWorkDuration(t *testing.T) {
 	t.Run("通常の作業時間変更", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
-		}
+		seat := mustSeat(nil)
 
 		newUntil := mustParseTime(testTimeLayout, "2026-02-01 20:00:00")
 		seat.SetWorkDuration(newUntil)
@@ -229,11 +235,10 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 
 	t.Run("延長ケース", func(t *testing.T) {
 		original := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             original,
-			CurrentStateUntil: original,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = original
+			s.CurrentStateUntil = original
+		})
 
 		extended := mustParseTime(testTimeLayout, "2026-02-01 19:00:00")
 		seat.SetWorkDuration(extended)
@@ -244,11 +249,10 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 
 	t.Run("短縮ケース", func(t *testing.T) {
 		original := mustParseTime(testTimeLayout, "2026-02-01 19:00:00")
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             original,
-			CurrentStateUntil: original,
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = original
+			s.CurrentStateUntil = original
+		})
 
 		shortened := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
 		seat.SetWorkDuration(shortened)
@@ -258,11 +262,7 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 	})
 
 	t.Run("UntilとCurrentStateUntilの同期確認", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
-		}
+		seat := mustSeat(nil)
 
 		newUntil := mustParseTime(testTimeLayout, "2026-02-01 21:00:00")
 		seat.SetWorkDuration(newUntil)
@@ -272,12 +272,13 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 }
 
 func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
+	until1700 := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
+
 	t.Run("通常の延長", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = until1700
+			s.CurrentStateUntil = until1700
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 60, 180) // 60分延長、最大180分
@@ -289,11 +290,10 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("最大値超過_maxWorkTimeMinで制限", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = until1700
+			s.CurrentStateUntil = until1700
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 200, 120) // 200分延長希望、最大120分
@@ -306,11 +306,10 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("最大値ギリギリ", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = until1700
+			s.CurrentStateUntil = until1700
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 120, 120) // 120分延長、最大120分
@@ -321,12 +320,11 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("延長なし_0分", func(t *testing.T) {
-		original := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             original,
-			CurrentStateUntil: original,
-		}
+		original := until1700
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = original
+			s.CurrentStateUntil = original
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 0, 180)
@@ -337,11 +335,11 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("現在時刻がUntilを過ぎている場合", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 16:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 16:00:00"),
-		}
+		until1600 := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = until1600
+			s.CurrentStateUntil = until1600
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:00:00") // 既に過ぎている
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 60, 180)
@@ -353,11 +351,10 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("UntilとCurrentStateUntilの同期確認", func(t *testing.T) {
-		seat := SeatDoc{
-			State:             WorkState,
-			Until:             mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-			CurrentStateUntil: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = until1700
+			s.CurrentStateUntil = until1700
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		seat.ExtendWorkDuration(now, 30, 180)
@@ -368,9 +365,7 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 
 func TestSeatDoc_RemainingWorkMin(t *testing.T) {
 	t.Run("正の残り時間", func(t *testing.T) {
-		seat := SeatDoc{
-			Until: mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
-		}
+		seat := mustSeat(nil)
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
 		remaining := seat.RemainingWorkMin(now)
@@ -379,9 +374,9 @@ func TestSeatDoc_RemainingWorkMin(t *testing.T) {
 	})
 
 	t.Run("負の残り時間は0", func(t *testing.T) {
-		seat := SeatDoc{
-			Until: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 18:00:00") // 既に過ぎている
 		remaining := seat.RemainingWorkMin(now)
@@ -390,9 +385,9 @@ func TestSeatDoc_RemainingWorkMin(t *testing.T) {
 	})
 
 	t.Run("0分残り", func(t *testing.T) {
-		seat := SeatDoc{
-			Until: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
 		remaining := seat.RemainingWorkMin(now)
@@ -401,9 +396,9 @@ func TestSeatDoc_RemainingWorkMin(t *testing.T) {
 	})
 
 	t.Run("数秒残りは切り捨て", func(t *testing.T) {
-		seat := SeatDoc{
-			Until: mustParseTime(testTimeLayout, "2026-02-01 17:00:30"),
-		}
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = mustParseTime(testTimeLayout, "2026-02-01 17:00:30")
+		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
 		remaining := seat.RemainingWorkMin(now)
