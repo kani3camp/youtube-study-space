@@ -7,6 +7,38 @@ import (
 	"app.modules/core/timeutil"
 )
 
+func (s *SeatDoc) SetWorkName(name string) {
+	s.WorkName = name
+}
+
+func (s *SeatDoc) ClearWorkName() {
+	s.WorkName = ""
+}
+
+func (s *SeatDoc) SetBreakWorkName(name string) {
+	s.BreakWorkName = name
+}
+
+func (s *SeatDoc) ClearBreakWorkName() {
+	s.BreakWorkName = ""
+}
+
+func (s *SeatDoc) SetMenuCode(code string) {
+	s.MenuCode = code
+}
+
+func (s *SeatDoc) ClearMenuCode() {
+	s.MenuCode = ""
+}
+
+func (s *SeatDoc) SetCurrentSegmentStartedAt(now time.Time) {
+	s.CurrentSegmentStartedAt = now
+}
+
+func (s *SeatDoc) SetCurrentStateUntil(newUntil time.Time) {
+	s.CurrentStateUntil = newUntil
+}
+
 func (s *SeatDoc) RealtimeEntryDurationMin(now time.Time) time.Duration {
 	return now.Sub(s.EnteredAt)
 }
