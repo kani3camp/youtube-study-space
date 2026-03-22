@@ -86,6 +86,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 	t.Run("日付跨ぎあり_作業時間が当日の秒数を超える", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
 			s.CurrentStateStartedAt = mustParseTime(testTimeLayout, "2026-02-01 22:00:00")
+			s.Until = mustParseTime(testTimeLayout, "2026-02-02 10:00:00")
 			s.CumulativeWorkSec = 0
 			s.DailyCumulativeWorkSec = 0
 		})
