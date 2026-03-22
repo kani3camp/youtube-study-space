@@ -36,6 +36,7 @@ func mustSeat(mutate func(doc *SeatDoc)) SeatDoc {
 func TestSeatDoc_StartBreak(t *testing.T) {
 	t.Run("通常の休憩開始", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
 			s.CumulativeWorkSec = 3600 // 既に1時間分累積
 			s.DailyCumulativeWorkSec = 3600
 		})
@@ -46,10 +47,24 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		assert.Equal(t, BreakState, seat.State)
 		assert.Equal(t, now, seat.CurrentStateStartedAt)
 		assert.Equal(t, now, seat.CurrentSegmentStartedAt)
+		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until) // 変化なし
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:15:00"), seat.CurrentStateUntil)
 		assert.Equal(t, 3600+3600, seat.CumulativeWorkSec) // 1時間+1時間
 		assert.Equal(t, 3600+3600, seat.DailyCumulativeWorkSec)
 		assert.Equal(t, "休憩中", seat.BreakWorkName)
+	})
+
+	t.Run("休憩終了予定時刻がUntilを超える場合はUntilも延長する", func(t *testing.T) {
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = mustParseTime(testTimeLayout, "2026-02-01 11:20:00")
+			s.CurrentStateUntil = mustParseTime(testTimeLayout, "2026-02-01 11:20:00")
+		})
+
+		now := mustParseTime(testTimeLayout, "2026-02-01 11:15:00")
+		seat.StartBreak(now, "休憩中", 15)
+
+		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:30:00"), seat.Until)
+		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:30:00"), seat.CurrentStateUntil)
 	})
 
 	t.Run("日付跨ぎなし_当日中の作業後に休憩", func(t *testing.T) {
@@ -277,91 +292,105 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 }
 
 func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
-	until1700 := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
+	time1600 := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+	time1700 := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
+	time1800 := mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
 
 	t.Run("通常の延長", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = until1700
-			s.CurrentStateUntil = until1700
+			s.Until = time1700
+			s.CurrentStateUntil = time1700
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		now := time1600
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 60, 180) // 60分延長、最大180分
 
 		assert.Equal(t, 60, actualAdded)
 		assert.Equal(t, 120, newRemaining) // 元々60分残り + 60分延長 = 120分
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until)
-		assert.Equal(t, seat.Until, seat.CurrentStateUntil)
+		assert.Equal(t, time1800, seat.Until)
+		assert.Equal(t, time1800, seat.CurrentStateUntil)
 	})
 
 	t.Run("最大値超過_maxWorkTimeMinで制限", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = until1700
-			s.CurrentStateUntil = until1700
+			s.Until = time1700
+			s.CurrentStateUntil = time1700
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		now := time1600
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 200, 120) // 200分延長希望、最大120分
 
 		// 最大120分までしか延長できない（現在から120分後 = 18:00）
 		// 元のUntilは17:00だったので、実際の延長は60分
 		assert.Equal(t, 60, actualAdded)
 		assert.Equal(t, 120, newRemaining)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until)
+		assert.Equal(t, time1800, seat.Until)
 	})
 
 	t.Run("最大値ギリギリ", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = until1700
-			s.CurrentStateUntil = until1700
+			s.Until = time1700
+			s.CurrentStateUntil = time1700
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		now := time1600
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 120, 120) // 120分延長、最大120分
 
 		assert.Equal(t, 60, actualAdded) // 17:00まで60分残っているので、追加は60分
 		assert.Equal(t, 120, newRemaining)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until)
+		assert.Equal(t, time1800, seat.Until)
 	})
 
 	t.Run("延長なし_0分", func(t *testing.T) {
-		original := until1700
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = original
-			s.CurrentStateUntil = original
+			s.Until = time1700
+			s.CurrentStateUntil = time1700
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		now := time1600
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 0, 180)
 
 		assert.Equal(t, 0, actualAdded)
 		assert.Equal(t, 60, newRemaining) // 元々60分残り
-		assert.Equal(t, original, seat.Until)
+		assert.Equal(t, time1700, seat.Until)
+	})
+
+	t.Run("現在時刻=Until", func(t *testing.T) {
+		seat := mustSeat(func(s *SeatDoc) {
+			s.Until = time1600
+			s.CurrentStateUntil = time1600
+		})
+
+		now := time1600 // ちょうどUntilの時間
+		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 60, 180)
+
+		assert.Equal(t, 60, actualAdded)
+		assert.Equal(t, 60, newRemaining)
+		assert.Equal(t, time1700, seat.Until)
 	})
 
 	t.Run("現在時刻がUntilを過ぎている場合", func(t *testing.T) {
-		until1600 := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = until1600
-			s.CurrentStateUntil = until1600
+			s.Until = time1600
+			s.CurrentStateUntil = time1600
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 17:00:00") // 既に過ぎている
+		now := time1700 // 既に過ぎている
 		actualAdded, newRemaining := seat.ExtendWorkDuration(now, 60, 180)
 
 		// 60分延長されるので17:00になる
 		assert.Equal(t, 60, actualAdded) // 16:00 → 17:00なので60分
 		assert.Equal(t, 0, newRemaining) // 17:00 → 17:00なので0分
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 17:00:00"), seat.Until)
+		assert.Equal(t, time1700, seat.Until)
 	})
 
 	t.Run("UntilとCurrentStateUntilの同期確認", func(t *testing.T) {
 		seat := mustSeat(func(s *SeatDoc) {
-			s.Until = until1700
-			s.CurrentStateUntil = until1700
+			s.Until = time1700
+			s.CurrentStateUntil = time1700
 		})
 
-		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
+		now := time1600
 		seat.ExtendWorkDuration(now, 30, 180)
 
 		assert.Equal(t, seat.Until, seat.CurrentStateUntil)
@@ -445,15 +474,30 @@ func TestSeatDoc_RemainingBreakMin(t *testing.T) {
 
 		assert.Equal(t, 0, remaining)
 	})
+
+	t.Run("数秒残りは切り捨て", func(t *testing.T) {
+		seat := mustSeat(func(s *SeatDoc) {
+			s.CurrentStateUntil = mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
+		})
+
+		now := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
+		remaining := seat.RemainingBreakMin(now)
+
+		assert.Equal(t, 0, remaining)
+	})
 }
 
 func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
+	time1300 := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
+	time1800 := mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
+	time1830 := mustParseTime(testTimeLayout, "2026-02-01 18:30:00")
+
 	t.Run("通常の延長_Untilは延長なし", func(t *testing.T) {
 		seat := SeatDoc{
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 13:00:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:30:00")
@@ -463,7 +507,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, 60, remainingBreak) // 12:30 → 13:30 = 60分
 		assert.Equal(t, 330, remainingExit) // 12:30 → 18:00 = 330分
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 13:30:00"), seat.CurrentStateUntil)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until) // 変化なし
+		assert.Equal(t, time1800, seat.Until) // 変化なし
 	})
 
 	t.Run("Untilも延長_休憩終了時刻がUntilを超える", func(t *testing.T) {
@@ -471,7 +515,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 17:30:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:15:00")
@@ -481,8 +525,8 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, 60, actualAdded)
 		assert.Equal(t, 75, remainingBreak) // 17:15 → 18:30 = 75分
 		assert.Equal(t, 75, remainingExit)  // Untilも18:30に延長される
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:30:00"), seat.CurrentStateUntil)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:30:00"), seat.Until)
+		assert.Equal(t, time1830, seat.CurrentStateUntil)
+		assert.Equal(t, time1830, seat.Until)
 	})
 
 	t.Run("最大値超過_maxBreakDurationMinで制限", func(t *testing.T) {
@@ -490,7 +534,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 12:30:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:15:00")
@@ -500,13 +544,13 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, 30, actualAdded)    // 12:30 → 13:00 = 30分
 		assert.Equal(t, 45, remainingBreak) // 12:15 → 13:00 = 45分
 		assert.Equal(t, 345, remainingExit) // 12:15 → 18:00 = 345分
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 13:00:00"), seat.CurrentStateUntil)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until)
+		assert.Equal(t, time1300, seat.CurrentStateUntil)
+		assert.Equal(t, time1800, seat.Until)
 	})
 
 	t.Run("延長なし_0分", func(t *testing.T) {
-		originalBreakUntil := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
-		originalUntil := mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
+		originalBreakUntil := time1300
+		originalUntil := time1800
 		seat := SeatDoc{
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
@@ -529,7 +573,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 12:30:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:15:00")
@@ -544,7 +588,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 17:30:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:15:00")
@@ -553,8 +597,25 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		// 休憩は18:00まで（Untilと同じ）
 		assert.Equal(t, 45, remainingBreak) // 17:15 → 18:00
 		assert.Equal(t, 45, remainingExit)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.CurrentStateUntil)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:00:00"), seat.Until)
+		assert.Equal(t, time1800, seat.CurrentStateUntil)
+		assert.Equal(t, time1800, seat.Until)
+	})
+
+	t.Run("Untilとの関係_現在時刻=Until", func(t *testing.T) {
+		seat := SeatDoc{
+			State:                 BreakState,
+			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 17:00:00"),
+			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 17:30:00"),
+			Until:                 time1800,
+		}
+
+		now := mustParseTime(testTimeLayout, "2026-02-01 17:30:00")
+		_, remainingBreak, remainingExit := seat.ExtendBreakDuration(now, 30, 120)
+
+		assert.Equal(t, 30, remainingBreak)
+		assert.Equal(t, 30, remainingExit)
+		assert.Equal(t, time1800, seat.CurrentStateUntil)
+		assert.Equal(t, time1800, seat.Until)
 	})
 
 	t.Run("複雑なケース_最大値制限とUntil延長の両方", func(t *testing.T) {
@@ -562,7 +623,7 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 			State:                 BreakState,
 			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 17:30:00"),
 			CurrentStateUntil:     mustParseTime(testTimeLayout, "2026-02-01 17:45:00"),
-			Until:                 mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			Until:                 time1800,
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 17:40:00")
@@ -572,8 +633,8 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 		assert.Equal(t, 45, actualAdded)    // 17:45 → 18:30 = 45分
 		assert.Equal(t, 50, remainingBreak) // 17:40 → 18:30 = 50分
 		assert.Equal(t, 50, remainingExit)  // Untilも18:30
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:30:00"), seat.CurrentStateUntil)
-		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 18:30:00"), seat.Until)
+		assert.Equal(t, time1830, seat.CurrentStateUntil)
+		assert.Equal(t, time1830, seat.Until)
 	})
 }
 
@@ -581,7 +642,7 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 	t.Run("通常の作業セグメントを生成できること", func(t *testing.T) {
 		seat := SeatDoc{
 			UserID:                  "user-1",
-			SeatID:                  3,
+			SeatID:                  1,
 			SessionID:               "session-1",
 			State:                   WorkState,
 			WorkName:                "数学",
@@ -594,7 +655,7 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, WorkSegmentDoc{
 			UserID:       "user-1",
-			SeatID:       3,
+			SeatID:       1,
 			IsMemberSeat: true,
 			SessionID:    "session-1",
 			WorkName:     "数学",
@@ -608,7 +669,7 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 	t.Run("休憩セグメントではBreakWorkNameを返すこと", func(t *testing.T) {
 		seat := SeatDoc{
 			UserID:                  "user-2",
-			SeatID:                  8,
+			SeatID:                  2,
 			SessionID:               "session-2",
 			State:                   BreakState,
 			WorkName:                "英語",
@@ -622,7 +683,7 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, WorkSegmentDoc{
 			UserID:       "user-2",
-			SeatID:       8,
+			SeatID:       2,
 			IsMemberSeat: false,
 			SessionID:    "session-2",
 			WorkName:     "昼休み",
@@ -630,6 +691,31 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 			StartedAt:    mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			EndedAt:      now,
 			DurationSec:  600,
+		}, workSegment)
+	})
+
+	t.Run("CurrentSegmentStartedAt = now なら DurationSec = 0", func(t *testing.T) {
+		seat := SeatDoc{
+			UserID:                  "user-3",
+			SeatID:                  3,
+			SessionID:               "session-3",
+			State:                   WorkState,
+			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
+		}
+		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00")
+		workSegment, err := seat.GenerateWorkSegment(now, false)
+
+		assert.NoError(t, err)
+		assert.Equal(t, WorkSegmentDoc{
+			UserID:       "user-3",
+			SeatID:       3,
+			IsMemberSeat: false,
+			SessionID:    "session-3",
+			WorkName:     "",
+			SegmentType:  WorkState, // StateがWorkStateのまま
+			StartedAt:    now,
+			EndedAt:      now,
+			DurationSec:  0,
 		}, workSegment)
 	})
 
