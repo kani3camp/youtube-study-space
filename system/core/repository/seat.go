@@ -56,6 +56,11 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	s.CumulativeWorkSec = cumulativeWorkSec
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.BreakWorkName = breakWorkName
+
+	// 休憩終了時刻がUntilを超えるときはUntilも延長する
+	if breakUntil.After(s.Until) {
+		s.Until = breakUntil
+	}
 }
 
 // ResumeWork は休憩状態から作業状態に復帰する。
