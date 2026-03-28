@@ -243,7 +243,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
 						replyMessage += i18nmsg.CommandChangeWorkDurationAfter(app.Configs.Constants.MaxWorkTimeMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else { // それ以外なら延長
-						currentSeat.SetWorkDuration(requestedUntil)
+						if err := currentSeat.SetWorkDuration(requestedUntil); err != nil {
+							return fmt.Errorf("in SetWorkDuration: %w", err)
+						}
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
 						replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					}
@@ -503,7 +505,9 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 						RemainingWorkMin:         remainingWorkMin,
 					})
 				} else { // それ以外なら延長
-					currentSeat.SetWorkDuration(requestedUntil)
+					if err := currentSeat.SetWorkDuration(requestedUntil); err != nil {
+						return fmt.Errorf("in SetWorkDuration: %w", err)
+					}
 					remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
 					result.Add(usecase.ChangeWorkDurationUpdated{
 						RequestedMin:             changeOption.DurationMin,
@@ -594,7 +598,11 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 
 			// 作業時間を延長
 			expectedUntil := currentSeat.Until.Add(time.Duration(moreOption.DurationMin) * time.Minute)
-			addedMin, remainingUntilExitMin = newSeat.ExtendWorkDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxWorkTimeMin)
+			var err error
+			addedMin, remainingUntilExitMin, err = newSeat.ExtendWorkDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxWorkTimeMin)
+			if err != nil {
+				return fmt.Errorf("in ExtendWorkDuration: %w", err)
+			}
 
 			// 実際にキャップされた場合のみ通知
 			if newSeat.Until.Before(expectedUntil) {
@@ -615,8 +623,11 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 
 			// 休憩時間を延長
 			expectedBreakUntil := currentSeat.CurrentStateUntil.Add(time.Duration(moreOption.DurationMin) * time.Minute)
-			var newRemainingBreakMin int
-			addedMin, newRemainingBreakMin, remainingUntilExitMin = newSeat.ExtendBreakDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxBreakDurationMin)
+			var err error
+			addedMin, _, remainingUntilExitMin, err = newSeat.ExtendBreakDuration(jstNow, moreOption.DurationMin, app.Configs.Constants.MaxBreakDurationMin)
+			if err != nil {
+				return fmt.Errorf("in ExtendBreakDuration: %w", err)
+			}
 
 			// 実際にキャップされた場合のみ通知
 			if newSeat.CurrentStateUntil.Before(expectedBreakUntil) {
@@ -624,7 +635,6 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 					MaxBreakDurationMin: app.Configs.Constants.MaxBreakDurationMin,
 				})
 			}
-			_ = newRemainingBreakMin // 使用しないが戻り値として受け取る
 		}
 
 		if err := app.Repository.UpdateSeat(ctx, tx, *newSeat, isInMemberRoom); err != nil {
