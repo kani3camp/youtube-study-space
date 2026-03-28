@@ -152,8 +152,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 13:00:00") // 1時間休憩
-		seat.ResumeWork(now, "新しい作業")
+		err := seat.ResumeWork(now, "新しい作業")
 
+		assert.NoError(t, err)
 		assert.Equal(t, WorkState, seat.State)
 		assert.Equal(t, now, seat.CurrentStateStartedAt)
 		assert.Equal(t, now, seat.CurrentSegmentStartedAt)
@@ -174,8 +175,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:30:00")
 		// 呼び出し側で既存の作業名を渡す
-		seat.ResumeWork(now, seat.WorkName)
+		err := seat.ResumeWork(now, seat.WorkName)
 
+		assert.NoError(t, err)
 		assert.Equal(t, "既存の作業名", seat.WorkName)
 	})
 
@@ -189,8 +191,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:30:00")
-		seat.ResumeWork(now, "") // 空文字列で明示的にクリア
+		err := seat.ResumeWork(now, "") // 空文字列で明示的にクリア
 
+		assert.NoError(t, err)
 		assert.Equal(t, "", seat.WorkName) // クリアされる
 	})
 
@@ -203,8 +206,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 13:00:00") // 1時間休憩
-		seat.ResumeWork(now, "再開")
+		err := seat.ResumeWork(now, "再開")
 
+		assert.NoError(t, err)
 		assert.Equal(t, 10800, seat.DailyCumulativeWorkSec) // 変化なし
 	})
 
@@ -220,8 +224,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 		// 翌日の午前2時に再開（4時間休憩）
 		now := mustParseTime(testTimeLayout, "2026-02-02 02:00:00")
-		seat.ResumeWork(now, "翌日再開")
+		err := seat.ResumeWork(now, "翌日再開")
 
+		assert.NoError(t, err)
 		assert.Equal(t, 3600, seat.CumulativeWorkSec)   // リセットされない
 		assert.Equal(t, 0, seat.DailyCumulativeWorkSec) // リセットされる
 	})
@@ -236,8 +241,9 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 15:30:00")
-		seat.ResumeWork(now, "作業")
+		err := seat.ResumeWork(now, "作業")
 
+		assert.NoError(t, err)
 		assert.Equal(t, until, seat.CurrentStateUntil)
 	})
 
@@ -250,9 +256,21 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 		}
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00") // 同じ時刻
-		seat.ResumeWork(now, "即再開")
+		err := seat.ResumeWork(now, "即再開")
 
+		assert.NoError(t, err)
 		assert.Equal(t, 3600, seat.DailyCumulativeWorkSec) // 変化なし
+	})
+
+	t.Run("BreakState以外はエラー", func(t *testing.T) {
+		seat := SeatDoc{
+			State: WorkState,
+		}
+
+		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00")
+		err := seat.ResumeWork(now, "")
+
+		assert.Error(t, err)
 	})
 }
 

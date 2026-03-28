@@ -801,7 +801,9 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 			workName = currentSeat.WorkName
 		}
 
-		currentSeat.ResumeWork(jstNow, workName)
+		if err := currentSeat.ResumeWork(jstNow, workName); err != nil {
+			return fmt.Errorf("in ResumeWork: %w", err)
+		}
 
 		{
 			if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {

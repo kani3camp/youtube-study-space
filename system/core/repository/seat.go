@@ -70,7 +70,7 @@ func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
 // 前提条件: s.State == WorkState
 func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) error {
 	if s.State != WorkState {
-		return fmt.Errorf("start break requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+		return fmt.Errorf("StartBreak requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
 	}
 
 	breakUntil := now.Add(time.Duration(breakDurationMin) * time.Minute)
@@ -109,7 +109,11 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 //   - workName: 設定する作業名（呼び出し側で引継ぎ判定を行う）
 //
 // 前提条件: s.State == BreakState
-func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
+func (s *SeatDoc) ResumeWork(now time.Time, workName string) error {
+	if s.State != BreakState {
+		return fmt.Errorf("ResumeWork requires break state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	breakSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 
 	// 日付跨ぎを考慮して当日の累積時間を調整
@@ -124,6 +128,8 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 	s.CurrentSegmentStartedAt = now
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.WorkName = workName
+
+	return nil
 }
 
 // SetWorkDuration は作業時間（入室から退室まで）を変更する。
