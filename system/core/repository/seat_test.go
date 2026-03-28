@@ -43,8 +43,9 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00") // 1時間作業
-		seat.StartBreak(now, "休憩中", 15)
+		err := seat.StartBreak(now, "休憩中", 15)
 
+		assert.NoError(t, err)
 		assert.Equal(t, BreakState, seat.State)
 		assert.Equal(t, now, seat.CurrentStateStartedAt)
 		assert.Equal(t, now, seat.CurrentSegmentStartedAt)
@@ -62,8 +63,9 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:15:00")
-		seat.StartBreak(now, "休憩中", 15)
+		err := seat.StartBreak(now, "休憩中", 15)
 
+		assert.NoError(t, err)
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:30:00"), seat.Until)
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:30:00"), seat.CurrentStateUntil)
 	})
@@ -77,8 +79,9 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00") // 3時間作業
-		seat.StartBreak(now, "ランチ", 60)
+		err := seat.StartBreak(now, "ランチ", 60)
 
+		assert.NoError(t, err)
 		assert.Equal(t, 3*3600, seat.CumulativeWorkSec)
 		assert.Equal(t, 3*3600, seat.DailyCumulativeWorkSec)
 	})
@@ -93,8 +96,9 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 		// 翌日の午前1時に休憩開始（3時間作業）
 		now := mustParseTime(testTimeLayout, "2026-02-02 01:00:00")
-		seat.StartBreak(now, "深夜休憩", 10)
+		err := seat.StartBreak(now, "深夜休憩", 10)
 
+		assert.NoError(t, err)
 		assert.Equal(t, 3*3600, seat.CumulativeWorkSec)      // CumulativeWorkSecは実際の作業時間
 		assert.Equal(t, 1*3600, seat.DailyCumulativeWorkSec) // DailyCumulativeWorkSecは当日の秒数（1時間分 = 3600秒）
 	})
@@ -107,8 +111,9 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00") // 同じ時刻
-		seat.StartBreak(now, "即休憩", 5)
+		err := seat.StartBreak(now, "即休憩", 5)
 
+		assert.NoError(t, err)
 		assert.Equal(t, 1800, seat.CumulativeWorkSec) // 変化なし
 		assert.Equal(t, 1800, seat.DailyCumulativeWorkSec)
 	})
@@ -117,9 +122,21 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		seat := mustSeat(nil)
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00")
-		seat.StartBreak(now, "", 15)
+		err := seat.StartBreak(now, "", 15)
 
+		assert.NoError(t, err)
 		assert.Equal(t, "", seat.BreakWorkName)
+	})
+
+	t.Run("WorkState以外はエラー", func(t *testing.T) {
+		seat := SeatDoc{
+			State: BreakState,
+		}
+
+		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00")
+		err := seat.StartBreak(now, "", 15)
+
+		assert.Error(t, err)
 	})
 }
 

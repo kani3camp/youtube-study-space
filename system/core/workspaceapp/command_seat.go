@@ -716,7 +716,9 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.MinWorkOr
 		}
 
 		// 休憩処理
-		currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin)
+		if err := currentSeat.StartBreak(jstNow, breakOption.WorkName, breakOption.DurationMin); err != nil {
+			return fmt.Errorf("in StartBreak: %w", err)
+		}
 
 		if err := app.Repository.UpdateSeat(ctx, tx, currentSeat, isInMemberRoom); err != nil {
 			return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)

@@ -68,7 +68,11 @@ func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
 //   - breakDurationMin: 休憩時間（分）
 //
 // 前提条件: s.State == WorkState
-func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) {
+func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) error {
+	if s.State != WorkState {
+		return fmt.Errorf("start break requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	breakUntil := now.Add(time.Duration(breakDurationMin) * time.Minute)
 	workedSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 	cumulativeWorkSec := s.CumulativeWorkSec + workedSec
@@ -93,6 +97,8 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	if breakUntil.After(s.Until) {
 		s.Until = breakUntil
 	}
+
+	return nil
 }
 
 // ResumeWork は休憩状態から作業状態に復帰する。
