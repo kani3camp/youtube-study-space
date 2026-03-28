@@ -157,7 +157,7 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 						}
 						newSeat.Appearance = seatAppearance
 						if err := app.Repository.UpdateSeat(ctx, tx, newSeat, isInMemberRoom); err != nil {
-							return fmt.Errorf("in app.Repository.UpdateSeats: %w", err)
+							return fmt.Errorf("in app.Repository.UpdateSeat: %w", err)
 						}
 					}
 				}
