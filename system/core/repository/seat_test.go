@@ -130,13 +130,25 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 	t.Run("WorkState以外はエラー", func(t *testing.T) {
 		seat := SeatDoc{
-			State: BreakState,
+			SeatID:                  5,
+			UserID:                  "user-abnormal",
+			State:                   BreakState,
+			WorkName:                "作業",
+			BreakWorkName:           "休憩作業",
+			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
+			CurrentStateUntil:       mustParseTime(testTimeLayout, "2026-02-01 10:30:00"),
+			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
+			Until:                   mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			CumulativeWorkSec:       1234,
+			DailyCumulativeWorkSec:  567,
 		}
+		before := seat
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00")
 		err := seat.StartBreak(now, "", 15)
 
 		assert.Error(t, err)
+		assert.Equal(t, before, seat)
 	})
 }
 
@@ -264,13 +276,24 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 
 	t.Run("BreakState以外はエラー", func(t *testing.T) {
 		seat := SeatDoc{
-			State: WorkState,
+			SeatID:                  7,
+			UserID:                  "user-resume-abnormal",
+			State:                   WorkState,
+			WorkName:                "一覧だけの作業名",
+			BreakWorkName:           "break-label",
+			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 11:00:00"),
+			CurrentStateUntil:       mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 11:00:00"),
+			Until:                   mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
+			DailyCumulativeWorkSec:  999,
 		}
+		before := seat
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00")
 		err := seat.ResumeWork(now, "")
 
 		assert.Error(t, err)
+		assert.Equal(t, before, seat)
 	})
 }
 
@@ -327,12 +350,22 @@ func TestSeatDoc_SetWorkDuration(t *testing.T) {
 	})
 
 	t.Run("WorkState以外はエラー", func(t *testing.T) {
+		until := mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
+		breakUntil := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
 		seat := SeatDoc{
-			State: BreakState,
+			SeatID:                11,
+			UserID:                "user-setduration-abnormal",
+			State:                 BreakState,
+			Until:                 until,
+			CurrentStateUntil:     breakUntil,
+			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 		}
+		before := seat
 
 		err := seat.SetWorkDuration(mustParseTime(testTimeLayout, "2026-02-01 21:00:00"))
+
 		assert.Error(t, err)
+		assert.Equal(t, before, seat)
 	})
 }
 
@@ -449,13 +482,23 @@ func TestSeatDoc_ExtendWorkDuration(t *testing.T) {
 	})
 
 	t.Run("WorkState以外はエラー", func(t *testing.T) {
+		time1700 := mustParseTime(testTimeLayout, "2026-02-01 17:00:00")
 		seat := SeatDoc{
-			State: BreakState,
+			SeatID:                13,
+			UserID:                "user-extendwork-abnormal",
+			State:                 BreakState,
+			Until:                 time1700,
+			CurrentStateUntil:     time1700,
+			CurrentStateStartedAt: mustParseTime(testTimeLayout, "2026-02-01 16:00:00"),
+			CumulativeWorkSec:     42,
 		}
+		before := seat
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 16:00:00")
 		_, _, err := seat.ExtendWorkDuration(now, 60, 180)
+
 		assert.Error(t, err)
+		assert.Equal(t, before, seat)
 	})
 }
 
@@ -708,13 +751,25 @@ func TestSeatDoc_ExtendBreakDuration(t *testing.T) {
 	})
 
 	t.Run("BreakState以外はエラー", func(t *testing.T) {
+		time1800 := mustParseTime(testTimeLayout, "2026-02-01 18:00:00")
+		time1300 := mustParseTime(testTimeLayout, "2026-02-01 13:00:00")
+		time1200 := mustParseTime(testTimeLayout, "2026-02-01 12:00:00")
 		seat := SeatDoc{
-			State: WorkState,
+			SeatID:                 17,
+			UserID:                 "user-extendbreak-abnormal",
+			State:                  WorkState,
+			Until:                  time1800,
+			CurrentStateUntil:      time1300,
+			CurrentStateStartedAt:  time1200,
+			DailyCumulativeWorkSec: 777,
 		}
+		before := seat
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:30:00")
 		_, _, _, err := seat.ExtendBreakDuration(now, 30, 120)
+
 		assert.Error(t, err)
+		assert.Equal(t, before, seat)
 	})
 }
 
