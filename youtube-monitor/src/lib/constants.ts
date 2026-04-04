@@ -40,7 +40,7 @@ export const Constants = {
 	menuHeight: 310,
 	timerHeight: 260,
 	seatBackgroundColor: '#F4EFE7',
-	vacantSeatBackgroundColor: '#c2c0bdff',
+	vacantSeatBackgroundColor: '#ded5c6ff',
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
 	chimeVolume: 0.7,
