@@ -40,6 +40,7 @@ export const Constants = {
 	menuHeight: 310,
 	timerHeight: 260,
 	seatBackgroundColor: '#F4EFE7',
+	vacantSeatBackgroundColor: '#ded5c6ff',
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
 	chimeVolume: 0.7,
@@ -52,7 +53,7 @@ export const Constants = {
 	secondaryTextColor: '#f1e8f2',
 	memberBigIconSize: 44,
 	memberSmallIconSize: 26,
-	menuIconSize: 45,
+	menuIconSize: 80,
 }
 
 export const sidebarBgmHeight =

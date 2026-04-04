@@ -29,8 +29,8 @@ export const dateStringStyle = css`
 `
 
 export const timeStringStyle = css`
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     text-align: center;
-    font-weight: bold;
+    font-weight: 800;
     line-height: 1.6rem;
 `

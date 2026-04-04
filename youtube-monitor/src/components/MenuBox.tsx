@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { type FC, useMemo } from 'react'
+import { Constants } from '../lib/constants'
 import * as styles from '../styles/Menu.styles'
 import type { MenuItemAndImage } from './MenuDisplay'
 
@@ -20,7 +21,10 @@ const MenuBox: FC<MenuBoxProps> = (props: MenuBoxProps) => {
 				<div
 					key={itemAndImage.item.code}
 					css={[styles.listItem, styles.image]}
-					style={{ width: '90px', height: '90px' }}
+					style={{
+						width: `${Constants.menuIconSize}px`,
+						height: `${Constants.menuIconSize}px`,
+					}}
 				>
 					<Image
 						src={itemAndImage.imageUrl}
