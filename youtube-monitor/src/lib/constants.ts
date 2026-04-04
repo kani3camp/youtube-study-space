@@ -53,7 +53,7 @@ export const Constants = {
 	secondaryTextColor: '#f1e8f2',
 	memberBigIconSize: 44,
 	memberSmallIconSize: 26,
-	menuIconSize: 45,
+	menuIconSize: 80,
 }
 
 export const sidebarBgmHeight =
