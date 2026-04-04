@@ -1,8 +1,8 @@
 import Image from 'next/image'
 import { type FC, useMemo } from 'react'
+import { Constants } from '../lib/constants'
 import * as styles from '../styles/Menu.styles'
 import type { MenuItemAndImage } from './MenuDisplay'
-import { Constants } from '../lib/constants'
 
 export type MenuBoxProps = {
 	first: MenuItemAndImage
