@@ -5,6 +5,8 @@ import { CafeRainyRoom } from './layouts/cafe-rainy-room'
 import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
+import { circleRoom } from './layouts/circle-room'
+import { Freepik1Room } from './layouts/freepik1-room'
 import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
@@ -38,18 +40,28 @@ const prodAllRooms: AllRoomsConfig = {
 		Freepik8Room,
 		Freepik7Room,
 	],
-	memberBasicRooms: [MemberBoxRooms2, MemberBoxRooms3, ResortSeaRoom],
-	memberTemporaryRooms: [
-		MemberIllustratedRoomSpring,
+	memberBasicRooms: [
 		MemberBoxRooms2,
 		MemberBoxRooms3,
 		ResortSeaRoom,
+		MemberIllustratedRoomSpring,
+	],
+	memberTemporaryRooms: [
+		MemberBoxRooms2,
+		MemberBoxRooms3,
+		ResortSeaRoom,
+		MemberIllustratedRoomSpring,
 	],
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [CampRoom, Freepik8Room],
-	generalTemporaryRooms: [CafeRainyRoom, CampRoom, Freepik8Room],
+	generalBasicRooms: [Freepik1Room],
+	generalTemporaryRooms: [
+		Freepik5Room,
+		circleRoom,
+		Anonymous1Room,
+		Freepik1Room,
+	],
 	memberBasicRooms: [ResortSeaRoom],
 	memberTemporaryRooms: [ResortSeaRoom],
 }

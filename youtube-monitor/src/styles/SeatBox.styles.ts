@@ -17,7 +17,6 @@ export const seat = css`
     border: 1px solid rgba(84, 75, 62, 0.12);
     box-shadow: 0 0.2rem 0.55rem rgba(70, 58, 43, 0.08);
     font-family: ${fontFamily};
-    background-color: ${Constants.seatBackgroundColor};
 `
 
 export const accentBar = css`

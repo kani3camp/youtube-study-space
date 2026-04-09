@@ -192,6 +192,9 @@ const SeatBox: FC<SeatProps> = (props) => {
 				width: `${props.seatShape.widthPx}px`,
 				height: `${props.seatShape.heightPx}px`,
 				fontSize: `${props.seatFontSizePx}px`,
+				backgroundColor: props.isUsed
+					? Constants.seatBackgroundColor
+					: Constants.vacantSeatBackgroundColor,
 			}}
 		>
 			{/* Accent Bar */}
@@ -328,7 +331,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 						<div
 							css={styles.emptySeatCommand}
 							style={{
-								fontSize: `${props.seatFontSizePx * (props.memberOnly ? 1.45 : 1.35)}px`,
+								fontSize: `${props.seatFontSizePx * (props.memberOnly ? 1.75 : 1.65)}px`,
 							}}
 						>
 							{seatIdLabel}

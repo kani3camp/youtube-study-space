@@ -40,15 +40,13 @@ export const listItem = css`
     flex: 1;
 `
 
-export const itemImage = css``
-
 export const image = css`
     position: relative;
 `
 
 export const name = css`
-    font-size: 0.8em;
-    /* color: #414141; */
+    font-size: 0.7em;
+    font-weight: 500;
     margin: 0.1rem;
     line-height: 0.9rem;
 
