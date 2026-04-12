@@ -7,6 +7,38 @@ import (
 	"app.modules/core/timeutil"
 )
 
+func (s *SeatDoc) SetWorkName(name string) {
+	s.WorkName = name
+}
+
+func (s *SeatDoc) ClearWorkName() {
+	s.WorkName = ""
+}
+
+func (s *SeatDoc) SetBreakWorkName(name string) {
+	s.BreakWorkName = name
+}
+
+func (s *SeatDoc) ClearBreakWorkName() {
+	s.BreakWorkName = ""
+}
+
+func (s *SeatDoc) SetMenuCode(code string) {
+	s.MenuCode = code
+}
+
+func (s *SeatDoc) ClearMenuCode() {
+	s.MenuCode = ""
+}
+
+func (s *SeatDoc) SetCurrentSegmentStartedAt(now time.Time) {
+	s.CurrentSegmentStartedAt = now
+}
+
+func (s *SeatDoc) SetCurrentStateUntil(newUntil time.Time) {
+	s.CurrentStateUntil = newUntil
+}
+
 func (s *SeatDoc) RealtimeEntryDurationMin(now time.Time) time.Duration {
 	return now.Sub(s.EnteredAt)
 }
@@ -35,8 +67,16 @@ func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
 //   - breakWorkName: 休憩中の作業名
 //   - breakDurationMin: 休憩時間（分）
 //
-// 前提条件: s.State == WorkState
-func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) {
+// 前提条件:
+//   - s.State == WorkState
+//
+// 戻り値:
+//   - error: 前提条件を満たさない場合は非 nil。正常に遷移した場合は nil。
+func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) error {
+	if s.State != WorkState {
+		return fmt.Errorf("requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	breakUntil := now.Add(time.Duration(breakDurationMin) * time.Minute)
 	workedSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 	cumulativeWorkSec := s.CumulativeWorkSec + workedSec
@@ -56,6 +96,13 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	s.CumulativeWorkSec = cumulativeWorkSec
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.BreakWorkName = breakWorkName
+
+	// 休憩終了時刻がUntilを超えるときはUntilも延長する
+	if breakUntil.After(s.Until) {
+		s.Until = breakUntil
+	}
+
+	return nil
 }
 
 // ResumeWork は休憩状態から作業状態に復帰する。
@@ -65,8 +112,16 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 //   - now: 作業再開時刻（JSTを想定）
 //   - workName: 設定する作業名（呼び出し側で引継ぎ判定を行う）
 //
-// 前提条件: s.State == BreakState
-func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
+// 前提条件:
+//   - s.State == BreakState
+//
+// 戻り値:
+//   - error: 前提条件を満たさない場合は非 nil。正常に遷移した場合は nil。
+func (s *SeatDoc) ResumeWork(now time.Time, workName string) error {
+	if s.State != BreakState {
+		return fmt.Errorf("requires break state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	breakSec := int(timeutil.NoNegativeDuration(now.Sub(s.CurrentStateStartedAt)).Seconds())
 
 	// 日付跨ぎを考慮して当日の累積時間を調整
@@ -81,6 +136,8 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 	s.CurrentSegmentStartedAt = now
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 	s.WorkName = workName
+
+	return nil
 }
 
 // SetWorkDuration は作業時間（入室から退室まで）を変更する。
@@ -89,10 +146,19 @@ func (s *SeatDoc) ResumeWork(now time.Time, workName string) {
 // 引数:
 //   - newUntil: 新しい自動退室予定時刻
 //
-// 前提条件: s.State == WorkState
-func (s *SeatDoc) SetWorkDuration(newUntil time.Time) {
+// 前提条件:
+//   - s.State == WorkState
+//
+// 戻り値:
+//   - error: 前提条件を満たさない場合は非 nil。更新に成功した場合は nil。
+func (s *SeatDoc) SetWorkDuration(newUntil time.Time) error {
+	if s.State != WorkState {
+		return fmt.Errorf("requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	s.Until = newUntil
 	s.CurrentStateUntil = newUntil
+	return nil
 }
 
 // ExtendWorkDuration は作業時間を延長する。
@@ -106,9 +172,15 @@ func (s *SeatDoc) SetWorkDuration(newUntil time.Time) {
 // 戻り値:
 //   - actualAddedMin: 実際に延長された時間（分）
 //   - newRemainingMin: 延長後の残り時間（分）
+//   - err: 前提条件を満たさない場合は非 nil（このとき actualAddedMin / newRemainingMin はゼロ値）
 //
-// 前提条件: s.State == WorkState
-func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWorkTimeMin int) (actualAddedMin int, newRemainingMin int) {
+// 前提条件:
+//   - s.State == WorkState
+func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWorkTimeMin int) (actualAddedMin int, newRemainingMin int, err error) {
+	if s.State != WorkState {
+		return 0, 0, fmt.Errorf("requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	newUntil := s.Until.Add(time.Duration(requestedAddMin) * time.Minute)
 	remainingMin := int(timeutil.NoNegativeDuration(newUntil.Sub(now)).Minutes())
 
@@ -122,7 +194,7 @@ func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWork
 	s.CurrentStateUntil = newUntil
 	newRemainingMin = int(timeutil.NoNegativeDuration(newUntil.Sub(now)).Minutes())
 
-	return actualAddedMin, newRemainingMin
+	return actualAddedMin, newRemainingMin, nil
 }
 
 // ExtendBreakDuration は休憩時間を延長する。
@@ -137,9 +209,15 @@ func (s *SeatDoc) ExtendWorkDuration(now time.Time, requestedAddMin int, maxWork
 //   - actualAddedMin: 実際に延長された時間（分）
 //   - newRemainingBreakMin: 延長後の休憩残り時間（分）
 //   - newRemainingUntilExitMin: 延長後の自動退室までの残り時間（分）
+//   - err: 前提条件を満たさない場合は非 nil（このとき他の戻り値はゼロ値）
 //
-// 前提条件: s.State == BreakState
-func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBreakDurationMin int) (actualAddedMin int, newRemainingBreakMin int, newRemainingUntilExitMin int) {
+// 前提条件:
+//   - s.State == BreakState
+func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBreakDurationMin int) (actualAddedMin int, newRemainingBreakMin int, newRemainingUntilExitMin int, err error) {
+	if s.State != BreakState {
+		return 0, 0, 0, fmt.Errorf("requires break state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
+	}
+
 	newBreakUntil := s.CurrentStateUntil.Add(time.Duration(requestedAddMin) * time.Minute)
 	newBreakDuration := timeutil.NoNegativeDuration(newBreakUntil.Sub(s.CurrentStateStartedAt))
 
@@ -159,7 +237,7 @@ func (s *SeatDoc) ExtendBreakDuration(now time.Time, requestedAddMin int, maxBre
 	newRemainingBreakMin = int(timeutil.NoNegativeDuration(s.CurrentStateUntil.Sub(now)).Minutes())
 	newRemainingUntilExitMin = int(timeutil.NoNegativeDuration(s.Until.Sub(now)).Minutes())
 
-	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin
+	return actualAddedMin, newRemainingBreakMin, newRemainingUntilExitMin, nil
 }
 
 func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) (WorkSegmentDoc, error) {
