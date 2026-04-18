@@ -2,6 +2,9 @@
 	"name": "1000-minutes-simulator",
 	"version": "0.1.0",
 	"private": true,
+	"engines": {
+		"node": ">=20.9.0"
+	},
 	"scripts": {
 		"dev": "next dev",
 		"build": "next build",
@@ -18,7 +21,7 @@
 	"dependencies": {
 		"@emotion/react": "^11.10.0",
 		"jsmediatags": "^3.9.7",
-		"next": "16.1.7",
+		"next": "16.2.3",
 		"next-i18next": "^12.0.1",
 		"react": "18.2.0",
 		"react-circular-progressbar": "^2.1.0",
@@ -28,9 +31,9 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",
 		"@types/jsmediatags": "^3.9.6",
-		"@types/node": "^18.6.4",
+		"@types/node": "^20.19.35",
 		"@types/react": "18.0.15",
 		"@types/react-dom": "18.0.6",
-		"typescript": "4.7.4"
+		"typescript": "^5.9.3"
 	}
 }
