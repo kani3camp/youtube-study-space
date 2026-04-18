@@ -1,4 +1,4 @@
-FROM golang:1.25@sha256:3760478c76cfe25533e06176e983e7808293895d48d15d0981c0cbb9623834e7 AS build
+FROM golang:1.26@sha256:5f3787b7f902c07c7ec4f3aa91a301a3eda8133aa32661a3b3a3a86ab3a68a36 AS build
 WORKDIR /src
 
 # 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
