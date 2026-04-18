@@ -9,7 +9,10 @@ import {
 	seatDisplayNameFontWeight,
 	seatWorkNameTextFontWeight,
 } from '../styles/seatBoxFontWeights'
-import { seatBodyHorizontalPaddingEm } from '../styles/seatBoxMetrics'
+import {
+	seatBodyHorizontalPaddingEm,
+	seatBorderWidthPx,
+} from '../styles/seatBoxMetrics'
 import type { Seat } from '../types/api'
 import { SeatState } from './SeatsPage'
 
@@ -58,13 +61,14 @@ function getMeasureTextContext(): CanvasRenderingContext2D | null {
 	return measureTextContext
 }
 
-/** 座席の border（1px×2）と seatBody の左右 padding を除いた、コンテンツの横幅 */
+/** 座席の左右 border と seatBody の左右 padding を除いた、コンテンツの横幅 */
 function generalSeatInnerContentWidthPx(
 	seatWidthPx: number,
 	seatFontSizePx: number,
 ): number {
+	const horizontalBorderPx = 2 * seatBorderWidthPx
 	const horizontalPaddingPx = 2 * seatBodyHorizontalPaddingEm * seatFontSizePx
-	return Math.max(1, seatWidthPx - 2 - horizontalPaddingPx)
+	return Math.max(1, seatWidthPx - horizontalBorderPx - horizontalPaddingPx)
 }
 
 /** 一般席の1行テキストを座席幅に収める（作業名・作業なし時のディスプレイ名で共通） */

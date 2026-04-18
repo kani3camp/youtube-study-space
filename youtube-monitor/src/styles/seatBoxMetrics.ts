@@ -3,5 +3,8 @@
  * 値を変える場合は CSS 側のテンプレートリテラル埋め込みも経由して反映される。
  */
 
+/** .seat の border（片側、px） */
+export const seatBorderWidthPx = 1 as const
+
 /** seatBody の左右 padding（em） */
 export const seatBodyHorizontalPaddingEm = 0.5 as const
