@@ -220,7 +220,7 @@ Representative chat commands:
 ## Development Environment
 
 ### Required Setup
-1. Go 1.24.0+ for backend development
+1. Go 1.25.0+ for backend development
 2. Node.js 18+ and `pnpm` for frontend and TypeScript-based subprojects
 3. Google Cloud credentials for Firestore, Cloud Storage, and BigQuery access
 4. AWS credentials for Lambda, Step Functions, Scheduler, and CDK operations
