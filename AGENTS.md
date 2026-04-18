@@ -13,6 +13,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ### Git Commit Guidelines
 - **Commit Granularity**: gitコミットは適切な粒度にわけて簡潔なコミットメッセージにより行うこと (Make git commits with appropriate granularity and concise commit messages)
 
+### Pull Requests（ベースブランチ）
+- **既定のマージ先**: 通常の開発用 PR は **`dev`** をベースにする（`main` は本番相当のため、ここへ向けない）。ユーザーが別ブランチを明示したときのみ従う。
+- **`gh pr create`**: ベース未指定だとリポジトリ既定（多くの場合 `main`）になりやすいので、**必ず** `--base dev` を付ける（または GitHub 上でベースを `dev` に変更する）。
+
 ### Communication Style
 - **Ask Questions**: 指示が曖昧だったり、不明点・懸念点があれば遠慮なく質問・確認すること (Don't hesitate to ask questions or seek clarification when instructions are ambiguous or when there are unclear points or concerns)
 
