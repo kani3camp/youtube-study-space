@@ -10,10 +10,10 @@ importers:
     dependencies:
       aws-cdk-lib:
         specifier: ^2.189.1
-        version: 2.243.0(constructs@10.5.1)
+        version: 2.243.0(constructs@10.6.0)
       constructs:
-        specifier: ^10.0.0
-        version: 10.5.1
+        specifier: ^10.6.0
+        version: 10.6.0
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -542,8 +542,8 @@ packages:
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
-  constructs@10.5.1:
-    resolution: {integrity: sha512-f/TfFXiS3G/yVIXDjOQn9oTlyu9Wo7Fxyjj7lb8r92iO81jR2uST+9MstxZTmDGx/CgIbxCXkFXgupnLTNxQZg==}
+  constructs@10.6.0:
+    resolution: {integrity: sha512-TxHOnBO5zMo/G76ykzGF/wMpEHu257TbWiIxP9K0Yv/+t70UzgBQiTqjkAsWOPC6jW91DzJI0+ehQV6xDRNBuQ==}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -1788,12 +1788,12 @@ snapshots:
     dependencies:
       sprintf-js: 1.0.3
 
-  aws-cdk-lib@2.243.0(constructs@10.5.1):
+  aws-cdk-lib@2.243.0(constructs@10.6.0):
     dependencies:
       '@aws-cdk/asset-awscli-v1': 2.2.263
       '@aws-cdk/asset-node-proxy-agent-v6': 2.1.1
       '@aws-cdk/cloud-assembly-schema': 52.2.0
-      constructs: 10.5.1
+      constructs: 10.6.0
 
   aws-cdk@2.1111.0: {}
 
@@ -1920,7 +1920,7 @@ snapshots:
 
   concat-map@0.0.1: {}
 
-  constructs@10.5.1: {}
+  constructs@10.6.0: {}
 
   convert-source-map@2.0.0: {}
 
