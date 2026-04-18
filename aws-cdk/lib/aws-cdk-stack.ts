@@ -26,6 +26,17 @@ const SYSTEM_DIR = path.join(__dirname, '../../system/')
 const DOCKERFILE_LAMBDA = 'Dockerfile.lambda'
 const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
 
+// 全 Lambda で同じ build context / Dockerfile / platform を共有しているため、CDK は
+// 既に asset を de-dup している。ヘルパーは宣言の明確化とビルド時間の予測性向上を
+// 目的とし、`entrypoint` だけを差し替える。`entrypoint` は Lambda imageConfig 側の
+// 設定で asset fingerprint には寄与しないので、6 関数分の asset は 1 つに共有される。
+const createLambdaImageCode = (binaryName: string) =>
+	lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
+		file: DOCKERFILE_LAMBDA,
+		platform: Platform.LINUX_AMD64,
+		entrypoint: [`/app/${binaryName}`],
+	})
+
 export class AwsCdkStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props)
@@ -160,12 +171,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'sns_notify_discord',
 			{
 				functionName: 'sns_notify_discord',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: { HANDLER: 'main' },
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/sns_notify_discord'],
-				}),
+				code: createLambdaImageCode('sns_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
 				reservedConcurrentExecutions: 1,
 			},
@@ -526,12 +532,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'start_daily_batch',
 			{
 				functionName: 'start_daily_batch',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: { HANDLER: 'main' },
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/start_daily_batch'],
-				}),
+				code: createLambdaImageCode('start_daily_batch'),
 				timeout: cdk.Duration.seconds(15),
 				reservedConcurrentExecutions: 1,
 				environment: {
@@ -567,14 +568,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'set_desired_max_seats',
 			{
 				functionName: 'set_desired_max_seats',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: {
-						HANDLER: 'main',
-					},
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/set_desired_max_seats'],
-				}),
+				code: createLambdaImageCode('set_desired_max_seats'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
 			},
@@ -593,14 +587,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'youtube_organize_database',
 			{
 				functionName: 'youtube_organize_database',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: {
-						HANDLER: 'main',
-					},
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/youtube_organize_database'],
-				}),
+				code: createLambdaImageCode('youtube_organize_database'),
 				timeout: cdk.Duration.seconds(50),
 				reservedConcurrentExecutions: 1,
 			},
@@ -619,14 +606,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'check_live_stream_status',
 			{
 				functionName: 'check_live_stream_status',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: {
-						HANDLER: 'main',
-					},
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/check_live_stream_status'],
-				}),
+				code: createLambdaImageCode('check_live_stream_status'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
 			},
@@ -645,14 +625,7 @@ export class AwsCdkStack extends cdk.Stack {
 			'update_work_name_trend',
 			{
 				functionName: 'update_work_name_trend',
-				code: lambda.DockerImageCode.fromImageAsset(SYSTEM_DIR, {
-					file: DOCKERFILE_LAMBDA,
-					buildArgs: {
-						HANDLER: 'main',
-					},
-					platform: Platform.LINUX_AMD64,
-					entrypoint: ['/app/update_work_name_trend'],
-				}),
+				code: createLambdaImageCode('update_work_name_trend'),
 				timeout: cdk.Duration.minutes(5),
 				reservedConcurrentExecutions: 1,
 				environment: {
