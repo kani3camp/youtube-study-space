@@ -5,6 +5,7 @@ import {
 	seatDisplayNameFontWeight,
 	seatIdFontWeight,
 	seatWorkNameFontWeight,
+	seatWorkNameTextFontWeight,
 } from './seatBoxFontWeights'
 
 export const seat = css`
@@ -151,7 +152,7 @@ export const memberWorkNameFrame = css`
 export const memberWorkName = css`
     color: #24317e;
     text-overflow: ellipsis;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatWorkNameTextFontWeight};
     line-height: 1.18;
     overflow: hidden;
     word-wrap: break-word;
@@ -174,7 +175,7 @@ export const generalContent = css`
 export const generalWorkName = css`
     width: 100%;
     color: #24317e;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatWorkNameTextFontWeight};
     line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;

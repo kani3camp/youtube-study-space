@@ -7,7 +7,7 @@ import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
 import {
 	seatDisplayNameFontWeight,
-	seatWorkNameFontWeight,
+	seatWorkNameTextFontWeight,
 } from '../styles/seatBoxFontWeights'
 import type { Seat } from '../types/api'
 import { SeatState } from './SeatsPage'
@@ -63,8 +63,9 @@ function fitGeneralSeatLineFontSizePx(
 	seatFontSizePx: number,
 	seatWidthPx: number,
 	fontWeight: number,
+	baseEm = 0.8,
 ): number {
-	let fontSizePx = seatFontSizePx * 0.8
+	let fontSizePx = seatFontSizePx * baseEm
 	if (text === '') {
 		return fontSizePx
 	}
@@ -164,7 +165,8 @@ const SeatBox: FC<SeatProps> = (props) => {
 					currentWorkName,
 					props.seatFontSizePx,
 					props.seatShape.widthPx,
-					seatWorkNameFontWeight,
+					seatWorkNameTextFontWeight,
+					0.95,
 				)
 			: props.seatFontSizePx * 0.8
 
@@ -270,7 +272,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 										<div css={styles.memberWorkNameFrame}>
 											<div
 												css={styles.memberWorkName}
-												style={{ fontSize: `${props.seatFontSizePx * 0.78}px` }}
+												style={{ fontSize: `${props.seatFontSizePx * 0.93}px` }}
 											>
 												{currentWorkName}
 											</div>
