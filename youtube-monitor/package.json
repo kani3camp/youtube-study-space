@@ -54,7 +54,7 @@
 		"@babel/core": "^7.29.0",
 		"@babel/preset-env": "^7.29.0",
 		"@babel/preset-typescript": "^7.28.5",
-		"@biomejs/biome": "2.0.6",
+		"@biomejs/biome": "2.4.12",
 		"@chromatic-com/storybook": "^5.1.2",
 		"@emotion/babel-plugin": "^11.13.5",
 		"@storybook/addon-docs": "^10.3.5",
