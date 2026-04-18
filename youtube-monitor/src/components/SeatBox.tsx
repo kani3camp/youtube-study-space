@@ -63,8 +63,7 @@ function generalSeatInnerContentWidthPx(
 	seatWidthPx: number,
 	seatFontSizePx: number,
 ): number {
-	const horizontalPaddingPx =
-		2 * seatBodyHorizontalPaddingEm * seatFontSizePx
+	const horizontalPaddingPx = 2 * seatBodyHorizontalPaddingEm * seatFontSizePx
 	return Math.max(1, seatWidthPx - 2 - horizontalPaddingPx)
 }
 
