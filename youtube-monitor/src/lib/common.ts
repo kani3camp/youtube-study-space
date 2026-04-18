@@ -50,10 +50,7 @@ function normalizeFontFamily(fontFamilyValue: string): string {
 		.map((familyName) => {
 			const firstChar = familyName[0]
 			const lastChar = familyName[familyName.length - 1]
-			if (
-				(firstChar === "'" || firstChar === '"') &&
-				lastChar === firstChar
-			) {
+			if ((firstChar === "'" || firstChar === '"') && lastChar === firstChar) {
 				return familyName
 			}
 			return `"${familyName.replace(/"/g, '\\"')}"`

@@ -194,7 +194,7 @@ function useFittedGeneralSeatLineFontSizePx({
 		minEm,
 	])
 
-	return enabled ? measuredFontSizePx ?? initialFontSizePx : initialFontSizePx
+	return enabled ? (measuredFontSizePx ?? initialFontSizePx) : initialFontSizePx
 }
 
 const SeatBox: FC<SeatProps> = (props) => {
@@ -299,12 +299,11 @@ const SeatBox: FC<SeatProps> = (props) => {
 		baseEm: 0.8,
 		minEm: 0.5,
 	})
-	const generalDisplayNameFontSizePx =
-		generalSeatCanAutoFit
-			? hasWorkName
-				? props.seatFontSizePx * 0.63
-				: generalDisplayNameAutoFontSizePx
-			: 0
+	const generalDisplayNameFontSizePx = generalSeatCanAutoFit
+		? hasWorkName
+			? props.seatFontSizePx * 0.63
+			: generalDisplayNameAutoFontSizePx
+		: 0
 
 	return (
 		<div
