@@ -158,9 +158,11 @@ describe('Docker asset determinism (issue #692)', () => {
 
 	// system/ 配下の対象ファイルを一時的に書き換え（または新規作成）して fn を実行し、
 	// finally で必ず原状復帰する。
-	// - 既存ファイル: バイナリセーフにバックアップ → 復元
-	// - 存在しなかったパス: 作成 → 削除
-	// さらに、新規作成時はディレクトリも後片付けするため、作成したディレクトリ一覧を追跡する。
+	// - 既存ファイル: tmp 配下に copyFileSync で退避し、終了時に元の場所へコピーし直す。
+	//   mode（実行ビット等）は `statSync().mode` をキャプチャして `chmodSync` で復元する。
+	//   `system/main` のようなローカル go build 成果物（0o755）が混ざる環境でも、
+	//   テスト後に実行不可にならないよう内容だけでなく mode も明示的に戻す。
+	// - 存在しなかったパス: 作成 → 削除（新規作成で巻き込んだディレクトリも掃除）。
 	const withTemporaryFile = (
 		relPath: string,
 		content: Buffer | string,
@@ -168,9 +170,16 @@ describe('Docker asset determinism (issue #692)', () => {
 	) => {
 		const target = path.join(SYSTEM_DIR, relPath)
 		const existed = fs.existsSync(target)
-		const backup = existed ? fs.readFileSync(target) : null
 		const createdDirs: string[] = []
-		if (!existed) {
+		let backupDir: string | null = null
+		let backupPath: string | null = null
+		let originalMode: number | null = null
+		if (existed) {
+			backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-692-bak-'))
+			backupPath = path.join(backupDir, 'backup')
+			fs.copyFileSync(target, backupPath)
+			originalMode = fs.statSync(target).mode
+		} else {
 			let dir = path.dirname(target)
 			const stopAt = SYSTEM_DIR
 			while (!fs.existsSync(dir) && dir.startsWith(stopAt)) {
@@ -185,16 +194,28 @@ describe('Docker asset determinism (issue #692)', () => {
 			fs.writeFileSync(target, payload)
 			fn()
 		} finally {
-			if (existed && backup !== null) {
-				fs.writeFileSync(target, backup)
-			} else {
-				if (fs.existsSync(target)) {
-					fs.unlinkSync(target)
-				}
-				for (const dir of createdDirs) {
-					if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
-						fs.rmdirSync(dir)
+			try {
+				if (existed && backupPath !== null) {
+					fs.copyFileSync(backupPath, target)
+					if (originalMode !== null) {
+						fs.chmodSync(target, originalMode)
 					}
+				} else {
+					if (fs.existsSync(target)) {
+						fs.unlinkSync(target)
+					}
+					for (const dir of createdDirs) {
+						if (
+							fs.existsSync(dir) &&
+							fs.readdirSync(dir).length === 0
+						) {
+							fs.rmdirSync(dir)
+						}
+					}
+				}
+			} finally {
+				if (backupDir !== null) {
+					fs.rmSync(backupDir, { recursive: true, force: true })
 				}
 			}
 		}
