@@ -7,6 +7,7 @@ import {
 	seatWorkNameFontWeight,
 	seatWorkNameTextFontWeight,
 } from './seatBoxFontWeights'
+import { seatBodyHorizontalPaddingEm } from './seatBoxMetrics'
 
 export const seat = css`
     position: absolute;
@@ -38,7 +39,7 @@ export const seatBody = css`
     flex: 1;
     flex-direction: column;
     min-height: 0;
-    padding: 0.35em 0.5em 0.34em;
+    padding: 0.35em ${seatBodyHorizontalPaddingEm}em 0.34em;
 `
 
 export const headerRow = css`
