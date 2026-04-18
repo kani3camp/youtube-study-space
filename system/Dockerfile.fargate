@@ -1,4 +1,4 @@
-FROM golang:1.25 AS build
+FROM golang:1.25@sha256:3760478c76cfe25533e06176e983e7808293895d48d15d0981c0cbb9623834e7 AS build
 WORKDIR /src
 
 # 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   --mount=type=cache,target=/root/.cache/go-build \
   go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/batch ${BUILD_TARGET}
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:a9329520abc449e3b14d5bc3a6ffae065bdde0f02667fa10880c49b35c109fd1
 WORKDIR /app
 ENV TZ=Asia/Tokyo
 COPY --from=build /out/batch /app/batch
