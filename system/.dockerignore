@@ -3,10 +3,11 @@
 .github
 .gitignore
 
-# OS / IDE
+# OS / IDE / agent context
 **/.DS_Store
 **/.idea
 **/.vscode
+**/.cursor
 
 # Logs / cache / tmp
 **/*.log
@@ -21,8 +22,31 @@ coverage*
 /dist
 /out
 
+# Local Go build artifacts (host-produced, not required inside container image)
+/main
+/main.exe
+/bootstrap
+/bootstrap.exe
+/batch
+/sns_notify_discord
+/app.modules
+/app.modules.exe
+/aws-lambda/main
+/aws-lambda/main.zip
+/.serverless
+
+# Local-only Go sources (not built into Lambda/Fargate images; excluded to keep
+# build-context fingerprint stable across local edits — see issue #692)
+/main.go
+/main_test.go
+
 # Tests (not needed for container image)
 **/*_test.go
+
+# Docs / lint configs not needed inside container
+README.md
+AI_COLLABORATION_GUIDE.md
+.golangci.yml
 
 # Env files
 .env
