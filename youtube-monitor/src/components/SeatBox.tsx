@@ -7,8 +7,12 @@ import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
 import {
 	seatDisplayNameFontWeight,
-	seatWorkNameFontWeight,
+	seatWorkNameTextFontWeight,
 } from '../styles/seatBoxFontWeights'
+import {
+	seatBodyHorizontalPaddingEm,
+	seatBorderWidthPx,
+} from '../styles/seatBoxMetrics'
 import type { Seat } from '../types/api'
 import { SeatState } from './SeatsPage'
 
@@ -57,14 +61,26 @@ function getMeasureTextContext(): CanvasRenderingContext2D | null {
 	return measureTextContext
 }
 
+/** 座席の左右 border と seatBody の左右 padding を除いた、コンテンツの横幅 */
+function generalSeatInnerContentWidthPx(
+	seatWidthPx: number,
+	seatFontSizePx: number,
+): number {
+	const horizontalBorderPx = 2 * seatBorderWidthPx
+	const horizontalPaddingPx = 2 * seatBodyHorizontalPaddingEm * seatFontSizePx
+	return Math.max(1, seatWidthPx - horizontalBorderPx - horizontalPaddingPx)
+}
+
 /** 一般席の1行テキストを座席幅に収める（作業名・作業なし時のディスプレイ名で共通） */
 function fitGeneralSeatLineFontSizePx(
 	text: string,
 	seatFontSizePx: number,
-	seatWidthPx: number,
+	lineWidthPx: number,
 	fontWeight: number,
+	baseEm = 0.8,
+	minEm = 0.5,
 ): number {
-	let fontSizePx = seatFontSizePx * 0.8
+	let fontSizePx = seatFontSizePx * baseEm
 	if (text === '') {
 		return fontSizePx
 	}
@@ -72,11 +88,11 @@ function fitGeneralSeatLineFontSizePx(
 	if (context) {
 		context.font = `${fontWeight} ${fontSizePx.toString()}px ${fontFamily}`
 		const metrics = context.measureText(text)
-		if (metrics.width > seatWidthPx) {
-			fontSizePx *= seatWidthPx / metrics.width
+		if (metrics.width > lineWidthPx) {
+			fontSizePx *= lineWidthPx / metrics.width
 			fontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
-			if (fontSizePx < seatFontSizePx * 0.5) {
-				fontSizePx = seatFontSizePx * 0.5
+			if (fontSizePx < seatFontSizePx * minEm) {
+				fontSizePx = seatFontSizePx * minEm
 			}
 		}
 	}
@@ -157,14 +173,22 @@ const SeatBox: FC<SeatProps> = (props) => {
 			? `/${props.globalSeatId}`
 			: `!${props.globalSeatId}`
 
-	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整
+	const generalInnerContentWidthPx = generalSeatInnerContentWidthPx(
+		props.seatShape.widthPx,
+		props.seatFontSizePx,
+	)
+
+	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整。
+	// 下限は同席のユーザー名と同じ 0.63 em に揃える（これ以上は縮めず ellipsis に任せる）。
 	const generalWorkNameFontSizePx =
 		props.isUsed && !props.memberOnly && hasWorkName
 			? fitGeneralSeatLineFontSizePx(
 					currentWorkName,
 					props.seatFontSizePx,
-					props.seatShape.widthPx,
-					seatWorkNameFontWeight,
+					generalInnerContentWidthPx,
+					seatWorkNameTextFontWeight,
+					0.95,
+					0.63,
 				)
 			: props.seatFontSizePx * 0.8
 
@@ -176,7 +200,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 				: fitGeneralSeatLineFontSizePx(
 						displayName,
 						props.seatFontSizePx,
-						props.seatShape.widthPx,
+						generalInnerContentWidthPx,
 						seatDisplayNameFontWeight,
 					)
 			: 0
@@ -270,7 +294,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 										<div css={styles.memberWorkNameFrame}>
 											<div
 												css={styles.memberWorkName}
-												style={{ fontSize: `${props.seatFontSizePx * 0.78}px` }}
+												style={{ fontSize: `${props.seatFontSizePx * 0.93}px` }}
 											>
 												{currentWorkName}
 											</div>
