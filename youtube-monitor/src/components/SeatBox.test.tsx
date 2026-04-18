@@ -23,9 +23,35 @@ jest.mock('next/image', () => ({
 	},
 }))
 
-process.env.NEXT_PUBLIC_DEBUG = 'true'
-process.env.NEXT_PUBLIC_CHANNEL_GL = 'false'
-process.env.NEXT_PUBLIC_ROOM_CONFIG = 'DEV'
+const originalNextPublicDebug = process.env.NEXT_PUBLIC_DEBUG
+const originalNextPublicChannelGl = process.env.NEXT_PUBLIC_CHANNEL_GL
+const originalNextPublicRoomConfig = process.env.NEXT_PUBLIC_ROOM_CONFIG
+
+beforeAll(() => {
+	process.env.NEXT_PUBLIC_DEBUG = 'true'
+	process.env.NEXT_PUBLIC_CHANNEL_GL = 'false'
+	process.env.NEXT_PUBLIC_ROOM_CONFIG = 'DEV'
+})
+
+afterAll(() => {
+	if (originalNextPublicDebug === undefined) {
+		delete process.env.NEXT_PUBLIC_DEBUG
+	} else {
+		process.env.NEXT_PUBLIC_DEBUG = originalNextPublicDebug
+	}
+
+	if (originalNextPublicChannelGl === undefined) {
+		delete process.env.NEXT_PUBLIC_CHANNEL_GL
+	} else {
+		process.env.NEXT_PUBLIC_CHANNEL_GL = originalNextPublicChannelGl
+	}
+
+	if (originalNextPublicRoomConfig === undefined) {
+		delete process.env.NEXT_PUBLIC_ROOM_CONFIG
+	} else {
+		process.env.NEXT_PUBLIC_ROOM_CONFIG = originalNextPublicRoomConfig
+	}
+})
 
 function loadSeatBox() {
 	const seatBoxModule = require('./SeatBox') as typeof import('./SeatBox')

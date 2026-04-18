@@ -146,7 +146,6 @@ function useFittedGeneralSeatLineFontSizePx({
 
 	useEffect(() => {
 		if (!enabled) {
-			setMeasurementState({ key: measurementKey, value: null })
 			return
 		}
 
