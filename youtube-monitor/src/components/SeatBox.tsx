@@ -1,7 +1,7 @@
 /** @jsxImportSource @emotion/react */
 import { css, keyframes } from '@emotion/react'
 import Image from 'next/image'
-import type { FC, SyntheticEvent } from 'react'
+import { type FC, type SyntheticEvent, useEffect, useState } from 'react'
 import { fontFamily, validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
@@ -50,6 +50,11 @@ const colorGradientKeyframes = keyframes`
 
 let measureTextContext: CanvasRenderingContext2D | null | undefined
 
+/** Test helper: reset the cached canvas context between isolated render checks. */
+export function resetMeasureTextContextForTest(): void {
+	measureTextContext = undefined
+}
+
 function getMeasureTextContext(): CanvasRenderingContext2D | null {
 	if (typeof document === 'undefined') {
 		return null
@@ -97,6 +102,99 @@ function fitGeneralSeatLineFontSizePx(
 		}
 	}
 	return fontSizePx
+}
+
+type GeneralSeatFontMeasurementState = {
+	key: string
+	value: number | null
+}
+
+function useFittedGeneralSeatLineFontSizePx({
+	enabled,
+	text,
+	seatFontSizePx,
+	lineWidthPx,
+	fontWeight,
+	baseEm,
+	minEm,
+}: {
+	enabled: boolean
+	text: string
+	seatFontSizePx: number
+	lineWidthPx: number
+	fontWeight: number
+	baseEm: number
+	minEm: number
+}): number {
+	const initialFontSizePx = seatFontSizePx * baseEm
+	const measurementKey = [
+		enabled ? '1' : '0',
+		text,
+		seatFontSizePx.toString(),
+		lineWidthPx.toString(),
+		fontWeight.toString(),
+		baseEm.toString(),
+		minEm.toString(),
+	].join('|')
+	const [measurementState, setMeasurementState] =
+		useState<GeneralSeatFontMeasurementState>({
+			key: measurementKey,
+			value: null,
+		})
+	const measuredFontSizePx =
+		measurementState.key === measurementKey ? measurementState.value : null
+
+	useEffect(() => {
+		if (!enabled) {
+			setMeasurementState({ key: measurementKey, value: null })
+			return
+		}
+
+		const measureFontSizePx = () =>
+			fitGeneralSeatLineFontSizePx(
+				text,
+				seatFontSizePx,
+				lineWidthPx,
+				fontWeight,
+				baseEm,
+				minEm,
+			)
+		const updateMeasuredFontSize = () => {
+			setMeasurementState({
+				key: measurementKey,
+				value: measureFontSizePx(),
+			})
+		}
+
+		updateMeasuredFontSize()
+
+		if (typeof document === 'undefined' || document.fonts === undefined) {
+			return
+		}
+
+		let cancelled = false
+		void document.fonts.ready.then(() => {
+			if (cancelled) {
+				return
+			}
+			updateMeasuredFontSize()
+		})
+
+		return () => {
+			cancelled = true
+		}
+	}, [
+		enabled,
+		measurementKey,
+		text,
+		seatFontSizePx,
+		lineWidthPx,
+		fontWeight,
+		baseEm,
+		minEm,
+	])
+
+	return enabled ? measuredFontSizePx ?? initialFontSizePx : initialFontSizePx
 }
 
 const SeatBox: FC<SeatProps> = (props) => {
@@ -177,32 +275,35 @@ const SeatBox: FC<SeatProps> = (props) => {
 		props.seatShape.widthPx,
 		props.seatFontSizePx,
 	)
+	const generalSeatCanAutoFit = props.isUsed && !props.memberOnly
 
 	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整。
 	// 下限は同席のユーザー名と同じ 0.63 em に揃える（これ以上は縮めず ellipsis に任せる）。
-	const generalWorkNameFontSizePx =
-		props.isUsed && !props.memberOnly && hasWorkName
-			? fitGeneralSeatLineFontSizePx(
-					currentWorkName,
-					props.seatFontSizePx,
-					generalInnerContentWidthPx,
-					seatWorkNameTextFontWeight,
-					0.95,
-					0.63,
-				)
-			: props.seatFontSizePx * 0.8
+	const generalWorkNameFontSizePx = useFittedGeneralSeatLineFontSizePx({
+		enabled: generalSeatCanAutoFit && hasWorkName,
+		text: currentWorkName,
+		seatFontSizePx: props.seatFontSizePx,
+		lineWidthPx: generalInnerContentWidthPx,
+		fontWeight: seatWorkNameTextFontWeight,
+		baseEm: 0.95,
+		minEm: 0.63,
+	})
 
 	// メンバー席・空席では使わない（一般席ブロック内でのみ参照）。0 は未使用プレースホルダ。
+	const generalDisplayNameAutoFontSizePx = useFittedGeneralSeatLineFontSizePx({
+		enabled: generalSeatCanAutoFit && !hasWorkName,
+		text: displayName,
+		seatFontSizePx: props.seatFontSizePx,
+		lineWidthPx: generalInnerContentWidthPx,
+		fontWeight: seatDisplayNameFontWeight,
+		baseEm: 0.8,
+		minEm: 0.5,
+	})
 	const generalDisplayNameFontSizePx =
-		props.isUsed && !props.memberOnly
+		generalSeatCanAutoFit
 			? hasWorkName
 				? props.seatFontSizePx * 0.63
-				: fitGeneralSeatLineFontSizePx(
-						displayName,
-						props.seatFontSizePx,
-						generalInnerContentWidthPx,
-						seatDisplayNameFontWeight,
-					)
+				: generalDisplayNameAutoFontSizePx
 			: 0
 
 	return (

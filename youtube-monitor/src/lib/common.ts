@@ -42,16 +42,32 @@ export const validateString = (value: string | undefined | null): boolean =>
 
 import { M_PLUS_Rounded_1c, Source_Code_Pro } from 'next/font/google'
 
+function normalizeFontFamily(fontFamilyValue: string): string {
+	return fontFamilyValue
+		.split(',')
+		.map((familyName) => familyName.trim())
+		.filter((familyName) => familyName !== '')
+		.map((familyName) => {
+			const firstChar = familyName[0]
+			const lastChar = familyName[familyName.length - 1]
+			if (
+				(firstChar === "'" || firstChar === '"') &&
+				lastChar === firstChar
+			) {
+				return familyName
+			}
+			return `"${familyName.replace(/"/g, '\\"')}"`
+		})
+		.join(', ')
+}
+
 const mPlusRounded1c = M_PLUS_Rounded_1c({
 	subsets: ['latin'],
 	weight: ['100', '300', '400', '500', '700', '800', '900'],
 	display: 'swap',
 	adjustFontFallback: false,
 })
-const fontFamilyString = mPlusRounded1c.style.fontFamily
-export const fontFamily = fontFamilyString.includes(' ')
-	? `'${fontFamilyString}'`
-	: fontFamilyString
+export const fontFamily = normalizeFontFamily(mPlusRounded1c.style.fontFamily)
 /** Next.js 15ではフォントを有効にするため、ルート要素にこの className を付与する必要がある */
 export const fontClassName = mPlusRounded1c.className
 
@@ -61,6 +77,7 @@ const sourceCodePro = Source_Code_Pro({
 	display: 'swap',
 	adjustFontFallback: false,
 })
-const sourceCodeProFontFamilyString = sourceCodePro.style.fontFamily
-export const sourceCodeProFontFamily = sourceCodeProFontFamilyString
+export const sourceCodeProFontFamily = normalizeFontFamily(
+	sourceCodePro.style.fontFamily,
+)
 export const sourceCodeProClassName = sourceCodePro.className
