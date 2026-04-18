@@ -72,3 +72,22 @@ go generate ./...
 # Fargate用バッチのローカルビルド例（arm64）
 docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system --load
 ```
+
+### base image 更新運用
+
+`Dockerfile.lambda` / `Dockerfile.fargate` の `FROM` は、`image:tag@sha256:...` の形式で **digest 固定** している（再現可能ビルドのため。詳細は issue #693）。digest の更新は基本的に Dependabot の docker ecosystem PR に任せる。
+
+- **Dependabot からの digest 更新 PR が来たとき**:
+  1. `aws-cdk/` で `pnpm cdk:diff --profile <dev プロファイル>` を実行し、変更が digest 差し替えだけであることを確認
+  2. `pnpm cdk:deploy --profile <dev プロファイル>` で dev 環境にデプロイしてスモーク確認
+  3. 問題なければ prod プロファイルで同じ手順を実行
+  4. プロファイル切り替えの詳細は [`aws-cdk/README.md`](../aws-cdk/README.md) を参照
+- **手動で base image を更新したいとき**（Go の minor 上げ、セキュリティパッチの即時適用等）:
+  ```bash
+  # タグに対する最新 digest を取得
+  docker buildx imagetools inspect docker.io/library/golang:1.25 --format '{{.Manifest.Digest}}'
+  docker buildx imagetools inspect public.ecr.aws/lambda/provided:al2023 --format '{{.Manifest.Digest}}'
+  docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{.Manifest.Digest}}'
+  ```
+  取得した `sha256:...` を Dockerfile の `FROM ...@sha256:...` に差し替えて PR を出す。
+- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。詳細は [`AI_COLLABORATION_GUIDE.md`](./AI_COLLABORATION_GUIDE.md) の「Go toolchain とベースイメージのバージョン整合」を参照。

@@ -1,0 +1,118 @@
+# Dependabot configuration
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# NOTE: このファイルは authoritative な設定です。ここに記載されていない
+#       ecosystem / directory の version update は走りません。新しい
+#       package.json や Dockerfile を追加したときは必ずここにも追記。
+version: 2
+updates:
+  # =========================
+  # Docker ベースイメージ（#693: 再現可能ビルドのため digest 固定を自動更新）
+  # =========================
+  - package-ecosystem: docker
+    directory: /system
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 5
+
+  # =========================
+  # Go modules
+  # =========================
+  - package-ecosystem: gomod
+    directory: /system
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 10
+
+  # =========================
+  # npm (pnpm 管理下の各サブプロジェクト)
+  # =========================
+  - package-ecosystem: npm
+    directory: /youtube-monitor
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: npm
+    directory: /aws-cdk
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: npm
+    directory: /docs-site
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: npm
+    directory: /tools/menu-image-generator
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /tools/video-maker/1000-minutes-simulator
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /tools/figma-plugin/room-layout-analyzer
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 5
+
+  # =========================
+  # GitHub Actions
+  # =========================
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 5
