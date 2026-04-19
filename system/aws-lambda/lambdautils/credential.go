@@ -13,5 +13,6 @@ func FirestoreClientOption() (option.ClientOption, error) {
 	if err != nil {
 		return nil, fmt.Errorf("in FetchFirebaseCredentialsAsBytes: %w", err)
 	}
+	//nolint:staticcheck // Credential JSON is fetched from our managed DynamoDB secret and is limited to the Firebase service account payload.
 	return option.WithCredentialsJSON(credentialBytes), nil
 }
