@@ -1,3 +1,17 @@
+## AWS SSO（認証）
+
+プロファイルが IAM Identity Center（旧 AWS SSO）経由（`~/.aws/config` に `sso_session` などがある）のときは、**トークンの期限切れで CDK や AWS CLI が失敗する**。その場合は再ログインする。
+
+```bash
+aws sso login --profile プロファイル名
+```
+
+動作確認:
+
+```bash
+aws sts get-caller-identity --profile プロファイル名
+```
+
 ## Useful commands
 
 それぞれ`--profile プロファイル名`を付加する。（場合によっては region 指定も）
@@ -17,3 +31,4 @@
 - Lambdaの Errors>0 と Step Functions ExecutionsFailed>0 のアラームをSNSに連携。
 - 主要出力（CfnOutput）:
   - `BatchClusterArn`, `DailyBatchTaskDefinitionArn`, `BatchSecurityGroupId`, `BatchPublicSubnetIds`, `BatchVpcId`, `DailyBatchStateMachineArn`
+

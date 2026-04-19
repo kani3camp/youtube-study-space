@@ -3,9 +3,14 @@ import { fontFamily } from '../lib/common'
 import { Constants } from '../lib/constants'
 import {
 	seatDisplayNameFontWeight,
+	seatEmphasisFontWeight,
 	seatIdFontWeight,
-	seatWorkNameFontWeight,
+	seatWorkNameTextFontWeight,
 } from './seatBoxFontWeights'
+import {
+	seatBodyHorizontalPaddingEm,
+	seatBorderWidthPx,
+} from './seatBoxMetrics'
 
 export const seat = css`
     position: absolute;
@@ -14,7 +19,7 @@ export const seat = css`
     transform-origin: top left;
     box-sizing: border-box;
     overflow: hidden;
-    border: 1px solid rgba(84, 75, 62, 0.12);
+    border: ${seatBorderWidthPx}px solid rgba(84, 75, 62, 0.12);
     box-shadow: 0 0.2rem 0.55rem rgba(70, 58, 43, 0.08);
     font-family: ${fontFamily};
 `
@@ -37,7 +42,7 @@ export const seatBody = css`
     flex: 1;
     flex-direction: column;
     min-height: 0;
-    padding: 0.35em 0.5em 0.34em;
+    padding: 0.35em ${seatBodyHorizontalPaddingEm}em 0.34em;
 `
 
 export const headerRow = css`
@@ -92,7 +97,7 @@ export const starsBadge = css`
     position: absolute;
     top: 0.2rem;
     right: 0.2rem;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatEmphasisFontWeight};
     line-height: 1;
     white-space: nowrap;
     transform: translateY(1px);
@@ -132,7 +137,7 @@ export const emptySeatCommand = css`
     margin: 0;
     color: #4a4338;
     line-height: 1;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatEmphasisFontWeight};
     letter-spacing: 0.02em;
 `
 
@@ -151,7 +156,7 @@ export const memberWorkNameFrame = css`
 export const memberWorkName = css`
     color: #24317e;
     text-overflow: ellipsis;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatWorkNameTextFontWeight};
     line-height: 1.18;
     overflow: hidden;
     word-wrap: break-word;
@@ -174,7 +179,7 @@ export const generalContent = css`
 export const generalWorkName = css`
     width: 100%;
     color: #24317e;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatWorkNameTextFontWeight};
     line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -232,7 +237,7 @@ export const timeElapsed = css`
 export const timeRemaining = css`
     color: #2a241d;
     font-size: 0.42em;
-    font-weight: ${seatWorkNameFontWeight};
+    font-weight: ${seatEmphasisFontWeight};
     line-height: 1;
     white-space: nowrap;
     flex-shrink: 0;

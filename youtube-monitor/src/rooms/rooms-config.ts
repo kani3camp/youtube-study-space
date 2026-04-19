@@ -14,6 +14,7 @@ import { Freepik8Room } from './layouts/freepik8-room'
 import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
 import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
+import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
 import { ResortSeaRoom } from './layouts/resort-sea-room'
 
 type AllRoomsConfig = {
@@ -45,12 +46,14 @@ const prodAllRooms: AllRoomsConfig = {
 		MemberBoxRooms3,
 		ResortSeaRoom,
 		MemberIllustratedRoomSpring,
+		MemberIllustratedRoom1,
 	],
 	memberTemporaryRooms: [
 		MemberBoxRooms2,
 		MemberBoxRooms3,
 		ResortSeaRoom,
 		MemberIllustratedRoomSpring,
+		MemberIllustratedRoom1,
 	],
 }
 

@@ -150,6 +150,16 @@ export const InUseWithLongWorkName: Story = {
 	}),
 }
 
+export const InUseWithGreetingWorkName: Story = {
+	name: '一般席 おかえりなさいませ',
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			work_name: 'おかえりなさいませ👋',
+		}),
+	}),
+}
+
 export const InUseInBreak: Story = {
 	name: '一般席 休憩中',
 	args: createBaseArgs({

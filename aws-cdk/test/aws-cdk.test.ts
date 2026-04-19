@@ -1,11 +1,17 @@
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+
 import * as cdk from 'aws-cdk-lib'
 import { Match, Template } from 'aws-cdk-lib/assertions'
 
-import { AwsCdkStack } from '../lib/aws-cdk-stack'
+import { AwsCdkStack, type AwsCdkStackProps } from '../lib/aws-cdk-stack'
 
-const createTemplate = () => {
+const REPO_SYSTEM_DIR = path.resolve(__dirname, '../../system')
+
+const createTemplate = (props?: AwsCdkStackProps) => {
 	const app = new cdk.App()
-	const stack = new AwsCdkStack(app, 'TestStack')
+	const stack = new AwsCdkStack(app, 'TestStack', props)
 
 	return Template.fromStack(stack)
 }
@@ -120,4 +126,116 @@ describe('AwsCdkStack', () => {
 			expect(logGroup.Properties?.RetentionInDays).toBeUndefined()
 		}
 	})
+})
+
+// Issue #692: Docker アセット決定性テスト
+//
+// 目的: `cdk synth` の `dockerImages` キー（= ECR image tag）が、アプリコードと
+// 無関係なローカル成果物・ドキュメント・エディタ設定の変更で変動しないことを担保する。
+// `system/.dockerignore` が正しく build context から除外している限り、これらの
+// 変更は asset fingerprint に寄与しないはず。
+describe('Docker asset determinism (issue #692)', () => {
+	// `cdk.App` を毎回新しい一時 outdir で synth し、TestStack.assets.json の
+	// `dockerImages` キー集合をソート済み配列で返す。
+	const synthDockerImageKeys = (systemDir = REPO_SYSTEM_DIR): string[] => {
+		const outdir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-692-'))
+		try {
+			const app = new cdk.App({ outdir })
+			new AwsCdkStack(app, 'TestStack', { systemDir })
+			const assembly = app.synth()
+			const assetsPath = path.join(
+				assembly.directory,
+				'TestStack.assets.json',
+			)
+			const assets = JSON.parse(fs.readFileSync(assetsPath, 'utf-8')) as {
+				dockerImages?: Record<string, unknown>
+			}
+			return Object.keys(assets.dockerImages ?? {}).sort()
+		} finally {
+			fs.rmSync(outdir, { recursive: true, force: true })
+		}
+	}
+
+	const withTemporarySystemDir = <T>(fn: (systemDir: string) => T): T => {
+		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-692-system-'))
+		const tempSystemDir = path.join(tempRoot, 'system')
+		try {
+			fs.cpSync(REPO_SYSTEM_DIR, tempSystemDir, {
+				recursive: true,
+				preserveTimestamps: true,
+			})
+			return fn(tempSystemDir)
+		} finally {
+			fs.rmSync(tempRoot, { recursive: true, force: true })
+		}
+	}
+
+	// system/ の一時コピー配下だけを書き換え、リポジトリ実ファイルは一切変更しない。
+	const writeTemporaryFile = (
+		systemDir: string,
+		relPath: string,
+		content: Buffer | string,
+	) => {
+		const target = path.join(systemDir, relPath)
+		const payload =
+			typeof content === 'string' ? Buffer.from(content, 'utf-8') : content
+		fs.mkdirSync(path.dirname(target), { recursive: true })
+		fs.writeFileSync(target, payload)
+	}
+
+	test('dockerImages keys are identical across two consecutive synths', () => {
+		withTemporarySystemDir((systemDir) => {
+			const baselineKeys = synthDockerImageKeys(systemDir)
+			// Docker アセットが少なくとも 1 つ存在することの sanity check
+			expect(baselineKeys.length).toBeGreaterThan(0)
+
+			const second = synthDockerImageKeys(systemDir)
+			expect(second).toEqual(baselineKeys)
+		})
+	})
+
+	test.each<{ name: string; rel: string; content: Buffer | string }>([
+		{
+			name: 'system/main (local go build artifact)',
+			rel: 'main',
+			content: Buffer.from('local-build-artifact-test'),
+		},
+		{
+			name: 'system/README.md',
+			rel: 'README.md',
+			content: '# temporary edit for test\n',
+		},
+		{
+			name: 'system/AI_COLLABORATION_GUIDE.md',
+			rel: 'AI_COLLABORATION_GUIDE.md',
+			content: '# temporary edit for test\n',
+		},
+		{
+			// `**/.cursor` が `.dockerignore` で除外されていることを担保する。
+			// 新規作成はエージェントサンドボックス等で EPERM になる環境があるため、
+			// 既存ファイル（system/.cursor/rules/specification.mdc）の内容を
+			// 一時的に書き換えるアプローチに統一している。
+			name: 'system/.cursor/rules/specification.mdc',
+			rel: path.join('.cursor', 'rules', 'specification.mdc'),
+			content: '// temporary edit for test\n',
+		},
+		{
+			name: 'system/main.go (local-only entrypoint; not built into images)',
+			rel: 'main.go',
+			content: '// temporary edit for test\n',
+		},
+	])(
+		'dockerImages keys unaffected by changes to $name',
+		({ rel, content }) => {
+			withTemporarySystemDir((systemDir) => {
+				const baselineKeys = synthDockerImageKeys(systemDir)
+				expect(baselineKeys.length).toBeGreaterThan(0)
+
+				writeTemporaryFile(systemDir, rel, content)
+
+				const keys = synthDockerImageKeys(systemDir)
+				expect(keys).toEqual(baselineKeys)
+			})
+		},
+	)
 })
