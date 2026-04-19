@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { Timestamp } from 'firebase/firestore'
-import type { ImgHTMLAttributes } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { act } from 'react'
 import type { SeatProps } from './SeatBox'
 
@@ -17,9 +17,17 @@ jest.mock('next/font/google', () => ({
 
 jest.mock('next/image', () => ({
 	__esModule: true,
-	default: (props: ImgHTMLAttributes<HTMLImageElement>) => {
+	default: (props: ComponentPropsWithoutRef<'img'>) => {
 		const { alt, src, ...rest } = props
-		return <img alt={alt} src={src} {...rest} />
+		return (
+			<span
+				role="img"
+				aria-label={alt}
+				data-next-image=""
+				data-src={typeof src === 'string' ? src : ''}
+				{...rest}
+			/>
+		)
 	},
 }))
 

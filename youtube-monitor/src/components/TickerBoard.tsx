@@ -23,6 +23,8 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 					gradient={false}
 				>
 					{workNameTrend.ranking.map((r) => {
+						const exampleKeyCounts = new Map<string, number>()
+
 						return (
 							<span css={styles.genreItem} key={`tb-${r.rank}-${r.genre}`}>
 								<span css={styles.rankBadge}>
@@ -34,11 +36,14 @@ const TickerBoard: FC<Props> = ({ workNameTrend }) => {
 									{t('work_name_trend.count', { value: r.count })}
 								</span>
 								<span css={styles.examplesWrapper}>
-									{r.examples.map((e, exampleIndex) => {
+									{r.examples.map((e) => {
+										const seenCount = exampleKeyCounts.get(e) ?? 0
+										exampleKeyCounts.set(e, seenCount + 1)
+
 										return (
 											<span
 												css={styles.exampleChip}
-												key={`tb-${r.rank}-${exampleIndex}-${e}`}
+												key={`tb-${r.rank}-${e}-${seenCount}`}
 											>
 												{e}
 											</span>
