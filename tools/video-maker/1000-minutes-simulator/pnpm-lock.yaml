@@ -40,8 +40,8 @@ importers:
         specifier: ^3.9.6
         version: 3.9.6
       '@types/node':
-        specifier: ^20.19.35
-        version: 20.19.39
+        specifier: ^25.6.0
+        version: 25.6.0
       '@types/react':
         specifier: 18.0.15
         version: 18.0.15
@@ -408,8 +408,8 @@ packages:
   '@types/jsmediatags@3.9.6':
     resolution: {integrity: sha512-a2IVxVGXBCCVzONBFKGBb2mnTNMAt0shl+Mb5+wM5YVxymhgqNilr/7/x+XePYM2DnmWwCYlBRjq+8q7nsp2PA==}
 
-  '@types/node@20.19.39':
-    resolution: {integrity: sha512-orrrD74MBUyK8jOAD/r0+lfa1I2MO6I+vAkmAWzMYbCcgrN4lCrmK52gRFQq/JRxfYPfonkr4b0jcY7Olqdqbw==}
+  '@types/node@25.6.0':
+    resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
 
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
@@ -683,8 +683,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+  undici-types@7.19.2:
+    resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
 
   void-elements@3.1.0:
     resolution: {integrity: sha512-Dhxzh5HZuiHQhbvTW9AMetFfBHDMYpo23Uo9btPXgdYP+3T5S+p+jgNy7spra+veYhBP2dCSgxR/i2Y02h5/6w==}
@@ -1008,9 +1008,9 @@ snapshots:
 
   '@types/jsmediatags@3.9.6': {}
 
-  '@types/node@20.19.39':
+  '@types/node@25.6.0':
     dependencies:
-      undici-types: 6.21.0
+      undici-types: 7.19.2
 
   '@types/parse-json@4.0.2': {}
 
@@ -1278,7 +1278,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  undici-types@6.21.0: {}
+  undici-types@7.19.2: {}
 
   void-elements@3.1.0: {}
 
