@@ -225,7 +225,7 @@ export const MenuBoard = ({
 	items,
 	pageNumber,
 	totalPages,
-}: MenuBoardProps): JSX.Element => {
+}: MenuBoardProps) => {
 	// レイアウト計算
 	const columns = calculateColumns(items.length)
 	const layout = calculateLayout(items.length)
