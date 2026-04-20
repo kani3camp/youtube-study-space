@@ -75,7 +75,7 @@
 		"file-loader": "^6.2.0",
 		"i18next-http-backend": "^3.0.4",
 		"jest": "^30.3.0",
-		"jest-environment-jsdom": "^29.7.0",
+		"jest-environment-jsdom": "^30.3.0",
 		"storybook": "^10.3.5",
 		"ts-jest": "^29.4.9",
 		"ts-node": "^10.9.2",
