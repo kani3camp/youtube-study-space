@@ -14,7 +14,7 @@ const templateFile = "prompt_template.txt"
 // Seat count is chosen uniformly in [seatCountMin, seatCountMax] (inclusive) without a data file.
 const (
 	seatCountMin  = 10
-	seatCountMax  = 20
+	seatCountMax  = 15
 	seatCountSpan = seatCountMax - seatCountMin + 1
 )
 
@@ -26,7 +26,7 @@ var candidateFiles = []string{
 	"04_seat_layout.txt",
 }
 
-// Theme holds one chosen line per data-file step, plus a random seat count in [10, 20].
+// Theme holds one chosen line per data-file step, plus a random seat count in [10, 15].
 type Theme struct {
 	World         string
 	TimeOfDay     string

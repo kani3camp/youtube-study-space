@@ -42,8 +42,8 @@ func TestBuildTheme_TC_B1(t *testing.T) {
 		th.SeatLayout != "only_layout" {
 		t.Fatalf("unexpected theme: %+v", th)
 	}
-	if th.SeatCount != 17 {
-		t.Fatalf("unexpected SeatCount: %d (want 17 for PCG(1,0))", th.SeatCount)
+	if th.SeatCount != 14 {
+		t.Fatalf("unexpected SeatCount: %d (want 14 for PCG(1,0))", th.SeatCount)
 	}
 }
 
