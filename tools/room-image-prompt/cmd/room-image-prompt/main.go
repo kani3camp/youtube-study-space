@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -29,6 +30,7 @@ const (
 
 オプション:
 `
+	defaultOutputMaxAttempts = 10
 )
 
 func main() {
@@ -38,31 +40,34 @@ func main() {
 		if errors.As(err, &ec) {
 			os.Exit(int(ec))
 		}
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		if printErr := printError(os.Stderr, err); printErr != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 }
 
 func run() error {
 	fs := flag.NewFlagSet("room-image-prompt", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	fs.Usage = func() {
-		if _, err := fmt.Fprint(fs.Output(), usageText); err != nil {
-			return
-		}
-		fs.PrintDefaults()
-	}
+	configureUsage(fs, io.Discard)
 
 	version := fs.Bool("version", false, "バージョンを表示して終了")
 	outPath := fs.String("out", "", "出力ファイルパス（省略時はカレントの output/prompt-<タイムスタンプ>.txt）")
 	seedStr := fs.String("seed", "", "乱数シード（10進 uint64）。省略時は非固定")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
+		configureUsage(fs, os.Stderr)
 		if errors.Is(err, flag.ErrHelp) {
+			fs.Usage()
 			return nil
 		}
-		return err
+		if printErr := printError(fs.Output(), err); printErr != nil {
+			return printErr
+		}
+		fs.Usage()
+		return exitCode(2)
 	}
+	configureUsage(fs, os.Stderr)
 
 	if *version {
 		fmt.Println(versionString)
@@ -97,15 +102,17 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("カレントディレクトリ: %w", err)
 		}
-		name := fmt.Sprintf("prompt-%s.txt", time.Now().Format("20060102150405"))
-		dest = filepath.Join(wd, "output", name)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return fmt.Errorf("出力ディレクトリ作成: %w", err)
-	}
-	if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("出力書き込み: %w", err)
+		dest, err = writeDefaultOutput(wd, body)
+		if err != nil {
+			return err
+		}
+	} else {
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return fmt.Errorf("出力ディレクトリ作成: %w", err)
+		}
+		if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
+			return fmt.Errorf("出力書き込み: %w", err)
+		}
 	}
 
 	abs, err := filepath.Abs(dest)
@@ -114,6 +121,67 @@ func run() error {
 	}
 	fmt.Println(abs)
 	return nil
+}
+
+func configureUsage(fs *flag.FlagSet, output io.Writer) {
+	fs.SetOutput(output)
+	fs.Usage = func() {
+		if _, err := fmt.Fprint(fs.Output(), usageText); err != nil {
+			return
+		}
+		fs.PrintDefaults()
+	}
+}
+
+func printError(output io.Writer, err error) error {
+	if _, writeErr := fmt.Fprintf(output, "%v\n", err); writeErr != nil {
+		return fmt.Errorf("エラー出力: %w", writeErr)
+	}
+	return nil
+}
+
+func writeDefaultOutput(wd, body string) (string, error) {
+	outputDir := filepath.Join(wd, "output")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return "", fmt.Errorf("出力ディレクトリ作成: %w", err)
+	}
+
+	for attempt := range defaultOutputMaxAttempts {
+		dest := filepath.Join(outputDir, defaultOutputFileName(time.Now(), attempt))
+		if err := writeFileExclusive(dest, body); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return "", fmt.Errorf("出力書き込み: %w", err)
+		}
+		return dest, nil
+	}
+	return "", fmt.Errorf("出力ファイル名生成: %d 回連続で衝突しました", defaultOutputMaxAttempts)
+}
+
+func defaultOutputFileName(now time.Time, attempt int) string {
+	suffix := fmt.Sprintf("%s-%09d", now.Format("20060102150405"), now.Nanosecond())
+	if attempt > 0 {
+		suffix = fmt.Sprintf("%s-%02d", suffix, attempt)
+	}
+	return fmt.Sprintf("prompt-%s.txt", suffix)
+}
+
+func writeFileExclusive(path, body string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+
+	n, writeErr := f.WriteString(body)
+	if writeErr == nil && n != len(body) {
+		writeErr = io.ErrShortWrite
+	}
+	closeErr := f.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	return closeErr
 }
 
 func newRNG(seedStr string) (*rand.Rand, error) {
