@@ -1,8 +1,7 @@
 TEMPLATE_LINE1
 TEMPLATE_LINE2
 
-main_category: only_cat
-scene: only_scene
-space_type: only_space
-mood: only_mood
-seat_layout: only_layout
+世界観: only_world
+時間帯: only_tod
+作業空間: only_space
+座席レイアウト: only_layout

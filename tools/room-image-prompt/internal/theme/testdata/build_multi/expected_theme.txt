@@ -1,5 +1,4 @@
-main_category: cat1
-scene: s0
-space_type: t1
-mood: m1
-seat_layout: l1
+世界観: w1
+時間帯: t0
+作業空間: u1
+座席レイアウト: l1

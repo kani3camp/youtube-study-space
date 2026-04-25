@@ -23,8 +23,8 @@ func TestBuildTheme_TC_B1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if th.MainCategory != "only_cat" || th.Scene != "only_scene" || th.SpaceType != "only_space" ||
-		th.Mood != "only_mood" || th.SeatLayout != "only_layout" {
+	if th.World != "only_world" || th.TimeOfDay != "only_tod" || th.WorkspaceType != "only_space" ||
+		th.SeatLayout != "only_layout" {
 		t.Fatalf("unexpected theme: %+v", th)
 	}
 }
@@ -78,7 +78,7 @@ func TestBuildTheme_TC_D1_missing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "03_space_type.txt") {
+	if !strings.Contains(err.Error(), "03_workspace_type.txt") {
 		t.Fatalf("expected file name in error: %v", err)
 	}
 }
