@@ -1,0 +1,8 @@
+TEMPLATE_LINE1
+TEMPLATE_LINE2
+
+main_category: only_cat
+scene: only_scene
+space_type: only_space
+mood: only_mood
+seat_layout: only_layout

@@ -1,3 +1,6 @@
 # ビルド成果物（このディレクトリ直下のみ。cmd/room-image-prompt は追跡する）
 /room-image-prompt
 /room-image-prompt.exe
+
+output/*
+!output/.gitkeep

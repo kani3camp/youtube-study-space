@@ -1,0 +1,5 @@
+main_category: cat1
+scene: s0
+space_type: t1
+mood: m1
+seat_layout: l1
