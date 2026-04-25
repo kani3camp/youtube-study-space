@@ -47,7 +47,9 @@ func run() error {
 	fs := flag.NewFlagSet("room-image-prompt", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), usageText)
+		if _, err := fmt.Fprint(fs.Output(), usageText); err != nil {
+			return
+		}
 		fs.PrintDefaults()
 	}
 

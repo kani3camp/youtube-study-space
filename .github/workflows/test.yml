@@ -31,6 +31,33 @@ jobs:
       - name: Run tests
         run: go test -shuffle=on -v ./...
 
+  room-image-prompt-go-test:
+    name: Room Image Prompt Go Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/room-image-prompt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
+
+      - name: Build CLI
+        run: go build -o /dev/null ./cmd/room-image-prompt
+
   youtube-monitor-test:
     name: YouTube Monitor Test
     runs-on: ubuntu-latest
