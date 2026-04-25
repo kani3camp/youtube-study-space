@@ -15,6 +15,21 @@ func testdataDir(t *testing.T, name string) fs.FS {
 	return os.DirFS(p)
 }
 
+func TestBuildTheme_SeatCountInRange(t *testing.T) {
+	t.Parallel()
+	fsys := testdataDir(t, "build_single")
+	for i := range 1000 {
+		r := rand.New(rand.NewPCG(uint64(i), 0))
+		th, err := BuildTheme(fsys, r)
+		if err != nil {
+			t.Fatalf("i=%d: %v", i, err)
+		}
+		if th.SeatCount < seatCountMin || th.SeatCount > seatCountMax {
+			t.Fatalf("i=%d: SeatCount=%d, want in [%d,%d]", i, th.SeatCount, seatCountMin, seatCountMax)
+		}
+	}
+}
+
 func TestBuildTheme_TC_B1(t *testing.T) {
 	t.Parallel()
 	fsys := testdataDir(t, "build_single")
@@ -26,6 +41,9 @@ func TestBuildTheme_TC_B1(t *testing.T) {
 	if th.World != "only_world" || th.TimeOfDay != "only_tod" || th.WorkspaceType != "only_space" ||
 		th.SeatLayout != "only_layout" {
 		t.Fatalf("unexpected theme: %+v", th)
+	}
+	if th.SeatCount != 17 {
+		t.Fatalf("unexpected SeatCount: %d (want 17 for PCG(1,0))", th.SeatCount)
 	}
 }
 

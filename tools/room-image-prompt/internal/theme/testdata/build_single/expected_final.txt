@@ -5,3 +5,4 @@ TEMPLATE_LINE2
 時間帯: only_tod
 作業空間: only_space
 座席レイアウト: only_layout
+座席数: 17

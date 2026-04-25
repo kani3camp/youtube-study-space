@@ -5,10 +5,18 @@ import (
 	"fmt"
 	"io/fs"
 	"math/rand/v2"
+	"strconv"
 	"strings"
 )
 
 const templateFile = "prompt_template.txt"
+
+// Seat count is chosen uniformly in [seatCountMin, seatCountMax] (inclusive) without a data file.
+const (
+	seatCountMin  = 10
+	seatCountMax  = 20
+	seatCountSpan = seatCountMax - seatCountMin + 1
+)
 
 // Fixed candidate filenames in step order (do not rely on directory listing order).
 var candidateFiles = []string{
@@ -18,15 +26,16 @@ var candidateFiles = []string{
 	"04_seat_layout.txt",
 }
 
-// Theme holds one chosen line per step.
+// Theme holds one chosen line per data-file step, plus a random seat count in [10, 20].
 type Theme struct {
 	World         string
 	TimeOfDay     string
 	WorkspaceType string
 	SeatLayout    string
+	SeatCount     int
 }
 
-// FormatThemeBlock returns exactly 4 lines: "key: value\n" each, POSIX trailing newline.
+// FormatThemeBlock returns exactly 5 lines: "key: value\n" each, POSIX trailing newline.
 // Keys are fixed Japanese labels for LLM/prompt consumers.
 func (t Theme) FormatThemeBlock() string {
 	var b strings.Builder
@@ -37,6 +46,7 @@ func (t Theme) FormatThemeBlock() string {
 		{"時間帯", t.TimeOfDay},
 		{"作業空間", t.WorkspaceType},
 		{"座席レイアウト", t.SeatLayout},
+		{"座席数", strconv.Itoa(t.SeatCount)},
 	}
 	for _, row := range lines {
 		b.WriteString(row.key)
@@ -59,6 +69,7 @@ func BuildTheme(fsys fs.FS, r *rand.Rand) (Theme, error) {
 		pick := lines[r.IntN(len(lines))]
 		*vals[i] = pick
 	}
+	t.SeatCount = seatCountMin + r.IntN(seatCountSpan)
 	return t, nil
 }
 
