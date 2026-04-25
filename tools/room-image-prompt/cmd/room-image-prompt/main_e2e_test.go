@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,17 +46,31 @@ func TestCLI_StdoutPath_TC_C2_extension(t *testing.T) {
 	outFile := filepath.Join(tmp, "p.txt")
 	cmd := exec.Command("go", "run", "./cmd/room-image-prompt", "-seed", "1", "-out", outFile)
 	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("%v\nstderr=%q stdout=%q", err, stderr.String(), stdout.String())
 	}
-	got := strings.TrimSpace(string(out))
+	got := strings.TrimSpace(stdout.String())
 	abs, err := filepath.Abs(outFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != abs {
 		t.Fatalf("stdout path\ngot  %q\nwant %q", got, abs)
+	}
+	errOut := stderr.String()
+	if !strings.Contains(errOut, "出力: p.txt") {
+		t.Fatalf("stderr should log basename\ngot %q", errOut)
+	}
+	okCopy := strings.Contains(errOut, "クリップボードにコピーしました")
+	failCopy := strings.Contains(errOut, "コピーに失敗しました")
+	if !okCopy && !failCopy {
+		t.Fatalf("stderr should log clipboard result\ngot %q", errOut)
+	}
+	if okCopy && failCopy {
+		t.Fatalf("stderr should contain only one clipboard status\ngot %q", errOut)
 	}
 }
 

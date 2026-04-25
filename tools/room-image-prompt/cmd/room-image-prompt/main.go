@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/kani3camp/youtube-study-space/tools/room-image-prompt/data"
 	"github.com/kani3camp/youtube-study-space/tools/room-image-prompt/internal/theme"
 )
@@ -26,7 +27,8 @@ const (
   room-image-prompt [オプション]
 
 引数なしで、同梱データと座席数（10〜15）の乱数をテンプレに連結した結果を output/ に保存し、
-保存したファイルの絶対パスを標準出力に1行で出します。
+同じ本文をクリップボードへコピーします。標準エラーに出力ファイル名とコピー成否、標準出力に
+保存したファイルの絶対パスを1行で出します。
 
 オプション:
 `
@@ -119,6 +121,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("絶対パス解決: %w", err)
 	}
+
+	base := filepath.Base(abs)
+	fmt.Fprintf(os.Stderr, "出力: %s\n", base)
+	if clipErr := clipboard.WriteAll(body); clipErr != nil {
+		fmt.Fprintln(os.Stderr, "コピーに失敗しました")
+	} else {
+		fmt.Fprintln(os.Stderr, "クリップボードにコピーしました")
+	}
+
 	fmt.Println(abs)
 	return nil
 }
