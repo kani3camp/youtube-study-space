@@ -92,15 +92,80 @@ func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID
 		return nil
 	}
 
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "%slogGroup=%s\nlogStream=%s\ninvoker_request_id=%s\n",
-		notifyPrefix, data.LogGroup, data.LogStream, invokerRequestID)
-
+	eventChunks := make([]string, 0, len(data.LogEvents))
 	for _, le := range data.LogEvents {
+		var b strings.Builder
 		_, _ = fmt.Fprintf(&b, "--- id=%s ts=%d ---\n%s\n", le.ID, le.Timestamp, le.Message)
+		eventChunks = append(eventChunks, b.String())
 	}
 
-	return splitToDiscordSizedChunks(b.String(), maxDiscordMessageLength)
+	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\nlogStream=%s\ninvoker_request_id=%s\n",
+		notifyPrefix, data.LogGroup, data.LogStream, invokerRequestID)
+	bodyLimit := discordBodyLimit(headerWithoutChunk, 1)
+
+	var bodyChunks []string
+	for {
+		bodyChunks = buildDiscordBodyChunks(eventChunks, bodyLimit)
+		nextBodyLimit := discordBodyLimit(headerWithoutChunk, len(bodyChunks))
+		if nextBodyLimit == bodyLimit {
+			break
+		}
+		bodyLimit = nextBodyLimit
+	}
+	messageChunks := make([]string, 0, len(bodyChunks))
+	total := len(bodyChunks)
+	for i, body := range bodyChunks {
+		header := fmt.Sprintf("%schunk=%d/%d\n", headerWithoutChunk, i+1, total)
+		messageChunks = append(messageChunks, header+body)
+	}
+
+	return messageChunks
+}
+
+func discordBodyLimit(headerWithoutChunk string, totalChunks int) int {
+	if totalChunks < 1 {
+		totalChunks = 1
+	}
+	chunkHeader := fmt.Sprintf("chunk=%d/%d\n", totalChunks, totalChunks)
+	bodyLimit := maxDiscordMessageLength - len([]rune(headerWithoutChunk)) - len([]rune(chunkHeader))
+	if bodyLimit <= 0 {
+		return 1
+	}
+	return bodyLimit
+}
+
+func buildDiscordBodyChunks(parts []string, limit int) []string {
+	if len(parts) == 0 {
+		return nil
+	}
+
+	chunks := make([]string, 0, len(parts))
+	var current strings.Builder
+
+	flushCurrent := func() {
+		if current.Len() == 0 {
+			return
+		}
+		chunks = append(chunks, current.String())
+		current.Reset()
+	}
+
+	for _, part := range parts {
+		for _, piece := range splitToDiscordSizedChunks(part, limit) {
+			if current.Len() == 0 {
+				current.WriteString(piece)
+				continue
+			}
+
+			if len([]rune(current.String()))+len([]rune(piece)) > limit {
+				flushCurrent()
+			}
+			current.WriteString(piece)
+		}
+	}
+
+	flushCurrent()
+	return chunks
 }
 
 // splitToDiscordSizedChunks splits s into UTF-8 safe chunks no longer than limit runes.

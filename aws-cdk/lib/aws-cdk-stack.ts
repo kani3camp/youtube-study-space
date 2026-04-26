@@ -696,16 +696,10 @@ export class AwsCdkStack extends cdk.Stack {
 
 		const addErrorLogSubscriptionFilter = (
 			constructId: string,
-			importedLogGroupId: string,
-			logGroupName: string,
+			targetFunction: lambda.Function,
 		) => {
-			const importedLogGroup = logs.LogGroup.fromLogGroupName(
-				this,
-				importedLogGroupId,
-				logGroupName,
-			)
 			new logs.SubscriptionFilter(this, constructId, {
-				logGroup: importedLogGroup,
+				logGroup: targetFunction.logGroup,
 				destination: new LambdaDestination(errorLogNotifyDiscordFunction),
 				filterPattern: errorLogFilterPattern,
 				filterName: 'error-level-to-discord',
@@ -714,18 +708,15 @@ export class AwsCdkStack extends cdk.Stack {
 
 		addErrorLogSubscriptionFilter(
 			'YoutubeOrganizeDatabaseErrorLogSubscription',
-			'ImportedLogGroupYoutubeOrganizeDatabase',
-			`/aws/lambda/${youtubeOrganizeDatabaseFunction.functionName}`,
+			youtubeOrganizeDatabaseFunction,
 		)
 		addErrorLogSubscriptionFilter(
 			'CheckLiveStreamStatusErrorLogSubscription',
-			'ImportedLogGroupCheckLiveStreamStatus',
-			`/aws/lambda/${checkLiveStreamStatusFunction.functionName}`,
+			checkLiveStreamStatusFunction,
 		)
 		addErrorLogSubscriptionFilter(
 			'UpdateWorkNameTrendErrorLogSubscription',
-			'ImportedLogGroupUpdateWorkNameTrend',
-			`/aws/lambda/${updateWorkNameTrendFunction.functionName}`,
+			updateWorkNameTrendFunction,
 		)
 
 		// API Gateway用ロググループ

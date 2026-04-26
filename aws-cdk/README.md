@@ -32,8 +32,12 @@ aws sts get-caller-identity --profile プロファイル名
 - 主要出力（CfnOutput）:
   - `BatchClusterArn`, `DailyBatchTaskDefinitionArn`, `BatchSecurityGroupId`, `BatchPublicSubnetIds`, `BatchVpcId`, `DailyBatchStateMachineArn`
 - `AlarmEmail` パラメータで `AlarmsTopic` に Email subscription を追加する。初回 deploy 後は **SNS の Confirm subscription** が必要。
-  - deploy 時にメールアドレスを渡す例（`--` 以降が `cdk deploy` に渡る）:
+  - `cdk diff` は現行 CDK CLI では `AlarmEmail` を付けても change set 作成時に CloudFormation へ値が渡らず、`The following CloudFormation Parameters are missing a value: AlarmEmail` で fallback する。そのため diff 確認は `--no-change-set` を付ける:
     ```bash
-    pnpm cdk:deploy -- --parameters AlarmEmail=notify@example.com --profile プロファイル名
+    pnpm cdk:diff --profile プロファイル名 --parameters AlarmEmail=notify@example.com --no-change-set
+    ```
+  - deploy 時にメールアドレスを渡す例:
+    ```bash
+    pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
     ```
   - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。

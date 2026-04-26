@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -48,8 +49,41 @@ func TestBuildDiscordMessageChunksIncludesLogLines(t *testing.T) {
 	if !strings.Contains(chunks[0], "invoker_request_id=req-1") {
 		t.Fatalf("expected invoker request id: %q", chunks[0])
 	}
+	if !strings.Contains(chunks[0], "chunk=1/1") {
+		t.Fatalf("expected chunk number: %q", chunks[0])
+	}
 	if !strings.Contains(chunks[0], `"msg":"boom"`) {
 		t.Fatalf("expected raw message: %q", chunks[0])
+	}
+}
+
+func TestBuildDiscordMessageChunksIncludesHeaderInEveryChunk(t *testing.T) {
+	data := &events.CloudwatchLogsData{
+		LogGroup:  "/aws/lambda/check_live_stream_status",
+		LogStream: "2025/01/01/[$LATEST]abc",
+		LogEvents: []events.CloudwatchLogsLogEvent{
+			{ID: "1", Timestamp: 123, Message: strings.Repeat("勉強🚀", 2000)},
+		},
+	}
+
+	chunks := buildDiscordMessageChunks(data, "req-1")
+	if len(chunks) < 2 {
+		t.Fatalf("expected multiple chunks, got %d", len(chunks))
+	}
+	for i, chunk := range chunks {
+		if len([]rune(chunk)) > maxDiscordMessageLength {
+			t.Fatalf("chunk %d over limit: %d", i, len([]rune(chunk)))
+		}
+		if !strings.Contains(chunk, "/aws/lambda/check_live_stream_status") {
+			t.Fatalf("expected log group in chunk %d: %q", i, chunk)
+		}
+		if !strings.Contains(chunk, "logStream=2025/01/01/[$LATEST]abc") {
+			t.Fatalf("expected log stream in chunk %d: %q", i, chunk)
+		}
+		expectedChunkNumber := "chunk=" + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(chunks))
+		if !strings.Contains(chunk, expectedChunkNumber) {
+			t.Fatalf("expected %s in chunk %d: %q", expectedChunkNumber, i, chunk)
+		}
 	}
 }
 

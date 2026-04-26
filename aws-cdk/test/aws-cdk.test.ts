@@ -161,7 +161,10 @@ describe('AwsCdkStack', () => {
 				string,
 				{
 					Type?: string
-					Properties?: { FunctionName?: string; Principal?: string }
+					Properties?: {
+						FunctionName?: string
+						Principal?: string
+					}
 				}
 			>
 		}
@@ -175,6 +178,11 @@ describe('AwsCdkStack', () => {
 			(r) => r.Type === 'AWS::Logs::SubscriptionFilter',
 		)
 		expect(filters).toHaveLength(3)
+
+		const logRetentionCustomResources = Object.values(resources).filter(
+			(r) => r.Type === 'Custom::LogRetention',
+		)
+		expect(logRetentionCustomResources.length).toBeGreaterThanOrEqual(3)
 
 		const logsInvokePerms = Object.values(resources).filter(
 			(r) =>
