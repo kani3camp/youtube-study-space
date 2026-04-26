@@ -177,6 +177,42 @@ func TruncateStringUTF8(s string, maxBytes int) string {
 	return s[:maxBytes]
 }
 
+// TruncateStringRunes は文字列をmaxRunes文字以内にトランケートする。
+// rune 単位で切ることで、日本語や絵文字を含んでも UTF-8 を壊さない。
+func TruncateStringRunes(s string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
+}
+
+// SplitStringRunes は文字列をmaxRunes文字ごとに分割する。
+func SplitStringRunes(s string, maxRunes int) []string {
+	if s == "" {
+		return nil
+	}
+	if maxRunes <= 0 {
+		return []string{s}
+	}
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return []string{s}
+	}
+	out := make([]string, 0, (len(runes)+maxRunes-1)/maxRunes)
+	for start := 0; start < len(runes); start += maxRunes {
+		end := start + maxRunes
+		if end > len(runes) {
+			end = len(runes)
+		}
+		out = append(out, string(runes[start:end]))
+	}
+	return out
+}
+
 // GenerateSessionID generates a UUID v4 string with hyphens removed (32 chars).
 func GenerateSessionID() string {
 	return strings.ReplaceAll(uuid.New().String(), "-", "")

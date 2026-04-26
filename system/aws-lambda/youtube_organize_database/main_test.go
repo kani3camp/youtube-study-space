@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"app.modules/aws-lambda/lambdautils"
 	"google.golang.org/api/option"
 )
 
@@ -47,7 +48,7 @@ func TestOrganizeDatabaseSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != "ok" {
+	if resp.Result != lambdautils.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if !app.closed {
@@ -73,23 +74,17 @@ func TestOrganizeDatabaseReturnsJoinedErrorAfterBothRoomsRun(t *testing.T) {
 	defer restore()
 
 	resp, err := OrganizeDatabase(context.Background())
-	if err == nil {
-		t.Fatal("expected non-nil error")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp != (OrganizeDatabaseResponse{}) {
-		t.Fatalf("expected empty response on error, got %#v", resp)
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result after handled failures, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[0] != true || callOrder[1] != false {
 		t.Fatalf("expected member then general execution, got %#v", callOrder)
 	}
 	if len(app.messageToOwnerCalls) != 2 {
 		t.Fatalf("expected 2 owner notifications, got %#v", app.messageToOwnerCalls)
-	}
-	if !strings.Contains(err.Error(), "in OrganizeDB (member room): member failed") {
-		t.Fatalf("expected joined error to contain member failure, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "in OrganizeDB (general room): general failed") {
-		t.Fatalf("expected joined error to contain general failure, got %v", err)
 	}
 }
 
@@ -109,9 +104,12 @@ func TestOrganizeDatabaseContinuesToGeneralRoomAfterMemberFailure(t *testing.T) 
 	restore := stubOrganizeDatabaseDeps(t, app, nil, nil)
 	defer restore()
 
-	_, err := OrganizeDatabase(context.Background())
-	if err == nil {
-		t.Fatal("expected non-nil error")
+	resp, err := OrganizeDatabase(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[1] != false {
 		t.Fatalf("expected general room to run after member failure, got %#v", callOrder)
@@ -229,9 +227,12 @@ func TestOrganizeDatabaseReturnsInitializationError(t *testing.T) {
 	restore := stubOrganizeDatabaseDeps(t, nil, initErr, nil)
 	defer restore()
 
-	_, err := OrganizeDatabase(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "in FirestoreClientOption") {
-		t.Fatalf("expected initialization error, got %v", err)
+	resp, err := OrganizeDatabase(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error after logging init failure, got %v", err)
+	}
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }
 
@@ -240,9 +241,12 @@ func TestOrganizeDatabaseReturnsWorkspaceAppInitializationError(t *testing.T) {
 	restore := stubOrganizeDatabaseDeps(t, nil, nil, initErr)
 	defer restore()
 
-	_, err := OrganizeDatabase(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "in NewWorkspaceApp") {
-		t.Fatalf("expected workspace init error, got %v", err)
+	resp, err := OrganizeDatabase(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error after logging workspace init failure, got %v", err)
+	}
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }
 

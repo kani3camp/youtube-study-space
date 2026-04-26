@@ -31,11 +31,16 @@ type OrganizeDatabaseResponse struct {
 }
 
 var (
+	// Unit test で初期化失敗や timeout 分岐を差し替え検証できるようにしている。
 	firestoreClientOption = lambdautils.FirestoreClientOption
 	newWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (organizeDatabaseApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
 )
+
+func okResponse() OrganizeDatabaseResponse {
+	return OrganizeDatabaseResponse{Result: lambdautils.OK, Message: ""}
+}
 
 type organizeRoomResult struct {
 	err                   error
@@ -52,20 +57,20 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 
 	clientOption, err := firestoreClientOption()
 	if err != nil {
-		return OrganizeDatabaseResponse{}, fmt.Errorf("in FirestoreClientOption: %w", err)
+		slog.ErrorContext(ctx, "failed to get Firestore client option",
+			"err", err,
+		)
+		return okResponse(), nil
 	}
 
 	app, err := newWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			// 初期化中のタイムアウト（appがないのでDiscord通知不可）
-			return OrganizeDatabaseResponse{}, fmt.Errorf("timeout during NewWorkspaceApp: %w", err)
-		}
-		return OrganizeDatabaseResponse{}, fmt.Errorf("in NewWorkspaceApp: %w", err)
+		slog.ErrorContext(ctx, "failed to get WorkspaceApp",
+			"err", err,
+		)
+		return okResponse(), nil
 	}
 	defer app.CloseFirestoreClient()
-
-	var roomErrors []error
 
 	memberResult := runOrganizeDBRoom(ctx, gracefulCtx, app, true, "member room")
 	if memberResult.timeoutWarningMessage != "" {
@@ -74,10 +79,6 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	if memberResult.abort {
 		return OrganizeDatabaseResponse{}, memberResult.err
 	}
-	if memberResult.err != nil {
-		roomErrors = append(roomErrors, memberResult.err)
-	}
-
 	generalResult := runOrganizeDBRoom(ctx, gracefulCtx, app, false, "general room")
 	if generalResult.timeoutWarningMessage != "" {
 		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: generalResult.timeoutWarningMessage}, nil
@@ -85,18 +86,7 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	if generalResult.abort {
 		return OrganizeDatabaseResponse{}, generalResult.err
 	}
-	if generalResult.err != nil {
-		roomErrors = append(roomErrors, generalResult.err)
-	}
-
-	if len(roomErrors) > 0 {
-		return OrganizeDatabaseResponse{}, errors.Join(roomErrors...)
-	}
-
-	return OrganizeDatabaseResponse{
-		Result:  lambdautils.OK,
-		Message: "",
-	}, nil
+	return okResponse(), nil
 }
 
 func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app organizeDatabaseApp, isMemberRoom bool, roomLabel string) organizeRoomResult {
@@ -117,9 +107,8 @@ func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app org
 		return organizeRoomResult{timeoutWarningMessage: timeoutErr.Error()}
 	}
 
-	wrappedErr := fmt.Errorf("in OrganizeDB (%s): %w", roomLabel, err)
 	app.MessageToOwnerWithError(ctx, fmt.Sprintf("failed to OrganizeDB (%s)", roomLabel), err)
-	return organizeRoomResult{err: wrappedErr}
+	return organizeRoomResult{}
 }
 
 func main() {

@@ -21,9 +21,9 @@ func init() {
 }
 
 const (
-	maxDiscordMessageBytes = 1800
-	truncatedSuffix        = "... (truncated)"
-	notifyPrefix           = "[SNS] "
+	maxDiscordMessageLength = 1800
+	truncatedSuffix         = "... (truncated)"
+	notifyPrefix            = "[SNS] "
 )
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
@@ -88,15 +88,15 @@ func main() {
 
 func buildDiscordNotification(subject string, message string) string {
 	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
-	if len(notify) <= maxDiscordMessageBytes {
+	if len([]rune(notify)) <= maxDiscordMessageLength {
 		return notify
 	}
 
-	availableMessageBytes := maxDiscordMessageBytes - len(notifyPrefix) - len(subject) - 1
-	if availableMessageBytes <= len(truncatedSuffix) {
-		return coreutils.TruncateStringUTF8(notify, maxDiscordMessageBytes)
+	availableMessageLength := maxDiscordMessageLength - len([]rune(notifyPrefix)) - len([]rune(subject)) - 1
+	if availableMessageLength <= len([]rune(truncatedSuffix)) {
+		return coreutils.TruncateStringRunes(notify, maxDiscordMessageLength)
 	}
 
-	truncatedMessage := coreutils.TruncateStringUTF8(message, availableMessageBytes-len(truncatedSuffix)) + truncatedSuffix
+	truncatedMessage := coreutils.TruncateStringRunes(message, availableMessageLength-len([]rune(truncatedSuffix))) + truncatedSuffix
 	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }

@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "pretest": "tsc",
     "test": "jest",
     "cdk:bootstrap": "cdk bootstrap",
     "cdk:deploy": "cdk deploy",
