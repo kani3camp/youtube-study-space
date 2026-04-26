@@ -33,6 +33,10 @@
 			"path": "tools/menu-image-generator"
 		},
 		{
+			"name": "room-image-prompt",
+			"path": "tools/room-image-prompt"
+		},
+		{
 			"name": "root",
 			"path": "."
 		}

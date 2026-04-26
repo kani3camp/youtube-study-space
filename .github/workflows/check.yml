@@ -64,6 +64,26 @@ jobs:
           working-directory: system
           args: --timeout=5m --config=.golangci.yml
 
+  room-image-prompt-go-lint:
+    name: Room Image Prompt Go Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.3
+          working-directory: tools/room-image-prompt
+          args: --timeout=5m --config=.golangci.yml
+
   menu-image-generator-lint-build:
     name: Menu Image Generator Lint & Build
     runs-on: ubuntu-latest
