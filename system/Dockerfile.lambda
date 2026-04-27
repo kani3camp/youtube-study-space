@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Digest is authoritative; this digest was verified against provided:al2023 when pinned.
 # Copy artifacts to a clean image
-FROM public.ecr.aws/lambda/provided:al2023@sha256:28500361cd9906d26fa78b1b2724ab342bf542753db88f77b764afd7f377019e
+FROM public.ecr.aws/lambda/provided:al2023@sha256:d7677a5f8e4468b52f46e9246b54878d1317644cc3c0182f9cb2e35180fc50c9
 WORKDIR /app
 
 ENV TZ=Asia/Tokyo
