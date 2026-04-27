@@ -94,8 +94,7 @@ updates:
   - package-ecosystem: npm
     directory: /tools/figma-plugin/room-layout-analyzer
     schedule:
-      interval: weekly
-      day: monday
+      interval: semiannually
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:
