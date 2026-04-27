@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -93,18 +95,27 @@ func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID
 	}
 
 	eventChunks := make([]string, 0, len(data.LogEvents))
+	allEventsAreJSON := true
 	for _, le := range data.LogEvents {
-		eventChunks = append(eventChunks, le.Message+"\n")
+		message, ok := formatLogEventMessage(le.Message)
+		if !ok {
+			allEventsAreJSON = false
+		}
+		eventChunks = append(eventChunks, message+"\n")
+	}
+	bodyLanguage := "json"
+	if !allEventsAreJSON {
+		bodyLanguage = "text"
 	}
 
 	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\ninvoker_request_id=%s\n",
 		notifyPrefix, data.LogGroup, invokerRequestID)
-	bodyLimit := discordBodyLimit(headerWithoutChunk, 1)
+	bodyLimit := discordBodyLimit(headerWithoutChunk, bodyLanguage, 1)
 
 	var bodyChunks []string
 	for {
 		bodyChunks = buildDiscordBodyChunks(eventChunks, bodyLimit)
-		nextBodyLimit := discordBodyLimit(headerWithoutChunk, len(bodyChunks))
+		nextBodyLimit := discordBodyLimit(headerWithoutChunk, bodyLanguage, len(bodyChunks))
 		if nextBodyLimit == bodyLimit {
 			break
 		}
@@ -114,18 +125,31 @@ func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID
 	total := len(bodyChunks)
 	for i, body := range bodyChunks {
 		header := fmt.Sprintf("%schunk=%d/%d\n", headerWithoutChunk, i+1, total)
-		messageChunks = append(messageChunks, header+body)
+		messageChunks = append(messageChunks, header+wrapDiscordCodeBlock(bodyLanguage, body))
 	}
 
 	return messageChunks
 }
 
-func discordBodyLimit(headerWithoutChunk string, totalChunks int) int {
+func formatLogEventMessage(message string) (string, bool) {
+	var b bytes.Buffer
+	if err := json.Indent(&b, []byte(message), "", "  "); err != nil {
+		return message, false
+	}
+	return b.String(), true
+}
+
+func wrapDiscordCodeBlock(language string, body string) string {
+	return fmt.Sprintf("```%s\n%s```", language, body)
+}
+
+func discordBodyLimit(headerWithoutChunk string, bodyLanguage string, totalChunks int) int {
 	if totalChunks < 1 {
 		totalChunks = 1
 	}
 	chunkHeader := fmt.Sprintf("chunk=%d/%d\n", totalChunks, totalChunks)
-	bodyLimit := maxDiscordMessageLength - len([]rune(headerWithoutChunk)) - len([]rune(chunkHeader))
+	codeBlockOverhead := len([]rune(fmt.Sprintf("```%s\n", bodyLanguage))) + len([]rune("```"))
+	bodyLimit := maxDiscordMessageLength - len([]rune(headerWithoutChunk)) - len([]rune(chunkHeader)) - codeBlockOverhead
 	if bodyLimit <= 0 {
 		return 1
 	}
