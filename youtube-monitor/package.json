@@ -36,7 +36,7 @@
 		"framer-motion": "^10.18.0",
 		"music-metadata": "^11.12.3",
 		"next": "^16.2.4",
-		"next-i18next": "^15.4.3",
+		"next-i18next": "^16.0.5",
 		"react": "^18.3.1",
 		"react-circular-progressbar": "^2.2.0",
 		"react-dom": "^18.3.1",
