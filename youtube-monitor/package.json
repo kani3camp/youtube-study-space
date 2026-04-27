@@ -71,7 +71,7 @@
 		"@types/react-dom": "^18.3.7",
 		"@types/react-redux": "^7.1.34",
 		"@types/redux-logger": "^3.0.13",
-		"babel-jest": "^29.7.0",
+		"babel-jest": "^30.3.0",
 		"file-loader": "^6.2.0",
 		"i18next-http-backend": "^3.0.4",
 		"jest": "^30.3.0",
