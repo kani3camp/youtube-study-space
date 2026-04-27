@@ -70,6 +70,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 			slog.ErrorContext(ctx, "timeout warning in check_live_stream_status during CheckLiveStreamStatus", "err", err)
 			return okResponse(), nil
 		}
+		slog.ErrorContext(ctx, "failed to check live stream status", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return okResponse(), nil
 	}

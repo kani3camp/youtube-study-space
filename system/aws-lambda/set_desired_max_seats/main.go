@@ -82,6 +82,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 			slog.ErrorContext(ctx, "timeout warning in set_desired_max_seats during UpdateDesiredMaxSeats", "err", err)
 			return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout during UpdateDesiredMaxSeats: %w", err)
 		}
+		slog.ErrorContext(ctx, "failed to update desired max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}
@@ -91,6 +92,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 			slog.ErrorContext(ctx, "timeout warning in set_desired_max_seats during UpdateDesiredMemberMaxSeats", "err", err)
 			return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout during UpdateDesiredMemberMaxSeats: %w", err)
 		}
+		slog.ErrorContext(ctx, "failed to update desired member max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
 		return events.APIGatewayProxyResponse{}, err
 	}

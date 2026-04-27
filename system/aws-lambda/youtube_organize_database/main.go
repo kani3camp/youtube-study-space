@@ -85,6 +85,7 @@ func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app org
 		return true
 	}
 
+	slog.ErrorContext(ctx, "failed to OrganizeDB", "room", roomLabel, "err", err)
 	app.MessageToOwnerWithError(ctx, fmt.Sprintf("failed to OrganizeDB (%s)", roomLabel), err)
 	return false
 }
