@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: docs-site/package.json
       - uses: actions/setup-node@v6

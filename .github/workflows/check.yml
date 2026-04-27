@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: tools/menu-image-generator/package.json
       - name: Setup Node
@@ -126,7 +126,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: youtube-monitor/package.json
 
