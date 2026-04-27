@@ -55,6 +55,12 @@ func TestBuildDiscordMessageChunksIncludesLogLines(t *testing.T) {
 	if !strings.Contains(chunks[0], `"msg":"boom"`) {
 		t.Fatalf("expected raw message: %q", chunks[0])
 	}
+	if strings.Contains(chunks[0], "logStream=") {
+		t.Fatalf("expected no log stream in chunk: %q", chunks[0])
+	}
+	if strings.Contains(chunks[0], "--- id=") || strings.Contains(chunks[0], " ts=") {
+		t.Fatalf("expected no CloudWatch event id/timestamp wrapper: %q", chunks[0])
+	}
 }
 
 func TestBuildDiscordMessageChunksIncludesHeaderInEveryChunk(t *testing.T) {
@@ -77,8 +83,11 @@ func TestBuildDiscordMessageChunksIncludesHeaderInEveryChunk(t *testing.T) {
 		if !strings.Contains(chunk, "/aws/lambda/check_live_stream_status") {
 			t.Fatalf("expected log group in chunk %d: %q", i, chunk)
 		}
-		if !strings.Contains(chunk, "logStream=2025/01/01/[$LATEST]abc") {
-			t.Fatalf("expected log stream in chunk %d: %q", i, chunk)
+		if strings.Contains(chunk, "logStream=") {
+			t.Fatalf("expected no log stream in chunk %d: %q", i, chunk)
+		}
+		if strings.Contains(chunk, "--- id=") || strings.Contains(chunk, " ts=") {
+			t.Fatalf("expected no CloudWatch event id/timestamp wrapper in chunk %d: %q", i, chunk)
 		}
 		expectedChunkNumber := "chunk=" + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(chunks))
 		if !strings.Contains(chunk, expectedChunkNumber) {

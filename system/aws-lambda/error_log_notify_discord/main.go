@@ -94,13 +94,11 @@ func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID
 
 	eventChunks := make([]string, 0, len(data.LogEvents))
 	for _, le := range data.LogEvents {
-		var b strings.Builder
-		_, _ = fmt.Fprintf(&b, "--- id=%s ts=%d ---\n%s\n", le.ID, le.Timestamp, le.Message)
-		eventChunks = append(eventChunks, b.String())
+		eventChunks = append(eventChunks, le.Message+"\n")
 	}
 
-	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\nlogStream=%s\ninvoker_request_id=%s\n",
-		notifyPrefix, data.LogGroup, data.LogStream, invokerRequestID)
+	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\ninvoker_request_id=%s\n",
+		notifyPrefix, data.LogGroup, invokerRequestID)
 	bodyLimit := discordBodyLimit(headerWithoutChunk, 1)
 
 	var bodyChunks []string
