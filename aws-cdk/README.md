@@ -31,12 +31,8 @@ aws sts get-caller-identity --profile プロファイル名
 - Lambdaの Errors>0 と Step Functions ExecutionsFailed>0 のアラームをSNSに連携。
 - 主要出力（CfnOutput）:
   - `BatchClusterArn`, `DailyBatchTaskDefinitionArn`, `BatchSecurityGroupId`, `BatchPublicSubnetIds`, `BatchVpcId`, `DailyBatchStateMachineArn`
-- `AlarmEmail` パラメータで `AlarmsTopic` に Email subscription を追加する。初回 deploy 後は **SNS の Confirm subscription** が必要。
-  - `cdk diff` は現行 CDK CLI では `AlarmEmail` を付けても change set 作成時に CloudFormation へ値が渡らず、`The following CloudFormation Parameters are missing a value: AlarmEmail` で fallback する。そのため diff 確認は `--no-change-set` を付ける:
-    ```bash
-    pnpm cdk:diff --profile プロファイル名 --parameters AlarmEmail=notify@example.com --no-change-set
-    ```
-  - deploy 時にメールアドレスを渡す例:
+- `AlarmEmail` パラメータにメールアドレスを指定すると、`AlarmsTopic` に Email subscription を追加する。未指定の場合は Email subscription を作らない。
+  - メール通知も有効にして deploy する例:
     ```bash
     pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
     ```

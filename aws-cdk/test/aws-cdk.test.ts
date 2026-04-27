@@ -129,19 +129,37 @@ describe('AwsCdkStack', () => {
 
 	test('defines AlarmEmail template parameter for SNS email backstop', () => {
 		const t = createTemplate()
-		t.hasParameter('AlarmEmail', { Type: 'String' })
+		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
 	})
 
 	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
 		const t = createTemplate()
+		const json = t.toJSON() as {
+			Conditions?: Record<string, unknown>
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Condition?: string
+					Properties?: { Protocol?: string }
+				}
+			>
+		}
 		const subs = t.findResources('AWS::SNS::Subscription')
 		expect(Object.keys(subs).length).toBe(2)
+		expect(json.Conditions).toHaveProperty('HasAlarmEmail')
 		t.hasResourceProperties('AWS::SNS::Subscription', {
 			Protocol: 'email',
 		})
 		t.hasResourceProperties('AWS::SNS::Subscription', {
 			Protocol: 'lambda',
 		})
+		const emailSubscription = Object.values(json.Resources ?? {}).find(
+			(resource) =>
+				resource.Type === 'AWS::SNS::Subscription' &&
+				resource.Properties?.Protocol === 'email',
+		)
+		expect(emailSubscription?.Condition).toBe('HasAlarmEmail')
 	})
 
 	test('creates Lambda errors alarms for sns_notify_discord and start_daily_batch', () => {

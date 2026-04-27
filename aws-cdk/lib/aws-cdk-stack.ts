@@ -48,8 +48,14 @@ export class AwsCdkStack extends cdk.Stack {
 
 		const alarmEmail = new cdk.CfnParameter(this, 'AlarmEmail', {
 			type: 'String',
+			default: '',
 			description:
-				'Email address for SNS subscription on AlarmsTopic (CloudWatch alarms). Confirm the subscription in email after deploy.',
+				'Optional email address for SNS subscription on AlarmsTopic (CloudWatch alarms). Confirm the subscription in email after deploy when specified.',
+		})
+		const hasAlarmEmail = new cdk.CfnCondition(this, 'HasAlarmEmail', {
+			expression: cdk.Fn.conditionNot(
+				cdk.Fn.conditionEquals(alarmEmail.valueAsString, ''),
+			),
 		})
 
 		// =========================
@@ -193,9 +199,16 @@ export class AwsCdkStack extends cdk.Stack {
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
 		)
-		alarmsTopic.addSubscription(
-			new subs.EmailSubscription(alarmEmail.valueAsString),
+		const alarmEmailSubscription = new sns.CfnSubscription(
+			this,
+			'AlarmsTopicEmailSubscription',
+			{
+				topicArn: alarmsTopic.topicArn,
+				protocol: 'email',
+				endpoint: alarmEmail.valueAsString,
+			},
 		)
+		alarmEmailSubscription.cfnOptions.condition = hasAlarmEmail
 
 		// Helper to create a common Lambda Errors>0 alarm wired to SNS
 		const createLambdaErrorAlarm = (

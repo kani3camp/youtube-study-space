@@ -84,7 +84,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		}
 		slog.ErrorContext(ctx, "failed to update desired max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
-		return events.APIGatewayProxyResponse{}, err
+		return errorResponse(http.StatusInternalServerError, "failed UpdateDesiredMaxSeats"), nil
 	}
 
 	if err := app.Repository.UpdateDesiredMemberMaxSeats(gracefulCtx, nil, params.DesiredMemberMaxSeats); err != nil {
@@ -94,7 +94,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		}
 		slog.ErrorContext(ctx, "failed to update desired member max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
-		return events.APIGatewayProxyResponse{}, err
+		return errorResponse(http.StatusInternalServerError, "failed UpdateDesiredMemberMaxSeats"), nil
 	}
 
 	body, _ := json.Marshal(SetMaxSeatsResponse{ //nolint:errcheck
