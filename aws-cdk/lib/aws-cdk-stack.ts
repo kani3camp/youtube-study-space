@@ -689,7 +689,6 @@ export class AwsCdkStack extends cdk.Stack {
 				functionName: 'error_log_notify_discord',
 				code: createLambdaImageCode(systemDir, 'error_log_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
-				reservedConcurrentExecutions: 1,
 			},
 		)
 		;(errorLogNotifyDiscordFunction.role as iam.Role).addToPolicy(

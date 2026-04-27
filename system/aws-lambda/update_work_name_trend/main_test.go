@@ -43,7 +43,7 @@ func TestUpdateWorkNameTrendSecretFetchFailureReturnsNil(t *testing.T) {
 
 func TestUpdateWorkNameTrendFirestoreFailureReturnsNil(t *testing.T) {
 	t.Setenv("SECRET_NAME", "my-secret")
-	restore := stubUpdateTrendDeps(t, nil, errors.New("dynamo failed"), nil, nil)
+	restore := stubUpdateTrendDeps(t, nil, errors.New("firestore failed"), nil, nil)
 	defer restore()
 
 	if err := UpdateWorkNameTrend(context.Background()); err != nil {

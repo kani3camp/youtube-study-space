@@ -46,8 +46,8 @@ func TestBuildDiscordMessageChunksIncludesLogLines(t *testing.T) {
 	if !strings.Contains(chunks[0], "/aws/lambda/youtube_organize_database") {
 		t.Fatalf("expected log group in chunk: %q", chunks[0])
 	}
-	if !strings.Contains(chunks[0], "invoker_request_id=req-1") {
-		t.Fatalf("expected invoker request id: %q", chunks[0])
+	if !strings.Contains(chunks[0], "notifier_request_id=req-1") {
+		t.Fatalf("expected notifier request id: %q", chunks[0])
 	}
 	if !strings.Contains(chunks[0], "chunk=1/1") {
 		t.Fatalf("expected chunk number: %q", chunks[0])

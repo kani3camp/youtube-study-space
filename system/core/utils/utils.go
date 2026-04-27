@@ -191,6 +191,7 @@ func TruncateStringRunes(s string, maxRunes int) string {
 }
 
 // SplitStringRunes は文字列をmaxRunes文字ごとに分割する。
+// maxRunes が 0 以下のときは分割せず、そのまま返す。
 func SplitStringRunes(s string, maxRunes int) []string {
 	if s == "" {
 		return nil

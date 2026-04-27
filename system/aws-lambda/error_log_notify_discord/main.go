@@ -53,7 +53,7 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 		return fmt.Errorf("parse CloudWatch Logs: %w", err)
 	}
 
-	chunks := buildDiscordMessageChunks(&data, invokerRequestIDFromContext(ctx))
+	chunks := buildDiscordMessageChunks(&data, notifierRequestIDFromContext(ctx))
 	if len(chunks) == 0 {
 		slog.WarnContext(ctx, "CloudWatch Logs event had no log events")
 		return nil
@@ -82,14 +82,14 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 	return nil
 }
 
-func invokerRequestIDFromContext(ctx context.Context) string {
+func notifierRequestIDFromContext(ctx context.Context) string {
 	if lc, ok := lambdacontext.FromContext(ctx); ok {
 		return lc.AwsRequestID
 	}
 	return ""
 }
 
-func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID string) []string {
+func buildDiscordMessageChunks(data *events.CloudwatchLogsData, notifierRequestID string) []string {
 	if len(data.LogEvents) == 0 {
 		return nil
 	}
@@ -108,8 +108,8 @@ func buildDiscordMessageChunks(data *events.CloudwatchLogsData, invokerRequestID
 		bodyLanguage = "text"
 	}
 
-	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\ninvoker_request_id=%s\n",
-		notifyPrefix, data.LogGroup, invokerRequestID)
+	headerWithoutChunk := fmt.Sprintf("%slogGroup=%s\nnotifier_request_id=%s\n",
+		notifyPrefix, data.LogGroup, notifierRequestID)
 	bodyLimit := discordBodyLimit(headerWithoutChunk, bodyLanguage, 1)
 
 	var bodyChunks []string
