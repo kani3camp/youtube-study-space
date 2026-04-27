@@ -154,7 +154,7 @@ describe('AwsCdkStack', () => {
 		expect(descriptions).toContain('Lambda start_daily_batch errors > 0')
 	})
 
-	test('creates error_log_notify_discord Lambda, errors alarm, and three ERROR subscription filters', () => {
+	test('creates error_log_notify_discord Lambda, errors alarm, and six ERROR subscription filters', () => {
 		const t = createTemplate()
 		const json = t.toJSON() as {
 			Resources?: Record<
@@ -177,12 +177,17 @@ describe('AwsCdkStack', () => {
 		const filters = Object.values(resources).filter(
 			(r) => r.Type === 'AWS::Logs::SubscriptionFilter',
 		)
-		expect(filters).toHaveLength(3)
+		expect(filters).toHaveLength(6)
+		expect(filters.map((filter) => JSON.stringify(filter))).not.toEqual(
+			expect.arrayContaining([
+				expect.stringContaining('error_log_notify_discord'),
+			]),
+		)
 
 		const logRetentionCustomResources = Object.values(resources).filter(
 			(r) => r.Type === 'Custom::LogRetention',
 		)
-		expect(logRetentionCustomResources.length).toBeGreaterThanOrEqual(3)
+		expect(logRetentionCustomResources.length).toBeGreaterThanOrEqual(6)
 
 		const logsInvokePerms = Object.values(resources).filter(
 			(r) =>

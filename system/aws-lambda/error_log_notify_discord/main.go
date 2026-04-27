@@ -163,6 +163,7 @@ func buildDiscordBodyChunks(parts []string, limit int) []string {
 
 	chunks := make([]string, 0, len(parts))
 	var current strings.Builder
+	currentRuneLength := 0
 
 	flushCurrent := func() {
 		if current.Len() == 0 {
@@ -170,19 +171,23 @@ func buildDiscordBodyChunks(parts []string, limit int) []string {
 		}
 		chunks = append(chunks, current.String())
 		current.Reset()
+		currentRuneLength = 0
 	}
 
 	for _, part := range parts {
 		for _, piece := range splitToDiscordSizedChunks(part, limit) {
+			pieceRuneLength := len([]rune(piece))
 			if current.Len() == 0 {
 				current.WriteString(piece)
+				currentRuneLength = pieceRuneLength
 				continue
 			}
 
-			if len([]rune(current.String()))+len([]rune(piece)) > limit {
+			if currentRuneLength+pieceRuneLength > limit {
 				flushCurrent()
 			}
 			current.WriteString(piece)
+			currentRuneLength += pieceRuneLength
 		}
 	}
 

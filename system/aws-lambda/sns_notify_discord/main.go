@@ -71,7 +71,10 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
 		notify := buildDiscordNotification(subject, message)
-		app.MessageToOwner(gracefulCtx, notify)
+		if err := app.MessageToOwnerOrError(gracefulCtx, notify); err != nil {
+			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", "record_index", i, "err", err)
+			return fmt.Errorf("send SNS notification to owner: %w", err)
+		}
 	}
 
 	// 処理完了後にコンテキストがキャンセルされていたらログ出力

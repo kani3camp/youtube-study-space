@@ -707,6 +707,14 @@ export class AwsCdkStack extends cdk.Stack {
 		}
 
 		addErrorLogSubscriptionFilter(
+			'StartDailyBatchErrorLogSubscription',
+			startDailyBatchFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'SetDesiredMaxSeatsErrorLogSubscription',
+			setDesiredMaxSeatsFunction,
+		)
+		addErrorLogSubscriptionFilter(
 			'YoutubeOrganizeDatabaseErrorLogSubscription',
 			youtubeOrganizeDatabaseFunction,
 		)
@@ -717,6 +725,10 @@ export class AwsCdkStack extends cdk.Stack {
 		addErrorLogSubscriptionFilter(
 			'UpdateWorkNameTrendErrorLogSubscription',
 			updateWorkNameTrendFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'SnsNotifyDiscordErrorLogSubscription',
+			snsNotifyDiscordFunction,
 		)
 
 		// API Gateway用ロググループ

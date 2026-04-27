@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"app.modules/aws-lambda/lambdautils"
@@ -11,21 +10,13 @@ import (
 )
 
 type mockOrganizeDatabaseApp struct {
-	organizeDBFunc           func(ctx context.Context, isMemberRoom bool) error
-	notifyTimeoutToOwnerFunc func(ctx context.Context, err error) error
-	messageToOwnerCalls      []string
-	closed                   bool
+	organizeDBFunc      func(ctx context.Context, isMemberRoom bool) error
+	messageToOwnerCalls []string
+	closed              bool
 }
 
 func (m *mockOrganizeDatabaseApp) OrganizeDB(ctx context.Context, isMemberRoom bool) error {
 	return m.organizeDBFunc(ctx, isMemberRoom)
-}
-
-func (m *mockOrganizeDatabaseApp) NotifyTimeoutToOwner(ctx context.Context, err error) error {
-	if m.notifyTimeoutToOwnerFunc != nil {
-		return m.notifyTimeoutToOwnerFunc(ctx, err)
-	}
-	return nil
 }
 
 func (m *mockOrganizeDatabaseApp) MessageToOwnerWithError(ctx context.Context, message string, err error) {
@@ -119,17 +110,12 @@ func TestOrganizeDatabaseContinuesToGeneralRoomAfterMemberFailure(t *testing.T) 
 	}
 }
 
-func TestOrganizeDatabaseReturnsTimeoutWarningOnMemberTimeout(t *testing.T) {
+func TestOrganizeDatabaseReturnsOKOnMemberTimeout(t *testing.T) {
 	var callOrder []bool
-	var notifiedErr error
 	app := &mockOrganizeDatabaseApp{
 		organizeDBFunc: func(ctx context.Context, isMemberRoom bool) error {
 			callOrder = append(callOrder, isMemberRoom)
 			return context.DeadlineExceeded
-		},
-		notifyTimeoutToOwnerFunc: func(ctx context.Context, err error) error {
-			notifiedErr = err
-			return nil
 		},
 	}
 
@@ -138,25 +124,18 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnMemberTimeout(t *testing.T) {
 
 	resp, err := OrganizeDatabase(context.Background())
 	if err != nil {
-		t.Fatalf("expected nil error on timeout warning, got %v", err)
+		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp.Result != "timeout_warning" {
-		t.Fatalf("expected timeout_warning result, got %#v", resp)
-	}
-	if !strings.Contains(resp.Message, "member room") {
-		t.Fatalf("expected timeout warning message to include room label, got %#v", resp)
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 1 || callOrder[0] != true {
 		t.Fatalf("expected processing to stop after member timeout, got %#v", callOrder)
 	}
-	if notifiedErr == nil || !strings.Contains(notifiedErr.Error(), "member room") {
-		t.Fatalf("expected timeout notification for member room, got %v", notifiedErr)
-	}
 }
 
-func TestOrganizeDatabaseReturnsTimeoutWarningOnGeneralTimeout(t *testing.T) {
+func TestOrganizeDatabaseReturnsOKOnGeneralTimeout(t *testing.T) {
 	var callOrder []bool
-	var notifiedErr error
 	app := &mockOrganizeDatabaseApp{
 		organizeDBFunc: func(ctx context.Context, isMemberRoom bool) error {
 			callOrder = append(callOrder, isMemberRoom)
@@ -165,10 +144,6 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnGeneralTimeout(t *testing.T) {
 			}
 			return context.DeadlineExceeded
 		},
-		notifyTimeoutToOwnerFunc: func(ctx context.Context, err error) error {
-			notifiedErr = err
-			return nil
-		},
 	}
 
 	restore := stubOrganizeDatabaseDeps(t, app, nil, nil)
@@ -176,49 +151,13 @@ func TestOrganizeDatabaseReturnsTimeoutWarningOnGeneralTimeout(t *testing.T) {
 
 	resp, err := OrganizeDatabase(context.Background())
 	if err != nil {
-		t.Fatalf("expected nil error on timeout warning, got %v", err)
+		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp.Result != "timeout_warning" {
-		t.Fatalf("expected timeout_warning result, got %#v", resp)
-	}
-	if !strings.Contains(resp.Message, "general room") {
-		t.Fatalf("expected timeout warning message to include room label, got %#v", resp)
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[1] != false {
 		t.Fatalf("expected member then general execution, got %#v", callOrder)
-	}
-	if notifiedErr == nil || !strings.Contains(notifiedErr.Error(), "general room") {
-		t.Fatalf("expected timeout notification for general room, got %v", notifiedErr)
-	}
-}
-
-func TestOrganizeDatabaseReturnsErrorWhenTimeoutNotificationFails(t *testing.T) {
-	var callOrder []bool
-	app := &mockOrganizeDatabaseApp{
-		organizeDBFunc: func(ctx context.Context, isMemberRoom bool) error {
-			callOrder = append(callOrder, isMemberRoom)
-			return context.DeadlineExceeded
-		},
-		notifyTimeoutToOwnerFunc: func(ctx context.Context, err error) error {
-			return errors.New("notify failed")
-		},
-	}
-
-	restore := stubOrganizeDatabaseDeps(t, app, nil, nil)
-	defer restore()
-
-	resp, err := OrganizeDatabase(context.Background())
-	if err == nil {
-		t.Fatal("expected timeout notification failure to be returned")
-	}
-	if resp != (OrganizeDatabaseResponse{}) {
-		t.Fatalf("expected empty response on notification failure, got %#v", resp)
-	}
-	if len(callOrder) != 1 || callOrder[0] != true {
-		t.Fatalf("expected processing to stop after member timeout notification failure, got %#v", callOrder)
-	}
-	if !strings.Contains(err.Error(), "timeout notification failed") {
-		t.Fatalf("expected timeout notification failure context, got %v", err)
 	}
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"app.modules/aws-lambda/lambdautils"
@@ -12,20 +11,12 @@ import (
 
 type mockCheckLiveStreamApp struct {
 	checkErr           error
-	notifyTimeoutErr   error
 	messageToOwnerMsgs []string
 	closed             bool
 }
 
 func (m *mockCheckLiveStreamApp) CheckLiveStreamStatus(ctx context.Context) error {
 	return m.checkErr
-}
-
-func (m *mockCheckLiveStreamApp) NotifyTimeoutToOwner(ctx context.Context, err error) error {
-	if m.notifyTimeoutErr != nil {
-		return m.notifyTimeoutErr
-	}
-	return nil
 }
 
 func (m *mockCheckLiveStreamApp) MessageToOwnerWithError(ctx context.Context, message string, err error) {
@@ -84,23 +75,22 @@ func TestCheckLiveStreamHandlerFailureReturnsOKAfterOwnerMessage(t *testing.T) {
 	}
 }
 
-func TestCheckLiveStreamTimeoutNotifyFailureReturnsError(t *testing.T) {
+func TestCheckLiveStreamTimeoutReturnsOK(t *testing.T) {
 	app := &mockCheckLiveStreamApp{
-		checkErr:         context.DeadlineExceeded,
-		notifyTimeoutErr: errors.New("notify failed"),
+		checkErr: context.DeadlineExceeded,
 	}
 	restore := stubCheckLiveStreamDeps(t, nil, nil, app)
 	defer restore()
 
 	resp, err := CheckLiveStream(context.Background())
-	if err == nil {
-		t.Fatal("expected error when timeout notification fails")
+	if err != nil {
+		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp != (CheckLiveStreamResponse{}) {
-		t.Fatalf("expected empty response, got %#v", resp)
+	if resp.Result != lambdautils.OK {
+		t.Fatalf("expected ok result, got %#v", resp)
 	}
-	if !strings.Contains(err.Error(), "timeout notification failed") {
-		t.Fatalf("unexpected error: %v", err)
+	if !app.closed {
+		t.Fatal("expected CloseFirestoreClient to be called")
 	}
 }
 

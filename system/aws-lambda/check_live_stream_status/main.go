@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
@@ -25,7 +24,6 @@ type CheckLiveStreamResponse struct {
 
 type checkLiveStreamApp interface {
 	CheckLiveStreamStatus(ctx context.Context) error
-	NotifyTimeoutToOwner(ctx context.Context, err error) error
 	MessageToOwnerWithError(ctx context.Context, message string, err error)
 	CloseFirestoreClient()
 }
@@ -52,7 +50,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 
 	clientOption, err := firestoreClientOptionCheck()
 	if err != nil {
-		slog.ErrorContext(ctx, "in FirestoreClientOption",
+		slog.ErrorContext(ctx, "failed to get Firestore client option for check_live_stream_status",
 			"err", err,
 		)
 		return okResponse(), nil
@@ -60,7 +58,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 
 	app, err := newCheckWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
-		slog.ErrorContext(ctx, "in NewWorkspaceApp",
+		slog.ErrorContext(ctx, "failed to init WorkspaceApp for check_live_stream_status",
 			"err", err,
 		)
 		return okResponse(), nil
@@ -69,11 +67,8 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 
 	if err := app.CheckLiveStreamStatus(gracefulCtx); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
-			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("CheckLiveStreamStatusでタイムアウト: %w", err)); notifyErr != nil {
-				return CheckLiveStreamResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
-			}
-			return CheckLiveStreamResponse{Result: "timeout_warning", Message: err.Error()}, nil
+			slog.ErrorContext(ctx, "timeout warning in check_live_stream_status during CheckLiveStreamStatus", "err", err)
+			return okResponse(), nil
 		}
 		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
 		return okResponse(), nil

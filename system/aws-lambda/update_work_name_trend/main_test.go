@@ -3,27 +3,18 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"google.golang.org/api/option"
 )
 
 type mockUpdateTrendApp struct {
-	updateErr        error
-	notifyTimeoutErr error
-	closed           bool
+	updateErr error
+	closed    bool
 }
 
 func (m *mockUpdateTrendApp) UpdateWorkNameTrend(ctx context.Context, apiKey string) error {
 	return m.updateErr
-}
-
-func (m *mockUpdateTrendApp) NotifyTimeoutToOwner(ctx context.Context, err error) error {
-	if m.notifyTimeoutErr != nil {
-		return m.notifyTimeoutErr
-	}
-	return nil
 }
 
 func (m *mockUpdateTrendApp) CloseFirestoreClient() {
@@ -84,21 +75,19 @@ func TestUpdateWorkNameTrendUpdateFailureReturnsNil(t *testing.T) {
 	}
 }
 
-func TestUpdateWorkNameTrendTimeoutNotifyFailureReturnsError(t *testing.T) {
+func TestUpdateWorkNameTrendTimeoutReturnsNil(t *testing.T) {
 	t.Setenv("SECRET_NAME", "my-secret")
 	app := &mockUpdateTrendApp{
-		updateErr:        context.DeadlineExceeded,
-		notifyTimeoutErr: errors.New("notify failed"),
+		updateErr: context.DeadlineExceeded,
 	}
 	restore := stubUpdateTrendDeps(t, nil, nil, nil, app)
 	defer restore()
 
-	err := UpdateWorkNameTrend(context.Background())
-	if err == nil {
-		t.Fatal("expected error")
+	if err := UpdateWorkNameTrend(context.Background()); err != nil {
+		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "timeout notification failed") {
-		t.Fatalf("unexpected error: %v", err)
+	if !app.closed {
+		t.Fatal("expected CloseFirestoreClient")
 	}
 }
 

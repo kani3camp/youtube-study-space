@@ -20,7 +20,6 @@ func init() {
 
 type organizeDatabaseApp interface {
 	OrganizeDB(ctx context.Context, isMemberRoom bool) error
-	NotifyTimeoutToOwner(ctx context.Context, err error) error
 	MessageToOwnerWithError(ctx context.Context, message string, err error)
 	CloseFirestoreClient()
 }
@@ -40,12 +39,6 @@ var (
 
 func okResponse() OrganizeDatabaseResponse {
 	return OrganizeDatabaseResponse{Result: lambdautils.OK, Message: ""}
-}
-
-type organizeRoomResult struct {
-	err                   error
-	timeoutWarningMessage string
-	abort                 bool
 }
 
 func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
@@ -72,43 +65,28 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	}
 	defer app.CloseFirestoreClient()
 
-	memberResult := runOrganizeDBRoom(ctx, gracefulCtx, app, true, "member room")
-	if memberResult.timeoutWarningMessage != "" {
-		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: memberResult.timeoutWarningMessage}, nil
+	if timedOut := runOrganizeDBRoom(ctx, gracefulCtx, app, true, "member room"); timedOut {
+		return okResponse(), nil
 	}
-	if memberResult.abort {
-		return OrganizeDatabaseResponse{}, memberResult.err
-	}
-	generalResult := runOrganizeDBRoom(ctx, gracefulCtx, app, false, "general room")
-	if generalResult.timeoutWarningMessage != "" {
-		return OrganizeDatabaseResponse{Result: "timeout_warning", Message: generalResult.timeoutWarningMessage}, nil
-	}
-	if generalResult.abort {
-		return OrganizeDatabaseResponse{}, generalResult.err
+	if timedOut := runOrganizeDBRoom(ctx, gracefulCtx, app, false, "general room"); timedOut {
+		return okResponse(), nil
 	}
 	return okResponse(), nil
 }
 
-func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app organizeDatabaseApp, isMemberRoom bool, roomLabel string) organizeRoomResult {
+func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app organizeDatabaseApp, isMemberRoom bool, roomLabel string) bool {
 	err := app.OrganizeDB(gracefulCtx, isMemberRoom)
 	if err == nil {
-		return organizeRoomResult{}
+		return false
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) {
-		timeoutErr := fmt.Errorf("OrganizeDB (%s)でタイムアウト: %w", roomLabel, err)
-		// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
-		if notifyErr := app.NotifyTimeoutToOwner(ctx, timeoutErr); notifyErr != nil {
-			return organizeRoomResult{
-				err:   fmt.Errorf("timeout notification failed: %w", notifyErr),
-				abort: true,
-			}
-		}
-		return organizeRoomResult{timeoutWarningMessage: timeoutErr.Error()}
+		slog.ErrorContext(ctx, "timeout warning in youtube_organize_database during OrganizeDB", "room", roomLabel, "err", err)
+		return true
 	}
 
 	app.MessageToOwnerWithError(ctx, fmt.Sprintf("failed to OrganizeDB (%s)", roomLabel), err)
-	return organizeRoomResult{}
+	return false
 }
 
 func main() {

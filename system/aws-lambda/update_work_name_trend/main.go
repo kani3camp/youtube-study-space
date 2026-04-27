@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -21,7 +20,6 @@ func init() {
 
 type updateWorkNameTrendApp interface {
 	UpdateWorkNameTrend(ctx context.Context, apiKey string) error
-	NotifyTimeoutToOwner(ctx context.Context, err error) error
 	CloseFirestoreClient()
 }
 
@@ -43,8 +41,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	secretName := os.Getenv("SECRET_NAME")
 	if secretName == "" {
-		slog.ErrorContext(ctx, "環境変数 SECRET_NAME を設定してください",
-		)
+		slog.ErrorContext(ctx, "環境変数 SECRET_NAME を設定してください")
 		return nil
 	}
 
@@ -75,11 +72,8 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	if err := app.UpdateWorkNameTrend(gracefulCtx, apiKey); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
-			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("UpdateWorkNameTrendでタイムアウト: %w", err)); notifyErr != nil {
-				return fmt.Errorf("timeout notification failed: %w", notifyErr)
-			}
-			return nil // タイムアウト警告はDiscord通知成功で、成功として返す
+			slog.ErrorContext(ctx, "timeout warning in update_work_name_trend during UpdateWorkNameTrend", "err", err)
+			return nil
 		}
 		slog.ErrorContext(ctx, "failed to update work name trends",
 			"err", err,
