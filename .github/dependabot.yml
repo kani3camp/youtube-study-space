@@ -84,8 +84,7 @@ updates:
   - package-ecosystem: npm
     directory: /tools/video-maker/1000-minutes-simulator
     schedule:
-      interval: weekly
-      day: monday
+      interval: semiannually
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:
