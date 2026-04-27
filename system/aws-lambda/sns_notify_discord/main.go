@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"unicode/utf8"
 
 	"app.modules/aws-lambda/lambdautils"
 	coreutils "app.modules/core/utils"
@@ -91,15 +92,18 @@ func main() {
 
 func buildDiscordNotification(subject string, message string) string {
 	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
-	if len([]rune(notify)) <= maxDiscordMessageLength {
+	if utf8.RuneCountInString(notify) <= maxDiscordMessageLength {
 		return notify
 	}
 
-	availableMessageLength := maxDiscordMessageLength - len([]rune(notifyPrefix)) - len([]rune(subject)) - 1
-	if availableMessageLength <= len([]rune(truncatedSuffix)) {
+	prefixRunes := utf8.RuneCountInString(notifyPrefix)
+	subjectRunes := utf8.RuneCountInString(subject)
+	suffixRunes := utf8.RuneCountInString(truncatedSuffix)
+	availableMessageLength := maxDiscordMessageLength - prefixRunes - subjectRunes - 1
+	if availableMessageLength <= suffixRunes {
 		return coreutils.TruncateStringRunes(notify, maxDiscordMessageLength)
 	}
 
-	truncatedMessage := coreutils.TruncateStringRunes(message, availableMessageLength-len([]rune(truncatedSuffix))) + truncatedSuffix
+	truncatedMessage := coreutils.TruncateStringRunes(message, availableMessageLength-suffixRunes) + truncatedSuffix
 	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }

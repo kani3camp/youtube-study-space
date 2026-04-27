@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"app.modules/aws-lambda/lambdautils"
 	coreutils "app.modules/core/utils"
@@ -148,8 +149,13 @@ func discordBodyLimit(headerWithoutChunk string, bodyLanguage string, totalChunk
 		totalChunks = 1
 	}
 	chunkHeader := fmt.Sprintf("chunk=%d/%d\n", totalChunks, totalChunks)
-	codeBlockOverhead := len([]rune(fmt.Sprintf("```%s\n", bodyLanguage))) + len([]rune("```"))
-	bodyLimit := maxDiscordMessageLength - len([]rune(headerWithoutChunk)) - len([]rune(chunkHeader)) - codeBlockOverhead
+	codeBlockOpenRunes := utf8.RuneCountInString(fmt.Sprintf("```%s\n", bodyLanguage))
+	codeBlockCloseRunes := utf8.RuneCountInString("```")
+	bodyLimit := maxDiscordMessageLength -
+		utf8.RuneCountInString(headerWithoutChunk) -
+		utf8.RuneCountInString(chunkHeader) -
+		codeBlockOpenRunes -
+		codeBlockCloseRunes
 	if bodyLimit <= 0 {
 		return 1
 	}
@@ -176,7 +182,7 @@ func buildDiscordBodyChunks(parts []string, limit int) []string {
 
 	for _, part := range parts {
 		for _, piece := range splitToDiscordSizedChunks(part, limit) {
-			pieceRuneLength := len([]rune(piece))
+			pieceRuneLength := utf8.RuneCountInString(piece)
 			if current.Len() == 0 {
 				current.WriteString(piece)
 				currentRuneLength = pieceRuneLength
