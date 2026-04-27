@@ -47,7 +47,7 @@ func TestOrganizeDatabaseSuccess(t *testing.T) {
 	}
 }
 
-func TestOrganizeDatabaseReturnsJoinedErrorAfterBothRoomsRun(t *testing.T) {
+func TestOrganizeDatabaseLogsRoomFailuresAndReturnsOKAfterBothRoomsRun(t *testing.T) {
 	memberErr := errors.New("member failed")
 	generalErr := errors.New("general failed")
 	var callOrder []bool
@@ -161,7 +161,7 @@ func TestOrganizeDatabaseReturnsOKOnGeneralTimeout(t *testing.T) {
 	}
 }
 
-func TestOrganizeDatabaseReturnsInitializationError(t *testing.T) {
+func TestOrganizeDatabaseLogsInitializationFailureAndReturnsOK(t *testing.T) {
 	initErr := errors.New("credential failed")
 	restore := stubOrganizeDatabaseDeps(t, nil, initErr, nil)
 	defer restore()
@@ -175,7 +175,7 @@ func TestOrganizeDatabaseReturnsInitializationError(t *testing.T) {
 	}
 }
 
-func TestOrganizeDatabaseReturnsWorkspaceAppInitializationError(t *testing.T) {
+func TestOrganizeDatabaseLogsWorkspaceAppInitializationFailureAndReturnsOK(t *testing.T) {
 	initErr := errors.New("workspace init failed")
 	restore := stubOrganizeDatabaseDeps(t, nil, nil, initErr)
 	defer restore()
