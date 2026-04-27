@@ -47,6 +47,18 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 
 	// NOTE: 定期 3 Lambda と違い、この Lambda は通知経路そのものの故障を
 	// Errors Alarm + Email バックストップで拾いたいため、初期化や parse 失敗は return err を維持する。
+	data, err := ev.AWSLogs.Parse()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to parse CloudWatch Logs payload", "err", err)
+		return fmt.Errorf("parse CloudWatch Logs: %w", err)
+	}
+
+	chunks := buildDiscordMessageChunks(&data, invokerRequestIDFromContext(ctx))
+	if len(chunks) == 0 {
+		slog.WarnContext(ctx, "CloudWatch Logs event had no log events")
+		return nil
+	}
+
 	clientOption, err := firestoreClientOptionErrorLog()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get Firestore client option for error_log_notify_discord", "err", err)
@@ -59,18 +71,6 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 		return err
 	}
 	defer app.CloseFirestoreClient()
-
-	data, err := ev.AWSLogs.Parse()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to parse CloudWatch Logs payload", "err", err)
-		return fmt.Errorf("parse CloudWatch Logs: %w", err)
-	}
-
-	chunks := buildDiscordMessageChunks(&data, invokerRequestIDFromContext(ctx))
-	if len(chunks) == 0 {
-		slog.WarnContext(ctx, "CloudWatch Logs event had no log events")
-		return nil
-	}
 
 	for _, chunk := range chunks {
 		if err := app.MessageToOwnerOrError(gracefulCtx, chunk); err != nil {

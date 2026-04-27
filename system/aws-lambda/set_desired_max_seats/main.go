@@ -80,7 +80,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	if err := app.Repository.UpdateDesiredMaxSeats(gracefulCtx, nil, params.DesiredMaxSeats); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			slog.ErrorContext(ctx, "timeout warning in set_desired_max_seats during UpdateDesiredMaxSeats", "err", err)
-			return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout during UpdateDesiredMaxSeats: %w", err)
+			return errorResponse(http.StatusGatewayTimeout, "timeout during UpdateDesiredMaxSeats"), nil
 		}
 		slog.ErrorContext(ctx, "failed to update desired max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMaxSeats", err)
@@ -90,7 +90,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	if err := app.Repository.UpdateDesiredMemberMaxSeats(gracefulCtx, nil, params.DesiredMemberMaxSeats); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			slog.ErrorContext(ctx, "timeout warning in set_desired_max_seats during UpdateDesiredMemberMaxSeats", "err", err)
-			return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout during UpdateDesiredMemberMaxSeats: %w", err)
+			return errorResponse(http.StatusGatewayTimeout, "timeout during UpdateDesiredMemberMaxSeats"), nil
 		}
 		slog.ErrorContext(ctx, "failed to update desired member max seats", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed UpdateDesiredMemberMaxSeats", err)
@@ -110,6 +110,15 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		Body:            string(body),
 		IsBase64Encoded: false,
 	}, nil
+}
+
+func errorResponse(statusCode int, message string) events.APIGatewayProxyResponse {
+	body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: message}) //nolint:errcheck
+	return events.APIGatewayProxyResponse{
+		StatusCode: statusCode,
+		Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
+		Body:       string(body),
+	}
 }
 
 func main() {

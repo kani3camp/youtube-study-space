@@ -139,7 +139,14 @@ func TestHandlerReturnsErrorWhenWorkspaceInitFails(t *testing.T) {
 	restore := stubErrorLogNotifyDeps(t, nil, errors.New("workspace init failed"), nil)
 	defer restore()
 
-	err := handler(context.Background(), events.CloudwatchLogsEvent{})
+	ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
+		LogGroup: "/aws/lambda/check_live_stream_status",
+		LogEvents: []events.CloudwatchLogsLogEvent{
+			{ID: "1", Timestamp: 123, Message: `{"level":"ERROR","msg":"boom"}`},
+		},
+	})
+
+	err := handler(context.Background(), ev)
 	if err == nil || !strings.Contains(err.Error(), "workspace init failed") {
 		t.Fatalf("expected workspace init error, got %v", err)
 	}
@@ -195,7 +202,14 @@ func TestHandlerReturnsErrorWhenFirestoreInitFails(t *testing.T) {
 	restore := stubErrorLogNotifyDeps(t, errors.New("firestore init failed"), nil, nil)
 	defer restore()
 
-	err := handler(context.Background(), events.CloudwatchLogsEvent{})
+	ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
+		LogGroup: "/aws/lambda/check_live_stream_status",
+		LogEvents: []events.CloudwatchLogsLogEvent{
+			{ID: "1", Timestamp: 123, Message: `{"level":"ERROR","msg":"boom"}`},
+		},
+	})
+
+	err := handler(context.Background(), ev)
 	if err == nil || !strings.Contains(err.Error(), "firestore init failed") {
 		t.Fatalf("expected firestore init error, got %v", err)
 	}
@@ -214,8 +228,8 @@ func TestHandlerReturnsErrorWhenPayloadParseFails(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "parse CloudWatch Logs") {
 		t.Fatalf("expected parse error, got %v", err)
 	}
-	if !app.closed {
-		t.Fatal("expected CloseFirestoreClient")
+	if app.closed {
+		t.Fatal("expected no WorkspaceApp initialization before payload parse succeeds")
 	}
 }
 
@@ -235,8 +249,8 @@ func TestHandlerReturnsNilWhenNoLogEvents(t *testing.T) {
 	if len(app.messages) != 0 {
 		t.Fatalf("expected no owner messages, got %#v", app.messages)
 	}
-	if !app.closed {
-		t.Fatal("expected CloseFirestoreClient")
+	if app.closed {
+		t.Fatal("expected no WorkspaceApp initialization for empty log events")
 	}
 }
 
