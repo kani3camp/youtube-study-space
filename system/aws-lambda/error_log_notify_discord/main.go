@@ -46,8 +46,7 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
 	defer cancel()
 
-	// NOTE: 定期 3 Lambda と違い、この Lambda は通知経路そのものの故障を
-	// Errors Alarm + Email バックストップで拾いたいため、初期化や parse 失敗は return err を維持する。
+	// この Lambda は通知経路そのものの故障を Errors Alarm + Email バックストップで拾いたいため、初期化や parse 失敗は return err を維持する。
 	data, err := ev.AWSLogs.Parse()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to parse CloudWatch Logs payload", "err", err)
