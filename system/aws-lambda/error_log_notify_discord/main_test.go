@@ -147,7 +147,7 @@ func TestHandlerReturnsErrorWhenWorkspaceInitFails(t *testing.T) {
 	})
 
 	err := handler(context.Background(), ev)
-	if err == nil || !strings.Contains(err.Error(), "workspace init failed") {
+	if err == nil || !strings.Contains(err.Error(), "init WorkspaceApp: workspace init failed") {
 		t.Fatalf("expected workspace init error, got %v", err)
 	}
 }
@@ -210,7 +210,7 @@ func TestHandlerReturnsErrorWhenFirestoreInitFails(t *testing.T) {
 	})
 
 	err := handler(context.Background(), ev)
-	if err == nil || !strings.Contains(err.Error(), "firestore init failed") {
+	if err == nil || !strings.Contains(err.Error(), "get Firestore client option: firestore init failed") {
 		t.Fatalf("expected firestore init error, got %v", err)
 	}
 }

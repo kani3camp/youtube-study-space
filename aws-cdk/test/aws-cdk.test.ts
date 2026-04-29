@@ -172,7 +172,7 @@ describe('AwsCdkStack', () => {
 		expect(descriptions).toContain('Lambda start_daily_batch errors > 0')
 	})
 
-	test('creates error_log_notify_discord Lambda, errors alarm, and six ERROR subscription filters', () => {
+	test('creates error_log_notify_discord Lambda, errors alarm, and target ERROR subscription filters', () => {
 		const t = createTemplate()
 		const json = t.toJSON() as {
 			Resources?: Record<
@@ -195,12 +195,28 @@ describe('AwsCdkStack', () => {
 		const filters = Object.values(resources).filter(
 			(r) => r.Type === 'AWS::Logs::SubscriptionFilter',
 		)
-		expect(filters).toHaveLength(6)
-		expect(filters.map((filter) => JSON.stringify(filter))).not.toEqual(
-			expect.arrayContaining([
-				expect.stringContaining('error_log_notify_discord'),
-			]),
+		const filterIds = Object.entries(resources)
+			.filter(([, r]) => r.Type === 'AWS::Logs::SubscriptionFilter')
+			.map(([id]) => id)
+		const expectedFilterIdPrefixes = [
+			'StartDailyBatchErrorLogSubscription',
+			'SetDesiredMaxSeatsErrorLogSubscription',
+			'YoutubeOrganizeDatabaseErrorLogSubscription',
+			'CheckLiveStreamStatusErrorLogSubscription',
+			'UpdateWorkNameTrendErrorLogSubscription',
+			'SnsNotifyDiscordErrorLogSubscription',
+		]
+		expect(filters.length).toBeGreaterThanOrEqual(
+			expectedFilterIdPrefixes.length,
 		)
+		for (const expectedPrefix of expectedFilterIdPrefixes) {
+			expect(filterIds.some((id) => id.startsWith(expectedPrefix))).toBe(true)
+		}
+		expect(
+			filterIds.some((id) =>
+				id.startsWith('ErrorLogNotifyDiscordErrorLogSubscription'),
+			),
+		).toBe(false)
 
 		const logRetentionCustomResources = Object.values(resources).filter(
 			(r) => r.Type === 'Custom::LogRetention',

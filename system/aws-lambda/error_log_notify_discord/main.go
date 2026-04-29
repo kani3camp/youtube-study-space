@@ -62,13 +62,13 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 	clientOption, err := firestoreClientOptionErrorLog()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get Firestore client option for error_log_notify_discord", "err", err)
-		return err
+		return fmt.Errorf("get Firestore client option: %w", err)
 	}
 
 	app, err := newErrorLogWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to init WorkspaceApp for error_log_notify_discord", "err", err)
-		return err
+		return fmt.Errorf("init WorkspaceApp: %w", err)
 	}
 	defer app.CloseFirestoreClient()
 
