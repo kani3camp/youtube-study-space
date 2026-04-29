@@ -21,20 +21,37 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 	slog.Info(utils.NameOf(app.UpdateWorkNameTrend))
 
 	var workNames []string
-	generalSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, true)
+	memberSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, true)
 	if err != nil {
 		return fmt.Errorf("in ReadActiveWorkNameSeats(): %w", err)
 	}
-	memberSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, false)
+	generalSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, false)
 	if err != nil {
 		return fmt.Errorf("in ReadActiveWorkNameSeats(): %w", err)
 	}
 
+	for _, seat := range memberSeats {
+		workNames = append(workNames, seat.WorkName)
+	}
 	for _, seat := range generalSeats {
 		workNames = append(workNames, seat.WorkName)
 	}
-	for _, seat := range memberSeats {
-		workNames = append(workNames, seat.WorkName)
+
+	if len(workNames) == 0 {
+		workNameTrend := repository.WorkNameTrendDoc{
+			Ranking:  []repository.WorkNameTrendRanking{},
+			RankedAt: time.Now(),
+		}
+		txErr := app.Repository.FirestoreClient().RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			return app.Repository.UpdateWorkNameTrend(ctx, tx, workNameTrend)
+		})
+		if txErr != nil {
+			return fmt.Errorf("in FirestoreClient().RunTransaction(): %w", txErr)
+		}
+
+		slog.Info(utils.NameOf(app.UpdateWorkNameTrend) + " finished")
+
+		return nil
 	}
 
 	// AIで作業内容のトレンドを導く
