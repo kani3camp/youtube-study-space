@@ -259,32 +259,17 @@ func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
 
+// MessageToOwnerOrError はOwner通知を行い、通知失敗を呼び出し元へ返す。
+// 通知Lambdaのように、配送失敗自体をCloudWatch Alarmで検知したい用途で使う。
+func (app *WorkspaceApp) MessageToOwnerOrError(ctx context.Context, message string) error {
+	return app.alertOwnerBot.SendMessage(ctx, message)
+}
+
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
 	if err := app.alertOwnerBot.SendMessageWithError(ctx, message, argErr); err != nil {
 		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
-}
-
-// NotifyTimeoutToOwner はタイムアウトをDiscordのOwnerチャンネルに通知し、通知失敗時はエラーを返す。
-// NOTE: 通常のMessageToOwnerWithErrorと異なり、通知失敗時にエラーを返す（CloudWatchアラーム発火のため）
-func (app *WorkspaceApp) NotifyTimeoutToOwner(ctx context.Context, timeoutErr error) error {
-	const maxDiscordMessageLength = 2000
-	const prefix = "timeout warning:\n"
-	const truncatedSuffix = "\n...(truncated)"
-
-	errStr := fmt.Sprintf("%+v", timeoutErr)
-	message := prefix + errStr
-
-	// Discordの2000文字制限を超える場合はトランケートする
-	if len(message) > maxDiscordMessageLength {
-		maxErrLength := maxDiscordMessageLength - len(prefix) - len(truncatedSuffix)
-		// UTF-8のマルチバイト文字境界を考慮してトランケート
-		truncatedErr := utils.TruncateStringUTF8(errStr, maxErrLength)
-		message = prefix + truncatedErr + truncatedSuffix
-	}
-
-	return app.alertOwnerBot.SendMessage(ctx, message)
 }
 
 func (app *WorkspaceApp) MessageToModerators(ctx context.Context, message string) error {

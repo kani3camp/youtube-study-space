@@ -8,12 +8,12 @@ import (
 
 func TestBuildDiscordNotificationTruncatesMessageUTF8Safely(t *testing.T) {
 	subject := "subject"
-	message := strings.Repeat("勉強🚀", 500)
+	message := strings.Repeat("勉強🚀", 700)
 
 	notify := buildDiscordNotification(subject, message)
 
-	if len(notify) > maxDiscordMessageBytes {
-		t.Fatalf("expected notification to fit byte limit, got %d", len(notify))
+	if len([]rune(notify)) > maxDiscordMessageLength {
+		t.Fatalf("expected notification to fit length limit, got %d", len([]rune(notify)))
 	}
 	if !utf8.ValidString(notify) {
 		t.Fatalf("expected valid UTF-8 notification, got %q", notify)
@@ -24,13 +24,13 @@ func TestBuildDiscordNotificationTruncatesMessageUTF8Safely(t *testing.T) {
 }
 
 func TestBuildDiscordNotificationAccountsForSubjectLength(t *testing.T) {
-	subject := strings.Repeat("件名", 300)
-	message := strings.Repeat("本文", 500)
+	subject := strings.Repeat("件名", 600)
+	message := strings.Repeat("本文", 700)
 
 	notify := buildDiscordNotification(subject, message)
 
-	if len(notify) > maxDiscordMessageBytes {
-		t.Fatalf("expected notification to fit byte limit, got %d", len(notify))
+	if len([]rune(notify)) > maxDiscordMessageLength {
+		t.Fatalf("expected notification to fit length limit, got %d", len([]rune(notify)))
 	}
 	if !utf8.ValidString(notify) {
 		t.Fatalf("expected valid UTF-8 notification, got %q", notify)

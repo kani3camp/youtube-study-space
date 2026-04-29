@@ -31,4 +31,9 @@ aws sts get-caller-identity --profile プロファイル名
 - Lambdaの Errors>0 と Step Functions ExecutionsFailed>0 のアラームをSNSに連携。
 - 主要出力（CfnOutput）:
   - `BatchClusterArn`, `DailyBatchTaskDefinitionArn`, `BatchSecurityGroupId`, `BatchPublicSubnetIds`, `BatchVpcId`, `DailyBatchStateMachineArn`
-
+- `AlarmEmail` パラメータにメールアドレスを指定すると、`AlarmsTopic` に Email subscription を追加する。未指定の場合は Email subscription を作らない。
+  - メール通知も有効にして deploy する例:
+    ```bash
+    pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
+    ```
+  - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。

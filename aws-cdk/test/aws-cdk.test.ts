@@ -126,6 +126,116 @@ describe('AwsCdkStack', () => {
 			expect(logGroup.Properties?.RetentionInDays).toBeUndefined()
 		}
 	})
+
+	test('defines AlarmEmail template parameter for SNS email backstop', () => {
+		const t = createTemplate()
+		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
+	})
+
+	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Conditions?: Record<string, unknown>
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Condition?: string
+					Properties?: { Protocol?: string }
+				}
+			>
+		}
+		const subs = t.findResources('AWS::SNS::Subscription')
+		expect(Object.keys(subs).length).toBe(2)
+		expect(json.Conditions).toHaveProperty('HasAlarmEmail')
+		t.hasResourceProperties('AWS::SNS::Subscription', {
+			Protocol: 'email',
+		})
+		t.hasResourceProperties('AWS::SNS::Subscription', {
+			Protocol: 'lambda',
+		})
+		const emailSubscription = Object.values(json.Resources ?? {}).find(
+			(resource) =>
+				resource.Type === 'AWS::SNS::Subscription' &&
+				resource.Properties?.Protocol === 'email',
+		)
+		expect(emailSubscription?.Condition).toBe('HasAlarmEmail')
+	})
+
+	test('creates Lambda errors alarms for sns_notify_discord and start_daily_batch', () => {
+		const t = createTemplate()
+		const alarms = t.findResources('AWS::CloudWatch::Alarm')
+		const descriptions = Object.values(alarms).map(
+			(a) => (a as { Properties?: { AlarmDescription?: string } }).Properties?.AlarmDescription,
+		)
+		expect(descriptions).toContain('Lambda sns_notify_discord errors > 0')
+		expect(descriptions).toContain('Lambda start_daily_batch errors > 0')
+	})
+
+	test('creates error_log_notify_discord Lambda, errors alarm, and target ERROR subscription filters', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						Principal?: string
+					}
+				}
+			>
+		}
+		const resources = json.Resources ?? {}
+		const lambdaNames = Object.values(resources)
+			.filter((r) => r.Type === 'AWS::Lambda::Function')
+			.map((r) => r.Properties?.FunctionName)
+		expect(lambdaNames).toContain('error_log_notify_discord')
+
+		const filters = Object.values(resources).filter(
+			(r) => r.Type === 'AWS::Logs::SubscriptionFilter',
+		)
+		const filterIds = Object.entries(resources)
+			.filter(([, r]) => r.Type === 'AWS::Logs::SubscriptionFilter')
+			.map(([id]) => id)
+		const expectedFilterIdPrefixes = [
+			'StartDailyBatchErrorLogSubscription',
+			'SetDesiredMaxSeatsErrorLogSubscription',
+			'YoutubeOrganizeDatabaseErrorLogSubscription',
+			'CheckLiveStreamStatusErrorLogSubscription',
+			'UpdateWorkNameTrendErrorLogSubscription',
+			'SnsNotifyDiscordErrorLogSubscription',
+		]
+		expect(filters.length).toBeGreaterThanOrEqual(
+			expectedFilterIdPrefixes.length,
+		)
+		for (const expectedPrefix of expectedFilterIdPrefixes) {
+			expect(filterIds.some((id) => id.startsWith(expectedPrefix))).toBe(true)
+		}
+		expect(
+			filterIds.some((id) =>
+				id.startsWith('ErrorLogNotifyDiscordErrorLogSubscription'),
+			),
+		).toBe(false)
+
+		const logRetentionCustomResources = Object.values(resources).filter(
+			(r) => r.Type === 'Custom::LogRetention',
+		)
+		expect(logRetentionCustomResources.length).toBeGreaterThanOrEqual(6)
+
+		const logsInvokePerms = Object.values(resources).filter(
+			(r) =>
+				r.Type === 'AWS::Lambda::Permission' &&
+				r.Properties?.Principal === 'logs.amazonaws.com',
+		)
+		expect(logsInvokePerms.length).toBeGreaterThanOrEqual(3)
+
+		const alarms = t.findResources('AWS::CloudWatch::Alarm')
+		const descriptions = Object.values(alarms).map(
+			(a) => (a as { Properties?: { AlarmDescription?: string } }).Properties?.AlarmDescription,
+		)
+		expect(descriptions).toContain('Lambda error_log_notify_discord errors > 0')
+	})
 })
 
 // Issue #692: Docker アセット決定性テスト

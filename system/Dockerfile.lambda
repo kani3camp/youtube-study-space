@@ -26,6 +26,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o error_log_notify_discord aws-lambda/error_log_notify_discord/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
     go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch aws-lambda/start_daily_batch/main.go
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -42,5 +45,6 @@ COPY --from=build /var/task/set_desired_max_seats ./set_desired_max_seats
 COPY --from=build /var/task/youtube_organize_database ./youtube_organize_database
 COPY --from=build /var/task/check_live_stream_status ./check_live_stream_status
 COPY --from=build /var/task/sns_notify_discord ./sns_notify_discord
+COPY --from=build /var/task/error_log_notify_discord ./error_log_notify_discord
 COPY --from=build /var/task/start_daily_batch ./start_daily_batch
 COPY --from=build /var/task/update_work_name_trend ./update_work_name_trend

@@ -287,3 +287,28 @@ func TestTruncateStringUTF8(t *testing.T) {
 		assert.Equal(t, "あ", TruncateStringUTF8(s, 3))
 	})
 }
+
+func TestTruncateStringRunes(t *testing.T) {
+	t.Run("negative maxRunes should not panic", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			got := TruncateStringRunes("hello", -1)
+			assert.Equal(t, "", got)
+		})
+	})
+
+	t.Run("rune boundary should not split", func(t *testing.T) {
+		assert.Equal(t, "あい", TruncateStringRunes("あいう", 2))
+		assert.Equal(t, "勉強", TruncateStringRunes("勉強🚀", 2))
+	})
+}
+
+func TestSplitStringRunes(t *testing.T) {
+	t.Run("empty string returns nil", func(t *testing.T) {
+		assert.Nil(t, SplitStringRunes("", 10))
+	})
+
+	t.Run("split preserves utf8 boundaries", func(t *testing.T) {
+		got := SplitStringRunes("勉強🚀最高", 2)
+		assert.Equal(t, []string{"勉強", "🚀最", "高"}, got)
+	})
+}
