@@ -18,6 +18,7 @@ func TestUpdateWorkNameTrend_EmptyWorkNames(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx := context.Background()
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC)
 	mockDB := mock_myfirestore.NewMockRepository(ctrl)
 	mockFirestoreClient := mock_myfirestore.NewMockDBClient(ctrl)
 
@@ -41,17 +42,14 @@ func TestUpdateWorkNameTrend_EmptyWorkNames(t *testing.T) {
 
 	app := WorkspaceApp{
 		Repository: mockDB,
+		nowFunc:    func() time.Time { return fixedNow },
 	}
 
-	before := time.Now()
 	err := app.UpdateWorkNameTrend(ctx, "dummy-api-key")
-	after := time.Now()
 
 	require.NoError(t, err)
 	require.NotNil(t, savedWorkNameTrend)
 	assert.NotNil(t, savedWorkNameTrend.Ranking)
 	assert.Empty(t, savedWorkNameTrend.Ranking)
-	assert.False(t, savedWorkNameTrend.RankedAt.IsZero())
-	assert.False(t, savedWorkNameTrend.RankedAt.Before(before))
-	assert.False(t, savedWorkNameTrend.RankedAt.After(after))
+	assert.Equal(t, fixedNow, savedWorkNameTrend.RankedAt)
 }
