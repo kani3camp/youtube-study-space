@@ -54,9 +54,56 @@ func TestUpdateWorkNameTrend_EmptyWorkNames(t *testing.T) {
 	assert.Equal(t, fixedNow, savedWorkNameTrend.RankedAt)
 }
 
-func TestNonNilWorkNameTrendRankings(t *testing.T) {
+func TestParseWorkNameTrendRankings(t *testing.T) {
+	t.Run("rankings欠落は空スライスに正規化する", func(t *testing.T) {
+		rankings, err := parseWorkNameTrendRankings(`{}`)
+
+		require.NoError(t, err)
+		assert.NotNil(t, rankings)
+		assert.Empty(t, rankings)
+	})
+
+	t.Run("rankings nullは空スライスに正規化する", func(t *testing.T) {
+		rankings, err := parseWorkNameTrendRankings(`{"rankings":null}`)
+
+		require.NoError(t, err)
+		assert.NotNil(t, rankings)
+		assert.Empty(t, rankings)
+	})
+
+	t.Run("rankings空配列は空スライスに正規化する", func(t *testing.T) {
+		rankings, err := parseWorkNameTrendRankings(`{"rankings":[]}`)
+
+		require.NoError(t, err)
+		assert.NotNil(t, rankings)
+		assert.Empty(t, rankings)
+	})
+
+	t.Run("valid ranking JSONは値を保持する", func(t *testing.T) {
+		rankings, err := parseWorkNameTrendRankings(`{"rankings":[{"rank":1,"genre":"study","count":2,"examples":["math","english"]}]}`)
+
+		require.NoError(t, err)
+		assert.Equal(t, []repository.WorkNameTrendRanking{
+			{
+				Rank:     1,
+				Genre:    "study",
+				Count:    2,
+				Examples: []string{"math", "english"},
+			},
+		}, rankings)
+	})
+
+	t.Run("invalid JSONはエラーを返す", func(t *testing.T) {
+		rankings, err := parseWorkNameTrendRankings(`{`)
+
+		require.Error(t, err)
+		assert.Nil(t, rankings)
+	})
+}
+
+func TestNormalizeWorkNameTrendRankings(t *testing.T) {
 	t.Run("nilは空スライスに正規化する", func(t *testing.T) {
-		rankings := nonNilWorkNameTrendRankings(nil)
+		rankings := normalizeWorkNameTrendRankings(nil)
 
 		assert.NotNil(t, rankings)
 		assert.Empty(t, rankings)
@@ -72,7 +119,7 @@ func TestNonNilWorkNameTrendRankings(t *testing.T) {
 			},
 		}
 
-		rankings := nonNilWorkNameTrendRankings(input)
+		rankings := normalizeWorkNameTrendRankings(input)
 
 		assert.Equal(t, input, rankings)
 	})
