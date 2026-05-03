@@ -132,6 +132,7 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 		}
 		rankings = result.Rankings
 	}
+	rankings = nonNilWorkNameTrendRankings(rankings)
 
 	// DBに保存
 	workNameTrend := repository.WorkNameTrendDoc{
@@ -148,4 +149,11 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 	slog.Info(utils.NameOf(app.UpdateWorkNameTrend) + " finished")
 
 	return nil
+}
+
+func nonNilWorkNameTrendRankings(rankings []repository.WorkNameTrendRanking) []repository.WorkNameTrendRanking {
+	if rankings == nil {
+		return []repository.WorkNameTrendRanking{}
+	}
+	return rankings
 }

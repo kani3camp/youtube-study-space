@@ -53,3 +53,27 @@ func TestUpdateWorkNameTrend_EmptyWorkNames(t *testing.T) {
 	assert.Empty(t, savedWorkNameTrend.Ranking)
 	assert.Equal(t, fixedNow, savedWorkNameTrend.RankedAt)
 }
+
+func TestNonNilWorkNameTrendRankings(t *testing.T) {
+	t.Run("nilは空スライスに正規化する", func(t *testing.T) {
+		rankings := nonNilWorkNameTrendRankings(nil)
+
+		assert.NotNil(t, rankings)
+		assert.Empty(t, rankings)
+	})
+
+	t.Run("non-nilはそのまま返す", func(t *testing.T) {
+		input := []repository.WorkNameTrendRanking{
+			{
+				Rank:     1,
+				Genre:    "study",
+				Count:    2,
+				Examples: []string{"math", "english"},
+			},
+		}
+
+		rankings := nonNilWorkNameTrendRankings(input)
+
+		assert.Equal(t, input, rankings)
+	})
+}
