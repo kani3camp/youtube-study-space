@@ -33,7 +33,7 @@
 		"@biomejs/biome": "2.4.14",
 		"@docusaurus/module-type-aliases": "^3.10.0",
 		"@docusaurus/tsconfig": "^3.10.1",
-		"@docusaurus/types": "^3.10.0",
+		"@docusaurus/types": "^3.10.1",
 		"typescript": "~6.0.3"
 	},
 	"browserslist": {
