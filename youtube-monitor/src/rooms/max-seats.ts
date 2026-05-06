@@ -24,7 +24,14 @@ export const desiredMaxSeatsByVacancyRate = (
 	basicRoomSeats: number,
 	temporaryRooms: RoomLayout[],
 ): number => {
-	const minSeatsByVacancyRate = Math.ceil(numUsedSeats / (1 - minVacancyRate))
+	if (!Number.isFinite(minVacancyRate) || minVacancyRate >= 1) {
+		return basicRoomSeats
+	}
+
+	const normalizedMinVacancyRate = Math.max(minVacancyRate, 0)
+	const minSeatsByVacancyRate = Math.ceil(
+		numUsedSeats / (1 - normalizedMinVacancyRate),
+	)
 	return expandSeatsWithTemporaryRooms(
 		minSeatsByVacancyRate,
 		basicRoomSeats,

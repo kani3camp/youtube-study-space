@@ -29,6 +29,18 @@ test('desiredMaxSeatsByVacancyRate adds temporary seats to satisfy vacancy targe
 	).toBe(15)
 })
 
+test('desiredMaxSeatsByVacancyRate returns basic seats when vacancy rate is 1', () => {
+	expect(
+		desiredMaxSeatsByVacancyRate(20, 1, 10, [roomLayoutWithSeatCount(5)]),
+	).toBe(10)
+})
+
+test('desiredMaxSeatsByVacancyRate treats negative vacancy rate as 0', () => {
+	expect(
+		desiredMaxSeatsByVacancyRate(12, -0.5, 10, [roomLayoutWithSeatCount(5)]),
+	).toBe(15)
+})
+
 test('desiredMemberMaxSeats returns 0 when membership is disabled', () => {
 	expect(
 		desiredMemberMaxSeats(false, false, 10, 0.5, 8, [
