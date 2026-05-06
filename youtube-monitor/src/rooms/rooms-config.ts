@@ -2,11 +2,9 @@ import { ROOM_CONFIG } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { CafeRainyRoom } from './layouts/cafe-rainy-room'
-import { CafeWinterNightRoom } from './layouts/cafe-winter-night-room'
 import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
-import { CityNightViewRoom } from './layouts/city-night-view-room'
 import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
@@ -64,18 +62,8 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [
-		CafeWinterNightRoom,
-		CityNightViewRoom,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
-	generalTemporaryRooms: [
-		CafeWinterNightRoom,
-		CityNightViewRoom,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
+	generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
+	generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
 	memberBasicRooms: [ResortSeaRoom],
 	memberTemporaryRooms: [ResortSeaRoom],
 }
