@@ -1,4 +1,4 @@
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import type { FC } from 'react'
 import * as styles from '../styles/ColorBar.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'

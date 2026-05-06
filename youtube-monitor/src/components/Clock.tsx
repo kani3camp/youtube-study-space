@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, memo, useEffect, useState } from 'react'
 import { useInterval } from '../lib/common'
 import * as styles from '../styles/Clock.styles'
