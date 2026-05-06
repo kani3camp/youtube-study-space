@@ -292,7 +292,9 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 
 		if (snapshotFixedMaxSeatsEnabled) {
 			const numSeatsGeneralBasicRooms = numSeatsInGeneralAllBasicRooms()
-			const numSeatsMemberBasicRooms = numSeatsInMemberAllBasicRooms()
+			const numSeatsMemberBasicRooms = snapshotMembershipEnabled
+				? numSeatsInMemberAllBasicRooms()
+				: 0
 			if (
 				snapshotGeneralMaxSeats !== numSeatsGeneralBasicRooms ||
 				snapshotMemberMaxSeats !== numSeatsMemberBasicRooms
