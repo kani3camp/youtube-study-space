@@ -1,4 +1,4 @@
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import type { FC } from 'react'
 import Marquee from 'react-fast-marquee'
 import { componentBackground } from '../styles/common.style'

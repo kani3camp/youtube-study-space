@@ -14,3 +14,19 @@ export const CenterLoading = css`
     color: ${Constants.primaryTextColor};
     font-size: 1.5rem;
 `
+
+export const spinner = css`
+    width: 72px;
+    height: 72px;
+    margin-bottom: 16px;
+    border: 6px solid rgba(255, 255, 255, 0.2);
+    border-top-color: ${Constants.primaryTextColor};
+    border-radius: 9999px;
+    animation: spin 0.9s linear infinite;
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+`

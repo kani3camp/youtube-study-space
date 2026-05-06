@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, memo } from 'react'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Usage.styles'

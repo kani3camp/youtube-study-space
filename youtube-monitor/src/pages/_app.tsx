@@ -1,6 +1,6 @@
 import { Global } from '@emotion/react'
 import type { AppProps } from 'next/app'
-import { appWithTranslation } from 'next-i18next'
+import { appWithTranslation } from 'next-i18next/pages'
 import 'react-circular-progressbar/dist/styles.css'
 import { fontClassName } from '../lib/common'
 import { globalStyle } from '../styles/global.styles'
