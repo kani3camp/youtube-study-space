@@ -12,8 +12,8 @@ importers:
         specifier: ^3.10.1
         version: 3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@docusaurus/plugin-google-gtag':
-        specifier: ^3.10.0
-        version: 3.10.0(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+        specifier: ^3.10.1
+        version: 3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@docusaurus/preset-classic':
         specifier: ^3.10.0
         version: 3.10.0(@algolia/client-search@5.50.2)(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(search-insights@2.17.3)(typescript@6.0.3)
@@ -1259,6 +1259,13 @@ packages:
 
   '@docusaurus/plugin-google-gtag@3.10.0':
     resolution: {integrity: sha512-iB/Zzjv/eelJRbdULZqzWCbgMgJ7ht4ONVjXtN3+BI/muil6S87gQ1OJyPwlXD+ELdKkitC7bWv5eJdYOZLhrQ==}
+    engines: {node: '>=20.0'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+
+  '@docusaurus/plugin-google-gtag@3.10.1':
+    resolution: {integrity: sha512-pu3xIUo5o/zCMLfUY9BO5KOwSH0zIsAGyFRPvXHayFSA5XIhCU/SFuB0g0ZNjFn9niZLCaNvoeAuOGFJZq0fdw==}
     engines: {node: '>=20.0'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -7511,6 +7518,33 @@ snapshots:
       '@docusaurus/core': 3.10.0(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
       '@docusaurus/types': 3.10.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@docusaurus/utils-validation': 3.10.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@types/gtag.js': 0.0.20
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - '@docusaurus/faster'
+      - '@mdx-js/react'
+      - '@parcel/css'
+      - '@rspack/core'
+      - '@swc/core'
+      - '@swc/css'
+      - bufferutil
+      - csso
+      - debug
+      - esbuild
+      - lightningcss
+      - supports-color
+      - typescript
+      - uglify-js
+      - utf-8-validate
+      - webpack-cli
+
+  '@docusaurus/plugin-google-gtag@3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
+    dependencies:
+      '@docusaurus/core': 3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)
+      '@docusaurus/types': 3.10.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@docusaurus/utils-validation': 3.10.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@types/gtag.js': 0.0.20
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
