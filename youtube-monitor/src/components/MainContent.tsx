@@ -9,7 +9,7 @@ import {
 import { useRouter } from 'next/router'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import api from '../lib/api-config'
-import { numSeatsOfRoomLayouts, useInterval } from '../lib/common'
+import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 import fetcher from '../lib/fetcher'
 import {
@@ -19,6 +19,11 @@ import {
 	getFirebaseApp,
 	type SystemConstants,
 } from '../lib/firestore'
+import {
+	buildRoomLayouts,
+	desiredMaxSeatsByVacancyRate,
+	desiredMemberMaxSeats,
+} from '../rooms/max-seats'
 import {
 	allRooms,
 	numSeatsInGeneralAllBasicRooms,
@@ -56,7 +61,7 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 	const [latestMemberLayouts, setMemberLayouts] = useState<RoomLayout[]>([])
 	const [pageProps, setPageProps] = useState<LayoutPageProps[]>([])
 	const [latestYoutubeMembershipEnabled, setLatestYoutubeMembershipEnabled] =
-		useState<boolean>(false)
+		useState<boolean>()
 	const [latestFixedMaxSeatsEnabled, setLatestFixedMaxSeatsEnabled] =
 		useState<boolean>()
 	const [latestWorkNameTrend, setLatestWorkNameTrend] = useState<WorkNameTrend>(
@@ -285,142 +290,70 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 			snapshotGeneralMaxSeats === undefined ||
 			snapshotMemberMaxSeats === undefined ||
 			snapshotMinVacancyRate === undefined ||
+			snapshotMembershipEnabled === undefined ||
 			snapshotFixedMaxSeatsEnabled === undefined
 		) {
 			return
 		}
 
-		if (snapshotFixedMaxSeatsEnabled) {
-			const numSeatsGeneralBasicRooms = numSeatsInGeneralAllBasicRooms()
-			const numSeatsMemberBasicRooms = snapshotMembershipEnabled
-				? numSeatsInMemberAllBasicRooms()
-				: 0
-			if (
-				snapshotGeneralMaxSeats !== numSeatsGeneralBasicRooms ||
-				snapshotMemberMaxSeats !== numSeatsMemberBasicRooms
-			) {
-				console.log('sending request to change max_seats')
-				console.log(
-					`general: ${snapshotGeneralMaxSeats} => ${numSeatsGeneralBasicRooms}`,
+		const generalBasicRoomSeats = numSeatsInGeneralAllBasicRooms()
+		const memberBasicRoomSeats = numSeatsInMemberAllBasicRooms()
+		const finalDesiredGeneralMaxSeats = snapshotFixedMaxSeatsEnabled
+			? generalBasicRoomSeats
+			: desiredMaxSeatsByVacancyRate(
+					snapshotGeneralSeats.length,
+					snapshotMinVacancyRate,
+					generalBasicRoomSeats,
+					allRooms.generalTemporaryRooms,
 				)
-				console.log(
-					`members-only: ${snapshotMemberMaxSeats} => ${numSeatsMemberBasicRooms}`,
-				)
-				await requestMaxSeatsUpdate(
-					numSeatsGeneralBasicRooms,
-					numSeatsMemberBasicRooms,
-				)
-			}
-		} else {
-			// GENERAL
-			// まず、現状の入室状況（seatsとmax_seats）と設定された空席率（min_vacancy_rate）を基に、適切なmax_seatsを求める。
-			let finalDesiredGeneralMaxSeats: number
-			const generalMinSeatsByVacancyRate = Math.ceil(
-				snapshotGeneralSeats.length / (1 - snapshotMinVacancyRate),
-			)
-			// もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-			if (generalMinSeatsByVacancyRate > numSeatsInGeneralAllBasicRooms()) {
-				let current_num_seats: number = numSeatsInGeneralAllBasicRooms()
-				let current_adding_temporary_room_index = 0
-				while (current_num_seats < generalMinSeatsByVacancyRate) {
-					current_num_seats +=
-						allRooms.generalTemporaryRooms[current_adding_temporary_room_index]
-							.seats.length
-					current_adding_temporary_room_index =
-						(current_adding_temporary_room_index + 1) %
-						allRooms.generalTemporaryRooms.length
-				}
-				finalDesiredGeneralMaxSeats = current_num_seats
-			} else {
-				// そうでなければ、基本ルームの席数とするべき
-				finalDesiredGeneralMaxSeats = numSeatsInGeneralAllBasicRooms()
-			}
+		const finalDesiredMemberMaxSeats = desiredMemberMaxSeats(
+			snapshotMembershipEnabled,
+			snapshotFixedMaxSeatsEnabled,
+			snapshotMemberSeats.length,
+			snapshotMinVacancyRate,
+			memberBasicRoomSeats,
+			allRooms.memberTemporaryRooms,
+		)
 
-			// MEMBER
-			let finalDesiredMemberMaxSeats: number
-			if (snapshotMembershipEnabled) {
-				const memberMinSeatsByVacancyRate = Math.ceil(
-					snapshotMemberSeats.length / (1 - snapshotMinVacancyRate),
-				)
-				// もしmax_seatsが基本ルームの席数より多ければ、臨時ルームを増やす
-				if (memberMinSeatsByVacancyRate > numSeatsInMemberAllBasicRooms()) {
-					let current_num_seats: number = numSeatsInMemberAllBasicRooms()
-					let current_adding_temporary_room_index = 0
-					while (current_num_seats < memberMinSeatsByVacancyRate) {
-						current_num_seats +=
-							allRooms.memberTemporaryRooms[current_adding_temporary_room_index]
-								.seats.length
-						current_adding_temporary_room_index =
-							(current_adding_temporary_room_index + 1) %
-							allRooms.memberTemporaryRooms.length
-					}
-					finalDesiredMemberMaxSeats = current_num_seats
-				} else {
-					// そうでなければ、基本ルームの席数とするべき
-					finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
-				}
-			} else {
-				finalDesiredMemberMaxSeats = 0
-			}
-			if (
-				finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
-				finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
-			) {
-				console.log('sending request to change max_seats')
-				console.log(
-					`general: ${snapshotGeneralMaxSeats} => ${finalDesiredGeneralMaxSeats}`,
-				)
-				console.log(
-					`members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`,
-				)
-				await requestMaxSeatsUpdate(
-					finalDesiredGeneralMaxSeats,
-					finalDesiredMemberMaxSeats,
-				)
-			}
+		if (
+			finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
+			finalDesiredMemberMaxSeats !== snapshotMemberMaxSeats
+		) {
+			console.log('sending request to change max_seats')
+			console.log(
+				`general: ${snapshotGeneralMaxSeats} => ${finalDesiredGeneralMaxSeats}`,
+			)
+			console.log(
+				`members-only: ${snapshotMemberMaxSeats} => ${finalDesiredMemberMaxSeats}`,
+			)
+			await requestMaxSeatsUpdate(
+				finalDesiredGeneralMaxSeats,
+				finalDesiredMemberMaxSeats,
+			)
 		}
 
 		// TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
 		// リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
 		// 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
-		const nextGeneralLayouts: RoomLayout[] = [...allRooms.generalBasicRooms] // まずは基本ルームを設定
-		if (
-			!snapshotFixedMaxSeatsEnabled &&
-			snapshotGeneralMaxSeats > numSeatsInGeneralAllBasicRooms()
-		) {
-			let currentAddingLayoutIndex = 0
-			while (
-				numSeatsOfRoomLayouts(nextGeneralLayouts) < snapshotGeneralMaxSeats
-			) {
-				nextGeneralLayouts.push(
-					allRooms.generalTemporaryRooms[currentAddingLayoutIndex],
-				)
-				currentAddingLayoutIndex =
-					(currentAddingLayoutIndex + 1) % allRooms.generalTemporaryRooms.length
-			}
-		}
-		setGeneralLayouts(nextGeneralLayouts)
+		setGeneralLayouts(
+			buildRoomLayouts(
+				allRooms.generalBasicRooms,
+				allRooms.generalTemporaryRooms,
+				snapshotGeneralMaxSeats,
+				snapshotFixedMaxSeatsEnabled,
+			),
+		)
 
 		if (snapshotMembershipEnabled) {
-			const nextMemberLayouts: RoomLayout[] = [...allRooms.memberBasicRooms] // まずは基本ルームを設定
-			if (
-				!snapshotFixedMaxSeatsEnabled &&
-				snapshotMemberMaxSeats > numSeatsInMemberAllBasicRooms()
-			) {
-				let currentAddingLayoutIndex = 0
-				while (
-					numSeatsOfRoomLayouts(nextMemberLayouts) < snapshotMemberMaxSeats
-				) {
-					nextMemberLayouts.push(
-						allRooms.memberTemporaryRooms[currentAddingLayoutIndex],
-					)
-					currentAddingLayoutIndex =
-						(currentAddingLayoutIndex + 1) %
-						allRooms.memberTemporaryRooms.length
-				}
-			}
-			setMemberLayouts(nextMemberLayouts)
+			setMemberLayouts(
+				buildRoomLayouts(
+					allRooms.memberBasicRooms,
+					allRooms.memberTemporaryRooms,
+					snapshotMemberMaxSeats,
+					snapshotFixedMaxSeatsEnabled,
+				),
+			)
 		}
 	}
 
