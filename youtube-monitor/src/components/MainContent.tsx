@@ -358,7 +358,7 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 					finalDesiredMemberMaxSeats = numSeatsInMemberAllBasicRooms()
 				}
 			} else {
-				finalDesiredMemberMaxSeats = snapshotMemberMaxSeats
+				finalDesiredMemberMaxSeats = 0
 			}
 			if (
 				finalDesiredGeneralMaxSeats !== snapshotGeneralMaxSeats ||
