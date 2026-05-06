@@ -2,11 +2,11 @@ import { ROOM_CONFIG } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { CafeRainyRoom } from './layouts/cafe-rainy-room'
+import { CafeWinterNightRoom } from './layouts/cafe-winter-night-room'
 import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
 import { Chabio2Room } from './layouts/chabio2-room'
-import { circleRoom } from './layouts/circle-room'
-import { Freepik1Room } from './layouts/freepik1-room'
+import { CityNightViewRoom } from './layouts/city-night-view-room'
 import { Freepik3Room } from './layouts/freepik3-room'
 import { Freepik5Room } from './layouts/freepik5-room'
 import { Freepik7Room } from './layouts/freepik7-room'
@@ -15,6 +15,8 @@ import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
 import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
 import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
+import { MoonNightRoom1 } from './layouts/moon-night-room-1'
+import { MoonNightRoom2 } from './layouts/moon-night-room-2'
 import { ResortSeaRoom } from './layouts/resort-sea-room'
 
 type AllRoomsConfig = {
@@ -31,6 +33,8 @@ const prodAllRooms: AllRoomsConfig = {
 		CafeRainyRoom,
 		Anonymous1Room,
 		Freepik8Room,
+		MoonNightRoom1,
+		MoonNightRoom2,
 	],
 	generalTemporaryRooms: [
 		CampRoom,
@@ -40,6 +44,8 @@ const prodAllRooms: AllRoomsConfig = {
 		Freepik5Room,
 		Freepik8Room,
 		Freepik7Room,
+		MoonNightRoom1,
+		MoonNightRoom2,
 	],
 	memberBasicRooms: [
 		MemberBoxRooms2,
@@ -58,12 +64,17 @@ const prodAllRooms: AllRoomsConfig = {
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [Freepik1Room],
+	generalBasicRooms: [
+		CafeWinterNightRoom,
+		CityNightViewRoom,
+		MoonNightRoom1,
+		MoonNightRoom2,
+	],
 	generalTemporaryRooms: [
-		Freepik5Room,
-		circleRoom,
-		Anonymous1Room,
-		Freepik1Room,
+		CafeWinterNightRoom,
+		CityNightViewRoom,
+		MoonNightRoom1,
+		MoonNightRoom2,
 	],
 	memberBasicRooms: [ResortSeaRoom],
 	memberTemporaryRooms: [ResortSeaRoom],
