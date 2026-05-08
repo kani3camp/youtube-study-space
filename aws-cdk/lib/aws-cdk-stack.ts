@@ -615,11 +615,6 @@ export class AwsCdkStack extends cdk.Stack {
 		;(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
 		)
-		createLambdaErrorAlarm(
-			setDesiredMaxSeatsFunction,
-			'SetDesiredMaxSeatsErrorsAlarm',
-			'Lambda set_desired_max_seats errors > 0',
-		)
 
 		const youtubeOrganizeDatabaseFunction = new lambda.DockerImageFunction(
 			this,
@@ -634,11 +629,6 @@ export class AwsCdkStack extends cdk.Stack {
 		;(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
 		)
-		createLambdaErrorAlarm(
-			youtubeOrganizeDatabaseFunction,
-			'YoutubeOrganizeDatabaseErrorsAlarm',
-			'Lambda youtube_organize_database errors > 0',
-		)
 
 		const checkLiveStreamStatusFunction = new lambda.DockerImageFunction(
 			this,
@@ -652,11 +642,6 @@ export class AwsCdkStack extends cdk.Stack {
 		)
 		;(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		)
-		createLambdaErrorAlarm(
-			checkLiveStreamStatusFunction,
-			'CheckLiveStreamStatusErrorsAlarm',
-			'Lambda check_live_stream_status errors > 0',
 		)
 
 		const updateWorkNameTrendFunction = new lambda.DockerImageFunction(
@@ -675,11 +660,6 @@ export class AwsCdkStack extends cdk.Stack {
 		openaiApiKeySecret.grantRead(updateWorkNameTrendFunction)
 		;(updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
 			dynamoDBAccessPolicy,
-		)
-		createLambdaErrorAlarm(
-			updateWorkNameTrendFunction,
-			'UpdateWorkNameTrendErrorsAlarm',
-			'Lambda update_work_name_trend errors > 0',
 		)
 
 		const errorLogNotifyDiscordFunction = new lambda.DockerImageFunction(

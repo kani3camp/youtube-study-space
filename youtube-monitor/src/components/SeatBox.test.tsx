@@ -18,14 +18,13 @@ jest.mock('next/font/google', () => ({
 jest.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: ComponentPropsWithoutRef<'img'>) => {
-		const { alt, src, ...rest } = props
+		const { alt, src } = props
 		return (
 			<span
 				role="img"
 				aria-label={alt}
 				data-next-image=""
 				data-src={typeof src === 'string' ? src : ''}
-				{...rest}
 			/>
 		)
 	},
