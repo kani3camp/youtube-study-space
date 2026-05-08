@@ -170,6 +170,16 @@ describe('AwsCdkStack', () => {
 		)
 		expect(descriptions).toContain('Lambda sns_notify_discord errors > 0')
 		expect(descriptions).toContain('Lambda start_daily_batch errors > 0')
+		expect(descriptions).not.toContain('Lambda set_desired_max_seats errors > 0')
+		expect(descriptions).not.toContain(
+			'Lambda youtube_organize_database errors > 0',
+		)
+		expect(descriptions).not.toContain(
+			'Lambda check_live_stream_status errors > 0',
+		)
+		expect(descriptions).not.toContain(
+			'Lambda update_work_name_trend errors > 0',
+		)
 	})
 
 	test('creates error_log_notify_discord Lambda, errors alarm, and target ERROR subscription filters', () => {
