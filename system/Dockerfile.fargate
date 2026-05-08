@@ -22,4 +22,3 @@ ENV TZ=Asia/Tokyo
 COPY --from=build /out/batch /app/batch
 USER nonroot:nonroot
 ENTRYPOINT ["/app/batch"]
-

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"app.modules/core/repository"
 	"app.modules/core/utils"
@@ -20,30 +19,72 @@ import (
 func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string) error {
 	slog.Info(utils.NameOf(app.UpdateWorkNameTrend))
 
-	var workNames []string
-	generalSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, true)
+	workNames, err := app.readActiveWorkNames(ctx)
 	if err != nil {
-		return fmt.Errorf("in ReadActiveWorkNameSeats(): %w", err)
-	}
-	memberSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, false)
-	if err != nil {
-		return fmt.Errorf("in ReadActiveWorkNameSeats(): %w", err)
+		return err
 	}
 
-	for _, seat := range generalSeats {
-		workNames = append(workNames, seat.WorkName)
+	rankings, err := app.generateWorkNameTrendRankings(ctx, apiKey, workNames)
+	if err != nil {
+		return err
 	}
+
+	if err := app.saveWorkNameTrend(ctx, rankings); err != nil {
+		return err
+	}
+
+	slog.Info(utils.NameOf(app.UpdateWorkNameTrend) + " finished")
+
+	return nil
+}
+
+func (app *WorkspaceApp) readActiveWorkNames(ctx context.Context) ([]string, error) {
+	var workNames []string
+	memberSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("in ReadActiveWorkNameSeats(member seats): %w", err)
+	}
+	generalSeats, err := app.Repository.ReadActiveWorkNameSeats(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("in ReadActiveWorkNameSeats(general seats): %w", err)
+	}
+
 	for _, seat := range memberSeats {
 		workNames = append(workNames, seat.WorkName)
 	}
+	for _, seat := range generalSeats {
+		workNames = append(workNames, seat.WorkName)
+	}
 
-	// AIで作業内容のトレンドを導く
+	return workNames, nil
+}
+
+func (app *WorkspaceApp) generateWorkNameTrendRankings(ctx context.Context, apiKey string, workNames []string) ([]repository.WorkNameTrendRanking, error) {
+	if len(workNames) == 0 {
+		return []repository.WorkNameTrendRanking{}, nil
+	}
+
 	client := openai.NewClient(option.WithAPIKey(apiKey))
-
 	userInput := strings.Join(workNames, "\n")
 	slog.Info("userInput", "value", userInput)
 
-	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
+	resp, err := client.Responses.New(ctx, newWorkNameTrendResponseParams(userInput))
+	if err != nil {
+		return nil, fmt.Errorf("in client.Responses.New(): %w", err)
+	}
+
+	slog.Info("resp.OutputText()", "value", resp.OutputText())
+
+	rankings, err := parseWorkNameTrendRankings(resp.OutputText())
+	if err != nil {
+		return nil, err
+	}
+
+	return rankings, nil
+}
+
+func newWorkNameTrendResponseParams(userInput string) responses.ResponseNewParams {
+	return responses.ResponseNewParams{
 		Model: shared.ResponsesModel("gpt-5-nano"),
 		Reasoning: shared.ReasoningParam{
 			Effort:  shared.ReasoningEffortMedium,
@@ -114,35 +155,40 @@ func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string)
 			},
 			Verbosity: responses.ResponseTextConfigVerbosityMedium,
 		},
-	})
-	if err != nil {
-		return fmt.Errorf("in client.Responses.New(): %w", err)
 	}
+}
 
-	slog.Info("resp.OutputText()", "value", resp.OutputText())
-
+func parseWorkNameTrendRankings(outputText string) ([]repository.WorkNameTrendRanking, error) {
 	type workNameTrendResponse struct {
 		Rankings []repository.WorkNameTrendRanking `json:"rankings"`
 	}
 	var result workNameTrendResponse
-	err = json.Unmarshal([]byte(resp.OutputText()), &result)
+	err := json.Unmarshal([]byte(outputText), &result)
 	if err != nil {
-		return fmt.Errorf("in json.Unmarshal(): %w", err)
+		return nil, fmt.Errorf("in json.Unmarshal(): %w", err)
 	}
+	return normalizeWorkNameTrendRankings(result.Rankings), nil
+}
 
+func (app *WorkspaceApp) saveWorkNameTrend(ctx context.Context, rankings []repository.WorkNameTrendRanking) error {
 	// DBに保存
 	workNameTrend := repository.WorkNameTrendDoc{
-		Ranking:  result.Rankings,
-		RankedAt: time.Now(),
+		Ranking:  normalizeWorkNameTrendRankings(rankings),
+		RankedAt: app.currentTime(),
 	}
-	txErr := app.Repository.FirestoreClient().RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		return app.Repository.UpdateWorkNameTrend(ctx, tx, workNameTrend)
 	})
 	if txErr != nil {
-		return fmt.Errorf("in FirestoreClient().RunTransaction(): %w", txErr)
+		return fmt.Errorf("in app.RunTransaction(): %w", txErr)
 	}
 
-	slog.Info(utils.NameOf(app.UpdateWorkNameTrend) + " finished")
-
 	return nil
+}
+
+func normalizeWorkNameTrendRankings(rankings []repository.WorkNameTrendRanking) []repository.WorkNameTrendRanking {
+	if rankings == nil {
+		return []repository.WorkNameTrendRanking{}
+	}
+	return rankings
 }

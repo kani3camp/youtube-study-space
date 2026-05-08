@@ -12,7 +12,7 @@
   "author": "",
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
-    "@figma/plugin-typings": "^1.64.0",
-    "typescript": "^5.0.4"
+    "@figma/plugin-typings": "^1.125.0",
+    "typescript": "^6.0.3"
   }
 }

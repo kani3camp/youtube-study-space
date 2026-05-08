@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import {
 	buildStyles,

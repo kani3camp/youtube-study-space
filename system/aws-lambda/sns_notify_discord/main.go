@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"unicode/utf8"
 
 	"app.modules/aws-lambda/lambdautils"
 	coreutils "app.modules/core/utils"
@@ -21,9 +22,9 @@ func init() {
 }
 
 const (
-	maxDiscordMessageBytes = 1800
-	truncatedSuffix        = "... (truncated)"
-	notifyPrefix           = "[SNS] "
+	maxDiscordMessageLength = 1800
+	truncatedSuffix         = "... (truncated)"
+	notifyPrefix            = "[SNS] "
 )
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
@@ -71,7 +72,10 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
 
 		notify := buildDiscordNotification(subject, message)
-		app.MessageToOwner(gracefulCtx, notify)
+		if err := app.MessageToOwnerOrError(gracefulCtx, notify); err != nil {
+			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", "record_index", i, "err", err)
+			return fmt.Errorf("send SNS notification to owner: %w", err)
+		}
 	}
 
 	// 処理完了後にコンテキストがキャンセルされていたらログ出力
@@ -88,15 +92,18 @@ func main() {
 
 func buildDiscordNotification(subject string, message string) string {
 	notify := fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, message)
-	if len(notify) <= maxDiscordMessageBytes {
+	if utf8.RuneCountInString(notify) <= maxDiscordMessageLength {
 		return notify
 	}
 
-	availableMessageBytes := maxDiscordMessageBytes - len(notifyPrefix) - len(subject) - 1
-	if availableMessageBytes <= len(truncatedSuffix) {
-		return coreutils.TruncateStringUTF8(notify, maxDiscordMessageBytes)
+	prefixRunes := utf8.RuneCountInString(notifyPrefix)
+	subjectRunes := utf8.RuneCountInString(subject)
+	suffixRunes := utf8.RuneCountInString(truncatedSuffix)
+	availableMessageLength := maxDiscordMessageLength - prefixRunes - subjectRunes - 1
+	if availableMessageLength <= suffixRunes {
+		return coreutils.TruncateStringRunes(notify, maxDiscordMessageLength)
 	}
 
-	truncatedMessage := coreutils.TruncateStringUTF8(message, availableMessageBytes-len(truncatedSuffix)) + truncatedSuffix
+	truncatedMessage := coreutils.TruncateStringRunes(message, availableMessageLength-suffixRunes) + truncatedSuffix
 	return fmt.Sprintf("%s%s\n%s", notifyPrefix, subject, truncatedMessage)
 }

@@ -32,7 +32,7 @@ function HomepageHeader() {
 	);
 }
 
-export default function Home(): JSX.Element {
+export default function Home() {
 	const title = translate({
 		id: 'homepage.title',
 		message: 'YouTubeオンライン作業部屋 コマンド一覧',

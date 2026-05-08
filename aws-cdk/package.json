@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "pretest": "tsc",
     "test": "jest",
     "cdk:bootstrap": "cdk bootstrap",
     "cdk:deploy": "cdk deploy",
@@ -15,17 +16,17 @@
     "cdk:synth": "cdk synth"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.12",
-    "@types/node": "20.12.7",
+    "@types/jest": "^30.0.0",
+    "@types/node": "25.6.0",
     "aws-cdk": "^2.172.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.2",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
-    "typescript": "~5.4.5"
+    "typescript": "~6.0.3"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.189.1",
-    "constructs": "^10.0.0",
+    "aws-cdk-lib": "^2.250.0",
+    "constructs": "^10.6.0",
     "source-map-support": "^0.5.21"
   }
 }

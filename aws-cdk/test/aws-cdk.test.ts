@@ -126,6 +126,165 @@ describe('AwsCdkStack', () => {
 			expect(logGroup.Properties?.RetentionInDays).toBeUndefined()
 		}
 	})
+
+	test('defines AlarmEmail template parameter for SNS email backstop', () => {
+		const t = createTemplate()
+		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
+	})
+
+	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Conditions?: Record<string, unknown>
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Condition?: string
+					Properties?: { Protocol?: string }
+				}
+			>
+		}
+		const subs = t.findResources('AWS::SNS::Subscription')
+		expect(Object.keys(subs).length).toBe(2)
+		expect(json.Conditions).toHaveProperty('HasAlarmEmail')
+		t.hasResourceProperties('AWS::SNS::Subscription', {
+			Protocol: 'email',
+		})
+		t.hasResourceProperties('AWS::SNS::Subscription', {
+			Protocol: 'lambda',
+		})
+		const emailSubscription = Object.values(json.Resources ?? {}).find(
+			(resource) =>
+				resource.Type === 'AWS::SNS::Subscription' &&
+				resource.Properties?.Protocol === 'email',
+		)
+		expect(emailSubscription?.Condition).toBe('HasAlarmEmail')
+	})
+
+	test('creates error_log_notify_discord Lambda and target ERROR subscription filters', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						Principal?: string
+					}
+				}
+			>
+		}
+		const resources = json.Resources ?? {}
+		const lambdaNames = Object.values(resources)
+			.filter((r) => r.Type === 'AWS::Lambda::Function')
+			.map((r) => r.Properties?.FunctionName)
+		expect(lambdaNames).toContain('error_log_notify_discord')
+
+		const filters = Object.values(resources).filter(
+			(r) => r.Type === 'AWS::Logs::SubscriptionFilter',
+		)
+		const filterIds = Object.entries(resources)
+			.filter(([, r]) => r.Type === 'AWS::Logs::SubscriptionFilter')
+			.map(([id]) => id)
+		const expectedFilterIdPrefixes = [
+			'StartDailyBatchErrorLogSubscription',
+			'SetDesiredMaxSeatsErrorLogSubscription',
+			'YoutubeOrganizeDatabaseErrorLogSubscription',
+			'CheckLiveStreamStatusErrorLogSubscription',
+			'UpdateWorkNameTrendErrorLogSubscription',
+			'SnsNotifyDiscordErrorLogSubscription',
+		]
+		expect(filters.length).toBeGreaterThanOrEqual(
+			expectedFilterIdPrefixes.length,
+		)
+		for (const expectedPrefix of expectedFilterIdPrefixes) {
+			expect(filterIds.some((id) => id.startsWith(expectedPrefix))).toBe(true)
+		}
+		expect(
+			filterIds.some((id) =>
+				id.startsWith('ErrorLogNotifyDiscordErrorLogSubscription'),
+			),
+		).toBe(false)
+
+		const logRetentionCustomResources = Object.values(resources).filter(
+			(r) => r.Type === 'Custom::LogRetention',
+		)
+		expect(logRetentionCustomResources.length).toBeGreaterThanOrEqual(6)
+
+		const logsInvokePerms = Object.values(resources).filter(
+			(r) =>
+				r.Type === 'AWS::Lambda::Permission' &&
+				r.Properties?.Principal === 'logs.amazonaws.com',
+		)
+		expect(logsInvokePerms.length).toBeGreaterThanOrEqual(3)
+	})
+
+	test('every Lambda function has an Errors > 0 alarm wired to AWS/Lambda metric', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						MetricName?: string
+						Namespace?: string
+						Threshold?: number
+						ComparisonOperator?: string
+						Dimensions?: Array<{ Name?: string; Value?: unknown }>
+					}
+				}
+			>
+		}
+		const resources = json.Resources ?? {}
+
+		// 対象 Lambda: スタックで明示的に FunctionName を付与しているユーザー Lambda のみ。
+		// CDK 内部の LogRetention 用 Lambda などは FunctionName を持たないため自然に除外される。
+		const targetLambdaEntries = Object.entries(resources).filter(
+			([, r]) =>
+				r.Type === 'AWS::Lambda::Function' &&
+				typeof r.Properties?.FunctionName === 'string',
+		)
+		expect(targetLambdaEntries.length).toBeGreaterThan(0)
+
+		const errorsAlarms = Object.values(resources).filter(
+			(r) =>
+				r.Type === 'AWS::CloudWatch::Alarm' &&
+				r.Properties?.MetricName === 'Errors' &&
+				r.Properties?.Namespace === 'AWS/Lambda' &&
+				r.Properties?.Threshold === 0 &&
+				r.Properties?.ComparisonOperator === 'GreaterThanThreshold',
+		)
+
+		const referencedLambdaLogicalIds = new Set<string>()
+		for (const alarm of errorsAlarms) {
+			for (const d of alarm.Properties?.Dimensions ?? []) {
+				if (d.Name !== 'FunctionName') continue
+				const value = d.Value as
+					| { Ref?: string; 'Fn::GetAtt'?: [string, string] }
+					| undefined
+				if (value && typeof value.Ref === 'string') {
+					referencedLambdaLogicalIds.add(value.Ref)
+				}
+				if (value && Array.isArray(value['Fn::GetAtt'])) {
+					referencedLambdaLogicalIds.add(value['Fn::GetAtt'][0])
+				}
+			}
+		}
+
+		for (const [lid, r] of targetLambdaEntries) {
+			expect({
+				functionName: r.Properties?.FunctionName,
+				hasErrorsAlarm: referencedLambdaLogicalIds.has(lid),
+			}).toEqual({
+				functionName: r.Properties?.FunctionName,
+				hasErrorsAlarm: true,
+			})
+		}
+	})
 })
 
 // Issue #692: Docker アセット決定性テスト

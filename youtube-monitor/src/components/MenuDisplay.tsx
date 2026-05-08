@@ -1,4 +1,4 @@
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, memo, useCallback, useEffect, useState } from 'react'
 import { useInterval } from '../lib/common'
 import { componentBackground, componentStyle } from '../styles/common.style'

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"app.modules/aws-lambda/lambdautils"
@@ -11,6 +10,7 @@ import (
 	"app.modules/core/workspaceapp"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
+	"google.golang.org/api/option"
 )
 
 func init() {
@@ -22,6 +22,24 @@ type CheckLiveStreamResponse struct {
 	Message string `json:"message"`
 }
 
+type checkLiveStreamApp interface {
+	CheckLiveStreamStatus(ctx context.Context) error
+	MessageToOwnerWithError(ctx context.Context, message string, err error)
+	CloseFirestoreClient()
+}
+
+var (
+	// Unit test で初期化失敗や timeout 分岐を差し替え検証できるようにしている。
+	firestoreClientOptionCheck = lambdautils.FirestoreClientOption
+	newCheckWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (checkLiveStreamApp, error) {
+		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
+	}
+)
+
+func okResponse() CheckLiveStreamResponse {
+	return CheckLiveStreamResponse{Result: lambdautils.OK, Message: ""}
+}
+
 // CheckLiveStream checks the live stream status and, in case of an error, sends a message to the owner.
 func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 	slog.Info(utils.NameOf(CheckLiveStream))
@@ -30,37 +48,34 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
 	defer cancel()
 
-	clientOption, err := lambdautils.FirestoreClientOption()
+	clientOption, err := firestoreClientOptionCheck()
 	if err != nil {
-		return CheckLiveStreamResponse{}, fmt.Errorf("in FirestoreClientOption: %w", err)
+		slog.ErrorContext(ctx, "failed to get Firestore client option for check_live_stream_status",
+			"err", err,
+		)
+		return okResponse(), nil
 	}
 
-	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
+	app, err := newCheckWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			// 初期化中のタイムアウト（appがないのでDiscord通知不可）
-			return CheckLiveStreamResponse{}, fmt.Errorf("timeout during NewWorkspaceApp: %w", err)
-		}
-		return CheckLiveStreamResponse{}, fmt.Errorf("in NewWorkspaceApp: %w", err)
+		slog.ErrorContext(ctx, "failed to init WorkspaceApp for check_live_stream_status",
+			"err", err,
+		)
+		return okResponse(), nil
 	}
 	defer app.CloseFirestoreClient()
 
 	if err := app.CheckLiveStreamStatus(gracefulCtx); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			// NOTE: gracefulCtxは既にキャンセル済みのため、まだ残り時間のある元のctxを使用
-			if notifyErr := app.NotifyTimeoutToOwner(ctx, fmt.Errorf("CheckLiveStreamStatusでタイムアウト: %w", err)); notifyErr != nil {
-				return CheckLiveStreamResponse{}, fmt.Errorf("timeout notification failed: %w", notifyErr)
-			}
-			return CheckLiveStreamResponse{Result: "timeout_warning", Message: err.Error()}, nil
+			slog.ErrorContext(ctx, "timeout warning in check_live_stream_status during CheckLiveStreamStatus", "err", err)
+			return okResponse(), nil
 		}
+		slog.ErrorContext(ctx, "failed to check live stream status", "err", err)
 		app.MessageToOwnerWithError(ctx, "failed to check live stream status", err)
-		return CheckLiveStreamResponse{}, err
+		return okResponse(), nil
 	}
 
-	return CheckLiveStreamResponse{
-		Result:  lambdautils.OK,
-		Message: "",
-	}, nil
+	return okResponse(), nil
 }
 
 func main() {

@@ -30,6 +30,7 @@ func Init() (option.ClientOption, context.Context, error) {
 	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
 
 	ctx := context.Background()
+	//nolint:staticcheck // Credential file path is repo/operator-controlled and restricted to the service account JSON used for this app.
 	clientOption := option.WithCredentialsFile(credentialFilePath)
 
 	creds, err := transport.Creds(ctx, clientOption)

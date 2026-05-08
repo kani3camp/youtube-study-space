@@ -128,7 +128,7 @@ async function main(): Promise<void> {
 	// Puppeteerブラウザを起動
 	console.log('ブラウザを起動中...')
 	const browser = await puppeteer.launch({
-		headless: 'new', // v21系では新しいHeadlessモードを明示的に指定
+		headless: true, // Puppeteer 21/24 の両方で扱える設定に固定する
 		args: ['--no-sandbox', '--disable-setuid-sandbox'],
 	})
 	console.log('ブラウザ起動完了')

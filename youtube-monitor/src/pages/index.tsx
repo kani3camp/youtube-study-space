@@ -6,7 +6,7 @@ import {
 	query,
 } from 'firebase/firestore'
 import type { GetStaticProps } from 'next'
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
+import { serverSideTranslations } from 'next-i18next/pages/serverSideTranslations'
 import { type FC, useEffect, useState } from 'react'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'

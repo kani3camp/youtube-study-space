@@ -14,6 +14,7 @@ import * as events from 'aws-cdk-lib/aws-events'
 import * as targets from 'aws-cdk-lib/aws-events-targets'
 import { PassthroughBehavior } from 'aws-cdk-lib/aws-apigateway'
 import * as logs from 'aws-cdk-lib/aws-logs'
+import { LambdaDestination } from 'aws-cdk-lib/aws-logs-destinations'
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch'
 import * as sns from 'aws-cdk-lib/aws-sns'
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
@@ -32,7 +33,7 @@ const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
 // 全 Lambda で同じ build context / Dockerfile / platform を共有しているため、CDK は
 // 既に asset を de-dup している。ヘルパーは宣言の明確化とビルド時間の予測性向上を
 // 目的とし、`entrypoint` だけを差し替える。`entrypoint` は Lambda imageConfig 側の
-// 設定で asset fingerprint には寄与しないので、6 関数分の asset は 1 つに共有される。
+// 設定で asset fingerprint には寄与しないので、複数関数分の asset は 1 つに共有される。
 const createLambdaImageCode = (systemDir: string, binaryName: string) =>
 	lambda.DockerImageCode.fromImageAsset(systemDir, {
 		file: DOCKERFILE_LAMBDA,
@@ -44,6 +45,18 @@ export class AwsCdkStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: AwsCdkStackProps) {
 		const { systemDir = DEFAULT_SYSTEM_DIR, ...stackProps } = props ?? {}
 		super(scope, id, stackProps)
+
+		const alarmEmail = new cdk.CfnParameter(this, 'AlarmEmail', {
+			type: 'String',
+			default: '',
+			description:
+				'Optional email address for SNS subscription on AlarmsTopic (CloudWatch alarms). Confirm the subscription in email after deploy when specified.',
+		})
+		const hasAlarmEmail = new cdk.CfnCondition(this, 'HasAlarmEmail', {
+			expression: cdk.Fn.conditionNot(
+				cdk.Fn.conditionEquals(alarmEmail.valueAsString, ''),
+			),
+		})
 
 		// =========================
 		// Secrets Manager
@@ -186,6 +199,16 @@ export class AwsCdkStack extends cdk.Stack {
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
 		)
+		const alarmEmailSubscription = new sns.CfnSubscription(
+			this,
+			'AlarmsTopicEmailSubscription',
+			{
+				topicArn: alarmsTopic.topicArn,
+				protocol: 'email',
+				endpoint: alarmEmail.valueAsString,
+			},
+		)
+		alarmEmailSubscription.cfnOptions.condition = hasAlarmEmail
 
 		// Helper to create a common Lambda Errors>0 alarm wired to SNS
 		const createLambdaErrorAlarm = (
@@ -208,6 +231,12 @@ export class AwsCdkStack extends cdk.Stack {
 			alarm.addAlarmAction(new cw_actions.SnsAction(alarmsTopic))
 			return alarm
 		}
+
+		createLambdaErrorAlarm(
+			snsNotifyDiscordFunction,
+			'SnsNotifyDiscordErrorsAlarm',
+			'Lambda sns_notify_discord errors > 0',
+		)
 
 		// 参照用の出力（後続PRでStep Functionsから使用）
 		new cdk.CfnOutput(this, 'BatchClusterArn', {
@@ -566,6 +595,12 @@ export class AwsCdkStack extends cdk.Stack {
 			},
 		)
 
+		createLambdaErrorAlarm(
+			startDailyBatchFunction,
+			'StartDailyBatchErrorsAlarm',
+			'Lambda start_daily_batch errors > 0',
+		)
+
 		// Lambda function
 		const setDesiredMaxSeatsFunction = new lambda.DockerImageFunction(
 			this,
@@ -645,6 +680,67 @@ export class AwsCdkStack extends cdk.Stack {
 			updateWorkNameTrendFunction,
 			'UpdateWorkNameTrendErrorsAlarm',
 			'Lambda update_work_name_trend errors > 0',
+		)
+
+		const errorLogNotifyDiscordFunction = new lambda.DockerImageFunction(
+			this,
+			'error_log_notify_discord',
+			{
+				functionName: 'error_log_notify_discord',
+				code: createLambdaImageCode(systemDir, 'error_log_notify_discord'),
+				timeout: cdk.Duration.seconds(30),
+			},
+		)
+		;(errorLogNotifyDiscordFunction.role as iam.Role).addToPolicy(
+			dynamoDBAccessPolicy,
+		)
+		createLambdaErrorAlarm(
+			errorLogNotifyDiscordFunction,
+			'ErrorLogNotifyDiscordErrorsAlarm',
+			'Lambda error_log_notify_discord errors > 0',
+		)
+
+		const errorLogFilterPattern = logs.FilterPattern.stringValue(
+			'$.level',
+			'=',
+			'ERROR',
+		)
+
+		const addErrorLogSubscriptionFilter = (
+			constructId: string,
+			targetFunction: lambda.Function,
+		) => {
+			new logs.SubscriptionFilter(this, constructId, {
+				logGroup: targetFunction.logGroup,
+				destination: new LambdaDestination(errorLogNotifyDiscordFunction),
+				filterPattern: errorLogFilterPattern,
+				filterName: 'error-level-to-discord',
+			})
+		}
+
+		addErrorLogSubscriptionFilter(
+			'StartDailyBatchErrorLogSubscription',
+			startDailyBatchFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'SetDesiredMaxSeatsErrorLogSubscription',
+			setDesiredMaxSeatsFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'YoutubeOrganizeDatabaseErrorLogSubscription',
+			youtubeOrganizeDatabaseFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'CheckLiveStreamStatusErrorLogSubscription',
+			checkLiveStreamStatusFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'UpdateWorkNameTrendErrorLogSubscription',
+			updateWorkNameTrendFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'SnsNotifyDiscordErrorLogSubscription',
+			snsNotifyDiscordFunction,
 		)
 
 		// API Gateway用ロググループ
