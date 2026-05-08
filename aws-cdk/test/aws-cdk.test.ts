@@ -241,16 +241,12 @@ describe('AwsCdkStack', () => {
 		}
 		const resources = json.Resources ?? {}
 
-		// 将来 Errors アラーム不要な Lambda が現れたらここに追加する
-		const EXEMPT_FUNCTION_NAMES: readonly string[] = []
-
 		// 対象 Lambda: スタックで明示的に FunctionName を付与しているユーザー Lambda のみ。
 		// CDK 内部の LogRetention 用 Lambda などは FunctionName を持たないため自然に除外される。
 		const targetLambdaEntries = Object.entries(resources).filter(
 			([, r]) =>
 				r.Type === 'AWS::Lambda::Function' &&
-				typeof r.Properties?.FunctionName === 'string' &&
-				!EXEMPT_FUNCTION_NAMES.includes(r.Properties.FunctionName as string),
+				typeof r.Properties?.FunctionName === 'string',
 		)
 		expect(targetLambdaEntries.length).toBeGreaterThan(0)
 
