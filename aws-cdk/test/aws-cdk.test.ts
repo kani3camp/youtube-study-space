@@ -162,17 +162,7 @@ describe('AwsCdkStack', () => {
 		expect(emailSubscription?.Condition).toBe('HasAlarmEmail')
 	})
 
-	test('creates Lambda errors alarms for sns_notify_discord and start_daily_batch', () => {
-		const t = createTemplate()
-		const alarms = t.findResources('AWS::CloudWatch::Alarm')
-		const descriptions = Object.values(alarms).map(
-			(a) => (a as { Properties?: { AlarmDescription?: string } }).Properties?.AlarmDescription,
-		)
-		expect(descriptions).toContain('Lambda sns_notify_discord errors > 0')
-		expect(descriptions).toContain('Lambda start_daily_batch errors > 0')
-	})
-
-	test('creates error_log_notify_discord Lambda, errors alarm, and target ERROR subscription filters', () => {
+	test('creates error_log_notify_discord Lambda and target ERROR subscription filters', () => {
 		const t = createTemplate()
 		const json = t.toJSON() as {
 			Resources?: Record<
@@ -229,12 +219,75 @@ describe('AwsCdkStack', () => {
 				r.Properties?.Principal === 'logs.amazonaws.com',
 		)
 		expect(logsInvokePerms.length).toBeGreaterThanOrEqual(3)
+	})
 
-		const alarms = t.findResources('AWS::CloudWatch::Alarm')
-		const descriptions = Object.values(alarms).map(
-			(a) => (a as { Properties?: { AlarmDescription?: string } }).Properties?.AlarmDescription,
+	test('every Lambda function has an Errors > 0 alarm wired to AWS/Lambda metric', () => {
+		const t = createTemplate()
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						MetricName?: string
+						Namespace?: string
+						Threshold?: number
+						ComparisonOperator?: string
+						Dimensions?: Array<{ Name?: string; Value?: unknown }>
+					}
+				}
+			>
+		}
+		const resources = json.Resources ?? {}
+
+		// 将来 Errors アラーム不要な Lambda が現れたらここに追加する
+		const EXEMPT_FUNCTION_NAMES: readonly string[] = []
+
+		// 対象 Lambda: スタックで明示的に FunctionName を付与しているユーザー Lambda のみ。
+		// CDK 内部の LogRetention 用 Lambda などは FunctionName を持たないため自然に除外される。
+		const targetLambdaEntries = Object.entries(resources).filter(
+			([, r]) =>
+				r.Type === 'AWS::Lambda::Function' &&
+				typeof r.Properties?.FunctionName === 'string' &&
+				!EXEMPT_FUNCTION_NAMES.includes(r.Properties.FunctionName as string),
 		)
-		expect(descriptions).toContain('Lambda error_log_notify_discord errors > 0')
+		expect(targetLambdaEntries.length).toBeGreaterThan(0)
+
+		const errorsAlarms = Object.values(resources).filter(
+			(r) =>
+				r.Type === 'AWS::CloudWatch::Alarm' &&
+				r.Properties?.MetricName === 'Errors' &&
+				r.Properties?.Namespace === 'AWS/Lambda' &&
+				r.Properties?.Threshold === 0 &&
+				r.Properties?.ComparisonOperator === 'GreaterThanThreshold',
+		)
+
+		const referencedLambdaLogicalIds = new Set<string>()
+		for (const alarm of errorsAlarms) {
+			for (const d of alarm.Properties?.Dimensions ?? []) {
+				if (d.Name !== 'FunctionName') continue
+				const value = d.Value as
+					| { Ref?: string; 'Fn::GetAtt'?: [string, string] }
+					| undefined
+				if (value && typeof value.Ref === 'string') {
+					referencedLambdaLogicalIds.add(value.Ref)
+				}
+				if (value && Array.isArray(value['Fn::GetAtt'])) {
+					referencedLambdaLogicalIds.add(value['Fn::GetAtt'][0])
+				}
+			}
+		}
+
+		for (const [lid, r] of targetLambdaEntries) {
+			expect({
+				functionName: r.Properties?.FunctionName,
+				hasErrorsAlarm: referencedLambdaLogicalIds.has(lid),
+			}).toEqual({
+				functionName: r.Properties?.FunctionName,
+				hasErrorsAlarm: true,
+			})
+		}
 	})
 })
 
