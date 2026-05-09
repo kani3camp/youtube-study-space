@@ -411,6 +411,22 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
+			Name:  "メンバー席番号0指定の入室",
+			Input: "/0",
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIDSet: true,
+					SeatID:      0,
+					MinWorkOrderOption: &MinWorkOrderOption{
+						IsWorkNameSet:    false,
+						IsDurationMinSet: false,
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
+		{
 			Name:  "work=なしで作業名指定可能 オプション順不同",
 			Input: "/1 てすと m 165",
 			Output: &CommandDetails{
@@ -620,8 +636,89 @@ func TestParseIn(t *testing.T) {
 			},
 		},
 		{
+			Name:     "メンバー用絵文字コマンド入室",
+			Input:    TestEmojiMemberIn0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinWorkOrderOption: &MinWorkOrderOption{},
+					IsMemberSeat:       true,
+				},
+			},
+		},
+		{
+			Name:     "メンバー用絵文字コマンド入室 席番号0指定",
+			Input:    TestEmojiMemberInZero0,
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					IsSeatIDSet:        true,
+					SeatID:             0,
+					MinWorkOrderOption: &MinWorkOrderOption{},
+					IsMemberSeat:       true,
+				},
+			},
+		},
+		{
+			Name:     "メンバー用絵文字コマンド入室 作業名指定",
+			Input:    TestEmojiMemberIn0 + TestEmojiWork0 + "dev",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
+						IsWorkNameSet: true,
+						WorkName:      "dev",
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
+		{
+			Name:     "メンバー用絵文字コマンド入室 時間指定",
+			Input:    TestEmojiMemberIn0 + TestEmojiMin0 + "90",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
+						IsDurationMinSet: true,
+						DurationMin:      90,
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
+		{
+			Name:     "メンバー用絵文字コマンド入室 作業名時間指定 空白なし",
+			Input:    TestEmojiMemberIn0 + TestEmojiWork0 + "task" + TestEmojiMin0 + "120",
+			IsMember: true,
+			Output: &CommandDetails{
+				CommandType: In,
+				InOption: InOption{
+					MinWorkOrderOption: &MinWorkOrderOption{
+						IsWorkNameSet:    true,
+						IsDurationMinSet: true,
+						WorkName:         "task",
+						DurationMin:      120,
+					},
+					IsMemberSeat: true,
+				},
+			},
+		},
+		{
 			Name:     "非メンバーによるメンバー用絵文字入室（無効）",
 			Input:    TestEmojiMemberIn0,
+			IsMember: false,
+			Output: &CommandDetails{
+				CommandType: NotCommand,
+			},
+		},
+		{
+			Name:     "非メンバーによるメンバー用絵文字席番号0入室（無効）",
+			Input:    TestEmojiMemberInZero0,
 			IsMember: false,
 			Output: &CommandDetails{
 				CommandType: NotCommand,

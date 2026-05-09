@@ -167,6 +167,8 @@ func ReplaceEmojiCommandToText(fullString string) (string, string) {
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+ResumeCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, MemberInString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+MemberInCommand+HalfWidthSpace, 1)
+		case MatchEmojiCommand(s, MemberInZeroString):
+			fullString = strings.Replace(fullString, s, HalfWidthSpace+MemberInZeroCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, OrderString):
 			fullString = strings.Replace(fullString, s, HalfWidthSpace+OrderCommand+HalfWidthSpace, 1)
 		case MatchEmojiCommand(s, OrderClearString):
