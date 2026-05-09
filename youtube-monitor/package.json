@@ -23,7 +23,7 @@
 	"author": "",
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
-		"node": ">=20.9.0"
+		"node": ">=20.19.0"
 	},
 	"dependencies": {
 		"@emotion/react": "^11.14.0",
