@@ -35,6 +35,35 @@ func DateEqualJST(date1, date2 time.Time) bool {
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
+// OverlapSecondsInJSTDay returns the length in whole seconds of the intersection of the
+// half-open interval [start, end) with the JST calendar day that contains dayAnchor
+// (that day is [midnight, next midnight) in Asia/Tokyo).
+// If start is not strictly before end, or there is no overlap, it returns 0.
+func OverlapSecondsInJSTDay(start, end, dayAnchor time.Time) int {
+	if !start.Before(end) {
+		return 0
+	}
+
+	loc := JapanLocation()
+	jstAnchor := dayAnchor.In(loc)
+	dayStart := time.Date(jstAnchor.Year(), jstAnchor.Month(), jstAnchor.Day(), 0, 0, 0, 0, loc)
+	dayEnd := dayStart.AddDate(0, 0, 1)
+
+	overlapStart := start
+	if dayStart.After(overlapStart) {
+		overlapStart = dayStart
+	}
+
+	overlapEnd := end
+	if dayEnd.Before(overlapEnd) {
+		overlapEnd = dayEnd
+	}
+	if !overlapStart.Before(overlapEnd) {
+		return 0
+	}
+	return int(overlapEnd.Sub(overlapStart).Seconds())
+}
+
 // DurationToString converts a duration to a Japanese string representation.
 // TODO: support other languages using i18n
 func DurationToString(duration time.Duration) string {

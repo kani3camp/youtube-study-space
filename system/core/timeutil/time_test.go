@@ -169,6 +169,81 @@ func TestDateEqualJST(t *testing.T) {
 	}
 }
 
+func TestOverlapSecondsInJSTDay(t *testing.T) {
+	jst := JapanLocation()
+	tests := []struct {
+		name     string
+		start    time.Time
+		end      time.Time
+		anchor   time.Time
+		expected int
+	}{
+		{
+			name:     "full segment inside same JST day",
+			start:    time.Date(2021, 10, 1, 10, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 1, 11, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 1, 10, 30, 0, 0, jst),
+			expected: 3600,
+		},
+		{
+			name:     "cross midnight overlap on anchor day only",
+			start:    time.Date(2021, 10, 1, 23, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 2, 2, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 2, 1, 0, 0, 0, jst),
+			expected: int((2 * time.Hour).Seconds()),
+		},
+		{
+			name:     "no overlap segment entirely before anchor day",
+			start:    time.Date(2021, 10, 1, 8, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 1, 9, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 2, 12, 0, 0, 0, jst),
+			expected: 0,
+		},
+		{
+			name:     "invalid range start after end",
+			start:    time.Date(2021, 10, 1, 12, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 1, 11, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 1, 10, 0, 0, 0, jst),
+			expected: 0,
+		},
+		{
+			name:     "cross midnight overlap on previous anchor day",
+			start:    time.Date(2021, 10, 1, 23, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 2, 2, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 1, 12, 0, 0, 0, jst),
+			expected: int((1 * time.Hour).Seconds()),
+		},
+		{
+			name:     "segment ending exactly at anchor day start has no overlap",
+			start:    time.Date(2021, 10, 1, 23, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 2, 0, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 2, 12, 0, 0, 0, jst),
+			expected: 0,
+		},
+		{
+			name:     "segment starting exactly at next midnight has no overlap",
+			start:    time.Date(2021, 10, 2, 0, 0, 0, 0, jst),
+			end:      time.Date(2021, 10, 2, 1, 0, 0, 0, jst),
+			anchor:   time.Date(2021, 10, 1, 12, 0, 0, 0, jst),
+			expected: 0,
+		},
+		{
+			name:     "utc timestamps are evaluated against JST day",
+			start:    time.Date(2021, 10, 1, 14, 0, 0, 0, time.UTC), // JST 23:00
+			end:      time.Date(2021, 10, 1, 17, 0, 0, 0, time.UTC), // JST 02:00 next day
+			anchor:   time.Date(2021, 10, 2, 1, 0, 0, 0, jst),
+			expected: int((2 * time.Hour).Seconds()),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := OverlapSecondsInJSTDay(tt.start, tt.end, tt.anchor)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 func TestJapanLocation(t *testing.T) {
 	loc := JapanLocation()
 	assert.NotNil(t, loc)
