@@ -23,7 +23,7 @@
 	"author": "",
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
-		"node": ">=20.9.0"
+		"node": ">=20.19.0"
 	},
 	"dependencies": {
 		"@emotion/react": "^11.14.0",
@@ -51,9 +51,9 @@
 	},
 	"devDependencies": {
 		"@babel/core": "^7.29.0",
-		"@babel/preset-env": "^7.29.2",
+		"@babel/preset-env": "^7.29.5",
 		"@babel/preset-typescript": "^7.28.5",
-		"@biomejs/biome": "2.4.13",
+		"@biomejs/biome": "2.4.14",
 		"@chromatic-com/storybook": "^5.1.2",
 		"@emotion/babel-plugin": "^11.13.5",
 		"@storybook/addon-docs": "^10.3.5",
@@ -72,10 +72,10 @@
 		"@types/redux-logger": "^3.0.13",
 		"babel-jest": "^30.3.0",
 		"file-loader": "^6.2.0",
-		"i18next-http-backend": "^3.0.4",
+		"i18next-http-backend": "^4.0.0",
 		"jest": "^30.3.0",
 		"jest-environment-jsdom": "^30.3.0",
-		"storybook": "^10.3.5",
+		"storybook": "^10.3.6",
 		"ts-jest": "^29.4.9",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.9.3"

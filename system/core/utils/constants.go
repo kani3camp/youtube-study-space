@@ -33,8 +33,9 @@ const (
 	CheckCommand = "!check"
 	BlockCommand = "!block"
 
-	MemberInCommand   = "/in"
-	MemberWorkCommand = "/work"
+	MemberInCommand     = "/in"
+	MemberInZeroCommand = "/0"
+	MemberWorkCommand   = "/work"
 
 	MemberKickCommand  = "/kick"
 	MemberCheckCommand = "/check"
@@ -61,6 +62,7 @@ const (
 	RankOnString       = "RankOn"
 	RankOffString      = "RankOff"
 	MemberInString     = "MemberIn"
+	MemberInZeroString = "メInZero0" // NOTE: 10文字制限のため、"Member"を"メ"で表現。
 	OrderString        = "Order"
 	OrderClearString   = "OrderClr"
 
