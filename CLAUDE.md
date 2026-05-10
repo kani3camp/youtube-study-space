@@ -29,7 +29,7 @@ YouTube Study Space is a 24/7 automated online study room livestreamed on YouTub
 ### Go Backend (`system/`)
 ```bash
 # Run the main bot locally
-go run main.go
+go run ./cmd/youtube-bot
 
 # Run all tests with randomization
 go test -shuffle=on -v ./...
@@ -155,9 +155,9 @@ pnpm lint
 - `i18n/` - Locales and typed translation wrappers
 
 **Backend Entrypoints (`system/`)**:
-- `main.go` - Local live chat bot runner
+- `cmd/youtube-bot/` - Local live chat bot runner
 - `cmd/batch/` - Daily batch executable for Fargate
-- `aws-lambda/` - Lambda handlers such as `youtube_organize_database`, `check_live_stream_status`, `start_daily_batch`, `set_desired_max_seats`, and `update_work_name_trend`
+- `cmd/lambda/` - Lambda handlers such as `youtube_organize_database`, `check_live_stream_status`, `start_daily_batch`, `set_desired_max_seats`, and `update_work_name_trend`
 
 **Frontend Architecture**:
 - **Next.js** with TypeScript
@@ -233,7 +233,7 @@ Representative chat commands (full strings and member variants live in `system/c
 5. YouTube Data API credentials
 
 ### Local Development
-- `system/main.go` runs the live chat bot locally
+- `system/cmd/youtube-bot` runs the live chat bot locally
 - Install frontend dependencies with `pnpm install` in `youtube-monitor/`
 - Start the frontend dev server with `pnpm dev` in `youtube-monitor/`
 - Start the frontend production server with `pnpm start` in `youtube-monitor/` on port `18080`
