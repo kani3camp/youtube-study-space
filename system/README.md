@@ -26,7 +26,7 @@
 - 生成物: `core/i18n/typed/zz_generated.i18n_messages.go`（パッケージ `i18nmsg`）
 
 設計のポイント:
-- 生成コードは `internal/engine` を使用します（`engine.TranslateDefault(...)`）。
+- 生成コードは `core/i18n/internal/engine` を使用します（`engine.TranslateDefault(...)`）。
 - アプリ側は必ず型安全な `i18nmsg.*` を使用してください。
 - ロケールは `//go:embed` によりバイナリに埋め込み、`LoadLocaleFolderFS()` で読み込みます。
 
@@ -56,8 +56,8 @@ go generate ./...
 
 - 実行基盤: AWS ECS Fargate (arm64) 上の単一バッチコンテナ
 - オーケストレーション: AWS Step Functions（直列実行）
-- スケジュール: 00:00:15 JST に開始（EventBridge → Step Functions）
-- 実行順序: `reset-daily-total` → `update-rp` → `transfer-bq`
+- スケジュール: EventBridge Scheduler が **毎日 00:00 JST**（CDK では UTC 15:00）に `start_daily_batch` Lambda を実行し、Step Functions が起動。**SFN 定義では先頭に 15 秒の Wait（日付境界ずれ対策）**のあと ECS タスクが実行される
+- 実行順序（ECS 上のジョブ）: `reset-daily-total` → `update-rp` → `transfer-bq`
 - 認証情報: DynamoDB `secrets` テーブルからGCP SA JSON取得
 - ネットワーク: Public Subnet, Public IP割当, DynamoDB Gateway VPC Endpoint
 - ログ: CloudWatch Logs（ECS/Step Functions/Lambda）

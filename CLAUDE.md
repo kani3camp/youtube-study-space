@@ -109,6 +109,8 @@ pnpm format
 pnpm lint
 ```
 
+- **Note**: In `docs-site/`, `pnpm format` runs `biome format --write .` (writes files), while `youtube-monitor/` uses separate `format` vs `format:fix` scripts. `docs-site` `pnpm check` runs `biome check --apply .`.
+
 - `youtube-monitor/`, `aws-cdk/`, and `docs-site/` use `pnpm` (`packageManager: pnpm@10.4.0`).
 - Do not use `npm` or `yarn` for these directories unless explicitly required.
 
@@ -126,7 +128,7 @@ pnpm lint
 **Event-Driven Serverless**:
 - **Every 1 minute**: `youtube_organize_database` + `check_live_stream_status`
 - **Every 15 minutes**: `update_work_name_trend`
-- **Daily at 00:00 JST**: EventBridge Scheduler starts `start_daily_batch`, which launches the Step Functions and Fargate daily batch flow
+- **Daily at 00:00 JST**: EventBridge Scheduler invokes `start_daily_batch`, which starts Step Functions; after a built-in **15-second wait** (date-boundary safeguard in CDK), the state machine runs the sequential ECS Fargate daily batch (`reset-daily-total` → `update-rp` → `transfer-bq`)
 
 **Multi-Database Strategy**:
 - **Firestore**: Real-time user sessions, room state, chat history, configuration
@@ -204,7 +206,7 @@ pnpm lint
 - **Transaction safety**: Use Firestore transactions for data consistency
 
 ### Command System
-Representative chat commands:
+Representative chat commands (full strings and member variants live in `system/core/utils/constants.go`):
 - `!in` - General seat entry
 - `/in` - Member seat entry
 - `!out` - Exit seat
@@ -213,19 +215,19 @@ Representative chat commands:
 - `!my` - Show personal stats or update personal settings
 - `!rank` - Display rankings
 - `!more` / `!okawari` - Extend work time
-- Moderation: `!kick`, `!block`
+- Moderation: `!kick`, `!check`, `!block` (member-prefixed variants such as `/kick` are defined alongside)
 
 ### Internationalization
 - Support for English, Japanese, and Korean locale files
 - Message templates live under `system/core/i18n/`
-- Typed wrappers are generated from locale metadata with `go generate ./...`
+- `system/core/i18n/generate.go` wires `//go:generate go run app.modules/cmd/i18n-gen`; run `go generate ./...` from `system/` to regenerate typed wrappers (and any other `go:generate` targets such as repository mocks)
 - Frontend uses `next-i18next`
 
 ## Development Environment
 
 ### Required Setup
 1. Go 1.25.0+ for backend development
-2. Node.js 18+ and `pnpm` for frontend and TypeScript-based subprojects
+2. Node.js **>=20.19.0** (see `youtube-monitor/package.json` `engines`) and `pnpm` for frontend and TypeScript-based subprojects
 3. Google Cloud credentials for Firestore, Cloud Storage, and BigQuery access
 4. AWS credentials for Lambda, Step Functions, Scheduler, and CDK operations
 5. YouTube Data API credentials
