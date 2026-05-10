@@ -31,14 +31,11 @@ coverage*
 /sns_notify_discord
 /app.modules
 /app.modules.exe
-/aws-lambda/main
-/aws-lambda/main.zip
 /.serverless
 
 # Local-only Go sources (not built into Lambda/Fargate images; excluded to keep
 # build-context fingerprint stable across local edits — see issue #692)
-/main.go
-/main_test.go
+/cmd/youtube-bot
 
 # Tests (not needed for container image)
 **/*_test.go

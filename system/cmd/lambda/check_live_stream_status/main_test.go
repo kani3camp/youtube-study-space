@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"app.modules/aws-lambda/lambdautils"
+	"app.modules/internal/awsruntime"
 	"google.golang.org/api/option"
 )
 
@@ -35,7 +35,7 @@ func TestCheckLiveStreamFirestoreInitFailureReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }
@@ -48,7 +48,7 @@ func TestCheckLiveStreamWorkspaceInitFailureReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }
@@ -64,7 +64,7 @@ func TestCheckLiveStreamHandlerFailureReturnsOKAfterOwnerMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(app.messageToOwnerMsgs) != 1 {
@@ -86,7 +86,7 @@ func TestCheckLiveStreamTimeoutReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if !app.closed {

@@ -4,7 +4,7 @@
 
 YouTube Study Space は、YouTube ライブのチャットコマンドで入退室や作業管理を行うオンライン自習室です。
 `system/` はそのバックエンド、定期ジョブ、Lambda ハンドラをまとめた Go 実装です。
-Firestore を中心に状態を保持し、`main.go` がローカル用ライブチャット bot、[`cmd/batch/`](cmd/batch/) が Fargate 日次バッチ、[`aws-lambda/`](aws-lambda/) が定期 Lambda です。
+Firestore を中心に状態を保持し、[`cmd/youtube-bot/`](cmd/youtube-bot/) がローカル用ライブチャット bot、[`cmd/batch/`](cmd/batch/) が Fargate 日次バッチ、[`cmd/lambda/`](cmd/lambda/) が定期 Lambda です。
 
 ## 技術スタック
 
@@ -32,7 +32,7 @@ Firestore を中心に状態を保持し、`main.go` がローカル用ライブ
 このガイドは `system/` を前提に読む。
 
 ### 主要ディレクトリと参照しやすいファイル
-- `main.go` — ローカル用エントリ。`Bot` と `CheckLongTimeSitting` を起動し、ライブチャットをポーリングする
+- `cmd/youtube-bot/` — ローカル用エントリ。`Bot` と `CheckLongTimeSitting` を起動し、ライブチャットをポーリングする
 - `core/workspaceapp/` — コマンド処理・席管理・休憩・バリデーション・日次バッチ周りの中核。`workspace_app.go` と `command_*.go`。日次・席数調整・作業名トレンドは `batch.go`・`max_seats_adjustment.go`・`work_name_trend.go` など。`presenter/`・`usecase/` で層分割
 - `core/repository/` — Firestore。インターフェースは [`interface.go`](core/repository/interface.go)
 - `core/youtubebot/` — YouTube Live Chat API
@@ -41,7 +41,9 @@ Firestore を中心に状態を保持し、`main.go` がローカル用ライブ
 - `core/mybigquery/` — BigQuery
 - `core/i18n/` — ロケールと型付きラッパー。[`generate.go`](core/i18n/generate.go) は `//go:generate go run app.modules/cmd/i18n-gen` の薄いエントリ（実体は [`cmd/i18n-gen/`](cmd/i18n-gen/)）
 - `cmd/batch/` — Fargate 日次バッチ。[`main.go`](cmd/batch/main.go) でジョブ切り替え
-- `aws-lambda/` — 定期・補助 Lambda
+- `cmd/lambda/` — 定期・補助 Lambda
+- `internal/awsruntime/` — Lambda / Fargate など AWS 実行基盤向けの共通処理
+- `internal/adminops/` — 管理者向け直接操作
 - `internal/logging/` — ロガー初期化
 - `Dockerfile.lambda` / `Dockerfile.fargate` — それぞれ Lambda 群・日次バッチ用コンテナ
 
@@ -114,7 +116,7 @@ Firestore を中心に状態を保持し、`main.go` がローカル用ライブ
 
 ```bash
 # ライブチャット bot を起動
-go run main.go
+go run ./cmd/youtube-bot
 
 # テスト実行
 go test -shuffle=on -v ./...

@@ -14,25 +14,25 @@ ENV CGO_ENABLED=0 GOOS=linux GOCACHE=/root/.cache/go-build
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o set_desired_max_seats ./cmd/lambda/set_desired_max_seats
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o youtube_organize_database ./cmd/lambda/youtube_organize_database
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o check_live_stream_status ./cmd/lambda/check_live_stream_status
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord ./cmd/lambda/sns_notify_discord
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o error_log_notify_discord aws-lambda/error_log_notify_discord/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o error_log_notify_discord ./cmd/lambda/error_log_notify_discord
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch aws-lambda/start_daily_batch/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch ./cmd/lambda/start_daily_batch
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o update_work_name_trend ./cmd/lambda/update_work_name_trend
 
 # Digest is authoritative; this digest was verified against provided:al2023 when pinned.
 # Copy artifacts to a clean image

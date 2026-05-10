@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"app.modules/aws-lambda/lambdautils"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -39,7 +39,7 @@ var (
 
 func handler(ctx context.Context) error {
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	stateMachineArn := os.Getenv("STATE_MACHINE_ARN")

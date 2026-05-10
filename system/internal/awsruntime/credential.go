@@ -1,7 +1,7 @@
-package lambdautils
+package awsruntime
 
 import (
-	"app.modules/aws-lambda/mydynamodb"
+	"app.modules/internal/awsruntime/mydynamodb"
 	"fmt"
 	"google.golang.org/api/option"
 )

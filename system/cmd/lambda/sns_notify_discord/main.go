@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"unicode/utf8"
 
-	"app.modules/aws-lambda/lambdautils"
 	coreutils "app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -29,10 +29,10 @@ const (
 
 func handler(ctx context.Context, evt events.SNSEvent) error {
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
-	clientOption, err := lambdautils.FirestoreClientOption()
+	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
 		slog.Error("failed to get Firestore client option", "err", err)
 		return err

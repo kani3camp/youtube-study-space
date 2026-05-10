@@ -1,4 +1,4 @@
-package lambdautils
+package awsruntime
 
 import (
 	"context"

@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"google.golang.org/api/option"
@@ -25,8 +25,8 @@ type updateWorkNameTrendApp interface {
 
 var (
 	// Unit test で初期化失敗や timeout 分岐を差し替え検証できるようにしている。
-	secretFieldFromSecretsManager = lambdautils.SecretFieldFromSecretsManager
-	firestoreClientOptionTrend    = lambdautils.FirestoreClientOption
+	secretFieldFromSecretsManager = awsruntime.SecretFieldFromSecretsManager
+	firestoreClientOptionTrend    = awsruntime.FirestoreClientOption
 	newTrendWorkspaceApp          = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (updateWorkNameTrendApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
@@ -36,7 +36,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	slog.Info(utils.NameOf(UpdateWorkNameTrend))
 
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	secretName := os.Getenv("SECRET_NAME")

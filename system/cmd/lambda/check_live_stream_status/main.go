@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"google.golang.org/api/option"
@@ -30,14 +30,14 @@ type checkLiveStreamApp interface {
 
 var (
 	// Unit test で初期化失敗や timeout 分岐を差し替え検証できるようにしている。
-	firestoreClientOptionCheck = lambdautils.FirestoreClientOption
+	firestoreClientOptionCheck = awsruntime.FirestoreClientOption
 	newCheckWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (checkLiveStreamApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
 )
 
 func okResponse() CheckLiveStreamResponse {
-	return CheckLiveStreamResponse{Result: lambdautils.OK, Message: ""}
+	return CheckLiveStreamResponse{Result: awsruntime.OK, Message: ""}
 }
 
 // CheckLiveStream checks the live stream status and, in case of an error, sends a message to the owner.
@@ -45,7 +45,7 @@ func CheckLiveStream(ctx context.Context) (CheckLiveStreamResponse, error) {
 	slog.Info(utils.NameOf(CheckLiveStream))
 
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	clientOption, err := firestoreClientOptionCheck()

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"google.golang.org/api/option"
@@ -31,21 +31,21 @@ type OrganizeDatabaseResponse struct {
 
 var (
 	// Unit test で初期化失敗や timeout 分岐を差し替え検証できるようにしている。
-	firestoreClientOption = lambdautils.FirestoreClientOption
+	firestoreClientOption = awsruntime.FirestoreClientOption
 	newWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (organizeDatabaseApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
 )
 
 func okResponse() OrganizeDatabaseResponse {
-	return OrganizeDatabaseResponse{Result: lambdautils.OK, Message: ""}
+	return OrganizeDatabaseResponse{Result: awsruntime.OK, Message: ""}
 }
 
 func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	slog.Info(utils.NameOf(OrganizeDatabase))
 
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	clientOption, err := firestoreClientOption()

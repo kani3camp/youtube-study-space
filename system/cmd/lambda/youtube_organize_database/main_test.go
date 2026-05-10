@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"app.modules/aws-lambda/lambdautils"
+	"app.modules/internal/awsruntime"
 	"google.golang.org/api/option"
 )
 
@@ -39,7 +39,7 @@ func TestOrganizeDatabaseSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if !app.closed {
@@ -68,7 +68,7 @@ func TestOrganizeDatabaseLogsRoomFailuresAndReturnsOKAfterBothRoomsRun(t *testin
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result after handled failures, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[0] != true || callOrder[1] != false {
@@ -99,7 +99,7 @@ func TestOrganizeDatabaseContinuesToGeneralRoomAfterMemberFailure(t *testing.T) 
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[1] != false {
@@ -126,7 +126,7 @@ func TestOrganizeDatabaseReturnsOKOnMemberTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 1 || callOrder[0] != true {
@@ -153,7 +153,7 @@ func TestOrganizeDatabaseReturnsOKOnGeneralTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error on handled timeout, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 	if len(callOrder) != 2 || callOrder[1] != false {
@@ -170,7 +170,7 @@ func TestOrganizeDatabaseLogsInitializationFailureAndReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error after logging init failure, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }
@@ -184,7 +184,7 @@ func TestOrganizeDatabaseLogsWorkspaceAppInitializationFailureAndReturnsOK(t *te
 	if err != nil {
 		t.Fatalf("expected nil error after logging workspace init failure, got %v", err)
 	}
-	if resp.Result != lambdautils.OK {
+	if resp.Result != awsruntime.OK {
 		t.Fatalf("expected ok result, got %#v", resp)
 	}
 }

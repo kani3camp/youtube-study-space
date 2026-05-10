@@ -9,9 +9,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"app.modules/aws-lambda/lambdautils"
 	coreutils "app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -36,14 +36,14 @@ type errorLogNotifyApp interface {
 
 var (
 	// Unit test で初期化失敗や通知失敗を差し替え検証できるようにしている。
-	firestoreClientOptionErrorLog = lambdautils.FirestoreClientOption
+	firestoreClientOptionErrorLog = awsruntime.FirestoreClientOption
 	newErrorLogWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (errorLogNotifyApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
 )
 
 func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	// この Lambda は通知経路そのものの故障を Errors Alarm + Email バックストップで拾いたいため、初期化や parse 失敗は return err を維持する。

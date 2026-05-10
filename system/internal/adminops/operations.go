@@ -1,4 +1,4 @@
-package direct_operations
+package adminops
 
 import (
 	"context"

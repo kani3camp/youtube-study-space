@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -34,7 +34,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	slog.Info(utils.NameOf(SetDesiredMaxSeats))
 
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
-	gracefulCtx, cancel := lambdautils.CreateGracefulContext(ctx, lambdautils.DefaultGraceSeconds)
+	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	var params SetMaxSeatsParams
@@ -42,7 +42,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		return events.APIGatewayProxyResponse{}, err
 	}
 
-	clientOption, err := lambdautils.FirestoreClientOption()
+	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
@@ -98,7 +98,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 	}
 
 	body, _ := json.Marshal(SetMaxSeatsResponse{ //nolint:errcheck
-		Result:  lambdautils.OK,
+		Result:  awsruntime.OK,
 		Message: "",
 	})
 

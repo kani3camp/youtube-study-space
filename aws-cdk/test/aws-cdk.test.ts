@@ -379,8 +379,8 @@ describe('Docker asset determinism (issue #692)', () => {
 			content: '// temporary edit for test\n',
 		},
 		{
-			name: 'system/main.go (local-only entrypoint; not built into images)',
-			rel: 'main.go',
+			name: 'system/cmd/youtube-bot/main.go (local-only entrypoint; not built into images)',
+			rel: path.join('cmd', 'youtube-bot', 'main.go'),
 			content: '// temporary edit for test\n',
 		},
 	])(
