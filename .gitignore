@@ -6,12 +6,6 @@ system/batch
 system/sns_notify_discord
 system/youtube-bot
 system/youtube-bot.exe
-system/set_desired_max_seats
-system/youtube_organize_database
-system/check_live_stream_status
-system/error_log_notify_discord
-system/start_daily_batch
-system/update_work_name_trend
 system/.env
 
 system/.serverless/youtubeStudySpace.zip
