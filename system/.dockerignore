@@ -23,14 +23,18 @@ coverage*
 /out
 
 # Local Go build artifacts (host-produced, not required inside container image)
-/main
-/main.exe
 /bootstrap
 /bootstrap.exe
 /batch
 /sns_notify_discord
-/app.modules
-/app.modules.exe
+/youtube-bot
+/youtube-bot.exe
+/set_desired_max_seats
+/youtube_organize_database
+/check_live_stream_status
+/error_log_notify_discord
+/start_daily_batch
+/update_work_name_trend
 /.serverless
 
 # Local-only Go sources (not built into Lambda/Fargate images; excluded to keep
