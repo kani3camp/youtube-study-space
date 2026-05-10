@@ -1,8 +1,5 @@
 system/.DS_Store
 system/.gcloudignore
-system/bootstrap.exe
-system/bootstrap
-system/batch
 system/sns_notify_discord
 system/youtube-bot
 system/youtube-bot.exe

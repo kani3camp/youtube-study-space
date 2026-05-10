@@ -23,8 +23,6 @@ coverage*
 /out
 
 # Local Go build artifacts (host-produced, not required inside container image)
-/bootstrap
-/bootstrap.exe
 /batch
 /sns_notify_discord
 /youtube-bot
