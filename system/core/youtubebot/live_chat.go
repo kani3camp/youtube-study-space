@@ -175,6 +175,9 @@ func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) er
 	return nil
 }
 
+// postMessage は Live Chat への送信を次の順で最大 3 回試行する:
+// 1) tryPostMessage（現在の LiveChatID） 2) 同一 ID で再試行 3) refreshLiveChatID 更新後に再試行。
+// ログ設計（例: GitHub #792）では「2回目失敗＝最終」とはならない点に注意する。
 func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) error {
 	if len(message) == 0 {
 		return errors.New("message length is 0")
