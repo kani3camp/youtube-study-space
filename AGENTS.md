@@ -265,3 +265,38 @@ Representative chat commands (full strings and member variants live in `system/c
 ### Third-Party
 - **Discord**: Notification webhooks for moderation and failures
 - **OpenAI API**: Work name trend generation
+
+## Cursor Cloud specific instructions
+
+### Go Version
+- `system/go.mod` requires Go **1.25.0**. The VM update script installs this version automatically. Verify with `go version`.
+
+### Subproject Layout
+- Each subproject (`youtube-monitor/`, `aws-cdk/`, `docs-site/`, `tools/*`) has its own independent `pnpm-lock.yaml`; there is no workspace-level pnpm monorepo. Run `pnpm install` separately in each directory you need.
+
+### Running Tests (all offline — no external services required)
+- **Go backend**: `cd system && go test -shuffle=on -v ./...` — uses mocks, no Firestore/YouTube credentials needed.
+- **Frontend**: `cd youtube-monitor && pnpm test` — Jest + jsdom, fully offline.
+- **AWS CDK**: `cd aws-cdk && pnpm test` — unit tests for schedule/infrastructure invariants.
+- **Docs site**: `cd docs-site && pnpm build` — static build verification.
+
+### Running Lint
+- **Go**: `cd system && golangci-lint run --timeout=5m --config=.golangci.yml` (golangci-lint v2.11.3 installed by update script).
+- **Frontend**: `cd youtube-monitor && pnpm exec biome check .`
+- **Docs site**: `cd docs-site && pnpm lint`
+
+### Frontend Dev Server
+- The frontend (`youtube-monitor/`) requires `NEXT_PUBLIC_*` environment variables to start. For local/CI dev, use dummy values matching CI (see `.github/workflows/test.yml` `youtube-monitor-build` job for the full set). Example:
+  ```bash
+  NEXT_PUBLIC_DEBUG=false NEXT_PUBLIC_CHANNEL_GL=false NEXT_PUBLIC_ROOM_CONFIG=DEV \
+  NEXT_PUBLIC_API_ENDPOINT=http://localhost:3000 NEXT_PUBLIC_API_KEY=ci-dummy-api-key \
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID=ci-dummy-project NEXT_PUBLIC_FIREBASE_API_KEY=ci-dummy-firebase-api-key \
+  pnpm dev
+  ```
+- The UI will load but remain in a "Loading…" state without a real Firestore backend — this is expected behavior for the dev environment without credentials.
+
+### Frontend Build
+- `pnpm build` in `youtube-monitor/` also requires the same `NEXT_PUBLIC_*` env vars to be set.
+
+### Docs Site
+- `cd docs-site && pnpm start --no-open` runs the Docusaurus dev server. No external credentials needed.
