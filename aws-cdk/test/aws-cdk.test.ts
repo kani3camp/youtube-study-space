@@ -355,8 +355,8 @@ describe('Docker asset determinism (issue #692)', () => {
 
 	test.each<{ name: string; rel: string; content: Buffer | string }>([
 		{
-			name: 'system/main (local go build artifact)',
-			rel: 'main',
+			name: 'system/youtube-bot (local go build artifact)',
+			rel: 'youtube-bot',
 			content: Buffer.from('local-build-artifact-test'),
 		},
 		{
