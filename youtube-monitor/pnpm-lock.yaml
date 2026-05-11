@@ -97,8 +97,8 @@ importers:
         specifier: ^10.3.5
         version: 10.3.5(@types/react@18.3.28)(esbuild@0.27.7)(rollup@4.60.3)(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@7.3.1(@types/node@20.19.40)(jiti@2.6.1)(sass@1.99.0)(terser@5.47.1))(webpack@5.101.2(esbuild@0.27.7))
       '@storybook/addon-onboarding':
-        specifier: ^10.3.5
-        version: 10.3.5(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        specifier: ^10.3.6
+        version: 10.3.6(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       '@storybook/addon-themes':
         specifier: ^10.3.5
         version: 10.3.5(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
@@ -1945,10 +1945,10 @@ packages:
     peerDependencies:
       storybook: ^10.3.5
 
-  '@storybook/addon-onboarding@10.3.5':
-    resolution: {integrity: sha512-s3/gIy9Tqxji27iclLY+KSk8kGeow1JxXMl1lPLyu8n6XVvv+tFrUPhAvUTs+fVenG6JQEWc0uzpYBdFRWbMtw==}
+  '@storybook/addon-onboarding@10.3.6':
+    resolution: {integrity: sha512-Tys9eOFzCkBygfDWVRa2hpTQI5Y1HQt9ybkJIHdR16GASQ3fhyXVULHVRmGQLEGN+3n84JGvlU8CN9S/OBB1IQ==}
     peerDependencies:
-      storybook: ^10.3.5
+      storybook: ^10.3.6
 
   '@storybook/addon-themes@10.3.5':
     resolution: {integrity: sha512-Mv+C7GuZ0MhGRx5C+rv8sCEjgYsDTLBvq68101V0s8Vwh3gKd6W9cbS31HoOeLAiIMiPPZ8C1iWudA3Oumdtlw==}
@@ -6406,7 +6406,7 @@ snapshots:
       - vite
       - webpack
 
-  '@storybook/addon-onboarding@10.3.5(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
+  '@storybook/addon-onboarding@10.3.6(storybook@10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
     dependencies:
       storybook: 10.3.6(@testing-library/dom@10.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
