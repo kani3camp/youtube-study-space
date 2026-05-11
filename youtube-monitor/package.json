@@ -32,7 +32,7 @@
 		"@reduxjs/toolkit": "^2.11.2",
 		"buffer": "^6.0.3",
 		"chroma-js": "^3.2.0",
-		"firebase": "^12.12.1",
+		"firebase": "^12.13.0",
 		"framer-motion": "^12.38.0",
 		"music-metadata": "^11.12.3",
 		"next": "^16.2.4",
