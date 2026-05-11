@@ -30,7 +30,7 @@
 		"react-dom": "^19.2.5"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.14",
+		"@biomejs/biome": "2.4.15",
 		"@docusaurus/module-type-aliases": "3.10.1",
 		"@docusaurus/tsconfig": "3.10.1",
 		"@docusaurus/types": "3.10.1",
