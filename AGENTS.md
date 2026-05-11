@@ -272,7 +272,7 @@ Representative chat commands (full strings and member variants live in `system/c
 - `system/go.mod` requires Go **1.25.0**. The VM update script installs this version automatically. Verify with `go version`.
 
 ### Subproject Layout
-- Each subproject (`youtube-monitor/`, `aws-cdk/`, `docs-site/`, `tools/*`) has its own independent `pnpm-lock.yaml`; there is no workspace-level pnpm monorepo. Run `pnpm install` separately in each directory you need.
+- Node/pnpm サブプロジェクト（`youtube-monitor/`, `aws-cdk/`, `docs-site/`, `tools/menu-image-generator/`, `tools/figma-plugin/room-layout-analyzer/`, `tools/video-maker/1000-minutes-simulator/`）はそれぞれ独立した `pnpm-lock.yaml` を持つ（workspace-level pnpm monorepo ではない）。`pnpm install` は必要なディレクトリごとに個別実行する。Go プロジェクト（`system/`, `tools/room-image-prompt/`）は `go.mod` で管理。
 
 ### Running Tests (all offline — no external services required)
 - **Go backend**: `cd system && go test -shuffle=on -v ./...` — uses mocks, no Firestore/YouTube credentials needed.
