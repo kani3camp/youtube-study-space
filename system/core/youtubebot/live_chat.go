@@ -185,6 +185,10 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		return nil
 	}
 
+	if handleLiveChatEndedPostFailure(err) {
+		return nil
+	}
+
 	// 2回目の試行
 	slog.Warn("first post failed; retrying", "err", err)
 	err = b.tryPostMessage(message, b.LiveChatID)
@@ -193,8 +197,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		return nil
 	}
 
-	if isLiveChatEndedError(err) {
-		slog.Warn("post skipped because live chat ended", "err", err)
+	if handleLiveChatEndedPostFailure(err) {
 		return nil
 	}
 
@@ -208,8 +211,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	// 3回目の試行（更新されたLiveChatIDで）
 	err = b.tryPostMessage(message, b.LiveChatID)
 	if err != nil {
-		if isLiveChatEndedError(err) {
-			slog.Warn("post skipped because live chat ended", "err", err)
+		if handleLiveChatEndedPostFailure(err) {
 			return nil
 		}
 		slog.Error("third post failed", "err", err)
@@ -218,6 +220,15 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 
 	slog.Info("third post succeeded!")
 	return nil
+}
+
+func handleLiveChatEndedPostFailure(err error) bool {
+	if !isLiveChatEndedError(err) {
+		return false
+	}
+
+	slog.Warn("post skipped because live chat ended", "err", err)
+	return true
 }
 
 // tryPostMessage 指定されたLiveChatIDでメッセージを送信する
