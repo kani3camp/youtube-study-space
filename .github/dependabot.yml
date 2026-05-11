@@ -22,6 +22,8 @@ updates:
 
   # =========================
   # Go modules
+  # minor / patch はまとめる
+  # major は個別PR
   # =========================
   - package-ecosystem: gomod
     directory: /system
@@ -33,12 +35,28 @@ updates:
     commit-message:
       prefix: build(deps)
     open-pull-requests-limit: 10
+    groups:
+      go-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   # =========================
-  # npm (pnpm 管理下の各サブプロジェクト)
+  # npm / pnpm projects
+  # minor / patch は全サブプロジェクト横断でまとめる
+  # major は個別PR
   # =========================
   - package-ecosystem: npm
-    directory: /youtube-monitor
+    directories:
+      - /youtube-monitor
+      - /aws-cdk
+      - /docs-site
+      - /tools/menu-image-generator
+      - /tools/video-maker/1000-minutes-simulator
+      - /tools/figma-plugin/room-layout-analyzer
     schedule:
       interval: weekly
       day: monday
@@ -47,62 +65,19 @@ updates:
     commit-message:
       prefix: build(deps)
     open-pull-requests-limit: 10
-
-  - package-ecosystem: npm
-    directory: /aws-cdk
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: npm
-    directory: /docs-site
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: npm
-    directory: /tools/menu-image-generator
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /tools/video-maker/1000-minutes-simulator
-    schedule:
-      interval: semiannually
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /tools/figma-plugin/room-layout-analyzer
-    schedule:
-      interval: semiannually
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   # =========================
   # GitHub Actions
+  # minor / patch はまとめる
+  # major は個別PR
   # =========================
   - package-ecosystem: github-actions
     directory: /
@@ -114,3 +89,11 @@ updates:
     commit-message:
       prefix: build(deps)
     open-pull-requests-limit: 5
+    groups:
+      github-actions-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
