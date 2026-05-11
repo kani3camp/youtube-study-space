@@ -2,11 +2,10 @@ package youtubebot
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"unicode/utf8"
-
-	"errors"
 
 	"app.modules/core/repository"
 	"app.modules/core/utils"
@@ -186,15 +185,23 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 		return nil
 	}
 
+	if handleLiveChatEndedPostFailure(err) {
+		return nil
+	}
+
 	// 2回目の試行
-	slog.Error("first post failed", "err", err)
+	slog.Warn("first post failed; retrying", "err", err)
 	err = b.tryPostMessage(message, b.LiveChatID)
 	if err == nil {
 		slog.Info("second post succeeded!")
 		return nil
 	}
 
-	slog.Error("second post failed", "err", err)
+	if handleLiveChatEndedPostFailure(err) {
+		return nil
+	}
+
+	slog.Warn("second post failed; refreshing live chat id", "err", err)
 
 	// live chat idが変わっている可能性があるため、更新して再試行
 	if err := b.refreshLiveChatID(ctx); err != nil {
@@ -204,12 +211,24 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	// 3回目の試行（更新されたLiveChatIDで）
 	err = b.tryPostMessage(message, b.LiveChatID)
 	if err != nil {
+		if handleLiveChatEndedPostFailure(err) {
+			return nil
+		}
 		slog.Error("third post failed", "err", err)
 		return err
 	}
 
 	slog.Info("third post succeeded!")
 	return nil
+}
+
+func handleLiveChatEndedPostFailure(err error) bool {
+	if !isLiveChatEndedError(err) {
+		return false
+	}
+
+	slog.Warn("post skipped because live chat ended", "err", err)
+	return true
 }
 
 // tryPostMessage 指定されたLiveChatIDでメッセージを送信する
