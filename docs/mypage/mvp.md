@@ -213,9 +213,12 @@ MVPの認証フローは次の通りとする。
 
 1. フロントエンドで Firebase Auth の Google provider を使ってログインする
 2. Google provider に `https://www.googleapis.com/auth/youtube.readonly` scope を追加し、YouTube Data API 用のアクセストークンを取得する
-3. 取得したアクセストークンで YouTube Data API の `channels.list` を呼び出し、認証済みユーザー本人の YouTube channel ID を取得する
-4. フロントエンドからバックエンドAPIを呼び出すときは、Firebase ID token を `Authorization: Bearer <id_token>` で送る
-5. バックエンドは Firebase ID token を検証し、YouTube channel ID を既存システム上のユーザーIDとして `UserDoc` や現在席情報を参照する
+3. フロントエンドは、Firebase ID token と YouTube access token をバックエンドの YouTube連携確定APIへ送る
+4. バックエンドは Firebase ID token を検証し、Firebase UID を確定する
+5. バックエンドは YouTube access token を使って YouTube Data API の `channels.list` を呼び出し、認証済みGoogleアカウント本人の YouTube channel ID を取得する
+6. バックエンドは `firebaseUid` と `youtubeChannelId` の対応関係をサーバー側に保存する
+7. 以降のマイページAPIでは、Firebase ID token から Firebase UID を検証し、サーバー側に保存済みの対応関係から YouTube channel ID を決定する
+8. 決定した YouTube channel ID を既存システム上のユーザーIDとして `UserDoc` や現在席情報を参照する
 
 ### 方針
 
@@ -227,6 +230,10 @@ MVPの認証フローは次の通りとする。
 
 MVPでは、Firebase Auth の UID ではなく、YouTube Data API から取得した YouTube channel ID を既存システム上のユーザーIDとして扱う。
 
+ただし、YouTube channel ID はフロントエンドから送られた値を信頼してはならない。
+
+バックエンドが YouTube access token を使って YouTube Data API を呼び出し、サーバー側で YouTube channel ID を確定する。
+
 ### OAuth scope
 
 MVPで明示的に追加する OAuth scope は次とする。
@@ -235,17 +242,26 @@ MVPで明示的に追加する OAuth scope は次とする。
 
 Googleログインに必要な基本的な profile / email 取得は Firebase Auth の Google provider に委ねる。
 
-YouTube channel ID は Firebase Auth の ID token だけでは取得できない前提とし、ログイン後に YouTube Data API の `channels.list` を `mine=true` で呼び出して取得する。
+YouTube channel ID は Firebase Auth の ID token だけでは取得できない前提とする。
 
-必要な情報はチャンネルID、チャンネル名、チャンネルアイコンである。
+### YouTube channel ID の確定
 
-### YouTube channel ID の取得
+Firebase ID token だけでは、既存システム上のユーザーIDとして使う YouTube channel ID は決定できない。
 
-Firebase Auth でのログイン後、YouTube readonly scope を持つアクセストークンを使って、次のような YouTube Data API 呼び出しを行う想定とする。
+そのため、MVPでは次の方式を採用する。
+
+* フロントエンドは Firebase Auth の Google provider から YouTube access token を取得する
+* フロントエンドは Firebase ID token と YouTube access token をバックエンドへ送る
+* バックエンドは Firebase ID token を検証して Firebase UID を確定する
+* バックエンドは YouTube access token を使って YouTube Data API を呼び出す
+* バックエンドは API レスポンスから YouTube channel ID、チャンネル名、チャンネルアイコンを取得する
+* バックエンドは Firebase UID と YouTube channel ID の対応関係をサーバー側に保存する
+
+YouTube channel ID の確定時に呼び出す YouTube Data API は次の想定とする。
 
 ```http
 GET https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true
-Authorization: Bearer <access_token>
+Authorization: Bearer <youtube_access_token>
 ```
 
 取得したチャンネル情報から、次を viewer 情報として扱う。
@@ -254,17 +270,53 @@ Authorization: Bearer <access_token>
 * `displayName`: `snippet.title`
 * `profileImageUrl`: `snippet.thumbnails` の利用可能なURL
 
+### サーバー側マッピング
+
+バックエンドは、Firebase UID と YouTube channel ID の対応関係をサーバー側に永続化する。
+
+概念上は次のような情報を保持する。
+
+```ts
+interface MyPageAuthLink {
+  firebaseUid: string
+  youtubeChannelId: string
+  displayName: string
+  profileImageUrl: string
+  linkedAt: string
+  updatedAt: string
+}
+```
+
+`youtubeChannelId` は、このサーバー側マッピングまたはバックエンド自身が YouTube Data API で取得した値のみを信頼する。
+
+フロントエンドから送られた `youtubeChannelId` は、表示補助やログ用途であっても、認可判断やユーザーID決定には使わない。
+
+MVPでは Custom Claims ではなく、サーバー側の永続マッピングを優先する。
+
+理由は、YouTube channel ID やチャンネル表示情報の更新、再連携、連携解除を扱いやすくするためである。
+
 ### API認証
 
 フロントエンドは Firebase Auth のログイン状態を保持する。
 
 バックエンドAPI呼び出し時は、Firebase ID token を `Authorization: Bearer <id_token>` で送る。
 
-バックエンドは Firebase Admin SDK などで ID token を検証し、認証済みユーザーとして扱う。
+バックエンドは Firebase Admin SDK などで ID token を検証し、Firebase UID を確定する。
 
-MVPでは、YouTube channel ID と表示用プロフィール情報をログイン時または初回取得時に確定できればよい。
+`GET /mypage/me` は、Firebase UID からサーバー側マッピングを参照し、対応する YouTube channel ID を決定する。
 
-マイページ表示のたびに YouTube Data API を呼ぶ必要はない。
+マッピングが存在しない場合は、YouTube連携が未完了として扱う。
+
+### 信頼境界
+
+| 値                    | 送信元                      | 信頼可否                           | 用途                          |
+| -------------------- | ------------------------ | ------------------------------ | --------------------------- |
+| Firebase ID token    | フロントエンド                  | バックエンドで検証後のみ信頼する               | Firebase UID の確定            |
+| Firebase UID         | Firebase ID token 検証結果   | 信頼する                           | サーバー側マッピングのキー               |
+| YouTube access token | フロントエンド                  | そのまま保存せず、YouTube API 呼び出しにのみ使う | YouTube channel ID のサーバー側確定 |
+| YouTube channel ID   | バックエンドが YouTube API から取得 | 信頼する                           | 既存 `UserDoc` / 席情報の参照キー     |
+| YouTube channel ID   | フロントエンド申告値               | 信頼しない                          | 認可判断・ユーザーID決定には使わない         |
+| `X-Client-*` ヘッダー    | フロントエンド                  | 信頼しない                          | ログ分析・デバッグ補助のみ               |
 
 ### ログアウト
 
@@ -297,14 +349,17 @@ MVPでは、フロント側の実装負荷を抑えるため、`X-Client-Version
 
 #### 推奨ヘッダー
 
-| Header               | 例                       | 用途                                |
-| -------------------- | ----------------------- | --------------------------------- |
-| `User-Agent`         | ブラウザ既定値                 | ブラウザ・OS・端末種別の概略把握                 |
-| `Sec-CH-UA`          | ブラウザが送信する値              | User-Agent Client Hints。ブラウザ識別の補助 |
-| `Sec-CH-UA-Mobile`   | `?0` / `?1`             | モバイル相当の表示環境かどうかの補助                |
-| `Sec-CH-UA-Platform` | `"macOS"` / `"Android"` | OS / platform の補助                 |
-| `Accept-Language`    | `ja,en-US;q=0.9`        | 将来の表示言語・問い合わせ調査の補助                |
-| `X-Client-Timezone`  | `Asia/Tokyo`            | フロント側表示タイムゾーンの確認                  |
+| Header                | 例                       | 用途                                |
+| --------------------- | ----------------------- | --------------------------------- |
+| `X-Client-Build-Time` | `2026-05-12T10:30:00Z`  | フロントアプリのビルド日時。RFC 3339            |
+| `User-Agent`          | ブラウザ既定値                 | ブラウザ・OS・端末種別の概略把握                 |
+| `Sec-CH-UA`           | ブラウザが送信する値              | User-Agent Client Hints。ブラウザ識別の補助 |
+| `Sec-CH-UA-Mobile`    | `?0` / `?1`             | モバイル相当の表示環境かどうかの補助                |
+| `Sec-CH-UA-Platform`  | `"macOS"` / `"Android"` | OS / platform の補助                 |
+| `Accept-Language`     | `ja,en-US;q=0.9`        | 将来の表示言語・問い合わせ調査の補助                |
+| `X-Client-Timezone`   | `Asia/Tokyo`            | フロント側表示タイムゾーンの確認                  |
+
+`X-Client-Build-Time` は、ビルド時刻をUTCのRFC 3339文字列で埋め込める場合のみ送る。
 
 端末判定は、基本的には `User-Agent` と低エントロピーの `Sec-CH-UA-*` をログに残せば十分とする。
 
@@ -341,17 +396,56 @@ Accept-Language: ja
 
 ### エンドポイント
 
-```http
-GET /mypage/me
+#### `POST /mypage/auth/youtube-link`
+
+Firebase UID と YouTube channel ID の対応関係をサーバー側で確定する。
+
+このAPIは、Firebase Auth のログイン直後、またはサーバー側マッピングが存在しない場合に呼び出す。
+
+リクエスト:
+
+```ts
+interface LinkYouTubeRequest {
+  youtubeAccessToken: string
+}
 ```
 
+認証:
+
+* `Authorization: Bearer <firebase_id_token>` 必須
+* body の `youtubeAccessToken` 必須
+
+処理:
+
+1. Firebase ID token を検証し、Firebase UID を確定する
+2. `youtubeAccessToken` を使って YouTube Data API の `channels.list?part=snippet&mine=true` を呼び出す
+3. 取得した YouTube channel ID と表示情報を Firebase UID に紐づけて保存する
+4. YouTube access token は永続保存しない
+
+レスポンス:
+
+```ts
+interface LinkYouTubeResponse {
+  status: "ok"
+  viewer: MyPageViewer
+}
+```
+
+#### `GET /mypage/me`
+
 認証済みユーザー本人のマイページ表示情報を返す。
+
+`GET /mypage/me` は、Firebase ID token から Firebase UID を確定し、サーバー側に保存済みの `firebaseUid` と `youtubeChannelId` の対応関係を使ってユーザー情報を取得する。
+
+フロントエンドから `youtubeChannelId` を渡してユーザーを指定することはできない。
 
 ### 認証
 
 Firebase ID token 必須。
 
 未ログイン、または ID token がない/無効な場合は `401 Unauthorized` を返す。
+
+`GET /mypage/me` で Firebase UID と YouTube channel ID の対応関係が存在しない場合は、`401` ではなく `409 link_required` を返し、フロントエンドで YouTube連携確定APIを呼び出す。
 
 ### 成功レスポンス
 
@@ -409,7 +503,7 @@ interface MyPageNotRegisteredResponse {
 | `currentSeat.workName`      | `string`                    | 作業中の作業名                       |
 | `currentSeat.breakWorkName` | `string`                    | 休憩中の作業名                       |
 | `currentSeat.startedAt`     | `string`                    | 現在の状態が開始した時刻。RFC 3339         |
-| `currentSeat.until`         | `string`                    | 現在状態または自動退室の期限。RFC 3339       |
+| `currentSeat.until`         | `string`                    | 自動退室の期限。RFC 3339              |
 
 ### 未登録レスポンス
 
@@ -443,6 +537,7 @@ interface MyPageErrorResponse {
 
 type MyPageErrorCode =
   | "unauthorized"
+  | "link_required"
   | "auth_failed"
   | "youtube_channel_not_found"
   | "forbidden"
@@ -452,14 +547,15 @@ type MyPageErrorCode =
 
 ### HTTPステータス
 
-| HTTP status | code                        | 用途                                | UI方針               |
-| ----------- | --------------------------- | --------------------------------- | ------------------ |
-| `401`       | `unauthorized`              | 未ログイン、ID token なし、ID token 無効     | ログイン導線を表示          |
-| `403`       | `forbidden`                 | 認可失敗、想定外の権限不足                     | 再ログイン導線を表示         |
-| `429`       | `rate_limited`              | レート制限                             | 時間を置いて再試行する案内      |
-| `500`       | `internal_error`            | サーバー内部エラー                         | 再試行導線つきの汎用エラー      |
-| `502`       | `auth_failed`               | Firebase Auth / Google API 側の処理失敗 | 再ログイン導線を表示         |
-| `502`       | `youtube_channel_not_found` | 認証済みアカウントにYouTubeチャンネルが見つからない     | チャンネル作成または別アカウント案内 |
+| HTTP status | code                        | 用途                                               | UI方針                |
+| ----------- | --------------------------- | ------------------------------------------------ | ------------------- |
+| `401`       | `unauthorized`              | 未ログイン、ID token なし、ID token 無効                    | ログイン導線を表示           |
+| `409`       | `link_required`             | Firebase UID と YouTube channel ID のサーバー側マッピングがない | YouTube連携確定APIを呼び出す |
+| `403`       | `forbidden`                 | 認可失敗、想定外の権限不足                                    | 再ログイン導線を表示          |
+| `429`       | `rate_limited`              | レート制限                                            | 時間を置いて再試行する案内       |
+| `500`       | `internal_error`            | サーバー内部エラー                                        | 再試行導線つきの汎用エラー       |
+| `502`       | `auth_failed`               | Firebase Auth / Google API 側の処理失敗                | 再ログイン導線を表示          |
+| `502`       | `youtube_channel_not_found` | 認証済みアカウントにYouTubeチャンネルが見つからない                    | チャンネル作成または別アカウント案内  |
 
 `not_registered` はエラーではないため、このエラー形式には含めない。
 
@@ -467,7 +563,7 @@ type MyPageErrorCode =
 
 ### ユーザー情報
 
-認証後に取得した `youtubeChannelId` を既存システムのユーザーIDとして扱う。
+バックエンドがサーバー側マッピングから決定した `youtubeChannelId` を既存システムのユーザーIDとして扱う。
 
 既存ユーザー情報から次を取得する。
 
@@ -498,11 +594,13 @@ MVPの作業時間は `!info` 相当を目指す。
 
 * APIは認証済みユーザー本人の情報のみ返す
 * 任意の `userId` や `youtubeChannelId` をクエリで指定して他人の情報を取得するAPIにはしない
+* フロントエンドから送られた `youtubeChannelId` をユーザーIDとして信頼しない
 * Firebase ID token と YouTube access token を混同しない
-* YouTube access token を不要にバックエンドへ保存しない
+* YouTube access token は YouTube channel ID のサーバー側確定にのみ使い、永続保存しない
 * YouTube access token をブラウザの永続ストレージに保存しない
 * バックエンドは Firebase ID token を検証してから処理する
-* MVPでは書き込み操作を提供しない
+* Firebase UID と YouTube channel ID の対応関係はサーバー側で永続化する
+* MVPでは、オンライン作業部屋の状態を変更する書き込み操作は提供しない
 
 ## 実装メモ
 
