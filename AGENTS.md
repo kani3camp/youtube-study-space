@@ -269,7 +269,7 @@ Representative chat commands (full strings and member variants live in `system/c
 ## Cursor Cloud specific instructions
 
 ### Go Version
-- `system/go.mod` requires Go **1.25.0**. The VM update script installs this version automatically. Verify with `go version`.
+- Go プロジェクト（`system/`, `tools/room-image-prompt/`）はいずれも `go.mod` で Go **1.25.0** を要求する。Cursor Cloud の VM 起動時スクリプト（SetupVmEnvironment で設定）が自動インストールする。手動で確認する場合: `go version`。
 
 ### Subproject Layout
 - Node/pnpm サブプロジェクト（`youtube-monitor/`, `aws-cdk/`, `docs-site/`, `tools/menu-image-generator/`, `tools/figma-plugin/room-layout-analyzer/`, `tools/video-maker/1000-minutes-simulator/`）はそれぞれ独立した `pnpm-lock.yaml` を持つ（workspace-level pnpm monorepo ではない）。`pnpm install` は必要なディレクトリごとに個別実行する。Go プロジェクト（`system/`, `tools/room-image-prompt/`）は `go.mod` で管理。
@@ -278,10 +278,12 @@ Representative chat commands (full strings and member variants live in `system/c
 - **Go backend**: `cd system && go test -shuffle=on -v ./...` — uses mocks, no Firestore/YouTube credentials needed.
 - **Frontend**: `cd youtube-monitor && pnpm test` — Jest + jsdom, fully offline.
 - **AWS CDK**: `cd aws-cdk && pnpm test` — unit tests for schedule/infrastructure invariants.
-- **Docs site**: `cd docs-site && pnpm build` — static build verification.
+
+### Build Verification
+- **Docs site**: `cd docs-site && pnpm build` — static build verification (テストスクリプトはないため、ビルド成功で検証する)。
 
 ### Running Lint
-- **Go**: `cd system && golangci-lint run --timeout=5m --config=.golangci.yml` (golangci-lint v2.11.3 installed by update script).
+- **Go**: `cd system && golangci-lint run --timeout=5m --config=.golangci.yml` (golangci-lint v2.11.3; VM 起動時スクリプトが自動インストール)。
 - **Frontend**: `cd youtube-monitor && pnpm exec biome check .`
 - **Docs site**: `cd docs-site && pnpm lint`
 
