@@ -1,4 +1,4 @@
-import { formatSeatState } from '../../../lib/format'
+import { formatSeatId, formatSeatState } from '../../../lib/format'
 import type { CurrentSeat } from '../types'
 
 type CurrentSeatCardProps = {
@@ -31,10 +31,7 @@ export function CurrentSeatCard({ currentSeat }: CurrentSeatCardProps) {
 			<dl className="detailList">
 				<div>
 					<dt>席番号</dt>
-					<dd>
-						{currentSeat.isMemberSeat ? '/' : ''}
-						{currentSeat.seatId}
-					</dd>
+					<dd>{formatSeatId(currentSeat.seatId, currentSeat.isMemberSeat)}</dd>
 				</div>
 				<div>
 					<dt>作業内容</dt>
