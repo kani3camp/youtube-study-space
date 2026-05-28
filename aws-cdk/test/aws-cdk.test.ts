@@ -9,8 +9,11 @@ import { AwsCdkStack, type AwsCdkStackProps } from '../lib/aws-cdk-stack'
 
 const REPO_SYSTEM_DIR = path.resolve(__dirname, '../../system')
 
-const createTemplate = (props?: AwsCdkStackProps) => {
-	const app = new cdk.App()
+const createTemplate = (
+	props?: AwsCdkStackProps,
+	context?: Record<string, string>,
+) => {
+	const app = new cdk.App({ context })
 	const stack = new AwsCdkStack(app, 'TestStack', props)
 
 	return Template.fromStack(stack)
@@ -284,6 +287,59 @@ describe('AwsCdkStack', () => {
 				hasErrorsAlarm: true,
 			})
 		}
+	})
+
+	test('creates mypage API Lambda and HTTP API route for default dev stage', () => {
+		const t = createTemplate()
+
+		t.hasResourceProperties('AWS::Lambda::Function', {
+			FunctionName: 'dev_mypage_api',
+		})
+
+		t.hasResourceProperties('AWS::ApiGatewayV2::Api', {
+			Name: 'dev-mypage-api',
+			ProtocolType: 'HTTP',
+		})
+
+		t.hasResourceProperties('AWS::ApiGatewayV2::Route', {
+			RouteKey: 'GET /mypage/me',
+		})
+
+		t.hasOutput(
+			'MypageApiEndpointUrl',
+			Match.objectLike({
+				Export: Match.absent(),
+			}),
+		)
+	})
+
+	test('requires explicit mypage origin for prod stage', () => {
+		expect(() => createTemplate(undefined, { stage: 'prod' })).toThrow(
+			/Context value "mypageAllowedOrigin" is required/,
+		)
+	})
+
+	test('creates prod mypage API without CloudFormation endpoint export', () => {
+		const t = createTemplate(undefined, {
+			stage: 'prod',
+			mypageAllowedOrigin: 'https://mypage.moku.work',
+		})
+
+		t.hasResourceProperties('AWS::Lambda::Function', {
+			FunctionName: 'mypage_api',
+			Environment: {
+				Variables: Match.objectLike({
+					MYPAGE_ALLOWED_ORIGIN: 'https://mypage.moku.work',
+				}),
+			},
+		})
+
+		t.hasOutput(
+			'MypageApiEndpointUrl',
+			Match.objectLike({
+				Export: Match.absent(),
+			}),
+		)
 	})
 })
 
