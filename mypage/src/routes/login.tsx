@@ -2,17 +2,24 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { signInWithGoogleAndYouTube } from '../features/auth/auth'
-import { linkYouTube } from '../features/mypage/api'
+import {
+	ChannelAlreadyLinkedError,
+	InvalidYouTubeAccessTokenError,
+	linkYouTube,
+} from '../features/mypage/api'
+import { sanitizeRedirectPath } from '../lib/safeRedirect'
 
 type LoginSearch = {
-	redirect?: string
+	redirect: string
 	reason?: string
 }
 
 export const Route = createFileRoute('/login')({
 	validateSearch: (search): LoginSearch => {
 		return {
-			redirect: typeof search.redirect === 'string' ? search.redirect : '/',
+			redirect: sanitizeRedirectPath(
+				typeof search.redirect === 'string' ? search.redirect : undefined,
+			),
 			reason: typeof search.reason === 'string' ? search.reason : undefined,
 		}
 	},
@@ -38,14 +45,22 @@ function LoginPage() {
 			})
 
 			await navigate({
-				to: search.redirect ?? '/',
+				to: search.redirect,
 				replace: true,
 			})
 		} catch (error) {
 			console.error(error)
-			setErrorMessage(
-				'YouTubeチャンネル情報を確認するため、Googleの確認画面でYouTube情報の読み取りを許可してください。',
-			)
+			if (error instanceof ChannelAlreadyLinkedError) {
+				setErrorMessage(
+					'このYouTubeチャンネルは別のログインアカウントに連携済みです。心当たりがない場合は問い合わせてください。',
+				)
+			} else if (error instanceof InvalidYouTubeAccessTokenError) {
+				setErrorMessage(
+					'YouTubeチャンネル情報を確認するため、Googleの確認画面でYouTube情報の読み取りを許可してください。',
+				)
+			} else {
+				setErrorMessage('YouTube連携に失敗しました。時間をおいて再試行してください。')
+			}
 		} finally {
 			setIsSubmitting(false)
 		}

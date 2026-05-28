@@ -17,6 +17,20 @@ export class LinkRequiredError extends Error {
 	}
 }
 
+export class ChannelAlreadyLinkedError extends Error {
+	constructor() {
+		super('YouTube channel is already linked to another account')
+		this.name = 'ChannelAlreadyLinkedError'
+	}
+}
+
+export class InvalidYouTubeAccessTokenError extends Error {
+	constructor() {
+		super('Invalid YouTube access token')
+		this.name = 'InvalidYouTubeAccessTokenError'
+	}
+}
+
 export class ApiError extends Error {
 	readonly status: number
 
@@ -90,6 +104,26 @@ export async function linkYouTube(options: LinkYouTubeOptions): Promise<void> {
 
 	if (response.status === 401) {
 		throw new UnauthorizedError()
+	}
+
+	if (response.status === 400) {
+		const body = (await response.json().catch(() => null)) as
+			| { error?: { code?: string } }
+			| null
+
+		if (body?.error?.code === 'invalid_youtube_access_token') {
+			throw new InvalidYouTubeAccessTokenError()
+		}
+	}
+
+	if (response.status === 409) {
+		const body = (await response.json().catch(() => null)) as
+			| { error?: { code?: string } }
+			| null
+
+		if (body?.error?.code === 'channel_already_linked') {
+			throw new ChannelAlreadyLinkedError()
+		}
 	}
 
 	if (!response.ok) {

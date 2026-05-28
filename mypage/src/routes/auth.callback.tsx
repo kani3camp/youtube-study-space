@@ -1,14 +1,18 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 
+import { sanitizeRedirectPath } from '../lib/safeRedirect'
+
 type CallbackSearch = {
-	redirect?: string
+	redirect: string
 }
 
 export const Route = createFileRoute('/auth/callback')({
 	validateSearch: (search): CallbackSearch => {
 		return {
-			redirect: typeof search.redirect === 'string' ? search.redirect : '/',
+			redirect: sanitizeRedirectPath(
+				typeof search.redirect === 'string' ? search.redirect : undefined,
+			),
 		}
 	},
 	component: AuthCallbackPage,
@@ -20,7 +24,7 @@ function AuthCallbackPage() {
 
 	useEffect(() => {
 		void navigate({
-			to: search.redirect ?? '/',
+			to: search.redirect,
 			replace: true,
 		})
 	}, [navigate, search.redirect])
