@@ -1,6 +1,11 @@
 import { FirebaseError } from 'firebase/app'
 
-import { ApiError, UnauthorizedError } from '../mypage/api'
+import {
+	ApiError,
+	ChannelAlreadyLinkedError,
+	InvalidYouTubeAccessTokenError,
+	UnauthorizedError,
+} from '../mypage/api'
 import { MissingYouTubeAccessTokenError } from './errors'
 
 const permissionMessage =
@@ -29,6 +34,14 @@ export function getLoginErrorMessage(error: unknown): string {
 
 	if (error instanceof UnauthorizedError) {
 		return '認証の有効期限が切れました。もう一度ログインしてください。'
+	}
+
+	if (error instanceof ChannelAlreadyLinkedError) {
+		return 'このYouTubeチャンネルは別のログインアカウントに連携済みです。心当たりがない場合は問い合わせてください。'
+	}
+
+	if (error instanceof InvalidYouTubeAccessTokenError) {
+		return permissionMessage
 	}
 
 	if (error instanceof ApiError) {

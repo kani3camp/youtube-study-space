@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { sanitizeRedirectPath } from '../lib/safeRedirect'
 
 type CallbackSearch = {
-	redirect?: string
+	redirect: string
 }
 
 export const Route = createFileRoute('/auth/callback')({
@@ -24,7 +24,7 @@ function AuthCallbackPage() {
 
 	useEffect(() => {
 		void navigate({
-			to: search.redirect ?? '/',
+			to: search.redirect,
 			replace: true,
 		})
 	}, [navigate, search.redirect])

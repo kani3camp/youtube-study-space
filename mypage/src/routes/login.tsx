@@ -7,7 +7,7 @@ import { linkYouTube } from '../features/mypage/api'
 import { sanitizeRedirectPath } from '../lib/safeRedirect'
 
 type LoginSearch = {
-	redirect?: string
+	redirect: string
 	reason?: string
 }
 
@@ -42,7 +42,7 @@ function LoginPage() {
 			})
 
 			await navigate({
-				to: search.redirect ?? '/',
+				to: search.redirect,
 				replace: true,
 			})
 		} catch (error) {
