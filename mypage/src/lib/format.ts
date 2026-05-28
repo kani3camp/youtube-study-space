@@ -22,3 +22,7 @@ export function formatSeatState(state: 'work' | 'break'): string {
 			return '休憩中'
 	}
 }
+
+export function formatSeatId(seatId: number, isMemberSeat: boolean): string {
+	return isMemberSeat ? `VIP${seatId}` : String(seatId)
+}

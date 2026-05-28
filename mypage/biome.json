@@ -1,7 +1,13 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
 	"files": {
-		"includes": ["**", "!dist", "!node_modules", "!src/routeTree.gen.ts"]
+		"includes": [
+			"**",
+			"!dist",
+			"!node_modules",
+			"!.vite",
+			"!src/routeTree.gen.ts"
+		]
 	},
 	"formatter": {
 		"enabled": true,
