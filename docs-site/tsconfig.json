@@ -1,6 +1,6 @@
 {
 	"extends": "@docusaurus/tsconfig",
 	"compilerOptions": {
-		"ignoreDeprecations": "6.0",
+		"ignoreDeprecations": "6.0"
 	}
 }
