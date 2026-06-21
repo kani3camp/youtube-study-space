@@ -16,7 +16,8 @@
 		"typecheck": "tsc",
 		"format": "biome format --write .",
 		"lint": "biome lint .",
-		"check": "biome check --apply ."
+		"check": "biome check .",
+		"check:fix": "biome check --write ."
 	},
 	"dependencies": {
 		"@docusaurus/core": "3.10.1",
