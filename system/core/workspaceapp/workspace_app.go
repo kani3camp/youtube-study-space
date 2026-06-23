@@ -171,10 +171,6 @@ func (app *WorkspaceApp) CloseFirestoreClient() {
 	}
 }
 
-func (app *WorkspaceApp) GetInfoString(ngWordConfig NGWordConfig) string {
-	return fmt.Sprintf("全規制ワード数: %d", ngWordConfig.Count())
-}
-
 // GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
 func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute

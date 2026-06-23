@@ -81,7 +81,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		return
 	}
 
-	app.MessageToOwner(ctx, "Botが起動しました。\n"+app.GetInfoString(ngWordConfig))
+	app.MessageToOwner(ctx, fmt.Sprintf("Botが起動しました。\n全規制ワード数: %d", ngWordConfig.Count()))
 	defer func() { // when error occurred
 		app.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		app.MessageToOwner(ctx, "app stopped!!")
