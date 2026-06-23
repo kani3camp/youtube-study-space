@@ -11,6 +11,7 @@ import (
 
 	"app.modules/core/workspaceapp"
 
+	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
@@ -53,7 +54,7 @@ func Init() (option.ClientOption, context.Context, error) {
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
-		app.MessageToOwnerWithError(ctx, "failed core.NewWorkspaceApp()", err)
+		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error", err)
 		return
 	}
 
@@ -69,13 +70,19 @@ func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 func Bot(ctx context.Context, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
-		app.MessageToOwnerWithError(ctx, "failed core.NewWorkspaceApp()", err)
+		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error", err)
+		return
+	}
+	defer app.CloseFirestoreClient()
+
+	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
+	if err != nil {
+		app.MessageToOwnerWithError(ctx, "failed loadNGWordConfig()", err)
 		return
 	}
 
-	app.MessageToOwner(ctx, "Botが起動しました。\n"+app.GetInfoString())
+	app.MessageToOwner(ctx, "Botが起動しました。\n"+app.GetInfoString(ngWordConfig))
 	defer func() { // when error occurred
-		app.CloseFirestoreClient()
 		app.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		app.MessageToOwner(ctx, "app stopped!!")
 	}()
@@ -189,7 +196,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
 			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
-			if err := app.ProcessMessage(ctx, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
+			if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
 				app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
 			}
 		}
@@ -201,6 +208,40 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
+}
+
+func loadNGWordConfig(
+	ctx context.Context,
+	clientOption option.ClientOption,
+	spreadsheetID string,
+) (workspaceapp.NGWordConfig, error) {
+	slog.InfoContext(ctx, "initializing spreadsheet reader...")
+
+	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, spreadsheetID, "01", "02")
+	if err != nil {
+		return workspaceapp.NGWordConfig{}, fmt.Errorf("in NewSpreadsheetReader(): %w", err)
+	}
+
+	slog.InfoContext(ctx, "reading block regexes...")
+
+	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes(ctx)
+	if err != nil {
+		return workspaceapp.NGWordConfig{}, fmt.Errorf("in ReadBlockRegexes(): %w", err)
+	}
+
+	slog.InfoContext(ctx, "reading notification regexes...")
+
+	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes(ctx)
+	if err != nil {
+		return workspaceapp.NGWordConfig{}, fmt.Errorf("in ReadNotificationRegexes(): %w", err)
+	}
+
+	return workspaceapp.NewNGWordConfig(
+		blockRegexesForChatMessage,
+		blockRegexesForChannelName,
+		notificationRegexesForChatMessage,
+		notificationRegexesForChannelName,
+	), nil
 }
 
 func main() {
