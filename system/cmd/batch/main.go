@@ -7,9 +7,9 @@ import (
 	"os"
 	"strconv"
 
-	"app.modules/aws-lambda/lambdautils"
 	"app.modules/core/timeutil"
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
 
 	"google.golang.org/api/option"
@@ -20,7 +20,7 @@ func main() {
 
 	ctx := context.Background()
 
-	clientOption, err := lambdautils.FirestoreClientOption()
+	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
 		slog.Error("failed to get Firestore client option", "err", err)
 		os.Exit(1)

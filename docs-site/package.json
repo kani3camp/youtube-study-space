@@ -16,7 +16,8 @@
 		"typecheck": "tsc",
 		"format": "biome format --write .",
 		"lint": "biome lint .",
-		"check": "biome check --apply ."
+		"check": "biome check .",
+		"check:fix": "biome check --write ."
 	},
 	"dependencies": {
 		"@docusaurus/core": "3.10.1",
@@ -26,11 +27,11 @@
 		"@mdx-js/react": "^3.0.0",
 		"clsx": "^2.0.0",
 		"prism-react-renderer": "^2.3.0",
-		"react": "^19.2.5",
-		"react-dom": "^19.2.5"
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.14",
+		"@biomejs/biome": "2.5.0",
 		"@docusaurus/module-type-aliases": "3.10.1",
 		"@docusaurus/tsconfig": "3.10.1",
 		"@docusaurus/types": "3.10.1",
@@ -49,6 +50,6 @@
 		]
 	},
 	"engines": {
-		"node": ">=18.0"
+		"node": ">=20.19.0"
 	}
 }

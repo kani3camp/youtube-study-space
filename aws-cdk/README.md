@@ -26,7 +26,7 @@ aws sts get-caller-identity --profile プロファイル名
 
 ## 日次バッチと通知の運用メモ
 
-- 日次バッチ（Fargate）は Step Functions で直列実行（00:00:15 JST開始）。
+- 日次バッチ: EventBridge Scheduler が **00:00 JST** に `start_daily_batch` を実行 → Step Functions 起動。**SFN は先頭で 15 秒 Wait** したうえで ECS Fargate を直列実行（`reset-daily-total` → `update-rp` → `transfer-bq`）。
 - 失敗通知は SNS Topic 経由で `sns_notify_discord` Lambda が Discord へ送信。
 - Lambdaの Errors>0 と Step Functions ExecutionsFailed>0 のアラームをSNSに連携。
 - 主要出力（CfnOutput）:

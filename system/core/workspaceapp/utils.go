@@ -861,7 +861,7 @@ func (app *WorkspaceApp) exitRoom(
 		return 0, 0, fmt.Errorf("in UpdateUserLastExitedDate: %w", err)
 	}
 
-	// 検算
+	// 検算：addedWorkedTimeSec
 	{
 		onlyWorkSegmentSec := 0
 		if workSegment.SegmentType == repository.WorkState {
@@ -891,6 +891,40 @@ func (app *WorkspaceApp) exitRoom(
 				"onlyWorkSegmentSec", onlyWorkSegmentSec,
 				"addedWorkedTimeSec", addedWorkedTimeSec,
 				"diffSec", diffSec,
+			)
+		}
+	}
+
+	// 検算：addedDailyWorkedTimeSec
+	{
+		onlyDailyWorkSec := 0
+		for _, segment := range previousWorkSegments {
+			if segment.SegmentType == repository.WorkState {
+				onlyDailyWorkSec += timeutil.OverlapSecondsInJSTDay(segment.StartedAt, segment.EndedAt, exitDate)
+			}
+		}
+		if workSegment.SegmentType == repository.WorkState {
+			onlyDailyWorkSec += timeutil.OverlapSecondsInJSTDay(workSegment.StartedAt, workSegment.EndedAt, exitDate)
+		}
+		diffDailySec := onlyDailyWorkSec - addedDailyWorkedTimeSec
+		if diffDailySec < 0 {
+			diffDailySec = -diffDailySec
+		}
+		const allowedDailyDiffSec = 10
+		if diffDailySec > allowedDailyDiffSec {
+			app.MessageToOwner(ctx, fmt.Sprintf(
+				"検算エラー: onlyDailyWorkSec = %d, addedDailyWorkedTimeSec = %d, diffDailySec = %d, allowedDailyDiffSec = %d (userID=%s, seatID=%d)",
+				onlyDailyWorkSec, addedDailyWorkedTimeSec, diffDailySec, allowedDailyDiffSec, previousSeat.UserID, previousSeat.SeatID,
+			))
+		} else {
+			slog.DebugContext(ctx,
+				"検算成功: abs(onlyDailyWorkSec-addedDailyWorkedTimeSec) <= allowedDailyDiffSec",
+				"allowedDailyDiffSec", allowedDailyDiffSec,
+				"userID", previousSeat.UserID,
+				"seatID", previousSeat.SeatID,
+				"onlyDailyWorkSec", onlyDailyWorkSec,
+				"addedDailyWorkedTimeSec", addedDailyWorkedTimeSec,
+				"diffDailySec", diffDailySec,
 			)
 		}
 	}

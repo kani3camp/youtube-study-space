@@ -1,15 +1,9 @@
 system/.DS_Store
 system/.gcloudignore
-system/app.modules.exe
-system/main.exe
-system/main
-system/bootstrap.exe
-system/bootstrap
-system/batch
 system/sns_notify_discord
+system/youtube-bot
+system/youtube-bot.exe
 system/.env
-system/aws-lambda/main
-system/aws-lambda/main.zip
 
 system/.serverless/youtubeStudySpace.zip
 

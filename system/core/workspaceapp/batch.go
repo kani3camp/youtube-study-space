@@ -149,7 +149,6 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 			// 以下書き込みのみ
 
 			if resume { // 作業再開処理
-				until := seat.Until
 				breakSegment, err := seat.GenerateWorkSegment(jstNow, isMemberRoom)
 				if err != nil {
 					return fmt.Errorf("in GenerateWorkSegment(): %w", err)
@@ -158,18 +157,9 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 					return fmt.Errorf("in CreateWorkSegmentDoc(): %w", err)
 				}
 
-				// もし日付を跨いで休憩してたら、daily-cumulative-work-secは0にリセットする
-				breakSec := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.CurrentStateStartedAt)).Seconds())
-				var dailyCumulativeWorkSec = seat.DailyCumulativeWorkSec
-				if breakSec > timeutil.SecondsOfDay(jstNow) {
-					dailyCumulativeWorkSec = 0
+				if err := seat.ResumeWork(jstNow, seat.WorkName); err != nil {
+					return fmt.Errorf("in ResumeWork(): %w", err)
 				}
-
-				seat.State = repository.WorkState
-				seat.CurrentStateStartedAt = jstNow
-				seat.CurrentStateUntil = until
-				seat.CurrentSegmentStartedAt = jstNow
-				seat.DailyCumulativeWorkSec = dailyCumulativeWorkSec
 				if err := app.Repository.UpdateSeat(ctx, tx, seat, isMemberRoom); err != nil {
 					return fmt.Errorf("in UpdateSeat(): %w", err)
 				}
@@ -186,7 +176,11 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				}
 				seatIDStr := presenter.SeatIDStr(seat.SeatID, isMemberRoom)
 
-				liveChatMessage = i18nmsg.CommandResumeWork(app.ProcessedUserDisplayName, seatIDStr, int(timeutil.NoNegativeDuration(until.Sub(jstNow)).Minutes()))
+				liveChatMessage = i18nmsg.CommandResumeWork(
+					app.ProcessedUserDisplayName,
+					seatIDStr,
+					seat.RemainingWorkMin(jstNow),
+				)
 			}
 			return nil
 		})

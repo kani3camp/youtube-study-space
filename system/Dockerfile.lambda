@@ -1,5 +1,4 @@
-# Digest is authoritative; this digest was verified against golang:1.25 when pinned.
-FROM golang:1.25@sha256:3760478c76cfe25533e06176e983e7808293895d48d15d0981c0cbb9623834e7 AS build
+FROM golang:1.26@sha256:2981696eed011d747340d7252620932677929cce7d2d539602f56a8d7e9b660b AS build
 WORKDIR /var/task
 
 # 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
@@ -14,29 +13,29 @@ ENV CGO_ENABLED=0 GOOS=linux GOCACHE=/root/.cache/go-build
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o set_desired_max_seats aws-lambda/set_desired_max_seats/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o set_desired_max_seats ./cmd/lambda/set_desired_max_seats
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o youtube_organize_database aws-lambda/youtube_organize_database/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o youtube_organize_database ./cmd/lambda/youtube_organize_database
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o check_live_stream_status aws-lambda/check_live_stream_status/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o check_live_stream_status ./cmd/lambda/check_live_stream_status
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord aws-lambda/sns_notify_discord/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o sns_notify_discord ./cmd/lambda/sns_notify_discord
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o error_log_notify_discord aws-lambda/error_log_notify_discord/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o error_log_notify_discord ./cmd/lambda/error_log_notify_discord
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch aws-lambda/start_daily_batch/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o start_daily_batch ./cmd/lambda/start_daily_batch
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o update_work_name_trend aws-lambda/update_work_name_trend/main.go
+    go build -tags lambda.norpc,timetzdata -trimpath -ldflags="-s -w" -o update_work_name_trend ./cmd/lambda/update_work_name_trend
 
 # Digest is authoritative; this digest was verified against provided:al2023 when pinned.
 # Copy artifacts to a clean image
-FROM public.ecr.aws/lambda/provided:al2023@sha256:ba393740482b4748214642e38f35eec40591556276cdfd9e9f45fd194348fb4f
+FROM public.ecr.aws/lambda/provided:al2023@sha256:a48275a6cb21dbd9cae6f8cc10ee8ccc416e1b48f9376d049c5b347985239456
 WORKDIR /app
 
 ENV TZ=Asia/Tokyo

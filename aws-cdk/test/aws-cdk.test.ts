@@ -355,8 +355,8 @@ describe('Docker asset determinism (issue #692)', () => {
 
 	test.each<{ name: string; rel: string; content: Buffer | string }>([
 		{
-			name: 'system/main (local go build artifact)',
-			rel: 'main',
+			name: 'system/youtube-bot (local go build artifact)',
+			rel: 'youtube-bot',
 			content: Buffer.from('local-build-artifact-test'),
 		},
 		{
@@ -379,8 +379,8 @@ describe('Docker asset determinism (issue #692)', () => {
 			content: '// temporary edit for test\n',
 		},
 		{
-			name: 'system/main.go (local-only entrypoint; not built into images)',
-			rel: 'main.go',
+			name: 'system/cmd/youtube-bot/main.go (local-only entrypoint; not built into images)',
+			rel: path.join('cmd', 'youtube-bot', 'main.go'),
 			content: '// temporary edit for test\n',
 		},
 	])(
