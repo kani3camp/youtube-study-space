@@ -14,7 +14,7 @@ jobs:
         working-directory: system
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -40,7 +40,7 @@ jobs:
         working-directory: tools/room-image-prompt
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -66,7 +66,7 @@ jobs:
       run:
         working-directory: youtube-monitor
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -98,7 +98,7 @@ jobs:
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: "ci-dummy-project"
       NEXT_PUBLIC_FIREBASE_API_KEY: "ci-dummy-firebase-api-key"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -122,7 +122,7 @@ jobs:
       run:
         working-directory: docs-site
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -146,7 +146,7 @@ jobs:
       run:
         working-directory: aws-cdk
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
