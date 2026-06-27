@@ -74,7 +74,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: youtube-monitor/pnpm-lock.yaml
       - name: Install dependencies
@@ -106,7 +106,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: youtube-monitor/pnpm-lock.yaml
       - name: Install dependencies
@@ -130,7 +130,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: docs-site/pnpm-lock.yaml
       - name: Install dependencies
@@ -154,7 +154,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: aws-cdk/pnpm-lock.yaml
       - name: Install dependencies
