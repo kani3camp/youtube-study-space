@@ -25,8 +25,8 @@ importers:
         specifier: 25.6.0
         version: 25.6.0
       aws-cdk:
-        specifier: ^2.172.0
-        version: 2.1111.0
+        specifier: ^2.1128.0
+        version: 2.1128.1
       jest:
         specifier: ^30.4.2
         version: 30.4.2(@types/node@25.6.0)(ts-node@10.9.2(@types/node@25.6.0)(typescript@6.0.3))
@@ -623,8 +623,8 @@ packages:
       - yaml
       - mime-types
 
-  aws-cdk@2.1111.0:
-    resolution: {integrity: sha512-69AVF04cxbAhYzmeJYtUF5bs6ruNnH05EQZJfjadk5Lpg+HVaJY2NjG/2qgsMmKrfRgvLet73Ir8ehVlAaaGng==}
+  aws-cdk@2.1128.1:
+    resolution: {integrity: sha512-y9OHn5/BOcIiq409vPvpypMIr7/8M1ScFe8IkFMSCN1/GI/5c73fQ4pfzNq+VDkj86T5zxs7BQ1qU2lQQytdXA==}
     engines: {node: '>= 18.0.0'}
     hasBin: true
 
@@ -2188,7 +2188,7 @@ snapshots:
       '@aws-cdk/cloud-assembly-schema': 54.4.0
       constructs: 10.6.0
 
-  aws-cdk@2.1111.0: {}
+  aws-cdk@2.1128.1: {}
 
   babel-jest@30.4.1(@babel/core@7.29.7):
     dependencies:
