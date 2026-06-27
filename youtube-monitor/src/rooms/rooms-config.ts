@@ -19,79 +19,80 @@ import { MoonNightRoom2 } from './layouts/moon-night-room-2'
 import { ResortSeaRoom } from './layouts/resort-sea-room'
 
 type AllRoomsConfig = {
-	generalBasicRooms: RoomLayout[]
-	generalTemporaryRooms: RoomLayout[]
-	memberBasicRooms: RoomLayout[]
-	memberTemporaryRooms: RoomLayout[]
+  generalBasicRooms: RoomLayout[]
+  generalTemporaryRooms: RoomLayout[]
+  memberBasicRooms: RoomLayout[]
+  memberTemporaryRooms: RoomLayout[]
 }
 
 const prodAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [
-		Chabio2Room,
-		CampRoom,
-		CafeRainyRoom,
-		Anonymous1Room,
-		Freepik8Room,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
-	generalTemporaryRooms: [
-		CampRoom,
-		Chabio1Room,
-		Freepik3Room,
-		CafeRainyRoom,
-		Freepik5Room,
-		Freepik8Room,
-		Freepik7Room,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
-	memberBasicRooms: [
-		MemberBoxRooms2,
-		MemberBoxRooms3,
-		ResortSeaRoom,
-		MemberIllustratedRoomSpring,
-		MemberIllustratedRoom1,
-	],
-	memberTemporaryRooms: [
-		BookOfficeRoom,
-		MemberBoxRooms2,
-		MemberBoxRooms3,
-		ResortSeaRoom,
-		MemberIllustratedRoomSpring,
-		MemberIllustratedRoom1,
-	],
+  generalBasicRooms: [
+    Chabio2Room,
+    CampRoom,
+    CafeRainyRoom,
+    Anonymous1Room,
+    Freepik8Room,
+    MoonNightRoom1,
+    MoonNightRoom2,
+  ],
+  generalTemporaryRooms: [
+    CampRoom,
+    Chabio1Room,
+    Freepik3Room,
+    CafeRainyRoom,
+    Freepik5Room,
+    Freepik8Room,
+    Freepik7Room,
+    MoonNightRoom1,
+    MoonNightRoom2,
+  ],
+  memberBasicRooms: [
+    BookOfficeRoom,
+    MemberBoxRooms2,
+    MemberBoxRooms3,
+    ResortSeaRoom,
+    MemberIllustratedRoomSpring,
+    MemberIllustratedRoom1,
+  ],
+  memberTemporaryRooms: [
+    BookOfficeRoom,
+    MemberBoxRooms2,
+    MemberBoxRooms3,
+    ResortSeaRoom,
+    MemberIllustratedRoomSpring,
+    MemberIllustratedRoom1,
+  ],
 }
 
 const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
-	generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
-	memberBasicRooms: [BookOfficeRoom],
-	memberTemporaryRooms: [BookOfficeRoom],
+  generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
+  generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
+  memberBasicRooms: [BookOfficeRoom],
+  memberTemporaryRooms: [BookOfficeRoom],
 }
 
 export const allRooms: AllRoomsConfig = (function getAllRooms() {
-	switch (ROOM_CONFIG) {
-		case 'PROD':
-			return prodAllRooms
-		case 'DEV':
-			return testAllRooms
-		default:
-			throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
-	}
+  switch (ROOM_CONFIG) {
+    case 'PROD':
+      return prodAllRooms
+    case 'DEV':
+      return testAllRooms
+    default:
+      throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
+  }
 })()
 
 export const numSeatsInGeneralAllBasicRooms = (): number => {
-	let numSeatsBasicRooms = 0
-	for (const room of allRooms.generalBasicRooms) {
-		numSeatsBasicRooms += room.seats.length
-	}
-	return numSeatsBasicRooms
+  let numSeatsBasicRooms = 0
+  for (const room of allRooms.generalBasicRooms) {
+    numSeatsBasicRooms += room.seats.length
+  }
+  return numSeatsBasicRooms
 }
 export const numSeatsInMemberAllBasicRooms = (): number => {
-	let numSeatsBasicRooms = 0
-	for (const room of allRooms.memberBasicRooms) {
-		numSeatsBasicRooms += room.seats.length
-	}
-	return numSeatsBasicRooms
+  let numSeatsBasicRooms = 0
+  for (const room of allRooms.memberBasicRooms) {
+    numSeatsBasicRooms += room.seats.length
+  }
+  return numSeatsBasicRooms
 }
