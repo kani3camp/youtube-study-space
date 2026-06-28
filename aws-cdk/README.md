@@ -19,10 +19,16 @@ aws sts get-caller-identity --profile プロファイル名
 - `pnpm build` compile typescript to js
 - `pnpm watch` watch for changes and compile
 - `pnpm test` perform the jest unit tests
-- `pnpm cdk:bootstrap` 当該 AWS アカウント環境で初めての場合
-- `pnpm cdk:deploy` deploy this stack to your default AWS account/region
-- `pnpm cdk:diff` compare deployed stack with current state
-- `pnpm cdk:synth` emits the synthesized CloudFormation template
+- `pnpm cdk:bootstrap --context stage=STAGE --profile PROFILE` 当該 AWS アカウント環境で初めての場合
+- `pnpm cdk:deploy --context stage=STAGE --profile PROFILE` deploy this stack to your default AWS account/region
+- `pnpm cdk:diff --context stage=STAGE --profile PROFILE` compare deployed stack with current state
+- `pnpm cdk:synth --context stage=STAGE --profile PROFILE` emits the synthesized CloudFormation template
+
+`stage=prod` ではマイページAPIのCORS許可originを明示する。
+
+```bash
+pnpm cdk:diff --context stage=prod --context mypageAllowedOrigin=https://mypage.moku.work --profile PROFILE
+```
 
 ## 日次バッチと通知の運用メモ
 

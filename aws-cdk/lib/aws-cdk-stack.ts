@@ -21,6 +21,9 @@ import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
 import * as cw_actions from 'aws-cdk-lib/aws-cloudwatch-actions'
 import * as scheduler from 'aws-cdk-lib/aws-scheduler'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2'
+import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations'
+import { getStageConfig } from './stage-config'
 
 export type AwsCdkStackProps = cdk.StackProps & {
 	systemDir?: string
@@ -45,6 +48,12 @@ export class AwsCdkStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: AwsCdkStackProps) {
 		const { systemDir = DEFAULT_SYSTEM_DIR, ...stackProps } = props ?? {}
 		super(scope, id, stackProps)
+
+		const stage = this.node.tryGetContext('stage') as string | undefined
+		const mypageAllowedOrigin = this.node.tryGetContext(
+			'mypageAllowedOrigin',
+		) as string | undefined
+		const stageConfig = getStageConfig(stage, { mypageAllowedOrigin })
 
 		const alarmEmail = new cdk.CfnParameter(this, 'AlarmEmail', {
 			type: 'String',
@@ -700,6 +709,28 @@ export class AwsCdkStack extends cdk.Stack {
 			'Lambda error_log_notify_discord errors > 0',
 		)
 
+		const mypageApiFunction = new lambda.DockerImageFunction(
+			this,
+			'mypage_api',
+			{
+				functionName: stageConfig.mypageApiFunctionName,
+				code: createLambdaImageCode(systemDir, 'mypage_api'),
+				timeout: cdk.Duration.seconds(15),
+				reservedConcurrentExecutions: undefined,
+				environment: {
+					MYPAGE_ALLOWED_ORIGIN: stageConfig.mypageAllowedOrigin,
+				},
+			},
+		)
+		;(mypageApiFunction.role as iam.Role).addToPolicy(
+			dynamoDBAccessPolicy,
+		)
+		createLambdaErrorAlarm(
+			mypageApiFunction,
+			'MypageApiErrorsAlarm',
+			'Lambda mypage_api errors > 0',
+		)
+
 		const errorLogFilterPattern = logs.FilterPattern.stringValue(
 			'$.level',
 			'=',
@@ -741,6 +772,10 @@ export class AwsCdkStack extends cdk.Stack {
 		addErrorLogSubscriptionFilter(
 			'SnsNotifyDiscordErrorLogSubscription',
 			snsNotifyDiscordFunction,
+		)
+		addErrorLogSubscriptionFilter(
+			'MypageApiErrorLogSubscription',
+			mypageApiFunction,
 		)
 
 		// API Gateway用ロググループ
@@ -835,6 +870,52 @@ export class AwsCdkStack extends cdk.Stack {
 		new events.Rule(this, '15minutes', {
 			schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
 			targets: [new targets.LambdaFunction(updateWorkNameTrendFunction)],
+		})
+
+		// =========================
+		// API Gateway HTTP API: Mypage API
+		// =========================
+		const mypageHttpApi = new apigatewayv2.HttpApi(this, 'MypageHttpApi', {
+			apiName: stageConfig.mypageApiName,
+			corsPreflight: {
+				allowOrigins: [stageConfig.mypageAllowedOrigin],
+				allowMethods: [
+					apigatewayv2.CorsHttpMethod.GET,
+					apigatewayv2.CorsHttpMethod.POST,
+					apigatewayv2.CorsHttpMethod.OPTIONS,
+				],
+				allowHeaders: [
+					'Authorization',
+					'Content-Type',
+					'X-Client-App',
+					'X-Client-Version',
+					'X-Client-Request-Id',
+					'X-Client-Build-Time',
+					'X-Client-Timezone',
+					'X-Client-Platform',
+				],
+			},
+		})
+
+		mypageHttpApi.addRoutes({
+			path: '/mypage/auth/youtube-link',
+			methods: [apigatewayv2.HttpMethod.POST],
+			integration: new integrations.HttpLambdaIntegration(
+				'MypageYouTubeLinkIntegration',
+				mypageApiFunction,
+			),
+		})
+		mypageHttpApi.addRoutes({
+			path: '/mypage/me',
+			methods: [apigatewayv2.HttpMethod.GET],
+			integration: new integrations.HttpLambdaIntegration(
+				'MypageMeIntegration',
+				mypageApiFunction,
+			),
+		})
+
+		new cdk.CfnOutput(this, 'MypageApiEndpointUrl', {
+			value: mypageHttpApi.apiEndpoint,
 		})
 	}
 }
