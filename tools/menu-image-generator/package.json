@@ -18,7 +18,7 @@
 	},
 	"dependencies": {
 		"dotenv": "^17.4.2",
-		"firebase-admin": "^13.8.0",
+		"firebase-admin": "^14.1.0",
 		"puppeteer": "^25.1.0",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7"
