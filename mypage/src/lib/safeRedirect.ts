@@ -61,7 +61,10 @@ export function sanitizeRedirectPath(
 		return trimmed
 	}
 
-	const pathname = pathnameFromTrustedURL(trimmed, resolveTrustedOrigins(options))
+	const pathname = pathnameFromTrustedURL(
+		trimmed,
+		resolveTrustedOrigins(options),
+	)
 	if (pathname !== null && isSafeRelativePath(pathname)) {
 		return pathname
 	}
