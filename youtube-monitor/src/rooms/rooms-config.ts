@@ -1,6 +1,7 @@
 import { ROOM_CONFIG } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
+import { BookOfficeRoom } from './layouts/book-office-room'
 import { CafeRainyRoom } from './layouts/cafe-rainy-room'
 import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
@@ -46,6 +47,7 @@ const prodAllRooms: AllRoomsConfig = {
 		MoonNightRoom2,
 	],
 	memberBasicRooms: [
+		BookOfficeRoom,
 		MemberBoxRooms2,
 		MemberBoxRooms3,
 		ResortSeaRoom,
@@ -53,6 +55,7 @@ const prodAllRooms: AllRoomsConfig = {
 		MemberIllustratedRoom1,
 	],
 	memberTemporaryRooms: [
+		BookOfficeRoom,
 		MemberBoxRooms2,
 		MemberBoxRooms3,
 		ResortSeaRoom,
@@ -64,8 +67,8 @@ const prodAllRooms: AllRoomsConfig = {
 const testAllRooms: AllRoomsConfig = {
 	generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
 	generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
-	memberBasicRooms: [ResortSeaRoom],
-	memberTemporaryRooms: [ResortSeaRoom],
+	memberBasicRooms: [BookOfficeRoom],
+	memberTemporaryRooms: [BookOfficeRoom],
 }
 
 export const allRooms: AllRoomsConfig = (function getAllRooms() {

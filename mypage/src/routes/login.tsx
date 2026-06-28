@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { signInWithGoogleAndYouTube } from '../features/auth/auth'
 import { linkYouTube } from '../features/mypage/api'
+import { sanitizeRedirectPath } from '../lib/safeRedirect'
 
 type LoginSearch = {
 	redirect?: string
@@ -12,7 +13,9 @@ type LoginSearch = {
 export const Route = createFileRoute('/login')({
 	validateSearch: (search): LoginSearch => {
 		return {
-			redirect: typeof search.redirect === 'string' ? search.redirect : '/',
+			redirect: sanitizeRedirectPath(
+				typeof search.redirect === 'string' ? search.redirect : undefined,
+			),
 			reason: typeof search.reason === 'string' ? search.reason : undefined,
 		}
 	},

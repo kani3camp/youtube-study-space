@@ -69,7 +69,7 @@ async function generateImage(
 		// HTMLをセット
 		console.log('  - ページを読み込み中...')
 		await page.setContent(html, {
-			waitUntil: 'networkidle0',
+			waitUntil: 'load',
 			timeout: IMAGE_LOAD_TIMEOUT,
 		})
 
