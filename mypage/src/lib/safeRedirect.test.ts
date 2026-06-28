@@ -30,12 +30,18 @@ describe('sanitizeRedirectPath', () => {
 		const trustedOrigins = ['http://localhost:18081']
 
 		expect(
-			sanitizeRedirectPath('http://localhost:18081/foo', '/', { trustedOrigins }),
-		).toBe('/foo')
-		expect(
-			sanitizeRedirectPath('http://localhost:18081/login?reason=link_required', '/', {
+			sanitizeRedirectPath('http://localhost:18081/foo', '/', {
 				trustedOrigins,
 			}),
+		).toBe('/foo')
+		expect(
+			sanitizeRedirectPath(
+				'http://localhost:18081/login?reason=link_required',
+				'/',
+				{
+					trustedOrigins,
+				},
+			),
 		).toBe('/login?reason=link_required')
 	})
 
@@ -44,6 +50,8 @@ describe('sanitizeRedirectPath', () => {
 	})
 
 	it('falls back when custom fallback is unsafe', () => {
-		expect(sanitizeRedirectPath('https://evil.com', 'https://evil.com/login')).toBe('/')
+		expect(
+			sanitizeRedirectPath('https://evil.com', 'https://evil.com/login'),
+		).toBe('/')
 	})
 })

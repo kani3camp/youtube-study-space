@@ -188,7 +188,11 @@ func (h *Handler) setHeaders(w http.ResponseWriter, r *http.Request) {
 }
 
 func readJSONBody(r *http.Request) ([]byte, error) {
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			slog.Warn("failed to close request body", "err", err)
+		}
+	}()
 
 	return io.ReadAll(http.MaxBytesReader(nil, r.Body, maxJSONBodyBytes))
 }
