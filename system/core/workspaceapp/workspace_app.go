@@ -15,7 +15,6 @@ import (
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
-	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/option"
@@ -24,7 +23,6 @@ import (
 type WorkspaceApp struct {
 	Configs            *Configs
 	Repository         repository.Repository
-	WordsReader        wordsreader.WordsReader
 	LiveChatBot        youtubebot.LiveChatBot
 	alertOwnerBot      moderatorbot.MessageBot
 	alertModeratorsBot moderatorbot.MessageBot
@@ -35,11 +33,6 @@ type WorkspaceApp struct {
 	ProcessedUserProfileImageURL    string
 	ProcessedUserIsModeratorOrOwner bool
 	ProcessedUserIsMember           bool
-
-	blockRegexesForChatMessage        []string
-	blockRegexesForChannelName        []string
-	notificationRegexesForChatMessage []string
-	notificationRegexesForChannelName []string
 
 	SortedMenuItems []repository.MenuDoc // メニューコードで昇順ソートして格納
 
@@ -133,22 +126,6 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 		}
 	}
 
-	slog.InfoContext(ctx, "initializing spreadsheet reader...")
-	wordsReader, err := wordsreader.NewSpreadsheetReader(ctx, clientOption, configs.Constants.BotConfigSpreadsheetID, "01", "02")
-	if err != nil {
-		return nil, fmt.Errorf("in NewSpreadsheetReader(): %w", err)
-	}
-	slog.InfoContext(ctx, "reading block regexes...")
-	blockRegexesForChatMessage, blockRegexesForChannelName, err := wordsReader.ReadBlockRegexes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("in ReadBlockRegexes(): %w", err)
-	}
-	slog.InfoContext(ctx, "reading notification regexes...")
-	notificationRegexesForChatMessage, notificationRegexesForChannelName, err := wordsReader.ReadNotificationRegexes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("in ReadNotificationRegexes(): %w", err)
-	}
-
 	slog.InfoContext(ctx, "reading menu docs...")
 	sortedMenuItems, err := firestoreController.ReadAllMenuDocsOrderByCode(ctx)
 	if err != nil {
@@ -156,19 +133,14 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 	}
 
 	return &WorkspaceApp{
-		Configs:                           &configs,
-		Repository:                        firestoreController,
-		WordsReader:                       wordsReader,
-		LiveChatBot:                       liveChatBot,
-		alertOwnerBot:                     discordOwnerBot,
-		alertModeratorsBot:                discordSharedBot,
-		logModeratorsBot:                  discordSharedLogBot,
-		blockRegexesForChannelName:        blockRegexesForChannelName,
-		blockRegexesForChatMessage:        blockRegexesForChatMessage,
-		notificationRegexesForChatMessage: notificationRegexesForChatMessage,
-		notificationRegexesForChannelName: notificationRegexesForChannelName,
-		SortedMenuItems:                   sortedMenuItems,
-		nowFunc:                           nil,
+		Configs:            &configs,
+		Repository:         firestoreController,
+		LiveChatBot:        liveChatBot,
+		alertOwnerBot:      discordOwnerBot,
+		alertModeratorsBot: discordSharedBot,
+		logModeratorsBot:   discordSharedLogBot,
+		SortedMenuItems:    sortedMenuItems,
+		nowFunc:            nil,
 	}, nil
 }
 
@@ -199,11 +171,6 @@ func (app *WorkspaceApp) CloseFirestoreClient() {
 	}
 }
 
-func (app *WorkspaceApp) GetInfoString() string {
-	numAllFilteredRegex := len(app.blockRegexesForChatMessage) + len(app.blockRegexesForChannelName) + len(app.notificationRegexesForChatMessage) + len(app.notificationRegexesForChannelName)
-	return fmt.Sprintf("全規制ワード数: %d", numAllFilteredRegex)
-}
-
 // GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
 func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
@@ -232,9 +199,9 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	}
 }
 
-func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID, message, channelName string) (bool, error) {
+func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, ngWordConfig NGWordConfig, userID, message, channelName string) (bool, error) {
 	// ブロック対象チェック
-	found, index, err := utils.ContainsRegexWithIndex(app.blockRegexesForChatMessage, message)
+	found, index, err := utils.ContainsRegexWithIndex(ngWordConfig.blockRegexesForChatMessage, message)
 	if err != nil {
 		return false, err
 	}
@@ -243,13 +210,13 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
 		return true, app.LogToModerators(ctx, "発言から禁止ワードを検出、ユーザーをブロックしました。"+
-			"\n禁止ワード: `"+app.blockRegexesForChatMessage[index]+"`"+
+			"\n禁止ワード: `"+ngWordConfig.blockRegexesForChatMessage[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
-	found, index, err = utils.ContainsRegexWithIndex(app.blockRegexesForChannelName, channelName)
+	found, index, err = utils.ContainsRegexWithIndex(ngWordConfig.blockRegexesForChannelName, channelName)
 	if err != nil {
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
@@ -258,7 +225,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
 		return true, app.LogToModerators(ctx, "チャンネル名から禁止ワードを検出、ユーザーをブロックしました。"+
-			"\n禁止ワード: `"+app.blockRegexesForChannelName[index]+"`"+
+			"\n禁止ワード: `"+ngWordConfig.blockRegexesForChannelName[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
@@ -266,25 +233,25 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID
 	}
 
 	// 通知対象チェック
-	found, index, err = utils.ContainsRegexWithIndex(app.notificationRegexesForChatMessage, message)
+	found, index, err = utils.ContainsRegexWithIndex(ngWordConfig.notificationRegexesForChatMessage, message)
 	if err != nil {
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
 		return false, app.MessageToModerators(ctx, "発言から禁止ワードを検出しました。（通知のみ）"+
-			"\n禁止ワード: `"+app.notificationRegexesForChatMessage[index]+"`"+
+			"\n禁止ワード: `"+ngWordConfig.notificationRegexesForChatMessage[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
 			"\n日時: "+app.currentTime().String())
 	}
-	found, index, err = utils.ContainsRegexWithIndex(app.notificationRegexesForChannelName, channelName)
+	found, index, err = utils.ContainsRegexWithIndex(ngWordConfig.notificationRegexesForChannelName, channelName)
 	if err != nil {
 		return false, fmt.Errorf("in ContainsRegexWithIndex(): %w", err)
 	}
 	if found {
 		return false, app.MessageToModerators(ctx, "チャンネルから禁止ワードを検出しました。（通知のみ）"+
-			"\n禁止ワード: `"+app.notificationRegexesForChannelName[index]+"`"+
+			"\n禁止ワード: `"+ngWordConfig.notificationRegexesForChannelName[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
 			"\nチャット内容: `"+message+"`"+
@@ -296,6 +263,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, userID
 // ProcessMessage 入力コマンドを解析して実行
 func (app *WorkspaceApp) ProcessMessage(
 	ctx context.Context,
+	ngWordConfig NGWordConfig,
 	commandString string,
 	userID string,
 	userDisplayName string,
@@ -314,7 +282,7 @@ func (app *WorkspaceApp) ProcessMessage(
 
 	// check if an unwanted word included
 	if !isChatModerator && !isChatOwner {
-		blocked, err := app.CheckIfUnwantedWordIncluded(ctx, userID, commandString, userDisplayName)
+		blocked, err := app.CheckIfUnwantedWordIncluded(ctx, ngWordConfig, userID, commandString, userDisplayName)
 		if err != nil {
 			app.MessageToOwnerWithError(ctx, "in CheckIfUnwantedWordIncluded", err)
 			// continue

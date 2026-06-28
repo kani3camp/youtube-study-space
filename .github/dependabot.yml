@@ -12,8 +12,7 @@ updates:
   - package-ecosystem: docker
     directory: /system
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:
@@ -28,8 +27,7 @@ updates:
   - package-ecosystem: gomod
     directory: /system
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:
@@ -58,13 +56,19 @@ updates:
       - /tools/video-maker/1000-minutes-simulator
       - /tools/figma-plugin/room-layout-analyzer
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:
       prefix: build(deps)
     open-pull-requests-limit: 10
+    # Keep @types/node on Node 24 LTS for now.
+    # Node 26 is expected to become LTS on 2026-10-28.
+    # CI has an expiry check and will fail after that date to force revisiting this rule.
+    ignore:
+      - dependency-name: "@types/node"
+        versions:
+          - ">=25.0.0"
     groups:
       npm-minor-and-patch:
         applies-to: version-updates
@@ -82,8 +86,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Tokyo
     commit-message:

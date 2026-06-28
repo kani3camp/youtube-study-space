@@ -1,6 +1,6 @@
 import { css } from '@emotion/react'
 import { useTranslation } from 'next-i18next'
-import type { FC } from 'react'
+import type { FC, ReactElement } from 'react'
 import { AiFillTrophy } from 'react-icons/ai'
 import { type Rank, ranks } from '../lib/ranks'
 import * as styles from '../styles/Gauge.styles'
@@ -21,7 +21,7 @@ const Gauge: FC<Props> = (props) => {
 	const oneRankHeight = BarHeight / ranks.length
 
 	// 現在到達点の矢印
-	let arrow: JSX.Element = <></>
+	let arrow: ReactElement = <></>
 	ranks.forEach((r, i) => {
 		if (r.FromHours <= props.elapsedMinutes && props.elapsedMinutes < r.ToHours) {
 			// 矢印の位置が決定
