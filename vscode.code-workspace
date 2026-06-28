@@ -5,6 +5,10 @@
 			"path": "youtube-monitor"
 		},
 		{
+			"name": "mypage",
+			"path": "mypage"
+		},
+		{
 			"name": "system",
 			"path": "system"
 		},

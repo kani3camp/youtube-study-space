@@ -1,0 +1,40 @@
+{
+	"name": "mypage",
+	"private": true,
+	"version": "0.0.0",
+	"packageManager": "pnpm@10.4.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview",
+		"typecheck": "tsc -b",
+		"lint": "biome lint .",
+		"format": "biome format --write .",
+		"check": "biome check .",
+		"check:fix": "biome check --write .",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"engines": {
+		"node": ">=20.19.0"
+	},
+	"dependencies": {
+		"@tanstack/react-router": "^1.169.2",
+		"@tanstack/react-router-devtools": "^1.166.13",
+		"firebase": "^12.13.0",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@tanstack/router-plugin": "^1.167.35",
+		"@types/node": "^24.12.3",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^6.0.1",
+		"typescript": "~6.0.2",
+		"vite": "^8.0.12",
+		"vitest": "^3.2.4"
+	}
+}
