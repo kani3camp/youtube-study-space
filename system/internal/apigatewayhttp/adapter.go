@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,7 +27,11 @@ func Serve(ctx context.Context, event events.APIGatewayV2HTTPRequest, handler ht
 	handler.ServeHTTP(recorder, req)
 
 	result := recorder.Result()
-	defer result.Body.Close()
+	defer func() {
+		if err := result.Body.Close(); err != nil {
+			slog.Error("failed to close API Gateway response body", "err", err)
+		}
+	}()
 
 	headers, multiValueHeaders, cookies := responseHeaders(result.Header)
 
