@@ -1,0 +1,70 @@
+name: Something is not working
+description: Report unexpected behavior without needing technical knowledge
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. A clear description is enough — you do not need to know the cause or understand the code.
+
+        Everything submitted here will be public. Please remove personal information, access tokens, private messages, and other sensitive content.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you saw, including any message shown by the bot or on the livestream.
+      placeholder: I sent a command in live chat, but...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: Tell us what you thought should have happened instead.
+      placeholder: I expected the room to...
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command used
+      description: Copy the chat command if the problem involved one. Leave this blank when not applicable.
+      placeholder: "!in Reading min 60"
+
+  - type: input
+    id: occurred-at
+    attributes:
+      label: Approximate date and time
+      description: Include your time zone when possible. This helps locate relevant logs.
+      placeholder: 2026-07-23 around 21:30 JST
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did you see the problem?
+      options:
+        - YouTube mobile app
+        - Mobile web browser
+        - Desktop web browser
+        - Livestream display
+        - Discord notification
+        - Not sure / somewhere else
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or additional details
+      description: Add screenshots, a short recording, or anything else that may help. You can drag files into this box.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public information check
+      options:
+        - label: I have removed private or sensitive information from this report.
+          required: true
