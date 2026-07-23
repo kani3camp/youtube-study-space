@@ -5,8 +5,10 @@
 **A 24/7 virtual room for studying, working, creating, and getting things done together.**
 
 <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live">
-  <img src="./docs-site/static/img/readme-hero.svg" alt="YouTube Study Space — a chat-controlled virtual study room" width="100%" />
+  <img src="./docs-site/static/img/readme-hero.webp" alt="YouTube Study Space — a chat-controlled virtual study room" width="100%" />
 </a>
+
+<sub>Actual livestream view. Usernames have been hidden to protect privacy.</sub>
 
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTube Live" src="https://img.shields.io/badge/YouTube-Enter%20the%20live%20room-FF0000?logo=youtube&logoColor=white"></a>
