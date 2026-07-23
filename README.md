@@ -8,8 +8,6 @@
   <img src="./docs-site/static/img/readme-hero.webp" alt="YouTubeライブチャットで参加できる24時間オンライン作業部屋" width="100%" />
 </a>
 
-<sub>実際の配信画面です。ユーザー名はプライバシー保護のため非表示にしています。</sub>
-
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTubeライブ" src="https://img.shields.io/badge/YouTube-%E3%83%A9%E3%82%A4%E3%83%96%E3%81%AB%E5%85%A5%E3%82%8B-FF0000?logo=youtube&logoColor=white"></a>
   <a href="https://sorarideblog.github.io/youtube-study-space/docs/essential"><img alt="コマンド一覧" src="https://img.shields.io/badge/Guide-%E3%82%B3%E3%83%9E%E3%83%B3%E3%83%89%E4%B8%80%E8%A6%A7-4A66C7?logo=readthedocs&logoColor=white"></a>
