@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Command guide
-    url: https://sorarideblog.github.io/youtube-study-space/docs/essential
+    url: https://sorarideblog.github.io/youtube-study-space/en/docs/essential
     about: Check available commands and usage examples before reporting a command question.
   - name: Discord community
     url: https://discord.gg/h9SenAvawT
