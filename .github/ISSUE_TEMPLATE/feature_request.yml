@@ -1,0 +1,57 @@
+name: Suggest an improvement
+description: Share an idea for the room, commands, documentation, or community experience
+title: "[Idea]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. You do not need to propose an implementation — explaining the experience you want is enough.
+
+        Everything submitted here will be public. Please do not include private or sensitive information.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to improve?
+      description: Describe the feature, change, or clearer behavior you would like to see.
+      placeholder: It would be helpful if...
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Why would this be useful?
+      description: Explain the problem it solves or how it would improve the experience.
+      placeholder: This would help because...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area is this about?
+      options:
+        - Live chat commands
+        - Livestream room display
+        - Documentation or instructions
+        - YouTube membership experience
+        - Community or moderation
+        - Reliability or automation
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or additional context
+      description: Add screenshots, links, similar examples, or any details that make the idea easier to understand.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public information check
+      options:
+        - label: I have removed private or sensitive information from this suggestion.
+          required: true
