@@ -1,70 +1,70 @@
-name: Something is not working
-description: Report unexpected behavior without needing technical knowledge
-title: "[Bug]: "
+name: 不具合を報告する
+description: 技術的な知識がなくても、予期しない動作や表示の問題を報告できます
+title: "[不具合]: "
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a problem. A clear description is enough — you do not need to know the cause or understand the code.
+        ご報告ありがとうございます。原因やコードの知識は必要ありません。実際に起きたことを分かる範囲で記載してください。
 
-        Everything submitted here will be public. Please remove personal information, access tokens, private messages, and other sensitive content.
+        ここに投稿した内容はインターネット上に公開されます。個人情報、アクセストークン、非公開メッセージなどの機密情報は取り除いてください。
 
   - type: textarea
     id: what-happened
     attributes:
-      label: What happened?
-      description: Describe what you saw, including any message shown by the bot or on the livestream.
-      placeholder: I sent a command in live chat, but...
+      label: 何が起きましたか？
+      description: 実際に確認した動作や、Bot・配信画面に表示されたメッセージを記載してください。
+      placeholder: ライブチャットにコマンドを送信しましたが、...
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: What did you expect?
-      description: Tell us what you thought should have happened instead.
-      placeholder: I expected the room to...
+      label: 本来はどうなることを期待していましたか？
+      description: 実際の動作ではなく、期待していた結果を記載してください。
+      placeholder: 本来は作業部屋に入室できることを期待していました。
     validations:
       required: true
 
   - type: input
     id: command
     attributes:
-      label: Command used
-      description: Copy the chat command if the problem involved one. Leave this blank when not applicable.
-      placeholder: "!in Reading min 60"
+      label: 入力したコマンド
+      description: コマンドに関する不具合の場合は、ライブチャットへ送信した内容をコピーしてください。該当しない場合は空欄で構いません。
+      placeholder: "!in 読書 min 60"
 
   - type: input
     id: occurred-at
     attributes:
-      label: Approximate date and time
-      description: Include your time zone when possible. This helps locate relevant logs.
-      placeholder: 2026-07-23 around 21:30 JST
+      label: おおよその発生日時
+      description: 関連するログを調査するために使用します。分かる範囲で記載してください。
+      placeholder: 2026-07-23 21:30頃（JST）
 
   - type: dropdown
     id: environment
     attributes:
-      label: Where did you see the problem?
+      label: どこで問題を確認しましたか？
       options:
-        - YouTube mobile app
-        - Mobile web browser
-        - Desktop web browser
-        - Livestream display
-        - Discord notification
-        - Not sure / somewhere else
+        - YouTubeスマートフォンアプリ
+        - スマートフォンのWebブラウザ
+        - PCのWebブラウザ
+        - ライブ配信の作業部屋画面
+        - Discord通知
+        - 分からない・その他
     validations:
       required: true
 
   - type: textarea
     id: evidence
     attributes:
-      label: Screenshots or additional details
-      description: Add screenshots, a short recording, or anything else that may help. You can drag files into this box.
+      label: スクリーンショット・補足情報
+      description: スクリーンショット、短い画面録画、再現手順などがあれば追加してください。ファイルをこの欄へドラッグできます。
 
   - type: checkboxes
     id: privacy
     attributes:
-      label: Public information check
+      label: 公開情報の確認
       options:
-        - label: I have removed private or sensitive information from this report.
+        - label: この報告から個人情報や機密情報を取り除きました。
           required: true
