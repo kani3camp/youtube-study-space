@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Command guide
-    url: https://sorarideblog.github.io/youtube-study-space/en/docs/essential
-    about: Check available commands and usage examples before reporting a command question.
-  - name: Discord community
+  - name: コマンド一覧
+    url: https://sorarideblog.github.io/youtube-study-space/docs/essential
+    about: コマンドの使い方に関する質問を投稿する前に、利用可能なコマンドと入力例を確認できます。
+  - name: Discordコミュニティ
     url: https://discord.gg/h9SenAvawT
-    about: Ask general usage questions and talk with the community.
+    about: 一般的な使い方の質問や、利用者同士の交流はこちらから行えます。
