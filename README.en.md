@@ -54,7 +54,7 @@ You can also include a work name and an automatic exit time:
 | Join for up to 45 minutes | `!in Writing min 45` |
 | Start a break | `!break` |
 | Resume working | `!resume` |
-| Check your current information | `!my` |
+| Check your current information | `!info` |
 | Leave the room | `!out` |
 
 The command system has more options, including selecting a seat, extending a session, viewing rankings, ordering virtual menu items, and using member-only seats.
