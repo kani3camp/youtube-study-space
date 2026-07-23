@@ -11,7 +11,7 @@
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTube Live" src="https://img.shields.io/badge/YouTube-Enter%20the%20live%20room-FF0000?logo=youtube&logoColor=white"></a>
   <a href="https://sorarideblog.github.io/youtube-study-space/docs/essential"><img alt="Command guide" src="https://img.shields.io/badge/Guide-Chat%20commands-4A66C7?logo=readthedocs&logoColor=white"></a>
-  <a href="https://github.com/kani3camp/youtube-study-space/issues/new"><img alt="Report a problem" src="https://img.shields.io/badge/Feedback-Open%20an%20issue-2F8F74?logo=github&logoColor=white"></a>
+  <a href="https://github.com/kani3camp/youtube-study-space/issues/new/choose"><img alt="Report a problem" src="https://img.shields.io/badge/Feedback-Open%20an%20issue-2F8F74?logo=github&logoColor=white"></a>
 </p>
 
 [Enter the live room](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live) · [Read the command guide](https://sorarideblog.github.io/youtube-study-space/docs/essential) · [日本語 README](./README.ja.md)
@@ -63,7 +63,7 @@ See the **[full command guide](https://sorarideblog.github.io/youtube-study-spac
 ## What makes the room different
 
 - **Always available** — the project is designed as an automated 24/7 work space.
-- **No dedicated account or app** — interaction happens through YouTube live chat.
+- **Uses your existing YouTube experience** — no separate Study Space account or custom app is required.
 - **Visible shared presence** — participants occupy seats in the room and can display what they are doing.
 - **Flexible sessions** — set a task, choose a duration, take breaks, resume, or extend your time.
 - **Personal activity features** — check work information and participate in rankings.
@@ -118,7 +118,7 @@ The main stack includes Go, TypeScript, Next.js, Firestore, BigQuery, AWS Lambda
 ## Found a problem or have an idea?
 
 You do **not** need programming knowledge to report something.
-Please **[open a GitHub issue](https://github.com/kani3camp/youtube-study-space/issues/new)** for unexpected behavior, confusing instructions, display problems, command failures, or feature suggestions.
+Choose a guided form on the **[new issue page](https://github.com/kani3camp/youtube-study-space/issues/new/choose)** for unexpected behavior, confusing instructions, display problems, command failures, or improvement ideas.
 
 A useful report includes:
 
