@@ -8,8 +8,6 @@
   <img src="./docs-site/static/img/readme-hero.webp" alt="YouTube Study Space — a chat-controlled virtual study room" width="100%" />
 </a>
 
-<sub>Actual livestream view. Usernames have been hidden to protect privacy.</sub>
-
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTube Live" src="https://img.shields.io/badge/YouTube-Enter%20the%20live%20room-FF0000?logo=youtube&logoColor=white"></a>
   <a href="https://sorarideblog.github.io/youtube-study-space/en/docs/essential"><img alt="Command guide" src="https://img.shields.io/badge/Guide-Chat%20commands-4A66C7?logo=readthedocs&logoColor=white"></a>
