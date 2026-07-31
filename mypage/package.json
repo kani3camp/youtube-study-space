@@ -17,7 +17,7 @@
 		"test:watch": "vitest"
 	},
 	"engines": {
-		"node": ">=20.19.0"
+		"node": ">=24.0.0 <25"
 	},
 	"dependencies": {
 		"@tanstack/react-router": "^1.169.2",
