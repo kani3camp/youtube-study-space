@@ -10,11 +10,11 @@
 
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTube Live" src="https://img.shields.io/badge/YouTube-Enter%20the%20live%20room-FF0000?logo=youtube&logoColor=white"></a>
-  <a href="https://sorarideblog.github.io/youtube-study-space/en/docs/essential"><img alt="Command guide" src="https://img.shields.io/badge/Guide-Chat%20commands-4A66C7?logo=readthedocs&logoColor=white"></a>
+  <a href="https://kani3camp.github.io/youtube-study-space/"><img alt="Command guide" src="https://img.shields.io/badge/Guide-Chat%20commands-4A66C7?logo=readthedocs&logoColor=white"></a>
   <a href="https://github.com/kani3camp/youtube-study-space/issues/new/choose"><img alt="Report a problem" src="https://img.shields.io/badge/Feedback-Open%20an%20issue-2F8F74?logo=github&logoColor=white"></a>
 </p>
 
-[Enter the live room](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live) · [Read the command guide](https://sorarideblog.github.io/youtube-study-space/en/docs/essential) · [日本語](./README.md)
+[Enter the live room](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live) · [Read the command guide](https://kani3camp.github.io/youtube-study-space/) · [日本語](./README.md)
 
 </div>
 
@@ -58,7 +58,7 @@ You can also include a work name and an automatic exit time:
 | Leave the room | `!out` |
 
 The command system has more options, including selecting a seat, extending a session, viewing rankings, ordering virtual menu items, and using member-only seats.
-See the **[full command guide](https://sorarideblog.github.io/youtube-study-space/en/docs/essential)** for details and language options.
+See the **[full command guide](https://kani3camp.github.io/youtube-study-space/)** for details and language options.
 
 ## What makes the room different
 
@@ -133,7 +133,7 @@ Please remove personal information, access tokens, private messages, and anythin
 ## Links
 
 - **[Enter the live room](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live)**
-- **[Command guide](https://sorarideblog.github.io/youtube-study-space/en/docs/essential)**
+- **[Command guide](https://kani3camp.github.io/youtube-study-space/)**
 - **[Public project information](https://youtube-study-space.notion.site/5021213988a34747a7513f1067deb76d)**
 - **[Discord community](https://discord.gg/h9SenAvawT)**
 - **[Development story on Zenn](https://zenn.dev/soraride/articles/a546dbfc4bb6ee)**

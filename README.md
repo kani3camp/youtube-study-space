@@ -10,11 +10,11 @@
 
 <p>
   <a href="https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live"><img alt="YouTubeライブ" src="https://img.shields.io/badge/YouTube-%E3%83%A9%E3%82%A4%E3%83%96%E3%81%AB%E5%85%A5%E3%82%8B-FF0000?logo=youtube&logoColor=white"></a>
-  <a href="https://sorarideblog.github.io/youtube-study-space/docs/essential"><img alt="コマンド一覧" src="https://img.shields.io/badge/Guide-%E3%82%B3%E3%83%9E%E3%83%B3%E3%83%89%E4%B8%80%E8%A6%A7-4A66C7?logo=readthedocs&logoColor=white"></a>
+  <a href="https://kani3camp.github.io/youtube-study-space/"><img alt="コマンド一覧" src="https://img.shields.io/badge/Guide-%E3%82%B3%E3%83%9E%E3%83%B3%E3%83%89%E4%B8%80%E8%A6%A7-4A66C7?logo=readthedocs&logoColor=white"></a>
   <a href="https://github.com/kani3camp/youtube-study-space/issues/new/choose"><img alt="Issueを報告" src="https://img.shields.io/badge/Issue-%E5%A0%B1%E5%91%8A-2F8F74?logo=github&logoColor=white"></a>
 </p>
 
-[ライブ配信に入る](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live) · [コマンド一覧を見る](https://sorarideblog.github.io/youtube-study-space/docs/essential) · [English](./README.en.md)
+[ライブ配信に入る](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live) · [コマンド一覧を見る](https://kani3camp.github.io/youtube-study-space/) · [English](./README.en.md)
 
 </div>
 
@@ -58,7 +58,7 @@ YouTube Study Spaceは、YouTubeライブ配信をみんなで使えるオンラ
 | 退室する | `!out` |
 
 席番号の指定、作業時間の延長、ランキング、仮想メニューの注文、メンバー限定席など、ほかにもさまざまな機能があります。
-詳しい使い方は **[コマンド一覧](https://sorarideblog.github.io/youtube-study-space/docs/essential)** をご覧ください。
+詳しい使い方は **[コマンド一覧](https://kani3camp.github.io/youtube-study-space/)** をご覧ください。
 
 ## この作業部屋の特徴
 
@@ -133,7 +133,7 @@ Issueはインターネット上に公開されます。個人情報、アクセ
 ## 関連リンク
 
 - **[YouTubeライブ配信に入る](https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live)**
-- **[コマンド一覧](https://sorarideblog.github.io/youtube-study-space/docs/essential)**
+- **[コマンド一覧](https://kani3camp.github.io/youtube-study-space/)**
 - **[公開資料](https://youtube-study-space.notion.site/5021213988a34747a7513f1067deb76d)**
 - **[Discordコミュニティ](https://discord.gg/h9SenAvawT)**
 - **[開発についてまとめたZenn記事](https://zenn.dev/soraride/articles/a546dbfc4bb6ee)**
