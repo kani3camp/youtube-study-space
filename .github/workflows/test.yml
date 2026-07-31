@@ -114,6 +114,36 @@ jobs:
       - name: Run build
         run: pnpm build
 
+  mypage-test:
+    name: MyPage Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mypage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mypage/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: mypage/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm test
+      - name: Run build
+        run: pnpm build
+      - name: Verify generated files are up-to-date
+        working-directory: ${{ github.workspace }}
+        run: git diff --exit-code
+
   docs-site-build:
     name: Docs Site Build
     runs-on: ubuntu-latest
