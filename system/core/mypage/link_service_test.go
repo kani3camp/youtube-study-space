@@ -3,6 +3,7 @@ package mypage
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,46 +22,43 @@ func (f *fakeYouTubeChannelFetcher) FetchMyChannel(
 	return f.viewer, f.err
 }
 
-// fakeLinkedAccountStore mirrors production SaveLinkedYouTubeAccount behavior:
-// it does not reject duplicate channel ownership on its own.
 type fakeLinkedAccountStore struct {
+	mu             sync.Mutex
 	ownerByChannel map[string]string
-	lookupErr      error
-	saveErr        error
-	saveCalled     bool
+	linkErr        error
+	linkCalled     bool
 }
 
-func (s *fakeLinkedAccountStore) SaveLinkedYouTubeAccount(
+func (s *fakeLinkedAccountStore) LinkYouTubeAccount(
 	_ context.Context,
 	firebaseUID string,
 	viewer Viewer,
 ) error {
-	s.saveCalled = true
-	if s.saveErr != nil {
-		return s.saveErr
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.linkCalled = true
+	if s.linkErr != nil {
+		return s.linkErr
 	}
 
 	if s.ownerByChannel == nil {
 		s.ownerByChannel = make(map[string]string)
 	}
+	if err := validateChannelLinkOwnership(
+		viewer.YouTubeChannelID,
+		firebaseUID,
+		s.ownerByChannel[viewer.YouTubeChannelID],
+	); err != nil {
+		return err
+	}
 	s.ownerByChannel[viewer.YouTubeChannelID] = firebaseUID
 	return nil
 }
 
-func (s *fakeLinkedAccountStore) FindFirebaseUIDByYouTubeChannelID(
-	_ context.Context,
-	youtubeChannelID string,
-) (string, error) {
-	if s.lookupErr != nil {
-		return "", s.lookupErr
-	}
-	if s.ownerByChannel == nil {
-		return "", nil
-	}
-	return s.ownerByChannel[youtubeChannelID], nil
-}
-
 func (s *fakeLinkedAccountStore) existingOwner(youtubeChannelID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.ownerByChannel == nil {
 		return ""
 	}
@@ -70,7 +68,7 @@ func (s *fakeLinkedAccountStore) existingOwner(youtubeChannelID string) string {
 func TestService_LinkYouTube_SucceedsOnFirstLink(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(nil, nil)
+	svc := newTestService(t, &fakeStore{}, nil)
 	viewer := Viewer{
 		YouTubeChannelID: "UCxxxxxxxxxxxxxxxxxxxxxx",
 		DisplayName:      "テストユーザー",
@@ -90,14 +88,14 @@ func TestService_LinkYouTube_SucceedsOnFirstLink(t *testing.T) {
 	assert.Equal(t, "ok", resp.Status)
 	assert.Equal(t, viewer, resp.Viewer)
 	assert.Equal(t, "firebase-user-a", store.existingOwner(viewer.YouTubeChannelID))
-	assert.True(t, store.saveCalled)
+	assert.True(t, store.linkCalled)
 }
 
 func TestService_LinkYouTube_AllowsRelinkBySameFirebaseUID(t *testing.T) {
 	t.Parallel()
 
 	channelID := "UCxxxxxxxxxxxxxxxxxxxxxx"
-	svc := NewService(nil, nil)
+	svc := newTestService(t, &fakeStore{}, nil)
 	viewer := Viewer{
 		YouTubeChannelID: channelID,
 		DisplayName:      "テストユーザー",
@@ -120,14 +118,14 @@ func TestService_LinkYouTube_AllowsRelinkBySameFirebaseUID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ok", resp.Status)
 	assert.Equal(t, "firebase-user-a", store.existingOwner(channelID))
-	assert.True(t, store.saveCalled)
+	assert.True(t, store.linkCalled)
 }
 
 func TestService_LinkYouTube_RejectsWhenChannelLinkedToAnotherFirebaseUID(t *testing.T) {
 	t.Parallel()
 
 	channelID := "UCxxxxxxxxxxxxxxxxxxxxxx"
-	svc := NewService(nil, nil)
+	svc := newTestService(t, &fakeStore{}, nil)
 	viewer := Viewer{
 		YouTubeChannelID: channelID,
 		DisplayName:      "別ユーザーのチャンネル",
@@ -150,21 +148,65 @@ func TestService_LinkYouTube_RejectsWhenChannelLinkedToAnotherFirebaseUID(t *tes
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrYouTubeChannelAlreadyLinked)
 	assert.Equal(t, "firebase-user-a", store.existingOwner(channelID))
-	assert.False(t, store.saveCalled)
+	assert.True(t, store.linkCalled)
 }
 
-func TestService_LinkYouTube_ReturnsErrorWhenOwnerLookupFails(t *testing.T) {
+func TestService_LinkYouTube_ConcurrentRequestsAllowOnlyOneOwner(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestService(t, &fakeStore{}, nil)
+	viewer := Viewer{YouTubeChannelID: "UCxxxxxxxxxxxxxxxxxxxxxx"}
+	store := &fakeLinkedAccountStore{}
+	firebaseUIDs := []string{"firebase-user-a", "firebase-user-b"}
+	errs := make([]error, len(firebaseUIDs))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i, firebaseUID := range firebaseUIDs {
+		wg.Add(1)
+		go func(index int, uid string) {
+			defer wg.Done()
+			<-start
+			_, errs[index] = svc.LinkYouTube(
+				context.Background(),
+				AuthenticatedFirebaseUser{FirebaseUID: uid},
+				"youtube-access-token",
+				&fakeYouTubeChannelFetcher{viewer: viewer},
+				store,
+			)
+		}(i, firebaseUID)
+	}
+	close(start)
+	wg.Wait()
+
+	var successCount int
+	var conflictCount int
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			successCount++
+		case errors.Is(err, ErrYouTubeChannelAlreadyLinked):
+			conflictCount++
+		default:
+			t.Fatalf("unexpected link error: %v", err)
+		}
+	}
+	assert.Equal(t, 1, successCount)
+	assert.Equal(t, 1, conflictCount)
+	assert.Contains(t, firebaseUIDs, store.existingOwner(viewer.YouTubeChannelID))
+}
+
+func TestService_LinkYouTube_ReturnsErrorWhenAtomicLinkFails(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("firestore unavailable")
-	svc := NewService(nil, nil)
+	svc := newTestService(t, &fakeStore{}, nil)
 	viewer := Viewer{
 		YouTubeChannelID: "UCxxxxxxxxxxxxxxxxxxxxxx",
 		DisplayName:      "テストユーザー",
 		ProfileImageURL:  "https://example.com/profile.png",
 	}
 	store := &fakeLinkedAccountStore{
-		lookupErr: expectedErr,
+		linkErr: expectedErr,
 	}
 
 	_, err := svc.LinkYouTube(
@@ -177,5 +219,5 @@ func TestService_LinkYouTube_ReturnsErrorWhenOwnerLookupFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, expectedErr)
-	assert.False(t, store.saveCalled)
+	assert.True(t, store.linkCalled)
 }

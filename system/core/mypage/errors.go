@@ -9,6 +9,10 @@ var (
 	ErrYouTubeLinkRequired         = errors.New("youtube link required")
 	ErrInvalidYouTubeAccessToken   = errors.New("invalid youtube access token")
 	ErrYouTubeChannelAlreadyLinked = errors.New("youtube channel already linked")
+	ErrYouTubeChannelNotFound      = errors.New("youtube channel not found")
+	ErrYouTubeForbidden            = errors.New("youtube request forbidden")
+	ErrYouTubeRateLimited          = errors.New("youtube rate limited")
+	ErrYouTubeUpstream             = errors.New("youtube upstream error")
 )
 
 type APIError struct {

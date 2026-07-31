@@ -46,7 +46,7 @@ func (c fakeClock) Now() time.Time {
 func TestService_GetMe_NotRegistered(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		userErr:        status.Error(codes.NotFound, "user not found"),
 		memberSeatErr:  status.Error(codes.NotFound, "member seat not found"),
 		generalSeatErr: status.Error(codes.NotFound, "general seat not found"),
@@ -64,7 +64,7 @@ func TestService_GetMe_NotRegistered(t *testing.T) {
 func TestService_GetMe_RegisteredAndNotInRoom(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		user: repository.UserDoc{
 			DailyTotalStudySec: 120,
 			TotalStudySec:      3600,
@@ -89,7 +89,7 @@ func TestService_GetMe_RegisteredAndWorkingInGeneralSeat(t *testing.T) {
 	startedAt := fixedJSTTime(2026, 5, 12, 10, 0, 0)
 	now := fixedJSTTime(2026, 5, 12, 10, 10, 0)
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		user: repository.UserDoc{
 			DailyTotalStudySec: 100,
 			TotalStudySec:      1000,
@@ -136,7 +136,7 @@ func TestService_GetMe_RegisteredAndBreakingInMemberSeat(t *testing.T) {
 	startedAt := fixedJSTTime(2026, 5, 12, 10, 0, 0)
 	now := fixedJSTTime(2026, 5, 12, 10, 10, 0)
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		user: repository.UserDoc{
 			DailyTotalStudySec: 100,
 			TotalStudySec:      1000,
@@ -175,7 +175,7 @@ func TestService_GetMe_RegisteredAndBreakingInMemberSeat(t *testing.T) {
 func TestService_GetMe_ReturnsErrorWhenUserIsInBothRooms(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		user: repository.UserDoc{},
 		memberSeat: repository.SeatDoc{
 			SeatID: 1,
@@ -198,7 +198,7 @@ func TestService_GetMe_ReturnsErrorWhenUserIsInBothRooms(t *testing.T) {
 func TestService_GetMe_ReturnsErrorWhenSeatStateIsUnknown(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		user:          repository.UserDoc{},
 		memberSeatErr: status.Error(codes.NotFound, "member seat not found"),
 		generalSeat: repository.SeatDoc{
@@ -217,7 +217,7 @@ func TestService_GetMe_ReturnsErrorWhenSeatStateIsUnknown(t *testing.T) {
 func TestService_GetMe_ReturnsErrorWhenIdentityDoesNotHaveYouTubeChannelID(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(&fakeStore{}, fakeClock{now: fixedJSTTime(2026, 5, 12, 10, 0, 0)})
+	svc := newTestService(t, &fakeStore{}, fakeClock{now: fixedJSTTime(2026, 5, 12, 10, 0, 0)})
 
 	_, err := svc.GetMe(context.Background(), Identity{})
 
@@ -228,7 +228,7 @@ func TestService_GetMe_ReturnsErrorWhenReadUserFails(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("firestore unavailable")
-	svc := NewService(&fakeStore{
+	svc := newTestService(t, &fakeStore{
 		userErr: expectedErr,
 	}, fakeClock{now: fixedJSTTime(2026, 5, 12, 10, 0, 0)})
 
@@ -236,6 +236,24 @@ func TestService_GetMe_ReturnsErrorWhenReadUserFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, expectedErr)
+}
+
+func TestNewService_RejectsNilStore(t *testing.T) {
+	t.Parallel()
+
+	service, err := NewService(nil, nil)
+
+	require.Error(t, err)
+	assert.Nil(t, service)
+	assert.Contains(t, err.Error(), "store is nil")
+}
+
+func newTestService(t *testing.T, store Store, clock Clock) *Service {
+	t.Helper()
+
+	service, err := NewService(store, clock)
+	require.NoError(t, err)
+	return service
 }
 
 func testIdentity() Identity {

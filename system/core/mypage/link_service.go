@@ -19,8 +19,7 @@ type YouTubeChannelFetcher interface {
 }
 
 type LinkedAccountStore interface {
-	FindFirebaseUIDByYouTubeChannelID(ctx context.Context, youtubeChannelID string) (string, error)
-	SaveLinkedYouTubeAccount(ctx context.Context, firebaseUID string, viewer Viewer) error
+	LinkYouTubeAccount(ctx context.Context, firebaseUID string, viewer Viewer) error
 }
 
 func (s *Service) LinkYouTube(
@@ -48,21 +47,8 @@ func (s *Service) LinkYouTube(
 		return LinkYouTubeResponse{}, fmt.Errorf("%w: youtube channel id is empty", ErrInvalidYouTubeAccessToken)
 	}
 
-	existingOwnerUID, err := linkedAccountStore.FindFirebaseUIDByYouTubeChannelID(ctx, viewer.YouTubeChannelID)
-	if err != nil {
-		return LinkYouTubeResponse{}, fmt.Errorf("find linked youtube account owner: %w", err)
-	}
-
-	if err := validateChannelLinkOwnership(
-		viewer.YouTubeChannelID,
-		authenticatedUser.FirebaseUID,
-		existingOwnerUID,
-	); err != nil {
-		return LinkYouTubeResponse{}, err
-	}
-
-	if err := linkedAccountStore.SaveLinkedYouTubeAccount(ctx, authenticatedUser.FirebaseUID, viewer); err != nil {
-		return LinkYouTubeResponse{}, fmt.Errorf("save linked youtube account: %w", err)
+	if err := linkedAccountStore.LinkYouTubeAccount(ctx, authenticatedUser.FirebaseUID, viewer); err != nil {
+		return LinkYouTubeResponse{}, fmt.Errorf("link youtube account: %w", err)
 	}
 
 	return LinkYouTubeResponse{

@@ -99,8 +99,9 @@ func TestHandler_GetMe_ReturnsOK(t *testing.T) {
 		identity: testIdentity(),
 	}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "https://mypage.example.com",
 	})
@@ -139,8 +140,9 @@ func TestHandler_GetMe_ReturnsUnauthorizedWhenIdentityResolverFails(t *testing.T
 		err: ErrUnauthorized,
 	}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "",
 	})
@@ -168,8 +170,9 @@ func TestHandler_GetMe_ReturnsInternalErrorWhenServiceFails(t *testing.T) {
 		identity: testIdentity(),
 	}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "",
 	})
@@ -186,6 +189,26 @@ func TestHandler_GetMe_ReturnsInternalErrorWhenServiceFails(t *testing.T) {
 	assert.Equal(t, "internal_error", got.Error.Code)
 }
 
+func TestHandler_GetMe_MapsServiceError(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter: &fakeMeGetter{err: ErrYouTubeLinkRequired},
+		IdentityResolver: &fakeIdentityResolver{
+			identity: testIdentity(),
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/mypage/me", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	var got ErrorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	assert.Equal(t, "link_required", got.Error.Code)
+}
+
 func TestHandler_ReturnsNotFoundForUnknownPath(t *testing.T) {
 	t.Parallel()
 
@@ -194,8 +217,9 @@ func TestHandler_ReturnsNotFoundForUnknownPath(t *testing.T) {
 		identity: testIdentity(),
 	}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "",
 	})
@@ -222,8 +246,9 @@ func TestHandler_ReturnsMethodNotAllowed(t *testing.T) {
 		identity: testIdentity(),
 	}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "",
 	})
@@ -248,8 +273,9 @@ func TestHandler_ReturnsNoContentForOptions(t *testing.T) {
 	getter := &fakeMeGetter{}
 	resolver := &fakeIdentityResolver{}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "https://mypage.example.com",
 	})
@@ -272,8 +298,9 @@ func TestHandler_PostYouTubeLink_ReturnsUnauthorizedWithoutBearer(t *testing.T) 
 	t.Parallel()
 
 	getter := &fakeMeGetter{}
-	handler := NewHandler(HandlerOptions{
-		Service:               getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:              getter,
+		YouTubeLinker:         getter,
 		FirebaseAuthenticator: &fakeFirebaseAuthenticator{err: ErrUnauthorized},
 	})
 
@@ -295,8 +322,9 @@ func TestHandler_PostYouTubeLink_ReturnsBadRequestWhenBodyMissingToken(t *testin
 	t.Parallel()
 
 	getter := &fakeMeGetter{}
-	handler := NewHandler(HandlerOptions{
-		Service: getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:      getter,
+		YouTubeLinker: getter,
 		FirebaseAuthenticator: &fakeFirebaseAuthenticator{
 			user: AuthenticatedFirebaseUser{FirebaseUID: "firebase-user-a"},
 		},
@@ -323,8 +351,9 @@ func TestHandler_PostYouTubeLink_ReturnsConflictWhenChannelAlreadyLinked(t *test
 	getter := &fakeMeGetter{
 		linkErr: ErrYouTubeChannelAlreadyLinked,
 	}
-	handler := NewHandler(HandlerOptions{
-		Service: getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:      getter,
+		YouTubeLinker: getter,
 		FirebaseAuthenticator: &fakeFirebaseAuthenticator{
 			user: AuthenticatedFirebaseUser{FirebaseUID: "firebase-user-b"},
 		},
@@ -349,12 +378,55 @@ func TestHandler_PostYouTubeLink_ReturnsConflictWhenChannelAlreadyLinked(t *test
 	assert.Equal(t, "channel_already_linked", got.Error.Code)
 }
 
+func TestHandler_PostYouTubeLink_MapsYouTubeErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		statusCode int
+		code       string
+	}{
+		{name: "invalid token", err: ErrInvalidYouTubeAccessToken, statusCode: http.StatusBadRequest, code: "invalid_youtube_access_token"},
+		{name: "channel not found", err: ErrYouTubeChannelNotFound, statusCode: http.StatusBadGateway, code: "youtube_channel_not_found"},
+		{name: "forbidden", err: ErrYouTubeForbidden, statusCode: http.StatusForbidden, code: "forbidden"},
+		{name: "rate limited", err: ErrYouTubeRateLimited, statusCode: http.StatusTooManyRequests, code: "rate_limited"},
+		{name: "upstream", err: ErrYouTubeUpstream, statusCode: http.StatusBadGateway, code: "upstream_auth_error"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			handler := newTestHandler(t, HandlerOptions{
+				YouTubeLinker: &fakeMeGetter{linkErr: tt.err},
+				FirebaseAuthenticator: &fakeFirebaseAuthenticator{
+					user: AuthenticatedFirebaseUser{FirebaseUID: "firebase-user-a"},
+				},
+			})
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/mypage/auth/youtube-link",
+				strings.NewReader(`{"youtubeAccessToken":"youtube-access-token"}`),
+			)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			require.Equal(t, tt.statusCode, rec.Code)
+			var got ErrorResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+			assert.Equal(t, tt.code, got.Error.Code)
+		})
+	}
+}
+
 func TestHandler_PostYouTubeLink_ReturnsBadRequestWhenBodyTooLarge(t *testing.T) {
 	t.Parallel()
 
 	getter := &fakeMeGetter{}
-	handler := NewHandler(HandlerOptions{
-		Service: getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:      getter,
+		YouTubeLinker: getter,
 		FirebaseAuthenticator: &fakeFirebaseAuthenticator{
 			user: AuthenticatedFirebaseUser{FirebaseUID: "firebase-user-a"},
 		},
@@ -392,8 +464,9 @@ func TestHandler_GetMe_DoesNotSetAccessControlAllowOriginForUntrustedOrigin(t *t
 	}
 	resolver := &fakeIdentityResolver{identity: identity}
 
-	handler := NewHandler(HandlerOptions{
-		Service:          getter,
+	handler := newTestHandler(t, HandlerOptions{
+		MeGetter:         getter,
+		YouTubeLinker:    getter,
 		IdentityResolver: resolver,
 		AllowedOrigin:    "https://mypage.example.com",
 	})
@@ -411,7 +484,7 @@ func TestHandler_GetMe_DoesNotSetAccessControlAllowOriginForUntrustedOrigin(t *t
 func TestHandler_Options_DoesNotSetCORSForUntrustedOrigin(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(HandlerOptions{
+	handler := newTestHandler(t, HandlerOptions{
 		AllowedOrigin: "https://mypage.example.com",
 	})
 
@@ -423,6 +496,76 @@ func TestHandler_Options_DoesNotSetCORSForUntrustedOrigin(t *testing.T) {
 
 	require.Equal(t, http.StatusNoContent, rec.Code)
 	assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestNewHandler_RejectsNilDependencies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		remove func(*HandlerOptions)
+	}{
+		{name: "me getter", remove: func(options *HandlerOptions) { options.MeGetter = nil }},
+		{name: "youtube linker", remove: func(options *HandlerOptions) { options.YouTubeLinker = nil }},
+		{name: "identity resolver", remove: func(options *HandlerOptions) { options.IdentityResolver = nil }},
+		{name: "firebase authenticator", remove: func(options *HandlerOptions) { options.FirebaseAuthenticator = nil }},
+		{name: "channel fetcher", remove: func(options *HandlerOptions) { options.ChannelFetcher = nil }},
+		{name: "linked account store", remove: func(options *HandlerOptions) { options.LinkedAccountStore = nil }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			options := validHandlerOptions()
+			tt.remove(&options)
+
+			handler, err := NewHandler(options)
+
+			require.Error(t, err)
+			assert.Nil(t, handler)
+			assert.Contains(t, err.Error(), tt.name)
+		})
+	}
+}
+
+func newTestHandler(t *testing.T, options HandlerOptions) http.Handler {
+	t.Helper()
+
+	defaults := validHandlerOptions()
+	if options.MeGetter == nil {
+		options.MeGetter = defaults.MeGetter
+	}
+	if options.YouTubeLinker == nil {
+		options.YouTubeLinker = defaults.YouTubeLinker
+	}
+	if options.IdentityResolver == nil {
+		options.IdentityResolver = defaults.IdentityResolver
+	}
+	if options.FirebaseAuthenticator == nil {
+		options.FirebaseAuthenticator = defaults.FirebaseAuthenticator
+	}
+	if options.ChannelFetcher == nil {
+		options.ChannelFetcher = defaults.ChannelFetcher
+	}
+	if options.LinkedAccountStore == nil {
+		options.LinkedAccountStore = defaults.LinkedAccountStore
+	}
+
+	handler, err := NewHandler(options)
+	require.NoError(t, err)
+	return handler
+}
+
+func validHandlerOptions() HandlerOptions {
+	service := &fakeMeGetter{}
+	return HandlerOptions{
+		MeGetter:              service,
+		YouTubeLinker:         service,
+		IdentityResolver:      &fakeIdentityResolver{identity: testIdentity()},
+		FirebaseAuthenticator: &fakeFirebaseAuthenticator{user: AuthenticatedFirebaseUser{FirebaseUID: "firebase-user-a"}},
+		ChannelFetcher:        &fakeYouTubeChannelFetcher{},
+		LinkedAccountStore:    &fakeLinkedAccountStore{},
+	}
 }
 
 func viewerFromIdentity(identity Identity) Viewer {

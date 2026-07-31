@@ -48,17 +48,26 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 	}
 
 	store := mypage.NewRepositoryStore(repo)
-	service := mypage.NewService(store, nil)
+	service, err := mypage.NewService(store, nil)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to initialize mypage service", "err", err)
+		return apigatewayhttp.JSONError(500, "internal_error", "internal server error"), nil
+	}
 	youtubeClient := youtubeauth.NewClient()
 
-	handler := mypage.NewHandler(mypage.HandlerOptions{
-		Service:               service,
+	handler, err := mypage.NewHandler(mypage.HandlerOptions{
+		MeGetter:              service,
+		YouTubeLinker:         service,
 		IdentityResolver:      authResolver,
 		FirebaseAuthenticator: authResolver,
 		ChannelFetcher:        youtubeClient,
 		LinkedAccountStore:    authResolver,
 		AllowedOrigin:         os.Getenv("MYPAGE_ALLOWED_ORIGIN"),
 	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to initialize mypage handler", "err", err)
+		return apigatewayhttp.JSONError(500, "internal_error", "internal server error"), nil
+	}
 
 	return apigatewayhttp.Serve(gracefulCtx, req, handler), nil
 }

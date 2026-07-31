@@ -277,6 +277,9 @@ Authorization: Bearer <youtube_access_token>
 
 バックエンドは、Firebase UID と YouTube channel ID の対応関係をサーバー側に永続化する。
 
+Firestoreでは、Firebase UIDをドキュメントIDにした `mypage-users/{firebaseUid}` に連携情報を保存し、YouTube channel IDをドキュメントIDにした `mypage-youtube-channel-owners/{youtubeChannelId}` を所有者の逆引きとして保存する。
+YouTube連携の確定時は、逆引きによる所有者の取得・検証、所有権の確保、Firebase UID側の連携情報更新を単一のFirestore transactionで行う。同じチャンネルを異なるFirebase UIDが同時に連携しようとした場合は、一方だけを成功させる。
+
 概念上は次のような情報を保持する。
 
 ```ts
@@ -585,6 +588,8 @@ interface MyPageErrorResponse {
 type MyPageErrorCode =
   | "unauthorized"
   | "link_required"
+  | "invalid_youtube_access_token"
+  | "channel_already_linked"
   | "upstream_auth_error"
   | "youtube_channel_not_found"
   | "forbidden"
@@ -596,9 +601,11 @@ type MyPageErrorCode =
 
 | HTTP status | code | 用途 | UI方針 |
 | --- | --- | --- | --- |
+| `400` | `invalid_youtube_access_token` | YouTube access token が無効、または必要なscopeがない | YouTube再認可を案内 |
 | `401` | `unauthorized` | 未ログイン、ID token なし、ID token 無効 | ログイン導線を表示 |
-| `409` | `link_required` | Firebase UID と YouTube channel ID のサーバー側マッピングがない | Google再ログイン/再認可で `youtube.readonly` scope 付き access token を取り直し、YouTube連携確定APIを呼び出す |
 | `403` | `forbidden` | 認可失敗、想定外の権限不足 | 再ログイン導線を表示 |
+| `409` | `link_required` | Firebase UID と YouTube channel ID のサーバー側マッピングがない | Google再ログイン/再認可で `youtube.readonly` scope 付き access token を取り直し、YouTube連携確定APIを呼び出す |
+| `409` | `channel_already_linked` | YouTube channel ID が別のFirebase UIDに連携済み | 別アカウントでのログイン確認を案内 |
 | `429` | `rate_limited` | レート制限 | 時間を置いて再試行する案内 |
 | `500` | `internal_error` | サーバー内部エラー | 再試行導線つきの汎用エラー |
 | `502` | `upstream_auth_error` | Firebase Auth / Google API など上流サービス側の認証・連携処理失敗。呼び出し側の認証失敗ではない | 再試行または再ログイン導線を表示 |

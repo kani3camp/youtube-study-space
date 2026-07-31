@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,9 @@ const (
 
 type MeGetter interface {
 	GetMe(ctx context.Context, identity Identity) (Response, error)
+}
+
+type YouTubeLinker interface {
 	LinkYouTube(
 		ctx context.Context,
 		authenticatedUser AuthenticatedFirebaseUser,
@@ -27,7 +31,8 @@ type MeGetter interface {
 }
 
 type Handler struct {
-	service               MeGetter
+	meGetter              MeGetter
+	youtubeLinker         YouTubeLinker
 	identityResolver      IdentityResolver
 	firebaseAuthenticator FirebaseAuthenticator
 	channelFetcher        YouTubeChannelFetcher
@@ -36,7 +41,8 @@ type Handler struct {
 }
 
 type HandlerOptions struct {
-	Service               MeGetter
+	MeGetter              MeGetter
+	YouTubeLinker         YouTubeLinker
 	IdentityResolver      IdentityResolver
 	FirebaseAuthenticator FirebaseAuthenticator
 	ChannelFetcher        YouTubeChannelFetcher
@@ -44,15 +50,33 @@ type HandlerOptions struct {
 	AllowedOrigin         string
 }
 
-func NewHandler(options HandlerOptions) http.Handler {
+func NewHandler(options HandlerOptions) (http.Handler, error) {
+	dependencies := []struct {
+		name  string
+		value any
+	}{
+		{name: "me getter", value: options.MeGetter},
+		{name: "youtube linker", value: options.YouTubeLinker},
+		{name: "identity resolver", value: options.IdentityResolver},
+		{name: "firebase authenticator", value: options.FirebaseAuthenticator},
+		{name: "channel fetcher", value: options.ChannelFetcher},
+		{name: "linked account store", value: options.LinkedAccountStore},
+	}
+	for _, dependency := range dependencies {
+		if isNilDependency(dependency.value) {
+			return nil, fmt.Errorf("%s is nil", dependency.name)
+		}
+	}
+
 	return &Handler{
-		service:               options.Service,
+		meGetter:              options.MeGetter,
+		youtubeLinker:         options.YouTubeLinker,
 		identityResolver:      options.IdentityResolver,
 		firebaseAuthenticator: options.FirebaseAuthenticator,
 		channelFetcher:        options.ChannelFetcher,
 		linkedAccountStore:    options.LinkedAccountStore,
 		allowedOrigin:         options.AllowedOrigin,
-	}
+	}, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -85,11 +109,9 @@ func (h *Handler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.service.GetMe(r.Context(), identity)
+	resp, err := h.meGetter.GetMe(r.Context(), identity)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to get mypage", appendClientLogAttrs(r)...)
-		slog.ErrorContext(r.Context(), "mypage service error", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		h.writeMappedError(w, r, err)
 		return
 	}
 
@@ -120,7 +142,7 @@ func (h *Handler) handlePostYouTubeLink(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := h.service.LinkYouTube(
+	resp, err := h.youtubeLinker.LinkYouTube(
 		r.Context(),
 		authenticatedUser,
 		req.YouTubeAccessToken,
@@ -151,6 +173,18 @@ func (h *Handler) writeMappedError(w http.ResponseWriter, r *http.Request, err e
 
 	case errors.Is(err, ErrInvalidYouTubeAccessToken):
 		writeError(w, http.StatusBadRequest, "invalid_youtube_access_token", "invalid youtube access token")
+
+	case errors.Is(err, ErrYouTubeChannelNotFound):
+		writeError(w, http.StatusBadGateway, "youtube_channel_not_found", "youtube channel not found")
+
+	case errors.Is(err, ErrYouTubeForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", "forbidden")
+
+	case errors.Is(err, ErrYouTubeRateLimited):
+		writeError(w, http.StatusTooManyRequests, "rate_limited", "rate limited")
+
+	case errors.Is(err, ErrYouTubeUpstream):
+		writeError(w, http.StatusBadGateway, "upstream_auth_error", "upstream service error")
 
 	case errors.Is(err, ErrInvalidIdentity):
 		writeError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")

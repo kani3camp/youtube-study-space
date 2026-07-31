@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"app.modules/core/repository"
@@ -28,7 +29,11 @@ type Service struct {
 	clock Clock
 }
 
-func NewService(store Store, clock Clock) *Service {
+func NewService(store Store, clock Clock) (*Service, error) {
+	if isNilDependency(store) {
+		return nil, errors.New("store is nil")
+	}
+
 	if clock == nil {
 		clock = realClock{}
 	}
@@ -36,6 +41,20 @@ func NewService(store Store, clock Clock) *Service {
 	return &Service{
 		store: store,
 		clock: clock,
+	}, nil
+}
+
+func isNilDependency(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
 	}
 }
 
