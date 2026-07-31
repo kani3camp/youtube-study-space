@@ -40,6 +40,6 @@ type Response struct {
 	// not_registered の場合は省略する。
 	Stats *Stats `json:"stats,omitempty"`
 
-	// 登録済みだが未入室の場合は null を返す。
+	// 未登録、または登録済みだが未入室の場合は null を返す。
 	CurrentSeat *CurrentSeat `json:"currentSeat"`
 }
