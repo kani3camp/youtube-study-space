@@ -1,15 +1,23 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { AppLoading } from '../components/AppLoading'
-import { waitForCurrentUser } from '../features/auth/auth'
 import {
 	fetchMyPage,
 	LinkRequiredError,
 	UnauthorizedError,
 } from '../features/mypage/api'
 import { MyPageView } from '../features/mypage/components/MyPageView'
+import { env } from '../lib/env'
 
 export const Route = createFileRoute('/')({
 	loader: async ({ abortController, location }) => {
+		if (env.useMock) {
+			return fetchMyPage({
+				idToken: 'mock',
+				signal: abortController.signal,
+			})
+		}
+
+		const { waitForCurrentUser } = await import('../features/auth/auth')
 		const user = await waitForCurrentUser()
 
 		if (!user) {

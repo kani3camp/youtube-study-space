@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth'
 
 import { firebaseAuth } from '../../lib/firebase'
+import { MissingYouTubeAccessTokenError } from './errors'
 
 const youtubeReadonlyScope = 'https://www.googleapis.com/auth/youtube.readonly'
 
@@ -24,7 +25,7 @@ export async function signInWithGoogleAndYouTube(): Promise<GoogleYouTubeLoginRe
 	const credential = GoogleAuthProvider.credentialFromResult(result)
 
 	if (!credential?.accessToken) {
-		throw new Error('YouTube access token is not available')
+		throw new MissingYouTubeAccessTokenError()
 	}
 
 	const idToken = await result.user.getIdToken()

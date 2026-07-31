@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { signInWithGoogleAndYouTube } from '../features/auth/auth'
+import { getLoginErrorMessage } from '../features/auth/loginErrorMessage'
 import { linkYouTube } from '../features/mypage/api'
 import { sanitizeRedirectPath } from '../lib/safeRedirect'
 
@@ -46,9 +47,7 @@ function LoginPage() {
 			})
 		} catch (error) {
 			console.error(error)
-			setErrorMessage(
-				'YouTubeチャンネル情報を確認するため、Googleの確認画面でYouTube情報の読み取りを許可してください。',
-			)
+			setErrorMessage(getLoginErrorMessage(error))
 		} finally {
 			setIsSubmitting(false)
 		}
