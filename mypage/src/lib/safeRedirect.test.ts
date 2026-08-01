@@ -24,6 +24,8 @@ describe('sanitizeRedirectPath', () => {
 		'https://evil.com/path',
 		'//evil.com',
 		'//evil.com/path',
+		'/\\evil.com',
+		'/\\\\evil.com',
 		'javascript:alert(1)',
 		'data:text/html,hello',
 	])('rejects unsafe values: %s', (input) => {
