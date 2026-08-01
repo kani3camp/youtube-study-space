@@ -9,11 +9,14 @@ import {
 import type { TextTone, TimeTheme } from './time-theme'
 import {
 	AMBIENT_BGM_TEXT_COLOR,
-	AMBIENT_TEXT_COLORS,
 	AMBIENT_THEME_COLORS,
+	AMBIENT_THEME_TEXT_COLORS,
 	type AmbientSurfaceColors,
+	type AmbientTextColors,
 	CONTRAST_BRIDGE_COLORS,
+	CONTRAST_BRIDGE_TEXT_COLORS,
 	TWILIGHT_TONE_COLORS,
+	TWILIGHT_TONE_TEXT_COLORS,
 } from './time-theme-colors'
 
 const UNDERLAYS = [
@@ -43,9 +46,6 @@ const assertContrast = (
 	}
 }
 
-const getTextColors = (tone: TextTone) =>
-	Object.values(AMBIENT_TEXT_COLORS[tone])
-
 const getSurfaceColors = (
 	theme: TimeTheme,
 	tone: TextTone,
@@ -53,6 +53,24 @@ const getSurfaceColors = (
 	theme === 'twilight'
 		? TWILIGHT_TONE_COLORS[tone]
 		: AMBIENT_THEME_COLORS[theme]
+
+const getTextColors = (
+	theme: TimeTheme,
+	tone: TextTone,
+): AmbientTextColors =>
+	theme === 'twilight'
+		? TWILIGHT_TONE_TEXT_COLORS[tone]
+		: AMBIENT_THEME_TEXT_COLORS[theme]
+
+const assertAllTextContrast = (
+	textColors: AmbientTextColors,
+	surface: RgbaColor,
+	minimum: number,
+) => {
+	for (const textColor of Object.values(textColors)) {
+		assertContrast(textColor, surface, minimum)
+	}
+}
 
 const assertNestedSurfaceContrast = (
 	text: RgbaColor,
@@ -70,13 +88,13 @@ const assertNestedSurfaceContrast = (
 const assertInterpolatedContrast = (
 	from: AmbientSurfaceColors,
 	to: AmbientSurfaceColors,
-	tone: TextTone,
+	textColors: AmbientTextColors,
 	minimum: number,
 ) => {
 	for (const surfaceName of READING_SURFACES) {
 		for (let step = 0; step <= 20; step++) {
-			assertContrast(
-				AMBIENT_TEXT_COLORS[tone].primary,
+			assertAllTextContrast(
+				textColors,
 				interpolateColors(
 					from[surfaceName] as RgbaColor,
 					to[surfaceName] as RgbaColor,
@@ -112,45 +130,39 @@ describe('ambient theme contrast', () => {
 		['sunset', 'dark'],
 		['night', 'light'],
 		['midnight', 'light'],
-	])('%s の読み取り面で通常トーンが4.5:1以上になる', (theme, tone) => {
+	])('%s の色付き文字が読み取り面で4.5:1以上になる', (theme, tone) => {
 		for (const surfaceName of READING_SURFACES) {
-			for (const textColor of getTextColors(tone)) {
-				assertContrast(
-					textColor,
-					AMBIENT_THEME_COLORS[theme][surfaceName] as RgbaColor,
-					4.5,
-				)
-			}
+			assertAllTextContrast(
+				getTextColors(theme, tone),
+				getSurfaceColors(theme, tone)[surfaceName] as RgbaColor,
+				4.5,
+			)
 		}
 	})
 
 	test.each<TextTone>([
 		'dark',
 		'light',
-	])('twilight の %s 専用面で全テキストが4.5:1以上になる', (tone) => {
+	])('twilight の %s 専用面と文字が4.5:1以上になる', (tone) => {
 		for (const surfaceName of READING_SURFACES) {
-			for (const textColor of getTextColors(tone)) {
-				assertContrast(
-					textColor,
-					TWILIGHT_TONE_COLORS[tone][surfaceName] as RgbaColor,
-					4.5,
-				)
-			}
+			assertAllTextContrast(
+				TWILIGHT_TONE_TEXT_COLORS[tone],
+				TWILIGHT_TONE_COLORS[tone][surfaceName] as RgbaColor,
+				4.5,
+			)
 		}
 	})
 
 	test.each<TextTone>([
 		'dark',
 		'light',
-	])('コントラストブリッジは %s トーンの全テキストで4.5:1以上になる', (tone) => {
+	])('コントラストブリッジは %s トーンで4.5:1以上になる', (tone) => {
 		for (const surfaceName of READING_SURFACES) {
-			for (const textColor of getTextColors(tone)) {
-				assertContrast(
-					textColor,
-					CONTRAST_BRIDGE_COLORS[surfaceName] as RgbaColor,
-					4.5,
-				)
-			}
+			assertAllTextContrast(
+				CONTRAST_BRIDGE_TEXT_COLORS[tone],
+				CONTRAST_BRIDGE_COLORS[surfaceName] as RgbaColor,
+				4.5,
+			)
 		}
 	})
 
@@ -162,12 +174,12 @@ describe('ambient theme contrast', () => {
 		['twilight', 'light'],
 		['night', 'light'],
 		['midnight', 'light'],
-	])('%s のコマンド背景で %s トーンが3:1以上になる', (theme, tone) => {
-		const colors = getSurfaceColors(theme, tone)
+	])('%s のコマンド背景で色付き文字が3:1以上になる', (theme, tone) => {
+		const surfaces = getSurfaceColors(theme, tone)
 		assertNestedSurfaceContrast(
-			AMBIENT_TEXT_COLORS[tone].primary,
-			colors.panel,
-			colors.command,
+			getTextColors(theme, tone).primary,
+			surfaces.panel,
+			surfaces.command,
 			3,
 		)
 	})
@@ -188,38 +200,38 @@ describe('ambient theme contrast', () => {
 		)
 	})
 
-	test('sunset → twilight前半はdarkトーンのまま3:1以上を保つ', () => {
-		assertInterpolatedContrast(
-			AMBIENT_THEME_COLORS.sunset,
-			TWILIGHT_TONE_COLORS.dark,
-			'dark',
-			3,
-		)
-	})
+	test.each<[TimeTheme, TextTone, TimeTheme, TextTone]>([
+		['dawn', 'dark', 'day', 'dark'],
+		['day', 'dark', 'sunset', 'dark'],
+		['sunset', 'dark', 'twilight', 'dark'],
+		['twilight', 'light', 'night', 'light'],
+		['night', 'light', 'midnight', 'light'],
+	])(
+		'%s → %s の同極性遷移で対象テーマの文字が3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedContrast(
+				getSurfaceColors(fromTheme, fromTone),
+				getSurfaceColors(toTheme, toTone),
+				getTextColors(toTheme, toTone),
+				3,
+			)
+		},
+	)
 
-	test('twilight前半 → ブリッジはdarkトーンのまま3:1以上を保つ', () => {
+	test('twilight前半 → ブリッジは安全なdark文字で3:1以上を保つ', () => {
 		assertInterpolatedContrast(
 			TWILIGHT_TONE_COLORS.dark,
 			CONTRAST_BRIDGE_COLORS,
-			'dark',
+			CONTRAST_BRIDGE_TEXT_COLORS.dark,
 			3,
 		)
 	})
 
-	test('ブリッジ → twilight後半はlightトーンのまま3:1以上を保つ', () => {
+	test('ブリッジ → twilight後半は藤色のlight文字で3:1以上を保つ', () => {
 		assertInterpolatedContrast(
 			CONTRAST_BRIDGE_COLORS,
 			TWILIGHT_TONE_COLORS.light,
-			'light',
-			3,
-		)
-	})
-
-	test('twilight後半 → nightはlightトーンのまま3:1以上を保つ', () => {
-		assertInterpolatedContrast(
-			TWILIGHT_TONE_COLORS.light,
-			AMBIENT_THEME_COLORS.night,
-			'light',
+			TWILIGHT_TONE_TEXT_COLORS.light,
 			3,
 		)
 	})
@@ -229,18 +241,21 @@ describe('ambient theme contrast', () => {
 		['dawn', 'dark', 'night', 'light'],
 		['night', 'light', 'day', 'dark'],
 		['day', 'dark', 'midnight', 'light'],
-	])('%s → %s の直接反転はブリッジ前後で3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedContrast(
-			getSurfaceColors(fromTheme, fromTone),
-			CONTRAST_BRIDGE_COLORS,
-			fromTone,
-			3,
-		)
-		assertInterpolatedContrast(
-			CONTRAST_BRIDGE_COLORS,
-			getSurfaceColors(toTheme, toTone),
-			toTone,
-			3,
-		)
-	})
+	])(
+		'%s → %s の直接反転はブリッジ前後で3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedContrast(
+				getSurfaceColors(fromTheme, fromTone),
+				CONTRAST_BRIDGE_COLORS,
+				CONTRAST_BRIDGE_TEXT_COLORS[fromTone],
+				3,
+			)
+			assertInterpolatedContrast(
+				CONTRAST_BRIDGE_COLORS,
+				getSurfaceColors(toTheme, toTone),
+				getTextColors(toTheme, toTone),
+				3,
+			)
+		},
+	)
 })
