@@ -20,10 +20,10 @@ export const timer = css`
     border-radius: 0.6rem;
     font-size: 0.9rem;
     text-align: center;
-	color: var(--ambient-text-primary);
-	background-color: var(--ambient-panel-bg);
-	border: 1px solid var(--ambient-border);
-	box-sizing: border-box;
+    color: var(--ambient-text-primary);
+    background-color: var(--ambient-panel-bg);
+    border: 1px solid var(--ambient-border);
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;

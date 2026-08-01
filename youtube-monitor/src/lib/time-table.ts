@@ -850,38 +850,55 @@ export function findContinuousPartTypeClockRange(
 		return undefined
 	}
 
+	const currentIndex = TimeTable.indexOf(currentSection)
+	const includedIndexes = new Set([currentIndex])
+	const clockTimesMatch = (
+		left: { h: number; m: number },
+		right: { h: number; m: number },
+	) => left.h === right.h && left.m === right.m
+
+	let firstIndex = currentIndex
+	while (includedIndexes.size < TimeTable.length) {
+		const previousIndex = (firstIndex - 1 + TimeTable.length) % TimeTable.length
+		const previousSection = TimeTable[previousIndex]
+		const firstSection = TimeTable[firstIndex]
+		if (
+			includedIndexes.has(previousIndex) ||
+			previousSection.partType !== partType ||
+			!clockTimesMatch(previousSection.ends, firstSection.starts)
+		) {
+			break
+		}
+		firstIndex = previousIndex
+		includedIndexes.add(previousIndex)
+	}
+
+	let lastIndex = currentIndex
+	while (includedIndexes.size < TimeTable.length) {
+		const nextIndex = (lastIndex + 1) % TimeTable.length
+		const lastSection = TimeTable[lastIndex]
+		const nextSection = TimeTable[nextIndex]
+		if (
+			includedIndexes.has(nextIndex) ||
+			nextSection.partType !== partType ||
+			!clockTimesMatch(lastSection.ends, nextSection.starts)
+		) {
+			break
+		}
+		lastIndex = nextIndex
+		includedIndexes.add(nextIndex)
+	}
+
 	const minutesPerDay = 24 * 60
-	const currentMinute = hours * 60 + minutes
-	let startsAt = currentMinute
-	for (let offset = 1; offset < minutesPerDay; offset++) {
-		const previousMinute = (startsAt - 1 + minutesPerDay) % minutesPerDay
-		if (
-			findSectionAtClockTime(
-				Math.floor(previousMinute / 60),
-				previousMinute % 60,
-			)?.partType !== partType
-		) {
-			break
-		}
-		startsAt = previousMinute
-	}
-
-	let endsAt = (currentMinute + 1) % minutesPerDay
-	for (let offset = 1; offset < minutesPerDay; offset++) {
-		if (
-			findSectionAtClockTime(Math.floor(endsAt / 60), endsAt % 60)?.partType !==
-			partType
-		) {
-			break
-		}
-		endsAt = (endsAt + 1) % minutesPerDay
-	}
-
+	const starts = TimeTable[firstIndex].starts
+	const ends = TimeTable[lastIndex].ends
+	const startsAt = starts.h * 60 + starts.m
+	const endsAt = ends.h * 60 + ends.m
 	const durationMinutes =
 		(endsAt - startsAt + minutesPerDay) % minutesPerDay || minutesPerDay
 	return {
-		starts: { h: Math.floor(startsAt / 60), m: startsAt % 60 },
-		ends: { h: Math.floor(endsAt / 60), m: endsAt % 60 },
+		starts: { ...starts },
+		ends: { ...ends },
 		durationMinutes,
 	}
 }

@@ -17,15 +17,15 @@ export const shape = css`
 export const bgmPlayer = css`
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
-	background-color: var(--ambient-panel-dark-bg);
+    background-color: var(--ambient-panel-dark-bg);
     position: absolute;
     text-align: center;
-	color: var(--ambient-bgm-text);
+    color: var(--ambient-bgm-text);
     word-break: break-all;
     z-index: 20;
     border-radius: 0.6rem;
-	border: 1px solid var(--ambient-border);
-	box-sizing: border-box;
+    border: 1px solid var(--ambient-border);
+    box-sizing: border-box;
 
     overflow: hidden;
 

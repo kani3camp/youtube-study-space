@@ -18,7 +18,7 @@ export const message = css`
     font-size: 1.4rem;
     display: flex;
     flex-direction: row;
-	color: var(--ambient-text-primary);
+    color: var(--ambient-text-primary);
 `
 
 export const pageInfo = css`
@@ -49,11 +49,11 @@ export const numStudyingPeople = css`
     width: 45%;
     height: 100%;
     display: inline-block;
-	background-color: var(--ambient-panel-strong-bg);
-	border: 1px solid var(--ambient-border);
-	box-sizing: border-box;
+    background-color: var(--ambient-panel-strong-bg);
+    border: 1px solid var(--ambient-border);
+    box-sizing: border-box;
     border-radius: 0.6rem;
-	transition:
-		background-color var(--ambient-background-transition-duration, 30s) linear,
-		border-color var(--ambient-background-transition-duration, 30s) linear;
+    transition:
+        background-color var(--ambient-background-transition-duration, 30s) linear,
+        border-color var(--ambient-background-transition-duration, 30s) linear;
 `

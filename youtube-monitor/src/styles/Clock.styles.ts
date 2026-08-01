@@ -17,9 +17,9 @@ export const clockStyle = css`
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     border-radius: 0.6rem;
-	background-color: var(--ambient-panel-strong-bg);
-	border: 1px solid var(--ambient-border);
-	color: var(--ambient-text-primary);
+    background-color: var(--ambient-panel-strong-bg);
+    border: 1px solid var(--ambient-border);
+    color: var(--ambient-text-primary);
     padding: 0.2rem;
     box-sizing: border-box;
 `

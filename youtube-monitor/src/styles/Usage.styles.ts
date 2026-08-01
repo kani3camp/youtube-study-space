@@ -16,14 +16,14 @@ export const shape = css`
 export const usage = css`
     font-size: 1rem;
     text-align: center;
-	color: var(--ambient-text-primary);
+    color: var(--ambient-text-primary);
     box-sizing: border-box;
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     padding: 0.4rem;
     border-radius: 0.6rem;
-	background-color: var(--ambient-panel-bg);
-	border: 1px solid var(--ambient-border);
+    background-color: var(--ambient-panel-bg);
+    border: 1px solid var(--ambient-border);
     backdrop-filter: blur(0.5rem);
     display: flex;
     flex-direction: column;
@@ -46,8 +46,8 @@ export const commandCode = css`
     letter-spacing: 0.01em;
     font-variant-ligatures: none;
     display: inline-block;
-	background-color: var(--ambient-command-bg);
-	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
+    background-color: var(--ambient-command-bg);
+    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
     border-radius: 0.22rem;
     padding: 0.12rem 0.5rem;
     margin: 0.0rem 0.18rem;

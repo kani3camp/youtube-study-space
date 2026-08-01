@@ -23,8 +23,8 @@ export const shape = css`
 export const colorBar = css`
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
-	background-color: var(--ambient-panel-bg);
-	border: 1px solid var(--ambient-border);
+    background-color: var(--ambient-panel-bg);
+    border: 1px solid var(--ambient-border);
     backdrop-filter: blur(0.5rem);
     display: flex;
     flex-direction: column;
@@ -37,7 +37,7 @@ export const colorBar = css`
 
 export const title = css`
     text-align: center;
-	color: var(--ambient-text-primary);
+    color: var(--ambient-text-primary);
     font-size: 0.58rem;
     font-weight: 500;
     margin: 0 0 0.12rem 0;
@@ -64,8 +64,8 @@ export const label = css`
     position: absolute;
     bottom: 1px;
     font-size: 0.4rem;
-	font-weight: 500;
-	color: var(--ambient-text-muted);
+    font-weight: 500;
+    color: var(--ambient-text-muted);
     font-family: ${fontFamily};
     transform: translateX(-50%);
 
@@ -78,7 +78,7 @@ export const label = css`
         transform: translateX(-50%);
         width: 2.5px;
         height: ${scaleTickHeightPx}px;
-		background-color: var(--ambient-text-muted);
+        background-color: var(--ambient-text-muted);
         border-radius: 1px;
     }
 `
