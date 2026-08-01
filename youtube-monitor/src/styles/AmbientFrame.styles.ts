@@ -4,11 +4,14 @@ import { Constants } from '../lib/constants'
 import type { TextTone, TimeTheme } from '../lib/time-theme'
 import {
 	AMBIENT_BGM_TEXT_COLOR,
-	AMBIENT_TEXT_COLORS,
 	AMBIENT_THEME_COLORS,
+	AMBIENT_THEME_TEXT_COLORS,
 	type AmbientSurfaceColors,
+	type AmbientTextColors,
 	CONTRAST_BRIDGE_COLORS,
+	CONTRAST_BRIDGE_TEXT_COLORS,
 	TWILIGHT_TONE_COLORS,
+	TWILIGHT_TONE_TEXT_COLORS,
 } from '../lib/time-theme-colors'
 
 const surfaceVariables = (colors: AmbientSurfaceColors) => css`
@@ -23,24 +26,22 @@ const surfaceVariables = (colors: AmbientSurfaceColors) => css`
 	--ambient-animation-opacity: ${colors.animationOpacity};
 `
 
-const textVariables = (tone: TextTone) => {
-	const colors = AMBIENT_TEXT_COLORS[tone]
-	return css`
-		--ambient-text-primary: ${toCssRgba(colors.primary)};
-		--ambient-text-muted: ${toCssRgba(colors.muted)};
-		--ambient-notice: ${toCssRgba(colors.notice)};
-	`
-}
+const textVariables = (colors: AmbientTextColors) => css`
+	--ambient-text-primary: ${toCssRgba(colors.primary)};
+	--ambient-text-muted: ${toCssRgba(colors.muted)};
+	--ambient-notice: ${toCssRgba(colors.notice)};
+`
 
 const themeSelector = (theme: TimeTheme) => css`
 	&[data-time-theme='${theme}'] {
 		${surfaceVariables(AMBIENT_THEME_COLORS[theme])}
+		${textVariables(AMBIENT_THEME_TEXT_COLORS[theme])}
 	}
 `
 
 export const themedRoot = css`
 	${surfaceVariables(AMBIENT_THEME_COLORS.day)}
-	${textVariables('dark')}
+	${textVariables(AMBIENT_THEME_TEXT_COLORS.day)}
 	--ambient-bgm-text: ${toCssRgba(AMBIENT_BGM_TEXT_COLOR)};
 	--ambient-background-transition-duration: 30s;
 
@@ -51,29 +52,35 @@ export const themedRoot = css`
 	${themeSelector('night')}
 	${themeSelector('midnight')}
 
-	&[data-text-tone='dark'] {
-		${textVariables('dark')}
-	}
-
-	&[data-text-tone='light'] {
-		${textVariables('light')}
-	}
-
 	/*
-	 * twilightは前半と後半で面の明度も変えます。
-	 * 前半は明るい藤色＋黒文字、後半は深い青紫＋白文字です。
+	 * twilightは前半と後半で面と文字の両方を同系色にそろえます。
+	 * 前半は明るい藤色＋濃いプラム、後半は深い青紫＋淡い藤色です。
 	 */
 	&[data-time-theme='twilight'][data-text-tone='dark'] {
 		${surfaceVariables(TWILIGHT_TONE_COLORS.dark)}
+		${textVariables(TWILIGHT_TONE_TEXT_COLORS.dark)}
 	}
 
 	&[data-time-theme='twilight'][data-text-tone='light'] {
 		${surfaceVariables(TWILIGHT_TONE_COLORS.light)}
+		${textVariables(TWILIGHT_TONE_TEXT_COLORS.light)}
 	}
 
 	&[data-contrast-bridge='true'] {
 		${surfaceVariables(CONTRAST_BRIDGE_COLORS)}
 		--ambient-background-transition-duration: 15s;
+	}
+
+	/*
+	 * 極性反転中だけは安全なほぼ黒・ほぼ白へ寄せます。
+	 * 通常テーマへ戻ると、各時間帯の色付き文字へ即時に切り替わります。
+	 */
+	&[data-contrast-bridge='true'][data-text-tone='dark'] {
+		${textVariables(CONTRAST_BRIDGE_TEXT_COLORS.dark)}
+	}
+
+	&[data-contrast-bridge='true'][data-text-tone='light'] {
+		${textVariables(CONTRAST_BRIDGE_TEXT_COLORS.light)}
 	}
 `
 
