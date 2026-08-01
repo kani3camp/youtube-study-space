@@ -1,7 +1,7 @@
 import { css, keyframes } from '@emotion/react'
 import { toCssRgba } from '../lib/color-contrast'
 import { Constants } from '../lib/constants'
-import type { TextTone, TimeTheme } from '../lib/time-theme'
+import type { TimeTheme } from '../lib/time-theme'
 import {
 	AMBIENT_BGM_TEXT_COLOR,
 	AMBIENT_THEME_COLORS,
