@@ -211,12 +211,12 @@ describe('shouldUseContrastBridge', () => {
 		).toBe(true)
 	})
 
-	test('twilight中点の明暗反転は安全面上で即時に行う', () => {
+	test('twilight中点の明暗反転でもブリッジを使う', () => {
 		expect(
 			shouldUseContrastBridge(
 				{ timeTheme: 'twilight', textTone: 'dark' },
 				{ timeTheme: 'twilight', textTone: 'light' },
 			),
-		).toBe(false)
+		).toBe(true)
 	})
 })
