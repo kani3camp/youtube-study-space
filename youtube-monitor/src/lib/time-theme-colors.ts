@@ -13,6 +13,35 @@ export type AmbientSurfaceColors = {
 	animationOpacity: number
 }
 
+export const TWILIGHT_TONE_COLORS: Readonly<
+	Record<TextTone, AmbientSurfaceColors>
+> = {
+	dark: {
+		// 薄暮前半。明るい藤色の面で黒文字をはっきり見せます。
+		shell: rgba(146, 138, 174, 0.94),
+		panel: rgba(156, 147, 185, 0.96),
+		panelStrong: rgba(171, 159, 199, 0.97),
+		panelDark: rgba(48, 42, 72, 0.94),
+		border: rgba(220, 208, 246, 0.62),
+		highlight: rgba(210, 178, 246, 0.36),
+		command: rgba(52, 39, 82, 0.16),
+		tickerChip: rgba(178, 165, 204, 0.98),
+		animationOpacity: 0.1,
+	},
+	light: {
+		// 薄暮後半。深い青紫の面へ移り、白文字で夜へつなぎます。
+		shell: rgba(65, 57, 98, 0.94),
+		panel: rgba(74, 64, 111, 0.96),
+		panelStrong: rgba(86, 74, 128, 0.97),
+		panelDark: rgba(31, 27, 52, 0.95),
+		border: rgba(174, 157, 220, 0.44),
+		highlight: rgba(164, 139, 231, 0.34),
+		command: rgba(18, 14, 38, 0.28),
+		tickerChip: rgba(92, 79, 136, 0.98),
+		animationOpacity: 0.09,
+	},
+}
+
 export const AMBIENT_THEME_COLORS: Readonly<
 	Record<TimeTheme, AmbientSurfaceColors>
 > = {
@@ -52,18 +81,8 @@ export const AMBIENT_THEME_COLORS: Readonly<
 		tickerChip: rgba(255, 247, 240, 0.92),
 		animationOpacity: 0.13,
 	},
-	twilight: {
-		// ライト・ダーク双方の文字を受け渡す中間面なので、明度は維持します。
-		shell: rgba(117, 115, 134),
-		panel: rgba(116, 116, 134),
-		panelStrong: rgba(120, 115, 133),
-		panelDark: rgba(52, 49, 68, 0.9),
-		border: rgba(202, 197, 224, 0.56),
-		highlight: rgba(188, 181, 220, 0.38),
-		command: rgba(35, 30, 53, 0.2),
-		tickerChip: rgba(115, 116, 134),
-		animationOpacity: 0.11,
-	},
+	// twilightは文字トーン別の色をCSS側で上書きします。
+	twilight: TWILIGHT_TONE_COLORS.dark,
 	night: {
 		// 活動時間の夜。青紫を明確にし、midnightより少し鮮やかに保ちます。
 		shell: rgba(36, 48, 82, 0.86),
@@ -90,8 +109,18 @@ export const AMBIENT_THEME_COLORS: Readonly<
 	},
 }
 
-// 明暗両方のテキストで4.5:1以上になる不透明な中間面です。
-export const CONTRAST_BRIDGE_COLORS = AMBIENT_THEME_COLORS.twilight
+// 文字極性を切り替える瞬間だけ使う、明暗双方で4.5:1以上の中間面です。
+export const CONTRAST_BRIDGE_COLORS: AmbientSurfaceColors = {
+	shell: rgba(117, 115, 134),
+	panel: rgba(116, 116, 134),
+	panelStrong: rgba(120, 115, 133),
+	panelDark: rgba(52, 49, 68, 0.9),
+	border: rgba(202, 197, 224, 0.56),
+	highlight: rgba(188, 181, 220, 0.38),
+	command: rgba(35, 30, 53, 0.2),
+	tickerChip: rgba(115, 116, 134),
+	animationOpacity: 0.1,
+}
 
 export const AMBIENT_TEXT_COLORS: Readonly<
 	Record<TextTone, { primary: RgbaColor; muted: RgbaColor; notice: RgbaColor }>
