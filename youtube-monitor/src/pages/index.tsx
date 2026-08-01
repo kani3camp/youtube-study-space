@@ -8,6 +8,7 @@ import {
 import type { GetStaticProps } from 'next'
 import { serverSideTranslations } from 'next-i18next/pages/serverSideTranslations'
 import { type FC, useEffect, useState } from 'react'
+import AmbientFrame from '../components/AmbientFrame'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
 import Clock from '../components/Clock'
@@ -16,11 +17,14 @@ import Seats from '../components/MainContent'
 import MenuDisplay from '../components/MenuDisplay'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
+import { useTimeTheme } from '../hooks/use-time-theme'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
+import { themedRoot } from '../styles/AmbientFrame.styles'
 import type { Menu } from '../types/api'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
+	const timeTheme = useTimeTheme()
 
 	useEffect(() => {
 		const app = getFirebaseApp()
@@ -46,6 +50,8 @@ const Home: FC = () => {
 
 	return (
 		<div
+			css={themedRoot}
+			data-time-theme={timeTheme}
 			style={{
 				height: 1080,
 				width: 1920,
@@ -61,6 +67,7 @@ const Home: FC = () => {
 			<Timer />
 			<ColorBar />
 			<Seats menuItems={menuItems} />
+			<AmbientFrame />
 		</div>
 	)
 }

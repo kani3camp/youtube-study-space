@@ -799,4 +799,35 @@ const TimeTable: TimeSection[] = [
 	},
 ]
 
+/**
+ * タイムゾーンに依存しない時・分から、該当する時間割を取得します。
+ * Date を使わないため、日本時間として取得済みの壁時計時刻にも利用できます。
+ */
+export function findSectionAtClockTime(
+	hours: number,
+	minutes: number,
+): TimeSection | undefined {
+	if (
+		!Number.isInteger(hours) ||
+		!Number.isInteger(minutes) ||
+		hours < 0 ||
+		hours > 23 ||
+		minutes < 0 ||
+		minutes > 59
+	) {
+		return undefined
+	}
+
+	const currentMinutes = hours * 60 + minutes
+	return TimeTable.find((section) => {
+		const startsAt = section.starts.h * 60 + section.starts.m
+		const endsAt = section.ends.h * 60 + section.ends.m
+
+		if (startsAt <= endsAt) {
+			return startsAt <= currentMinutes && currentMinutes < endsAt
+		}
+		return startsAt <= currentMinutes || currentMinutes < endsAt
+	})
+}
+
 export default { TimeTable }
