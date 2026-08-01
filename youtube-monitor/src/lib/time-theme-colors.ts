@@ -13,11 +13,17 @@ export type AmbientSurfaceColors = {
 	animationOpacity: number
 }
 
+export type AmbientTextColors = {
+	primary: RgbaColor
+	muted: RgbaColor
+	notice: RgbaColor
+}
+
 export const TWILIGHT_TONE_COLORS: Readonly<
 	Record<TextTone, AmbientSurfaceColors>
 > = {
 	dark: {
-		// 薄暮前半。明るい藤色の面で黒文字をはっきり見せます。
+		// 薄暮前半。明るい藤色の面で濃いプラム色の文字を見せます。
 		shell: rgba(146, 138, 174, 0.94),
 		panel: rgba(156, 147, 185, 0.96),
 		panelStrong: rgba(171, 159, 199, 0.97),
@@ -29,7 +35,7 @@ export const TWILIGHT_TONE_COLORS: Readonly<
 		animationOpacity: 0.1,
 	},
 	light: {
-		// 薄暮後半。深い青紫の面へ移り、白文字で夜へつなぎます。
+		// 薄暮後半。深い青紫の面へ移り、淡い藤色の文字で夜へつなぎます。
 		shell: rgba(65, 57, 98, 0.94),
 		panel: rgba(74, 64, 111, 0.96),
 		panelStrong: rgba(86, 74, 128, 0.97),
@@ -109,6 +115,70 @@ export const AMBIENT_THEME_COLORS: Readonly<
 	},
 }
 
+export const AMBIENT_THEME_TEXT_COLORS: Readonly<
+	Record<TimeTheme, AmbientTextColors>
+> = {
+	dawn: {
+		primary: rgba(43, 32, 74),
+		muted: rgba(48, 37, 66),
+		notice: rgba(59, 29, 53),
+	},
+	day: {
+		primary: rgba(16, 46, 60),
+		muted: rgba(26, 46, 55),
+		notice: rgba(13, 47, 59),
+	},
+	sunset: {
+		primary: rgba(62, 27, 48),
+		muted: rgba(58, 39, 49),
+		notice: rgba(66, 25, 44),
+	},
+	// twilight前半の既定値。後半はTWILIGHT_TONE_TEXT_COLORS.lightを使います。
+	twilight: {
+		primary: rgba(36, 21, 50),
+		muted: rgba(31, 24, 48),
+		notice: rgba(42, 20, 54),
+	},
+	night: {
+		primary: rgba(243, 240, 255),
+		muted: rgba(225, 223, 242),
+		notice: rgba(233, 223, 255),
+	},
+	midnight: {
+		primary: rgba(232, 236, 248),
+		muted: rgba(214, 221, 234),
+		notice: rgba(223, 230, 248),
+	},
+}
+
+export const TWILIGHT_TONE_TEXT_COLORS: Readonly<
+	Record<TextTone, AmbientTextColors>
+> = {
+	dark: AMBIENT_THEME_TEXT_COLORS.twilight,
+	light: {
+		primary: rgba(245, 240, 255),
+		muted: rgba(232, 224, 242),
+		notice: rgba(241, 225, 251),
+	},
+}
+
+// 極性反転中だけ使用します。中間面の両側で4.5:1以上を守るため、
+// ここだけは色味を極めて薄くし、安全性を優先します。
+export const CONTRAST_BRIDGE_TEXT_COLORS: Readonly<
+	Record<TextTone, AmbientTextColors>
+> = {
+	dark: {
+		primary: rgba(4, 0, 6),
+		muted: rgba(3, 0, 5),
+		notice: rgba(5, 0, 7),
+	},
+	light: {
+		primary: rgba(255, 255, 255),
+		muted: rgba(255, 254, 255),
+		notice: rgba(255, 253, 255),
+	},
+}
+
 // 文字極性を切り替える瞬間だけ使う、明暗双方で4.5:1以上の中間面です。
 export const CONTRAST_BRIDGE_COLORS: AmbientSurfaceColors = {
 	shell: rgba(117, 115, 134),
@@ -120,21 +190,6 @@ export const CONTRAST_BRIDGE_COLORS: AmbientSurfaceColors = {
 	command: rgba(35, 30, 53, 0.2),
 	tickerChip: rgba(115, 116, 134),
 	animationOpacity: 0.1,
-}
-
-export const AMBIENT_TEXT_COLORS: Readonly<
-	Record<TextTone, { primary: RgbaColor; muted: RgbaColor; notice: RgbaColor }>
-> = {
-	dark: {
-		primary: rgba(0, 0, 0),
-		muted: rgba(1, 1, 4),
-		notice: rgba(1, 0, 4),
-	},
-	light: {
-		primary: rgba(255, 255, 255),
-		muted: rgba(254, 254, 255),
-		notice: rgba(253, 253, 255),
-	},
 }
 
 export const AMBIENT_BGM_TEXT_COLOR = rgba(247, 244, 255)
