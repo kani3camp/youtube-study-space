@@ -533,6 +533,9 @@ interface MyPageNotRegisteredResponse {
 | `GET /mypage/me` | `409` | `MyPageErrorResponse` | YouTube連携確定が必要 |
 | `GET /mypage/me` | `403` / `429` / `500` / `502` | `MyPageErrorResponse` | 認可失敗、レート制限、内部エラー、外部APIエラー |
 | `POST /mypage/auth/youtube-link` | `200` | `LinkYouTubeResponse` | YouTube連携確定成功 |
+| `POST /mypage/auth/youtube-link` | `400` | `MyPageErrorResponse` | リクエスト形式不正（`invalid_request`） |
+| `POST /mypage/auth/youtube-link` | `400` | `MyPageErrorResponse` | YouTube access token が無効、期限切れ、または必要スコープ不足（`invalid_youtube_access_token`） |
+| `POST /mypage/auth/youtube-link` | `409` | `MyPageErrorResponse` | 指定された YouTube channel が別 Firebase UID に連携済み |
 | `POST /mypage/auth/youtube-link` | `401` / `403` / `429` / `500` / `502` | `MyPageErrorResponse` | 認証失敗、認可失敗、レート制限、内部エラー、外部APIエラー |
 
 ### フィールド定義
@@ -588,6 +591,7 @@ interface MyPageErrorResponse {
 type MyPageErrorCode =
   | "unauthorized"
   | "link_required"
+  | "invalid_request"
   | "invalid_youtube_access_token"
   | "channel_already_linked"
   | "upstream_auth_error"
@@ -601,11 +605,12 @@ type MyPageErrorCode =
 
 | HTTP status | code | 用途 | UI方針 |
 | --- | --- | --- | --- |
-| `400` | `invalid_youtube_access_token` | YouTube access token が無効、または必要なscopeがない | YouTube再認可を案内 |
+| `400` | `invalid_request` | リクエストボディが空、不正なJSON、サイズ超過、または必須フィールド不正 | リクエスト内容を確認して再試行 |
+| `400` | `invalid_youtube_access_token` | YouTube access token が無効、期限切れ、または必要スコープ不足 | Google再ログイン/再認可で access token を取り直して再試行 |
 | `401` | `unauthorized` | 未ログイン、ID token なし、ID token 無効 | ログイン導線を表示 |
 | `403` | `forbidden` | 認可失敗、想定外の権限不足 | 再ログイン導線を表示 |
 | `409` | `link_required` | Firebase UID と YouTube channel ID のサーバー側マッピングがない | Google再ログイン/再認可で `youtube.readonly` scope 付き access token を取り直し、YouTube連携確定APIを呼び出す |
-| `409` | `channel_already_linked` | YouTube channel ID が別のFirebase UIDに連携済み | 別アカウントでのログイン確認を案内 |
+| `409` | `channel_already_linked` | 指定された YouTube channel が別 Firebase UID に連携済み | 別アカウント連携済みであることと、心当たりがなければ問い合わせるよう案内 |
 | `429` | `rate_limited` | レート制限 | 時間を置いて再試行する案内 |
 | `500` | `internal_error` | サーバー内部エラー | 再試行導線つきの汎用エラー |
 | `502` | `upstream_auth_error` | Firebase Auth / Google API など上流サービス側の認証・連携処理失敗。呼び出し側の認証失敗ではない | 再試行または再ログイン導線を表示 |
