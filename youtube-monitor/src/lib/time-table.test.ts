@@ -1,7 +1,9 @@
 import {
+	findContinuousPartTypeClockRange,
 	getCurrentSection,
 	getNextSection,
 	getSectionDateRange,
+	PartType,
 	SectionType,
 	type TimeSection,
 } from './time-table'
@@ -126,5 +128,23 @@ describe('getSectionDateRange', () => {
 
 		expect(startsAt).toEqual(new Date(2026, 2, 6, 23, 40, 0))
 		expect(endsAt).toEqual(createDate(0, 5))
+	})
+})
+
+describe('findContinuousPartTypeClockRange', () => {
+	test('作業・休憩セクションをまとめて同じpartTypeの連続範囲を返す', () => {
+		expect(findContinuousPartTypeClockRange(PartType.Evening, 18, 35)).toEqual({
+			starts: { h: 17, m: 40 },
+			ends: { h: 19, m: 55 },
+			durationMinutes: 135,
+		})
+	})
+
+	test('日付をまたぐ同じpartTypeの連続範囲を返す', () => {
+		expect(findContinuousPartTypeClockRange(PartType.Night2, 0, 10)).toEqual({
+			starts: { h: 21, m: 50 },
+			ends: { h: 0, m: 25 },
+			durationMinutes: 155,
+		})
 	})
 })

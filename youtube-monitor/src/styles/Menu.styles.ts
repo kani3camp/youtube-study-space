@@ -16,13 +16,14 @@ export const shape = css`
 export const menu = css`
     font-size: 1rem;
     text-align: center;
-    color: ${Constants.primaryTextColor};
+    color: var(--ambient-text-primary);
     box-sizing: border-box;
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     padding: 0.4rem;
     border-radius: 0.6rem;
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: var(--ambient-panel-bg);
+    border: 1px solid var(--ambient-border);
     backdrop-filter: blur(0.5rem);
 `
 
@@ -60,7 +61,8 @@ export const name = css`
 
 export const commandCode = css`
     padding: 0.15rem;
-    background-color: rgba(0, 0, 0, 0.08);
+    background-color: var(--ambient-command-bg);
+    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
     border-radius: 0.2rem;
     font-size: 0.75em;
     font-weight: bold;
@@ -74,7 +76,7 @@ export const notice = css`
     position: absolute;
     width: 94%;
     bottom: 0.12rem;
-    color: #4763d7;
+    color: var(--ambient-notice);
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;

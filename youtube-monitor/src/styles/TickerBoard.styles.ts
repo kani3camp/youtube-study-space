@@ -22,6 +22,7 @@ export const container = css`
     pointer-events: auto;
     padding: 0 10px;
     font-size: 0.8rem;
+    color: var(--ambient-text-primary);
     mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
 `
 
@@ -38,11 +39,16 @@ export const genreItem = css`
     margin: 0 0.6rem;
     padding: 0.28rem 0.6rem;
     border-radius: 100vh;
-    background: linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.40) 100%);
+    background-color: var(--ambient-panel-strong-bg);
+    background-image: linear-gradient(180deg, rgba(255,255,255,0.14) 0%, transparent 100%);
+    border: 1px solid var(--ambient-border);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
     gap: 0.5rem;
     white-space: nowrap;
-    color: ${Constants.primaryTextColor};
+    color: var(--ambient-text-primary);
+    transition:
+        background-color var(--ambient-background-transition-duration, 30s) linear,
+        border-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const rankBadge = css`
@@ -71,9 +77,10 @@ export const count = css`
     gap: 0.25rem;
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
-    background: rgba(59, 30, 134, 0.10);
-    color: ${Constants.primaryTextColor};
+    background: var(--ambient-command-bg);
+    color: var(--ambient-text-primary);
     font-weight: 600;
+    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const peopleIcon = css`
@@ -93,17 +100,19 @@ export const exampleChip = css`
     align-items: center;
     padding: 0.1rem 0.25rem;
     border-radius: 0.3rem;
-    background: rgba(255, 255, 255, 0.7);
-    color: ${Constants.primaryTextColor};
+    background: var(--ambient-ticker-chip-bg);
+    color: var(--ambient-text-primary);
     font-size: 0.7rem;
+    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const updatedAt = css`
     padding: 0.08rem 0.3rem;
     border-radius: 0.3rem;
-    background: rgba(194, 198, 247, 0.758);
-    color: ${Constants.primaryTextColor};
+    background: var(--ambient-panel-strong-bg);
+    color: var(--ambient-text-primary);
     opacity: 0.9;
     white-space: nowrap;
     font-size: 0.5rem;
+    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `

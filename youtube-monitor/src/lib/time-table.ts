@@ -799,4 +799,108 @@ const TimeTable: TimeSection[] = [
 	},
 ]
 
+/**
+ * タイムゾーンに依存しない時・分から、該当する時間割を取得します。
+ * Date を使わないため、日本時間として取得済みの壁時計時刻にも利用できます。
+ */
+export function findSectionAtClockTime(
+	hours: number,
+	minutes: number,
+): TimeSection | undefined {
+	if (
+		!Number.isInteger(hours) ||
+		!Number.isInteger(minutes) ||
+		hours < 0 ||
+		hours > 23 ||
+		minutes < 0 ||
+		minutes > 59
+	) {
+		return undefined
+	}
+
+	const currentMinutes = hours * 60 + minutes
+	return TimeTable.find((section) => {
+		const startsAt = section.starts.h * 60 + section.starts.m
+		const endsAt = section.ends.h * 60 + section.ends.m
+
+		if (startsAt <= endsAt) {
+			return startsAt <= currentMinutes && currentMinutes < endsAt
+		}
+		return startsAt <= currentMinutes || currentMinutes < endsAt
+	})
+}
+
+export type PartTypeClockRange = {
+	starts: { h: number; m: number }
+	ends: { h: number; m: number }
+	durationMinutes: number
+}
+
+/**
+ * 指定時刻を含む、同じ partType が連続する全体の時刻範囲を返します。
+ * 作業・休憩セクションの境界では分割せず、日付またぎにも対応します。
+ */
+export function findContinuousPartTypeClockRange(
+	partType: string,
+	hours: number,
+	minutes: number,
+): PartTypeClockRange | undefined {
+	const currentSection = findSectionAtClockTime(hours, minutes)
+	if (currentSection?.partType !== partType) {
+		return undefined
+	}
+
+	const currentIndex = TimeTable.indexOf(currentSection)
+	const includedIndexes = new Set([currentIndex])
+	const clockTimesMatch = (
+		left: { h: number; m: number },
+		right: { h: number; m: number },
+	) => left.h === right.h && left.m === right.m
+
+	let firstIndex = currentIndex
+	while (includedIndexes.size < TimeTable.length) {
+		const previousIndex = (firstIndex - 1 + TimeTable.length) % TimeTable.length
+		const previousSection = TimeTable[previousIndex]
+		const firstSection = TimeTable[firstIndex]
+		if (
+			includedIndexes.has(previousIndex) ||
+			previousSection.partType !== partType ||
+			!clockTimesMatch(previousSection.ends, firstSection.starts)
+		) {
+			break
+		}
+		firstIndex = previousIndex
+		includedIndexes.add(previousIndex)
+	}
+
+	let lastIndex = currentIndex
+	while (includedIndexes.size < TimeTable.length) {
+		const nextIndex = (lastIndex + 1) % TimeTable.length
+		const lastSection = TimeTable[lastIndex]
+		const nextSection = TimeTable[nextIndex]
+		if (
+			includedIndexes.has(nextIndex) ||
+			nextSection.partType !== partType ||
+			!clockTimesMatch(lastSection.ends, nextSection.starts)
+		) {
+			break
+		}
+		lastIndex = nextIndex
+		includedIndexes.add(nextIndex)
+	}
+
+	const minutesPerDay = 24 * 60
+	const starts = TimeTable[firstIndex].starts
+	const ends = TimeTable[lastIndex].ends
+	const startsAt = starts.h * 60 + starts.m
+	const endsAt = ends.h * 60 + ends.m
+	const durationMinutes =
+		(endsAt - startsAt + minutesPerDay) % minutesPerDay || minutesPerDay
+	return {
+		starts: { ...starts },
+		ends: { ...ends },
+		durationMinutes,
+	}
+}
+
 export default { TimeTable }
