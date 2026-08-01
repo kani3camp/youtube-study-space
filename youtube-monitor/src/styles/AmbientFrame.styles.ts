@@ -8,6 +8,7 @@ import {
 	AMBIENT_THEME_COLORS,
 	type AmbientSurfaceColors,
 	CONTRAST_BRIDGE_COLORS,
+	TWILIGHT_TONE_COLORS,
 } from '../lib/time-theme-colors'
 
 const surfaceVariables = (colors: AmbientSurfaceColors) => css`
@@ -56,6 +57,18 @@ export const themedRoot = css`
 
 	&[data-text-tone='light'] {
 		${textVariables('light')}
+	}
+
+	/*
+	 * twilightは前半と後半で面の明度も変えます。
+	 * 前半は明るい藤色＋黒文字、後半は深い青紫＋白文字です。
+	 */
+	&[data-time-theme='twilight'][data-text-tone='dark'] {
+		${surfaceVariables(TWILIGHT_TONE_COLORS.dark)}
+	}
+
+	&[data-time-theme='twilight'][data-text-tone='light'] {
+		${surfaceVariables(TWILIGHT_TONE_COLORS.light)}
 	}
 
 	&[data-contrast-bridge='true'] {
