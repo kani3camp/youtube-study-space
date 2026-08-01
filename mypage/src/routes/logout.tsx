@@ -18,6 +18,7 @@ function LogoutPage() {
 
 				await navigate({
 					to: '/login',
+					search: { redirect: '/' },
 					replace: true,
 				})
 			} catch {

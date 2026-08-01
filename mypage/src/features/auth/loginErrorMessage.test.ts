@@ -1,7 +1,12 @@
 import { FirebaseError } from 'firebase/app'
 import { describe, expect, it } from 'vitest'
 
-import { ApiError, UnauthorizedError } from '../mypage/api'
+import {
+	ApiError,
+	ChannelAlreadyLinkedError,
+	InvalidYouTubeAccessTokenError,
+	UnauthorizedError,
+} from '../mypage/api'
 import { MissingYouTubeAccessTokenError } from './errors'
 import { getLoginErrorMessage } from './loginErrorMessage'
 
@@ -25,6 +30,18 @@ describe('getLoginErrorMessage', () => {
 		expect(getLoginErrorMessage(new UnauthorizedError())).toContain(
 			'もう一度ログイン',
 		)
+	})
+
+	it('別アカウントに連携済みのチャンネルを案内する', () => {
+		expect(getLoginErrorMessage(new ChannelAlreadyLinkedError())).toContain(
+			'別のログインアカウントに連携済み',
+		)
+	})
+
+	it('YouTubeアクセストークンが無効な場合は再認可を案内する', () => {
+		expect(
+			getLoginErrorMessage(new InvalidYouTubeAccessTokenError()),
+		).toContain('YouTube情報の読み取りを許可')
 	})
 
 	it('APIの5xxを一時的なサービス障害として案内する', () => {

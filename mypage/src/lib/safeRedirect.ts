@@ -5,7 +5,9 @@ type SanitizeRedirectOptions = {
 }
 
 function isSafeRelativePath(value: string): boolean {
-	return value.startsWith('/') && !value.startsWith('//')
+	return (
+		value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')
+	)
 }
 
 function pathnameFromTrustedURL(

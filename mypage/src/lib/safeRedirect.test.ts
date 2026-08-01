@@ -11,6 +11,10 @@ describe('sanitizeRedirectPath', () => {
 		{ input: '/login', expected: '/login' },
 		{ input: '/path?query=1', expected: '/path?query=1' },
 		{ input: '/path#section', expected: '/path#section' },
+		{
+			input: '/path?query=1#section',
+			expected: '/path?query=1#section',
+		},
 	])('allows safe relative paths: $input', ({ input, expected }) => {
 		expect(sanitizeRedirectPath(input)).toBe(expected)
 	})
@@ -20,6 +24,8 @@ describe('sanitizeRedirectPath', () => {
 		'https://evil.com/path',
 		'//evil.com',
 		'//evil.com/path',
+		'/\\evil.com',
+		'/\\\\evil.com',
 		'javascript:alert(1)',
 		'data:text/html,hello',
 	])('rejects unsafe values: %s', (input) => {
@@ -36,13 +42,13 @@ describe('sanitizeRedirectPath', () => {
 		).toBe('/foo')
 		expect(
 			sanitizeRedirectPath(
-				'http://localhost:18081/login?reason=link_required',
+				'http://localhost:18081/login?reason=link_required#consent',
 				'/',
 				{
 					trustedOrigins,
 				},
 			),
-		).toBe('/login?reason=link_required')
+		).toBe('/login?reason=link_required#consent')
 	})
 
 	it('uses custom fallback when redirect is unsafe', () => {
