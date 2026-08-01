@@ -177,10 +177,6 @@ export function shouldUseContrastBridge(
 	current: ThemePresentation,
 	target: ThemePresentation,
 ): boolean {
-	if (current.textTone === target.textTone) {
-		return false
-	}
-
-	// Evening中盤の切り替えでは背景が既にtwilightへ到達済みです。
-	return !(current.timeTheme === 'twilight' && target.timeTheme === 'twilight')
+	// 文字極性が変わる場合は、同一テーマ内でも必ず安全な中間面を経由します。
+	return current.textTone !== target.textTone
 }
