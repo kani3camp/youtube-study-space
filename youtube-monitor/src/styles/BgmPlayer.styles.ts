@@ -20,7 +20,7 @@ export const bgmPlayer = css`
 	background-color: var(--ambient-panel-dark-bg);
     position: absolute;
     text-align: center;
-	color: var(--ambient-text-secondary);
+	color: var(--ambient-bgm-text);
     word-break: break-all;
     z-index: 20;
     border-radius: 0.6rem;

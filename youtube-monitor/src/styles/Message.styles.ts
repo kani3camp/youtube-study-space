@@ -53,5 +53,7 @@ export const numStudyingPeople = css`
 	border: 1px solid var(--ambient-border);
 	box-sizing: border-box;
     border-radius: 0.6rem;
-	transition: background-color 30s ease, border-color 30s ease;
+	transition:
+		background-color var(--ambient-background-transition-duration, 30s) linear,
+		border-color var(--ambient-background-transition-duration, 30s) linear;
 `

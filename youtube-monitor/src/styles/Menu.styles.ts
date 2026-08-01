@@ -62,7 +62,7 @@ export const name = css`
 export const commandCode = css`
     padding: 0.15rem;
 	background-color: var(--ambient-command-bg);
-	transition: background-color 30s ease;
+	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
     border-radius: 0.2rem;
     font-size: 0.75em;
     font-weight: bold;
@@ -77,7 +77,6 @@ export const notice = css`
     width: 94%;
     bottom: 0.12rem;
 	color: var(--ambient-notice);
-	transition: color 10s ease;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;

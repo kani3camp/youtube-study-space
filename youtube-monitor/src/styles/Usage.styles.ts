@@ -47,7 +47,7 @@ export const commandCode = css`
     font-variant-ligatures: none;
     display: inline-block;
 	background-color: var(--ambient-command-bg);
-	transition: background-color 30s ease;
+	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
     border-radius: 0.22rem;
     padding: 0.12rem 0.5rem;
     margin: 0.0rem 0.18rem;

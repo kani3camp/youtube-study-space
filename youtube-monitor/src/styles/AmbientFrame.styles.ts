@@ -1,83 +1,66 @@
 import { css, keyframes } from '@emotion/react'
+import { toCssRgba } from '../lib/color-contrast'
 import { Constants } from '../lib/constants'
+import type { TextTone, TimeTheme } from '../lib/time-theme'
+import {
+	AMBIENT_BGM_TEXT_COLOR,
+	AMBIENT_TEXT_COLORS,
+	AMBIENT_THEME_COLORS,
+	type AmbientSurfaceColors,
+	CONTRAST_BRIDGE_COLORS,
+} from '../lib/time-theme-colors'
+
+const surfaceVariables = (colors: AmbientSurfaceColors) => css`
+	--ambient-shell-bg: ${toCssRgba(colors.shell)};
+	--ambient-panel-bg: ${toCssRgba(colors.panel)};
+	--ambient-panel-strong-bg: ${toCssRgba(colors.panelStrong)};
+	--ambient-panel-dark-bg: ${toCssRgba(colors.panelDark)};
+	--ambient-border: ${toCssRgba(colors.border)};
+	--ambient-highlight: ${toCssRgba(colors.highlight)};
+	--ambient-command-bg: ${toCssRgba(colors.command)};
+	--ambient-ticker-chip-bg: ${toCssRgba(colors.tickerChip)};
+	--ambient-animation-opacity: ${colors.animationOpacity};
+`
+
+const textVariables = (tone: TextTone) => {
+	const colors = AMBIENT_TEXT_COLORS[tone]
+	return css`
+		--ambient-text-primary: ${toCssRgba(colors.primary)};
+		--ambient-text-muted: ${toCssRgba(colors.muted)};
+		--ambient-notice: ${toCssRgba(colors.notice)};
+	`
+}
+
+const themeSelector = (theme: TimeTheme) => css`
+	&[data-time-theme='${theme}'] {
+		${surfaceVariables(AMBIENT_THEME_COLORS[theme])}
+	}
+`
 
 export const themedRoot = css`
-	--ambient-shell-bg: rgba(255, 255, 255, 0.2);
-	--ambient-panel-bg: rgba(255, 255, 255, 0.3);
-	--ambient-panel-strong-bg: rgba(255, 255, 255, 0.4);
-	--ambient-panel-dark-bg: rgba(53, 49, 49, 0.3);
-	--ambient-border: rgba(255, 255, 255, 0.34);
-	--ambient-highlight: rgba(221, 229, 255, 0.42);
-	--ambient-text-primary: ${Constants.primaryTextColor};
-	--ambient-text-secondary: ${Constants.secondaryTextColor};
-	--ambient-text-muted: #4b5563;
-	--ambient-command-bg: rgba(0, 0, 0, 0.08);
-	--ambient-ticker-chip-bg: rgba(255, 255, 255, 0.7);
-	--ambient-notice: #4763d7;
-	--ambient-animation-opacity: 0.1;
+	${surfaceVariables(AMBIENT_THEME_COLORS.day)}
+	${textVariables('dark')}
+	--ambient-bgm-text: ${toCssRgba(AMBIENT_BGM_TEXT_COLOR)};
+	--ambient-background-transition-duration: 30s;
 
-	&[data-time-theme='dawn'] {
-		--ambient-shell-bg: rgba(216, 229, 251, 0.28);
-		--ambient-panel-bg: rgba(232, 240, 255, 0.4);
-		--ambient-panel-strong-bg: rgba(242, 247, 255, 0.5);
-		--ambient-panel-dark-bg: rgba(48, 54, 82, 0.46);
-		--ambient-border: rgba(218, 231, 255, 0.58);
-		--ambient-highlight: rgba(188, 202, 255, 0.48);
-		--ambient-text-primary: #34266f;
-		--ambient-text-secondary: #f3f5ff;
-		--ambient-text-muted: #4a5574;
-		--ambient-command-bg: rgba(58, 70, 110, 0.1);
-		--ambient-ticker-chip-bg: rgba(245, 248, 255, 0.76);
-		--ambient-notice: #425dbd;
-		--ambient-animation-opacity: 0.13;
+	${themeSelector('dawn')}
+	${themeSelector('day')}
+	${themeSelector('sunset')}
+	${themeSelector('twilight')}
+	${themeSelector('night')}
+	${themeSelector('midnight')}
+
+	&[data-text-tone='dark'] {
+		${textVariables('dark')}
 	}
 
-	&[data-time-theme='sunset'] {
-		--ambient-shell-bg: rgba(255, 229, 214, 0.28);
-		--ambient-panel-bg: rgba(255, 238, 227, 0.4);
-		--ambient-panel-strong-bg: rgba(255, 246, 238, 0.5);
-		--ambient-panel-dark-bg: rgba(73, 53, 57, 0.44);
-		--ambient-border: rgba(255, 217, 194, 0.56);
-		--ambient-highlight: rgba(255, 194, 158, 0.46);
-		--ambient-text-primary: #4a285f;
-		--ambient-text-secondary: #fff4ef;
-		--ambient-text-muted: #62505a;
-		--ambient-command-bg: rgba(116, 62, 46, 0.1);
-		--ambient-ticker-chip-bg: rgba(255, 249, 243, 0.76);
-		--ambient-notice: #7553a2;
-		--ambient-animation-opacity: 0.13;
+	&[data-text-tone='light'] {
+		${textVariables('light')}
 	}
 
-	&[data-time-theme='night'] {
-		--ambient-shell-bg: rgba(37, 43, 82, 0.6);
-		--ambient-panel-bg: rgba(56, 64, 110, 0.72);
-		--ambient-panel-strong-bg: rgba(69, 78, 130, 0.76);
-		--ambient-panel-dark-bg: rgba(26, 28, 55, 0.78);
-		--ambient-border: rgba(181, 194, 255, 0.28);
-		--ambient-highlight: rgba(150, 171, 255, 0.38);
-		--ambient-text-primary: #f1efff;
-		--ambient-text-secondary: #f5f2ff;
-		--ambient-text-muted: #d9dcf2;
-		--ambient-command-bg: rgba(12, 14, 34, 0.28);
-		--ambient-ticker-chip-bg: rgba(86, 96, 147, 0.84);
-		--ambient-notice: #d5dcff;
-		--ambient-animation-opacity: 0.1;
-	}
-
-	&[data-time-theme='midnight'] {
-		--ambient-shell-bg: rgba(29, 33, 59, 0.66);
-		--ambient-panel-bg: rgba(46, 50, 77, 0.78);
-		--ambient-panel-strong-bg: rgba(56, 61, 90, 0.82);
-		--ambient-panel-dark-bg: rgba(22, 24, 42, 0.84);
-		--ambient-border: rgba(166, 176, 214, 0.24);
-		--ambient-highlight: rgba(135, 145, 190, 0.32);
-		--ambient-text-primary: #eeeefa;
-		--ambient-text-secondary: #f1f0f8;
-		--ambient-text-muted: #d0d3e1;
-		--ambient-command-bg: rgba(9, 11, 25, 0.3);
-		--ambient-ticker-chip-bg: rgba(68, 73, 103, 0.88);
-		--ambient-notice: #cbd1ea;
-		--ambient-animation-opacity: 0.075;
+	&[data-contrast-bridge='true'] {
+		${surfaceVariables(CONTRAST_BRIDGE_COLORS)}
+		--ambient-background-transition-duration: 15s;
 	}
 `
 
@@ -110,7 +93,9 @@ const lightLayer = css`
 	overflow: hidden;
 	color: var(--ambient-highlight);
 	background-repeat: no-repeat;
-	transition: color 30s ease, opacity 30s ease;
+	transition:
+		color var(--ambient-background-transition-duration, 30s) linear,
+		opacity var(--ambient-background-transition-duration, 30s) linear;
 
 	@media (prefers-reduced-motion: reduce) {
 		animation: none;

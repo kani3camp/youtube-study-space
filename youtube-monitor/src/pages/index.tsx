@@ -24,7 +24,7 @@ import type { Menu } from '../types/api'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
-	const timeTheme = useTimeTheme()
+	const { timeTheme, textTone, contrastBridge } = useTimeTheme()
 
 	useEffect(() => {
 		const app = getFirebaseApp()
@@ -52,6 +52,8 @@ const Home: FC = () => {
 		<div
 			css={themedRoot}
 			data-time-theme={timeTheme}
+			data-text-tone={textTone}
+			data-contrast-bridge={contrastBridge ? 'true' : undefined}
 			style={{
 				height: 1080,
 				width: 1920,

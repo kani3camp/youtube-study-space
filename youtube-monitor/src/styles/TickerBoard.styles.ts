@@ -21,9 +21,8 @@ export const container = css`
     overflow: hidden;
     pointer-events: auto;
     padding: 0 10px;
-    font-size: 0.8rem;
+	font-size: 0.8rem;
 	color: var(--ambient-text-primary);
-	transition: color 10s ease;
     mask-image: linear-gradient(to right, transparent 0%, black 6%, black 94%, transparent 100%);
 `
 
@@ -47,7 +46,9 @@ export const genreItem = css`
     gap: 0.5rem;
     white-space: nowrap;
 	color: var(--ambient-text-primary);
-	transition: background-color 30s ease, border-color 30s ease, color 10s ease;
+	transition:
+		background-color var(--ambient-background-transition-duration, 30s) linear,
+		border-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const rankBadge = css`
@@ -79,7 +80,7 @@ export const count = css`
 	background: var(--ambient-command-bg);
 	color: var(--ambient-text-primary);
     font-weight: 600;
-	transition: background-color 30s ease, color 10s ease;
+	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const peopleIcon = css`
@@ -102,7 +103,7 @@ export const exampleChip = css`
 	background: var(--ambient-ticker-chip-bg);
 	color: var(--ambient-text-primary);
     font-size: 0.7rem;
-	transition: background-color 30s ease, color 10s ease;
+	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `
 
 export const updatedAt = css`
@@ -113,5 +114,5 @@ export const updatedAt = css`
     opacity: 0.9;
     white-space: nowrap;
     font-size: 0.5rem;
-	transition: background-color 30s ease, color 10s ease;
+	transition: background-color var(--ambient-background-transition-duration, 30s) linear;
 `

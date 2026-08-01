@@ -64,9 +64,8 @@ export const label = css`
     position: absolute;
     bottom: 1px;
     font-size: 0.4rem;
-    font-weight: 500;
+	font-weight: 500;
 	color: var(--ambient-text-muted);
-	transition: color 10s ease;
     font-family: ${fontFamily};
     transform: translateX(-50%);
 
@@ -80,7 +79,6 @@ export const label = css`
         width: 2.5px;
         height: ${scaleTickHeightPx}px;
 		background-color: var(--ambient-text-muted);
-		transition: background-color 30s ease;
         border-radius: 1px;
     }
 `
