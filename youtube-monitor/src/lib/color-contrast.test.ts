@@ -54,10 +54,7 @@ const getSurfaceColors = (
 		? TWILIGHT_TONE_COLORS[tone]
 		: AMBIENT_THEME_COLORS[theme]
 
-const getTextColors = (
-	theme: TimeTheme,
-	tone: TextTone,
-): AmbientTextColors =>
+const getTextColors = (theme: TimeTheme, tone: TextTone): AmbientTextColors =>
 	theme === 'twilight'
 		? TWILIGHT_TONE_TEXT_COLORS[tone]
 		: AMBIENT_THEME_TEXT_COLORS[theme]
@@ -206,17 +203,14 @@ describe('ambient theme contrast', () => {
 		['sunset', 'dark', 'twilight', 'dark'],
 		['twilight', 'light', 'night', 'light'],
 		['night', 'light', 'midnight', 'light'],
-	])(
-		'%s → %s の同極性遷移で対象テーマの文字が3:1以上を保つ',
-		(fromTheme, fromTone, toTheme, toTone) => {
-			assertInterpolatedContrast(
-				getSurfaceColors(fromTheme, fromTone),
-				getSurfaceColors(toTheme, toTone),
-				getTextColors(toTheme, toTone),
-				3,
-			)
-		},
-	)
+	])('%s → %s の同極性遷移で対象テーマの文字が3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
+		assertInterpolatedContrast(
+			getSurfaceColors(fromTheme, fromTone),
+			getSurfaceColors(toTheme, toTone),
+			getTextColors(toTheme, toTone),
+			3,
+		)
+	})
 
 	test('twilight前半 → ブリッジは安全なdark文字で3:1以上を保つ', () => {
 		assertInterpolatedContrast(
@@ -241,21 +235,18 @@ describe('ambient theme contrast', () => {
 		['dawn', 'dark', 'night', 'light'],
 		['night', 'light', 'day', 'dark'],
 		['day', 'dark', 'midnight', 'light'],
-	])(
-		'%s → %s の直接反転はブリッジ前後で3:1以上を保つ',
-		(fromTheme, fromTone, toTheme, toTone) => {
-			assertInterpolatedContrast(
-				getSurfaceColors(fromTheme, fromTone),
-				CONTRAST_BRIDGE_COLORS,
-				CONTRAST_BRIDGE_TEXT_COLORS[fromTone],
-				3,
-			)
-			assertInterpolatedContrast(
-				CONTRAST_BRIDGE_COLORS,
-				getSurfaceColors(toTheme, toTone),
-				getTextColors(toTheme, toTone),
-				3,
-			)
-		},
-	)
+	])('%s → %s の直接反転はブリッジ前後で3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
+		assertInterpolatedContrast(
+			getSurfaceColors(fromTheme, fromTone),
+			CONTRAST_BRIDGE_COLORS,
+			CONTRAST_BRIDGE_TEXT_COLORS[fromTone],
+			3,
+		)
+		assertInterpolatedContrast(
+			CONTRAST_BRIDGE_COLORS,
+			getSurfaceColors(toTheme, toTone),
+			getTextColors(toTheme, toTone),
+			3,
+		)
+	})
 })
