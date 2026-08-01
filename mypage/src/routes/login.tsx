@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { signInWithGoogleAndYouTube } from '../features/auth/auth'
@@ -24,7 +24,7 @@ export const Route = createFileRoute('/login')({
 })
 
 function LoginPage() {
-	const navigate = useNavigate()
+	const router = useRouter()
 	const search = Route.useSearch()
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,10 +41,7 @@ function LoginPage() {
 				youtubeAccessToken: result.youtubeAccessToken,
 			})
 
-			await navigate({
-				to: search.redirect,
-				replace: true,
-			})
+			router.history.replace(search.redirect)
 		} catch (error) {
 			console.error(error)
 			setErrorMessage(getLoginErrorMessage(error))
