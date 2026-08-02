@@ -50,7 +50,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/ci.yml|.github/scripts/detect-ci-paths.sh|.github/actions/*)
+		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/actions/*)
 			return 0
 			;;
 		*)

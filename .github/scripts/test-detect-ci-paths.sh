@@ -38,7 +38,9 @@ assert_exact_groups menu_image_generator tools/menu-image-generator/src/index.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
 assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects all" .github/workflows/ci.yml
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects all" .github/workflows/deploy-docs.yml
 assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects all" .github/scripts/detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects all" .github/scripts/test-detect-ci-paths.sh
 assert_exact_groups "system youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
