@@ -2,12 +2,14 @@ package workspaceapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
 	"time"
 
-	"errors"
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/option"
 
 	"app.modules/core/i18n"
 	i18nmsg "app.modules/core/i18n/typed"
@@ -16,8 +18,6 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
-	"cloud.google.com/go/firestore"
-	"google.golang.org/api/option"
 )
 
 type WorkspaceApp struct {

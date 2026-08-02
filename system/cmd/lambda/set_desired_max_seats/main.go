@@ -8,12 +8,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
 	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 )
 
 func init() {

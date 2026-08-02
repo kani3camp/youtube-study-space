@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"reflect"
 	"regexp"
@@ -13,7 +14,7 @@ import (
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
-	"errors"
+
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"google.golang.org/api/option"

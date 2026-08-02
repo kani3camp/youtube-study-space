@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"app.modules/core/moderatorbot"
-	"app.modules/core/repository"
-	"app.modules/core/youtubebot"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
+
+	"app.modules/core/moderatorbot"
+	"app.modules/core/repository"
+	"app.modules/core/youtubebot"
 )
 
 type LiveStreamChecker struct {
@@ -24,7 +25,6 @@ func NewLiveStreamChecker(
 	youtubeLiveChatBot youtubebot.LiveChatBot,
 	messageBot moderatorbot.MessageBot,
 ) *LiveStreamChecker {
-
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
 		alertOwnerBot:       messageBot,

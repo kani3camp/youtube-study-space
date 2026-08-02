@@ -7,13 +7,14 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
+
+	"app.modules/core/repository"
+	"app.modules/core/utils"
 )
 
 const MaxLiveChatMessageLength = 200

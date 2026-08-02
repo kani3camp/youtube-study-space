@@ -1,12 +1,11 @@
 package utils
 
 import (
+	"errors"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"errors"
 
 	i18nmsg "app.modules/core/i18n/typed"
 )

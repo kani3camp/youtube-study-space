@@ -6,6 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"app.modules/core/i18n"
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
@@ -13,11 +19,6 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
-	"cloud.google.com/go/firestore"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // TODO: 各ケースでちゃんとエラーがハンドリングされること（返されること、ハンドリングされること）
@@ -28,7 +29,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var showUserInfoTestCases = []struct {
+	showUserInfoTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -112,7 +113,7 @@ func TestSystem_Rank(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var rankTestCases = []struct {
+	rankTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -200,7 +201,7 @@ func TestSystem_My(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var myTestCases = []struct {
+	myTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails

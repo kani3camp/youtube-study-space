@@ -2,13 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
-	"errors"
+
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -106,6 +107,7 @@ func (c *FirestoreControllerImplements) orderHistoryCollection() *firestore.Coll
 func (c *FirestoreControllerImplements) generalSeatsCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(SEATS)
 }
+
 func (c *FirestoreControllerImplements) memberSeatsCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(MemberSeats)
 }
@@ -143,7 +145,8 @@ func (c *FirestoreControllerImplements) workNameTrendCollection() *firestore.Col
 }
 
 func (c *FirestoreControllerImplements) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
-	ref *firestore.DocumentRef) error {
+	ref *firestore.DocumentRef,
+) error {
 	if tx != nil {
 		return tx.Delete(ref)
 	} else {
@@ -209,6 +212,7 @@ func (c *FirestoreControllerImplements) ReadGeneralSeats(ctx context.Context) ([
 	iter := c.generalSeatsCollection().Documents(ctx)
 	return getDocDataFromIterator[SeatDoc](iter)
 }
+
 func (c *FirestoreControllerImplements) ReadMemberSeats(ctx context.Context) ([]SeatDoc, error) {
 	iter := c.memberSeatsCollection().Documents(ctx)
 	return getDocDataFromIterator[SeatDoc](iter)
@@ -275,7 +279,8 @@ func (c *FirestoreControllerImplements) UpdateUserLastExitedDate(tx *firestore.T
 }
 
 func (c *FirestoreControllerImplements) UpdateUserRankVisible(tx *firestore.Transaction, userID string,
-	rankVisible bool) error {
+	rankVisible bool,
+) error {
 	ref := c.usersCollection().Doc(userID)
 	return tx.Update(ref, []firestore.Update{
 		{Path: RankVisibleDocProperty, Value: rankVisible},
@@ -385,7 +390,8 @@ func (c *FirestoreControllerImplements) UpdateLastLongTimeSittingChecked(ctx con
 }
 
 func (c *FirestoreControllerImplements) UpdateLastTransferCollectionHistoryBigquery(ctx context.Context,
-	timestamp time.Time) error {
+	timestamp time.Time,
+) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	_, err := ref.Update(ctx, []firestore.Update{
 		{Path: LastTransferCollectionHistoryBigqueryDocProperty, Value: timestamp},
@@ -394,14 +400,17 @@ func (c *FirestoreControllerImplements) UpdateLastTransferCollectionHistoryBigqu
 }
 
 func (c *FirestoreControllerImplements) UpdateDesiredMaxSeats(ctx context.Context, tx *firestore.Transaction,
-	desiredMaxSeats int) error {
+	desiredMaxSeats int,
+) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: DesiredMaxSeatsDocProperty, Value: desiredMaxSeats},
 	})
 }
+
 func (c *FirestoreControllerImplements) UpdateDesiredMemberMaxSeats(ctx context.Context, tx *firestore.Transaction,
-	desiredMemberMaxSeats int) error {
+	desiredMemberMaxSeats int,
+) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: DesiredMemberMaxSeatsDocProperty, Value: desiredMemberMaxSeats},
@@ -414,6 +423,7 @@ func (c *FirestoreControllerImplements) UpdateMaxSeats(ctx context.Context, tx *
 		{Path: MaxSeatsDocProperty, Value: maxSeats},
 	})
 }
+
 func (c *FirestoreControllerImplements) UpdateMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, memberMaxSeats int) error {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
@@ -453,7 +463,8 @@ func (c *FirestoreControllerImplements) DeleteSeat(ctx context.Context, tx *fire
 }
 
 func (c *FirestoreControllerImplements) CreateLiveChatHistoryDoc(ctx context.Context, tx *firestore.Transaction,
-	liveChatHistoryDoc LiveChatHistoryDoc) error {
+	liveChatHistoryDoc LiveChatHistoryDoc,
+) error {
 	ref := c.liveChatHistoryCollection().NewDoc()
 	return c.create(ctx, tx, ref, liveChatHistoryDoc)
 }
@@ -488,7 +499,8 @@ func (c *FirestoreControllerImplements) GetAllUserActivityDocIDsAfterDate(ctx co
 }
 
 func (c *FirestoreControllerImplements) GetAllUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userID string, seatID int, isMemberSeat bool) ([]UserActivityDoc, error) {
+	date time.Time, userID string, seatID int, isMemberSeat bool,
+) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
 		date).Where(UserIDDocProperty, "==", userID).Where(SeatIDDocProperty, "==", seatID).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).OrderBy(TakenAtDocProperty,
@@ -497,7 +509,8 @@ func (c *FirestoreControllerImplements) GetAllUserActivityDocIDsAfterDateForUser
 }
 
 func (c *FirestoreControllerImplements) GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userID string, seatID int, isMemberSeat bool) ([]UserActivityDoc, error) {
+	date time.Time, userID string, seatID int, isMemberSeat bool,
+) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIDDocProperty, "==", userID).
 		Where(SeatIDDocProperty, "==", seatID).Where(ActivityTypeDocProperty, "==", EnterRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
@@ -506,7 +519,8 @@ func (c *FirestoreControllerImplements) GetEnterRoomUserActivityDocIDsAfterDateF
 }
 
 func (c *FirestoreControllerImplements) GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userID string, seatID int, isMemberSeat bool) ([]UserActivityDoc, error) {
+	date time.Time, userID string, seatID int, isMemberSeat bool,
+) ([]UserActivityDoc, error) {
 	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Where(UserIDDocProperty, "==", userID).
 		Where(SeatIDDocProperty, "==", seatID).Where(ActivityTypeDocProperty, "==", ExitRoomActivity).
 		Where(IsMemberSeatDocProperty, "==", isMemberSeat).
@@ -534,7 +548,8 @@ func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionID(ctx con
 }
 
 func (c *FirestoreControllerImplements) UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(
-	ctx context.Context, tx *firestore.Transaction, userID string, isContinuousActive bool, currentActivityStateStarted time.Time) error {
+	ctx context.Context, tx *firestore.Transaction, userID string, isContinuousActive bool, currentActivityStateStarted time.Time,
+) error {
 	ref := c.usersCollection().Doc(userID)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: IsContinuousActiveDocProperty, Value: isContinuousActive},
@@ -550,7 +565,8 @@ func (c *FirestoreControllerImplements) UpdateUserLastPenaltyImposedDays(ctx con
 }
 
 func (c *FirestoreControllerImplements) UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string,
-	newRP int, newLastPenaltyImposedDays int) error {
+	newRP int, newLastPenaltyImposedDays int,
+) error {
 	ref := c.usersCollection().Doc(userID)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: RankPointDocProperty, Value: newRP},

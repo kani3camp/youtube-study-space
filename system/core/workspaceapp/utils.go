@@ -2,13 +2,19 @@ package workspaceapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
 	"strconv"
 	"time"
 
-	"errors"
+	"cloud.google.com/go/firestore"
+	"github.com/kr/pretty"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/youtube/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"app.modules/core/guardians"
 	i18nmsg "app.modules/core/i18n/typed"
@@ -18,12 +24,6 @@ import (
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/youtubebot"
-	"cloud.google.com/go/firestore"
-	"github.com/kr/pretty"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/youtube/v3"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
@@ -654,7 +654,8 @@ func (app *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *
 // ルームの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (app *WorkspaceApp) RandomAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int,
-	error) {
+	error,
+) {
 	var seats []repository.SeatDoc
 	var err error
 	if isMemberSeat {

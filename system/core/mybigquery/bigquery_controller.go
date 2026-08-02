@@ -2,17 +2,17 @@ package mybigquery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"errors"
-
-	"app.modules/core/repository"
-	"app.modules/core/timeutil"
 	"cloud.google.com/go/bigquery"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 )
 
 type BigqueryController struct {
@@ -22,7 +22,8 @@ type BigqueryController struct {
 
 func NewBigqueryClient(ctx context.Context, projectID string, clientOption option.ClientOption,
 	workingRegion string) (*BigqueryController,
-	error) {
+	error,
+) {
 	client, err := bigquery.NewClient(ctx, projectID, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in bigquery.NewClient: %w", err)
@@ -44,7 +45,8 @@ func (c *BigqueryController) CloseClient() {
 
 func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 	gcsFolderName string, bucketName string,
-	collections []string) error {
+	collections []string,
+) error {
 	for _, collectionName := range collections {
 		// GCSからbigqueryの一時テーブルにデータをバッチ読込
 		gcsRef := bigquery.NewGCSReference("gs://" + bucketName + "/" + gcsFolderName + "/all_namespaces/kind_" +

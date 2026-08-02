@@ -10,10 +10,11 @@ import (
 
 	"app.modules/core/workspaceapp"
 
-	"app.modules/core/timeutil"
-	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/option"
+
+	"app.modules/core/timeutil"
+	"app.modules/core/utils"
 )
 
 func ExitAllUsersInRoom(ctx context.Context, clientOption option.ClientOption) {
@@ -93,7 +94,7 @@ func ExportUsersCollectionJSON(ctx context.Context, clientOption option.ClientOp
 	}()
 
 	jsonEnc := json.NewEncoder(f)
-	//jsonEnc.SetIndent("", "\t")
+	// jsonEnc.SetIndent("", "\t")
 	if err := jsonEnc.Encode(allUsersTotalStudySecList); err != nil {
 		panic(err)
 	}
