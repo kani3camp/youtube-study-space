@@ -119,7 +119,11 @@ func ResetFirestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reset Firestore emulator data: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close Firestore emulator reset response body: %v", err)
+		}
+	}()
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<10))
