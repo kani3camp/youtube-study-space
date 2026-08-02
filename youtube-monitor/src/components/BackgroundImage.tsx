@@ -1,11 +1,24 @@
 import Image from 'next/image'
-import type { FC } from 'react'
+import { type FC, useState } from 'react'
+import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
+import { getCurrentSection } from '../lib/time-table'
 import * as styles from '../styles/BackgroundImage.styles'
 
-const BACKGROUND_IMAGE_URL = '/images/background/4167307_214.jpg'
+const BACKGROUND_UPDATE_INTERVAL_SEC = 1000
+const BACKGROUND_IMAGE_URL = '/images/background/20549579_6334500.jpg'
 
 const BackgroundImage: FC = () => {
+	const [lastPartName, setLastPartName] = useState<string>('')
+
+	useInterval(() => {
+		const currentSection = getCurrentSection()
+
+		if (currentSection.partType !== lastPartName) {
+			setLastPartName(currentSection.partType)
+		}
+	}, BACKGROUND_UPDATE_INTERVAL_SEC)
+
 	return (
 		<div>
 			<Image

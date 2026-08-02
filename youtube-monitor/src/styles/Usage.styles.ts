@@ -16,14 +16,13 @@ export const shape = css`
 export const usage = css`
     font-size: 1rem;
     text-align: center;
-    color: var(--ambient-text-primary);
+    color: ${Constants.primaryTextColor};
     box-sizing: border-box;
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     padding: 0.4rem;
     border-radius: 0.6rem;
-    background-color: var(--ambient-panel-bg);
-    border: 1px solid var(--ambient-border);
+    background-color: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(0.5rem);
     display: flex;
     flex-direction: column;
@@ -32,29 +31,27 @@ export const usage = css`
 `
 
 export const description = css`
-	margin: 0.2rem;
-	font-weight: bold;
+    margin: 0.2rem;
+    font-weight: bold;
 `
 
 export const command = css`
-	margin: 0rem;
+    margin: 0.0rem;
 `
 
 export const commandCode = css`
-	font-weight: 700;
-	font-size: 0.8rem;
-	letter-spacing: 0.01em;
-	font-variant-ligatures: none;
-	display: inline-block;
-	background-color: var(--ambient-command-bg);
-	transition: background-color
-		var(--ambient-background-transition-duration, 30s) linear;
-	border-radius: 0.22rem;
-	padding: 0.12rem 0.5rem;
-	margin: 0rem 0.18rem;
-	line-height: 1.35;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.01em;
+    font-variant-ligatures: none;
+    display: inline-block;
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 0.22rem;
+    padding: 0.12rem 0.5rem;
+    margin: 0.0rem 0.18rem;
+    line-height: 1.35;
 `
 
 export const commandDesc = css`
-	font-size: 0.8rem;
+    font-size: 0.8rem;
 `

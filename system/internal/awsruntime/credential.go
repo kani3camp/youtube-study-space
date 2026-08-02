@@ -1,10 +1,8 @@
 package awsruntime
 
 import (
-	"fmt"
-
 	"app.modules/internal/awsruntime/mydynamodb"
-
+	"fmt"
 	"google.golang.org/api/option"
 )
 

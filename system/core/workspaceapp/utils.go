@@ -2,19 +2,13 @@ package workspaceapp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
 	"strconv"
 	"time"
 
-	"cloud.google.com/go/firestore"
-	"github.com/kr/pretty"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/youtube/v3"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"errors"
 
 	"app.modules/core/guardians"
 	i18nmsg "app.modules/core/i18n/typed"
@@ -24,6 +18,12 @@ import (
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/youtubebot"
+	"cloud.google.com/go/firestore"
+	"github.com/kr/pretty"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/youtube/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
@@ -100,25 +100,15 @@ func (app *WorkspaceApp) CreateUser(ctx context.Context, tx *firestore.Transacti
 		TotalStudySec:      0,
 		RegistrationDate:   app.currentTime(),
 	}
-	if err := app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userData); err != nil {
-		return fmt.Errorf("create user: %w", err)
-	}
-	return nil
+	return app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userData)
 }
 
 func (app *WorkspaceApp) GetNextPageToken(ctx context.Context, tx *firestore.Transaction) (string, error) {
-	pageToken, err := app.Repository.ReadNextPageToken(ctx, tx)
-	if err != nil {
-		return "", fmt.Errorf("read next page token: %w", err)
-	}
-	return pageToken, nil
+	return app.Repository.ReadNextPageToken(ctx, tx)
 }
 
 func (app *WorkspaceApp) SaveNextPageToken(ctx context.Context, nextPageToken string) error {
-	if err := app.Repository.UpdateNextPageToken(ctx, nextPageToken); err != nil {
-		return fmt.Errorf("update next page token: %w", err)
-	}
-	return nil
+	return app.Repository.UpdateNextPageToken(ctx, nextPageToken)
 }
 
 func (app *WorkspaceApp) CurrentSeat(ctx context.Context, userID string, isMemberSeat bool) (repository.SeatDoc, error) {
@@ -253,11 +243,7 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 }
 
 func (app *WorkspaceApp) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
-	messages, nextPageToken, pollingIntervalMillis, err := app.LiveChatBot.ListMessages(ctx, pageToken)
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("list live chat messages: %w", err)
-	}
-	return messages, nextPageToken, pollingIntervalMillis, nil
+	return app.LiveChatBot.ListMessages(ctx, pageToken)
 }
 
 func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) {
@@ -276,10 +262,7 @@ func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 // MessageToOwnerOrError はOwner通知を行い、通知失敗を呼び出し元へ返す。
 // 通知Lambdaのように、配送失敗自体をCloudWatch Alarmで検知したい用途で使う。
 func (app *WorkspaceApp) MessageToOwnerOrError(ctx context.Context, message string) error {
-	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
-		return fmt.Errorf("send message to owner: %w", err)
-	}
-	return nil
+	return app.alertOwnerBot.SendMessage(ctx, message)
 }
 
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
@@ -290,17 +273,11 @@ func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message st
 }
 
 func (app *WorkspaceApp) MessageToModerators(ctx context.Context, message string) error {
-	if err := app.alertModeratorsBot.SendMessage(ctx, message); err != nil {
-		return fmt.Errorf("send message to moderators: %w", err)
-	}
-	return nil
+	return app.alertModeratorsBot.SendMessage(ctx, message)
 }
 
 func (app *WorkspaceApp) LogToModerators(ctx context.Context, logMessage string) error {
-	if err := app.logModeratorsBot.SendMessage(ctx, logMessage); err != nil {
-		return fmt.Errorf("send moderator log: %w", err)
-	}
-	return nil
+	return app.logModeratorsBot.SendMessage(ctx, logMessage)
 }
 
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
@@ -322,10 +299,7 @@ func (app *WorkspaceApp) CheckLongTimeSitting(ctx context.Context, isMemberRoom 
 
 func (app *WorkspaceApp) CheckLiveStreamStatus(ctx context.Context) error {
 	checker := guardians.NewLiveStreamChecker(app.Repository, app.LiveChatBot, app.alertOwnerBot)
-	if err := checker.Check(ctx); err != nil {
-		return fmt.Errorf("check live stream status: %w", err)
-	}
-	return nil
+	return checker.Check(ctx)
 }
 
 func (app *WorkspaceApp) GetUserIDsToProcessRP(ctx context.Context) ([]string, error) {
@@ -441,10 +415,7 @@ func (app *WorkspaceApp) AddLiveChatHistoryDoc(ctx context.Context, chatMessage 
 		PublishedAt:           publishedAt,
 		Type:                  chatMessage.Snippet.Type,
 	}
-	if err := app.Repository.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc); err != nil {
-		return fmt.Errorf("create live chat history: %w", err)
-	}
-	return nil
+	return app.Repository.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc)
 }
 
 func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) (int, int, int, error) {
@@ -683,8 +654,7 @@ func (app *WorkspaceApp) GetUserRealtimeSeatAppearance(ctx context.Context, tx *
 // ルームの席が空いているならその中からランダムな席番号（該当ユーザーの入室上限にかからない範囲に限定）を、
 // 空いていないならmax-seatsを増やし、最小の空席番号を返す。
 func (app *WorkspaceApp) RandomAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int,
-	error,
-) {
+	error) {
 	var seats []repository.SeatDoc
 	var err error
 	if isMemberSeat {

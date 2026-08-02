@@ -17,21 +17,20 @@ export const clockStyle = css`
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
     border-radius: 0.6rem;
-    background-color: var(--ambient-panel-strong-bg);
-    border: 1px solid var(--ambient-border);
-    color: var(--ambient-text-primary);
+    background-color: rgba(255, 255, 255, 0.4);
+    color: ${Constants.primaryTextColor};
     padding: 0.2rem;
     box-sizing: border-box;
 `
 
 export const dateStringStyle = css`
-	font-size: 0.6rem;
-	text-align: center;
+    font-size: 0.6rem;
+    text-align: center;
 `
 
 export const timeStringStyle = css`
-	font-size: 1.4rem;
-	text-align: center;
-	font-weight: 800;
-	line-height: 1.6rem;
+    font-size: 1.4rem;
+    text-align: center;
+    font-weight: 800;
+    line-height: 1.6rem;
 `

@@ -3,9 +3,8 @@ package youtubebot
 import (
 	"context"
 
-	"google.golang.org/api/youtube/v3"
-
 	"app.modules/core/repository"
+	"google.golang.org/api/youtube/v3"
 )
 
 type LiveChatBot interface {

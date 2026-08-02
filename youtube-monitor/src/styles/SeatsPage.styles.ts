@@ -13,6 +13,6 @@ export const roomLayout = css`
 `
 
 export const partition = css`
-	position: absolute;
-	background-color: #2d2b41;
+    position: absolute;
+    background-color: #2d2b41;
 `

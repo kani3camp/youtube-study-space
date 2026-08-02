@@ -4,11 +4,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"app.modules/core/i18n"
 	engine "app.modules/core/i18n/internal/engine"
 	i18nmsg "app.modules/core/i18n/typed"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestI18nRealWorldUsage(t *testing.T) {

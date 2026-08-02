@@ -1,11 +1,10 @@
 package workspaceapp
 
 import (
-	"errors"
-
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
+	"errors"
 )
 
 func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
@@ -49,6 +48,7 @@ func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 }
 
 func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
+
 	// 作業時間の値
 	inputWorkMin := command.InOption.MinWorkOrderOption.DurationMin
 	if inputWorkMin != 0 {

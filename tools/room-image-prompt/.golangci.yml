@@ -2,25 +2,7 @@ version: "2"
 
 linters:
   default: standard
-  enable:
-    - nolintlint
-    - wrapcheck
   settings:
     errcheck:
       check-blank: true
       check-type-assertions: true
-    nolintlint:
-      allow-unused: false
-      require-explanation: true
-      require-specific: true
-
-formatters:
-  enable:
-    - gofumpt
-    - goimports
-  settings:
-    gofumpt:
-      module-path: github.com/kani3camp/youtube-study-space/tools/room-image-prompt
-    goimports:
-      local-prefixes:
-        - github.com/kani3camp/youtube-study-space/tools/room-image-prompt

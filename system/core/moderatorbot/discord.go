@@ -23,7 +23,7 @@ type DiscordBot struct {
 func NewDiscordBot(token string, textChannelID string) (*DiscordBot, error) {
 	session, err := discordgo.New("Bot " + token)
 	if err != nil {
-		return nil, fmt.Errorf("create Discord session: %w", err)
+		return nil, err
 	}
 
 	// HTTPクライアントにタイムアウトを設定

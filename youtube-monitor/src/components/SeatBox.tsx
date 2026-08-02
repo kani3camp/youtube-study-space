@@ -261,8 +261,8 @@ const SeatBox: FC<SeatProps> = (props) => {
               );
           `
 		: css`
-				background-color: rgba(0, 0, 0, 0);
-			`
+                background-color: rgba(0, 0, 0, 0);
+            `
 
 	const seatIdLabel = props.isUsed
 		? `${props.globalSeatId}`

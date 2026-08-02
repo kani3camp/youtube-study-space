@@ -2,14 +2,12 @@ package workspaceapp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
 	"time"
 
-	"cloud.google.com/go/firestore"
-	"google.golang.org/api/option"
+	"errors"
 
 	"app.modules/core/i18n"
 	i18nmsg "app.modules/core/i18n/typed"
@@ -18,6 +16,8 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/option"
 )
 
 type WorkspaceApp struct {
@@ -152,10 +152,7 @@ func (app *WorkspaceApp) currentTime() time.Time {
 }
 
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
-	if err := app.Repository.FirestoreClient().RunTransaction(ctx, f); err != nil {
-		return fmt.Errorf("run Firestore transaction: %w", err)
-	}
-	return nil
+	return app.Repository.FirestoreClient().RunTransaction(ctx, f)
 }
 
 func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageURL string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
@@ -206,7 +203,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, ngWord
 	// ブロック対象チェック
 	found, index, err := utils.ContainsRegexWithIndex(ngWordConfig.blockRegexesForChatMessage, message)
 	if err != nil {
-		return false, fmt.Errorf("check chat message against block regexes: %w", err)
+		return false, err
 	}
 	if found {
 		if err := app.BanUser(ctx, userID); err != nil {

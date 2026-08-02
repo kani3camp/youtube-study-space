@@ -2,15 +2,13 @@ package mystorage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
-	"cloud.google.com/go/storage"
-
 	"app.modules/core/timeutil"
-
+	"cloud.google.com/go/storage"
+	"errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -21,8 +19,7 @@ type StorageController struct {
 }
 
 func NewStorageClient(ctx context.Context, clientOption option.ClientOption,
-	workingRegion string,
-) (*StorageController, error) {
+	workingRegion string) (*StorageController, error) {
 	client, err := storage.NewClient(ctx, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in storage.NewClient: %w", err)
@@ -42,8 +39,7 @@ func (controller *StorageController) CloseClient() {
 }
 
 func (controller *StorageController) GetGcsYesterdayExportFolderName(ctx context.Context, bucketName string) (string,
-	error,
-) {
+	error) {
 	jstNow := timeutil.JstNow()
 	yesterday := jstNow.AddDate(0, 0, -1)
 	searchPrefix := yesterday.Format("2006-01-02")
