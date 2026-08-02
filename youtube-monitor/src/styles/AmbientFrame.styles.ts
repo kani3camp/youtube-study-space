@@ -6,6 +6,7 @@ import {
 	AMBIENT_BGM_TEXT_COLOR,
 	AMBIENT_THEME_BREAK_ACCENT_COLORS,
 	AMBIENT_THEME_COLORS,
+	AMBIENT_THEME_STUDY_ACCENT_COLORS,
 	AMBIENT_THEME_TEXT_COLORS,
 	type AmbientSurfaceColors,
 	type AmbientTextColors,
@@ -13,6 +14,7 @@ import {
 	CONTRAST_BRIDGE_TEXT_COLORS,
 	TWILIGHT_TONE_BREAK_ACCENT_COLORS,
 	TWILIGHT_TONE_COLORS,
+	TWILIGHT_TONE_STUDY_ACCENT_COLORS,
 	TWILIGHT_TONE_TEXT_COLORS,
 } from '../lib/time-theme-colors'
 
@@ -34,6 +36,10 @@ const textVariables = (colors: AmbientTextColors) => css`
 	--ambient-notice: ${toCssRgba(colors.notice)};
 `
 
+const studyAccentVariable = (color: RgbaColor) => css`
+	--ambient-study-accent: ${toCssRgba(color)};
+`
+
 const breakAccentVariable = (color: RgbaColor) => css`
 	--ambient-break-accent: ${toCssRgba(color)};
 `
@@ -42,6 +48,7 @@ const themeSelector = (theme: TimeTheme) => css`
 	&[data-time-theme='${theme}'] {
 		${surfaceVariables(AMBIENT_THEME_COLORS[theme])}
 		${textVariables(AMBIENT_THEME_TEXT_COLORS[theme])}
+		${studyAccentVariable(AMBIENT_THEME_STUDY_ACCENT_COLORS[theme])}
 		${breakAccentVariable(AMBIENT_THEME_BREAK_ACCENT_COLORS[theme])}
 	}
 `
@@ -49,6 +56,7 @@ const themeSelector = (theme: TimeTheme) => css`
 export const themedRoot = css`
 	${surfaceVariables(AMBIENT_THEME_COLORS.day)}
 	${textVariables(AMBIENT_THEME_TEXT_COLORS.day)}
+	${studyAccentVariable(AMBIENT_THEME_STUDY_ACCENT_COLORS.day)}
 	${breakAccentVariable(AMBIENT_THEME_BREAK_ACCENT_COLORS.day)}
 	--ambient-bgm-text: ${toCssRgba(AMBIENT_BGM_TEXT_COLOR)};
 	--ambient-background-transition-duration: 30s;
@@ -67,12 +75,14 @@ export const themedRoot = css`
 	&[data-time-theme='twilight'][data-text-tone='dark'] {
 		${surfaceVariables(TWILIGHT_TONE_COLORS.dark)}
 		${textVariables(TWILIGHT_TONE_TEXT_COLORS.dark)}
+		${studyAccentVariable(TWILIGHT_TONE_STUDY_ACCENT_COLORS.dark)}
 		${breakAccentVariable(TWILIGHT_TONE_BREAK_ACCENT_COLORS.dark)}
 	}
 
 	&[data-time-theme='twilight'][data-text-tone='light'] {
 		${surfaceVariables(TWILIGHT_TONE_COLORS.light)}
 		${textVariables(TWILIGHT_TONE_TEXT_COLORS.light)}
+		${studyAccentVariable(TWILIGHT_TONE_STUDY_ACCENT_COLORS.light)}
 		${breakAccentVariable(TWILIGHT_TONE_BREAK_ACCENT_COLORS.light)}
 	}
 
@@ -87,11 +97,13 @@ export const themedRoot = css`
 	 */
 	&[data-contrast-bridge='true'][data-text-tone='dark'] {
 		${textVariables(CONTRAST_BRIDGE_TEXT_COLORS.dark)}
+		--ambient-study-accent: var(--ambient-text-primary);
 		--ambient-break-accent: var(--ambient-text-primary);
 	}
 
 	&[data-contrast-bridge='true'][data-text-tone='light'] {
 		${textVariables(CONTRAST_BRIDGE_TEXT_COLORS.light)}
+		--ambient-study-accent: var(--ambient-text-primary);
 		--ambient-break-accent: var(--ambient-text-primary);
 	}
 `

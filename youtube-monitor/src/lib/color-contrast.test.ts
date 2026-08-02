@@ -11,6 +11,7 @@ import {
 	AMBIENT_BGM_TEXT_COLOR,
 	AMBIENT_THEME_BREAK_ACCENT_COLORS,
 	AMBIENT_THEME_COLORS,
+	AMBIENT_THEME_STUDY_ACCENT_COLORS,
 	AMBIENT_THEME_TEXT_COLORS,
 	type AmbientSurfaceColors,
 	type AmbientTextColors,
@@ -18,6 +19,7 @@ import {
 	CONTRAST_BRIDGE_TEXT_COLORS,
 	TWILIGHT_TONE_BREAK_ACCENT_COLORS,
 	TWILIGHT_TONE_COLORS,
+	TWILIGHT_TONE_STUDY_ACCENT_COLORS,
 	TWILIGHT_TONE_TEXT_COLORS,
 } from './time-theme-colors'
 
@@ -66,6 +68,11 @@ const getBreakAccentColor = (theme: TimeTheme, tone: TextTone): RgbaColor =>
 		? TWILIGHT_TONE_BREAK_ACCENT_COLORS[tone]
 		: AMBIENT_THEME_BREAK_ACCENT_COLORS[theme]
 
+const getStudyAccentColor = (theme: TimeTheme, tone: TextTone): RgbaColor =>
+	theme === 'twilight'
+		? TWILIGHT_TONE_STUDY_ACCENT_COLORS[tone]
+		: AMBIENT_THEME_STUDY_ACCENT_COLORS[theme]
+
 const assertAllTextContrast = (
 	textColors: AmbientTextColors,
 	surface: RgbaColor,
@@ -110,7 +117,8 @@ const assertInterpolatedContrast = (
 	}
 }
 
-const assertInterpolatedBreakAccentContrast = (
+const assertInterpolatedAccentContrast = (
+	getAccentColor: (theme: TimeTheme, tone: TextTone) => RgbaColor,
 	fromTheme: TimeTheme,
 	fromTone: TextTone,
 	toTheme: TimeTheme,
@@ -120,8 +128,8 @@ const assertInterpolatedBreakAccentContrast = (
 	const fromSurface = getSurfaceColors(fromTheme, fromTone).panel
 	const toSurface = getSurfaceColors(toTheme, toTone).panel
 	const accentColors = [
-		getBreakAccentColor(fromTheme, fromTone),
-		getBreakAccentColor(toTheme, toTone),
+		getAccentColor(fromTheme, fromTone),
+		getAccentColor(toTheme, toTone),
 	]
 
 	for (let step = 0; step <= 20; step++) {
@@ -158,6 +166,39 @@ describe('ambient theme contrast', () => {
 		['twilight', 'light'],
 		['night', 'light'],
 		['midnight', 'light'],
+	])('%s の作業アクセントがパネル上で4.5:1以上になる', (theme, tone) => {
+		assertContrast(
+			getStudyAccentColor(theme, tone),
+			getSurfaceColors(theme, tone).panel,
+			4.5,
+		)
+	})
+
+	test.each<[TimeTheme, TextTone, TimeTheme, TextTone]>([
+		['dawn', 'dark', 'day', 'dark'],
+		['day', 'dark', 'sunset', 'dark'],
+		['sunset', 'dark', 'twilight', 'dark'],
+		['twilight', 'light', 'night', 'light'],
+		['night', 'light', 'midnight', 'light'],
+	])('%s (%s) → %s (%s) の背景遷移中も作業アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
+		assertInterpolatedAccentContrast(
+			getStudyAccentColor,
+			fromTheme,
+			fromTone,
+			toTheme,
+			toTone,
+			3,
+		)
+	})
+
+	test.each<[TimeTheme, TextTone]>([
+		['dawn', 'dark'],
+		['day', 'dark'],
+		['sunset', 'dark'],
+		['twilight', 'dark'],
+		['twilight', 'light'],
+		['night', 'light'],
+		['midnight', 'light'],
 	])('%s の休憩アクセントがパネル上で4.5:1以上になる', (theme, tone) => {
 		assertContrast(
 			getBreakAccentColor(theme, tone),
@@ -173,7 +214,8 @@ describe('ambient theme contrast', () => {
 		['twilight', 'light', 'night', 'light'],
 		['night', 'light', 'midnight', 'light'],
 	])('%s (%s) → %s (%s) の背景遷移中も休憩アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedBreakAccentContrast(
+		assertInterpolatedAccentContrast(
+			getBreakAccentColor,
 			fromTheme,
 			fromTone,
 			toTheme,
