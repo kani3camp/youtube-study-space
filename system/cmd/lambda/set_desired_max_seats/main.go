@@ -40,12 +40,12 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 
 	var params SetMaxSeatsParams
 	if err := json.Unmarshal([]byte(request.Body), &params); err != nil {
-		return events.APIGatewayProxyResponse{}, err
+		return events.APIGatewayProxyResponse{}, fmt.Errorf("unmarshal request body: %w", err)
 	}
 
 	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
-		return events.APIGatewayProxyResponse{}, err
+		return events.APIGatewayProxyResponse{}, fmt.Errorf("load Firestore client option: %w", err)
 	}
 
 	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
@@ -53,13 +53,13 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		if errors.Is(err, context.DeadlineExceeded) {
 			return events.APIGatewayProxyResponse{}, fmt.Errorf("timeout during NewWorkspaceApp: %w", err)
 		}
-		return events.APIGatewayProxyResponse{}, err
+		return events.APIGatewayProxyResponse{}, fmt.Errorf("initialize workspace app: %w", err)
 	}
 	defer app.CloseFirestoreClient()
 
 	if app.Configs.Constants.YoutubeMembershipEnabled {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats <= 0 {
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck // This fixed string-only response cannot contain an unsupported JSON value.
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusBadRequest,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -68,7 +68,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		}
 	} else {
 		if params.DesiredMaxSeats <= 0 || params.DesiredMemberMaxSeats != 0 {
-			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck
+			body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: "invalid parameter"}) //nolint:errcheck // This fixed string-only response cannot contain an unsupported JSON value.
 			return events.APIGatewayProxyResponse{
 				StatusCode: http.StatusBadRequest,
 				Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},
@@ -98,7 +98,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 		return errorResponse(http.StatusInternalServerError, "failed UpdateDesiredMemberMaxSeats"), nil
 	}
 
-	body, _ := json.Marshal(SetMaxSeatsResponse{ //nolint:errcheck
+	body, _ := json.Marshal(SetMaxSeatsResponse{ //nolint:errcheck // This string-only response cannot contain an unsupported JSON value.
 		Result:  awsruntime.OK,
 		Message: "",
 	})
@@ -114,7 +114,7 @@ func SetDesiredMaxSeats(ctx context.Context, request events.APIGatewayProxyReque
 }
 
 func errorResponse(statusCode int, message string) events.APIGatewayProxyResponse {
-	body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: message}) //nolint:errcheck
+	body, _ := json.Marshal(SetMaxSeatsResponse{Result: "error", Message: message}) //nolint:errcheck // This string-only response cannot contain an unsupported JSON value.
 	return events.APIGatewayProxyResponse{
 		StatusCode: statusCode,
 		Headers:    map[string]string{"Access-Control-Allow-Origin": "*"},

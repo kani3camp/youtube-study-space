@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"reflect"
 	"regexp"
@@ -61,7 +62,7 @@ func GetSeatByUserID(seats []repository.SeatDoc, userID string) (repository.Seat
 func GetGcpProjectID(ctx context.Context, clientOption option.ClientOption) (string, error) {
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("load Google credentials: %w", err)
 	}
 	return creds.ProjectID, nil
 }
@@ -79,7 +80,7 @@ func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
 	for i, a := range s {
 		r, err := regexp.Compile(a)
 		if err != nil {
-			return false, 0, err
+			return false, 0, fmt.Errorf("compile regex at index %d: %w", i, err)
 		}
 		if r.MatchString(e) {
 			return true, i, nil

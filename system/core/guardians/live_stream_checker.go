@@ -35,7 +35,7 @@ func NewLiveStreamChecker(
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	credentials, err := checker.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("read credentials config: %w", err)
 	}
 	config := &oauth2.Config{
 		ClientID:     credentials.YoutubeChannelClientID,

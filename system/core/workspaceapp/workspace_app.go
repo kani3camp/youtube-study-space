@@ -152,7 +152,10 @@ func (app *WorkspaceApp) currentTime() time.Time {
 }
 
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
-	return app.Repository.FirestoreClient().RunTransaction(ctx, f)
+	if err := app.Repository.FirestoreClient().RunTransaction(ctx, f); err != nil {
+		return fmt.Errorf("run Firestore transaction: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageURL string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
@@ -203,7 +206,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, ngWord
 	// ブロック対象チェック
 	found, index, err := utils.ContainsRegexWithIndex(ngWordConfig.blockRegexesForChatMessage, message)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("check chat message against block regexes: %w", err)
 	}
 	if found {
 		if err := app.BanUser(ctx, userID); err != nil {

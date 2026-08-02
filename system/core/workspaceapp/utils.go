@@ -100,15 +100,25 @@ func (app *WorkspaceApp) CreateUser(ctx context.Context, tx *firestore.Transacti
 		TotalStudySec:      0,
 		RegistrationDate:   app.currentTime(),
 	}
-	return app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userData)
+	if err := app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userData); err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) GetNextPageToken(ctx context.Context, tx *firestore.Transaction) (string, error) {
-	return app.Repository.ReadNextPageToken(ctx, tx)
+	pageToken, err := app.Repository.ReadNextPageToken(ctx, tx)
+	if err != nil {
+		return "", fmt.Errorf("read next page token: %w", err)
+	}
+	return pageToken, nil
 }
 
 func (app *WorkspaceApp) SaveNextPageToken(ctx context.Context, nextPageToken string) error {
-	return app.Repository.UpdateNextPageToken(ctx, nextPageToken)
+	if err := app.Repository.UpdateNextPageToken(ctx, nextPageToken); err != nil {
+		return fmt.Errorf("update next page token: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) CurrentSeat(ctx context.Context, userID string, isMemberSeat bool) (repository.SeatDoc, error) {
@@ -243,7 +253,11 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 }
 
 func (app *WorkspaceApp) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
-	return app.LiveChatBot.ListMessages(ctx, pageToken)
+	messages, nextPageToken, pollingIntervalMillis, err := app.LiveChatBot.ListMessages(ctx, pageToken)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("list live chat messages: %w", err)
+	}
+	return messages, nextPageToken, pollingIntervalMillis, nil
 }
 
 func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) {
@@ -262,7 +276,10 @@ func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 // MessageToOwnerOrError はOwner通知を行い、通知失敗を呼び出し元へ返す。
 // 通知Lambdaのように、配送失敗自体をCloudWatch Alarmで検知したい用途で使う。
 func (app *WorkspaceApp) MessageToOwnerOrError(ctx context.Context, message string) error {
-	return app.alertOwnerBot.SendMessage(ctx, message)
+	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
+		return fmt.Errorf("send message to owner: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
@@ -273,11 +290,17 @@ func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message st
 }
 
 func (app *WorkspaceApp) MessageToModerators(ctx context.Context, message string) error {
-	return app.alertModeratorsBot.SendMessage(ctx, message)
+	if err := app.alertModeratorsBot.SendMessage(ctx, message); err != nil {
+		return fmt.Errorf("send message to moderators: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) LogToModerators(ctx context.Context, logMessage string) error {
-	return app.logModeratorsBot.SendMessage(ctx, logMessage)
+	if err := app.logModeratorsBot.SendMessage(ctx, logMessage); err != nil {
+		return fmt.Errorf("send moderator log: %w", err)
+	}
+	return nil
 }
 
 // CheckLongTimeSitting 長時間入室しているユーザーを席移動させる。
@@ -299,7 +322,10 @@ func (app *WorkspaceApp) CheckLongTimeSitting(ctx context.Context, isMemberRoom 
 
 func (app *WorkspaceApp) CheckLiveStreamStatus(ctx context.Context) error {
 	checker := guardians.NewLiveStreamChecker(app.Repository, app.LiveChatBot, app.alertOwnerBot)
-	return checker.Check(ctx)
+	if err := checker.Check(ctx); err != nil {
+		return fmt.Errorf("check live stream status: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) GetUserIDsToProcessRP(ctx context.Context) ([]string, error) {
@@ -415,7 +441,10 @@ func (app *WorkspaceApp) AddLiveChatHistoryDoc(ctx context.Context, chatMessage 
 		PublishedAt:           publishedAt,
 		Type:                  chatMessage.Snippet.Type,
 	}
-	return app.Repository.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc)
+	if err := app.Repository.CreateLiveChatHistoryDoc(ctx, nil, liveChatHistoryDoc); err != nil {
+		return fmt.Errorf("create live chat history: %w", err)
+	}
+	return nil
 }
 
 func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, date time.Time) (int, int, int, error) {

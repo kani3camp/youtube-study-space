@@ -3,6 +3,7 @@ package youtubebot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"unicode/utf8"
@@ -33,7 +34,7 @@ func NewYoutubeLiveChatBot(liveChatID string, controller repository.Repository, 
 	txErr := controller.FirestoreClient().RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		credentials, err := controller.ReadCredentialsConfig(ctx, tx)
 		if err != nil {
-			return err
+			return fmt.Errorf("read YouTube credentials: %w", err)
 		}
 
 		// channel
@@ -52,7 +53,7 @@ func NewYoutubeLiveChatBot(liveChatID string, controller repository.Repository, 
 		channelClientOption := option.WithTokenSource(channelTokenSource)
 		channelYoutubeService, err = youtube.NewService(ctx, channelClientOption)
 		if err != nil {
-			return err
+			return fmt.Errorf("create channel YouTube service: %w", err)
 		}
 
 		// bot
@@ -71,12 +72,12 @@ func NewYoutubeLiveChatBot(liveChatID string, controller repository.Repository, 
 		botClientOption := option.WithTokenSource(botTokenSource)
 		botYoutubeService, err = youtube.NewService(ctx, botClientOption)
 		if err != nil {
-			return err
+			return fmt.Errorf("create bot YouTube service: %w", err)
 		}
 		return nil
 	})
 	if txErr != nil {
-		return nil, txErr
+		return nil, fmt.Errorf("initialize YouTube services: %w", txErr)
 	}
 
 	return &YoutubeLiveChatBot{
@@ -140,7 +141,11 @@ func (b *YoutubeLiveChatBot) tryListMessages(nextPageToken string, liveChatID st
 		listCall = listCall.PageToken(nextPageToken)
 	}
 
-	return listCall.Do()
+	response, err := listCall.Do()
+	if err != nil {
+		return nil, fmt.Errorf("list live chat messages: %w", err)
+	}
+	return response, nil
 }
 
 func (b *YoutubeLiveChatBot) PostMessage(ctx context.Context, message string) error {
@@ -248,7 +253,10 @@ func (b *YoutubeLiveChatBot) tryPostMessage(message string, liveChatID string) e
 	liveChatMessageService := youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 	insertCall := liveChatMessageService.Insert(part, &liveChatMessage)
 	_, err := insertCall.Do()
-	return err
+	if err != nil {
+		return fmt.Errorf("insert live chat message: %w", err)
+	}
+	return nil
 }
 
 // refreshLiveChatID live chat idを取得するとともに、firestoreに保存（更新）する
@@ -299,14 +307,17 @@ func (b *YoutubeLiveChatBot) fetchActiveBroadcasts() (*youtube.LiveBroadcastList
 		listCall = broadCastsService.List(part).BroadcastStatus("active")
 		response, err = listCall.Do()
 	}
-	return response, err
+	if err != nil {
+		return nil, fmt.Errorf("list active broadcasts: %w", err)
+	}
+	return response, nil
 }
 
 // updateLiveChatID LiveChatIDを更新する
 func (b *YoutubeLiveChatBot) updateLiveChatID(ctx context.Context, newLiveChatID string) error {
 	slog.Info("new live chat id: " + newLiveChatID)
 	if err := b.FirestoreController.UpdateLiveChatID(ctx, nil, newLiveChatID); err != nil {
-		return err
+		return fmt.Errorf("persist live chat ID: %w", err)
 	}
 	b.LiveChatID = newLiveChatID
 	return nil
@@ -352,5 +363,8 @@ func (b *YoutubeLiveChatBot) tryBanUser(userID string, liveChatID string) error 
 	insertCall := liveChatBanService.Insert(part, &liveChatBan)
 
 	_, err := insertCall.Do()
-	return err
+	if err != nil {
+		return fmt.Errorf("insert live chat ban: %w", err)
+	}
+	return nil
 }

@@ -67,7 +67,7 @@ func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 			return fmt.Errorf("in job.Wait: %w", err)
 		}
 		if err = status.Err(); err != nil {
-			return err
+			return fmt.Errorf("load collection %q into BigQuery: %w", collectionName, err)
 		}
 		if status.State == bigquery.Done {
 			slog.Info("GCSからbqの一時テーブルまでデータの読込が完了", "collection", collectionName)

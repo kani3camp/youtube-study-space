@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,7 +91,7 @@ func TestWriteFileExclusiveDoesNotOverwriteExisting(t *testing.T) {
 	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeFileExclusive(path, "new"); !os.IsExist(err) {
+	if err := writeFileExclusive(path, "new"); !errors.Is(err, os.ErrExist) {
 		t.Fatalf("expected exist error, got %v", err)
 	}
 	got, err := os.ReadFile(path)

@@ -39,7 +39,7 @@ func Init() (option.ClientOption, context.Context, error) {
 
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load Google credentials: %w", err)
 	}
 	fmt.Printf("Project ID: %s\n", creds.ProjectID)
 	fmt.Println("Is this the correct project ID? (yes/no)")
