@@ -210,7 +210,7 @@ jobs:
         with:
           package_json_file: tools/menu-image-generator/package.json
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -245,7 +245,7 @@ jobs:
           package_json_file: youtube-monitor/package.json
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -273,7 +273,7 @@ jobs:
         with:
           package_json_file: youtube-monitor/package.json
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -307,7 +307,7 @@ jobs:
         with:
           package_json_file: youtube-monitor/package.json
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -333,7 +333,7 @@ jobs:
         with:
           package_json_file: docs-site/package.json
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -361,7 +361,7 @@ jobs:
         with:
           package_json_file: docs-site/package.json
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
@@ -387,7 +387,7 @@ jobs:
         with:
           package_json_file: aws-cdk/package.json
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
