@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next/pages'
-import type { FC } from 'react'
+import type { CSSProperties, FC } from 'react'
 import Marquee from 'react-fast-marquee'
 import { componentBackground } from '../styles/common.style'
 import * as styles from '../styles/TickerBoard.styles'
@@ -7,13 +7,14 @@ import type { WorkNameTrend } from '../types/api'
 
 type Props = {
 	workNameTrend: WorkNameTrend
+	style?: CSSProperties
 }
 
-const TickerBoard: FC<Props> = ({ workNameTrend }) => {
+const TickerBoard: FC<Props> = ({ workNameTrend, style }) => {
 	const { t } = useTranslation()
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} style={style}>
 			<div css={styles.container}>
 				<Marquee
 					css={styles.marquee}

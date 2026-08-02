@@ -1,14 +1,18 @@
 /** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next/pages'
-import { type FC, memo } from 'react'
+import { type CSSProperties, type FC, memo } from 'react'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Usage.styles'
 
-const Usage: FC = () => {
+type UsageProps = {
+	style?: CSSProperties
+}
+
+const Usage: FC<UsageProps> = ({ style }) => {
 	const { t } = useTranslation()
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} style={style}>
 			<div css={[styles.usage, componentStyle]}>
 				<h4 css={styles.description}>{t('usage.description')}</h4>
 				<div css={styles.command}>

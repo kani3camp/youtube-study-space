@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next/pages'
-import type { FC } from 'react'
+import type { CSSProperties, FC } from 'react'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Message.styles'
 import type { Seat } from '../types/api'
@@ -9,6 +9,7 @@ type Props = {
 	currentPagesLength: number
 	currentPageIsMember: boolean
 	seats: Seat[]
+	style?: CSSProperties
 }
 
 const Message: FC<Props> = (props) => {
@@ -37,7 +38,7 @@ const Message: FC<Props> = (props) => {
 		)
 	}
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} style={props.style}>
 			<div css={[styles.message, componentStyle]}>{content}</div>
 		</div>
 	)

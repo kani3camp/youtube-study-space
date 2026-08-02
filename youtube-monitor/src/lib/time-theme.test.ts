@@ -146,12 +146,12 @@ describe('debug query', () => {
 		expect(parseDebugTimeTheme(theme, true)).toBe(theme)
 	})
 
-	test.each<TextTone>([
-		'dark',
-		'light',
-	])('デバッグ時に文字トーン %s を受け入れる', (tone) => {
-		expect(parseDebugTextTone(tone, true)).toBe(tone)
-	})
+	test.each<TextTone>(['dark', 'light'])(
+		'デバッグ時に文字トーン %s を受け入れる',
+		(tone) => {
+			expect(parseDebugTextTone(tone, true)).toBe(tone)
+		},
+	)
 
 	test('未知のテーマ名と文字トーンを拒否する', () => {
 		expect(parseDebugTimeTheme('unknown', true)).toBeUndefined()

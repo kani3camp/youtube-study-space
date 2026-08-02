@@ -180,16 +180,19 @@ describe('ambient theme contrast', () => {
 		['sunset', 'dark', 'twilight', 'dark'],
 		['twilight', 'light', 'night', 'light'],
 		['night', 'light', 'midnight', 'light'],
-	])('%s (%s) → %s (%s) の背景遷移中も作業アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedAccentContrast(
-			getStudyAccentColor,
-			fromTheme,
-			fromTone,
-			toTheme,
-			toTone,
-			3,
-		)
-	})
+	])(
+		'%s (%s) → %s (%s) の背景遷移中も作業アクセントが3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedAccentContrast(
+				getStudyAccentColor,
+				fromTheme,
+				fromTone,
+				toTheme,
+				toTone,
+				3,
+			)
+		},
+	)
 
 	test.each<[TimeTheme, TextTone]>([
 		['dawn', 'dark'],
@@ -213,16 +216,19 @@ describe('ambient theme contrast', () => {
 		['sunset', 'dark', 'twilight', 'dark'],
 		['twilight', 'light', 'night', 'light'],
 		['night', 'light', 'midnight', 'light'],
-	])('%s (%s) → %s (%s) の背景遷移中も休憩アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedAccentContrast(
-			getBreakAccentColor,
-			fromTheme,
-			fromTone,
-			toTheme,
-			toTone,
-			3,
-		)
-	})
+	])(
+		'%s (%s) → %s (%s) の背景遷移中も休憩アクセントが3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedAccentContrast(
+				getBreakAccentColor,
+				fromTheme,
+				fromTone,
+				toTheme,
+				toTone,
+				3,
+			)
+		},
+	)
 
 	test.each<[TimeTheme, TextTone]>([
 		['dawn', 'dark'],
@@ -240,31 +246,31 @@ describe('ambient theme contrast', () => {
 		}
 	})
 
-	test.each<TextTone>([
-		'dark',
-		'light',
-	])('twilight の %s 専用面と文字が4.5:1以上になる', (tone) => {
-		for (const surfaceName of READING_SURFACES) {
-			assertAllTextContrast(
-				TWILIGHT_TONE_TEXT_COLORS[tone],
-				TWILIGHT_TONE_COLORS[tone][surfaceName] as RgbaColor,
-				4.5,
-			)
-		}
-	})
+	test.each<TextTone>(['dark', 'light'])(
+		'twilight の %s 専用面と文字が4.5:1以上になる',
+		(tone) => {
+			for (const surfaceName of READING_SURFACES) {
+				assertAllTextContrast(
+					TWILIGHT_TONE_TEXT_COLORS[tone],
+					TWILIGHT_TONE_COLORS[tone][surfaceName] as RgbaColor,
+					4.5,
+				)
+			}
+		},
+	)
 
-	test.each<TextTone>([
-		'dark',
-		'light',
-	])('コントラストブリッジは %s トーンで4.5:1以上になる', (tone) => {
-		for (const surfaceName of READING_SURFACES) {
-			assertAllTextContrast(
-				CONTRAST_BRIDGE_TEXT_COLORS[tone],
-				CONTRAST_BRIDGE_COLORS[surfaceName] as RgbaColor,
-				4.5,
-			)
-		}
-	})
+	test.each<TextTone>(['dark', 'light'])(
+		'コントラストブリッジは %s トーンで4.5:1以上になる',
+		(tone) => {
+			for (const surfaceName of READING_SURFACES) {
+				assertAllTextContrast(
+					CONTRAST_BRIDGE_TEXT_COLORS[tone],
+					CONTRAST_BRIDGE_COLORS[surfaceName] as RgbaColor,
+					4.5,
+				)
+			}
+		},
+	)
 
 	test.each<[TimeTheme, TextTone]>([
 		['dawn', 'dark'],
@@ -306,14 +312,17 @@ describe('ambient theme contrast', () => {
 		['sunset', 'dark', 'twilight', 'dark'],
 		['twilight', 'light', 'night', 'light'],
 		['night', 'light', 'midnight', 'light'],
-	])('%s → %s の同極性遷移で対象テーマの文字が3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedContrast(
-			getSurfaceColors(fromTheme, fromTone),
-			getSurfaceColors(toTheme, toTone),
-			getTextColors(toTheme, toTone),
-			3,
-		)
-	})
+	])(
+		'%s → %s の同極性遷移で対象テーマの文字が3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedContrast(
+				getSurfaceColors(fromTheme, fromTone),
+				getSurfaceColors(toTheme, toTone),
+				getTextColors(toTheme, toTone),
+				3,
+			)
+		},
+	)
 
 	test('twilight前半 → ブリッジは安全なdark文字で3:1以上を保つ', () => {
 		assertInterpolatedContrast(
@@ -338,18 +347,21 @@ describe('ambient theme contrast', () => {
 		['dawn', 'dark', 'night', 'light'],
 		['night', 'light', 'day', 'dark'],
 		['day', 'dark', 'midnight', 'light'],
-	])('%s → %s の直接反転はブリッジ前後で3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
-		assertInterpolatedContrast(
-			getSurfaceColors(fromTheme, fromTone),
-			CONTRAST_BRIDGE_COLORS,
-			CONTRAST_BRIDGE_TEXT_COLORS[fromTone],
-			3,
-		)
-		assertInterpolatedContrast(
-			CONTRAST_BRIDGE_COLORS,
-			getSurfaceColors(toTheme, toTone),
-			getTextColors(toTheme, toTone),
-			3,
-		)
-	})
+	])(
+		'%s → %s の直接反転はブリッジ前後で3:1以上を保つ',
+		(fromTheme, fromTone, toTheme, toTone) => {
+			assertInterpolatedContrast(
+				getSurfaceColors(fromTheme, fromTone),
+				CONTRAST_BRIDGE_COLORS,
+				CONTRAST_BRIDGE_TEXT_COLORS[fromTone],
+				3,
+			)
+			assertInterpolatedContrast(
+				CONTRAST_BRIDGE_COLORS,
+				getSurfaceColors(toTheme, toTone),
+				getTextColors(toTheme, toTone),
+				3,
+			)
+		},
+	)
 })

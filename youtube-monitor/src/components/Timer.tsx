@@ -1,6 +1,13 @@
 /** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next/pages'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+	type CSSProperties,
+	memo,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react'
 import {
 	buildStyles,
 	CircularProgressbarWithChildren,
@@ -19,7 +26,11 @@ import * as styles from '../styles/Timer.styles'
 
 const UPDATE_INTERVAL_MS = 100
 
-const Timer = memo(function Timer() {
+type TimerProps = {
+	style?: CSSProperties
+}
+
+const Timer = memo(function Timer({ style }: TimerProps) {
 	const { t } = useTranslation()
 	const [now, setNow] = useState<Date | null>(null)
 
@@ -41,7 +52,7 @@ const Timer = memo(function Timer() {
 	const isReady = now !== null
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} style={style}>
 			<div css={[styles.timer, componentStyle]}>
 				<div css={styles.progressBarContainer}>
 					<CircularProgressbarWithChildren
