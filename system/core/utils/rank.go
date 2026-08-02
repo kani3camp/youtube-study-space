@@ -1,10 +1,9 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"time"
-
-	"errors"
 
 	"app.modules/core/timeutil"
 )

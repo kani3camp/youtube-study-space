@@ -1,9 +1,11 @@
 package utils
 
 import (
-	"app.modules/core/i18n"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"app.modules/core/i18n"
 )
 
 func TestParseChange(t *testing.T) {
@@ -166,5 +168,4 @@ func TestParseChange(t *testing.T) {
 			}
 		})
 	}
-
 }

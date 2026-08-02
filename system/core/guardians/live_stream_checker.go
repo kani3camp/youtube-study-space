@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"app.modules/core/moderatorbot"
-	"app.modules/core/repository"
-	"app.modules/core/youtubebot"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
+
+	"app.modules/core/moderatorbot"
+	"app.modules/core/repository"
+	"app.modules/core/youtubebot"
 )
 
 type LiveStreamChecker struct {
@@ -24,7 +25,6 @@ func NewLiveStreamChecker(
 	youtubeLiveChatBot youtubebot.LiveChatBot,
 	messageBot moderatorbot.MessageBot,
 ) *LiveStreamChecker {
-
 	return &LiveStreamChecker{
 		YoutubeLiveChatBot:  youtubeLiveChatBot,
 		alertOwnerBot:       messageBot,
@@ -35,7 +35,7 @@ func NewLiveStreamChecker(
 func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	credentials, err := checker.FirestoreController.ReadCredentialsConfig(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("read credentials config: %w", err)
 	}
 	config := &oauth2.Config{
 		ClientID:     credentials.YoutubeChannelClientID,

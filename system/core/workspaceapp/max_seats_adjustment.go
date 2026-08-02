@@ -46,7 +46,7 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 			// なくなる座席にいるユーザーは退出させる
 			seats, err := app.Repository.ReadGeneralSeats(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("read general seats before shrinking: %w", err)
 			}
 			app.MessageToLiveChat(ctx, "座席数を"+strconv.Itoa(constants.DesiredMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {

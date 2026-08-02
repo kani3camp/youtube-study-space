@@ -1,7 +1,8 @@
 import Document, { Head, Html, Main, NextScript } from 'next/document'
+import type { ReactElement } from 'react'
 
 class MyDocument extends Document {
-	render(): JSX.Element {
+	render(): ReactElement {
 		return (
 			<Html>
 				<Head>
@@ -13,7 +14,7 @@ class MyDocument extends Document {
 					<link
 						rel="preconnect"
 						href="https://fonts.gstatic.com"
-						crossOrigin="true"
+						crossOrigin="anonymous"
 					/>
 					<link
 						href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@300&display=swap"

@@ -1,0 +1,57 @@
+name: 改善案を提案する
+description: 作業部屋、コマンド、説明、コミュニティ体験についてのアイデアを共有できます
+title: "[改善案]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        アイデアの共有ありがとうございます。実装方法を考える必要はありません。「どのような体験になると嬉しいか」を説明していただければ十分です。
+
+        ここに投稿した内容はインターネット上に公開されます。個人情報や機密情報は含めないでください。
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: どのような改善を希望しますか？
+      description: 欲しい機能、変更してほしい動作、分かりやすくしてほしい説明などを記載してください。
+      placeholder: 〜できるようになると便利だと思います。
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefit
+    attributes:
+      label: どのような点で役立ちますか？
+      description: 現在困っていることや、その改善によって利用体験がどう良くなるかを記載してください。
+      placeholder: 現在は〜で困ることがあり、この改善によって...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: どの領域に関する提案ですか？
+      options:
+        - ライブチャットのコマンド
+        - ライブ配信の作業部屋画面
+        - ドキュメント・使い方の説明
+        - YouTubeメンバーシップ
+        - コミュニティ・モデレーション
+        - 安定性・自動運用
+        - その他
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: 参考例・補足情報
+      description: スクリーンショット、参考リンク、似たサービスの例など、アイデアを理解しやすくする情報があれば追加してください。
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 公開情報の確認
+      options:
+        - label: この提案から個人情報や機密情報を取り除きました。
+          required: true

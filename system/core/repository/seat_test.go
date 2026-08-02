@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"app.modules/core/timeutil"
 	"github.com/stretchr/testify/assert"
+
+	"app.modules/core/timeutil"
 )
 
 const testTimeLayout = "2006-01-02 15:04:05"

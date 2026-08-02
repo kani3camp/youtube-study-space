@@ -17,13 +17,15 @@ export const shape = css`
 export const bgmPlayer = css`
     height: calc(100% - ${sidebarCardVerticalInsetPx}px);
     width: calc(100% - ${sidebarCardHorizontalInsetPx}px);
-    background-color: rgba(53, 49, 49, 0.3);
+    background-color: var(--ambient-panel-dark-bg);
     position: absolute;
     text-align: center;
-    color: ${Constants.secondaryTextColor};
+    color: var(--ambient-bgm-text);
     word-break: break-all;
     z-index: 20;
     border-radius: 0.6rem;
+    border: 1px solid var(--ambient-border);
+    box-sizing: border-box;
 
     overflow: hidden;
 
@@ -38,16 +40,16 @@ export const bgmPlayer = css`
 `
 
 export const audioCanvasDiv = css`
-    z-index: 10;
-    clip-path: inset(0, 0, 0, 0);
+	z-index: 10;
+	clip-path: inset(0, 0, 0, 0);
 `
 
 export const audioCanvas = css`
-    height: 30%;
-    width: 100%;
-    background-color: #77777700;
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    z-index: 15;
+	height: 30%;
+	width: 100%;
+	background-color: #77777700;
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	z-index: 15;
 `
