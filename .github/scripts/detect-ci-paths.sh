@@ -10,6 +10,7 @@ readonly CI_GROUPS=(
 	docs_site
 	aws_cdk
 	node_projects
+	firestore_integration
 	all
 )
 
@@ -20,6 +21,7 @@ youtube_monitor=false
 docs_site=false
 aws_cdk=false
 node_projects=false
+firestore_integration=false
 all=false
 
 changed_paths=()
@@ -45,12 +47,13 @@ set_all_groups() {
 	docs_site=true
 	aws_cdk=true
 	node_projects=true
+	firestore_integration=true
 	all=true
 }
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/actions/*)
+		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -71,6 +74,7 @@ classify_path() {
 	case "$path" in
 		system/*)
 			system=true
+			firestore_integration=true
 			if [[ "$path" == system/Dockerfile* || "$path" == system/.dockerignore ]]; then
 				aws_cdk=true
 			fi
@@ -90,6 +94,10 @@ classify_path() {
 			;;
 		docs-site/*)
 			docs_site=true
+			matched=true
+			;;
+		firebase/*)
+			firestore_integration=true
 			matched=true
 			;;
 		aws-cdk/*)
@@ -165,6 +173,7 @@ group_value() {
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		node_projects) printf '%s' "$node_projects" ;;
+		firestore_integration) printf '%s' "$firestore_integration" ;;
 		all) printf '%s' "$all" ;;
 		*)
 			echo "Unknown CI group: $1" >&2
