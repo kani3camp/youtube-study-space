@@ -9,13 +9,17 @@ import {
 import type { TextTone, TimeTheme } from './time-theme'
 import {
 	AMBIENT_BGM_TEXT_COLOR,
+	AMBIENT_THEME_BREAK_ACCENT_COLORS,
 	AMBIENT_THEME_COLORS,
+	AMBIENT_THEME_STUDY_ACCENT_COLORS,
 	AMBIENT_THEME_TEXT_COLORS,
 	type AmbientSurfaceColors,
 	type AmbientTextColors,
 	CONTRAST_BRIDGE_COLORS,
 	CONTRAST_BRIDGE_TEXT_COLORS,
+	TWILIGHT_TONE_BREAK_ACCENT_COLORS,
 	TWILIGHT_TONE_COLORS,
+	TWILIGHT_TONE_STUDY_ACCENT_COLORS,
 	TWILIGHT_TONE_TEXT_COLORS,
 } from './time-theme-colors'
 
@@ -58,6 +62,16 @@ const getTextColors = (theme: TimeTheme, tone: TextTone): AmbientTextColors =>
 	theme === 'twilight'
 		? TWILIGHT_TONE_TEXT_COLORS[tone]
 		: AMBIENT_THEME_TEXT_COLORS[theme]
+
+const getBreakAccentColor = (theme: TimeTheme, tone: TextTone): RgbaColor =>
+	theme === 'twilight'
+		? TWILIGHT_TONE_BREAK_ACCENT_COLORS[tone]
+		: AMBIENT_THEME_BREAK_ACCENT_COLORS[theme]
+
+const getStudyAccentColor = (theme: TimeTheme, tone: TextTone): RgbaColor =>
+	theme === 'twilight'
+		? TWILIGHT_TONE_STUDY_ACCENT_COLORS[tone]
+		: AMBIENT_THEME_STUDY_ACCENT_COLORS[theme]
 
 const assertAllTextContrast = (
 	textColors: AmbientTextColors,
@@ -103,6 +117,29 @@ const assertInterpolatedContrast = (
 	}
 }
 
+const assertInterpolatedAccentContrast = (
+	getAccentColor: (theme: TimeTheme, tone: TextTone) => RgbaColor,
+	fromTheme: TimeTheme,
+	fromTone: TextTone,
+	toTheme: TimeTheme,
+	toTone: TextTone,
+	minimum: number,
+) => {
+	const fromSurface = getSurfaceColors(fromTheme, fromTone).panel
+	const toSurface = getSurfaceColors(toTheme, toTone).panel
+	const accentColors = [
+		getAccentColor(fromTheme, fromTone),
+		getAccentColor(toTheme, toTone),
+	]
+
+	for (let step = 0; step <= 20; step++) {
+		const surface = interpolateColors(fromSurface, toSurface, step / 20)
+		for (const accentColor of accentColors) {
+			assertContrast(accentColor, surface, minimum)
+		}
+	}
+}
+
 describe('WCAG color utilities', () => {
 	test('black/white の相対輝度とコントラスト比を計算する', () => {
 		expect(getRelativeLuminance(rgba(0, 0, 0))).toBe(0)
@@ -121,6 +158,72 @@ describe('WCAG color utilities', () => {
 })
 
 describe('ambient theme contrast', () => {
+	test.each<[TimeTheme, TextTone]>([
+		['dawn', 'dark'],
+		['day', 'dark'],
+		['sunset', 'dark'],
+		['twilight', 'dark'],
+		['twilight', 'light'],
+		['night', 'light'],
+		['midnight', 'light'],
+	])('%s の作業アクセントがパネル上で4.5:1以上になる', (theme, tone) => {
+		assertContrast(
+			getStudyAccentColor(theme, tone),
+			getSurfaceColors(theme, tone).panel,
+			4.5,
+		)
+	})
+
+	test.each<[TimeTheme, TextTone, TimeTheme, TextTone]>([
+		['dawn', 'dark', 'day', 'dark'],
+		['day', 'dark', 'sunset', 'dark'],
+		['sunset', 'dark', 'twilight', 'dark'],
+		['twilight', 'light', 'night', 'light'],
+		['night', 'light', 'midnight', 'light'],
+	])('%s (%s) → %s (%s) の背景遷移中も作業アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
+		assertInterpolatedAccentContrast(
+			getStudyAccentColor,
+			fromTheme,
+			fromTone,
+			toTheme,
+			toTone,
+			3,
+		)
+	})
+
+	test.each<[TimeTheme, TextTone]>([
+		['dawn', 'dark'],
+		['day', 'dark'],
+		['sunset', 'dark'],
+		['twilight', 'dark'],
+		['twilight', 'light'],
+		['night', 'light'],
+		['midnight', 'light'],
+	])('%s の休憩アクセントがパネル上で4.5:1以上になる', (theme, tone) => {
+		assertContrast(
+			getBreakAccentColor(theme, tone),
+			getSurfaceColors(theme, tone).panel,
+			4.5,
+		)
+	})
+
+	test.each<[TimeTheme, TextTone, TimeTheme, TextTone]>([
+		['dawn', 'dark', 'day', 'dark'],
+		['day', 'dark', 'sunset', 'dark'],
+		['sunset', 'dark', 'twilight', 'dark'],
+		['twilight', 'light', 'night', 'light'],
+		['night', 'light', 'midnight', 'light'],
+	])('%s (%s) → %s (%s) の背景遷移中も休憩アクセントが3:1以上を保つ', (fromTheme, fromTone, toTheme, toTone) => {
+		assertInterpolatedAccentContrast(
+			getBreakAccentColor,
+			fromTheme,
+			fromTone,
+			toTheme,
+			toTone,
+			3,
+		)
+	})
+
 	test.each<[TimeTheme, TextTone]>([
 		['dawn', 'dark'],
 		['day', 'dark'],
