@@ -43,6 +43,7 @@ const HorizontalMonitor: FC = () => {
 
 	useSeatCapacityController({
 		enabled: true,
+		ready: monitorData.seatCapacityControlReady,
 		generalSeats: monitorData.generalSeats,
 		memberSeats: monitorData.memberSeats,
 		systemConstants: monitorData.systemConstants,

@@ -40,6 +40,7 @@ const VerticalMonitor: FC = () => {
 
 	useSeatCapacityController({
 		enabled: false,
+		ready: false,
 		generalSeats: monitorData.generalSeats,
 		memberSeats: monitorData.memberSeats,
 		systemConstants: monitorData.systemConstants,

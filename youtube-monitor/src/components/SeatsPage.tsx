@@ -1,5 +1,6 @@
 import Image from 'next/image'
-import { type FC, useMemo } from 'react'
+import { type FC, useMemo, useState } from 'react'
+import { useInterval } from '../lib/common'
 import { calculateRoomSize } from '../lib/room-size'
 import * as styles from '../styles/SeatsPage.styles'
 import type { Seat } from '../types/api'
@@ -31,6 +32,9 @@ const SeatsPage: FC<LayoutPageProps> = ({
 	menuImageMap,
 	viewport,
 }) => {
+	const [now, setNow] = useState(() => Date.now())
+	useInterval(() => setNow(Date.now()), 60_000)
+
 	const roomSize = useMemo(
 		() => calculateRoomSize(roomLayout.room_shape, viewport),
 		[roomLayout.room_shape, viewport],
@@ -96,7 +100,6 @@ const SeatsPage: FC<LayoutPageProps> = ({
 				const processingSeat =
 					usedSeats.find((seat) => seat.seat_id === globalSeatId) ??
 					usedSeats[0]
-				const now = Date.now()
 				const minutesElapsed = isUsed
 					? Math.floor((now - processingSeat.entered_at.toMillis()) / 1000 / 60)
 					: 0
@@ -136,6 +139,7 @@ const SeatsPage: FC<LayoutPageProps> = ({
 			roomSize,
 			usedSeatIds,
 			menuImageMap,
+			now,
 		],
 	)
 

@@ -46,6 +46,7 @@ export type MonitorData = {
 	generalSeats: Seat[]
 	memberSeats: Seat[]
 	systemConstants?: SystemConstants
+	seatCapacityControlReady: boolean
 	workNameTrend: WorkNameTrend
 	menuItems: Menu[]
 	menuImageMap: Map<string, string>
@@ -164,11 +165,16 @@ const useMonitorData = (): MonitorData => {
 	}, [menuItems])
 
 	const loading = DATA_SOURCES.some((source) => !loadedSources[source])
+	const seatCapacityControlReady =
+		loadedSources.generalSeats &&
+		loadedSources.memberSeats &&
+		loadedSources.constants
 
 	return {
 		generalSeats,
 		memberSeats,
 		systemConstants,
+		seatCapacityControlReady,
 		workNameTrend,
 		menuItems,
 		menuImageMap,
