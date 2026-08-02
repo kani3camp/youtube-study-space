@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+
 	"github.com/kani3camp/youtube-study-space/tools/room-image-prompt/data"
 	"github.com/kani3camp/youtube-study-space/tools/room-image-prompt/internal/theme"
 )
@@ -90,11 +91,11 @@ func run() error {
 
 	th, err := theme.BuildTheme(fsys, rng)
 	if err != nil {
-		return err
+		return fmt.Errorf("テーマ構築: %w", err)
 	}
 	tmpl, err := theme.ReadTemplate(fsys)
 	if err != nil {
-		return err
+		return fmt.Errorf("テンプレート読込: %w", err)
 	}
 	body := theme.RenderFinal(tmpl, th.FormatThemeBlock())
 
@@ -160,7 +161,7 @@ func writeDefaultOutput(wd, body string) (string, error) {
 	for attempt := range defaultOutputMaxAttempts {
 		dest := filepath.Join(outputDir, defaultOutputFileName(time.Now(), attempt))
 		if err := writeFileExclusive(dest, body); err != nil {
-			if os.IsExist(err) {
+			if errors.Is(err, os.ErrExist) {
 				continue
 			}
 			return "", fmt.Errorf("出力書き込み: %w", err)
@@ -181,7 +182,7 @@ func defaultOutputFileName(now time.Time, attempt int) string {
 func writeFileExclusive(path, body string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("出力ファイル作成: %w", err)
 	}
 
 	n, writeErr := f.WriteString(body)
@@ -190,9 +191,12 @@ func writeFileExclusive(path, body string) error {
 	}
 	closeErr := f.Close()
 	if writeErr != nil {
-		return writeErr
+		return fmt.Errorf("出力書き込み: %w", writeErr)
 	}
-	return closeErr
+	if closeErr != nil {
+		return fmt.Errorf("出力ファイルを閉じる: %w", closeErr)
+	}
+	return nil
 }
 
 func newRNG(seedStr string) (*rand.Rand, error) {

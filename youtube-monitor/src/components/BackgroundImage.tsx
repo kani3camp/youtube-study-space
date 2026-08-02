@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/BackgroundImage.styles'
 
-const BACKGROUND_IMAGE_URL = '/images/background/20549579_6334500.jpg'
+const BACKGROUND_IMAGE_URL = '/images/background/4167307_214.jpg'
 
 const BackgroundImage: FC = () => {
 	return (

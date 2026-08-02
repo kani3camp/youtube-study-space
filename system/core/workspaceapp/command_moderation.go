@@ -6,13 +6,14 @@ import (
 	"log/slog"
 	"strconv"
 
+	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
-	"cloud.google.com/go/firestore"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func (app *WorkspaceApp) Report(ctx context.Context, reportOption *utils.ReportOption) error {

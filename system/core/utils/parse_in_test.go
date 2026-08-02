@@ -1,13 +1,14 @@
 package utils
 
 import (
-	"app.modules/core/i18n"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"app.modules/core/i18n"
 )
 
 func TestParseIn(t *testing.T) {
-
 	testCases := []ParseCommandTestCase{
 		{
 			Name:  "基本的な入室",
@@ -741,5 +742,4 @@ func TestParseIn(t *testing.T) {
 			}
 		})
 	}
-
 }

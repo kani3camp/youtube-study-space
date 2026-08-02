@@ -9,6 +9,12 @@ import (
 	"strconv"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/mybigquery"
 	"app.modules/core/mystorage"
@@ -16,11 +22,6 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
-	"cloud.google.com/go/firestore"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // OrganizeDB 1分ごとに処理を行う。
