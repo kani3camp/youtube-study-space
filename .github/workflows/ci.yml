@@ -1,0 +1,423 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect CI Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      system: ${{ steps.detect.outputs.system }}
+      room_image_prompt: ${{ steps.detect.outputs.room_image_prompt }}
+      menu_image_generator: ${{ steps.detect.outputs.menu_image_generator }}
+      youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
+      docs_site: ${{ steps.detect.outputs.docs_site }}
+      aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
+      node_projects: ${{ steps.detect.outputs.node_projects }}
+      all: ${{ steps.detect.outputs.all }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/detect-ci-paths.sh
+
+  node-lts-ignore-expiry:
+    name: Node LTS Ignore Expiry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check Node LTS ignore expiry
+        run: tools/ci/check-node-lts-ignore-expiry.sh
+
+  check-i18n-generate:
+    name: Generated Files Up-to-Date
+    needs: changes
+    if: ${{ needs.changes.outputs.system == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Run go generate
+        run: go generate ./...
+        env:
+          I18N_BASELINE: ja
+
+      - name: Verify no diff
+        working-directory: ${{ github.workspace }}
+        run: |
+          git update-index -q --refresh
+          if ! git diff --quiet --exit-code; then
+            echo "::error::Generated files are outdated. Please run 'go generate ./...' and commit the changes."
+            git diff --name-only
+            exit 1
+          fi
+
+  go-lint:
+    name: Go Lint
+    needs: changes
+    if: ${{ needs.changes.outputs.system == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.3
+          working-directory: system
+          args: --timeout=5m --config=.golangci.yml
+
+  system-go-test:
+    name: System Go Test
+    needs: changes
+    if: ${{ needs.changes.outputs.system == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
+
+  room-image-prompt-go-lint:
+    name: Room Image Prompt Go Lint
+    needs: changes
+    if: ${{ needs.changes.outputs.room_image_prompt == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.3
+          working-directory: tools/room-image-prompt
+          args: --timeout=5m --config=.golangci.yml
+
+  room-image-prompt-go-test:
+    name: Room Image Prompt Go Test
+    needs: changes
+    if: ${{ needs.changes.outputs.room_image_prompt == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/room-image-prompt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
+
+      - name: Build CLI
+        run: go build -o /dev/null ./cmd/room-image-prompt
+
+  menu-image-generator-lint-build:
+    name: Menu Image Generator Lint & Build
+    needs: changes
+    if: ${{ needs.changes.outputs.menu_image_generator == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/menu-image-generator
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools/menu-image-generator/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/menu-image-generator/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          # 依存関係インストール時（lint/build 用）はブラウザ不要のため Chromium ダウンロードをスキップ（タイムアウト防止）
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 1
+          PUPPETEER_SKIP_DOWNLOAD: 1
+      - name: Run lint
+        run: pnpm lint
+      - name: Run build
+        run: pnpm build
+
+  biome-lint:
+    name: Biome Lint (youtube-monitor)
+    needs: changes
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run check
+        run: pnpm exec biome check . --reporter=github
+
+  youtube-monitor-test:
+    name: YouTube Monitor Test
+    needs: changes
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm test
+
+  youtube-monitor-build:
+    name: YouTube Monitor Build
+    needs: changes
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    env:
+      NEXT_PUBLIC_DEBUG: "false"
+      NEXT_PUBLIC_CHANNEL_GL: "false"
+      NEXT_PUBLIC_ROOM_CONFIG: "DEV"
+      NEXT_PUBLIC_API_ENDPOINT: "http://localhost:3000"
+      NEXT_PUBLIC_API_KEY: "ci-dummy-api-key"
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "ci-dummy-project"
+      NEXT_PUBLIC_FIREBASE_API_KEY: "ci-dummy-firebase-api-key"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run build
+        run: pnpm build
+
+  docs-site-check:
+    name: Docs Site Lint & Typecheck
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs-site/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run lint
+        run: pnpm lint
+      - name: Run typecheck
+        run: pnpm typecheck
+
+  docs-site-build:
+    name: Docs Site Build
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs-site/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run build
+        run: pnpm build
+
+  aws-cdk-test:
+    name: AWS CDK Test
+    needs: changes
+    if: ${{ needs.changes.outputs.aws_cdk == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: aws-cdk
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: aws-cdk/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: aws-cdk/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm test
+      - name: Run CDK synth
+        run: pnpm cdk:synth
+
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs:
+      - changes
+      - node-lts-ignore-expiry
+      - check-i18n-generate
+      - go-lint
+      - system-go-test
+      - room-image-prompt-go-lint
+      - room-image-prompt-go-test
+      - menu-image-generator-lint-build
+      - biome-lint
+      - youtube-monitor-test
+      - youtube-monitor-build
+      - docs-site-check
+      - docs-site-build
+      - aws-cdk-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if a CI job failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "One or more CI jobs failed or were cancelled."
+          exit 1
+      - name: Pass when all selected jobs succeeded or were skipped
+        if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        run: echo "All selected CI jobs passed; skipped jobs are treated as successful."
