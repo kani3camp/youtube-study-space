@@ -1,21 +1,20 @@
 const canvasWidth = 1080
 const canvasHeight = 1920
 const outerPadding = 24
-const gap = 24
+const sectionGap = 18
 const contentWidth = canvasWidth - outerPadding * 2
 const contentHeight = canvasHeight - outerPadding * 2
 
 const fixedRows = {
-	header: 120,
-	room: 600,
-	metrics: 260,
-	join: 280,
+	header: 116,
+	room: 688,
+	information: 272,
 } as const
 
 const taglineHeight =
 	contentHeight -
 	Object.values(fixedRows).reduce((total, height) => total + height, 0) -
-	gap * 4
+	sectionGap * 3
 
 export const verticalLayout = {
 	canvas: {
@@ -27,20 +26,25 @@ export const verticalLayout = {
 		width: contentWidth,
 		height: contentHeight,
 	},
-	gap,
+	sectionGap,
 	rows: {
 		...fixedRows,
 		tagline: taglineHeight,
 	},
 	headerColumns: {
 		clock: 400,
-		gap,
-		status: 608,
+		gap: 18,
+		status: 614,
 	},
-	metricColumns: {
+	informationColumns: {
 		timer: 340,
-		gap,
-		ticker: 668,
+		gap: 18,
+		details: 674,
+	},
+	informationRows: {
+		usage: 116,
+		gap: 18,
+		ticker: 138,
 	},
 	roomViewport: {
 		width: contentWidth,

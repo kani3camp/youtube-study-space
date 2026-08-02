@@ -10,7 +10,7 @@ describe('verticalLayout', () => {
 			(total, height) => total + height,
 			0,
 		)
-		const occupiedHeight = rowHeight + verticalLayout.gap * 4
+		const occupiedHeight = rowHeight + verticalLayout.sectionGap * 3
 
 		expect(occupiedHeight).toBe(verticalLayout.content.height)
 		expect(verticalLayout.outerPadding * 2 + occupiedHeight).toBe(
@@ -18,16 +18,26 @@ describe('verticalLayout', () => {
 		)
 	})
 
-	it('keeps both two-column rows on the shared content width', () => {
+	it('keeps the header and information columns on the shared width', () => {
 		expect(
 			verticalLayout.headerColumns.clock +
 				verticalLayout.headerColumns.gap +
 				verticalLayout.headerColumns.status,
 		).toBe(verticalLayout.content.width)
 		expect(
-			verticalLayout.metricColumns.timer +
-				verticalLayout.metricColumns.gap +
-				verticalLayout.metricColumns.ticker,
+			verticalLayout.informationColumns.timer +
+				verticalLayout.informationColumns.gap +
+				verticalLayout.informationColumns.details,
 		).toBe(verticalLayout.content.width)
+	})
+
+	it('fits the information detail rows and room viewport exactly', () => {
+		expect(
+			verticalLayout.informationRows.usage +
+				verticalLayout.informationRows.gap +
+				verticalLayout.informationRows.ticker,
+		).toBe(verticalLayout.rows.information)
+		expect(verticalLayout.roomViewport).toEqual({ width: 1032, height: 688 })
+		expect(verticalLayout.rows).not.toHaveProperty('join')
 	})
 })

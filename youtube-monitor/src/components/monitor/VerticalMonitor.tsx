@@ -83,25 +83,24 @@ const VerticalMonitor: FC = () => {
 						viewport={verticalLayout.roomViewport}
 					/>
 				</section>
-				<section css={styles.metricsGrid}>
+				<section css={styles.informationGrid}>
 					<div css={[styles.verticalPanel, styles.timerPanel]}>
 						<Timer variant="vertical" />
 					</div>
-					<div css={[styles.verticalPanel, styles.tickerPanel]}>
-						<TickerBoard
-							workNameTrend={monitorData.workNameTrend}
-							variant="vertical"
-						/>
+					<div css={styles.informationDetails}>
+						<div css={[styles.verticalPanel, styles.usagePanel]}>
+							<Usage variant="vertical" />
+						</div>
+						<div css={[styles.verticalPanel, styles.tickerPanel]}>
+							<TickerBoard
+								workNameTrend={monitorData.workNameTrend}
+								variant="vertical"
+							/>
+						</div>
 					</div>
-				</section>
-				<section css={[styles.verticalPanel, styles.joinSection]}>
-					<Usage variant="vertical" />
 				</section>
 				<section css={styles.taglineSection}>
 					<h2 css={styles.taglineTitle}>静かに、一緒に作業できます</h2>
-					<p css={styles.taglineText}>
-						カメラ・マイク不要。YouTubeのチャットから自由に参加・退室できます。
-					</p>
 				</section>
 			</main>
 			{pages.length === 0 && <CenterLoading />}

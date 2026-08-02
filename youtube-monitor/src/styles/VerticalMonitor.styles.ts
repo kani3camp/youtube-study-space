@@ -27,10 +27,9 @@ export const layout = css`
 	grid-template-rows:
 		${verticalLayout.rows.header}px
 		${verticalLayout.rows.room}px
-		${verticalLayout.rows.metrics}px
-		${verticalLayout.rows.join}px
+		${verticalLayout.rows.information}px
 		${verticalLayout.rows.tagline}px;
-	gap: ${verticalLayout.gap}px;
+	gap: ${verticalLayout.sectionGap}px;
 	height: 100%;
 	width: 100%;
 	padding: ${verticalLayout.outerPadding}px;
@@ -71,13 +70,27 @@ export const roomSection = css`
 	box-shadow: 0 8px 24px rgba(42, 35, 30, 0.12);
 `
 
-export const metricsGrid = css`
+export const informationGrid = css`
 	display: grid;
 	grid-template-columns:
-		${verticalLayout.metricColumns.timer}px
-		${verticalLayout.metricColumns.ticker}px;
-	gap: ${verticalLayout.metricColumns.gap}px;
+		${verticalLayout.informationColumns.timer}px
+		${verticalLayout.informationColumns.details}px;
+	gap: ${verticalLayout.informationColumns.gap}px;
 	min-width: 0;
+
+	> * {
+		min-width: 0;
+	}
+`
+
+export const informationDetails = css`
+	display: grid;
+	grid-template-rows:
+		${verticalLayout.informationRows.usage}px
+		${verticalLayout.informationRows.ticker}px;
+	gap: ${verticalLayout.informationRows.gap}px;
+	min-width: 0;
+	height: 100%;
 
 	> * {
 		min-width: 0;
@@ -95,7 +108,7 @@ export const tickerPanel = css`
 	overflow: hidden;
 `
 
-export const joinSection = css`
+export const usagePanel = css`
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -111,20 +124,13 @@ export const taglineSection = css`
 	padding: 24px 64px 96px;
 	color: var(--ambient-text-primary);
 	text-align: center;
-	text-shadow: 0 2px 14px rgba(255, 255, 255, 0.7);
+	text-shadow: 0 2px 8px rgba(255, 255, 255, 0.3);
 `
 
 export const taglineTitle = css`
-	margin: 0 0 18px;
-	font-size: 1.55rem;
+	margin: 0;
+	font-size: 1.25rem;
 	font-weight: 700;
 	line-height: 1.35;
-`
-
-export const taglineText = css`
-	margin: 0;
-	max-width: 840px;
-	color: var(--ambient-text-muted);
-	font-size: 0.82rem;
-	line-height: 1.7;
+	opacity: 0.72;
 `

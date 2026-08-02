@@ -24,12 +24,12 @@ export const message = css`
 export const verticalMessage = css`
 	position: relative;
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
 	height: 100%;
 	width: 100%;
-	padding: 16px 28px;
+	padding: 0;
 	box-sizing: border-box;
-	font-size: 0.78rem;
+	font-size: 1rem;
 `
 
 export const pageInfo = css`
@@ -43,17 +43,18 @@ export const pageInfo = css`
 export const verticalPageInfo = css`
 	position: relative;
 	width: 100%;
-	gap: 10px;
-	padding-right: 28px;
+	height: 100%;
+	gap: 12px;
+	padding: 0 24px;
 	box-sizing: border-box;
 	white-space: nowrap;
 
 	&::after {
 		position: absolute;
-		top: 20%;
-		right: 0;
-		height: 60%;
-		width: 1px;
+		bottom: 0;
+		left: 8%;
+		height: 1px;
+		width: 84%;
 		background-color: var(--ambient-border);
 		content: "";
 	}
@@ -61,6 +62,24 @@ export const verticalPageInfo = css`
 
 export const pageIndex = css`
 	display: inline-block;
+`
+
+export const verticalPageIndex = css`
+	display: inline-flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: 12px;
+`
+
+export const verticalPageLabel = css`
+	font-size: 0.82rem;
+	font-weight: 600;
+`
+
+export const verticalPageNumber = css`
+	font-size: 1.08rem;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
 `
 
 export const memberOnly = css`
@@ -79,7 +98,7 @@ export const verticalMemberOnly = css`
 	width: auto;
 	margin-left: 0;
 	padding: 3px 8px;
-	font-size: 0.4rem;
+	font-size: 0.36rem;
 	white-space: nowrap;
 `
 
@@ -101,11 +120,14 @@ export const verticalNumStudyingPeople = css`
 	align-items: center;
 	justify-content: center;
 	width: 100%;
-	padding-left: 28px;
+	height: 100%;
+	padding: 0 24px;
 	box-sizing: border-box;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
+	font-size: 1rem;
+	font-weight: 600;
 	white-space: nowrap;
 `
 

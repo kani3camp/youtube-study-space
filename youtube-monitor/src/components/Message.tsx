@@ -24,11 +24,22 @@ const Message: FC<Props> = (props) => {
 		content = (
 			<>
 				<div css={[styles.pageInfo, isVertical && styles.verticalPageInfo]}>
-					<div css={styles.pageIndex}>
-						{t('message.room', {
-							index: props.currentPageIndex + 1,
-							length: props.currentPagesLength,
-						})}
+					<div css={[styles.pageIndex, isVertical && styles.verticalPageIndex]}>
+						{isVertical ? (
+							<>
+								<span css={styles.verticalPageLabel}>
+									{t('message.page_label')}
+								</span>
+								<strong css={styles.verticalPageNumber}>
+									{props.currentPageIndex + 1} / {props.currentPagesLength}
+								</strong>
+							</>
+						) : (
+							t('message.room', {
+								index: props.currentPageIndex + 1,
+								length: props.currentPagesLength,
+							})
+						)}
 					</div>
 					{props.currentPageIsMember && (
 						<div

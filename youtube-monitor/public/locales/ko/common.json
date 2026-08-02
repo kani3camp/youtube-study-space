@@ -29,6 +29,7 @@
 	"part_type.mid_night2": "심야 파트Ⅱ",
 	"part_type.early_morning": "새벽 파트",
 	"message.room": "페이지 {{index}} / {{length}}",
+	"message.page_label": "페이지",
 	"member": "members only",
 	"message.num_studying_people": "{{value}}명이 작업 중",
 	"work_name_trend.updating": "작업 이름 트렌드 업데이트 중...",

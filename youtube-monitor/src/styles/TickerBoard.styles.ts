@@ -149,9 +149,9 @@ export const verticalContainer = css`
 	height: 100%;
 	width: 100%;
 	min-width: 0;
-	padding: 22px 24px 18px;
+	padding: 10px 16px 8px;
 	box-sizing: border-box;
-	gap: 12px;
+	gap: 4px;
 	backdrop-filter: none;
 	mask-image: none;
 	overflow: hidden;
@@ -164,7 +164,7 @@ export const verticalMarqueeViewport = css`
 	width: 100%;
 	min-width: 0;
 	overflow: hidden;
-	border-radius: 12px;
+	border-radius: 8px;
 `
 
 export const verticalMarquee = css`
@@ -178,8 +178,8 @@ export const verticalGenreItem = css`
 
 export const verticalUpdatedAt = css`
 	align-self: flex-end;
-	margin-right: 4px;
-	font-size: 0.48rem;
+	margin-right: 2px;
+	font-size: 0.36rem;
 `
 
 export const verticalEmptyState = css`
@@ -189,6 +189,6 @@ export const verticalEmptyState = css`
 	height: 100%;
 	width: 100%;
 	color: var(--ambient-text-muted);
-	font-size: 0.82rem;
+	font-size: 0.68rem;
 	text-align: center;
 `
