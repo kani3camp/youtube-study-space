@@ -29,6 +29,7 @@
 	"part_type.mid_night2": "深夜Ⅱ",
 	"part_type.early_morning": "清晨",
 	"message.room": "頁面 {{index}} / {{length}}",
+	"message.page_label": "頁面",
 	"member": "會員限定",
 	"message.num_studying_people": "{{value}}人正在工作",
 	"work_name_trend.updating": "工作趨勢分析中...",

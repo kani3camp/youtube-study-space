@@ -21,6 +21,17 @@ export const message = css`
 	color: var(--ambient-text-primary);
 `
 
+export const verticalMessage = css`
+	position: relative;
+	display: grid;
+	grid-template-rows: 1fr 1fr;
+	height: 100%;
+	width: 100%;
+	padding: 0;
+	box-sizing: border-box;
+	font-size: 1rem;
+`
+
 export const pageInfo = css`
 	width: 45%;
 	height: 100%;
@@ -29,8 +40,46 @@ export const pageInfo = css`
 	justify-content: center;
 `
 
+export const verticalPageInfo = css`
+	position: relative;
+	width: 100%;
+	height: 100%;
+	gap: 12px;
+	padding: 0 24px;
+	box-sizing: border-box;
+	white-space: nowrap;
+
+	&::after {
+		position: absolute;
+		bottom: 0;
+		left: 8%;
+		height: 1px;
+		width: 84%;
+		background-color: var(--ambient-border);
+		content: "";
+	}
+`
+
 export const pageIndex = css`
 	display: inline-block;
+`
+
+export const verticalPageIndex = css`
+	display: inline-flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: 12px;
+`
+
+export const verticalPageLabel = css`
+	font-size: 0.82rem;
+	font-weight: 600;
+`
+
+export const verticalPageNumber = css`
+	font-size: 1.08rem;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
 `
 
 export const memberOnly = css`
@@ -42,7 +91,15 @@ export const memberOnly = css`
     font-size: 0.6rem;
     color: white;
     background-color: #2ba640;
-    border-radius: 0.3rem;
+	border-radius: 0.3rem;
+`
+
+export const verticalMemberOnly = css`
+	width: auto;
+	margin-left: 0;
+	padding: 3px 8px;
+	font-size: 0.36rem;
+	white-space: nowrap;
 `
 
 export const numStudyingPeople = css`
@@ -56,4 +113,28 @@ export const numStudyingPeople = css`
 	transition:
 		background-color var(--ambient-background-transition-duration, 30s) linear,
 		border-color var(--ambient-background-transition-duration, 30s) linear;
+`
+
+export const verticalNumStudyingPeople = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	padding: 0 24px;
+	box-sizing: border-box;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 1rem;
+	font-weight: 600;
+	white-space: nowrap;
+`
+
+export const verticalShape = css`
+	position: relative;
+	left: auto;
+	bottom: auto;
+	height: 100%;
+	width: 100%;
 `

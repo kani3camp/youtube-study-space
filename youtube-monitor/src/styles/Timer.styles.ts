@@ -125,3 +125,33 @@ export const nextRow = css`
 	text-align: center;
 	line-height: 1.2;
 `
+
+export const verticalShape = css`
+	position: relative;
+	top: auto;
+	right: auto;
+	height: 100%;
+	width: 100%;
+`
+
+export const verticalTimer = css`
+	position: relative;
+	height: 100%;
+	width: 100%;
+	padding: 18px 24px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	gap: 8px;
+`
+
+export const verticalProgressBarContainer = css`
+	width: 184px;
+	height: 184px;
+	margin: 0;
+`
+
+export const verticalNextRow = css`
+	font-size: 0.58rem;
+	line-height: 1.15;
+`

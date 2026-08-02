@@ -1,6 +1,13 @@
 /** @jsxImportSource @emotion/react */
 import { useTranslation } from 'next-i18next/pages'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+	type CSSProperties,
+	memo,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react'
 import {
 	buildStyles,
 	CircularProgressbarWithChildren,
@@ -16,12 +23,22 @@ import {
 } from '../lib/timer'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Timer.styles'
+import type { MonitorVariant } from './monitor/types'
 
 const UPDATE_INTERVAL_MS = 100
 
-const Timer = memo(function Timer() {
+type TimerProps = {
+	variant?: MonitorVariant
+	style?: CSSProperties
+}
+
+const Timer = memo(function Timer({
+	variant = 'horizontal',
+	style,
+}: TimerProps) {
 	const { t } = useTranslation()
 	const [now, setNow] = useState<Date | null>(null)
+	const isVertical = variant === 'vertical'
 
 	useEffect(() => {
 		setNow(new Date())
@@ -41,9 +58,27 @@ const Timer = memo(function Timer() {
 	const isReady = now !== null
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
-			<div css={[styles.timer, componentStyle]}>
-				<div css={styles.progressBarContainer}>
+		<div
+			css={[
+				styles.shape,
+				isVertical && styles.verticalShape,
+				!isVertical && componentBackground,
+			]}
+			style={style}
+		>
+			<div
+				css={[
+					styles.timer,
+					isVertical && styles.verticalTimer,
+					!isVertical && componentStyle,
+				]}
+			>
+				<div
+					css={[
+						styles.progressBarContainer,
+						isVertical && styles.verticalProgressBarContainer,
+					]}
+				>
 					<CircularProgressbarWithChildren
 						value={isReady ? percentage : 0}
 						strokeWidth={10}
@@ -94,7 +129,7 @@ const Timer = memo(function Timer() {
 					</CircularProgressbarWithChildren>
 				</div>
 				{isReady && (
-					<div css={styles.nextRow}>
+					<div css={[styles.nextRow, isVertical && styles.verticalNextRow]}>
 						{t('next')} {nextDurationMin}
 						{t('minutes')} {t(nextLabel)}
 					</div>
