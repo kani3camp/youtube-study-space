@@ -24,6 +24,7 @@ jobs:
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       node_projects: ${{ steps.detect.outputs.node_projects }}
+      firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
       all: ${{ steps.detect.outputs.all }}
     steps:
       - name: Checkout
@@ -142,6 +143,52 @@ jobs:
 
       - name: Run tests
         run: go test -shuffle=on -v ./...
+
+  system-firestore-emulator-test:
+    name: System Firestore Emulator Test
+    needs: changes
+    if: ${{ needs.changes.outputs.firestore_integration == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download Go dependencies
+        working-directory: system
+        run: go mod download
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.25.1
+
+      - name: Cache Firestore Emulator
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ runner.os }}-firebase-emulator-${{ hashFiles('firebase/firebase.json', 'firebase/firestore.rules', 'firebase/firestore.indexes.json') }}
+
+      - name: Run Firestore Emulator integration tests
+        run: bash .github/scripts/run-firestore-integration-tests.sh
 
   room-image-prompt-go-lint:
     name: Room Image Prompt Go Lint
@@ -408,6 +455,7 @@ jobs:
       - check-i18n-generate
       - go-lint
       - system-go-test
+      - system-firestore-emulator-test
       - room-image-prompt-go-lint
       - room-image-prompt-go-test
       - menu-image-generator-lint-build
