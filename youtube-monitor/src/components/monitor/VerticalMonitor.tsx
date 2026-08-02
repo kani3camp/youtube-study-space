@@ -9,6 +9,7 @@ import {
 	useSynchronizedPage,
 } from '../../hooks/useSynchronizedPage'
 import { Constants } from '../../lib/constants'
+import { verticalLayout } from '../../lib/vertical-layout'
 import { themedRoot } from '../../styles/AmbientFrame.styles'
 import * as styles from '../../styles/VerticalMonitor.styles'
 import AmbientFrame from '../AmbientFrame'
@@ -20,11 +21,6 @@ import TickerBoard from '../TickerBoard'
 import Timer from '../Timer'
 import Usage from '../Usage'
 import RoomStage from './RoomStage'
-
-const roomViewport = {
-	width: 1032,
-	height: 810,
-}
 
 const VerticalMonitor: FC = () => {
 	const router = useRouter()
@@ -51,91 +47,63 @@ const VerticalMonitor: FC = () => {
 
 	return (
 		<div
-			css={themedRoot}
+			css={[themedRoot, styles.canvas]}
 			data-time-theme={timeTheme}
 			data-text-tone={textTone}
 			data-contrast-bridge={contrastBridge ? 'true' : undefined}
-			style={{
-				height: Constants.verticalScreenHeight,
-				width: Constants.verticalScreenWidth,
-				margin: 0,
-				position: 'relative',
-				overflow: 'hidden',
-			}}
 		>
 			<BackgroundImage
-				width={Constants.verticalScreenWidth}
-				height={Constants.verticalScreenHeight}
+				width={verticalLayout.canvas.width}
+				height={verticalLayout.canvas.height}
+				variant="vertical"
 			/>
-			<Clock
-				style={{
-					top: 24,
-					left: 24,
-					right: 'auto',
-					width: 430,
-					height: 112,
-				}}
-			/>
-			{pages.length > 0 && (
-				<Message
-					currentPageIndex={currentPageIndex}
-					currentPagesLength={pages.length}
-					currentPageIsMember={currentPage?.memberOnly ?? false}
-					seats={allSeats}
-					style={{
-						top: 24,
-						left: 478,
-						right: 'auto',
-						bottom: 'auto',
-						width: 478,
-						height: 112,
-					}}
-				/>
-			)}
-			<RoomStage
-				pages={pages}
-				currentPageIndex={currentPageIndex}
-				menuImageMap={monitorData.menuImageMap}
-				viewport={roomViewport}
-				style={{ top: 210, left: 24, position: 'absolute' }}
-			/>
-			<Timer
-				style={{
-					top: 1050,
-					left: 24,
-					right: 'auto',
-					bottom: 'auto',
-					width: 360,
-					height: 250,
-				}}
-			/>
-			<TickerBoard
-				workNameTrend={monitorData.workNameTrend}
-				style={{
-					top: 1050,
-					left: 408,
-					right: 'auto',
-					bottom: 'auto',
-					width: 540,
-					height: 250,
-				}}
-			/>
-			<Usage
-				style={{
-					top: 1330,
-					left: 24,
-					right: 'auto',
-					bottom: 'auto',
-					width: 912,
-					height: 220,
-				}}
-			/>
-			<div css={styles.footer}>
-				<h2 css={styles.footerTitle}>静かに、一緒に作業できます</h2>
-				<p css={styles.footerText}>
-					カメラ・マイク不要。YouTubeのチャットから自由に参加・退室できます。
-				</p>
-			</div>
+			<div css={styles.backgroundOverlay} />
+			<main css={styles.layout}>
+				<header css={styles.headerGrid}>
+					<section css={styles.verticalPanel}>
+						<Clock variant="vertical" />
+					</section>
+					<section css={styles.verticalPanel}>
+						{pages.length > 0 && (
+							<Message
+								currentPageIndex={currentPageIndex}
+								currentPagesLength={pages.length}
+								currentPageIsMember={currentPage?.memberOnly ?? false}
+								seats={allSeats}
+								variant="vertical"
+							/>
+						)}
+					</section>
+				</header>
+				<section css={styles.roomSection}>
+					<RoomStage
+						pages={pages}
+						currentPageIndex={currentPageIndex}
+						menuImageMap={monitorData.menuImageMap}
+						viewport={verticalLayout.roomViewport}
+					/>
+				</section>
+				<section css={styles.metricsGrid}>
+					<div css={[styles.verticalPanel, styles.timerPanel]}>
+						<Timer variant="vertical" />
+					</div>
+					<div css={[styles.verticalPanel, styles.tickerPanel]}>
+						<TickerBoard
+							workNameTrend={monitorData.workNameTrend}
+							variant="vertical"
+						/>
+					</div>
+				</section>
+				<section css={[styles.verticalPanel, styles.joinSection]}>
+					<Usage variant="vertical" />
+				</section>
+				<section css={styles.taglineSection}>
+					<h2 css={styles.taglineTitle}>静かに、一緒に作業できます</h2>
+					<p css={styles.taglineText}>
+						カメラ・マイク不要。YouTubeのチャットから自由に参加・退室できます。
+					</p>
+				</section>
+			</main>
 			{pages.length === 0 && <CenterLoading />}
 			<AmbientFrame vertical />
 		</div>

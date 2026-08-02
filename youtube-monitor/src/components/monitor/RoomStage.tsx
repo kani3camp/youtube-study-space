@@ -1,4 +1,4 @@
-import type { CSSProperties, FC } from 'react'
+import type { FC } from 'react'
 import SeatsPage from '../SeatsPage'
 import type { RoomPage, RoomViewport } from './types'
 
@@ -7,7 +7,6 @@ type RoomStageProps = {
 	currentPageIndex: number
 	menuImageMap: Map<string, string>
 	viewport: RoomViewport
-	style?: CSSProperties
 }
 
 const RoomStage: FC<RoomStageProps> = ({
@@ -15,7 +14,6 @@ const RoomStage: FC<RoomStageProps> = ({
 	currentPageIndex,
 	menuImageMap,
 	viewport,
-	style,
 }) => (
 	<div
 		style={{
@@ -25,7 +23,6 @@ const RoomStage: FC<RoomStageProps> = ({
 			justifyContent: 'center',
 			width: viewport.width,
 			height: viewport.height,
-			...style,
 		}}
 	>
 		{pages.map((page, index) => (

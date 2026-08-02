@@ -179,6 +179,7 @@ const SeatsPage: FC<LayoutPageProps> = ({
 					src={roomLayout.floor_image}
 					width={roomSize.width}
 					height={roomSize.height}
+					style={{ display: 'block', width: '100%', height: 'auto' }}
 					priority={true}
 				/>
 			)}

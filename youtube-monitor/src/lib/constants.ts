@@ -31,8 +31,6 @@ export const sidebarCardHorizontalInsetPx = 40
 export const Constants = {
 	screenWidth: 1920,
 	screenHeight: 1080,
-	verticalScreenWidth: 1080,
-	verticalScreenHeight: 1920,
 	sideBarWidth: 400,
 	tickerWidth: 600,
 	messageBarHeight: 80,

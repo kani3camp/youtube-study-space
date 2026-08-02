@@ -58,3 +58,56 @@ export const commandCode = css`
 export const commandDesc = css`
 	font-size: 0.8rem;
 `
+
+export const verticalShape = css`
+	position: relative;
+	top: auto;
+	right: auto;
+	height: 100%;
+	width: 100%;
+`
+
+export const verticalUsage = css`
+	position: relative;
+	height: 100%;
+	width: 100%;
+	padding: 36px 56px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	backdrop-filter: none;
+	gap: 28px;
+`
+
+export const verticalDescription = css`
+	margin: 0;
+	font-size: 1.25rem;
+	line-height: 1.3;
+`
+
+export const verticalCommands = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 52px;
+	width: 100%;
+`
+
+export const verticalCommand = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	white-space: nowrap;
+`
+
+export const verticalCommandCode = css`
+	margin: 0;
+	padding: 8px 18px;
+	border-radius: 10px;
+	font-size: 0.95rem;
+`
+
+export const verticalCommandDesc = css`
+	font-size: 0.78rem;
+`

@@ -21,12 +21,42 @@ export const message = css`
 	color: var(--ambient-text-primary);
 `
 
+export const verticalMessage = css`
+	position: relative;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	height: 100%;
+	width: 100%;
+	padding: 16px 28px;
+	box-sizing: border-box;
+	font-size: 0.78rem;
+`
+
 export const pageInfo = css`
 	width: 45%;
 	height: 100%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+`
+
+export const verticalPageInfo = css`
+	position: relative;
+	width: 100%;
+	gap: 10px;
+	padding-right: 28px;
+	box-sizing: border-box;
+	white-space: nowrap;
+
+	&::after {
+		position: absolute;
+		top: 20%;
+		right: 0;
+		height: 60%;
+		width: 1px;
+		background-color: var(--ambient-border);
+		content: "";
+	}
 `
 
 export const pageIndex = css`
@@ -42,7 +72,15 @@ export const memberOnly = css`
     font-size: 0.6rem;
     color: white;
     background-color: #2ba640;
-    border-radius: 0.3rem;
+	border-radius: 0.3rem;
+`
+
+export const verticalMemberOnly = css`
+	width: auto;
+	margin-left: 0;
+	padding: 3px 8px;
+	font-size: 0.4rem;
+	white-space: nowrap;
 `
 
 export const numStudyingPeople = css`
@@ -56,4 +94,25 @@ export const numStudyingPeople = css`
 	transition:
 		background-color var(--ambient-background-transition-duration, 30s) linear,
 		border-color var(--ambient-background-transition-duration, 30s) linear;
+`
+
+export const verticalNumStudyingPeople = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	padding-left: 28px;
+	box-sizing: border-box;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	white-space: nowrap;
+`
+
+export const verticalShape = css`
+	position: relative;
+	left: auto;
+	bottom: auto;
+	height: 100%;
+	width: 100%;
 `

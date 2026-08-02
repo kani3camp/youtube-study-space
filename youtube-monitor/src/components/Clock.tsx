@@ -4,15 +4,18 @@ import { type CSSProperties, type FC, memo, useEffect, useState } from 'react'
 import { useInterval } from '../lib/common'
 import * as styles from '../styles/Clock.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+import type { MonitorVariant } from './monitor/types'
 
 type ClockProps = {
+	variant?: MonitorVariant
 	style?: CSSProperties
 	time?: Date
 }
 
-const Clock: FC<ClockProps> = ({ style, time }) => {
+const Clock: FC<ClockProps> = ({ variant = 'horizontal', style, time }) => {
 	const { t } = useTranslation()
 	const [now, setNow] = useState<Date | null>(null)
+	const isVertical = variant === 'vertical'
 
 	useEffect(() => {
 		setNow(time ?? new Date())
@@ -23,16 +26,39 @@ const Clock: FC<ClockProps> = ({ style, time }) => {
 	}, 1000)
 
 	return (
-		<div css={[styles.shape, componentBackground]} style={style}>
-			<div css={[styles.clockStyle, componentStyle]}>
-				<div css={styles.dateStringStyle}>
+		<div
+			css={[
+				styles.shape,
+				isVertical && styles.verticalShape,
+				!isVertical && componentBackground,
+			]}
+			style={style}
+		>
+			<div
+				css={[
+					styles.clockStyle,
+					isVertical && styles.verticalClockStyle,
+					!isVertical && componentStyle,
+				]}
+			>
+				<div
+					css={[
+						styles.dateStringStyle,
+						isVertical && styles.verticalDateStringStyle,
+					]}
+				>
 					{now
 						? `${now.getFullYear()}${t('year')}${now.getMonth() + 1}${t(
 								'month',
 							)}${now.getDate()}${t('day')}`
 						: '--'}
 				</div>
-				<div css={styles.timeStringStyle}>
+				<div
+					css={[
+						styles.timeStringStyle,
+						isVertical && styles.verticalTimeStringStyle,
+					]}
+				>
 					{now
 						? `${now.getHours()}：${
 								now.getMinutes() < 10

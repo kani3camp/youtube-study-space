@@ -13,3 +13,20 @@ export const backgroundImage = css`
 	left: 0;
 	z-index: -1;
 `
+
+export const verticalBackground = css`
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	height: 100%;
+	width: 100%;
+`
+
+export const verticalBackgroundImage = css`
+	filter: saturate(0.72) brightness(0.97);
+`
+
+export const verticalBlurLayer = css`
+	position: absolute;
+	inset: 0;
+`

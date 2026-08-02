@@ -3,24 +3,27 @@ import type { CSSProperties, FC } from 'react'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Message.styles'
 import type { Seat } from '../types/api'
+import type { MonitorVariant } from './monitor/types'
 
 type Props = {
 	currentPageIndex: number
 	currentPagesLength: number
 	currentPageIsMember: boolean
 	seats: Seat[]
+	variant?: MonitorVariant
 	style?: CSSProperties
 }
 
 const Message: FC<Props> = (props) => {
 	const { t } = useTranslation()
+	const isVertical = props.variant === 'vertical'
 
 	let content = <></>
 	if (props.seats) {
 		const numWorkers = props.seats.length
 		content = (
 			<>
-				<div css={styles.pageInfo}>
+				<div css={[styles.pageInfo, isVertical && styles.verticalPageInfo]}>
 					<div css={styles.pageIndex}>
 						{t('message.room', {
 							index: props.currentPageIndex + 1,
@@ -28,18 +31,42 @@ const Message: FC<Props> = (props) => {
 						})}
 					</div>
 					{props.currentPageIsMember && (
-						<div css={styles.memberOnly}>{t('member')}</div>
+						<div
+							css={[styles.memberOnly, isVertical && styles.verticalMemberOnly]}
+						>
+							{t('member')}
+						</div>
 					)}
 				</div>
-				<div css={styles.numStudyingPeople}>
+				<div
+					css={[
+						styles.numStudyingPeople,
+						isVertical && styles.verticalNumStudyingPeople,
+					]}
+				>
 					{t('message.num_studying_people', { value: numWorkers })} 🫧
 				</div>
 			</>
 		)
 	}
 	return (
-		<div css={[styles.shape, componentBackground]} style={props.style}>
-			<div css={[styles.message, componentStyle]}>{content}</div>
+		<div
+			css={[
+				styles.shape,
+				isVertical && styles.verticalShape,
+				!isVertical && componentBackground,
+			]}
+			style={props.style}
+		>
+			<div
+				css={[
+					styles.message,
+					isVertical && styles.verticalMessage,
+					!isVertical && componentStyle,
+				]}
+			>
+				{content}
+			</div>
 		</div>
 	)
 }

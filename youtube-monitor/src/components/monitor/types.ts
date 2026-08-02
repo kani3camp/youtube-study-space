@@ -1,6 +1,7 @@
-import type { CSSProperties } from 'react'
-import type { Menu, Seat } from '../../types/api'
+import type { Seat } from '../../types/api'
 import type { RoomLayout } from '../../types/room-layout'
+
+export type MonitorVariant = 'horizontal' | 'vertical'
 
 export type RoomViewport = {
 	width: number
@@ -12,11 +13,4 @@ export type RoomPage = {
 	usedSeats: Seat[]
 	firstSeatId: number
 	memberOnly: boolean
-}
-
-export type PositionedComponentStyle = CSSProperties
-
-export type MonitorMenuData = {
-	menuItems: Menu[]
-	menuImageMap: Map<string, string>
 }
