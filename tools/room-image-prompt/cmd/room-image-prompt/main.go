@@ -191,7 +191,7 @@ func writeFileExclusive(path, body string) error {
 	}
 	closeErr := f.Close()
 	if writeErr != nil {
-		return writeErr
+		return fmt.Errorf("出力書き込み: %w", writeErr)
 	}
 	if closeErr != nil {
 		return fmt.Errorf("出力ファイルを閉じる: %w", closeErr)
