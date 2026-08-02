@@ -15,10 +15,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/internal/integrationtest"
 )
-
-const testTimeZoneOffset = 9 * 60 * 60
 
 func newTestRepository(t *testing.T) *repository.FirestoreControllerImplements {
 	t.Helper()
@@ -32,7 +31,7 @@ func runTransaction(t *testing.T, controller *repository.FirestoreControllerImpl
 }
 
 func newSeatDoc(seatID int, userID string, sessionID string) repository.SeatDoc {
-	jst := time.FixedZone("JST", testTimeZoneOffset)
+	jst := timeutil.JapanLocation()
 	return repository.SeatDoc{
 		SeatID:          seatID,
 		UserID:          userID,
@@ -77,6 +76,7 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.WorkName, got.WorkName)
 	assert.Equal(t, want.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, want.Appearance, got.Appearance)
+	assert.Equal(t, want.MenuCode, got.MenuCode)
 	assert.Equal(t, want.State, got.State)
 	assert.Equal(t, want.CumulativeWorkSec, got.CumulativeWorkSec)
 	assert.Equal(t, want.DailyCumulativeWorkSec, got.DailyCumulativeWorkSec)
@@ -186,7 +186,7 @@ func TestFirestoreRepository_DeleteSeat(t *testing.T) {
 func TestFirestoreRepository_UserCreateAndRead(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
-	jst := time.FixedZone("JST", testTimeZoneOffset)
+	jst := timeutil.JapanLocation()
 	userID := "user-create"
 	want := repository.UserDoc{
 		DailyTotalStudySec:          7200,
@@ -289,7 +289,7 @@ func TestFirestoreRepository_UserUpdates(t *testing.T) {
 func TestFirestoreRepository_UserActivityQuery(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
-	jst := time.FixedZone("JST", testTimeZoneOffset)
+	jst := timeutil.JapanLocation()
 	from := time.Date(2026, 8, 2, 10, 0, 0, 0, jst)
 	targetUserID := "activity-target"
 	activities := []repository.UserActivityDoc{
@@ -329,7 +329,7 @@ func TestFirestoreRepository_UserActivityQuery(t *testing.T) {
 func TestFirestoreRepository_WorkSegmentQuery(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
-	jst := time.FixedZone("JST", testTimeZoneOffset)
+	jst := timeutil.JapanLocation()
 	startedAt := time.Date(2026, 8, 2, 9, 0, 0, 0, jst)
 	endedAt := time.Date(2026, 8, 2, 10, 0, 0, 0, jst)
 	targetSessionID := "work-segment-target-session"
