@@ -35,7 +35,7 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
 		slog.Error("failed to get Firestore client option", "err", err)
-		return err
+		return fmt.Errorf("load Firestore client option: %w", err)
 	}
 
 	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
@@ -46,7 +46,7 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 			return nil
 		}
 		slog.Error("failed to init WorkspaceApp", "err", err)
-		return err
+		return fmt.Errorf("initialize workspace app: %w", err)
 	}
 	defer app.CloseFirestoreClient()
 

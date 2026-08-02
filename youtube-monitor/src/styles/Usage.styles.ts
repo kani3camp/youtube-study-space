@@ -32,28 +32,29 @@ export const usage = css`
 `
 
 export const description = css`
-    margin: 0.2rem;
-    font-weight: bold;
+	margin: 0.2rem;
+	font-weight: bold;
 `
 
 export const command = css`
-    margin: 0.0rem;
+	margin: 0rem;
 `
 
 export const commandCode = css`
-    font-weight: 700;
-    font-size: 0.8rem;
-    letter-spacing: 0.01em;
-    font-variant-ligatures: none;
-    display: inline-block;
-    background-color: var(--ambient-command-bg);
-    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
-    border-radius: 0.22rem;
-    padding: 0.12rem 0.5rem;
-    margin: 0.0rem 0.18rem;
-    line-height: 1.35;
+	font-weight: 700;
+	font-size: 0.8rem;
+	letter-spacing: 0.01em;
+	font-variant-ligatures: none;
+	display: inline-block;
+	background-color: var(--ambient-command-bg);
+	transition: background-color
+		var(--ambient-background-transition-duration, 30s) linear;
+	border-radius: 0.22rem;
+	padding: 0.12rem 0.5rem;
+	margin: 0rem 0.18rem;
+	line-height: 1.35;
 `
 
 export const commandDesc = css`
-    font-size: 0.8rem;
+	font-size: 0.8rem;
 `

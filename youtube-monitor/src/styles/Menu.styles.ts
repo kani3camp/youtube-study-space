@@ -28,56 +28,57 @@ export const menu = css`
 `
 
 export const menuTitle = css`
-    margin: 0.1rem;
+	margin: 0.1rem;
 `
 
 export const list = css`
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
+	display: flex;
+	justify-content: space-around;
+	align-items: center;
 `
 
 export const listItem = css`
-    flex: 1;
+	flex: 1;
 `
 
 export const image = css`
-    position: relative;
+	position: relative;
 `
 
 export const name = css`
-    font-size: 0.7em;
-    font-weight: 500;
-    margin: 0.1rem;
-    line-height: 0.9rem;
+	font-size: 0.7em;
+	font-weight: 500;
+	margin: 0.1rem;
+	line-height: 0.9rem;
 
-    text-overflow: ellipsis;
-    overflow: hidden;
-    word-wrap: break-word;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	word-wrap: break-word;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
 `
 
 export const commandCode = css`
-    padding: 0.15rem;
-    background-color: var(--ambient-command-bg);
-    transition: background-color var(--ambient-background-transition-duration, 30s) linear;
-    border-radius: 0.2rem;
-    font-size: 0.75em;
-    font-weight: bold;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
+	padding: 0.15rem;
+	background-color: var(--ambient-command-bg);
+	transition: background-color
+		var(--ambient-background-transition-duration, 30s) linear;
+	border-radius: 0.2rem;
+	font-size: 0.75em;
+	font-weight: bold;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
 `
 
 export const notice = css`
-    font-size: 0.36rem;
-    position: absolute;
-    width: 94%;
-    bottom: 0.12rem;
-    color: var(--ambient-notice);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
+	font-size: 0.36rem;
+	position: absolute;
+	width: 94%;
+	bottom: 0.12rem;
+	color: var(--ambient-notice);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 `

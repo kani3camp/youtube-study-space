@@ -7,6 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"app.modules/core/i18n"
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
@@ -14,11 +20,6 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
-	"cloud.google.com/go/firestore"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestSystem_In(t *testing.T) {
@@ -27,7 +28,7 @@ func TestSystem_In(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var inTestCases = []struct {
+	inTestCases := []struct {
 		name                          string
 		constantsConfig               repository.ConstantsConfigDoc
 		commandDetails                utils.CommandDetails
@@ -381,7 +382,7 @@ func TestSystem_Out(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var outTestCases = []struct {
+	outTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -465,7 +466,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var showSeatInfoTestCases = []struct {
+	showSeatInfoTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -637,7 +638,7 @@ func TestSystem_Change(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var changeTestCases = []struct {
+	changeTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -833,7 +834,7 @@ func TestSystem_More(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var moreTestCases = []struct {
+	moreTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -1009,7 +1010,7 @@ func TestSystem_Break(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var breakTestCases = []struct {
+	breakTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -1196,7 +1197,7 @@ func TestSystem_Resume(t *testing.T) {
 
 	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
 
-	var resumeTestCases = []struct {
+	resumeTestCases := []struct {
 		name                 string
 		constantsConfig      repository.ConstantsConfigDoc
 		commandDetails       utils.CommandDetails
@@ -1432,7 +1433,7 @@ func TestSystem_Order(t *testing.T) {
 		return menuDocs[i].Code < menuDocs[j].Code
 	})
 
-	var orderTestCases = []struct {
+	orderTestCases := []struct {
 		name                     string
 		constantsConfig          repository.ConstantsConfigDoc
 		commandDetails           utils.CommandDetails

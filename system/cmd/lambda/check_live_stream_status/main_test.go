@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"app.modules/internal/awsruntime"
 	"google.golang.org/api/option"
+
+	"app.modules/internal/awsruntime"
 )
 
 type mockCheckLiveStreamApp struct {

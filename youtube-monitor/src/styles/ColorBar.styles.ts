@@ -45,19 +45,19 @@ export const title = css`
 `
 
 export const scaleWrapper = css`
-    position: relative;
-    width: calc(100% - 1.2rem);
-    padding-top: 0.8rem;
-    margin: 0 0.6rem;
-    box-sizing: border-box;
+	position: relative;
+	width: calc(100% - 1.2rem);
+	padding-top: 0.8rem;
+	margin: 0 0.6rem;
+	box-sizing: border-box;
 `
 
 export const labels = css`
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 0.75rem;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 0.75rem;
 `
 
 export const label = css`
@@ -99,6 +99,6 @@ export const colorBarStrip = css`
 `
 
 export const colorBox = css`
-    flex: 1;
-    height: 100%;
+	flex: 1;
+	height: 100%;
 `

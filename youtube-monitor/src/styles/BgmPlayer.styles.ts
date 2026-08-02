@@ -40,16 +40,16 @@ export const bgmPlayer = css`
 `
 
 export const audioCanvasDiv = css`
-    z-index: 10;
-    clip-path: inset(0, 0, 0, 0);
+	z-index: 10;
+	clip-path: inset(0, 0, 0, 0);
 `
 
 export const audioCanvas = css`
-    height: 30%;
-    width: 100%;
-    background-color: #77777700;
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    z-index: 15;
+	height: 30%;
+	width: 100%;
+	background-color: #77777700;
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	z-index: 15;
 `

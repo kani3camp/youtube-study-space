@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/mock/gomock"
+
 	"app.modules/core/timeutil"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
-	"go.uber.org/mock/gomock"
 )
 
 type spyMessageBot struct {
@@ -54,7 +55,6 @@ func TestCheckIfUnwantedWordIncluded_BlocksByChatMessageRegex(t *testing.T) {
 		"これは荒らしです",
 		"テストユーザー",
 	)
-
 	if err != nil {
 		t.Fatalf("CheckIfUnwantedWordIncluded() error = %v", err)
 	}
@@ -96,7 +96,6 @@ func TestCheckIfUnwantedWordIncluded_NotifiesByChatMessageRegex(t *testing.T) {
 		"これは要確認です",
 		"テストユーザー",
 	)
-
 	if err != nil {
 		t.Fatalf("CheckIfUnwantedWordIncluded() error = %v", err)
 	}
@@ -138,7 +137,6 @@ func TestCheckIfUnwantedWordIncluded_NoMatch(t *testing.T) {
 		"通常のメッセージです",
 		"テストユーザー",
 	)
-
 	if err != nil {
 		t.Fatalf("CheckIfUnwantedWordIncluded() error = %v", err)
 	}
