@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -11,20 +12,22 @@ import (
 
 	"app.modules/core/workspaceapp"
 
-	"app.modules/core/wordsreader"
-	"app.modules/core/youtubebot"
 	"github.com/kr/pretty"
 
-	"errors"
+	"app.modules/core/wordsreader"
+	"app.modules/core/youtubebot"
+
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
-	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
 )
 
-const MaxRetryIntervalSeconds = 300
-const RetryIntervalCalculationBase = 1.2
+const (
+	MaxRetryIntervalSeconds      = 300
+	RetryIntervalCalculationBase = 1.2
+)
 
 func Init() (option.ClientOption, context.Context, error) {
 	utils.LoadEnv(".env")
@@ -36,7 +39,7 @@ func Init() (option.ClientOption, context.Context, error) {
 
 	creds, err := transport.Creds(ctx, clientOption)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load Google credentials: %w", err)
 	}
 	fmt.Printf("Project ID: %s\n", creds.ProjectID)
 	fmt.Println("Is this the correct project ID? (yes/no)")

@@ -3,8 +3,9 @@ package utils
 import (
 	"testing"
 
-	"app.modules/core/i18n"
 	"github.com/stretchr/testify/assert"
+
+	"app.modules/core/i18n"
 )
 
 func TestParseMore(t *testing.T) {
@@ -169,5 +170,4 @@ func TestParseMore(t *testing.T) {
 			}
 		})
 	}
-
 }

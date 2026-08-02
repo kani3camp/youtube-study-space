@@ -5,12 +5,13 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/aws/aws-lambda-go/lambda"
+	"google.golang.org/api/option"
+
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp"
 	"app.modules/internal/awsruntime"
 	"app.modules/internal/logging"
-	"github.com/aws/aws-lambda-go/lambda"
-	"google.golang.org/api/option"
 )
 
 func init() {

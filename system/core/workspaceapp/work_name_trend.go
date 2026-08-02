@@ -7,13 +7,14 @@ import (
 	"log/slog"
 	"strings"
 
-	"app.modules/core/repository"
-	"app.modules/core/utils"
 	"cloud.google.com/go/firestore"
 	"github.com/openai/openai-go/v2" // imported as openai
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/responses"
 	"github.com/openai/openai-go/v2/shared"
+
+	"app.modules/core/repository"
+	"app.modules/core/utils"
 )
 
 func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string) error {

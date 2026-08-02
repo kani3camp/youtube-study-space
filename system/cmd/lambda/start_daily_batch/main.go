@@ -8,13 +8,14 @@ import (
 	"os"
 	"time"
 
-	"app.modules/internal/awsruntime"
-	"app.modules/internal/logging"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	sfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
+
+	"app.modules/internal/awsruntime"
+	"app.modules/internal/logging"
 )
 
 type stepFunctionsClient interface {

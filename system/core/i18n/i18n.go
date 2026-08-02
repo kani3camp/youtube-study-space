@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"embed"
+	"fmt"
 
 	engine "app.modules/core/i18n/internal/engine"
 )
@@ -28,10 +29,16 @@ func SetDefaultFallback(fallback Language) {
 }
 
 func LoadLocaleFileFS(f embed.FS, name string) error {
-	return engine.LoadLocaleFileFS(f, name)
+	if err := engine.LoadLocaleFileFS(f, name); err != nil {
+		return fmt.Errorf("load locale file %q: %w", name, err)
+	}
+	return nil
 }
 
 // LoadLocaleFolderFS loads all locale files from embedded filesystem.
 func LoadLocaleFolderFS() error {
-	return engine.LoadLocaleFolderFS(fs, LocalesFolderName)
+	if err := engine.LoadLocaleFolderFS(fs, LocalesFolderName); err != nil {
+		return fmt.Errorf("load locale folder %q: %w", LocalesFolderName, err)
+	}
+	return nil
 }

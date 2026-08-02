@@ -1,12 +1,12 @@
 package utils
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"errors"
 
 	i18nmsg "app.modules/core/i18n/typed"
 )
@@ -718,7 +718,7 @@ func ReplaceEmojiMinToText(emojiString string) (string, error) {
 	if numString != "" {      // "min=xxx" emoji -> "min xxx"
 		num, err := strconv.Atoi(numString)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("parse emoji minutes: %w", err)
 		}
 		return TimeOptionKey + HalfWidthSpace + strconv.Itoa(num) + HalfWidthSpace, nil
 	}

@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "es6",
     "lib": ["es6"],
-    "strict": true,
-    "typeRoots": [
-      "./node_modules/@types",
-      "./node_modules/@figma"
-    ]
-  }
+    "strict": true
+  },
+  "files": [
+    "node_modules/@figma/plugin-typings/index.d.ts",
+    "code.ts"
+  ]
 }
