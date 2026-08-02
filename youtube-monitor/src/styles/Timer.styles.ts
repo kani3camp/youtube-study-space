@@ -61,23 +61,23 @@ export const stateLabel = css`
 `
 
 export const studyIcon = css`
-	color: var(--ambient-study-accent);
-	transition: color 150ms linear;
+    color: var(--ambient-study-accent);
+    transition: color 150ms linear;
 `
 
 export const breakIcon = css`
-	color: var(--ambient-break-accent);
-	transition: color 150ms linear;
+    color: var(--ambient-break-accent);
+    transition: color 150ms linear;
 `
 
 export const stateLabelStudy = css`
-	color: var(--ambient-study-accent);
-	transition: color 150ms linear;
+    color: var(--ambient-study-accent);
+    transition: color 150ms linear;
 `
 
 export const stateLabelBreak = css`
-	color: var(--ambient-break-accent);
-	transition: color 150ms linear;
+    color: var(--ambient-break-accent);
+    transition: color 150ms linear;
 `
 
 export const statePlaceholder = css`
