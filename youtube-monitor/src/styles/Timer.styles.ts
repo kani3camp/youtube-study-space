@@ -65,7 +65,8 @@ export const studyIcon = css`
 `
 
 export const breakIcon = css`
-    color: ${Constants.timerProgressBreakColor};
+	color: var(--ambient-break-accent);
+	transition: color 150ms linear;
 `
 
 export const stateLabelStudy = css`
@@ -73,7 +74,8 @@ export const stateLabelStudy = css`
 `
 
 export const stateLabelBreak = css`
-    color: ${Constants.timerProgressBreakColor};
+	color: var(--ambient-break-accent);
+	transition: color 150ms linear;
 `
 
 export const statePlaceholder = css`

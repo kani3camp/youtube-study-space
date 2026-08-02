@@ -19,6 +19,25 @@ export type AmbientTextColors = {
 	notice: RgbaColor
 }
 
+export const AMBIENT_THEME_BREAK_ACCENT_COLORS: Readonly<
+	Record<TimeTheme, RgbaColor>
+> = {
+	dawn: rgba(23, 90, 67),
+	day: rgba(15, 85, 56),
+	sunset: rgba(33, 75, 56),
+	// twilight前半の既定値。後半はTWILIGHT_TONE_BREAK_ACCENT_COLORS.lightを使います。
+	twilight: rgba(22, 48, 32),
+	night: rgba(183, 247, 197),
+	midnight: rgba(196, 249, 208),
+}
+
+export const TWILIGHT_TONE_BREAK_ACCENT_COLORS: Readonly<
+	Record<TextTone, RgbaColor>
+> = {
+	dark: AMBIENT_THEME_BREAK_ACCENT_COLORS.twilight,
+	light: rgba(196, 249, 208),
+}
+
 export const TWILIGHT_TONE_COLORS: Readonly<
 	Record<TextTone, AmbientSurfaceColors>
 > = {
