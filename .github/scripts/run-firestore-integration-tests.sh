@@ -23,4 +23,4 @@ firebase emulators:exec \
 	--project "$project_id" \
 	--only firestore \
 	--log-verbosity INFO \
-	"cd system && go test -tags=integration -shuffle=on -count=1 -v ./core/workspaceapp/..."
+	"cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/..."
