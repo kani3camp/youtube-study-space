@@ -45,13 +45,14 @@ func RequireFirestoreEmulator(t *testing.T) {
 		t.Fatalf("invalid FIRESTORE_EMULATOR_HOST %q: %v", hostPort, err)
 	}
 	if !isLoopbackHost(host) {
-		t.Fatalf("FIRESTORE_EMULATOR_HOST must point to a loopback address, got %q", hostPort)
+		t.Fatalf("FIRESTORE_EMULATOR_HOST must use localhost, 127.0.0.1, or ::1, got %q", hostPort)
 	}
 	if port != expectedEmulatorPort {
 		t.Fatalf("FIRESTORE_EMULATOR_HOST must use port %s, got %q", expectedEmulatorPort, port)
 	}
 
 	projectID := ""
+	projectEnvName := ""
 	for _, envName := range []string{emulatorProjectEnv, googleProjectEnv, firebaseProjectEnv} {
 		value := os.Getenv(envName)
 		if value == "" {
@@ -59,10 +60,11 @@ func RequireFirestoreEmulator(t *testing.T) {
 		}
 		if projectID == "" {
 			projectID = value
+			projectEnvName = envName
 			continue
 		}
 		if value != projectID {
-			t.Fatalf("Firestore emulator project ID environment variables disagree: %s=%q, %s=%q", envName, value, emulatorProjectEnv, projectID)
+			t.Fatalf("Firestore emulator project ID environment variables disagree: %s=%q, %s=%q", envName, value, projectEnvName, projectID)
 		}
 	}
 	if projectID == "" {
