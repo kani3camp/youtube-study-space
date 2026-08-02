@@ -4,6 +4,7 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -323,4 +324,182 @@ func TestFirestoreRepository_UserActivityQuery(t *testing.T) {
 	require.Len(t, gotExits, 1)
 	assert.Equal(t, activities[2].ActivityType, gotExits[0].ActivityType)
 	assert.Equal(t, activities[2].TakenAt.UTC(), gotExits[0].TakenAt)
+}
+
+func TestFirestoreRepository_WorkSegmentQuery(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	jst := time.FixedZone("JST", testTimeZoneOffset)
+	startedAt := time.Date(2026, 8, 2, 9, 0, 0, 0, jst)
+	endedAt := time.Date(2026, 8, 2, 10, 0, 0, 0, jst)
+	targetSessionID := "work-segment-target-session"
+	segments := []repository.WorkSegmentDoc{
+		{
+			UserID:       "work-segment-user",
+			SeatID:       6,
+			IsMemberSeat: false,
+			SessionID:    targetSessionID,
+			WorkName:     "対象作業1",
+			SegmentType:  repository.WorkState,
+			StartedAt:    startedAt,
+			EndedAt:      endedAt,
+			DurationSec:  3600,
+		},
+		{
+			UserID:       "work-segment-user",
+			SeatID:       6,
+			IsMemberSeat: false,
+			SessionID:    targetSessionID,
+			WorkName:     "対象休憩",
+			SegmentType:  repository.BreakState,
+			StartedAt:    endedAt,
+			EndedAt:      endedAt.Add(15 * time.Minute),
+			DurationSec:  900,
+		},
+		{
+			UserID:       "work-segment-user",
+			SeatID:       6,
+			IsMemberSeat: false,
+			SessionID:    targetSessionID,
+			WorkName:     "対象作業2",
+			SegmentType:  repository.WorkState,
+			StartedAt:    endedAt.Add(15 * time.Minute),
+			EndedAt:      endedAt.Add(75 * time.Minute),
+			DurationSec:  3600,
+		},
+		{
+			UserID:       "other-work-segment-user",
+			SeatID:       6,
+			IsMemberSeat: true,
+			SessionID:    "other-work-segment-session",
+			WorkName:     "別セッション作業",
+			SegmentType:  repository.WorkState,
+			StartedAt:    startedAt,
+			EndedAt:      endedAt,
+			DurationSec:  3600,
+		},
+	}
+	for _, segment := range segments {
+		require.NoError(t, controller.CreateWorkSegmentDoc(context.Background(), nil, segment))
+	}
+
+	got, err := controller.ReadWorkStateSegmentsBySessionID(context.Background(), targetSessionID)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.ElementsMatch(t, []repository.WorkSegmentDoc{
+		{
+			UserID:       segments[0].UserID,
+			SeatID:       segments[0].SeatID,
+			IsMemberSeat: segments[0].IsMemberSeat,
+			SessionID:    segments[0].SessionID,
+			WorkName:     segments[0].WorkName,
+			SegmentType:  segments[0].SegmentType,
+			StartedAt:    segments[0].StartedAt.UTC(),
+			EndedAt:      segments[0].EndedAt.UTC(),
+			DurationSec:  segments[0].DurationSec,
+		},
+		{
+			UserID:       segments[2].UserID,
+			SeatID:       segments[2].SeatID,
+			IsMemberSeat: segments[2].IsMemberSeat,
+			SessionID:    segments[2].SessionID,
+			WorkName:     segments[2].WorkName,
+			SegmentType:  segments[2].SegmentType,
+			StartedAt:    segments[2].StartedAt.UTC(),
+			EndedAt:      segments[2].EndedAt.UTC(),
+			DurationSec:  segments[2].DurationSec,
+		},
+	}, got)
+}
+
+func TestFirestoreRepository_TransactionAtomicitySuccess(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	ctx := context.Background()
+	userID := "transaction-success-user"
+	seat := newSeatDoc(11, userID, "transaction-success-session")
+	activity := repository.UserActivityDoc{
+		UserID:       userID,
+		ActivityType: repository.EnterRoomActivity,
+		SeatID:       seat.SeatID,
+		IsMemberSeat: false,
+		TakenAt:      time.Date(2026, 8, 2, 11, 0, 0, 0, time.UTC),
+	}
+	require.NoError(t, controller.CreateUser(ctx, nil, userID, repository.UserDoc{}))
+
+	runTransaction(t, controller, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := controller.CreateSeat(tx, seat, false); err != nil {
+			return err
+		}
+		if err := controller.CreateUserActivityDoc(ctx, tx, activity); err != nil {
+			return err
+		}
+		return controller.UpdateUserTotalTime(tx, userID, 3600, 1800)
+	})
+
+	gotSeat, err := controller.ReadSeat(ctx, nil, seat.SeatID, false)
+	require.NoError(t, err)
+	assert.Equal(t, seat.UserID, gotSeat.UserID)
+	assert.Equal(t, seat.SessionID, gotSeat.SessionID)
+
+	gotActivities, err := controller.GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(
+		ctx, activity.TakenAt.Add(-time.Minute), userID, seat.SeatID, false,
+	)
+	require.NoError(t, err)
+	require.Len(t, gotActivities, 1)
+	assert.Equal(t, activity.ActivityType, gotActivities[0].ActivityType)
+	assert.Equal(t, activity.TakenAt, gotActivities[0].TakenAt)
+
+	gotUser, err := controller.ReadUser(ctx, nil, userID)
+	require.NoError(t, err)
+	assert.Equal(t, 3600, gotUser.TotalStudySec)
+	assert.Equal(t, 1800, gotUser.DailyTotalStudySec)
+}
+
+func TestFirestoreRepository_TransactionAtomicityRollback(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	ctx := context.Background()
+	userID := "transaction-rollback-user"
+	originalUser := repository.UserDoc{TotalStudySec: 100, DailyTotalStudySec: 60}
+	seat := newSeatDoc(12, userID, "transaction-rollback-session")
+	activity := repository.UserActivityDoc{
+		UserID:       userID,
+		ActivityType: repository.EnterRoomActivity,
+		SeatID:       seat.SeatID,
+		IsMemberSeat: false,
+		TakenAt:      time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC),
+	}
+	require.NoError(t, controller.CreateUser(ctx, nil, userID, originalUser))
+	sentinelErr := errors.New("rollback transaction sentinel")
+
+	err := controller.FirestoreClient().RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := controller.CreateSeat(tx, seat, false); err != nil {
+			return err
+		}
+		if err := controller.CreateUserActivityDoc(ctx, tx, activity); err != nil {
+			return err
+		}
+		if err := controller.UpdateUserTotalTime(tx, userID, 9999, 8888); err != nil {
+			return err
+		}
+		return sentinelErr
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, sentinelErr)
+
+	_, err = controller.ReadSeat(ctx, nil, seat.SeatID, false)
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+
+	gotActivities, err := controller.GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(
+		ctx, activity.TakenAt.Add(-time.Minute), userID, seat.SeatID, false,
+	)
+	require.NoError(t, err)
+	assert.Empty(t, gotActivities)
+
+	gotUser, err := controller.ReadUser(ctx, nil, userID)
+	require.NoError(t, err)
+	assert.Equal(t, originalUser.TotalStudySec, gotUser.TotalStudySec)
+	assert.Equal(t, originalUser.DailyTotalStudySec, gotUser.DailyTotalStudySec)
 }
