@@ -1,10 +1,9 @@
 package presenter
 
 import (
-	"strings"
-
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
+	"strings"
 )
 
 // BuildChangeMessage converts Change usecase events into a localized response.

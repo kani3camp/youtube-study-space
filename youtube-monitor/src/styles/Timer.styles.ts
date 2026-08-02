@@ -20,10 +20,8 @@ export const timer = css`
     border-radius: 0.6rem;
     font-size: 0.9rem;
     text-align: center;
-    color: var(--ambient-text-primary);
-    background-color: var(--ambient-panel-bg);
-    border: 1px solid var(--ambient-border);
-    box-sizing: border-box;
+    color: ${Constants.primaryTextColor};
+    background-color: rgba(255, 255, 255, 0.3);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -32,58 +30,54 @@ export const timer = css`
 `
 
 export const progressBarContainer = css`
-	width: 180px;
-	height: 180px;
-	margin: 0 auto;
+    width: 180px;
+    height: 180px;
+    margin: 0 auto;
 `
 
 export const progressInner = css`
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 0.2rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
 `
 
 export const stateRow = css`
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.3rem;
-	line-height: 1.1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    line-height: 1.1;
 `
 
 export const stateLabel = css`
-	font-size: 0.95rem;
-	vertical-align: middle;
-	font-weight: bold;
+    font-size: 0.95rem;
+    vertical-align: middle;
+    font-weight: bold;
 `
 
 export const studyIcon = css`
-	color: var(--ambient-study-accent);
-	transition: color 150ms linear;
+    color: ${Constants.timerProgressStudyColor};
 `
 
 export const breakIcon = css`
-	color: var(--ambient-break-accent);
-	transition: color 150ms linear;
+    color: ${Constants.timerProgressBreakColor};
 `
 
 export const stateLabelStudy = css`
-	color: var(--ambient-study-accent);
-	transition: color 150ms linear;
+    color: ${Constants.timerProgressStudyColor};
 `
 
 export const stateLabelBreak = css`
-	color: var(--ambient-break-accent);
-	transition: color 150ms linear;
+    color: ${Constants.timerProgressBreakColor};
 `
 
 export const statePlaceholder = css`
-	font-size: 1.1rem;
-	font-weight: bold;
-	opacity: 0.45;
+    font-size: 1.1rem;
+    font-weight: bold;
+    opacity: 0.45;
 `
 
 export const remaining = css`
@@ -99,29 +93,29 @@ export const remaining = css`
 `
 
 export const remainingMinutes = css`
-	width: 2ch;
-	text-align: right;
+    width: 2ch;
+    text-align: right;
 `
 
 export const remainingDivider = css`
-	width: 0.6ch;
-	text-align: center;
+    width: 0.6ch;
+    text-align: center;
 `
 
 export const remainingSeconds = css`
-	width: 2ch;
-	text-align: left;
+    width: 2ch;
+    text-align: left;
 `
 
 export const remainingPlaceholder = css`
-	display: inline-block;
-	width: 4.6ch;
-	text-align: center;
-	opacity: 0.45;
+    display: inline-block;
+    width: 4.6ch;
+    text-align: center;
+    opacity: 0.45;
 `
 
 export const nextRow = css`
-	font-size: 0.65rem;
-	text-align: center;
-	line-height: 1.2;
+    font-size: 0.65rem;
+    text-align: center;
+    line-height: 1.2;
 `

@@ -1,4 +1,4 @@
-FROM golang:1.26@sha256:f96cc555eb8db430159a3aa6797cd5bae561945b7b0fe7d0e284c63a3b291609 AS build
+FROM golang:1.26@sha256:792443b89f65105abba56b9bd5e97f680a80074ac62fc844a584212f8c8102c3 AS build
 WORKDIR /var/task
 
 # 依存関係キャッシュを効かせるために先に go.mod/go.sum だけコピー
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Digest is authoritative; this digest was verified against provided:al2023 when pinned.
 # Copy artifacts to a clean image
-FROM public.ecr.aws/lambda/provided:al2023@sha256:d8d858dc6f7a6552ffc131e029802c28969c8211d311c33f9400449e30cf7442
+FROM public.ecr.aws/lambda/provided:al2023@sha256:26136a72871f0d0f9948a98a4568010b3aa210cd7bcb7dd6b51b606fe743b79a
 WORKDIR /app
 
 ENV TZ=Asia/Tokyo

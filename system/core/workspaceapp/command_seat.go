@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"cloud.google.com/go/firestore"
-
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
@@ -16,6 +14,7 @@ import (
 	"app.modules/core/utils"
 	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/workspaceapp/usecase"
+	"cloud.google.com/go/firestore"
 )
 
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {

@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"app.modules/core/repository"
+	mock_myfirestore "app.modules/core/repository/mocks"
 	"cloud.google.com/go/firestore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-
-	"app.modules/core/repository"
-	mock_myfirestore "app.modules/core/repository/mocks"
 )
 
 func TestUpdateWorkNameTrend_EmptyWorkNames(t *testing.T) {

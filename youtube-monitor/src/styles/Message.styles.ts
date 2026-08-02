@@ -11,26 +11,26 @@ export const shape = css`
 `
 
 export const message = css`
-	height: 80%;
-	width: 100%;
-	padding: 0 5%;
-	text-align: center;
-	font-size: 1.4rem;
-	display: flex;
-	flex-direction: row;
-	color: var(--ambient-text-primary);
+    height: 80%;
+    width: 100%;
+    padding: 0 5%;
+    text-align: center;
+    font-size: 1.4rem;
+    display: flex;
+    flex-direction: row;
+    color: ${Constants.primaryTextColor};
 `
 
 export const pageInfo = css`
-	width: 45%;
-	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+    width: 45%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 `
 
 export const pageIndex = css`
-	display: inline-block;
+    display: inline-block;
 `
 
 export const memberOnly = css`
@@ -46,14 +46,9 @@ export const memberOnly = css`
 `
 
 export const numStudyingPeople = css`
-	width: 45%;
-	height: 100%;
-	display: inline-block;
-	background-color: var(--ambient-panel-strong-bg);
-	border: 1px solid var(--ambient-border);
-	box-sizing: border-box;
-	border-radius: 0.6rem;
-	transition:
-		background-color var(--ambient-background-transition-duration, 30s) linear,
-		border-color var(--ambient-background-transition-duration, 30s) linear;
+    width: 45%;
+    height: 100%;
+    display: inline-block;
+    background-color: rgba(255, 255, 255, 0.472);
+    border-radius: 0.6rem;
 `

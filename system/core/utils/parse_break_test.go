@@ -1,11 +1,9 @@
 package utils
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-
 	"app.modules/core/i18n"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestParseBreak(t *testing.T) {
@@ -220,4 +218,5 @@ func TestParseBreak(t *testing.T) {
 			}
 		})
 	}
+
 }

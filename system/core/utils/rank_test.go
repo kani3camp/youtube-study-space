@@ -4,10 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"app.modules/core/timeutil"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
-
-	"app.modules/core/timeutil"
 )
 
 type InputCalcRankPoint struct {

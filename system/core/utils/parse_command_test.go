@@ -3,9 +3,8 @@ package utils
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"app.modules/core/i18n"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -45,6 +44,7 @@ type ParseCommandTestCase struct {
 }
 
 func TestParseCommand(t *testing.T) {
+
 	testCases := []ParseCommandTestCase{
 		{
 			Name:  "非コマンド",
@@ -209,8 +209,7 @@ func TestParseCommand(t *testing.T) {
 			Name:     "メンバーによる絵文字席表示と詳細オプション",
 			Input:    TestEmojiSeat0 + " d",
 			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Seat,
+			Output: &CommandDetails{CommandType: Seat,
 				SeatOption: SeatOption{
 					ShowDetails: true,
 				},

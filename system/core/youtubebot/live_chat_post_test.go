@@ -11,12 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	mock_repository "app.modules/core/repository/mocks"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
-
-	mock_repository "app.modules/core/repository/mocks"
 )
 
 func TestPostMessageLogsWarnAndSkipsLiveChatEnded(t *testing.T) {

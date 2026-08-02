@@ -10,7 +10,9 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-var ErrLocaleFile = errors.New("i18n: wrong file name or struct")
+var (
+	ErrLocaleFile = errors.New("i18n: wrong file name or struct")
+)
 
 type Language string
 
@@ -21,11 +23,9 @@ const (
 
 type LocaleData map[string]map[string]string
 
-var (
-	localeData      map[Language]LocaleData = make(map[Language]LocaleData)
-	defaultLanguage Language                = LanguageJA
-	defaultFallback Language                = LanguageJA
-)
+var localeData map[Language]LocaleData = make(map[Language]LocaleData)
+var defaultLanguage Language = LanguageJA
+var defaultFallback Language = LanguageJA
 
 func SetDefaultLanguage(lang Language)     { defaultLanguage = lang }
 func SetDefaultFallback(fallback Language) { defaultFallback = fallback }

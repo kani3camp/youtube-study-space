@@ -25,15 +25,15 @@ export const seat = css`
 `
 
 export const accentBar = css`
-	position: absolute;
-	top: 0;
-	left: 0;
-	display: flex;
-	align-items: flex-start;
-	justify-content: flex-end;
-	width: 100%;
-	box-sizing: border-box;
-	pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 100%;
+    box-sizing: border-box;
+    pointer-events: none;
 `
 
 export const seatBody = css`
@@ -46,18 +46,18 @@ export const seatBody = css`
 `
 
 export const headerRow = css`
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	height: 0.7rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    height: 0.7rem;
 `
 
 export const headerLeft = css`
-	display: flex;
-	align-items: center;
-	align-self: stretch;
-	min-width: 0;
-	gap: 0.2rem;
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+    gap: 0.2rem;
 `
 
 export const generalSeatId = css`
@@ -79,8 +79,8 @@ export const memberSeatId = css`
 `
 
 export const menuItem = css`
-	flex-shrink: 0;
-	opacity: 0.72;
+    flex-shrink: 0;
+    opacity: 0.72;
 `
 
 export const breakBadge = css`
@@ -104,33 +104,33 @@ export const starsBadge = css`
 `
 
 export const memberContent = css`
-	position: relative;
-	display: flex;
-	gap: 0.2rem;
-	flex: 1;
-	flex-direction: column;
-	min-height: 0;
+    position: relative;
+    display: flex;
+    gap: 0.2rem;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
 `
 
 export const memberMain = css`
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	gap: 0.14em;
-	min-height: 0;
-	text-align: center;
-	margin-top: auto;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.14em;
+    min-height: 0;
+    text-align: center;
+    margin-top: auto;
 `
 
 export const emptyContent = css`
-	display: flex;
-	flex: 1;
-	justify-content: center;
-	align-items: center;
-	min-height: 0;
-	text-align: center;
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    min-height: 0;
+    text-align: center;
 `
 
 export const emptySeatCommand = css`
@@ -142,14 +142,15 @@ export const emptySeatCommand = css`
 `
 
 export const memberWorkNameFrame = css`
-	align-self: center;
-	min-width: 50%;
-	padding: 0.1em 0.22em;
-	box-sizing: border-box;
-	border-radius: 0.3rem;
-	background-color: rgba(255, 255, 255, 0.63);
-	text-align: center;
-	padding-top: 0.2em;
+    align-self: center;
+    min-width: 50%;
+    padding: 0.1em 0.22em;
+    box-sizing: border-box;
+    border-radius: 0.3rem;
+    background-color: rgba(255, 255, 255, 0.63);
+    text-align: center;
+    padding-top: 0.2em;
+
 `
 
 export const memberWorkName = css`
@@ -165,14 +166,14 @@ export const memberWorkName = css`
 `
 
 export const generalContent = css`
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 0.3rem;
-	min-height: 0;
-	text-align: center;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 0;
+    text-align: center;
 `
 
 export const generalWorkName = css`
@@ -197,11 +198,11 @@ export const generalDisplayName = css`
 `
 
 export const memberIdentityRow = css`
-	display: flex;
-	align-items: center;
-	overflow: hidden;
-	gap: 0.22em;
-	max-width: 100%;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    gap: 0.22em;
+    max-width: 100%;
 `
 
 export const memberDisplayName = css`
@@ -215,21 +216,22 @@ export const memberDisplayName = css`
 `
 
 export const profileImage = css`
-	border-radius: 999px;
-	object-fit: cover;
-	opacity: 0.92;
-	flex-shrink: 0;
+    border-radius: 999px;
+    object-fit: cover;
+    opacity: 0.92;
+    flex-shrink: 0;
 `
 
 export const timeElapsed = css`
-	color: rgba(46, 41, 36, 0.72);
-	font-size: 0.42em;
-	line-height: 1;
-	white-space: nowrap;
-	padding-left: 0;
-	position: absolute;
-	left: 0.2rem;
-	bottom: 0.2rem;
+    color: rgba(46, 41, 36, 0.72);
+    font-size: 0.42em;
+    line-height: 1;
+    white-space: nowrap;
+    padding-left: 0;
+    position: absolute;
+    left: 0.2rem;
+    bottom: 0.2rem;
+
 `
 
 export const timeRemaining = css`

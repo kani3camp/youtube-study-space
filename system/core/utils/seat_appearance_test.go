@@ -3,9 +3,8 @@ package utils
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"app.modules/core/repository"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetSeatAppearance(t *testing.T) {

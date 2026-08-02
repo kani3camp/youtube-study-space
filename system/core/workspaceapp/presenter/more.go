@@ -1,10 +1,9 @@
 package presenter
 
 import (
-	"strings"
-
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/workspaceapp/usecase"
+	"strings"
 )
 
 // BuildMoreMessage converts More events into a localized response.

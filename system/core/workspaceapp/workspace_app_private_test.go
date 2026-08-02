@@ -12,12 +12,11 @@ import (
 
 	"google.golang.org/api/iterator"
 
-	"cloud.google.com/go/firestore"
-
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
+	"cloud.google.com/go/firestore"
 
 	"github.com/stretchr/testify/assert"
 )
