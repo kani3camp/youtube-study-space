@@ -71,7 +71,7 @@ export const verticalUsage = css`
 	position: relative;
 	height: 100%;
 	width: 100%;
-	padding: 0 24px;
+	padding: 0 20px;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
@@ -85,7 +85,7 @@ export const verticalCommands = css`
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 24px;
+	gap: 20px;
 	width: 100%;
 `
 
@@ -93,12 +93,12 @@ export const verticalCommand = css`
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 16px;
+	gap: 14px;
 	white-space: nowrap;
 
 	& + & {
-		margin-left: 24px;
-		padding-left: 48px;
+		margin-left: 20px;
+		padding-left: 40px;
 		border-left: 1px solid var(--ambient-border);
 	}
 `
@@ -109,13 +109,13 @@ export const verticalCommandCode = css`
 	align-items: center;
 	justify-content: center;
 	min-width: 88px;
-	height: 52px;
+	height: 48px;
 	padding: 0 12px;
 	box-sizing: border-box;
 	border-radius: 10px;
-	font-size: 0.85rem;
+	font-size: 0.78rem;
 `
 
 export const verticalCommandDesc = css`
-	font-size: 0.78rem;
+	font-size: 0.7rem;
 `

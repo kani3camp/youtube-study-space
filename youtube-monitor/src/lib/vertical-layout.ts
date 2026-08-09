@@ -1,58 +1,77 @@
-const canvasWidth = 1080
-const canvasHeight = 1920
+import type { RoomSize } from './room-size'
+
+export const CANVAS_WIDTH = 1080
+export const CANVAS_HEIGHT = 1920
+export const YOUTUBE_TOP_SAFE_AREA_HEIGHT = 180
+export const CONTENT_HORIZONTAL_PADDING = 20
+export const SECTION_GAP = 16
+export const STATUS_HEIGHT = 64
+export const TIMER_HEIGHT = 100
+export const COMMANDS_HEIGHT = 80
+
+const CONTENT_WIDTH = CANVAS_WIDTH - CONTENT_HORIZONTAL_PADDING * 2
 
 export const verticalLayout = {
 	canvas: {
-		width: canvasWidth,
-		height: canvasHeight,
+		width: CANVAS_WIDTH,
+		height: CANVAS_HEIGHT,
+	},
+	topSafeArea: {
+		height: YOUTUBE_TOP_SAFE_AREA_HEIGHT,
 	},
 	room: {
-		x: 0,
-		y: 0,
-		width: 1080,
-		height: 720,
+		width: CANVAS_WIDTH,
 	},
-	hud: {
-		clock: {
-			x: 24,
-			y: 136,
-			width: 208,
-			height: 56,
-		},
-		page: {
-			x: 300,
-			y: 136,
-			width: 220,
-			height: 56,
-		},
-		member: {
-			x: 536,
-			y: 142,
-			width: 136,
-			height: 44,
-		},
-		workers: {
-			x: 736,
-			y: 136,
-			width: 320,
-			height: 56,
-		},
+	content: {
+		horizontalPadding: CONTENT_HORIZONTAL_PADDING,
+		width: CONTENT_WIDTH,
+		gap: SECTION_GAP,
+	},
+	status: {
+		height: STATUS_HEIGHT,
 	},
 	timer: {
-		x: 20,
-		y: 740,
-		width: 1040,
-		height: 120,
+		height: TIMER_HEIGHT,
 	},
-	usage: {
-		x: 20,
-		y: 876,
-		width: 1040,
-		height: 96,
-	},
-	importantContentBottom: 972,
-	roomViewport: {
-		width: 1080,
-		height: 720,
+	commands: {
+		height: COMMANDS_HEIGHT,
 	},
 } as const
+
+export const getVerticalRoomViewport = (source: RoomSize): RoomSize => ({
+	width: verticalLayout.room.width,
+	height: (source.height / source.width) * verticalLayout.room.width,
+})
+
+export const getVerticalSectionPositions = (roomHeight: number) => {
+	const roomY = verticalLayout.topSafeArea.height
+	const statusY = roomY + roomHeight + verticalLayout.content.gap
+	const timerY =
+		statusY + verticalLayout.status.height + verticalLayout.content.gap
+	const commandsY =
+		timerY + verticalLayout.timer.height + verticalLayout.content.gap
+
+	return {
+		topSafeArea: {
+			y: 0,
+			height: verticalLayout.topSafeArea.height,
+		},
+		room: {
+			y: roomY,
+			height: roomHeight,
+		},
+		status: {
+			y: statusY,
+			height: verticalLayout.status.height,
+		},
+		timer: {
+			y: timerY,
+			height: verticalLayout.timer.height,
+		},
+		commands: {
+			y: commandsY,
+			height: verticalLayout.commands.height,
+		},
+		importantContentBottom: commandsY + verticalLayout.commands.height,
+	}
+}

@@ -22,12 +22,14 @@ export const message = css`
 `
 
 export const verticalMessage = css`
-	position: absolute;
-	inset: 0;
-	display: block;
+	position: relative;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 24px;
 	height: 100%;
 	width: 100%;
-	padding: 0;
+	padding: 0 0 0 24px;
 	box-sizing: border-box;
 `
 
@@ -40,21 +42,15 @@ export const pageInfo = css`
 `
 
 export const verticalPageInfo = css`
-	position: absolute;
-	top: 136px;
-	left: 300px;
+	position: relative;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	width: 220px;
-	height: 56px;
-	gap: 8px;
-	padding: 0 12px;
+	justify-content: flex-start;
+	width: auto;
+	height: 100%;
+	gap: 20px;
+	padding: 0;
 	box-sizing: border-box;
-	border: 1px solid var(--ambient-border);
-	border-radius: 12px;
-	background: var(--ambient-panel-bg);
-	backdrop-filter: blur(0.45rem);
 	white-space: nowrap;
 `
 
@@ -66,16 +62,16 @@ export const verticalPageIndex = css`
 	display: inline-flex;
 	align-items: baseline;
 	justify-content: center;
-	gap: 8px;
+	gap: 10px;
 `
 
 export const verticalPageLabel = css`
-	font-size: 0.65rem;
+	font-size: 0.62rem;
 	font-weight: 600;
 `
 
 export const verticalPageNumber = css`
-	font-size: 0.95rem;
+	font-size: 0.76rem;
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 `
@@ -93,18 +89,16 @@ export const memberOnly = css`
 `
 
 export const verticalMemberOnly = css`
-	position: absolute;
-	top: 5px;
-	left: 235px;
+	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 136px;
-	height: 44px;
+	width: auto;
+	height: 34px;
 	margin: 0;
-	padding: 0 8px;
+	padding: 0 14px;
 	box-sizing: border-box;
-	font-size: 0.55rem;
+	font-size: 0.48rem;
 	white-space: nowrap;
 	border-radius: 999px;
 `
@@ -123,29 +117,25 @@ export const numStudyingPeople = css`
 `
 
 export const verticalNumStudyingPeople = css`
-	position: absolute;
-	top: 136px;
-	left: 736px;
+	position: relative;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	width: 320px;
-	height: 56px;
-	padding: 0 12px;
+	justify-content: flex-end;
+	width: auto;
+	height: 100%;
+	padding: 0;
 	box-sizing: border-box;
-	border: 1px solid var(--ambient-border);
-	border-radius: 12px;
-	background: var(--ambient-panel-bg);
-	backdrop-filter: blur(0.45rem);
-	font-size: 0.85rem;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 0.72rem;
 	font-weight: 700;
 	white-space: nowrap;
 `
 
 export const verticalShape = css`
-	position: absolute;
-	inset: 0;
-	height: auto;
-	width: auto;
-	pointer-events: none;
+	position: relative;
+	inset: auto;
+	height: 100%;
+	width: 100%;
 `

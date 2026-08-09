@@ -48,7 +48,7 @@ export const verticalClockStyle = css`
 	position: relative;
 	height: 100%;
 	width: 100%;
-	padding: 0 12px;
+	padding: 0 12px 0 0;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
@@ -58,7 +58,8 @@ export const verticalClockStyle = css`
 `
 
 export const verticalTimeStringStyle = css`
-	font-size: 1.15rem;
+	font-size: 0.9rem;
 	line-height: 1;
 	font-weight: 700;
+	font-variant-numeric: tabular-nums;
 `

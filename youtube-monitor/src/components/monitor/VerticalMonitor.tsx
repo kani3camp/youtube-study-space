@@ -9,7 +9,10 @@ import {
 	useSynchronizedPage,
 } from '../../hooks/useSynchronizedPage'
 import { Constants } from '../../lib/constants'
-import { verticalLayout } from '../../lib/vertical-layout'
+import {
+	getVerticalRoomViewport,
+	verticalLayout,
+} from '../../lib/vertical-layout'
 import { themedRoot } from '../../styles/AmbientFrame.styles'
 import * as styles from '../../styles/VerticalMonitor.styles'
 import AmbientFrame from '../AmbientFrame'
@@ -43,6 +46,9 @@ const VerticalMonitor: FC = () => {
 
 	const currentPage = pages[currentPageIndex]
 	const allSeats = monitorData.generalSeats.concat(monitorData.memberSeats)
+	const roomViewport = currentPage
+		? getVerticalRoomViewport(currentPage.roomLayout.room_shape)
+		: undefined
 
 	return (
 		<div
@@ -58,34 +64,51 @@ const VerticalMonitor: FC = () => {
 			/>
 			<div css={styles.backgroundOverlay} />
 			<main css={styles.layout}>
-				<section css={styles.roomSection}>
-					<RoomStage
-						pages={pages}
-						currentPageIndex={currentPageIndex}
-						menuImageMap={monitorData.menuImageMap}
-						viewport={verticalLayout.roomViewport}
-					/>
-				</section>
-				<section css={styles.hudLayer}>
-					<div css={[styles.hudPanel, styles.clockHud]}>
-						<Clock variant="vertical" />
-					</div>
-					{pages.length > 0 && (
-						<Message
-							currentPageIndex={currentPageIndex}
-							currentPagesLength={pages.length}
-							currentPageIsMember={currentPage?.memberOnly ?? false}
-							seats={allSeats}
-							variant="vertical"
-						/>
-					)}
-				</section>
-				<section css={styles.timerPanel}>
-					<Timer variant="vertical" />
-				</section>
-				<section css={styles.usagePanel}>
-					<Usage variant="vertical" />
-				</section>
+				<div css={styles.topSafeArea} data-vertical-section="safe-area" />
+				{roomViewport && (
+					<>
+						<section
+							css={styles.roomSection}
+							data-vertical-section="room"
+							style={{ height: roomViewport.height }}
+						>
+							<RoomStage
+								pages={pages}
+								currentPageIndex={currentPageIndex}
+								menuImageMap={monitorData.menuImageMap}
+								viewport={roomViewport}
+							/>
+						</section>
+						<div css={styles.controlsStack}>
+							<section
+								css={[styles.verticalPanel, styles.statusPanel]}
+								data-vertical-section="status"
+							>
+								<Clock variant="vertical" />
+								<span css={styles.statusDivider} aria-hidden="true" />
+								<Message
+									currentPageIndex={currentPageIndex}
+									currentPagesLength={pages.length}
+									currentPageIsMember={currentPage.memberOnly}
+									seats={allSeats}
+									variant="vertical"
+								/>
+							</section>
+							<section
+								css={[styles.verticalPanel, styles.timerPanel]}
+								data-vertical-section="timer"
+							>
+								<Timer variant="vertical" />
+							</section>
+							<section
+								css={[styles.verticalPanel, styles.commandsPanel]}
+								data-vertical-section="commands"
+							>
+								<Usage variant="vertical" />
+							</section>
+						</div>
+					</>
+				)}
 			</main>
 			{pages.length === 0 && <CenterLoading />}
 			<AmbientFrame vertical />

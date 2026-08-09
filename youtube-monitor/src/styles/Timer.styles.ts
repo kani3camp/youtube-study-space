@@ -138,7 +138,7 @@ export const verticalTimer = css`
 	position: relative;
 	height: 100%;
 	width: 100%;
-	padding: 0 60px 0 24px;
+	padding: 0 40px 0 24px;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
@@ -154,22 +154,22 @@ export const verticalTimerBar = css`
 	justify-content: flex-start;
 	width: 100%;
 	height: 100%;
-	gap: 32px;
+	gap: 28px;
 `
 
 export const verticalTimerSummary = css`
 	display: flex;
 	align-items: center;
-	flex: 0 0 244px;
-	gap: 16px;
+	flex: 0 0 232px;
+	gap: 14px;
 `
 
 export const verticalTimerIcon = css`
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 48px;
-	height: 48px;
+	width: 42px;
+	height: 42px;
 `
 
 export const verticalTimerDetails = css`
@@ -177,18 +177,18 @@ export const verticalTimerDetails = css`
 	flex-direction: column;
 	justify-content: center;
 	min-width: 0;
-	width: 180px;
+	width: 176px;
 `
 
 export const verticalStateLabel = css`
-	font-size: 0.9rem;
+	font-size: 0.7rem;
 	font-weight: 700;
 	line-height: 1.15;
 `
 
 export const verticalRemaining = css`
 	font-family: ${fontFamily};
-	font-size: 1.65rem;
+	font-size: 1.35rem;
 	font-weight: 800;
 	font-variant-numeric: tabular-nums;
 	line-height: 1.15;
@@ -203,8 +203,9 @@ export const verticalTimerPlaceholder = css`
 
 export const verticalProgressTrack = css`
 	position: relative;
-	flex: 0 0 680px;
-	height: 24px;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 22px;
 	overflow: hidden;
 	border-radius: 999px;
 	background: rgba(255, 255, 255, 0.35);

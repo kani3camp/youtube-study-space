@@ -1,5 +1,5 @@
 import { calculateRoomSize } from '../lib/room-size'
-import { verticalLayout } from '../lib/vertical-layout'
+import { getVerticalRoomViewport, verticalLayout } from '../lib/vertical-layout'
 
 jest.mock('next/font/google', () => ({
 	M_PLUS_Rounded_1c: jest.fn(() => ({
@@ -50,15 +50,15 @@ describe('vertical room viewport', () => {
 		)
 
 		for (const layout of layouts) {
-			const roomSize = calculateRoomSize(
-				layout.room_shape,
-				verticalLayout.roomViewport,
-			)
+			const viewport = getVerticalRoomViewport(layout.room_shape)
+			const roomSize = calculateRoomSize(layout.room_shape, viewport)
 
-			expect(roomSize.width).toBe(verticalLayout.roomViewport.width)
-			expect(roomSize.height).toBeLessThanOrEqual(
-				verticalLayout.roomViewport.height,
+			expect(viewport.width).toBe(verticalLayout.room.width)
+			expect(viewport.width / viewport.height).toBeCloseTo(
+				layout.room_shape.width / layout.room_shape.height,
 			)
+			expect(roomSize.width).toBeCloseTo(viewport.width)
+			expect(roomSize.height).toBeCloseTo(viewport.height)
 		}
 	})
 })
