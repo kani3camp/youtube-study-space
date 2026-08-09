@@ -15,9 +15,13 @@ service cloud.firestore {
     	allow write: if false;
     }
     
-    match /config/{doc} {
+    match /config/constants {
     	allow read: if true;
       allow write: if false;
+    }
+
+    match /config/{doc} {
+    	allow read, write: if false;
     }
 
     match /menu/{doc} {
