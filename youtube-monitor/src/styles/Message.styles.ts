@@ -94,8 +94,8 @@ export const memberOnly = css`
 
 export const verticalMemberOnly = css`
 	position: absolute;
-	top: 6px;
-	left: 236px;
+	top: 5px;
+	left: 235px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
