@@ -2,7 +2,17 @@ name: Deploy docs to GitHub Pages
 
 on:
   push:
-    branches: [main, release]
+    branches:
+      - main
+      - release
+    paths:
+      - "docs-site/**"
+      - ".github/workflows/deploy-docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-docs-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -22,7 +32,7 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           package_json_file: docs-site/package.json
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "pnpm"
