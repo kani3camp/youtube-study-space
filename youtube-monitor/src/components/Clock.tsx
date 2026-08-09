@@ -41,18 +41,15 @@ const Clock: FC<ClockProps> = ({ variant = 'horizontal', style, time }) => {
 					!isVertical && componentStyle,
 				]}
 			>
-				<div
-					css={[
-						styles.dateStringStyle,
-						isVertical && styles.verticalDateStringStyle,
-					]}
-				>
-					{now
-						? `${now.getFullYear()}${t('year')}${now.getMonth() + 1}${t(
-								'month',
-							)}${now.getDate()}${t('day')}`
-						: '--'}
-				</div>
+				{!isVertical && (
+					<div css={styles.dateStringStyle}>
+						{now
+							? `${now.getFullYear()}${t('year')}${now.getMonth() + 1}${t(
+									'month',
+								)}${now.getDate()}${t('day')}`
+							: '--'}
+					</div>
+				)}
 				<div
 					css={[
 						styles.timeStringStyle,
@@ -60,7 +57,7 @@ const Clock: FC<ClockProps> = ({ variant = 'horizontal', style, time }) => {
 					]}
 				>
 					{now
-						? `${now.getHours()}：${
+						? `${now.getHours()}${isVertical ? ':' : '：'}${
 								now.getMinutes() < 10
 									? `0${now.getMinutes()}`
 									: now.getMinutes()

@@ -73,63 +73,100 @@ const Timer = memo(function Timer({
 					!isVertical && componentStyle,
 				]}
 			>
-				<div
-					css={[
-						styles.progressBarContainer,
-						isVertical && styles.verticalProgressBarContainer,
-					]}
-				>
-					<CircularProgressbarWithChildren
-						value={isReady ? percentage : 0}
-						strokeWidth={10}
-						styles={buildStyles({
-							strokeLinecap: 'round',
-							pathTransitionDuration: 0,
-							pathColor: isStudy
-								? Constants.timerProgressStudyColor
-								: Constants.timerProgressBreakColor,
-							trailColor: 'rgba(255,255,255,0.35)',
-							backgroundColor: 'transparent',
-						})}
-					>
-						<div css={styles.progressInner}>
-							<div css={styles.stateRow}>
+				{isVertical ? (
+					<div css={styles.verticalTimerBar}>
+						<div css={styles.verticalTimerSummary}>
+							<div css={styles.verticalTimerIcon}>
 								{isReady ? (
 									isStudy ? (
-										<>
-											<AiFillFire size={22} css={styles.studyIcon} />
-											<span css={[styles.stateLabel, styles.stateLabelStudy]}>
-												{t('study')}
-											</span>
-										</>
+										<AiFillFire size={30} css={styles.studyIcon} />
 									) : (
-										<>
-											<MdFreeBreakfast size={22} css={styles.breakIcon} />
-											<span css={[styles.stateLabel, styles.stateLabelBreak]}>
-												{t('break')}
-											</span>
-										</>
+										<MdFreeBreakfast size={30} css={styles.breakIcon} />
 									)
 								) : (
-									<span css={styles.statePlaceholder}>--</span>
+									<span css={styles.verticalTimerPlaceholder}>--</span>
 								)}
 							</div>
-							<div css={styles.remaining}>
-								{isReady ? (
-									<>
-										<span css={styles.remainingMinutes}>{minutes}</span>
-										<span css={styles.remainingDivider}>:</span>
-										<span css={styles.remainingSeconds}>{seconds}</span>
-									</>
-								) : (
-									<span css={styles.remainingPlaceholder}>--:--</span>
-								)}
+							<div css={styles.verticalTimerDetails}>
+								<div
+									css={[
+										styles.verticalStateLabel,
+										isStudy ? styles.stateLabelStudy : styles.stateLabelBreak,
+									]}
+								>
+									{isReady ? t(isStudy ? 'study' : 'break') : '--'}
+								</div>
+								<div css={styles.verticalRemaining}>
+									{isReady ? `${minutes}:${seconds}` : '--:--'}
+								</div>
 							</div>
 						</div>
-					</CircularProgressbarWithChildren>
-				</div>
-				{isReady && (
-					<div css={[styles.nextRow, isVertical && styles.verticalNextRow]}>
+						<div css={styles.verticalProgressTrack}>
+							<div
+								css={[
+									styles.verticalProgressValue,
+									isStudy
+										? styles.verticalProgressValueStudy
+										: styles.verticalProgressValueBreak,
+								]}
+								style={{ width: `${isReady ? percentage : 0}%` }}
+							/>
+						</div>
+					</div>
+				) : (
+					<div css={styles.progressBarContainer}>
+						<CircularProgressbarWithChildren
+							value={isReady ? percentage : 0}
+							strokeWidth={10}
+							styles={buildStyles({
+								strokeLinecap: 'round',
+								pathTransitionDuration: 0,
+								pathColor: isStudy
+									? Constants.timerProgressStudyColor
+									: Constants.timerProgressBreakColor,
+								trailColor: 'rgba(255,255,255,0.35)',
+								backgroundColor: 'transparent',
+							})}
+						>
+							<div css={styles.progressInner}>
+								<div css={styles.stateRow}>
+									{isReady ? (
+										isStudy ? (
+											<>
+												<AiFillFire size={22} css={styles.studyIcon} />
+												<span css={[styles.stateLabel, styles.stateLabelStudy]}>
+													{t('study')}
+												</span>
+											</>
+										) : (
+											<>
+												<MdFreeBreakfast size={22} css={styles.breakIcon} />
+												<span css={[styles.stateLabel, styles.stateLabelBreak]}>
+													{t('break')}
+												</span>
+											</>
+										)
+									) : (
+										<span css={styles.statePlaceholder}>--</span>
+									)}
+								</div>
+								<div css={styles.remaining}>
+									{isReady ? (
+										<>
+											<span css={styles.remainingMinutes}>{minutes}</span>
+											<span css={styles.remainingDivider}>:</span>
+											<span css={styles.remainingSeconds}>{seconds}</span>
+										</>
+									) : (
+										<span css={styles.remainingPlaceholder}>--:--</span>
+									)}
+								</div>
+							</div>
+						</CircularProgressbarWithChildren>
+					</div>
+				)}
+				{!isVertical && isReady && (
+					<div css={styles.nextRow}>
 						{t('next')} {nextDurationMin}
 						{t('minutes')} {t(nextLabel)}
 					</div>

@@ -1,53 +1,58 @@
 const canvasWidth = 1080
 const canvasHeight = 1920
-const outerPadding = 24
-const sectionGap = 18
-const contentWidth = canvasWidth - outerPadding * 2
-const contentHeight = canvasHeight - outerPadding * 2
-
-const fixedRows = {
-	header: 116,
-	room: 688,
-	information: 272,
-} as const
-
-const taglineHeight =
-	contentHeight -
-	Object.values(fixedRows).reduce((total, height) => total + height, 0) -
-	sectionGap * 3
 
 export const verticalLayout = {
 	canvas: {
 		width: canvasWidth,
 		height: canvasHeight,
 	},
-	outerPadding,
-	content: {
-		width: contentWidth,
-		height: contentHeight,
+	room: {
+		x: 0,
+		y: 0,
+		width: 1080,
+		height: 720,
 	},
-	sectionGap,
-	rows: {
-		...fixedRows,
-		tagline: taglineHeight,
+	hud: {
+		clock: {
+			x: 24,
+			y: 136,
+			width: 208,
+			height: 56,
+		},
+		page: {
+			x: 300,
+			y: 136,
+			width: 220,
+			height: 56,
+		},
+		member: {
+			x: 536,
+			y: 142,
+			width: 136,
+			height: 44,
+		},
+		workers: {
+			x: 736,
+			y: 136,
+			width: 320,
+			height: 56,
+		},
 	},
-	headerColumns: {
-		clock: 400,
-		gap: 18,
-		status: 614,
+	timer: {
+		x: 20,
+		y: 740,
+		width: 1040,
+		height: 120,
 	},
-	informationColumns: {
-		timer: 340,
-		gap: 18,
-		details: 674,
+	usage: {
+		x: 20,
+		y: 876,
+		width: 1040,
+		height: 96,
 	},
-	informationRows: {
-		usage: 116,
-		gap: 18,
-		ticker: 138,
-	},
+	importantContentBottom: 972,
 	roomViewport: {
-		width: contentWidth,
-		height: fixedRows.room,
+		width: 1080,
+		height: 720,
 	},
 } as const

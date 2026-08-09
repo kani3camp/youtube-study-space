@@ -48,23 +48,17 @@ export const verticalClockStyle = css`
 	position: relative;
 	height: 100%;
 	width: 100%;
-	padding: 14px 28px;
+	padding: 0 12px;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 	display: flex;
-	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	gap: 2px;
-`
-
-export const verticalDateStringStyle = css`
-	font-size: 0.58rem;
-	line-height: 1.4;
 `
 
 export const verticalTimeStringStyle = css`
-	font-size: 1.55rem;
-	line-height: 1.2;
+	font-size: 1.15rem;
+	line-height: 1;
+	font-weight: 700;
 `

@@ -138,20 +138,90 @@ export const verticalTimer = css`
 	position: relative;
 	height: 100%;
 	width: 100%;
-	padding: 18px 24px;
+	padding: 0 60px 0 24px;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
-	gap: 8px;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
 `
 
-export const verticalProgressBarContainer = css`
-	width: 184px;
-	height: 184px;
-	margin: 0;
+export const verticalTimerBar = css`
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	height: 100%;
+	gap: 32px;
 `
 
-export const verticalNextRow = css`
-	font-size: 0.58rem;
+export const verticalTimerSummary = css`
+	display: flex;
+	align-items: center;
+	flex: 0 0 244px;
+	gap: 16px;
+`
+
+export const verticalTimerIcon = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+`
+
+export const verticalTimerDetails = css`
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	width: 180px;
+`
+
+export const verticalStateLabel = css`
+	font-size: 0.9rem;
+	font-weight: 700;
 	line-height: 1.15;
+`
+
+export const verticalRemaining = css`
+	font-family: ${fontFamily};
+	font-size: 1.65rem;
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.15;
+	letter-spacing: 0.03em;
+`
+
+export const verticalTimerPlaceholder = css`
+	font-size: 1.25rem;
+	font-weight: 700;
+	opacity: 0.45;
+`
+
+export const verticalProgressTrack = css`
+	position: relative;
+	flex: 0 0 680px;
+	height: 24px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.35);
+`
+
+export const verticalProgressValue = css`
+	height: 100%;
+	border-radius: inherit;
+	transition:
+		width 100ms linear,
+		background-color 150ms linear;
+`
+
+export const verticalProgressValueStudy = css`
+	background: var(--ambient-study-accent);
+`
+
+export const verticalProgressValueBreak = css`
+	background: var(--ambient-break-accent);
 `

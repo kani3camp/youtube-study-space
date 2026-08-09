@@ -17,7 +17,6 @@ import BackgroundImage from '../BackgroundImage'
 import CenterLoading from '../CenterLoading'
 import Clock from '../Clock'
 import Message from '../Message'
-import TickerBoard from '../TickerBoard'
 import Timer from '../Timer'
 import Usage from '../Usage'
 import RoomStage from './RoomStage'
@@ -59,22 +58,6 @@ const VerticalMonitor: FC = () => {
 			/>
 			<div css={styles.backgroundOverlay} />
 			<main css={styles.layout}>
-				<header css={styles.headerGrid}>
-					<section css={styles.verticalPanel}>
-						<Clock variant="vertical" />
-					</section>
-					<section css={styles.verticalPanel}>
-						{pages.length > 0 && (
-							<Message
-								currentPageIndex={currentPageIndex}
-								currentPagesLength={pages.length}
-								currentPageIsMember={currentPage?.memberOnly ?? false}
-								seats={allSeats}
-								variant="vertical"
-							/>
-						)}
-					</section>
-				</header>
 				<section css={styles.roomSection}>
 					<RoomStage
 						pages={pages}
@@ -83,24 +66,25 @@ const VerticalMonitor: FC = () => {
 						viewport={verticalLayout.roomViewport}
 					/>
 				</section>
-				<section css={styles.informationGrid}>
-					<div css={[styles.verticalPanel, styles.timerPanel]}>
-						<Timer variant="vertical" />
+				<section css={styles.hudLayer}>
+					<div css={[styles.hudPanel, styles.clockHud]}>
+						<Clock variant="vertical" />
 					</div>
-					<div css={styles.informationDetails}>
-						<div css={[styles.verticalPanel, styles.usagePanel]}>
-							<Usage variant="vertical" />
-						</div>
-						<div css={[styles.verticalPanel, styles.tickerPanel]}>
-							<TickerBoard
-								workNameTrend={monitorData.workNameTrend}
-								variant="vertical"
-							/>
-						</div>
-					</div>
+					{pages.length > 0 && (
+						<Message
+							currentPageIndex={currentPageIndex}
+							currentPagesLength={pages.length}
+							currentPageIsMember={currentPage?.memberOnly ?? false}
+							seats={allSeats}
+							variant="vertical"
+						/>
+					)}
 				</section>
-				<section css={styles.taglineSection}>
-					<h2 css={styles.taglineTitle}>静かに、一緒に作業できます</h2>
+				<section css={styles.timerPanel}>
+					<Timer variant="vertical" />
+				</section>
+				<section css={styles.usagePanel}>
+					<Usage variant="vertical" />
 				</section>
 			</main>
 			{pages.length === 0 && <CenterLoading />}

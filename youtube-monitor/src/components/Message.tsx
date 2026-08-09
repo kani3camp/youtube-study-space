@@ -55,7 +55,8 @@ const Message: FC<Props> = (props) => {
 						isVertical && styles.verticalNumStudyingPeople,
 					]}
 				>
-					{t('message.num_studying_people', { value: numWorkers })} 🫧
+					{t('message.num_studying_people', { value: numWorkers })}
+					{!isVertical && ' 🫧'}
 				</div>
 			</>
 		)

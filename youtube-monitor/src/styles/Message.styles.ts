@@ -22,14 +22,13 @@ export const message = css`
 `
 
 export const verticalMessage = css`
-	position: relative;
-	display: grid;
-	grid-template-rows: 1fr 1fr;
+	position: absolute;
+	inset: 0;
+	display: block;
 	height: 100%;
 	width: 100%;
 	padding: 0;
 	box-sizing: border-box;
-	font-size: 1rem;
 `
 
 export const pageInfo = css`
@@ -41,23 +40,22 @@ export const pageInfo = css`
 `
 
 export const verticalPageInfo = css`
-	position: relative;
-	width: 100%;
-	height: 100%;
-	gap: 12px;
-	padding: 0 24px;
+	position: absolute;
+	top: 136px;
+	left: 300px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 220px;
+	height: 56px;
+	gap: 8px;
+	padding: 0 12px;
 	box-sizing: border-box;
+	border: 1px solid var(--ambient-border);
+	border-radius: 12px;
+	background: var(--ambient-panel-bg);
+	backdrop-filter: blur(0.45rem);
 	white-space: nowrap;
-
-	&::after {
-		position: absolute;
-		bottom: 0;
-		left: 8%;
-		height: 1px;
-		width: 84%;
-		background-color: var(--ambient-border);
-		content: "";
-	}
 `
 
 export const pageIndex = css`
@@ -68,16 +66,16 @@ export const verticalPageIndex = css`
 	display: inline-flex;
 	align-items: baseline;
 	justify-content: center;
-	gap: 12px;
+	gap: 8px;
 `
 
 export const verticalPageLabel = css`
-	font-size: 0.82rem;
+	font-size: 0.65rem;
 	font-weight: 600;
 `
 
 export const verticalPageNumber = css`
-	font-size: 1.08rem;
+	font-size: 0.95rem;
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 `
@@ -95,11 +93,20 @@ export const memberOnly = css`
 `
 
 export const verticalMemberOnly = css`
-	width: auto;
-	margin-left: 0;
-	padding: 3px 8px;
-	font-size: 0.36rem;
+	position: absolute;
+	top: 6px;
+	left: 236px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 136px;
+	height: 44px;
+	margin: 0;
+	padding: 0 8px;
+	box-sizing: border-box;
+	font-size: 0.55rem;
 	white-space: nowrap;
+	border-radius: 999px;
 `
 
 export const numStudyingPeople = css`
@@ -116,25 +123,29 @@ export const numStudyingPeople = css`
 `
 
 export const verticalNumStudyingPeople = css`
+	position: absolute;
+	top: 136px;
+	left: 736px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 100%;
-	height: 100%;
-	padding: 0 24px;
+	width: 320px;
+	height: 56px;
+	padding: 0 12px;
 	box-sizing: border-box;
-	border: 0;
-	border-radius: 0;
-	background: transparent;
-	font-size: 1rem;
-	font-weight: 600;
+	border: 1px solid var(--ambient-border);
+	border-radius: 12px;
+	background: var(--ambient-panel-bg);
+	backdrop-filter: blur(0.45rem);
+	font-size: 0.85rem;
+	font-weight: 700;
 	white-space: nowrap;
 `
 
 export const verticalShape = css`
-	position: relative;
-	left: auto;
-	bottom: auto;
-	height: 100%;
-	width: 100%;
+	position: absolute;
+	inset: 0;
+	height: auto;
+	width: auto;
+	pointer-events: none;
 `

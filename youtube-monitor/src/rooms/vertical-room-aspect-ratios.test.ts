@@ -55,7 +55,7 @@ describe('vertical room viewport', () => {
 				verticalLayout.roomViewport,
 			)
 
-			expect(roomSize.width).toBe(verticalLayout.content.width)
+			expect(roomSize.width).toBe(verticalLayout.roomViewport.width)
 			expect(roomSize.height).toBeLessThanOrEqual(
 				verticalLayout.roomViewport.height,
 			)

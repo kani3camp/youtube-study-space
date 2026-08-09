@@ -41,6 +41,22 @@ const Usage: FC<UsageProps> = ({ variant = 'horizontal', style }) => {
 			</div>
 		</>
 	)
+	const verticalCommands = (
+		<>
+			<div css={[styles.command, styles.verticalCommand]}>
+				<span css={[styles.commandCode, styles.verticalCommandCode]}>!in</span>
+				<span css={[styles.commandDesc, styles.verticalCommandDesc]}>
+					{t('usage.work')} {t('usage.in')}
+				</span>
+			</div>
+			<div css={[styles.command, styles.verticalCommand]}>
+				<span css={[styles.commandCode, styles.verticalCommandCode]}>!out</span>
+				<span css={[styles.commandDesc, styles.verticalCommandDesc]}>
+					{t('usage.out')}
+				</span>
+			</div>
+		</>
+	)
 
 	return (
 		<div
@@ -58,15 +74,13 @@ const Usage: FC<UsageProps> = ({ variant = 'horizontal', style }) => {
 					!isVertical && componentStyle,
 				]}
 			>
-				<h4
-					css={[styles.description, isVertical && styles.verticalDescription]}
-				>
-					{t('usage.description')}
-				</h4>
 				{isVertical ? (
-					<div css={styles.verticalCommands}>{commands}</div>
+					<div css={styles.verticalCommands}>{verticalCommands}</div>
 				) : (
-					commands
+					<>
+						<h4 css={styles.description}>{t('usage.description')}</h4>
+						{commands}
+					</>
 				)}
 			</div>
 		</div>
