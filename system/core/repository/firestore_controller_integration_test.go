@@ -49,31 +49,14 @@ func seedLegacyConstantsConfig(t *testing.T, controller *repository.FirestoreCon
 	require.NoError(t, err)
 }
 
-func TestFirestoreRepository_SystemConstantsFallsBackBeforePublicConfigBootstrap(t *testing.T) {
+func TestFirestoreRepository_SystemConstantsRequiresPublicConfigAfterMigration(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
-	want := legacyConstantsConfig()
-	seedLegacyConstantsConfig(t, controller, want)
+	seedLegacyConstantsConfig(t, controller, legacyConstantsConfig())
 
-	got, err := controller.ReadSystemConstantsConfig(context.Background(), nil)
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-
-	var gotInTransaction repository.ConstantsConfigDoc
-	runTransaction(t, controller, func(ctx context.Context, tx *firestore.Transaction) error {
-		var readErr error
-		gotInTransaction, readErr = controller.ReadSystemConstantsConfig(ctx, tx)
-		if readErr != nil {
-			return readErr
-		}
-		return controller.UpdateDesiredMaxSeats(ctx, tx, 111)
-	})
-	assert.Equal(t, want, gotInTransaction)
-	privateSnapshot, err := controller.FirestoreClient().Doc(repository.CONFIG + "/" + repository.SystemConstantsConfigDocName).Get(context.Background())
-	require.NoError(t, err)
-	var updatedPrivate repository.ConstantsConfigDoc
-	require.NoError(t, privateSnapshot.DataTo(&updatedPrivate))
-	assert.Equal(t, 111, updatedPrivate.DesiredMaxSeats)
+	_, err := controller.ReadSystemConstantsConfig(context.Background(), nil)
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestFirestoreRepository_PublicMonitorConfigIsCanonical(t *testing.T) {

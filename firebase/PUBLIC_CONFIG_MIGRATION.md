@@ -43,6 +43,8 @@
 7. PR Cのyoutube-monitorをdeployし、horizontal／vertical双方の表示とrealtime updateを確認します。
 8. 旧monitor buildが残っていないことを確認してからPR DのRulesをdeployし、`config/*`を完全非公開化します。
 
+PR Dのbackendはlegacy fallbackを削除するため、`public-config/monitor`が存在しない環境では起動時のconfig readが失敗します。PR D deploy前にbootstrap済みであることを必ず確認してください。PR D deploy後は、anonymous／authenticated Client SDKの両方で`config/constants`、`config/credentials`、`config/unknown`のGETとconfig collection listが拒否され、`public-config/monitor`のGETだけが成功することをRules testと同じ条件で確認します。
+
 ## Rollback
 
 PR BまたはPR Cまでのrollbackでは`config/constants`のpublic readを維持しているため、旧monitor buildへ戻せます。`public-config/monitor`は削除せず、新backendをrollbackした場合は必要に応じて5値を`config/constants`へ手動で戻します。PR Dをdeployした後に旧monitorへrollbackする場合は、先にPR DのRulesをrollbackしないと旧buildがconfigを読めません。
