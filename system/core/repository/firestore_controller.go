@@ -206,11 +206,6 @@ func (c *FirestoreControllerImplements) ReadSystemConstantsConfig(ctx context.Co
 
 	monitorConfig, err := c.readMonitorPublicConfig(ctx, tx)
 	if err != nil {
-		// Temporary migration fallback: production initially has only config/constants.
-		// Remove this after public-config/monitor has been bootstrapped everywhere.
-		if status.Code(err) == codes.NotFound {
-			return constantsConfig, nil
-		}
 		return ConstantsConfigDoc{}, fmt.Errorf("read monitor public config: %w", err)
 	}
 	monitorConfig.applyTo(&constantsConfig)
