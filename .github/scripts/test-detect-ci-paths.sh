@@ -13,7 +13,7 @@ assert_exact_groups() {
 	local expected
 
 	output="$($detector --paths "$@")"
-	for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all; do
+	for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all; do
 		expected=false
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
@@ -26,8 +26,11 @@ assert_exact_groups() {
 }
 
 assert_exact_groups "" README.md
-assert_exact_groups firestore_integration firebase/firebase.json
-assert_exact_groups firestore_integration firebase/firestore.rules
+assert_exact_groups "firestore_integration firestore_rules" firebase/firebase.json
+assert_exact_groups firestore_rules firebase/firestore.rules
+assert_exact_groups firestore_rules firebase/firestore.rules.test.mjs
+assert_exact_groups firestore_rules firebase/package.json
+assert_exact_groups firestore_rules firebase/pnpm-lock.yaml
 assert_exact_groups firestore_integration firebase/firestore.indexes.json
 assert_exact_groups youtube_monitor youtube-monitor/src/app.ts
 assert_exact_groups youtube_monitor biome.json
@@ -42,15 +45,16 @@ assert_exact_groups room_image_prompt tools/room-image-prompt/cmd/room-image-pro
 assert_exact_groups menu_image_generator tools/menu-image-generator/src/index.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/workflows/ci.yml
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/workflows/deploy-docs.yml
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/test-detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/run-firestore-integration-tests.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/workflows/ci.yml
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/workflows/deploy-docs.yml
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/scripts/detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/scripts/test-detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/scripts/run-firestore-integration-tests.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all" .github/scripts/run-firestore-rules-tests.sh
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all; do
+for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration firestore_rules all; do
 	if ! printf '%s\n' "$manual_output" | grep -Fxq "$group=true"; then
 		echo "Expected workflow_dispatch to select $group" >&2
 		exit 1

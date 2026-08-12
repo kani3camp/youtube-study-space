@@ -1,13 +1,19 @@
-## Firestore Emulator統合テスト
+## Firestore Emulatorテスト
+
+Firestore Emulatorを使うテストは責務ごとに分かれています。
+
+- `bash .github/scripts/run-firestore-rules-tests.sh`: Web Client SDKとしてSecurity Rulesの公開／非公開境界を検証
+- `bash .github/scripts/run-firestore-integration-tests.sh`: Go server clientとしてRepositoryの永続化契約を検証
 
 ローカルで統合テストを実行するには、Node.js、Java 21以上、固定版のFirebase CLIが必要です。
 
 ```bash
 npm install -g firebase-tools@15.25.1
+bash .github/scripts/run-firestore-rules-tests.sh
 bash .github/scripts/run-firestore-integration-tests.sh
 ```
 
-このコマンドはFirestore Emulatorだけを起動し、`-tags=integration` を付けたGoテストを実行します。実在するFirebaseプロジェクトや認証情報は不要です。各テスト開始前にEmulator上のテストデータを削除します。通常の `cd system && go test -shuffle=on -v ./...` では、integrationタグ付きテストは実行されません。
+どちらもFirestore Emulatorだけを起動するため、実在するFirebaseプロジェクトや認証情報は不要です。Rulesテストは`@firebase/rules-unit-testing`を使い、Goテストは`-tags=integration`を付けて実行します。通常の`cd system && go test -shuffle=on -v ./...`では、integrationタグ付きテストは実行されません。
 
 ## 前提条件
 - Node.jsがインストールされていること

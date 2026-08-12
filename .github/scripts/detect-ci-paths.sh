@@ -11,6 +11,7 @@ readonly CI_GROUPS=(
 	aws_cdk
 	node_projects
 	firestore_integration
+	firestore_rules
 	all
 )
 
@@ -22,6 +23,7 @@ docs_site=false
 aws_cdk=false
 node_projects=false
 firestore_integration=false
+firestore_rules=false
 all=false
 
 changed_paths=()
@@ -48,12 +50,13 @@ set_all_groups() {
 	aws_cdk=true
 	node_projects=true
 	firestore_integration=true
+	firestore_rules=true
 	all=true
 }
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/actions/*)
+		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/run-firestore-rules-tests.sh|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -96,8 +99,22 @@ classify_path() {
 			docs_site=true
 			matched=true
 			;;
+		firebase/firebase.json)
+			firestore_integration=true
+			firestore_rules=true
+			matched=true
+			;;
+		firebase/firestore.indexes.json)
+			firestore_integration=true
+			matched=true
+			;;
+		firebase/firestore.rules|firebase/firestore.rules.test.mjs|firebase/package.json|firebase/pnpm-lock.yaml)
+			firestore_rules=true
+			matched=true
+			;;
 		firebase/*)
 			firestore_integration=true
+			firestore_rules=true
 			matched=true
 			;;
 		aws-cdk/*)
@@ -174,6 +191,7 @@ group_value() {
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
+		firestore_rules) printf '%s' "$firestore_rules" ;;
 		all) printf '%s' "$all" ;;
 		*)
 			echo "Unknown CI group: $1" >&2
