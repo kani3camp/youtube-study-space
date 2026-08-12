@@ -5,11 +5,16 @@ import {
 	getApps,
 	initializeApp,
 } from 'firebase/app'
-import type {
-	DocumentData,
-	FirestoreDataConverter,
-	QueryDocumentSnapshot,
-	SnapshotOptions,
+import {
+	type DocumentData,
+	doc,
+	type Firestore,
+	type FirestoreDataConverter,
+	type FirestoreError,
+	onSnapshot,
+	type QueryDocumentSnapshot,
+	type SnapshotOptions,
+	type Unsubscribe,
 } from 'firebase/firestore'
 import type { Menu, Seat, WorkNameTrend } from '../types/api'
 import { validateString } from './common'
@@ -31,7 +36,7 @@ export const getFirebaseApp = (): FirebaseApp => {
 	return getApps().length === 0 ? initializeApp(getFirebaseConfig()) : getApp()
 }
 
-export type SystemConstants = {
+export type MonitorPublicConfig = {
 	max_seats: number
 	member_max_seats: number
 	min_vacancy_rate: number
@@ -39,21 +44,21 @@ export type SystemConstants = {
 	fixed_max_seats_enabled: boolean
 }
 
-export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants> =
+export const firestoreMonitorPublicConfigConverter: FirestoreDataConverter<MonitorPublicConfig> =
 	{
-		toFirestore(constants: SystemConstants): DocumentData {
+		toFirestore(config: MonitorPublicConfig): DocumentData {
 			return {
-				'max-seats': constants.max_seats,
-				'member-max-seats': constants.member_max_seats,
-				'min-vacancy-rate': constants.min_vacancy_rate,
-				'youtube-membership-enabled': constants.youtube_membership_enabled,
-				'fixed-max-seats-enabled': constants.fixed_max_seats_enabled,
+				'max-seats': config.max_seats,
+				'member-max-seats': config.member_max_seats,
+				'min-vacancy-rate': config.min_vacancy_rate,
+				'youtube-membership-enabled': config.youtube_membership_enabled,
+				'fixed-max-seats-enabled': config.fixed_max_seats_enabled,
 			}
 		},
 		fromFirestore(
 			snapshot: QueryDocumentSnapshot,
 			options: SnapshotOptions,
-		): SystemConstants {
+		): MonitorPublicConfig {
 			const data = snapshot.data(options)
 			return {
 				max_seats: data['max-seats'],
@@ -64,6 +69,24 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
 			}
 		},
 	}
+
+export const subscribeToMonitorPublicConfig = (
+	db: Firestore,
+	onConfig: (config: MonitorPublicConfig) => void,
+	onError?: (error: FirestoreError) => void,
+): Unsubscribe =>
+	onSnapshot(
+		doc(db, 'public-config', 'monitor').withConverter(
+			firestoreMonitorPublicConfigConverter,
+		),
+		(snapshot) => {
+			const config = snapshot.data()
+			if (config !== undefined) {
+				onConfig(config)
+			}
+		},
+		onError,
+	)
 
 export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 	toFirestore(seat: Seat): DocumentData {
