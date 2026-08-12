@@ -1,6 +1,5 @@
 import {
 	collection,
-	doc,
 	getFirestore,
 	onSnapshot,
 	query,
@@ -13,11 +12,10 @@ import { useInterval } from '../lib/common'
 import { Constants } from '../lib/constants'
 import fetcher from '../lib/fetcher'
 import {
-	firestoreConstantsConverter,
 	firestoreSeatConverter,
 	firestoreWorkNameTrendConverter,
 	getFirebaseApp,
-	type SystemConstants,
+	subscribeToMonitorPublicConfig,
 } from '../lib/firestore'
 import {
 	buildRoomLayouts,
@@ -174,7 +172,6 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 		const app = getFirebaseApp()
 		const db = getFirestore(app)
 
-		const constantsConverter = firestoreConstantsConverter
 		const seatConverter = firestoreSeatConverter
 		const workNameTrendConverter = firestoreWorkNameTrendConverter
 
@@ -216,23 +213,13 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 			}
 		})
 
-		onSnapshot(
-			doc(db, 'config', 'constants').withConverter(constantsConverter),
-			(doc) => {
-				const generalMaxSeats = (doc.data() as SystemConstants).max_seats
-				const memberMaxSeats = (doc.data() as SystemConstants).member_max_seats
-				const minVacancyRate = (doc.data() as SystemConstants).min_vacancy_rate
-				const youtubeMembershipEnabled = (doc.data() as SystemConstants)
-					.youtube_membership_enabled
-				const fixedMaxSeatsEnabled = (doc.data() as SystemConstants)
-					.fixed_max_seats_enabled
-				setLatestGeneralMaxSeats(generalMaxSeats)
-				setLatestMemberMaxSeats(memberMaxSeats)
-				setLatestMinVacancyRate(minVacancyRate)
-				setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
-				setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
-			},
-		)
+		subscribeToMonitorPublicConfig(db, (config) => {
+			setLatestGeneralMaxSeats(config.max_seats)
+			setLatestMemberMaxSeats(config.member_max_seats)
+			setLatestMinVacancyRate(config.min_vacancy_rate)
+			setLatestYoutubeMembershipEnabled(config.youtube_membership_enabled)
+			setLatestFixedMaxSeatsEnabled(config.fixed_max_seats_enabled)
+		})
 	}
 
 	/**
