@@ -1,0 +1,12 @@
+{
+	"name": "youtube-study-space-firestore-rules",
+	"private": true,
+	"packageManager": "pnpm@10.4.0",
+	"scripts": {
+		"test:rules": "node --test firestore.rules.test.mjs"
+	},
+	"devDependencies": {
+		"@firebase/rules-unit-testing": "^5.0.1",
+		"firebase": "^12.17.1"
+	}
+}

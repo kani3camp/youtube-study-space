@@ -25,6 +25,7 @@ jobs:
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       node_projects: ${{ steps.detect.outputs.node_projects }}
       firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
+      firestore_rules: ${{ steps.detect.outputs.firestore_rules }}
       all: ${{ steps.detect.outputs.all }}
     steps:
       - name: Checkout
@@ -189,6 +190,50 @@ jobs:
 
       - name: Run Firestore Emulator integration tests
         run: bash .github/scripts/run-firestore-integration-tests.sh
+
+  firestore-rules-test:
+    name: Firestore Security Rules Test
+    needs: changes
+    if: ${{ needs.changes.outputs.firestore_rules == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: firebase/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: firebase/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: firebase
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.25.1
+
+      - name: Cache Firestore Emulator
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ runner.os }}-firestore-emulator-firebase-tools-15.25.1
+
+      - name: Run Firestore Security Rules tests
+        run: bash .github/scripts/run-firestore-rules-tests.sh
 
   room-image-prompt-go-lint:
     name: Room Image Prompt Go Lint
@@ -456,6 +501,7 @@ jobs:
       - go-lint
       - system-go-test
       - system-firestore-emulator-test
+      - firestore-rules-test
       - room-image-prompt-go-lint
       - room-image-prompt-go-test
       - menu-image-generator-lint-build
