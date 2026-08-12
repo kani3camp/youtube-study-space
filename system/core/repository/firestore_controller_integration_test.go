@@ -30,6 +30,135 @@ func runTransaction(t *testing.T, controller *repository.FirestoreControllerImpl
 	require.NoError(t, err)
 }
 
+func legacyConstantsConfig() repository.ConstantsConfigDoc {
+	return repository.ConstantsConfigDoc{
+		MaxWorkTimeMin:           720,
+		MaxSeats:                 100,
+		MemberMaxSeats:           20,
+		DesiredMaxSeats:          110,
+		DesiredMemberMaxSeats:    22,
+		MinVacancyRate:           0.2,
+		YoutubeMembershipEnabled: true,
+		FixedMaxSeatsEnabled:     false,
+	}
+}
+
+func seedLegacyConstantsConfig(t *testing.T, controller *repository.FirestoreControllerImplements, constants repository.ConstantsConfigDoc) {
+	t.Helper()
+	_, err := controller.FirestoreClient().Doc(repository.CONFIG+"/"+repository.SystemConstantsConfigDocName).Set(context.Background(), constants)
+	require.NoError(t, err)
+}
+
+func TestFirestoreRepository_SystemConstantsFallsBackBeforePublicConfigBootstrap(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	want := legacyConstantsConfig()
+	seedLegacyConstantsConfig(t, controller, want)
+
+	got, err := controller.ReadSystemConstantsConfig(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+
+	var gotInTransaction repository.ConstantsConfigDoc
+	runTransaction(t, controller, func(ctx context.Context, tx *firestore.Transaction) error {
+		var readErr error
+		gotInTransaction, readErr = controller.ReadSystemConstantsConfig(ctx, tx)
+		if readErr != nil {
+			return readErr
+		}
+		return controller.UpdateDesiredMaxSeats(ctx, tx, 111)
+	})
+	assert.Equal(t, want, gotInTransaction)
+	privateSnapshot, err := controller.FirestoreClient().Doc(repository.CONFIG + "/" + repository.SystemConstantsConfigDocName).Get(context.Background())
+	require.NoError(t, err)
+	var updatedPrivate repository.ConstantsConfigDoc
+	require.NoError(t, privateSnapshot.DataTo(&updatedPrivate))
+	assert.Equal(t, 111, updatedPrivate.DesiredMaxSeats)
+}
+
+func TestFirestoreRepository_PublicMonitorConfigIsCanonical(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	legacy := legacyConstantsConfig()
+	seedLegacyConstantsConfig(t, controller, legacy)
+
+	prepared, err := controller.PrepareMonitorPublicConfigBootstrap(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, repository.MonitorPublicConfigDoc{
+		MaxSeats:                 legacy.MaxSeats,
+		MemberMaxSeats:           legacy.MemberMaxSeats,
+		MinVacancyRate:           legacy.MinVacancyRate,
+		YoutubeMembershipEnabled: legacy.YoutubeMembershipEnabled,
+		FixedMaxSeatsEnabled:     legacy.FixedMaxSeatsEnabled,
+	}, prepared)
+
+	publicConfig := repository.MonitorPublicConfigDoc{
+		MaxSeats:                 80,
+		MemberMaxSeats:           16,
+		MinVacancyRate:           0.35,
+		YoutubeMembershipEnabled: false,
+		FixedMaxSeatsEnabled:     true,
+	}
+	require.NoError(t, controller.CreateMonitorPublicConfig(context.Background(), publicConfig))
+
+	got, err := controller.ReadSystemConstantsConfig(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, legacy.MaxWorkTimeMin, got.MaxWorkTimeMin)
+	assert.Equal(t, legacy.DesiredMaxSeats, got.DesiredMaxSeats)
+	assert.Equal(t, legacy.DesiredMemberMaxSeats, got.DesiredMemberMaxSeats)
+	assert.Equal(t, publicConfig.MaxSeats, got.MaxSeats)
+	assert.Equal(t, publicConfig.MemberMaxSeats, got.MemberMaxSeats)
+	assert.Equal(t, publicConfig.MinVacancyRate, got.MinVacancyRate)
+	assert.Equal(t, publicConfig.YoutubeMembershipEnabled, got.YoutubeMembershipEnabled)
+	assert.Equal(t, publicConfig.FixedMaxSeatsEnabled, got.FixedMaxSeatsEnabled)
+
+	snapshot, err := controller.FirestoreClient().Doc(repository.PublicConfig + "/" + repository.MonitorPublicConfigDocName).Get(context.Background())
+	require.NoError(t, err)
+	data := snapshot.Data()
+	assert.Len(t, data, 5)
+	for _, field := range []string{
+		repository.MaxSeatsDocProperty,
+		repository.MemberMaxSeatsDocProperty,
+		repository.MinVacancyRateDocProperty,
+		repository.YoutubeMembershipEnabledDocProperty,
+		repository.FixedMaxSeatsEnabledDocProperty,
+	} {
+		assert.Contains(t, data, field)
+	}
+}
+
+func TestFirestoreRepository_PublicMonitorConfigUpdatesDoNotDoubleWrite(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	legacy := legacyConstantsConfig()
+	seedLegacyConstantsConfig(t, controller, legacy)
+	require.NoError(t, controller.CreateMonitorPublicConfig(context.Background(), repository.MonitorPublicConfigDoc{
+		MaxSeats:       80,
+		MemberMaxSeats: 16,
+	}))
+
+	require.NoError(t, controller.UpdateMaxSeats(context.Background(), nil, 90))
+	require.NoError(t, controller.UpdateMemberMaxSeats(context.Background(), nil, 18))
+
+	publicSnapshot, err := controller.FirestoreClient().Doc(repository.PublicConfig + "/" + repository.MonitorPublicConfigDocName).Get(context.Background())
+	require.NoError(t, err)
+	var publicConfig repository.MonitorPublicConfigDoc
+	require.NoError(t, publicSnapshot.DataTo(&publicConfig))
+	assert.Equal(t, 90, publicConfig.MaxSeats)
+	assert.Equal(t, 18, publicConfig.MemberMaxSeats)
+
+	privateSnapshot, err := controller.FirestoreClient().Doc(repository.CONFIG + "/" + repository.SystemConstantsConfigDocName).Get(context.Background())
+	require.NoError(t, err)
+	var privateConfig repository.ConstantsConfigDoc
+	require.NoError(t, privateSnapshot.DataTo(&privateConfig))
+	assert.Equal(t, legacy.MaxSeats, privateConfig.MaxSeats)
+	assert.Equal(t, legacy.MemberMaxSeats, privateConfig.MemberMaxSeats)
+
+	err = controller.CreateMonitorPublicConfig(context.Background(), publicConfig)
+	require.Error(t, err)
+	assert.Equal(t, codes.AlreadyExists, status.Code(err))
+}
+
 func newSeatDoc(seatID int, userID string, sessionID string) repository.SeatDoc {
 	jst := timeutil.JapanLocation()
 	return repository.SeatDoc{

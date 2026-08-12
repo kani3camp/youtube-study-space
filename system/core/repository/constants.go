@@ -2,6 +2,7 @@ package repository
 
 const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	CONFIG                    = "config"
+	PublicConfig              = "public-config"
 	SEATS                     = "seats"
 	MemberSeats               = "member-seats"
 	USERS                     = "users"
@@ -18,6 +19,7 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 
 	CredentialsConfigDocName     = "credentials"
 	SystemConstantsConfigDocName = "constants"
+	MonitorPublicConfigDocName   = "monitor"
 	WorkNameTrendDocName         = "work-name-trend"
 
 	PublishedAtDocProperty = "published-at"
@@ -42,6 +44,9 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	DesiredMemberMaxSeatsDocProperty                 = "desired-member-max-seats"
 	MaxSeatsDocProperty                              = "max-seats"
 	MemberMaxSeatsDocProperty                        = "member-max-seats"
+	MinVacancyRateDocProperty                        = "min-vacancy-rate"
+	YoutubeMembershipEnabledDocProperty              = "youtube-membership-enabled"
+	FixedMaxSeatsEnabledDocProperty                  = "fixed-max-seats-enabled"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
 	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"

@@ -21,7 +21,11 @@ type FirestoreControllerImplements struct {
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
-	client, err := firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
+	return NewFirestoreControllerForProject(ctx, firestore.DetectProjectID, clientOption)
+}
+
+func NewFirestoreControllerForProject(ctx context.Context, projectID string, clientOptions ...option.ClientOption) (*FirestoreControllerImplements, error) {
+	client, err := firestore.NewClient(ctx, projectID, clientOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("in firestore.NewClient: %w", err)
 	}
@@ -111,6 +115,10 @@ func (c *FirestoreControllerImplements) configCollection() *firestore.Collection
 	return c.firestoreClient.Collection(CONFIG)
 }
 
+func (c *FirestoreControllerImplements) publicConfigCollection() *firestore.CollectionRef {
+	return c.firestoreClient.Collection(PublicConfig)
+}
+
 func (c *FirestoreControllerImplements) usersCollection() *firestore.CollectionRef {
 	return c.firestoreClient.Collection(USERS)
 }
@@ -191,6 +199,25 @@ func (c *FirestoreControllerImplements) ReadCredentialsConfig(ctx context.Contex
 }
 
 func (c *FirestoreControllerImplements) ReadSystemConstantsConfig(ctx context.Context, tx *firestore.Transaction) (ConstantsConfigDoc, error) {
+	constantsConfig, err := c.readInternalSystemConstantsConfig(ctx, tx)
+	if err != nil {
+		return ConstantsConfigDoc{}, err
+	}
+
+	monitorConfig, err := c.readMonitorPublicConfig(ctx, tx)
+	if err != nil {
+		// Temporary migration fallback: production initially has only config/constants.
+		// Remove this after public-config/monitor has been bootstrapped everywhere.
+		if status.Code(err) == codes.NotFound {
+			return constantsConfig, nil
+		}
+		return ConstantsConfigDoc{}, fmt.Errorf("read monitor public config: %w", err)
+	}
+	monitorConfig.applyTo(&constantsConfig)
+	return constantsConfig, nil
+}
+
+func (c *FirestoreControllerImplements) readInternalSystemConstantsConfig(ctx context.Context, tx *firestore.Transaction) (ConstantsConfigDoc, error) {
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	doc, err := c.get(ctx, tx, ref)
 	if err != nil {
@@ -201,6 +228,38 @@ func (c *FirestoreControllerImplements) ReadSystemConstantsConfig(ctx context.Co
 		return ConstantsConfigDoc{}, fmt.Errorf("in doc.DataTo: %w", err)
 	}
 	return constantsConfig, nil
+}
+
+func (c *FirestoreControllerImplements) readMonitorPublicConfig(ctx context.Context, tx *firestore.Transaction) (MonitorPublicConfigDoc, error) {
+	ref := c.publicConfigCollection().Doc(MonitorPublicConfigDocName)
+	doc, err := c.get(ctx, tx, ref)
+	if err != nil {
+		return MonitorPublicConfigDoc{}, err
+	}
+	var monitorConfig MonitorPublicConfigDoc
+	if err := doc.DataTo(&monitorConfig); err != nil {
+		return MonitorPublicConfigDoc{}, fmt.Errorf("decode monitor public config: %w", err)
+	}
+	return monitorConfig, nil
+}
+
+// PrepareMonitorPublicConfigBootstrap reads the five legacy values from config/constants.
+// It intentionally does not write any data; CreateMonitorPublicConfig performs the guarded create.
+func (c *FirestoreControllerImplements) PrepareMonitorPublicConfigBootstrap(ctx context.Context) (MonitorPublicConfigDoc, error) {
+	constants, err := c.readInternalSystemConstantsConfig(ctx, nil)
+	if err != nil {
+		return MonitorPublicConfigDoc{}, fmt.Errorf("read legacy system constants: %w", err)
+	}
+	return monitorPublicConfigFromConstants(constants), nil
+}
+
+// CreateMonitorPublicConfig creates public-config/monitor without overwriting an existing document.
+func (c *FirestoreControllerImplements) CreateMonitorPublicConfig(ctx context.Context, monitorConfig MonitorPublicConfigDoc) error {
+	ref := c.publicConfigCollection().Doc(MonitorPublicConfigDocName)
+	if err := c.create(ctx, nil, ref, monitorConfig); err != nil {
+		return fmt.Errorf("create monitor public config: %w", err)
+	}
+	return nil
 }
 
 func (c *FirestoreControllerImplements) ReadLiveChatID(ctx context.Context, tx *firestore.Transaction) (string, error) {
@@ -456,14 +515,14 @@ func (c *FirestoreControllerImplements) UpdateDesiredMemberMaxSeats(ctx context.
 }
 
 func (c *FirestoreControllerImplements) UpdateMaxSeats(ctx context.Context, tx *firestore.Transaction, maxSeats int) error {
-	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	ref := c.publicConfigCollection().Doc(MonitorPublicConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: MaxSeatsDocProperty, Value: maxSeats},
 	})
 }
 
 func (c *FirestoreControllerImplements) UpdateMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, memberMaxSeats int) error {
-	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
+	ref := c.publicConfigCollection().Doc(MonitorPublicConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: MemberMaxSeatsDocProperty, Value: memberMaxSeats},
 	})

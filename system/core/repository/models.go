@@ -63,6 +63,34 @@ type ConstantsConfigDoc struct {
 	FixedMaxSeatsEnabled bool `firestore:"fixed-max-seats-enabled" json:"fixed_max_seats_enabled"`
 }
 
+// MonitorPublicConfigDoc defines the complete public configuration contract for youtube-monitor.
+// Do not add backend-only settings to this document.
+type MonitorPublicConfigDoc struct {
+	MaxSeats                 int     `firestore:"max-seats" json:"max_seats"`
+	MemberMaxSeats           int     `firestore:"member-max-seats" json:"member_max_seats"`
+	MinVacancyRate           float32 `firestore:"min-vacancy-rate" json:"min_vacancy_rate"`
+	YoutubeMembershipEnabled bool    `firestore:"youtube-membership-enabled" json:"youtube_membership_enabled"`
+	FixedMaxSeatsEnabled     bool    `firestore:"fixed-max-seats-enabled" json:"fixed_max_seats_enabled"`
+}
+
+func monitorPublicConfigFromConstants(constants ConstantsConfigDoc) MonitorPublicConfigDoc {
+	return MonitorPublicConfigDoc{
+		MaxSeats:                 constants.MaxSeats,
+		MemberMaxSeats:           constants.MemberMaxSeats,
+		MinVacancyRate:           constants.MinVacancyRate,
+		YoutubeMembershipEnabled: constants.YoutubeMembershipEnabled,
+		FixedMaxSeatsEnabled:     constants.FixedMaxSeatsEnabled,
+	}
+}
+
+func (monitor MonitorPublicConfigDoc) applyTo(constants *ConstantsConfigDoc) {
+	constants.MaxSeats = monitor.MaxSeats
+	constants.MemberMaxSeats = monitor.MemberMaxSeats
+	constants.MinVacancyRate = monitor.MinVacancyRate
+	constants.YoutubeMembershipEnabled = monitor.YoutubeMembershipEnabled
+	constants.FixedMaxSeatsEnabled = monitor.FixedMaxSeatsEnabled
+}
+
 // CredentialsConfigDoc defines credentials for various services.
 type CredentialsConfigDoc struct {
 	DiscordOwnerBotToken         string `firestore:"discord-owner-bot-token"`

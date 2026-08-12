@@ -29,6 +29,7 @@ beforeEach(async () => {
 		for (const path of [
 			'config/constants',
 			'config/credentials',
+			'public-config/monitor',
 			'seats/1',
 			'member-seats/1',
 			'menu/default',
@@ -53,6 +54,7 @@ const anonymousFirestore = () =>
 describe('public documents', () => {
 	for (const path of [
 		'config/constants',
+		'public-config/monitor',
 		'seats/1',
 		'member-seats/1',
 		'menu/default',
