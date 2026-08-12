@@ -24,6 +24,11 @@ service cloud.firestore {
     	allow read, write: if false;
     }
 
+    match /public-config/monitor {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /menu/{doc} {
       allow read: if true;
       allow write: if false;

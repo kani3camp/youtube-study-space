@@ -15,6 +15,8 @@ bash .github/scripts/run-firestore-integration-tests.sh
 
 どちらもFirestore Emulatorだけを起動するため、実在するFirebaseプロジェクトや認証情報は不要です。Rulesテストは`@firebase/rules-unit-testing`を使い、Goテストは`-tags=integration`を付けて実行します。通常の`cd system && go test -shuffle=on -v ./...`では、integrationタグ付きテストは実行されません。
 
+`public-config/monitor`の本番bootstrapとStacked PRのdeploy順序は[PUBLIC_CONFIG_MIGRATION.md](./PUBLIC_CONFIG_MIGRATION.md)を参照してください。
+
 ## 前提条件
 - Node.jsがインストールされていること
 - npmがインストールされていること
