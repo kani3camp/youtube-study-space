@@ -72,7 +72,7 @@ golangci-lint run --timeout=5m --config=.golangci.yml
 I18N_BASELINE=ja go generate ./...
 ```
 
-After generation, verify there is no unintended generated diff. For Firestore repository/application behavior that depends on Emulator semantics, run the repository's emulator script when applicable:
+After generation, verify there is no unintended generated diff. For Firestore repository/application behavior that depends on Emulator semantics, run the repository's emulator script when applicable **from the repository root**:
 
 ```sh
 bash .github/scripts/run-firestore-integration-tests.sh
@@ -126,6 +126,7 @@ A new file/path that should trigger existing validation must be classified by CI
 ## Pull Requests
 
 - Normal development PRs target `dev`, not `main`, unless the user explicitly requests another base.
+- When using `gh pr create` for a normal development PR, pass `--base dev` explicitly rather than relying on the repository default.
 - Keep commits and PRs coherent. Split independent concerns rather than creating a review mega-bundle.
 - PR descriptions should state the goal, key invariants/non-goals, migration/deploy ordering when relevant, and the checks actually run.
 - Never claim a check ran locally when it only ran in GitHub Actions.
