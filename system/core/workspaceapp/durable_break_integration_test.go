@@ -79,6 +79,8 @@ func TestProcessClaimedDurableInboxMessage_BreakTransitionsExactlyOnce(t *testin
 			Constants: repository.ConstantsConfigDoc{
 				YoutubeMembershipEnabled: true,
 				MinBreakIntervalMin:      25,
+				MinBreakDurationMin:      1,
+				MaxBreakDurationMin:      60,
 				DefaultBreakDurationMin:  10,
 			},
 			LiveChatBotChannelID: "bot-channel",
