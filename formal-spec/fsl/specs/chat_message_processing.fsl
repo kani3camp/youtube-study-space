@@ -1,0 +1,149 @@
+// YouTube Live Chat の1件の副作用ありメッセージを、P1の目標アーキテクチャへ射影する。
+// 現行実装との conformance ではなく、Inbox / checkpoint / domain effect / reply outbox の目標契約。
+// FSL の action は RHS を同じ pre-state から読み、更新を同時に commit する。
+spec ChatMessageProcessing {
+  type FailureCount = 0..2
+  type LogicalCount = 0..1
+
+  enum InboxStatus { Absent, Pending, Processing, Processed, DeadLettered }
+  enum OutboxStatus { None, Pending, Delivered }
+
+  state {
+    inbox_status: InboxStatus,
+    history_persisted: Bool,
+    cursor_advanced: Bool,
+    failure_count: FailureCount,
+    domain_apply_count: LogicalCount,
+    reply_intent_count: LogicalCount,
+    outbox_status: OutboxStatus
+  }
+
+  init {
+    inbox_status = Absent
+    history_persisted = false
+    cursor_advanced = false
+    failure_count = 0
+    domain_apply_count = 0
+    reply_intent_count = 0
+    outbox_status = None
+  }
+
+  @requirement("REQ-CHAT-001", "checkpoint は Inbox と History への安全な永続化と同じ ingest transaction で進める")
+  action ingest() {
+    requires inbox_status == Absent
+    inbox_status = Pending
+    history_persisted = true
+    cursor_advanced = true
+  }
+
+  @requirement("REQ-CHAT-005", "Pending message だけを processing lease の対象として claim する")
+  action claim() {
+    requires inbox_status == Pending
+    inbox_status = Processing
+  }
+
+  @requirement("REQ-CHAT-005", "processing lease が失効した未完了 message は Pending に戻して再取得可能にする")
+  action processing_lease_expired() {
+    requires inbox_status == Processing
+    inbox_status = Pending
+  }
+
+  @requirement("REQ-CHAT-002", "同じ source message の domain effect は論理的に高々1回だけ適用する")
+  @requirement("REQ-CHAT-003", "処理成功時は domain effect と reply outbox intent を同じ transaction で確定する")
+  action process_success() {
+    requires inbox_status == Processing
+    inbox_status = Processed
+    domain_apply_count = domain_apply_count + 1
+    reply_intent_count = reply_intent_count + 1
+    outbox_status = Pending
+  }
+
+  // 有限モデルでは「最初の失敗後に1回再試行し、次の失敗でdead-letter」とする。
+  // 本番の最大試行回数そのものを2回に固定する仕様ではない。
+  @requirement("REQ-CHAT-004", "処理失敗は再試行し、上限到達後は dead-letter にして後続 ingest を妨げない")
+  action process_failure_retry() {
+    requires inbox_status == Processing
+    requires failure_count == 0
+    inbox_status = Pending
+    failure_count = failure_count + 1
+  }
+
+  @requirement("REQ-CHAT-004", "処理失敗は再試行し、上限到達後は dead-letter にして後続 ingest を妨げない")
+  action process_failure_dead_letter() {
+    requires inbox_status == Processing
+    requires failure_count == 1
+    inbox_status = DeadLettered
+    failure_count = failure_count + 1
+  }
+
+  @requirement("REQ-CHAT-006", "reply delivery は永続化済み outbox intent に対してだけ行う")
+  action deliver_reply() {
+    requires outbox_status == Pending
+    outbox_status = Delivered
+  }
+
+  @requirement("REQ-CHAT-001", "checkpoint は Inbox と History への安全な永続化と同じ ingest transaction で進める")
+  @kind("safety")
+  invariant CursorRequiresDurableIngest {
+    cursor_advanced => (history_persisted and inbox_status != Absent)
+  }
+
+  @kind("safety")
+  invariant AbsentMessageHasNoDurableState {
+    inbox_status == Absent =>
+      (not history_persisted and
+       not cursor_advanced and
+       domain_apply_count == 0 and
+       reply_intent_count == 0 and
+       outbox_status == None)
+  }
+
+  @requirement("REQ-CHAT-002", "同じ source message の domain effect は論理的に高々1回だけ適用する")
+  @kind("safety")
+  invariant DomainEffectRequiresProcessedMessage {
+    domain_apply_count == 1 => inbox_status == Processed
+  }
+
+  @requirement("REQ-CHAT-003", "処理成功時は domain effect と reply outbox intent を同じ transaction で確定する")
+  @kind("safety")
+  invariant DomainEffectAndReplyIntentStayAtomic {
+    domain_apply_count == reply_intent_count
+  }
+
+  @requirement("REQ-CHAT-003", "処理成功時は domain effect と reply outbox intent を同じ transaction で確定する")
+  @kind("safety")
+  invariant ProcessedMessageHasEffectAndOutboxIntent {
+    inbox_status == Processed =>
+      (domain_apply_count == 1 and
+       reply_intent_count == 1 and
+       outbox_status != None)
+  }
+
+  @requirement("REQ-CHAT-004", "処理失敗は再試行し、上限到達後は dead-letter にして後続 ingest を妨げない")
+  @kind("safety")
+  invariant DeadLetterHasNoPartialDomainEffect {
+    inbox_status == DeadLettered =>
+      (failure_count == 2 and
+       domain_apply_count == 0 and
+       reply_intent_count == 0 and
+       outbox_status == None)
+  }
+
+  @requirement("REQ-CHAT-006", "reply delivery は永続化済み outbox intent に対してだけ行う")
+  @kind("safety")
+  invariant OutboxRequiresPersistedIntent {
+    outbox_status != None => reply_intent_count == 1
+  }
+
+  reachable ProcessedMessageWithPendingReplyIsReachable {
+    inbox_status == Processed and outbox_status == Pending
+  }
+
+  reachable DeadLetterAfterRetryIsReachable {
+    inbox_status == DeadLettered and failure_count == 2
+  }
+
+  reachable DeliveredReplyIsReachable {
+    outbox_status == Delivered
+  }
+}
