@@ -82,7 +82,7 @@ classify_path() {
 				aws_cdk=true
 			fi
 			case "$path" in
-				system/core/repository/seat.go|system/core/repository/models.go|system/core/timeutil/*)
+				system/core/repository/seat.go|system/core/repository/models.go|system/core/repository/seat_formalspec_test.go|system/core/timeutil/*)
 					formal_spec=true
 					;;
 			esac
