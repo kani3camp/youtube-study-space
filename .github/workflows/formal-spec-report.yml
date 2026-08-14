@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   report:
-    name: SeatSession HTML Report
+    name: FSL HTML Reports
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -29,13 +29,19 @@ jobs:
           path: formal-spec/fsl/.tools
           key: ${{ runner.os }}-fsl-${{ hashFiles('formal-spec/fsl/VERSION', 'formal-spec/fsl/SHA256SUMS') }}
 
-      - name: Generate self-contained HTML report
-        run: bash formal-spec/fsl/scripts/report.sh
+      - name: Generate self-contained HTML reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in formal-spec/fsl/specs/*.fsl; do
+            name="$(basename "$spec" .fsl)"
+            bash formal-spec/fsl/scripts/report.sh "$name"
+          done
 
-      - name: Upload HTML review report
+      - name: Upload HTML review reports
         uses: actions/upload-artifact@v7
         with:
-          name: seat-session-fsl-report
-          path: formal-spec/fsl/generated/seat_session.html
+          name: fsl-spec-reports
+          path: formal-spec/fsl/generated/reports/*.html
           if-no-files-found: error
           retention-days: 14
