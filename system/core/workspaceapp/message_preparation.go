@@ -3,17 +3,15 @@ package workspaceapp
 import (
 	"context"
 	"fmt"
+
+	"app.modules/core/utils"
 )
 
 type preparedMessage struct {
-	CommandDetails anyCommandDetails
+	CommandDetails *utils.CommandDetails
 	ImmediateReply string
 	SkipExecution  bool
 }
-
-// anyCommandDetails keeps the preparation result typed without coupling this
-// file to the command parser import; the concrete alias lives in parsing.go.
-type anyCommandDetails = commandDetailsPtr
 
 // prepareMessage performs the behavior that must happen before command
 // execution, but deliberately does not post the normal YouTube reply itself.
