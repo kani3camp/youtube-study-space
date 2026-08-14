@@ -2,10 +2,12 @@ package privacyops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"app.modules/core/repository"
+	"cloud.google.com/go/firestore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -18,13 +20,13 @@ const (
 )
 
 type FirestoreInventory struct {
-	Collections map[string]int        `json:"collections"`
+	Collections map[string]int         `json:"collections"`
 	MyPage      MyPageMappingInventory `json:"mypage"`
 }
 
 type MyPageMappingInventory struct {
-	ChannelOwnerDocument int    `json:"channel_owner_document"`
-	LinkedAccountDocument int   `json:"linked_account_document"`
+	ChannelOwnerDocument  int    `json:"channel_owner_document"`
+	LinkedAccountDocument int    `json:"linked_account_document"`
 	FirebaseUID           string `json:"firebase_uid,omitempty"`
 }
 
@@ -56,10 +58,10 @@ func InspectFirestore(
 ) (FirestoreInventory, error) {
 	youtubeChannelID = strings.TrimSpace(youtubeChannelID)
 	if youtubeChannelID == "" {
-		return FirestoreInventory{}, errorsNewEmptyChannelID()
+		return FirestoreInventory{}, errors.New("youtube channel id is empty")
 	}
 	if client == nil {
-		return FirestoreInventory{}, fmt.Errorf("firestore client is nil")
+		return FirestoreInventory{}, errors.New("firestore client is nil")
 	}
 
 	inventory := FirestoreInventory{
@@ -144,7 +146,7 @@ func inspectMyPageMappings(
 	return inventory, nil
 }
 
-func documentExists(ctx context.Context, ref interface{ Get(context.Context) (*firestore.DocumentSnapshot, error) }) (bool, error) {
+func documentExists(ctx context.Context, ref *firestore.DocumentRef) (bool, error) {
 	_, err := ref.Get(ctx)
 	if status.Code(err) == codes.NotFound {
 		return false, nil
@@ -153,8 +155,4 @@ func documentExists(ctx context.Context, ref interface{ Get(context.Context) (*f
 		return false, err
 	}
 	return true, nil
-}
-
-func errorsNewEmptyChannelID() error {
-	return fmt.Errorf("youtube channel id is empty")
 }
