@@ -26,7 +26,7 @@ export function MyPageView({ data }: MyPageViewProps) {
 
 	return (
 		<div className="cardStack">
-			<ChannelCard viewer={data.viewer} />
+			<CurrentSeatCard currentSeat={data.currentSeat} />
 
 			<div className="summaryGrid">
 				<SummaryCard
@@ -39,7 +39,7 @@ export function MyPageView({ data }: MyPageViewProps) {
 				/>
 			</div>
 
-			<CurrentSeatCard currentSeat={data.currentSeat} />
+			<ChannelCard viewer={data.viewer} />
 
 			<div className="footerActions">
 				<Link to="/logout">ログアウト</Link>
