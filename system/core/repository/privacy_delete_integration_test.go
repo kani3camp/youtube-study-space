@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"cloud.google.com/go/firestore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
