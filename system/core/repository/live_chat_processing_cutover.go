@@ -22,9 +22,9 @@ var ErrLiveChatProcessingCutoverCorruptState = errors.New("live chat processing 
 // belong to the legacy-processing era and must never be replayed by the new
 // worker, even when they were captured by durable ingest for observation.
 type LiveChatProcessingCutoverDoc struct {
-	LiveChatID           string    `firestore:"live-chat-id"`
-	ProcessFromSequence  int64     `firestore:"process-from-sequence"`
-	InitializedAt        time.Time `firestore:"initialized-at"`
+	LiveChatID          string    `firestore:"live-chat-id"`
+	ProcessFromSequence int64     `firestore:"process-from-sequence"`
+	InitializedAt       time.Time `firestore:"initialized-at"`
 }
 
 func (c *FirestoreControllerImplements) liveChatProcessingCutoverCollection() *firestore.CollectionRef {
