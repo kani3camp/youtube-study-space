@@ -97,12 +97,12 @@ func (c *FirestoreControllerImplements) listExpiredLiveChatInboxMessages(
 }
 
 func readLiveChatInboxQuery(ctx context.Context, query firestore.Query) ([]LiveChatInboxDoc, error) {
-	iterator := query.Documents(ctx)
-	defer iterator.Stop()
+	iter := query.Documents(ctx)
+	defer iter.Stop()
 
 	var messages []LiveChatInboxDoc
 	for {
-		doc, err := iterator.Next()
+		doc, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
