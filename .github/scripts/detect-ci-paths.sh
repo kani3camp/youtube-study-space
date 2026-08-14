@@ -11,6 +11,7 @@ readonly CI_GROUPS=(
 	aws_cdk
 	node_projects
 	firestore_integration
+	formal_spec
 	all
 )
 
@@ -22,6 +23,7 @@ docs_site=false
 aws_cdk=false
 node_projects=false
 firestore_integration=false
+formal_spec=false
 all=false
 
 changed_paths=()
@@ -48,6 +50,7 @@ set_all_groups() {
 	aws_cdk=true
 	node_projects=true
 	firestore_integration=true
+	formal_spec=true
 	all=true
 }
 
@@ -78,6 +81,19 @@ classify_path() {
 			if [[ "$path" == system/Dockerfile* || "$path" == system/.dockerignore ]]; then
 				aws_cdk=true
 			fi
+			case "$path" in
+				system/core/repository/seat.go|system/core/repository/models.go|system/core/timeutil/*)
+					formal_spec=true
+					;;
+			esac
+			matched=true
+			;;
+		formal-spec/*)
+			formal_spec=true
+			matched=true
+			;;
+		.github/scripts/run-formal-spec-tests.sh)
+			formal_spec=true
 			matched=true
 			;;
 		tools/room-image-prompt/*)
@@ -174,6 +190,7 @@ group_value() {
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
+		formal_spec) printf '%s' "$formal_spec" ;;
 		all) printf '%s' "$all" ;;
 		*)
 			echo "Unknown CI group: $1" >&2

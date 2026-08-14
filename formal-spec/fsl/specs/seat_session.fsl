@@ -1,0 +1,121 @@
+// SeatDoc の Work / Break 状態機械を、検証可能な有限モデルへ射影する。
+// 文字列、Firestore 表現、JST 日付跨ぎなどは意図的にモデル外とする。
+spec SeatSession {
+  type Clock = 0..4
+  type Duration = 1..3
+  type Deadline = 0..8
+  type MaxDuration = 1..4
+
+  enum Mode { Work, Break }
+
+  state {
+    mode: Mode,
+    now: Clock,
+    until: Int,
+    current_state_started_at: Clock,
+    current_state_until: Int,
+    current_segment_started_at: Clock,
+    cumulative_work: Int
+  }
+
+  init {
+    mode = Work
+    now = 0
+    until = 3
+    current_state_started_at = 0
+    current_state_until = 3
+    current_segment_started_at = 0
+    cumulative_work = 0
+  }
+
+  // 検証ハーネス上の時間経過。Go のドメインメソッドには対応しない。
+  action tick() {
+    requires now < 4
+    now = now + 1
+  }
+
+  // REQ-SEAT-001: 休憩開始は Work 中だけ許可する。
+  action start_break(duration: Duration) {
+    requires mode == Work
+    cumulative_work = cumulative_work + (now - current_state_started_at)
+    mode = Break
+    current_state_started_at = now
+    current_state_until = now + duration
+    current_segment_started_at = now
+    if now + duration > until {
+      until = now + duration
+    }
+  }
+
+  // REQ-SEAT-002: 作業再開は Break 中だけ許可する。
+  action resume_work() {
+    requires mode == Break
+    mode = Work
+    current_state_started_at = now
+    current_state_until = until
+    current_segment_started_at = now
+  }
+
+  // REQ-SEAT-003: Work 中の終了時刻変更は Until と状態終了時刻を同期する。
+  action set_work_duration(new_until: Deadline) {
+    requires mode == Work
+    until = new_until
+    current_state_until = new_until
+  }
+
+  // REQ-SEAT-004: Work 延長は現在時刻からの最大残り時間を超えない。
+  action extend_work_duration(add: Duration, max_remaining: MaxDuration) {
+    requires mode == Work
+    if until + add - now > max_remaining {
+      until = now + max_remaining
+      current_state_until = now + max_remaining
+    } else {
+      until = until + add
+      current_state_until = until + add
+    }
+  }
+
+  // REQ-SEAT-005: Break 延長は休憩開始からの上限を守り、必要なら Until も延長する。
+  action extend_break_duration(add: Duration, max_break_duration: MaxDuration) {
+    requires mode == Break
+    if current_state_until + add - current_state_started_at > max_break_duration {
+      current_state_until = current_state_started_at + max_break_duration
+      if current_state_started_at + max_break_duration > until {
+        until = current_state_started_at + max_break_duration
+      }
+    } else {
+      current_state_until = current_state_until + add
+      if current_state_until + add > until {
+        until = current_state_until + add
+      }
+    }
+  }
+
+  invariant BreakEndsBeforeExit {
+    current_state_until <= until
+  }
+
+  invariant WorkDeadlineMatchesExit {
+    mode == Work => current_state_until == until
+  }
+
+  invariant StateStartNotInFuture {
+    current_state_started_at <= now
+  }
+
+  invariant SegmentStartNotInFuture {
+    current_segment_started_at <= now
+  }
+
+  invariant CumulativeWorkNeverNegative {
+    cumulative_work >= 0
+  }
+
+  reachable BreakModeIsReachable {
+    mode == Break
+  }
+
+  reachable WorkAfterBreakIsReachable {
+    mode == Work and cumulative_work > 0
+  }
+}
