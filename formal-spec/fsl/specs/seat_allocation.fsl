@@ -82,11 +82,11 @@ spec SeatAllocation {
     member_user_seat == 3 and general_user_seat == 1
   }
 
-  reachable MemberCanMoveBetweenRoomTypes {
+  reachable MemberSeatIsReachable {
     member_user_seat == 3
   }
 
-  reachable GeneralUserCanMoveWithinGeneralRoom {
+  reachable SecondGeneralSeatIsReachableForGeneralUser {
     general_user_seat == 2
   }
 }
