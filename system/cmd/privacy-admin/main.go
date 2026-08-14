@@ -8,18 +8,19 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/api/option"
+
 	"app.modules/core/mybigquery"
 	"app.modules/core/repository"
 	"app.modules/core/utils"
 	"app.modules/internal/privacyops"
-	"google.golang.org/api/option"
 )
 
 type inspectOutput struct {
-	YouTubeChannelID string                        `json:"youtube_channel_id"`
-	Firestore        privacyops.FirestoreInventory `json:"firestore"`
-	BigQuery         mybigquery.UserDataInventory  `json:"bigquery"`
-	Notes            []string                      `json:"notes"`
+	YouTubeChannelID string                         `json:"youtube_channel_id"`
+	Firestore        privacyops.FirestoreInventory  `json:"firestore"`
+	BigQuery         mybigquery.UserDataInventory   `json:"bigquery"`
+	Notes            []string                       `json:"notes"`
 }
 
 func main() {
