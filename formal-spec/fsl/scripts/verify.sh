@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fsl_root="$(cd -- "$script_dir/.." && pwd)"
-fslc="${FSLC:-$($script_dir/install.sh)}"
+fslc="${FSLC:-$("$script_dir/install.sh")}"
 depth="${FSL_VERIFY_DEPTH:-8}"
 specs=("$fsl_root"/specs/*.fsl)
 
