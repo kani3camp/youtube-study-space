@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -163,10 +164,7 @@ func deleteMyPageMappings(
 	return deleted, firebaseUID, nil
 }
 
-func deleteDocumentIfExists(ctx context.Context, ref interface {
-	Get(context.Context) (*firestore.DocumentSnapshot, error)
-	Delete(context.Context, ...firestore.Precondition) (*firestore.WriteResult, error)
-}) (bool, error) {
+func deleteDocumentIfExists(ctx context.Context, ref *firestore.DocumentRef) (bool, error) {
 	_, err := ref.Get(ctx)
 	if status.Code(err) == codes.NotFound {
 		return false, nil
