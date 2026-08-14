@@ -13,8 +13,8 @@ import (
 )
 
 type fakeLiveChatInboxWorkerRepository struct {
-	items              []repository.LiveChatInboxDoc
-	listErr            error
+	items               []repository.LiveChatInboxDoc
+	listErr             error
 	claimResult         repository.LiveChatInboxDoc
 	claimErr            error
 	failStatus          repository.LiveChatInboxStatus
