@@ -68,7 +68,7 @@ func LiveChatMessageKey(liveChatID string, messageID string) (string, error) {
 	if strings.TrimSpace(messageID) == "" {
 		return "", errors.New("live chat message id is empty")
 	}
-	return liveChatCompositeKey("message", liveChatID, messageID), nil
+	return liveChatCompositeKey("message", liveChatID, messageID)
 }
 
 // LiveChatStreamKey returns a deterministic Firestore-safe document ID for one
@@ -77,27 +77,36 @@ func LiveChatStreamKey(liveChatID string) (string, error) {
 	if strings.TrimSpace(liveChatID) == "" {
 		return "", errors.New("live chat id is empty")
 	}
-	return liveChatCompositeKey("stream", liveChatID), nil
+	return liveChatCompositeKey("stream", liveChatID)
 }
 
-func liveChatCompositeKey(kind string, parts ...string) string {
+func liveChatCompositeKey(kind string, parts ...string) (string, error) {
 	h := sha256.New()
-	writeHashPart(h, kind)
-	for _, part := range parts {
-		writeHashPart(h, part)
+	if err := writeHashPart(h, kind); err != nil {
+		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil))
+	for _, part := range parts {
+		if err := writeHashPart(h, part); err != nil {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 type hashWriter interface {
 	Write([]byte) (int, error)
 }
 
-func writeHashPart(w hashWriter, value string) {
+func writeHashPart(w hashWriter, value string) error {
 	var length [8]byte
 	binary.BigEndian.PutUint64(length[:], uint64(len(value)))
-	_, _ = w.Write(length[:])
-	_, _ = w.Write([]byte(value))
+	if _, err := w.Write(length[:]); err != nil {
+		return fmt.Errorf("write hash part length: %w", err)
+	}
+	if _, err := w.Write([]byte(value)); err != nil {
+		return fmt.Errorf("write hash part value: %w", err)
+	}
+	return nil
 }
 
 func (c *FirestoreControllerImplements) liveChatInboxCollection() *firestore.CollectionRef {
@@ -319,7 +328,7 @@ func transactionDocumentExists(tx *firestore.Transaction, ref *firestore.Documen
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("get transaction document %q: %w", ref.Path, err)
 	}
 	return true, nil
 }
