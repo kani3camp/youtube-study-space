@@ -9,11 +9,11 @@ import (
 )
 
 type RawLiveChatRetentionAudit struct {
-	TotalRows          int64  `json:"total_rows"`
+	TotalRows           int64  `json:"total_rows"`
 	RowsOlderThanCutoff int64  `json:"rows_older_than_cutoff"`
-	UndatedRows        int64  `json:"undated_rows"`
-	OldestPublishedAt  string `json:"oldest_published_at,omitempty"`
-	NewestPublishedAt  string `json:"newest_published_at,omitempty"`
+	UndatedRows         int64  `json:"undated_rows"`
+	OldestPublishedAt   string `json:"oldest_published_at,omitempty"`
+	NewestPublishedAt   string `json:"newest_published_at,omitempty"`
 }
 
 type rawLiveChatRetentionAuditRow struct {
@@ -30,6 +30,12 @@ func (c *BigqueryController) InspectRawLiveChatRetention(
 	ctx context.Context,
 	cutoff time.Time,
 ) (RawLiveChatRetentionAudit, error) {
+	tableIdentifier := fmt.Sprintf(
+		"`%s.%s.%s`",
+		c.Client.Project(),
+		DatasetName,
+		LiveChatHistoryMainTableName,
+	)
 	query := c.Client.Query(fmt.Sprintf(`
 SELECT
   COUNT(*) AS total_rows,
@@ -38,7 +44,7 @@ SELECT
   COALESCE(FORMAT_TIMESTAMP('%%Y-%%m-%%dT%%H:%%M:%%SZ', MIN(published_at)), '') AS oldest_published_at,
   COALESCE(FORMAT_TIMESTAMP('%%Y-%%m-%%dT%%H:%%M:%%SZ', MAX(published_at)), '') AS newest_published_at
 FROM %s
-`, bqTableIdentifier(c.Client.Project(), DatasetName, LiveChatHistoryMainTableName)))
+`, tableIdentifier))
 	query.Location = c.WorkingRegion
 	query.Parameters = []bigquery.QueryParameter{{Name: "cutoff", Value: cutoff}}
 
