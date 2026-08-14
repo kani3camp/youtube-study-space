@@ -65,7 +65,7 @@ type historyCollectionAudit struct {
 
 type dailyCount struct {
 	Date string `json:"date" bigquery:"date"`
-	Rows int64  `json:"rows" bigquery:"rows"`
+	Rows int64  `json:"rows" bigquery:"row_count"`
 }
 
 type gcsCoverageAudit struct {
@@ -411,7 +411,7 @@ FROM %s`, spec.TimestampColumn, spec.TimestampColumn, spec.TimestampColumn, tabl
 	dailySQL := fmt.Sprintf(`
 SELECT
   FORMAT_DATE('%%Y-%%m-%%d', DATE(%s, 'Asia/Tokyo')) AS date,
-  COUNT(*) AS rows
+  COUNT(*) AS row_count
 FROM %s
 WHERE %s >= @from
 GROUP BY date
