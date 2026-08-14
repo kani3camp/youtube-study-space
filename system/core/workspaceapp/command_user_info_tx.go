@@ -3,10 +3,12 @@ package workspaceapp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/firestore"
 
 	i18nmsg "app.modules/core/i18n/typed"
+	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 )
@@ -24,14 +26,28 @@ func (app *WorkspaceApp) buildUserInfoReplyTx(
 	if err != nil {
 		return "", fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
 	}
-	dailyTotalTimeStr := timeutil.DurationToString(dailyTotalStudyDuration)
-	totalTimeStr := timeutil.DurationToString(totalStudyDuration)
-	replyMessage := i18nmsg.CommandUserInfoBase(app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
 	userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 	if err != nil {
 		return "", fmt.Errorf("in app.Repository.ReadUser: %w", err)
 	}
+
+	return app.buildUserInfoReply(userDoc, totalStudyDuration, dailyTotalStudyDuration, infoOption), nil
+}
+
+// buildUserInfoReply renders an !info response from already-read domain data.
+// It performs no repository access and no external delivery. The durable Inbox
+// path can therefore render the first-use response before staging User creation,
+// avoiding Firestore's read-after-write transaction restriction.
+func (app *WorkspaceApp) buildUserInfoReply(
+	userDoc repository.UserDoc,
+	totalStudyDuration time.Duration,
+	dailyTotalStudyDuration time.Duration,
+	infoOption *utils.InfoOption,
+) string {
+	dailyTotalTimeStr := timeutil.DurationToString(dailyTotalStudyDuration)
+	totalTimeStr := timeutil.DurationToString(totalStudyDuration)
+	replyMessage := i18nmsg.CommandUserInfoBase(app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
 
 	if userDoc.RankVisible {
 		replyMessage += i18nmsg.CommandUserInfoRank(userDoc.RankPoint)
@@ -64,5 +80,5 @@ func (app *WorkspaceApp) buildUserInfoReplyTx(
 
 		replyMessage += i18nmsg.CommandUserInfoRegisterDate(userDoc.RegistrationDate.In(timeutil.JapanLocation()).Format("2006年01月02日"))
 	}
-	return replyMessage, nil
+	return replyMessage
 }
