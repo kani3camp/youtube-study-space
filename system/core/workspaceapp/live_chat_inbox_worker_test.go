@@ -66,10 +66,21 @@ func (f *fakeLiveChatInboxWorkerRepository) FailLiveChatInboxMessage(
 }
 
 type fakeLiveChatInboxMessageProcessor struct {
-	calls    int
-	inbox    repository.LiveChatInboxDoc
-	workerID string
-	err      error
+	preflightCalls int
+	unsupported    bool
+	preflightErr   error
+	calls          int
+	inbox          repository.LiveChatInboxDoc
+	workerID       string
+	err            error
+}
+
+func (f *fakeLiveChatInboxMessageProcessor) CanProcessDurableInboxMessage(repository.LiveChatInboxDoc) (bool, error) {
+	f.preflightCalls++
+	if f.preflightErr != nil {
+		return false, f.preflightErr
+	}
+	return !f.unsupported, nil
 }
 
 func (f *fakeLiveChatInboxMessageProcessor) ProcessClaimedDurableInboxMessage(
@@ -112,6 +123,7 @@ func TestLiveChatInboxWorkerNoWork(t *testing.T) {
 	assert.Equal(t, int64(10), repo.listedFromSequence)
 	assert.Equal(t, 1, repo.listLimit)
 	assert.Zero(t, repo.claimCalls)
+	assert.Zero(t, processor.preflightCalls)
 	assert.Zero(t, processor.calls)
 }
 
@@ -131,6 +143,7 @@ func TestLiveChatInboxWorkerSuccessDelegatesAtomicCompletionToProcessor(t *testi
 	require.NoError(t, err)
 	assert.True(t, result.DidWork)
 	assert.Equal(t, repository.LiveChatInboxProcessed, result.Status)
+	assert.Equal(t, 1, processor.preflightCalls)
 	assert.Equal(t, 1, repo.claimCalls)
 	assert.Zero(t, repo.failCalls)
 	assert.Equal(t, 1, processor.calls)
@@ -151,6 +164,7 @@ func TestLiveChatInboxWorkerTreatsClaimRaceAsNoWork(t *testing.T) {
 	result, err := worker.ProcessNext(context.Background(), "chat-1", "worker-a", testInboxWorkerOptions())
 	require.NoError(t, err)
 	assert.False(t, result.DidWork)
+	assert.Equal(t, 1, processor.preflightCalls)
 	assert.Zero(t, processor.calls)
 }
 
@@ -178,24 +192,39 @@ func TestLiveChatInboxWorkerRecordsProcessingFailure(t *testing.T) {
 	assert.Equal(t, "worker-a", repo.failedWorker)
 }
 
-func TestLiveChatInboxWorkerDoesNotBurnRetryBudgetForUnsupportedCommand(t *testing.T) {
+func TestLiveChatInboxWorkerDoesNotClaimUnsupportedCommand(t *testing.T) {
 	candidate := testInboxCandidate()
-	claimed := candidate
-	claimed.Status = repository.LiveChatInboxProcessing
-	repo := &fakeLiveChatInboxWorkerRepository{
-		items:       []repository.LiveChatInboxDoc{candidate},
-		claimResult: claimed,
-	}
-	processor := &fakeLiveChatInboxMessageProcessor{err: ErrDurableCommandNotSupported}
+	repo := &fakeLiveChatInboxWorkerRepository{items: []repository.LiveChatInboxDoc{candidate}}
+	processor := &fakeLiveChatInboxMessageProcessor{unsupported: true}
 	worker := NewLiveChatInboxWorker(repo, processor)
 	worker.now = time.Now
 
 	result, err := worker.ProcessNext(context.Background(), "chat-1", "worker-a", testInboxWorkerOptions())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrDurableCommandNotSupported)
-	assert.True(t, result.DidWork)
-	assert.Equal(t, repository.LiveChatInboxProcessing, result.Status)
+	assert.False(t, result.DidWork)
+	assert.Equal(t, candidate.MessageID, result.MessageID)
+	assert.Equal(t, candidate.Sequence, result.Sequence)
+	assert.Equal(t, repository.LiveChatInboxPending, result.Status)
+	assert.Equal(t, 1, processor.preflightCalls)
+	assert.Zero(t, repo.claimCalls, "migration gaps must not consume AttemptCount")
 	assert.Zero(t, repo.failCalls)
+	assert.Zero(t, processor.calls)
+}
+
+func TestLiveChatInboxWorkerSurfacesPreflightErrorBeforeClaim(t *testing.T) {
+	candidate := testInboxCandidate()
+	preflightErr := errors.New("configs unavailable")
+	repo := &fakeLiveChatInboxWorkerRepository{items: []repository.LiveChatInboxDoc{candidate}}
+	processor := &fakeLiveChatInboxMessageProcessor{preflightErr: preflightErr}
+	worker := NewLiveChatInboxWorker(repo, processor)
+	worker.now = time.Now
+
+	_, err := worker.ProcessNext(context.Background(), "chat-1", "worker-a", testInboxWorkerOptions())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, preflightErr)
+	assert.Zero(t, repo.claimCalls)
+	assert.Zero(t, processor.calls)
 }
 
 func TestLiveChatInboxWorkerSurfacesDeadLetterOnExhaustedClaim(t *testing.T) {
