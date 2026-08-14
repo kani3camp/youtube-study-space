@@ -89,10 +89,6 @@ func liveChatCompositeKey(kind string, parts ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-interfaceWriter := interface{}(nil)
-
-// hashWriter is the subset both hash.Hash and tests can reason about without
-// exposing the concrete SHA-256 implementation.
 type hashWriter interface {
 	Write([]byte) (int, error)
 }
@@ -154,7 +150,7 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 	streamRef := c.liveChatStreamStateCollection().Doc(streamKey)
 
 	if err := c.firestoreClient.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		streamState, streamExists, err := c.readLiveChatStreamState(ctx, tx, streamRef)
+		streamState, streamExists, err := c.readLiveChatStreamState(tx, streamRef)
 		if err != nil {
 			return err
 		}
@@ -278,7 +274,6 @@ func validateAndDeduplicateLiveChatMessages(
 }
 
 func (c *FirestoreControllerImplements) readLiveChatStreamState(
-	ctx context.Context,
 	tx *firestore.Transaction,
 	ref *firestore.DocumentRef,
 ) (LiveChatStreamStateDoc, bool, error) {
