@@ -49,6 +49,7 @@ var userIDCollectionLookups = []collectionLookup{
 	{collection: repository.MemberSeatLimitsWhiteList, field: repository.UserIDDocProperty},
 	{collection: repository.LiveChatHistory, field: repository.AuthorChannelIDDocProperty},
 	{collection: repository.LiveChatInbox, field: repository.AuthorChannelIDDocProperty},
+	{collection: repository.LiveChatReplyOutbox, field: repository.SourceAuthorChannelIDDocProperty},
 }
 
 // InspectFirestore returns counts of documents directly attributable to a
