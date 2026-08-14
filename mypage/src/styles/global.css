@@ -1,8 +1,21 @@
 :root {
-	color: #1f2a24;
-	background: #f4f8f3;
+	--color-bg: oklch(97% 0.008 75);
+	--color-surface: oklch(99% 0.004 80);
+	--color-surface-soft: oklch(95% 0.01 70);
+	--color-border: oklch(89% 0.012 70);
+	--color-text: oklch(24% 0.02 55);
+	--color-text-muted: oklch(48% 0.018 55);
+	--color-text-subtle: oklch(64% 0.014 55);
+	--color-accent: oklch(64% 0.1 55);
+	--color-accent-soft: oklch(93% 0.035 55);
+	--color-break: oklch(62% 0.08 170);
+	--color-break-soft: oklch(94% 0.025 170);
+	--color-danger: oklch(50% 0.16 30);
+	color: var(--color-text);
+	background: var(--color-bg);
 	font-family:
-		system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+		"M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+	font-synthesis: none;
 	line-height: 1.6;
 }
 
@@ -10,14 +23,32 @@
 	box-sizing: border-box;
 }
 
+html {
+	background: var(--color-bg);
+}
+
 body {
 	margin: 0;
 	min-width: 320px;
 	min-height: 100vh;
+	background:
+		radial-gradient(circle at 12% 0%, oklch(94% 0.025 55 / 0.45), transparent 34rem),
+		var(--color-bg);
 }
 
 a {
 	color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+::selection {
+	background: oklch(85% 0.05 55);
 }
 
 .appShell {
@@ -27,81 +58,270 @@ a {
 
 .appHeader,
 .appMain {
-	width: min(100%, 840px);
+	width: min(100%, 820px);
 	margin: 0 auto;
 }
 
 .appHeader {
-	padding: 16px 0 20px;
+	padding: 10px 2px 24px;
 }
 
 .appEyebrow {
-	margin: 0 0 4px;
-	color: #5d7566;
-	font-size: 0.875rem;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 5px;
+	color: var(--color-text-muted);
+	font-size: 0.8rem;
 	font-weight: 700;
+	letter-spacing: 0.03em;
+}
+
+.appEyebrow::before {
+	width: 8px;
+	height: 8px;
+	border-radius: 999px;
+	background: var(--color-accent);
+	content: "";
 }
 
 .appTitle {
 	margin: 0;
-	font-size: clamp(1.8rem, 8vw, 2.6rem);
+	font-size: clamp(1.85rem, 7vw, 2.5rem);
+	font-weight: 800;
+	letter-spacing: -0.025em;
 	line-height: 1.15;
 }
 
 .cardStack {
 	display: grid;
-	gap: 16px;
+	gap: 18px;
 }
 
 .card {
-	border: 1px solid rgba(74, 111, 85, 0.16);
-	border-radius: 24px;
-	background: rgba(255, 255, 255, 0.92);
+	border: 1px solid var(--color-border);
+	border-radius: 18px;
+	background: var(--color-surface);
 	padding: 20px;
-	box-shadow: 0 12px 32px rgba(38, 66, 45, 0.08);
+	box-shadow: 0 8px 30px oklch(30% 0.02 55 / 0.035);
 }
 
 .channelCard {
 	display: flex;
-	gap: 16px;
+	gap: 14px;
 	align-items: center;
+	padding-block: 17px;
+	box-shadow: none;
 }
 
 .avatar {
-	width: 64px;
-	height: 64px;
+	width: 54px;
+	height: 54px;
+	border: 1px solid var(--color-border);
 	border-radius: 999px;
-	background: #e5eee5;
+	background: var(--color-surface-soft);
 	object-fit: cover;
 }
 
 .cardLabel {
 	margin: 0 0 6px;
-	color: #5d7566;
-	font-size: 0.85rem;
+	color: var(--color-text-muted);
+	font-size: 0.78rem;
 	font-weight: 700;
+	letter-spacing: 0.04em;
 }
 
 .channelName {
 	margin: 0;
-	font-size: 1.25rem;
+	font-size: 1.05rem;
+	font-weight: 800;
+}
+
+.channelId {
+	margin: 2px 0 0;
+	color: var(--color-text-subtle);
+	font-size: 0.75rem;
+	overflow-wrap: anywhere;
 }
 
 .summaryGrid {
 	display: grid;
-	gap: 16px;
+	gap: 14px;
+}
+
+.summaryCard {
+	min-height: 126px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	box-shadow: none;
 }
 
 .summaryValue {
 	margin: 0;
-	font-size: clamp(1.75rem, 8vw, 2.4rem);
+	font-size: clamp(2rem, 9vw, 2.75rem);
+	font-variant-numeric: tabular-nums;
 	font-weight: 800;
-	line-height: 1.15;
+	letter-spacing: -0.035em;
+	line-height: 1.05;
+}
+
+.currentSeatCard {
+	position: relative;
+	overflow: hidden;
+	border-radius: 22px;
+	padding: 22px;
+	background: var(--color-accent-soft);
+	border-color: oklch(84% 0.045 55);
+	box-shadow: none;
+}
+
+.currentSeatCard::after {
+	position: absolute;
+	top: -58px;
+	right: -48px;
+	width: 150px;
+	height: 150px;
+	border-radius: 50%;
+	background: oklch(88% 0.045 55 / 0.45);
+	content: "";
+	pointer-events: none;
+}
+
+.currentSeatCard--break {
+	background: var(--color-break-soft);
+	border-color: oklch(84% 0.035 170);
+}
+
+.currentSeatCard--break::after {
+	background: oklch(88% 0.04 170 / 0.45);
+}
+
+.currentSeatCard--idle {
+	background: var(--color-surface-soft);
+	border-color: var(--color-border);
+}
+
+.currentSeatCard--idle::after {
+	display: none;
+}
+
+.currentSeatTopline,
+.currentSeatState,
+.currentSeatWork,
+.currentSeatMeta,
+.currentSeatDescription {
+	position: relative;
+	z-index: 1;
+}
+
+.currentSeatTopline {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.currentSeatTopline .cardLabel {
+	margin: 0;
+}
+
+.seatBadge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 28px;
+	border: 1px solid oklch(80% 0.05 55);
+	border-radius: 999px;
+	background: oklch(98% 0.012 65 / 0.82);
+	padding: 4px 10px;
+	color: oklch(42% 0.07 55);
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+
+.currentSeatCard--break .seatBadge {
+	border-color: oklch(80% 0.04 170);
+	background: oklch(98% 0.01 170 / 0.82);
+	color: oklch(42% 0.06 170);
+}
+
+.currentSeatState {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	margin-bottom: 8px;
+}
+
+.currentSeatState h2 {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 800;
+}
+
+.statusDot {
+	width: 9px;
+	height: 9px;
+	border-radius: 999px;
+	background: var(--color-accent);
+	box-shadow: 0 0 0 4px oklch(64% 0.1 55 / 0.16);
+}
+
+.statusDot--break {
+	background: var(--color-break);
+	box-shadow: 0 0 0 4px oklch(62% 0.08 170 / 0.15);
+}
+
+.statusDot--idle {
+	background: oklch(70% 0.01 55);
+	box-shadow: none;
+}
+
+.currentSeatWork {
+	margin: 0 0 18px;
+	font-size: clamp(1.65rem, 7vw, 2.2rem);
+	font-weight: 800;
+	letter-spacing: -0.025em;
+	line-height: 1.25;
+}
+
+.currentSeatMeta {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	margin: 0;
+}
+
+.currentSeatMeta div {
+	border-top: 1px solid oklch(74% 0.04 55 / 0.22);
+	padding-top: 10px;
+}
+
+.currentSeatCard--break .currentSeatMeta div {
+	border-top-color: oklch(74% 0.035 170 / 0.22);
+}
+
+.currentSeatMeta dt {
+	color: var(--color-text-muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.currentSeatMeta dd {
+	margin: 1px 0 0;
+	font-size: 0.95rem;
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+}
+
+.currentSeatDescription {
+	margin: 0;
+	color: var(--color-text-muted);
 }
 
 .mutedText {
 	margin: 0;
-	color: #627268;
+	color: var(--color-text-muted);
 }
 
 .detailList {
@@ -116,7 +336,7 @@ a {
 }
 
 .detailList dt {
-	color: #5d7566;
+	color: var(--color-text-muted);
 	font-size: 0.85rem;
 	font-weight: 700;
 }
@@ -133,14 +353,24 @@ a {
 	justify-content: center;
 	margin-top: 20px;
 	border: 0;
-	border-radius: 999px;
-	background: #2f7d4f;
+	border-radius: 12px;
+	background: var(--color-accent);
 	color: white;
-	padding: 12px 18px;
+	padding: 11px 17px;
 	font: inherit;
 	font-weight: 700;
 	text-decoration: none;
 	cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+	filter: brightness(0.96);
+}
+
+.primaryButton:focus-visible,
+a:focus-visible {
+	outline: 3px solid oklch(64% 0.1 55 / 0.28);
+	outline-offset: 3px;
 }
 
 .primaryButton:disabled {
@@ -150,21 +380,29 @@ a {
 
 .errorText {
 	margin: 16px 0 0;
-	color: #b42318;
+	color: var(--color-danger);
 	font-weight: 700;
 }
 
 .footerActions {
 	display: flex;
 	justify-content: center;
-	padding: 8px 0;
-	color: #5d7566;
-	font-size: 0.95rem;
+	padding: 10px 0 0;
+	color: var(--color-text-muted);
+	font-size: 0.9rem;
+}
+
+.footerActions a {
+	text-underline-offset: 3px;
 }
 
 @media (min-width: 720px) {
 	.appShell {
-		padding-top: 40px;
+		padding: 38px 24px 52px;
+	}
+
+	.appHeader {
+		padding-bottom: 28px;
 	}
 
 	.summaryGrid {
@@ -172,6 +410,18 @@ a {
 	}
 
 	.card {
-		padding: 24px;
+		padding: 22px;
+	}
+
+	.currentSeatCard {
+		padding: 26px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
 	}
 }

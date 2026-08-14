@@ -9,9 +9,9 @@ export function ChannelCard({ viewer }: ChannelCardProps) {
 		<section className="card channelCard">
 			<img className="avatar" src={viewer.profileImageUrl} alt="" />
 			<div>
-				<p className="cardLabel">ログイン中のチャンネル</p>
+				<p className="cardLabel">ログイン中のYouTubeチャンネル</p>
 				<h2 className="channelName">{viewer.displayName}</h2>
-				<p className="mutedText">{viewer.youtubeChannelId}</p>
+				<p className="channelId">{viewer.youtubeChannelId}</p>
 			</div>
 		</section>
 	)
