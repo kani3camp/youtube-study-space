@@ -43,11 +43,23 @@ func (c *BigqueryController) CloseClient() {
 	}
 }
 
+func shouldArchiveCollectionToBigQuery(collectionName string) bool {
+	// Raw YouTube live chat is intentionally not a long-term analytics/archive
+	// dataset. Firestore keeps it only for its short operational retention, and
+	// historical BigQuery rows are cleaned up by the privacy retention operation.
+	return collectionName != repository.LiveChatHistory
+}
+
 func (c *BigqueryController) ReadCollectionsFromGcs(ctx context.Context,
 	gcsFolderName string, bucketName string,
 	collections []string,
 ) error {
 	for _, collectionName := range collections {
+		if !shouldArchiveCollectionToBigQuery(collectionName) {
+			slog.Info("skipping raw YouTube live chat BigQuery archive", "collection", collectionName)
+			continue
+		}
+
 		// GCSからbigqueryの一時テーブルにデータをバッチ読込
 		gcsRef := bigquery.NewGCSReference("gs://" + bucketName + "/" + gcsFolderName + "/all_namespaces/kind_" +
 			"" + collectionName + "/all_namespaces_kind_" + collectionName + ".export_metadata")
