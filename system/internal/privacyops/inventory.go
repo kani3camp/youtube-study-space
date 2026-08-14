@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -18,10 +19,11 @@ const (
 	mypageChannelOwnersCollection = "mypage-youtube-channel-owners"
 	authorChannelIDField          = "author-channel-id"
 	firebaseUIDField              = "firebase-uid"
+	countAlias                    = "row_count"
 )
 
 type FirestoreInventory struct {
-	Collections map[string]int         `json:"collections"`
+	Collections map[string]int64       `json:"collections"`
 	MyPage      MyPageMappingInventory `json:"mypage"`
 }
 
@@ -66,7 +68,7 @@ func InspectFirestore(
 	}
 
 	inventory := FirestoreInventory{
-		Collections: make(map[string]int, len(userIDCollectionLookups)+1),
+		Collections: make(map[string]int64, len(userIDCollectionLookups)+1),
 	}
 
 	userExists, err := documentExists(ctx, client.Collection(repository.USERS).Doc(youtubeChannelID))
@@ -102,16 +104,26 @@ func countDocumentsByField(
 	collection string,
 	field string,
 	value string,
-) (int, error) {
-	docs, err := client.Collection(collection).
+) (int64, error) {
+	result, err := client.Collection(collection).
 		Where(field, "==", value).
-		Select().
-		Documents(ctx).
-		GetAll()
+		NewAggregationQuery().
+		WithCount(countAlias).
+		Get(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("query matching documents: %w", err)
+		return 0, fmt.Errorf("run count aggregation: %w", err)
 	}
-	return len(docs), nil
+
+	rawCount, ok := result[countAlias]
+	if !ok {
+		return 0, fmt.Errorf("count aggregation result missing alias %q", countAlias)
+	}
+	countValue, ok := rawCount.(*firestorepb.Value)
+	if !ok {
+		return 0, fmt.Errorf("count aggregation result has unexpected type %T", rawCount)
+	}
+
+	return countValue.GetIntegerValue(), nil
 }
 
 func inspectMyPageMappings(
