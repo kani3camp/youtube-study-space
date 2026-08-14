@@ -75,7 +75,7 @@ func TestProcessClaimedDurableInboxMessage_FirstUseInfoCommitsUserReplyAndProces
 
 	user, err := controller.ReadUser(ctx, nil, history.AuthorChannelID)
 	require.NoError(t, err)
-	assert.Equal(t, now, user.RegistrationDate)
+	assert.True(t, user.RegistrationDate.Equal(now), "Firestore normalizes timestamps to UTC")
 	assert.Zero(t, user.DailyTotalStudySec)
 	assert.Zero(t, user.TotalStudySec)
 
@@ -87,7 +87,7 @@ func TestProcessClaimedDurableInboxMessage_FirstUseInfoCommitsUserReplyAndProces
 	require.NoError(t, inboxSnapshot.DataTo(&inbox))
 	assert.Equal(t, repository.LiveChatInboxProcessed, inbox.Status)
 	require.NotNil(t, inbox.ProcessedAt)
-	assert.Equal(t, now, *inbox.ProcessedAt)
+	assert.True(t, inbox.ProcessedAt.Equal(now), "Firestore normalizes timestamps to UTC")
 	assert.Empty(t, inbox.LeaseOwner)
 	assert.Nil(t, inbox.LeaseUntil)
 
