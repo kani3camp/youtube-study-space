@@ -116,6 +116,9 @@ func doTransferBQ(ctx context.Context, app *workspaceapp.WorkspaceApp, clientOpt
 	if err := app.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption); err != nil {
 		return fmt.Errorf("BackupCollectionHistoryFromGcsToBigquery: %w", err)
 	}
+	if err := app.EnforceRawYouTubeDataRetention(ctx, clientOption); err != nil {
+		return fmt.Errorf("EnforceRawYouTubeDataRetention: %w", err)
+	}
 	app.MessageToOwner(ctx, "transfer-bq finished.")
 	return nil
 }
