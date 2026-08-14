@@ -138,7 +138,13 @@ func runDeletePrimary(
 		},
 	}
 
-	return encodeJSON(output)
+	if err := encodeJSON(output); err != nil {
+		return err
+	}
+	if !primaryInventoryIsEmpty(after) {
+		return errors.New("post-delete verification failed: primary user data still exists")
+	}
+	return nil
 }
 
 func validateDeleteConfirmation(youtubeChannelID string, confirmation string) error {
@@ -152,6 +158,21 @@ func validateDeleteConfirmation(youtubeChannelID string, confirmation string) er
 		return errors.New("deletion confirmation must exactly match the YouTube channel id")
 	}
 	return nil
+}
+
+func primaryInventoryIsEmpty(inventory inspectOutput) bool {
+	for _, count := range inventory.Firestore.Collections {
+		if count != 0 {
+			return false
+		}
+	}
+	if inventory.Firestore.MyPage.ChannelOwnerDocument != 0 ||
+		inventory.Firestore.MyPage.LinkedAccountDocument != 0 {
+		return false
+	}
+	return inventory.BigQuery.LiveChatHistoryRows == 0 &&
+		inventory.BigQuery.UserActivityRows == 0 &&
+		inventory.BigQuery.OrderHistoryRows == 0
 }
 
 func newClients(ctx context.Context) (*clients, error) {
@@ -170,12 +191,12 @@ func newClients(ctx context.Context) (*clients, error) {
 
 	constants, err := repo.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
-		_ = repo.FirestoreClient().Close()
+		closeFirestoreAfterInitError(repo)
 		return nil, fmt.Errorf("read system constants: %w", err)
 	}
 	projectID, err := utils.GetGcpProjectID(ctx, clientOption)
 	if err != nil {
-		_ = repo.FirestoreClient().Close()
+		closeFirestoreAfterInitError(repo)
 		return nil, fmt.Errorf("resolve GCP project ID: %w", err)
 	}
 	bqClient, err := mybigquery.NewBigqueryClient(
@@ -185,11 +206,17 @@ func newClients(ctx context.Context) (*clients, error) {
 		constants.GcpRegion,
 	)
 	if err != nil {
-		_ = repo.FirestoreClient().Close()
+		closeFirestoreAfterInitError(repo)
 		return nil, fmt.Errorf("initialize BigQuery: %w", err)
 	}
 
 	return &clients{repository: repo, bigquery: bqClient}, nil
+}
+
+func closeFirestoreAfterInitError(repo *repository.FirestoreControllerImplements) {
+	if err := repo.FirestoreClient().Close(); err != nil {
+		fmt.Fprintln(os.Stderr, "privacy-admin: close Firestore after init error:", err)
+	}
 }
 
 func (c *clients) close() {
