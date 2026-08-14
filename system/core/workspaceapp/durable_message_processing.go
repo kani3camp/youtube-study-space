@@ -35,20 +35,20 @@ type liveChatMessageTransactionRepository interface {
 	) error
 }
 
-// ProcessClaimedDurableInboxMessage is the first executable slice of the P1
-// durable worker. It intentionally supports only behavior whose domain and
-// reply effects can already be committed atomically:
-//   - bot's own source message: mark Processed, no user/reply effect
-//   - ordinary/invalid command text: first-use User creation + Processed
-//   - parse/validation failures: first-use User creation + reply intent + Processed
-//   - !info / !seat: first-use User creation + reply intent + Processed
+// ProcessClaimedDurableInboxMessage is the executable core of the P1 durable
+// worker. It supports only behavior whose domain/reply effects can already be
+// committed atomically with Inbox Processed:
+//   - bot self message: Processed only
+//   - ordinary/invalid text: first-use User + Processed
+//   - parse/validation failures: first-use User + reply intent + Processed
+//   - !info / !seat: first-use User + reply intent + Processed
 //   - !more: Seat update + reply intent + Processed
 //   - !rank: User setting + optional Seat appearance + reply intent + Processed
+//   - !clear: WorkSegment + Seat update + reply intent + Processed
 //
 // Unsupported executable commands return ErrDurableCommandNotSupported before
-// opening a transaction, leaving the caller-owned Inbox lease unchanged.
-// Runtime cutover must not route all commands here until later command slices
-// are supported.
+// opening a transaction. Runtime cutover must not route all commands here until
+// later command slices are supported.
 func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 	ctx context.Context,
 	inbox repository.LiveChatInboxDoc,
@@ -84,7 +84,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return ErrDurableCommandNotSupported
 		}
 		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank:
+		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank, utils.Clear:
 			// Supported by this migration slice.
 		default:
 			return ErrDurableCommandNotSupported
@@ -154,6 +154,11 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 				}
 			case utils.Rank:
 				reply, err = app.buildDurableRankReplyTx(ctx, tx, &userDoc, userExists)
+				if err != nil {
+					return err
+				}
+			case utils.Clear:
+				reply, err = app.buildDurableClearReplyTx(ctx, tx, userExists)
 				if err != nil {
 					return err
 				}
