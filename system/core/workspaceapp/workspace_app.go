@@ -211,7 +211,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, ngWord
 		if err := app.BanUser(ctx, userID); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, app.LogToModerators(ctx, "発言から禁止ワードを検出、ユーザーをブロックしました."+
+		return true, app.LogToModerators(ctx, "発言から禁止ワードを検出、ユーザーをブロックしました。"+
 			"\n禁止ワード: `"+ngWordConfig.blockRegexesForChatMessage[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
@@ -226,7 +226,7 @@ func (app *WorkspaceApp) CheckIfUnwantedWordIncluded(ctx context.Context, ngWord
 		if err := app.BanUser(ctx, userID); err != nil {
 			return false, fmt.Errorf("in BanUser(): %w", err)
 		}
-		return true, app.LogToModerators(ctx, "チャンネル名から禁止ワードを検出、ユーザーをブロックしました."+
+		return true, app.LogToModerators(ctx, "チャンネル名から禁止ワードを検出、ユーザーをブロックしました。"+
 			"\n禁止ワード: `"+ngWordConfig.blockRegexesForChannelName[index]+"`"+
 			"\nチャンネル名: `"+channelName+"`"+
 			"\nチャンネルURL: https://youtube.com/channel/"+userID+
