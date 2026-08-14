@@ -110,8 +110,9 @@ func (c *FirestoreControllerImplements) liveChatStreamStateCollection() *firesto
 
 // IngestLiveChatPage atomically persists new source messages to both Inbox and
 // deterministic History documents, then advances StreamState. Replaying the
-// same page is idempotent. Once StreamState exists, expectedPageToken must match
-// the persisted cursor so a stale poller cannot move the cursor backward.
+// exact same expectedPageToken -> nextPageToken transition is idempotent even
+// when the caller did not observe the first transaction's successful commit.
+// Once StreamState has moved past that transition, a stale poller is rejected.
 //
 // This method is intentionally not wired into youtube-bot yet. The caller must
 // limit fetched pages so two writes per new message plus StreamState fit within
@@ -154,16 +155,26 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 		if err != nil {
 			return err
 		}
+
+		alreadyCommittedReplay := false
 		if streamExists {
 			if streamState.LiveChatID != liveChatID {
 				return fmt.Errorf("%w: stream key maps to different live chat id", ErrLiveChatIngestCorruptState)
 			}
-			if streamState.NextPageToken != expectedPageToken {
+			switch {
+			case streamState.NextPageToken == expectedPageToken:
+				// Normal forward transition.
+			case expectedPageToken != nextPageToken && streamState.NextPageToken == nextPageToken:
+				// The previous call may have committed but its success response was
+				// lost. Confirm below that every source message is already durable.
+				alreadyCommittedReplay = true
+			default:
 				return fmt.Errorf(
-					"%w: persisted=%q expected=%q",
+					"%w: persisted=%q expected=%q next=%q",
 					ErrLiveChatStreamCursorConflict,
 					streamState.NextPageToken,
 					expectedPageToken,
+					nextPageToken,
 				)
 			}
 		} else {
@@ -208,6 +219,17 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 				continue
 			}
 			newMessages = append(newMessages, messageWrite{key: key, message: message})
+		}
+
+		if alreadyCommittedReplay {
+			if len(newMessages) != 0 {
+				return fmt.Errorf(
+					"%w: replay cursor is already advanced but %d messages are not durable",
+					ErrLiveChatIngestCorruptState,
+					len(newMessages),
+				)
+			}
+			return nil
 		}
 
 		nextSequence := streamState.NextSequence
