@@ -40,11 +40,13 @@ type liveChatMessageTransactionRepository interface {
 // reply effects can already be committed atomically:
 //   - bot's own source message: mark Processed, no user/reply effect
 //   - ordinary non-command text: first-use User creation + Processed
+//   - parse/validation failures: first-use User creation + reply intent + Processed
 //   - !info: first-use User creation + reply intent + Processed
 //
-// Unsupported commands return ErrDurableCommandNotSupported before opening a
-// transaction, leaving the caller-owned Inbox lease unchanged. Runtime cutover
-// must not route all commands here until later command slices are supported.
+// Unsupported executable commands return ErrDurableCommandNotSupported before
+// opening a transaction, leaving the caller-owned Inbox lease unchanged.
+// Runtime cutover must not route all commands here until later command slices
+// are supported.
 func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 	ctx context.Context,
 	inbox repository.LiveChatInboxDoc,
@@ -75,11 +77,13 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 		isChatMember,
 	)
 	prepared := app.parseAndValidateMessage(inbox.MessageText, isChatMember)
-	if prepared.ImmediateReply != "" || prepared.SkipExecution || prepared.CommandDetails == nil {
-		return ErrDurableCommandNotSupported
-	}
-	if prepared.CommandDetails.CommandType != utils.NotCommand && prepared.CommandDetails.CommandType != utils.Info {
-		return ErrDurableCommandNotSupported
+	if prepared.ImmediateReply == "" {
+		if prepared.SkipExecution || prepared.CommandDetails == nil {
+			return ErrDurableCommandNotSupported
+		}
+		if prepared.CommandDetails.CommandType != utils.NotCommand && prepared.CommandDetails.CommandType != utils.Info {
+			return ErrDurableCommandNotSupported
+		}
 	}
 
 	now := app.currentTime()
@@ -100,40 +104,42 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return err
 		}
 
-		var reply string
-		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand:
-			// Legacy ProcessMessage still registers first-use users for ordinary
-			// text, then performs no command side effect or reply.
-		case utils.Info:
-			var totalStudyDuration time.Duration
-			var dailyTotalStudyDuration time.Duration
-			if userExists {
-				totalStudyDuration, dailyTotalStudyDuration, err = app.GetUserRealtimeTotalStudyDurations(
-					ctx,
-					tx,
-					app.ProcessedUserID,
+		reply := prepared.ImmediateReply
+		if reply == "" {
+			switch prepared.CommandDetails.CommandType {
+			case utils.NotCommand:
+				// Legacy ProcessMessage still registers first-use users for ordinary
+				// text, then performs no command side effect or reply.
+			case utils.Info:
+				var totalStudyDuration time.Duration
+				var dailyTotalStudyDuration time.Duration
+				if userExists {
+					totalStudyDuration, dailyTotalStudyDuration, err = app.GetUserRealtimeTotalStudyDurations(
+						ctx,
+						tx,
+						app.ProcessedUserID,
+					)
+					if err != nil {
+						return fmt.Errorf("read realtime study durations for durable !info: %w", err)
+					}
+				} else {
+					inMemberRoom, inGeneralRoom, roomErr := app.IsUserInRoom(ctx, app.ProcessedUserID)
+					if roomErr != nil {
+						return fmt.Errorf("check room state for unregistered durable user: %w", roomErr)
+					}
+					if inMemberRoom || inGeneralRoom {
+						return errors.New("unregistered user unexpectedly has an active seat")
+					}
+				}
+				reply = app.buildUserInfoReply(
+					userDoc,
+					totalStudyDuration,
+					dailyTotalStudyDuration,
+					&prepared.CommandDetails.InfoOption,
 				)
-				if err != nil {
-					return fmt.Errorf("read realtime study durations for durable !info: %w", err)
-				}
-			} else {
-				inMemberRoom, inGeneralRoom, roomErr := app.IsUserInRoom(ctx, app.ProcessedUserID)
-				if roomErr != nil {
-					return fmt.Errorf("check room state for unregistered durable user: %w", roomErr)
-				}
-				if inMemberRoom || inGeneralRoom {
-					return errors.New("unregistered user unexpectedly has an active seat")
-				}
+			default:
+				return ErrDurableCommandNotSupported
 			}
-			reply = app.buildUserInfoReply(
-				userDoc,
-				totalStudyDuration,
-				dailyTotalStudyDuration,
-				&prepared.CommandDetails.InfoOption,
-			)
-		default:
-			return ErrDurableCommandNotSupported
 		}
 
 		// All reads are complete before this point. Firestore transaction writes
