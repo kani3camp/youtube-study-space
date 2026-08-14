@@ -24,11 +24,10 @@ const (
 )
 
 var (
-	ErrLiveChatReplyIntentAlreadyExists = errors.New("live chat reply intent already exists")
-	ErrLiveChatReplyNotClaimable        = errors.New("live chat reply outbox item is not claimable")
-	ErrLiveChatReplyLeaseLost           = errors.New("live chat reply delivery lease is not owned or has expired")
-	ErrLiveChatReplyRetryExhausted      = errors.New("live chat reply delivery retry limit exhausted")
-	ErrLiveChatReplyCorruptState        = errors.New("live chat reply outbox item has inconsistent state")
+	ErrLiveChatReplyNotClaimable   = errors.New("live chat reply outbox item is not claimable")
+	ErrLiveChatReplyLeaseLost      = errors.New("live chat reply delivery lease is not owned or has expired")
+	ErrLiveChatReplyRetryExhausted = errors.New("live chat reply delivery retry limit exhausted")
+	ErrLiveChatReplyCorruptState   = errors.New("live chat reply outbox item has inconsistent state")
 )
 
 type LiveChatReplyOutboxDoc struct {
@@ -71,7 +70,8 @@ func (c *FirestoreControllerImplements) liveChatReplyOutboxCollection() *firesto
 // CreateLiveChatReplyIntent must be called inside the same Firestore
 // transaction as the corresponding domain effect. Requiring tx here prevents
 // callers from accidentally persisting a reply intent after the domain commit.
-// The deterministic key also makes duplicate intent creation observable.
+// The deterministic key makes duplicate logical intents fail the transaction
+// instead of silently creating another random document.
 func (c *FirestoreControllerImplements) CreateLiveChatReplyIntent(
 	ctx context.Context,
 	tx *firestore.Transaction,
@@ -89,9 +89,6 @@ func (c *FirestoreControllerImplements) CreateLiveChatReplyIntent(
 	}
 	ref := c.liveChatReplyOutboxCollection().Doc(key)
 	if err := c.create(ctx, tx, ref, intent); err != nil {
-		if status.Code(err) == codes.AlreadyExists {
-			return fmt.Errorf("%w: source-message=%q slot=%q", ErrLiveChatReplyIntentAlreadyExists, intent.SourceMessageID, intent.IntentSlot)
-		}
 		return fmt.Errorf("create live chat reply intent: %w", err)
 	}
 	return nil
@@ -103,6 +100,9 @@ func validateNewLiveChatReplyIntent(intent LiveChatReplyOutboxDoc) error {
 	}
 	if strings.TrimSpace(intent.SourceMessageID) == "" {
 		return errors.New("source message id is empty")
+	}
+	if strings.TrimSpace(intent.SourceAuthorChannelID) == "" {
+		return errors.New("source author channel id is empty")
 	}
 	if strings.TrimSpace(intent.IntentSlot) == "" {
 		return errors.New("reply intent slot is empty")
@@ -118,6 +118,9 @@ func validateNewLiveChatReplyIntent(intent LiveChatReplyOutboxDoc) error {
 	}
 	if intent.AvailableAt.IsZero() {
 		return errors.New("reply intent available at is zero")
+	}
+	if intent.AvailableAt.Before(intent.CreatedAt) {
+		return errors.New("reply intent available at is before created at")
 	}
 	if intent.Status != LiveChatReplyOutboxPending {
 		return fmt.Errorf("new reply intent must be pending, got %q", intent.Status)
