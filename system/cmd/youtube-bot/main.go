@@ -198,7 +198,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
 			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
 			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
-			slog.Info(chatMessage.AuthorDetails.ChannelId + " (" + chatMessage.AuthorDetails.DisplayName + "): " + message)
 			if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
 				app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
 			}
