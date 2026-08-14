@@ -49,11 +49,13 @@ func TestValidateNewLiveChatReplyIntent(t *testing.T) {
 	}{
 		{name: "empty live chat", mutate: func(v *LiveChatReplyOutboxDoc) { v.LiveChatID = "" }},
 		{name: "empty source message", mutate: func(v *LiveChatReplyOutboxDoc) { v.SourceMessageID = "" }},
+		{name: "empty source author", mutate: func(v *LiveChatReplyOutboxDoc) { v.SourceAuthorChannelID = "" }},
 		{name: "empty slot", mutate: func(v *LiveChatReplyOutboxDoc) { v.IntentSlot = "" }},
 		{name: "negative sequence", mutate: func(v *LiveChatReplyOutboxDoc) { v.SourceSequence = -1 }},
 		{name: "empty reply", mutate: func(v *LiveChatReplyOutboxDoc) { v.Message = "" }},
 		{name: "zero created at", mutate: func(v *LiveChatReplyOutboxDoc) { v.CreatedAt = time.Time{} }},
 		{name: "zero available at", mutate: func(v *LiveChatReplyOutboxDoc) { v.AvailableAt = time.Time{} }},
+		{name: "available before created", mutate: func(v *LiveChatReplyOutboxDoc) { v.AvailableAt = now.Add(-time.Second) }},
 		{name: "wrong initial status", mutate: func(v *LiveChatReplyOutboxDoc) { v.Status = LiveChatReplyOutboxDelivering }},
 		{name: "delivery attempt already set", mutate: func(v *LiveChatReplyOutboxDoc) { v.AttemptCount = 1 }},
 	}
