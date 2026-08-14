@@ -1,0 +1,92 @@
+// 座席割当・入室・席移動・退室の安全条件を有限モデルへ射影する。
+// 0 は退室中、1-2 は一般席、3 はメンバー席を表す。
+// MemberUser は一般席/メンバー席の両方、GeneralUser は一般席だけを利用できる。
+spec SeatAllocation {
+  type Location = 0..3
+  type AnySeat = 1..3
+  type GeneralSeat = 1..2
+
+  state {
+    member_user_seat: Location,
+    general_user_seat: Location
+  }
+
+  init {
+    member_user_seat = 0
+    general_user_seat = 0
+  }
+
+  @requirement("REQ-ALLOC-001", "入室先の座席は空席でなければならない")
+  @requirement("REQ-ALLOC-003", "入室は現在どの座席にも座っていないユーザーだけが行える")
+  action member_enter(target: AnySeat) {
+    requires member_user_seat == 0
+    requires target != general_user_seat
+    member_user_seat = target
+  }
+
+  @requirement("REQ-ALLOC-001", "入室先の座席は空席でなければならない")
+  @requirement("REQ-ALLOC-002", "非メンバーはメンバー席を利用できない")
+  @requirement("REQ-ALLOC-003", "入室は現在どの座席にも座っていないユーザーだけが行える")
+  action general_enter(target: GeneralSeat) {
+    requires general_user_seat == 0
+    requires target != member_user_seat
+    general_user_seat = target
+  }
+
+  @requirement("REQ-ALLOC-001", "入室先の座席は空席でなければならない")
+  @requirement("REQ-ALLOC-004", "席移動は入室中の別座席への移動だけを許可する")
+  action member_move(target: AnySeat) {
+    requires member_user_seat != 0
+    requires target != member_user_seat
+    requires target != general_user_seat
+    member_user_seat = target
+  }
+
+  @requirement("REQ-ALLOC-001", "入室先の座席は空席でなければならない")
+  @requirement("REQ-ALLOC-002", "非メンバーはメンバー席を利用できない")
+  @requirement("REQ-ALLOC-004", "席移動は入室中の別座席への移動だけを許可する")
+  action general_move(target: GeneralSeat) {
+    requires general_user_seat != 0
+    requires target != general_user_seat
+    requires target != member_user_seat
+    general_user_seat = target
+  }
+
+  @requirement("REQ-ALLOC-005", "退室は入室中のユーザーだけが行える")
+  action member_exit() {
+    requires member_user_seat != 0
+    member_user_seat = 0
+  }
+
+  @requirement("REQ-ALLOC-005", "退室は入室中のユーザーだけが行える")
+  action general_exit() {
+    requires general_user_seat != 0
+    general_user_seat = 0
+  }
+
+  @requirement("REQ-ALLOC-001", "入室先の座席は空席でなければならない")
+  @kind("safety")
+  invariant NoSeatSharedByTwoUsers {
+    member_user_seat == 0 or
+    general_user_seat == 0 or
+    member_user_seat != general_user_seat
+  }
+
+  @requirement("REQ-ALLOC-002", "非メンバーはメンバー席を利用できない")
+  @kind("safety")
+  invariant GeneralUserNeverUsesMemberSeat {
+    general_user_seat != 3
+  }
+
+  reachable BothUsersCanOccupyDifferentSeats {
+    member_user_seat == 3 and general_user_seat == 1
+  }
+
+  reachable MemberCanMoveBetweenRoomTypes {
+    member_user_seat == 3
+  }
+
+  reachable GeneralUserCanMoveWithinGeneralRoom {
+    general_user_seat == 2
+  }
+}
