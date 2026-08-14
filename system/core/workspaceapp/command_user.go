@@ -7,6 +7,7 @@ import (
 
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
+	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 
 	"cloud.google.com/go/firestore"
@@ -15,9 +16,51 @@ import (
 func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		var err error
-		replyMessage, err = app.buildUserInfoReplyTx(ctx, tx, infoOption)
-		return err
+		totalStudyDuration, dailyTotalStudyDuration, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserID)
+		if err != nil {
+			return fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
+		}
+		dailyTotalTimeStr := timeutil.DurationToString(dailyTotalStudyDuration)
+		totalTimeStr := timeutil.DurationToString(totalStudyDuration)
+		replyMessage += i18nmsg.CommandUserInfoBase(app.ProcessedUserDisplayName, dailyTotalTimeStr, totalTimeStr)
+
+		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
+		if err != nil {
+			return fmt.Errorf("in app.Repository.ReadUser: %w", err)
+		}
+
+		if userDoc.RankVisible {
+			replyMessage += i18nmsg.CommandUserInfoRank(userDoc.RankPoint)
+		}
+
+		if infoOption.ShowDetails {
+			switch userDoc.RankVisible {
+			case true:
+				replyMessage += i18nmsg.CommandUserInfoRankOn()
+			case false:
+				replyMessage += i18nmsg.CommandUserInfoRankOff()
+			}
+
+			if userDoc.IsContinuousActive {
+				continuousActiveDays := int(app.currentTime().Sub(userDoc.CurrentActivityStateStarted).Hours() / 24)
+				replyMessage += i18nmsg.CommandUserInfoRankOnContinuous(continuousActiveDays+1, continuousActiveDays)
+			}
+
+			if userDoc.DefaultStudyMin == 0 {
+				replyMessage += i18nmsg.CommandUserInfoDefaultWorkOff()
+			} else {
+				replyMessage += i18nmsg.CommandUserInfoDefaultWork(userDoc.DefaultStudyMin)
+			}
+
+			if userDoc.FavoriteColor == "" {
+				replyMessage += i18nmsg.CommandUserInfoFavoriteColorOff()
+			} else {
+				replyMessage += i18nmsg.CommandUserInfoFavoriteColor(utils.ColorCodeToColorName(userDoc.FavoriteColor))
+			}
+
+			replyMessage += i18nmsg.CommandUserInfoRegisterDate(userDoc.RegistrationDate.In(timeutil.JapanLocation()).Format("2006年01月02日"))
+		}
+		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in ShowUserInfo()", "txErr", txErr)

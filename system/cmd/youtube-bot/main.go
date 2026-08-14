@@ -78,27 +78,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	defer app.CloseFirestoreClient()
 
-	durableLiveChatIngestEnabled, err := readDurableLiveChatIngestEnabled()
-	if err != nil {
-		app.MessageToOwnerWithError(ctx, "failed to read durable live chat ingest feature flag", err)
-		return
-	}
-	var durablePageIngester durableLiveChatPageIngester
-	var durableLiveChatID string
-	if durableLiveChatIngestEnabled {
-		var ok bool
-		durablePageIngester, ok = app.Repository.(durableLiveChatPageIngester)
-		if !ok {
-			app.MessageToOwnerWithError(ctx, "failed to enable durable live chat ingest", errors.New("repository does not support durable live chat page ingest"))
-			return
-		}
-		durableLiveChatID, err = app.Repository.ReadLiveChatID(ctx, nil)
-		if err != nil {
-			app.MessageToOwnerWithError(ctx, "failed to read live chat ID for durable ingest", err)
-			return
-		}
-	}
-
 	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
 	if err != nil {
 		app.MessageToOwnerWithError(ctx, "failed loadNGWordConfig()", err)
@@ -106,9 +85,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 
 	app.MessageToOwner(ctx, fmt.Sprintf("Botが起動しました。\n全規制ワード数: %d", ngWordConfig.Count()))
-	if durableLiveChatIngestEnabled {
-		app.MessageToOwner(ctx, "Durable live chat ingest shadow mode is enabled.")
-	}
 	defer func() { // when error occurred
 		app.MessageToLiveChat(ctx, "エラーが起きたため終了します。お手数ですが管理者に連絡してください。")
 		app.MessageToOwner(ctx, "app stopped!!")
@@ -175,30 +151,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		}
 		lastChatFetched = timeutil.JstNow()
 
-		// In shadow mode, durable ingest owns live-chat-history writes and advances
-		// its StreamState atomically with the Inbox. A failed durable write must not
-		// advance the legacy checkpoint, otherwise the next poll could skip a page.
-		if durableLiveChatIngestEnabled {
-			if err := ingestFetchedLiveChatPage(
-				ctx,
-				durablePageIngester,
-				durableLiveChatID,
-				pageToken,
-				nextPageToken,
-				chatMessages,
-				lastChatFetched,
-			); err != nil {
-				app.MessageToOwnerWithError(ctx, "failed durable live chat page ingest", err)
-				time.Sleep(3 * time.Second)
-				continue
-			}
-		}
-
-		// Keep the legacy page-token checkpoint synchronized so disabling shadow
-		// mode is an immediate rollback. If synchronization cannot be confirmed in
-		// durable mode, do not process the page yet; refetching the same page is
-		// idempotent on the durable side and avoids direct ProcessMessage replay.
-		legacyPageTokenSaved := true
+		// save nextPageToken
 		if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
 			app.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
 			// 少し待ってから再試行
@@ -206,31 +159,23 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			err2 := app.SaveNextPageToken(ctx, nextPageToken)
 			if err2 != nil {
 				app.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
-				legacyPageTokenSaved = false
+				// pass
 			}
 		}
-		if durableLiveChatIngestEnabled && !legacyPageTokenSaved {
-			time.Sleep(3 * time.Second)
-			continue
-		}
 
-		// Legacy mode keeps the historical writer unchanged. Durable shadow mode
-		// already wrote the same schema under deterministic message IDs, so running
-		// both writers would duplicate analytics rows.
-		if !durableLiveChatIngestEnabled {
-			for _, chatMessage := range chatMessages {
-				// only if chatMessage has a text message
-				if !youtubebot.HasTextMessageByAuthor(chatMessage) {
-					continue
-				}
+		// chatMessagesを保存
+		for _, chatMessage := range chatMessages {
+			// only if chatMessage has a text message
+			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
+				continue
+			}
 
-				if err = app.AddLiveChatHistoryDoc(ctx, chatMessage); err != nil {
-					app.MessageToOwnerWithError(ctx, "(1回目) failed to add live chat history", err)
-					time.Sleep(2 * time.Second)
-					if err2 := app.AddLiveChatHistoryDoc(ctx, chatMessage); err2 != nil {
-						app.MessageToOwnerWithError(ctx, "(2回目) failed to add live chat history", err2)
-						// pass
-					}
+			if err = app.AddLiveChatHistoryDoc(ctx, chatMessage); err != nil {
+				app.MessageToOwnerWithError(ctx, "(1回目) failed to add live chat history", err)
+				time.Sleep(2 * time.Second)
+				if err2 := app.AddLiveChatHistoryDoc(ctx, chatMessage); err2 != nil {
+					app.MessageToOwnerWithError(ctx, "(2回目) failed to add live chat history", err2)
+					// pass
 				}
 			}
 		}
