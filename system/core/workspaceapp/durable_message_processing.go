@@ -46,6 +46,7 @@ type liveChatMessageTransactionRepository interface {
 //   - !rank: User setting + optional Seat appearance + reply intent + Processed
 //   - !clear: WorkSegment + Seat update + reply intent + Processed
 //   - !break: WorkSegment + Seat transition + activity + reply intent + Processed
+//   - !resume: WorkSegment + Seat transition + activity + reply intent + Processed
 //
 // Unsupported executable commands return ErrDurableCommandNotSupported before
 // opening a transaction. Runtime cutover must not route all commands here until
@@ -85,7 +86,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return ErrDurableCommandNotSupported
 		}
 		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank, utils.Clear, utils.Break:
+		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank, utils.Clear, utils.Break, utils.Resume:
 			// Supported by this migration slice.
 		default:
 			return ErrDurableCommandNotSupported
@@ -165,6 +166,11 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 				}
 			case utils.Break:
 				reply, err = app.buildDurableBreakReplyTx(ctx, tx, &prepared.CommandDetails.BreakOption, userExists)
+				if err != nil {
+					return err
+				}
+			case utils.Resume:
+				reply, err = app.buildDurableResumeReplyTx(ctx, tx, &prepared.CommandDetails.ResumeOption, userExists)
 				if err != nil {
 					return err
 				}
