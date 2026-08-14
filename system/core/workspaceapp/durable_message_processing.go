@@ -41,7 +41,7 @@ type liveChatMessageTransactionRepository interface {
 //   - bot's own source message: mark Processed, no user/reply effect
 //   - ordinary/invalid command text: first-use User creation + Processed
 //   - parse/validation failures: first-use User creation + reply intent + Processed
-//   - !info: first-use User creation + reply intent + Processed
+//   - !info / !seat: first-use User creation + reply intent + Processed
 //
 // Unsupported executable commands return ErrDurableCommandNotSupported before
 // opening a transaction, leaving the caller-owned Inbox lease unchanged.
@@ -82,7 +82,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return ErrDurableCommandNotSupported
 		}
 		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand, utils.InvalidCommand, utils.Info:
+		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat:
 			// Supported by this migration slice.
 		default:
 			return ErrDurableCommandNotSupported
@@ -140,13 +140,19 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 					dailyTotalStudyDuration,
 					&prepared.CommandDetails.InfoOption,
 				)
+			case utils.Seat:
+				reply, err = app.buildDurableSeatInfoReply(ctx, &prepared.CommandDetails.SeatOption)
+				if err != nil {
+					return err
+				}
 			default:
 				return ErrDurableCommandNotSupported
 			}
 		}
 
-		// All reads are complete before this point. Firestore transaction writes
-		// start here and Finalize performs no additional reads.
+		// All transaction reads are complete before this point. Read-only query
+		// commands may also have performed external repository reads above; no
+		// durable domain write starts until here.
 		if !userExists {
 			if err := app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userDoc); err != nil {
 				return fmt.Errorf("create first-use durable user: %w", err)
