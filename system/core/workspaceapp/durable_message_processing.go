@@ -41,7 +41,7 @@ type liveChatMessageTransactionRepository interface {
 //   - bot self message: Processed only
 //   - ordinary/invalid text: first-use User + Processed
 //   - parse/validation failures: first-use User + reply intent + Processed
-//   - !info / !seat: first-use User + reply intent + Processed
+//   - !info / !seat / !commands: first-use User + reply intent + Processed
 //   - !more: Seat update + reply intent + Processed
 //   - !rank: User setting + optional Seat appearance + reply intent + Processed
 //   - !clear: WorkSegment + Seat update + reply intent + Processed
@@ -86,7 +86,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return ErrDurableCommandNotSupported
 		}
 		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank, utils.Clear, utils.Break, utils.Resume:
+		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank, utils.Clear, utils.Break, utils.Resume, utils.Commands:
 			// Supported by this migration slice.
 		default:
 			return ErrDurableCommandNotSupported
@@ -117,6 +117,8 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			case utils.NotCommand, utils.InvalidCommand:
 				// Legacy ProcessMessage registers first-use users for ordinary and
 				// invalid-command text, then performs no command side effect/reply.
+			case utils.Commands:
+				reply = buildDurableCommandsReply()
 			case utils.Info:
 				var totalStudyDuration time.Duration
 				var dailyTotalStudyDuration time.Duration
