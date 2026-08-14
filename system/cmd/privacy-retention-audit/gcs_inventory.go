@@ -11,7 +11,10 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-const gcsObjectNameSampleLimit = 20
+const (
+	gcsObjectNameSampleLimit = 20
+	gcsPrefixSampleLimit     = 20
+)
 
 type gcsPrefixSummary struct {
 	Prefix      string `json:"prefix"`
@@ -29,7 +32,7 @@ type gcsObjectInventory struct {
 	OldestSoftDeleteTime        string             `json:"oldest_soft_delete_time,omitempty"`
 	LatestSoftDeleteHardDelete  string             `json:"latest_soft_delete_hard_delete_time,omitempty"`
 	TopLevelPrefixCount         int                `json:"top_level_prefix_count"`
-	TopLevelPrefixes            []gcsPrefixSummary `json:"top_level_prefixes,omitempty"`
+	TopLevelPrefixSamples       []gcsPrefixSummary `json:"top_level_prefix_samples,omitempty"`
 	KnownCollectionObjectCounts map[string]int64   `json:"known_collection_object_counts,omitempty"`
 	SampleLiveObjectNames       []string           `json:"sample_live_object_names,omitempty"`
 	LiveListError               string             `json:"live_list_error,omitempty"`
@@ -158,15 +161,31 @@ func (accumulator *gcsInventoryAccumulator) finalizePrefixes() {
 	sort.Strings(prefixes)
 
 	accumulator.inventory.TopLevelPrefixCount = len(prefixes)
-	for _, prefix := range prefixes {
-		accumulator.inventory.TopLevelPrefixes = append(
-			accumulator.inventory.TopLevelPrefixes,
+	for _, prefix := range sampledPrefixNames(prefixes, gcsPrefixSampleLimit) {
+		accumulator.inventory.TopLevelPrefixSamples = append(
+			accumulator.inventory.TopLevelPrefixSamples,
 			gcsPrefixSummary{
 				Prefix:      prefix,
 				ObjectCount: accumulator.prefixCount[prefix],
 			},
 		)
 	}
+}
+
+func sampledPrefixNames(prefixes []string, limit int) []string {
+	if limit <= 0 || len(prefixes) == 0 {
+		return nil
+	}
+	if len(prefixes) <= limit {
+		return append([]string(nil), prefixes...)
+	}
+
+	frontCount := limit / 2
+	backCount := limit - frontCount
+	samples := make([]string, 0, limit)
+	samples = append(samples, prefixes[:frontCount]...)
+	samples = append(samples, prefixes[len(prefixes)-backCount:]...)
+	return samples
 }
 
 func topLevelPrefix(objectName string) string {
