@@ -24,13 +24,13 @@ const (
 )
 
 type report struct {
-	GeneratedAt time.Time                           `json:"generated_at"`
-	Cutoff      time.Time                           `json:"cutoff"`
-	Config      configAudit                         `json:"config"`
-	Firestore   firestoreAudit                      `json:"firestore"`
+	GeneratedAt time.Time                            `json:"generated_at"`
+	Cutoff      time.Time                            `json:"cutoff"`
+	Config      configAudit                          `json:"config"`
+	Firestore   firestoreAudit                       `json:"firestore"`
 	BigQuery    mybigquery.RawLiveChatRetentionAudit `json:"bigquery"`
-	GCS         gcsAudit                            `json:"gcs"`
-	Warnings    []string                            `json:"warnings,omitempty"`
+	GCS         gcsAudit                             `json:"gcs"`
+	Warnings    []string                             `json:"warnings,omitempty"`
 }
 
 type configAudit struct {
