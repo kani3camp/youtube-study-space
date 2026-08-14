@@ -75,3 +75,25 @@ func TestBuildUserInfoReplyTx_PropagatesRealtimeReadFailure(t *testing.T) {
 	assert.Empty(t, reply)
 	assert.ErrorContains(t, err, "seat lookup failed")
 }
+
+func TestBuildUserInfoReply_FirstUseDetailsNeedNoRepositoryRead(t *testing.T) {
+	loadWorkspaceAppTestI18n(t)
+	now := time.Date(2026, 8, 15, 11, 30, 0, 0, timeutil.JapanLocation())
+	app := WorkspaceApp{
+		ProcessedUserDisplayName: "New User",
+		nowFunc:                  func() time.Time { return now },
+	}
+	userDoc := repository.UserDoc{RegistrationDate: now}
+
+	reply := app.buildUserInfoReply(userDoc, 0, 0, &utils.InfoOption{ShowDetails: true})
+
+	expected := i18nmsg.CommandUserInfoBase(
+		"New User",
+		timeutil.DurationToString(0),
+		timeutil.DurationToString(0),
+	) + i18nmsg.CommandUserInfoRankOff() +
+		i18nmsg.CommandUserInfoDefaultWorkOff() +
+		i18nmsg.CommandUserInfoFavoriteColorOff() +
+		i18nmsg.CommandUserInfoRegisterDate("2026年08月15日")
+	assert.Equal(t, expected, reply)
+}
