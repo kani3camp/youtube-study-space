@@ -39,7 +39,7 @@ type liveChatMessageTransactionRepository interface {
 // durable worker. It intentionally supports only behavior whose domain and
 // reply effects can already be committed atomically:
 //   - bot's own source message: mark Processed, no user/reply effect
-//   - ordinary non-command text: first-use User creation + Processed
+//   - ordinary/invalid command text: first-use User creation + Processed
 //   - parse/validation failures: first-use User creation + reply intent + Processed
 //   - !info: first-use User creation + reply intent + Processed
 //
@@ -81,7 +81,10 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 		if prepared.SkipExecution || prepared.CommandDetails == nil {
 			return ErrDurableCommandNotSupported
 		}
-		if prepared.CommandDetails.CommandType != utils.NotCommand && prepared.CommandDetails.CommandType != utils.Info {
+		switch prepared.CommandDetails.CommandType {
+		case utils.NotCommand, utils.InvalidCommand, utils.Info:
+			// Supported by this migration slice.
+		default:
 			return ErrDurableCommandNotSupported
 		}
 	}
@@ -107,9 +110,9 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 		reply := prepared.ImmediateReply
 		if reply == "" {
 			switch prepared.CommandDetails.CommandType {
-			case utils.NotCommand:
-				// Legacy ProcessMessage still registers first-use users for ordinary
-				// text, then performs no command side effect or reply.
+			case utils.NotCommand, utils.InvalidCommand:
+				// Legacy ProcessMessage registers first-use users for ordinary and
+				// invalid-command text, then performs no command side effect/reply.
 			case utils.Info:
 				var totalStudyDuration time.Duration
 				var dailyTotalStudyDuration time.Duration
