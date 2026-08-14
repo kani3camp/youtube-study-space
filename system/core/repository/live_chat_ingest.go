@@ -38,6 +38,8 @@ type LiveChatInboxDoc struct {
 	AuthorDisplayName     string              `firestore:"author-display-name"`
 	AuthorProfileImageURL string              `firestore:"author-profile-image-url"`
 	AuthorIsChatModerator bool                `firestore:"author-is-chat-moderator"`
+	AuthorIsChatOwner     bool                `firestore:"author-is-chat-owner"`
+	AuthorIsChatMember    bool                `firestore:"author-is-chat-member"`
 	MessageText           string              `firestore:"message-text"`
 	Type                  string              `firestore:"type"`
 	PublishedAt           time.Time           `firestore:"published-at"`
@@ -48,6 +50,16 @@ type LiveChatInboxDoc struct {
 	ProcessedAt           *time.Time          `firestore:"processed-at,omitempty"`
 	LeaseOwner            string              `firestore:"lease-owner"`
 	LeaseUntil            *time.Time          `firestore:"lease-until,omitempty"`
+}
+
+// LiveChatIngestMessage contains source metadata needed by command processing
+// but intentionally not added to the historical analytics document schema.
+// AuthorIsChatMember is derived as owner OR sponsor when the Inbox is created,
+// matching the current youtube-bot ProcessMessage call.
+type LiveChatIngestMessage struct {
+	History             LiveChatHistoryDoc
+	AuthorIsChatOwner   bool
+	AuthorIsChatSponsor bool
 }
 
 type LiveChatStreamStateDoc struct {
@@ -117,21 +129,48 @@ func (c *FirestoreControllerImplements) liveChatStreamStateCollection() *firesto
 	return c.firestoreClient.Collection(LiveChatStreamState)
 }
 
-// IngestLiveChatPage atomically persists new source messages to both Inbox and
-// deterministic History documents, then advances StreamState. Replaying the
-// exact same expectedPageToken -> nextPageToken transition is idempotent even
-// when the caller did not observe the first transaction's successful commit.
-// Once StreamState has moved past that transition, a stale poller is rejected.
-//
-// This method is intentionally not wired into youtube-bot yet. The caller must
-// limit fetched pages so two writes per new message plus StreamState fit within
-// Firestore's transaction write limit.
+// IngestLiveChatPage is the compatibility entrypoint for callers that only
+// have the historical document shape. It deliberately supplies false owner /
+// sponsor metadata. New youtube-bot ingestion must use
+// IngestLiveChatSourcePage so durable processing preserves actor permissions.
 func (c *FirestoreControllerImplements) IngestLiveChatPage(
 	ctx context.Context,
 	liveChatID string,
 	expectedPageToken string,
 	nextPageToken string,
 	messages []LiveChatHistoryDoc,
+	ingestedAt time.Time,
+) error {
+	sourceMessages := make([]LiveChatIngestMessage, 0, len(messages))
+	for _, message := range messages {
+		sourceMessages = append(sourceMessages, LiveChatIngestMessage{History: message})
+	}
+	return c.IngestLiveChatSourcePage(
+		ctx,
+		liveChatID,
+		expectedPageToken,
+		nextPageToken,
+		sourceMessages,
+		ingestedAt,
+	)
+}
+
+// IngestLiveChatSourcePage atomically persists new source messages to both
+// Inbox and deterministic History documents, then advances StreamState.
+// Replaying the exact same expectedPageToken -> nextPageToken transition is
+// idempotent even when the caller did not observe the first transaction's
+// successful commit. Once StreamState has moved past that transition, a stale
+// poller is rejected.
+//
+// The Inbox receives the command-processing actor metadata that is not part of
+// LiveChatHistoryDoc. The display name is normalized exactly like the current
+// ProcessMessage path by removing one leading '@'.
+func (c *FirestoreControllerImplements) IngestLiveChatSourcePage(
+	ctx context.Context,
+	liveChatID string,
+	expectedPageToken string,
+	nextPageToken string,
+	messages []LiveChatIngestMessage,
 	ingestedAt time.Time,
 ) error {
 	if strings.TrimSpace(liveChatID) == "" {
@@ -141,7 +180,7 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 		return errors.New("ingested at is zero")
 	}
 
-	uniqueMessages, err := validateAndDeduplicateLiveChatMessages(liveChatID, messages)
+	uniqueMessages, err := validateAndDeduplicateLiveChatSourceMessages(liveChatID, messages)
 	if err != nil {
 		return err
 	}
@@ -195,14 +234,14 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 
 		type messageWrite struct {
 			key     string
-			message LiveChatHistoryDoc
+			message LiveChatIngestMessage
 		}
 		newMessages := make([]messageWrite, 0, len(uniqueMessages))
 
 		// Firestore transactions require reads before writes. Verify both durable
 		// copies for every key before staging any Create/Set operations.
 		for _, message := range uniqueMessages {
-			key, keyErr := LiveChatMessageKey(liveChatID, message.ID)
+			key, keyErr := LiveChatMessageKey(liveChatID, message.History.ID)
 			if keyErr != nil {
 				return keyErr
 			}
@@ -221,7 +260,7 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 				return fmt.Errorf(
 					"%w: inbox/history existence differs for message %q",
 					ErrLiveChatIngestCorruptState,
-					message.ID,
+					message.History.ID,
 				)
 			}
 			if inboxExists {
@@ -243,11 +282,11 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 
 		nextSequence := streamState.NextSequence
 		for _, item := range newMessages {
-			inbox := liveChatInboxFromHistory(item.message, nextSequence, ingestedAt)
+			inbox := liveChatInboxFromSource(item.message, nextSequence, ingestedAt)
 			if err := c.create(ctx, tx, c.liveChatInboxCollection().Doc(item.key), inbox); err != nil {
 				return fmt.Errorf("create live chat inbox document: %w", err)
 			}
-			if err := c.create(ctx, tx, c.liveChatHistoryCollection().Doc(item.key), item.message); err != nil {
+			if err := c.create(ctx, tx, c.liveChatHistoryCollection().Doc(item.key), item.message.History); err != nil {
 				return fmt.Errorf("create deterministic live chat history document: %w", err)
 			}
 			nextSequence++
@@ -270,36 +309,56 @@ func (c *FirestoreControllerImplements) IngestLiveChatPage(
 	return nil
 }
 
-func validateAndDeduplicateLiveChatMessages(
+func validateAndDeduplicateLiveChatSourceMessages(
 	liveChatID string,
-	messages []LiveChatHistoryDoc,
-) ([]LiveChatHistoryDoc, error) {
-	unique := make([]LiveChatHistoryDoc, 0, len(messages))
-	seen := make(map[string]LiveChatHistoryDoc, len(messages))
+	messages []LiveChatIngestMessage,
+) ([]LiveChatIngestMessage, error) {
+	unique := make([]LiveChatIngestMessage, 0, len(messages))
+	seen := make(map[string]LiveChatIngestMessage, len(messages))
 	for i, message := range messages {
-		if strings.TrimSpace(message.ID) == "" {
+		history := message.History
+		if strings.TrimSpace(history.ID) == "" {
 			return nil, fmt.Errorf("live chat message at index %d has empty id", i)
 		}
-		if message.LiveChatID != liveChatID {
+		if history.LiveChatID != liveChatID {
 			return nil, fmt.Errorf(
 				"live chat message %q belongs to %q, expected %q",
-				message.ID,
-				message.LiveChatID,
+				history.ID,
+				history.LiveChatID,
 				liveChatID,
 			)
 		}
-		key, err := LiveChatMessageKey(liveChatID, message.ID)
+		key, err := LiveChatMessageKey(liveChatID, history.ID)
 		if err != nil {
 			return nil, err
 		}
 		if previous, ok := seen[key]; ok {
 			if previous != message {
-				return nil, fmt.Errorf("duplicate message id %q has conflicting payload", message.ID)
+				return nil, fmt.Errorf("duplicate message id %q has conflicting payload or actor metadata", history.ID)
 			}
 			continue
 		}
 		seen[key] = message
 		unique = append(unique, message)
+	}
+	return unique, nil
+}
+
+func validateAndDeduplicateLiveChatMessages(
+	liveChatID string,
+	messages []LiveChatHistoryDoc,
+) ([]LiveChatHistoryDoc, error) {
+	sourceMessages := make([]LiveChatIngestMessage, 0, len(messages))
+	for _, message := range messages {
+		sourceMessages = append(sourceMessages, LiveChatIngestMessage{History: message})
+	}
+	uniqueSources, err := validateAndDeduplicateLiveChatSourceMessages(liveChatID, sourceMessages)
+	if err != nil {
+		return nil, err
+	}
+	unique := make([]LiveChatHistoryDoc, 0, len(uniqueSources))
+	for _, source := range uniqueSources {
+		unique = append(unique, source.History)
 	}
 	return unique, nil
 }
@@ -333,22 +392,25 @@ func transactionDocumentExists(tx *firestore.Transaction, ref *firestore.Documen
 	return true, nil
 }
 
-func liveChatInboxFromHistory(
-	message LiveChatHistoryDoc,
+func liveChatInboxFromSource(
+	message LiveChatIngestMessage,
 	sequence int64,
 	ingestedAt time.Time,
 ) LiveChatInboxDoc {
+	history := message.History
 	return LiveChatInboxDoc{
-		LiveChatID:            message.LiveChatID,
-		MessageID:             message.ID,
+		LiveChatID:            history.LiveChatID,
+		MessageID:             history.ID,
 		Sequence:              sequence,
-		AuthorChannelID:       message.AuthorChannelID,
-		AuthorDisplayName:     message.AuthorDisplayName,
-		AuthorProfileImageURL: message.AuthorProfileImageURL,
-		AuthorIsChatModerator: message.AuthorIsChatModerator,
-		MessageText:           message.MessageText,
-		Type:                  message.Type,
-		PublishedAt:           message.PublishedAt,
+		AuthorChannelID:       history.AuthorChannelID,
+		AuthorDisplayName:     strings.TrimPrefix(history.AuthorDisplayName, "@"),
+		AuthorProfileImageURL: history.AuthorProfileImageURL,
+		AuthorIsChatModerator: history.AuthorIsChatModerator,
+		AuthorIsChatOwner:     message.AuthorIsChatOwner,
+		AuthorIsChatMember:    message.AuthorIsChatOwner || message.AuthorIsChatSponsor,
+		MessageText:           history.MessageText,
+		Type:                  history.Type,
+		PublishedAt:           history.PublishedAt,
 		Status:                LiveChatInboxPending,
 		AttemptCount:          0,
 		LastError:             "",
