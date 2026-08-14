@@ -9,9 +9,9 @@ import (
 )
 
 type UserDataInventory struct {
-	LiveChatHistoryRows   int64 `json:"live_chat_history_rows"`
-	UserActivityRows      int64 `json:"user_activity_rows"`
-	OrderHistoryRows      int64 `json:"order_history_rows"`
+	LiveChatHistoryRows int64 `json:"live_chat_history_rows"`
+	UserActivityRows    int64 `json:"user_activity_rows"`
+	OrderHistoryRows    int64 `json:"order_history_rows"`
 }
 
 type countRow struct {
@@ -84,12 +84,12 @@ func (c *BigqueryController) countRowsByField(
 
 	iterator, err := query.Read(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("read count query: %w", err)
 	}
 
 	var row countRow
 	if err := iterator.Next(&row); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("read count query row: %w", err)
 	}
 	return row.RowCount, nil
 }
