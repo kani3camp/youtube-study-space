@@ -37,11 +37,27 @@ func TestProcessClaimedDurableInboxMessage_FirstUseInfoCommitsUserReplyAndProces
 	ctx := context.Background()
 	liveChatID := "durable-info-chat"
 	now := time.Date(2026, 8, 15, 15, 0, 0, 0, timeutil.JapanLocation())
-	history := durableSourceHistory(liveChatID, "message-info", "author-1", "New User", "!info", now.Add(-time.Minute))
-	require.NoError(t, controller.IngestLiveChatPage(ctx, liveChatID, "", "cursor-1", []repository.LiveChatHistoryDoc{history}, now.Add(-30*time.Second)))
+	history := durableSourceHistory(liveChatID, "message-info", "author-1", "@New User", "!info", now.Add(-time.Minute))
+	source := repository.LiveChatIngestMessage{
+		History:             history,
+		AuthorIsChatOwner:   true,
+		AuthorIsChatSponsor: false,
+	}
+	require.NoError(t, controller.IngestLiveChatSourcePage(
+		ctx,
+		liveChatID,
+		"",
+		"cursor-1",
+		[]repository.LiveChatIngestMessage{source},
+		now.Add(-30*time.Second),
+	))
 
 	claimed, err := controller.ClaimLiveChatInboxMessage(ctx, liveChatID, history.ID, "worker-a", now.Add(-10*time.Second), time.Minute, 3)
 	require.NoError(t, err)
+	assert.Equal(t, "New User", claimed.AuthorDisplayName)
+	assert.True(t, claimed.AuthorIsChatOwner)
+	assert.True(t, claimed.AuthorIsChatMember)
+
 	app := WorkspaceApp{
 		Configs: &Configs{
 			Constants:            repository.ConstantsConfigDoc{YoutubeMembershipEnabled: true},
@@ -54,6 +70,8 @@ func TestProcessClaimedDurableInboxMessage_FirstUseInfoCommitsUserReplyAndProces
 	// No LiveChatBot is configured. Any accidental external reply would fail the
 	// test; durable processing must only create an Outbox intent.
 	require.NoError(t, app.ProcessClaimedDurableInboxMessage(ctx, claimed, "worker-a"))
+	assert.True(t, app.ProcessedUserIsModeratorOrOwner)
+	assert.True(t, app.ProcessedUserIsMember)
 
 	user, err := controller.ReadUser(ctx, nil, history.AuthorChannelID)
 	require.NoError(t, err)
