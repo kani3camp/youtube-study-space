@@ -83,6 +83,50 @@
       ]
     },
     {
+      "collectionGroup": "live-chat-reply-outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`live-chat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`available-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`source-sequence`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-reply-outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`live-chat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`lease-until`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`source-sequence`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "member-seats",
       "queryScope": "COLLECTION",
       "fields": [
