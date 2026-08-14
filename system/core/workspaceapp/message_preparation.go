@@ -3,16 +3,17 @@ package workspaceapp
 import (
 	"context"
 	"fmt"
-
-	i18nmsg "app.modules/core/i18n/typed"
-	"app.modules/core/utils"
 )
 
 type preparedMessage struct {
-	CommandDetails *utils.CommandDetails
+	CommandDetails anyCommandDetails
 	ImmediateReply string
 	SkipExecution  bool
 }
+
+// anyCommandDetails keeps the preparation result typed without coupling this
+// file to the command parser import; the concrete alias lives in parsing.go.
+type anyCommandDetails = commandDetailsPtr
 
 // prepareMessage performs the behavior that must happen before command
 // execution, but deliberately does not post the normal YouTube reply itself.
@@ -20,8 +21,8 @@ type preparedMessage struct {
 // worker can later persist the same reply as an outbox intent instead.
 //
 // Moderation side effects intentionally remain unchanged in this extraction.
-// First-use user initialization is now reusable inside a caller-owned tx, but
-// legacy preparation still wraps it in its own transaction to preserve behavior.
+// First-use user initialization is reusable inside a caller-owned tx, and
+// parse/validation is now a separate side-effect-free phase.
 func (app *WorkspaceApp) prepareMessage(
 	ctx context.Context,
 	ngWordConfig NGWordConfig,
@@ -60,20 +61,5 @@ func (app *WorkspaceApp) prepareMessage(
 		return preparedMessage{}, fmt.Errorf("in RunTransaction(): %w", txErr)
 	}
 
-	commandDetails, message := utils.ParseCommand(commandString, isChatMember)
-	if message != "" {
-		return preparedMessage{
-			ImmediateReply: i18nmsg.CommonSir(app.ProcessedUserDisplayName) + message,
-			SkipExecution:  true,
-		}, nil
-	}
-
-	if message = app.ValidateCommand(*commandDetails); message != "" {
-		return preparedMessage{
-			ImmediateReply: i18nmsg.CommonSir(app.ProcessedUserDisplayName) + message,
-			SkipExecution:  true,
-		}, nil
-	}
-
-	return preparedMessage{CommandDetails: commandDetails}, nil
+	return app.parseAndValidateMessage(commandString, isChatMember), nil
 }
