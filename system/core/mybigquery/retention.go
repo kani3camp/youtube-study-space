@@ -38,7 +38,7 @@ func (c *BigqueryController) DeleteLiveChatHistoryBefore(ctx context.Context, cu
 		return fmt.Errorf("live chat history retention query failed: %w", err)
 	}
 	if status.State != bigquery.Done {
-		return fmt.Errorf("live chat history retention query did not finish: state=%s", status.State)
+		return fmt.Errorf("live chat history retention query did not finish: state=%v", status.State)
 	}
 
 	return nil
