@@ -91,13 +91,13 @@ spec SeatSession {
     }
   }
 
-  @requirement("REQ-SEAT-005", "休憩終了時刻は自動退室時刻を超えない")
+  @requirement("REQ-SEAT-005", "Break 延長は休憩開始からの上限を守り、必要なら自動退室時刻も延長する")
   @kind("safety")
   invariant BreakEndsBeforeExit {
     current_state_until <= until
   }
 
-  @requirement("REQ-SEAT-003", "Work 中は状態終了時刻と自動退室時刻が一致する")
+  @requirement("REQ-SEAT-003", "Work 中の作業時間変更では自動退室時刻と状態終了時刻を同期する")
   @kind("safety")
   invariant WorkDeadlineMatchesExit {
     mode == Work => current_state_until == until
