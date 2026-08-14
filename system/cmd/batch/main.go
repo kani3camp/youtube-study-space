@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -113,12 +114,20 @@ func doUpdateRP(ctx context.Context, app *workspaceapp.WorkspaceApp) error {
 }
 
 func doTransferBQ(ctx context.Context, app *workspaceapp.WorkspaceApp, clientOption option.ClientOption) error {
+	var transferErr error
 	if err := app.BackupCollectionHistoryFromGcsToBigquery(ctx, clientOption); err != nil {
-		return fmt.Errorf("BackupCollectionHistoryFromGcsToBigquery: %w", err)
+		transferErr = fmt.Errorf("BackupCollectionHistoryFromGcsToBigquery: %w", err)
 	}
+
+	var retentionErr error
 	if err := app.EnforceRawYouTubeDataRetention(ctx, clientOption); err != nil {
-		return fmt.Errorf("EnforceRawYouTubeDataRetention: %w", err)
+		retentionErr = fmt.Errorf("EnforceRawYouTubeDataRetention: %w", err)
 	}
+
+	if err := errors.Join(transferErr, retentionErr); err != nil {
+		return err
+	}
+
 	app.MessageToOwner(ctx, "transfer-bq finished.")
 	return nil
 }
