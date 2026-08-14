@@ -92,7 +92,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			now,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("begin durable live chat message transaction: %w", err)
 		}
 
 		userDoc, userExists, err := app.readDurableMessageUser(ctx, tx, now)
@@ -160,7 +160,7 @@ func (app *WorkspaceApp) readDurableMessageUser(
 	userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 	if status.Code(err) == codes.NotFound {
 		return repository.UserDoc{
-			RegistrationDate:    now,
+			RegistrationDate:   now,
 			DailyTotalStudySec: 0,
 			TotalStudySec:      0,
 		}, false, nil
@@ -187,7 +187,7 @@ func (app *WorkspaceApp) finalizeDurableNoopMessage(
 			now,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("begin durable noop live chat message transaction: %w", err)
 		}
 		return durableRepo.FinalizeLiveChatMessageTransaction(ctx, tx, guard, nil, now)
 	})
