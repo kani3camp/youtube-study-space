@@ -40,7 +40,8 @@ type configAudit struct {
 }
 
 type firestoreAudit struct {
-	RawLiveChatRowsOlderThanCutoff int64 `json:"raw_live_chat_rows_older_than_cutoff"`
+	RawLiveChatHistoryRowsOlderThanCutoff int64 `json:"raw_live_chat_history_rows_older_than_cutoff"`
+	RawLiveChatInboxRowsOlderThanCutoff   int64 `json:"raw_live_chat_inbox_rows_older_than_cutoff"`
 }
 
 type gcsAudit struct {
@@ -51,6 +52,7 @@ type gcsAudit struct {
 	RetentionPeriod           string                  `json:"retention_period,omitempty"`
 	RetentionPolicyLocked     bool                    `json:"retention_policy_locked,omitempty"`
 	SoftDeleteRetention       string                  `json:"soft_delete_retention,omitempty"`
+	Objects                   gcsObjectInventory      `json:"objects"`
 	AttributesInspectionError string                  `json:"attributes_inspection_error,omitempty"`
 }
 
@@ -88,9 +90,23 @@ func run(ctx context.Context) error {
 	now := time.Now().UTC()
 	cutoff := now.AddDate(0, 0, -rawYouTubeDataRetentionDays)
 
-	firestoreOlderRows, err := countOldFirestoreRawChat(ctx, repo.FirestoreClient(), cutoff)
+	firestoreHistoryOlderRows, err := countOldFirestoreRawChat(
+		ctx,
+		repo.FirestoreClient(),
+		repository.LiveChatHistory,
+		cutoff,
+	)
 	if err != nil {
-		return fmt.Errorf("inspect Firestore raw chat age: %w", err)
+		return fmt.Errorf("inspect Firestore raw live chat history age: %w", err)
+	}
+	firestoreInboxOlderRows, err := countOldFirestoreRawChat(
+		ctx,
+		repo.FirestoreClient(),
+		repository.LiveChatInbox,
+		cutoff,
+	)
+	if err != nil {
+		return fmt.Errorf("inspect Firestore raw live chat inbox age: %w", err)
 	}
 
 	projectID, err := utils.GetGcpProjectID(ctx, clientOption)
@@ -113,7 +129,12 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("inspect BigQuery raw chat age: %w", err)
 	}
 
-	gcs := inspectGCS(ctx, clientOption, constants.GcsFirestoreExportBucketName)
+	gcs := inspectGCS(
+		ctx,
+		clientOption,
+		constants.GcsFirestoreExportBucketName,
+		cutoff,
+	)
 
 	report := report{
 		GeneratedAt: now,
@@ -124,7 +145,8 @@ func run(ctx context.Context) error {
 			GCPRegion:                      constants.GcpRegion,
 		},
 		Firestore: firestoreAudit{
-			RawLiveChatRowsOlderThanCutoff: firestoreOlderRows,
+			RawLiveChatHistoryRowsOlderThanCutoff: firestoreHistoryOlderRows,
+			RawLiveChatInboxRowsOlderThanCutoff:   firestoreInboxOlderRows,
 		},
 		BigQuery: bqAudit,
 		GCS:      gcs,
@@ -152,6 +174,30 @@ func run(ctx context.Context) error {
 			"GCS soft delete retains deleted objects beyond their live-object deletion time; include that duration when evaluating effective retention",
 		)
 	}
+	if gcs.Objects.LiveObjectsOlderThanCutoff > 0 {
+		report.Warnings = append(
+			report.Warnings,
+			fmt.Sprintf(
+				"GCS has %d live objects older than the raw YouTube data cutoff",
+				gcs.Objects.LiveObjectsOlderThanCutoff,
+			),
+		)
+	}
+	if gcs.Objects.SoftDeletedObjectCount > 0 {
+		report.Warnings = append(
+			report.Warnings,
+			fmt.Sprintf(
+				"GCS still retains %d soft-deleted objects until their hard-delete times",
+				gcs.Objects.SoftDeletedObjectCount,
+			),
+		)
+	}
+	if gcs.Objects.LiveListError != "" || gcs.Objects.SoftDeletedListError != "" {
+		report.Warnings = append(
+			report.Warnings,
+			"GCS object inventory was only partially available; inspect list errors before changing retention",
+		)
+	}
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
@@ -164,9 +210,10 @@ func run(ctx context.Context) error {
 func countOldFirestoreRawChat(
 	ctx context.Context,
 	client repository.DBClient,
+	collection string,
 	cutoff time.Time,
 ) (int64, error) {
-	query := client.Collection(repository.LiveChatHistory).
+	query := client.Collection(collection).
 		Where(repository.PublishedAtDocProperty, "<", cutoff)
 	result, err := query.NewAggregationQuery().WithCount(firestoreCountAlias).Get(ctx)
 	if err != nil {
@@ -187,6 +234,7 @@ func inspectGCS(
 	ctx context.Context,
 	clientOption option.ClientOption,
 	bucketName string,
+	cutoff time.Time,
 ) gcsAudit {
 	audit := gcsAudit{BucketName: bucketName}
 	if strings.TrimSpace(bucketName) == "" {
@@ -205,7 +253,8 @@ func inspectGCS(
 		}
 	}()
 
-	attrs, err := client.Bucket(bucketName).Attrs(ctx)
+	bucket := client.Bucket(bucketName)
+	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		audit.AttributesInspectionError = fmt.Sprintf("read bucket attributes: %v", err)
 		return audit
@@ -221,5 +270,21 @@ func inspectGCS(
 	if attrs.SoftDeletePolicy != nil {
 		audit.SoftDeleteRetention = attrs.SoftDeletePolicy.RetentionDuration.String()
 	}
+
+	audit.Objects = inspectGCSObjectInventory(
+		ctx,
+		bucket,
+		cutoff,
+		[]string{
+			repository.LiveChatHistory,
+			repository.LiveChatInbox,
+			repository.UserActivities,
+			repository.OrderHistory,
+			repository.USERS,
+			repository.WorkSegments,
+			repository.SEATS,
+			repository.MemberSeats,
+		},
+	)
 	return audit
 }
