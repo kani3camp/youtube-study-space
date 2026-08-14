@@ -38,6 +38,7 @@ type LiveChatInboxWorkerRepository interface {
 }
 
 type LiveChatInboxMessageProcessor interface {
+	CanProcessDurableInboxMessage(inbox repository.LiveChatInboxDoc) (bool, error)
 	ProcessClaimedDurableInboxMessage(
 		ctx context.Context,
 		inbox repository.LiveChatInboxDoc,
@@ -93,6 +94,9 @@ func NewLiveChatInboxWorker(
 // query never grants ownership; ClaimLiveChatInboxMessage is the transactional
 // authority when multiple workers race.
 //
+// Capability is checked before Claim so commands not yet migrated do not spend
+// AttemptCount merely because the deployment is incomplete.
+//
 // ProcessClaimedDurableInboxMessage owns successful completion because it must
 // atomically commit domain effects, reply intents, and Inbox Processed. This
 // worker records only failures.
@@ -131,6 +135,18 @@ func (w *LiveChatInboxWorker) ProcessNext(
 	}
 	candidate := items[0]
 
+	supported, err := w.processor.CanProcessDurableInboxMessage(candidate)
+	if err != nil {
+		return LiveChatInboxWorkerResult{}, fmt.Errorf("preflight durable live chat message capability: %w", err)
+	}
+	if !supported {
+		return LiveChatInboxWorkerResult{
+			MessageID: candidate.MessageID,
+			Sequence:  candidate.Sequence,
+			Status:    candidate.Status,
+		}, fmt.Errorf("durable command coverage is incomplete: %w", ErrDurableCommandNotSupported)
+	}
+
 	claimed, err := w.repository.ClaimLiveChatInboxMessage(
 		ctx,
 		candidate.LiveChatID,
@@ -168,12 +184,10 @@ func (w *LiveChatInboxWorker) ProcessNext(
 		return result, nil
 	}
 
+	// This should only be reachable if capability changed between preflight and
+	// execution. Do not record it as a poison-message failure; surface loudly.
 	if errors.Is(processingErr, ErrDurableCommandNotSupported) {
-		// A migration capability gap is not a poison message. Do not consume the
-		// retry budget or skip the message. The uncompleted lease deliberately
-		// stalls ordered processing until the command is migrated or the runtime
-		// is disabled.
-		return result, fmt.Errorf("durable command coverage is incomplete: %w", processingErr)
+		return result, fmt.Errorf("durable command support changed after claim: %w", processingErr)
 	}
 
 	failedAt := w.now()
