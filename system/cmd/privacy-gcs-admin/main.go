@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	rawLiveChatPathMarker          = "/all_namespaces/kind_live-chat-history/"
+	rawLiveChatPathMarker         = "/all_namespaces/kind_live-chat-history/"
 	rawYouTubeDataRetentionDays   = 30
 	minimumCleanSnapshotsAfterRaw = 7
 	maximumLatestSnapshotAge      = 72 * time.Hour
@@ -55,27 +55,27 @@ type safetyCheck struct {
 }
 
 type previewOutput struct {
-	GeneratedAt                   time.Time     `json:"generated_at"`
-	Cutoff                        time.Time     `json:"cutoff"`
-	BucketName                    string        `json:"bucket_name"`
-	VersioningEnabled             bool          `json:"versioning_enabled"`
-	SoftDeleteRetention           string        `json:"soft_delete_retention,omitempty"`
-	TotalSnapshotPrefixes         int           `json:"total_snapshot_prefixes"`
-	RawChatSnapshotPrefixes       int           `json:"raw_chat_snapshot_prefixes"`
-	ExpiredRawChatSnapshotPrefixes int          `json:"expired_raw_chat_snapshot_prefixes"`
-	CandidateObjectCount          int64         `json:"candidate_object_count"`
-	CandidateBytes                int64         `json:"candidate_bytes"`
-	OldestRawChatPrefix           string        `json:"oldest_raw_chat_prefix,omitempty"`
-	NewestRawChatPrefix           string        `json:"newest_raw_chat_prefix,omitempty"`
-	NewestRawChatCreatedAt        string        `json:"newest_raw_chat_created_at,omitempty"`
-	CleanSnapshotsAfterNewestRaw  int           `json:"clean_snapshots_after_newest_raw"`
-	NewestCleanPrefix             string        `json:"newest_clean_prefix,omitempty"`
-	LatestSnapshotPrefix          string        `json:"latest_snapshot_prefix,omitempty"`
-	LatestSnapshotCreatedAt       string        `json:"latest_snapshot_created_at,omitempty"`
-	SafetyChecks                  []safetyCheck `json:"safety_checks"`
-	ReadyToApply                  bool          `json:"ready_to_apply"`
-	RequiredConfirmation          string        `json:"required_confirmation,omitempty"`
-	Notes                         []string      `json:"notes,omitempty"`
+	GeneratedAt                    time.Time     `json:"generated_at"`
+	Cutoff                         time.Time     `json:"cutoff"`
+	BucketName                     string        `json:"bucket_name"`
+	VersioningEnabled              bool          `json:"versioning_enabled"`
+	SoftDeleteRetention            string        `json:"soft_delete_retention,omitempty"`
+	TotalSnapshotPrefixes          int           `json:"total_snapshot_prefixes"`
+	RawChatSnapshotPrefixes        int           `json:"raw_chat_snapshot_prefixes"`
+	ExpiredRawChatSnapshotPrefixes int           `json:"expired_raw_chat_snapshot_prefixes"`
+	CandidateObjectCount           int64         `json:"candidate_object_count"`
+	CandidateBytes                 int64         `json:"candidate_bytes"`
+	OldestRawChatPrefix            string        `json:"oldest_raw_chat_prefix,omitempty"`
+	NewestRawChatPrefix            string        `json:"newest_raw_chat_prefix,omitempty"`
+	NewestRawChatCreatedAt         string        `json:"newest_raw_chat_created_at,omitempty"`
+	CleanSnapshotsAfterNewestRaw   int           `json:"clean_snapshots_after_newest_raw"`
+	NewestCleanPrefix              string        `json:"newest_clean_prefix,omitempty"`
+	LatestSnapshotPrefix           string        `json:"latest_snapshot_prefix,omitempty"`
+	LatestSnapshotCreatedAt        string        `json:"latest_snapshot_created_at,omitempty"`
+	SafetyChecks                   []safetyCheck `json:"safety_checks"`
+	ReadyToApply                   bool          `json:"ready_to_apply"`
+	RequiredConfirmation           string        `json:"required_confirmation,omitempty"`
+	Notes                          []string      `json:"notes,omitempty"`
 }
 
 func main() {
@@ -216,10 +216,10 @@ func inspectBucket(ctx context.Context, bucket *storage.BucketHandle) (bucketInv
 func buildPreview(now time.Time, bucketName string, inventory bucketInventory) previewOutput {
 	cutoff := now.AddDate(0, 0, -rawYouTubeDataRetentionDays)
 	out := previewOutput{
-		GeneratedAt:         now,
-		Cutoff:              cutoff,
-		BucketName:          bucketName,
-		VersioningEnabled:   inventory.VersioningEnabled,
+		GeneratedAt:           now,
+		Cutoff:                cutoff,
+		BucketName:            bucketName,
+		VersioningEnabled:     inventory.VersioningEnabled,
 		TotalSnapshotPrefixes: len(inventory.Prefixes),
 	}
 	if inventory.SoftDelete > 0 {
