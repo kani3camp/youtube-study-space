@@ -58,11 +58,5 @@ FROM %s
 		return RawLiveChatRetentionAudit{}, fmt.Errorf("read raw live chat retention audit row: %w", err)
 	}
 
-	return RawLiveChatRetentionAudit{
-		TotalRows:           row.TotalRows,
-		RowsOlderThanCutoff: row.RowsOlderThanCutoff,
-		UndatedRows:         row.UndatedRows,
-		OldestPublishedAt:   row.OldestPublishedAt,
-		NewestPublishedAt:   row.NewestPublishedAt,
-	}, nil
+	return RawLiveChatRetentionAudit(row), nil
 }
