@@ -13,19 +13,19 @@ import (
 )
 
 type fakeLiveChatInboxWorkerRepository struct {
-	items               []repository.LiveChatInboxDoc
-	listErr             error
-	claimResult          repository.LiveChatInboxDoc
-	claimErr             error
-	failStatus           repository.LiveChatInboxStatus
-	failErr              error
-	listedFromSequence   int64
-	listLimit            int
-	claimCalls           int
-	failCalls            int
-	claimedWorker        string
-	failedWorker         string
-	failedProcessingErr  error
+	items              []repository.LiveChatInboxDoc
+	listErr            error
+	claimResult         repository.LiveChatInboxDoc
+	claimErr            error
+	failStatus          repository.LiveChatInboxStatus
+	failErr             error
+	listedFromSequence  int64
+	listLimit           int
+	claimCalls          int
+	failCalls           int
+	claimedWorker       string
+	failedWorker        string
+	failedProcessingErr error
 }
 
 func (f *fakeLiveChatInboxWorkerRepository) ListClaimableLiveChatInboxMessagesFromSequence(
