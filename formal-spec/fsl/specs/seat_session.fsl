@@ -34,7 +34,7 @@ spec SeatSession {
     now = now + 1
   }
 
-  // REQ-SEAT-001: 休憩開始は Work 中だけ許可する。
+  @requirement("REQ-SEAT-001", "休憩開始は Work 中だけ許可する")
   action start_break(duration: Duration) {
     requires mode == Work
     cumulative_work = cumulative_work + (now - current_state_started_at)
@@ -47,7 +47,7 @@ spec SeatSession {
     }
   }
 
-  // REQ-SEAT-002: 作業再開は Break 中だけ許可する。
+  @requirement("REQ-SEAT-002", "作業再開は Break 中だけ許可する")
   action resume_work() {
     requires mode == Break
     mode = Work
@@ -56,15 +56,14 @@ spec SeatSession {
     current_segment_started_at = now
   }
 
-  // REQ-SEAT-003: Work 中の終了時刻変更は現在時刻からの duration で指定し、
-  // Until と状態終了時刻を同期する。
+  @requirement("REQ-SEAT-003", "Work 中の作業時間変更では自動退室時刻と状態終了時刻を同期する")
   action set_work_duration(duration: Duration) {
     requires mode == Work
     until = now + duration
     current_state_until = now + duration
   }
 
-  // REQ-SEAT-004: Work 延長は現在時刻からの最大残り時間を超えない。
+  @requirement("REQ-SEAT-004", "Work 延長は現在時刻からの最大残り時間を超えない")
   action extend_work_duration(add: Duration, max_remaining: MaxDuration) {
     requires mode == Work
     if until + add - now > max_remaining {
@@ -76,7 +75,7 @@ spec SeatSession {
     }
   }
 
-  // REQ-SEAT-005: Break 延長は休憩開始からの上限を守り、必要なら Until も延長する。
+  @requirement("REQ-SEAT-005", "Break 延長は休憩開始からの上限を守り、必要なら自動退室時刻も延長する")
   action extend_break_duration(add: Duration, max_break_duration: MaxDuration) {
     requires mode == Break
     if current_state_until + add - current_state_started_at > max_break_duration {
@@ -92,22 +91,29 @@ spec SeatSession {
     }
   }
 
+  @requirement("REQ-SEAT-005", "Break 延長は休憩開始からの上限を守り、必要なら自動退室時刻も延長する")
+  @kind("safety")
   invariant BreakEndsBeforeExit {
     current_state_until <= until
   }
 
+  @requirement("REQ-SEAT-003", "Work 中の作業時間変更では自動退室時刻と状態終了時刻を同期する")
+  @kind("safety")
   invariant WorkDeadlineMatchesExit {
     mode == Work => current_state_until == until
   }
 
+  @kind("safety")
   invariant StateStartNotInFuture {
     current_state_started_at <= now
   }
 
+  @kind("safety")
   invariant SegmentStartNotInFuture {
     current_segment_started_at <= now
   }
 
+  @kind("safety")
   invariant CumulativeWorkNeverNegative {
     cumulative_work >= 0
   }

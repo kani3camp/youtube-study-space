@@ -22,7 +22,13 @@ bash formal-spec/fsl/scripts/verify.sh
 bash .github/scripts/run-formal-spec-tests.sh
 ```
 
-対応している FSL 開発環境は Linux x86_64 / arm64 と macOS Apple Silicon です。`fslc` は `formal-spec/fsl/.tools/` にキャッシュされ、生成した conformance JSON は `formal-spec/fsl/generated/` に置かれ、どちらもコミットされません。
+人間向けの自己完結 HTML レポートだけを生成する場合:
+
+```bash
+bash formal-spec/fsl/scripts/report.sh
+```
+
+対応している FSL 開発環境は Linux x86_64 / arm64 と macOS Apple Silicon です。`fslc` は `formal-spec/fsl/.tools/` にキャッシュされ、生成した conformance JSON / HTML は `formal-spec/fsl/generated/` に置かれ、どちらもコミットされません。
 
 環境変数:
 
@@ -30,11 +36,18 @@ bash .github/scripts/run-formal-spec-tests.sh
 - `FSL_TOOL_DIR`: ダウンロード先を変更する
 - `FSL_VERIFY_DEPTH`: BMC の depth を変更する（既定 8）
 - `FSL_CONFORMANCE_DEPTH`: conformance vector の探索 depth を変更する（既定 4）
-- `FSL_GENERATED_DIR`: conformance JSON の生成先を変更する
+- `FSL_REPORT_DEPTH`: HTML レポートの検証 depth を変更する（既定 8）
+- `FSL_GENERATED_DIR`: conformance JSON / HTML の生成先を変更する
+
+## Requirement traceability
+
+`SeatSession` の既存契約 ID `REQ-SEAT-001` 〜 `REQ-SEAT-005` はコメントではなく、FSL の正準な `@requirement(id, text)` metadata として対象 action / invariant に付与します。これにより verifier の診断や HTML レポートから、どの宣言がどの契約を担うか追跡できます。
+
+requirement metadata は検証そのものの代替ではありません。契約の意味は action / invariant の式で検証し、ID と説明はレビュー時のトレーサビリティとして使います。
 
 ## CI gate
 
-PR の形式仕様 job では以下を実行します。
+PR の `Formal Spec (FSL)` job では以下を実行します。
 
 ```text
 fslc check
@@ -44,6 +57,12 @@ Go conformance adapter (build tag: formalspec)
 ```
 
 Go adapter は FSL の `conformance.v1` JSON を読み、各 reachable state / action instance について `SeatDoc` の実装結果を照合します。`requires_failed` の vector では Go 側も error を返し、`SeatDoc` が変更されないことまで確認します。仕様で新しい outcome が現れた場合は自動で skip せず、分類を要求して失敗します。
+
+## Review report
+
+`Formal Spec Report` workflow は形式仕様が変わった PR で `fslc html --depth 8` を1回だけ実行し、`seat_session.html` を GitHub Actions artifact `seat-session-fsl-report` として 14 日間保持します。main formal gate と分離することで、検証・conformance の gate にレポート生成コストを重複させません。
+
+レポートは自己完結 HTML で、state / action / property、requirement metadata、検証結果、witness などを CLI なしでレビューするための補助資料です。HTML 生成に失敗した場合は `Formal Spec Report` workflow 自体が失敗します。
 
 Linux バイナリは Ubuntu 24.04 ABI を前提としているため、専用 CI job は `ubuntu-24.04` を使います。
 
