@@ -36,7 +36,7 @@ func (app *WorkspaceApp) CanProcessDurableInboxMessage(inbox repository.LiveChat
 	}
 
 	switch commandDetails.CommandType {
-	case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat:
+	case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More:
 		return true, nil
 	default:
 		return false, nil
