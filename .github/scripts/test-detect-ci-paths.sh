@@ -39,6 +39,7 @@ assert_exact_groups "system firestore_integration" system/core/repository/firest
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/workspace_app_private_test.go
 assert_exact_groups "system firestore_integration formal_spec" system/core/repository/seat.go
 assert_exact_groups "system firestore_integration formal_spec" system/core/repository/models.go
+assert_exact_groups "system firestore_integration formal_spec" system/core/repository/seat_formalspec_test.go
 assert_exact_groups "system firestore_integration formal_spec" system/core/timeutil/time.go
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
