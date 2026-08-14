@@ -67,6 +67,7 @@ func (app *WorkspaceApp) prepareMessage(
 			if err := app.CreateUser(ctx, tx); err != nil {
 				return fmt.Errorf("in CreateUser(): %w", err)
 			}
+		}
 		return nil
 	})
 	if txErr != nil {
