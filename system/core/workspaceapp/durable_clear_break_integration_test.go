@@ -90,12 +90,20 @@ func TestProcessClaimedDurableInboxMessage_ClearBreakCommitsSegment(t *testing.T
 	assert.Empty(t, updatedSeat.BreakWorkName)
 	assert.True(t, updatedSeat.CurrentSegmentStartedAt.Equal(now))
 
-	segments, err := controller.ReadWorkStateSegmentsBySessionID(ctx, seat.SessionID)
+	// ReadWorkStateSegmentsBySessionID intentionally filters SegmentType=Work,
+	// so query the persisted Break segment with the matching type explicitly.
+	segmentDocs, err := controller.FirestoreClient().Collection(repository.WorkSegments).
+		Where(repository.SessionIDDocProperty, "==", seat.SessionID).
+		Where(repository.SegmentTypeDocProperty, "==", repository.BreakState).
+		Documents(ctx).
+		GetAll()
 	require.NoError(t, err)
-	require.Len(t, segments, 1)
-	assert.Equal(t, "Coffee", segments[0].WorkName)
-	assert.Equal(t, repository.BreakState, segments[0].SegmentType)
-	assert.Equal(t, 5*60, segments[0].DurationSec)
+	require.Len(t, segmentDocs, 1)
+	var segment repository.WorkSegmentDoc
+	require.NoError(t, segmentDocs[0].DataTo(&segment))
+	assert.Equal(t, "Coffee", segment.WorkName)
+	assert.Equal(t, repository.BreakState, segment.SegmentType)
+	assert.Equal(t, 5*60, segment.DurationSec)
 
 	outboxKey, err := repository.LiveChatReplyOutboxKey(liveChatID, history.ID, durablePrimaryReplyIntentSlot)
 	require.NoError(t, err)
