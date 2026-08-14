@@ -105,8 +105,8 @@ func countDocumentsByField(
 	field string,
 	value string,
 ) (int64, error) {
-	result, err := client.Collection(collection).
-		Where(field, "==", value).
+	query := client.Collection(collection).Where(field, "==", value)
+	result, err := query.
 		NewAggregationQuery().
 		WithCount(countAlias).
 		Get(ctx)
