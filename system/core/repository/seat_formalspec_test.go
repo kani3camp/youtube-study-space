@@ -21,12 +21,12 @@ const (
 var seatModelEpoch = time.Date(2026, 1, 1, 12, 0, 0, 0, time.FixedZone("JST", 9*60*60))
 
 type seatConformanceDocument struct {
-	SchemaVersion       string                 `json:"schema_version"`
-	KernelSchemaVersion string                 `json:"kernel_schema_version"`
-	Result              string                 `json:"result"`
-	Spec                string                 `json:"spec"`
-	States              []seatConformanceState `json:"states"`
-	Vectors             []seatConformanceVector `json:"vectors"`
+	SchemaVersion        string                  `json:"schema_version"`
+	KernelSchemaVersion  string                  `json:"kernel_schema_version"`
+	Result               string                  `json:"result"`
+	Spec                 string                  `json:"spec"`
+	States               []seatConformanceState  `json:"states"`
+	Vectors              []seatConformanceVector `json:"vectors"`
 }
 
 type seatConformanceState struct {
@@ -195,7 +195,7 @@ func applySeatConformanceAction(seat *SeatDoc, logicalNow *int, action seatConfo
 		if *logicalNow >= seatModelClockMax {
 			return errors.New("model clock upper bound reached")
 		}
-		*logicalNow++
+		(*logicalNow)++
 		return nil
 	case "start_break":
 		duration, err := seatConformanceParam(action, "duration")
