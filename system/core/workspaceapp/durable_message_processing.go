@@ -62,18 +62,19 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 		return app.finalizeDurableNoopMessage(ctx, durableRepo, inbox, workerID)
 	}
 
-	// #1012 will persist owner/member source metadata before runtime cutover.
-	// !info and NotCommand do not depend on those flags, so this first slice can
-	// safely preserve the currently available moderator flag only.
+	isChatMember := inbox.AuthorIsChatMember
+	if !app.Configs.Constants.YoutubeMembershipEnabled {
+		isChatMember = false
+	}
 	app.SetProcessedUser(
 		inbox.AuthorChannelID,
 		inbox.AuthorDisplayName,
 		inbox.AuthorProfileImageURL,
 		inbox.AuthorIsChatModerator,
-		false,
-		false,
+		inbox.AuthorIsChatOwner,
+		isChatMember,
 	)
-	prepared := app.parseAndValidateMessage(inbox.MessageText, false)
+	prepared := app.parseAndValidateMessage(inbox.MessageText, isChatMember)
 	if prepared.ImmediateReply != "" || prepared.SkipExecution || prepared.CommandDetails == nil {
 		return ErrDurableCommandNotSupported
 	}
