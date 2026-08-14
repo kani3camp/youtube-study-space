@@ -17,6 +17,7 @@ import (
 const (
 	mypageUsersCollection         = "mypage-users"
 	mypageChannelOwnersCollection = "mypage-youtube-channel-owners"
+	authorChannelIDField          = "author-channel-id"
 	firebaseUIDField              = "firebase-uid"
 	countAlias                    = "row_count"
 )
@@ -47,9 +48,7 @@ var userIDCollectionLookups = []collectionLookup{
 	{collection: repository.SeatLimitsWhiteList, field: repository.UserIDDocProperty},
 	{collection: repository.MemberSeatLimitsBlackList, field: repository.UserIDDocProperty},
 	{collection: repository.MemberSeatLimitsWhiteList, field: repository.UserIDDocProperty},
-	{collection: repository.LiveChatHistory, field: repository.AuthorChannelIDDocProperty},
-	{collection: repository.LiveChatInbox, field: repository.AuthorChannelIDDocProperty},
-	{collection: repository.LiveChatReplyOutbox, field: repository.SourceAuthorChannelIDDocProperty},
+	{collection: repository.LiveChatHistory, field: authorChannelIDField},
 }
 
 // InspectFirestore returns counts of documents directly attributable to a

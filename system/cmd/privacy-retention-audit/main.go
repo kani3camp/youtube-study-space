@@ -40,8 +40,7 @@ type configAudit struct {
 }
 
 type firestoreAudit struct {
-	RawLiveChatHistoryRowsOlderThanCutoff int64 `json:"raw_live_chat_history_rows_older_than_cutoff"`
-	RawLiveChatInboxRowsOlderThanCutoff   int64 `json:"raw_live_chat_inbox_rows_older_than_cutoff"`
+	RawLiveChatRowsOlderThanCutoff int64 `json:"raw_live_chat_rows_older_than_cutoff"`
 }
 
 type gcsAudit struct {
@@ -90,23 +89,9 @@ func run(ctx context.Context) error {
 	now := time.Now().UTC()
 	cutoff := now.AddDate(0, 0, -rawYouTubeDataRetentionDays)
 
-	firestoreHistoryOlderRows, err := countOldFirestoreRawChat(
-		ctx,
-		repo.FirestoreClient(),
-		repository.LiveChatHistory,
-		cutoff,
-	)
+	firestoreOlderRows, err := countOldFirestoreRawChat(ctx, repo.FirestoreClient(), cutoff)
 	if err != nil {
-		return fmt.Errorf("inspect Firestore raw live chat history age: %w", err)
-	}
-	firestoreInboxOlderRows, err := countOldFirestoreRawChat(
-		ctx,
-		repo.FirestoreClient(),
-		repository.LiveChatInbox,
-		cutoff,
-	)
-	if err != nil {
-		return fmt.Errorf("inspect Firestore raw live chat inbox age: %w", err)
+		return fmt.Errorf("inspect Firestore raw chat age: %w", err)
 	}
 
 	projectID, err := utils.GetGcpProjectID(ctx, clientOption)
@@ -145,8 +130,7 @@ func run(ctx context.Context) error {
 			GCPRegion:                      constants.GcpRegion,
 		},
 		Firestore: firestoreAudit{
-			RawLiveChatHistoryRowsOlderThanCutoff: firestoreHistoryOlderRows,
-			RawLiveChatInboxRowsOlderThanCutoff:   firestoreInboxOlderRows,
+			RawLiveChatRowsOlderThanCutoff: firestoreOlderRows,
 		},
 		BigQuery: bqAudit,
 		GCS:      gcs,
@@ -210,10 +194,9 @@ func run(ctx context.Context) error {
 func countOldFirestoreRawChat(
 	ctx context.Context,
 	client repository.DBClient,
-	collection string,
 	cutoff time.Time,
 ) (int64, error) {
-	query := client.Collection(collection).
+	query := client.Collection(repository.LiveChatHistory).
 		Where(repository.PublishedAtDocProperty, "<", cutoff)
 	result, err := query.NewAggregationQuery().WithCount(firestoreCountAlias).Get(ctx)
 	if err != nil {
@@ -277,7 +260,6 @@ func inspectGCS(
 		cutoff,
 		[]string{
 			repository.LiveChatHistory,
-			repository.LiveChatInbox,
 			repository.UserActivities,
 			repository.OrderHistory,
 			repository.USERS,

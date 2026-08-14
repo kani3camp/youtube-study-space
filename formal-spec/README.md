@@ -25,14 +25,11 @@ CI を緑にすること自体を目的に仕様を弱めてはいけません�
 ## 現在の構成
 
 - `fsl/`: FSL による形式仕様、検証、language-neutral conformance vector / HTML review report の生成
-- `SeatSession`: 座席の Work / Break 状態遷移。実 `SeatDoc` との conformance 接続済み
-- `SeatAllocation`: 入室・空席衝突・メンバー席アクセス・席移動・退室の高位安全モデル。実装 conformance は未接続
-- `ChatMessageProcessing`: P1 の durable ingest / Inbox / domain transaction / reply outbox の**目標契約**。現行 youtube-bot との conformance は未接続
+- `SeatSession`: 座席の Work / Break 状態遷移
+- `SeatAllocation`: 入室・空席衝突・メンバー席アクセス・席移動・退室の安全条件
 - `system/core/repository/seat_formalspec_test.go`: `SeatSession` 用の `formalspec` build tag Go conformance adapter
 
-全 FSL spec は CI で bounded verification されます。実装 conformance が接続済みなのは現時点では `SeatSession` だけです。高位モデル・移行先モデルについては、未接続なのに実装一致を証明したとは扱いません。
-
-`ChatMessageProcessing` は特に、現在の実装を正当化するためではなく、以前のP1設計で決めた「checkpoint は durable ingest 完了を意味する」「messageId を冪等キーにする」「DB effect と reply intent を atomic にする」「poison message は dead-letter して後続を止めない」という移行先の契約を先に固定する目的です。
+全 FSL spec は CI で bounded verification されます。`SeatSession` はさらに FSL が生成した conformance vector を oracle として実 `SeatDoc` と照合します。`SeatAllocation` は高位の安全モデルとして導入し、実装 conformance が未接続であることを明示します。
 
 vector / HTML は一時生成物でコミットせず、通常の `go test ./...` と本番ランタイムは FSL 非依存のまま維持します。
 
