@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"cloud.google.com/go/firestore"
-
 	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/utils"
 )
@@ -21,8 +19,9 @@ type preparedMessage struct {
 // Legacy ProcessMessage sends ImmediateReply immediately; the durable Inbox
 // worker can later persist the same reply as an outbox intent instead.
 //
-// Moderation side effects and first-use user initialization intentionally remain
-// unchanged in this first extraction. They will be separated in later phases.
+// Moderation side effects intentionally remain unchanged in this extraction.
+// First-use user initialization is now reusable inside a caller-owned tx, but
+// legacy preparation still wraps it in its own transaction to preserve behavior.
 func (app *WorkspaceApp) prepareMessage(
 	ctx context.Context,
 	ngWordConfig NGWordConfig,
@@ -56,20 +55,7 @@ func (app *WorkspaceApp) prepareMessage(
 		}
 	}
 
-	// Preserve the existing first-use initialization transaction. This will be
-	// folded into the durable message transaction in a later migration step.
-	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		isRegistered, err := app.IfUserRegistered(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("in IfUserRegistered(): %w", err)
-		}
-		if !isRegistered {
-			if err := app.CreateUser(ctx, tx); err != nil {
-				return fmt.Errorf("in CreateUser(): %w", err)
-			}
-		}
-		return nil
-	})
+	txErr := app.RunTransaction(ctx, app.ensureProcessedUserRegisteredTx)
 	if txErr != nil {
 		return preparedMessage{}, fmt.Errorf("in RunTransaction(): %w", txErr)
 	}
