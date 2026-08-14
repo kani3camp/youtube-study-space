@@ -43,6 +43,46 @@
       ]
     },
     {
+      "collectionGroup": "live-chat-inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`live-chat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sequence",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "live-chat-inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`live-chat-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`lease-until`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sequence",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "member-seats",
       "queryScope": "COLLECTION",
       "fields": [
