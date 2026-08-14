@@ -6,9 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"google.golang.org/api/option"
+
 	"app.modules/core/mybigquery"
 	"app.modules/core/utils"
-	"google.golang.org/api/option"
 )
 
 // rawYouTubeDataRetentionDays is a hard upper bound for raw YouTube API data.
