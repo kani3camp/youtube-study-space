@@ -16,10 +16,10 @@ import (
 )
 
 type inspectOutput struct {
-	YouTubeChannelID string                       `json:"youtube_channel_id"`
+	YouTubeChannelID string                        `json:"youtube_channel_id"`
 	Firestore        privacyops.FirestoreInventory `json:"firestore"`
-	BigQuery         mybigquery.UserDataInventory `json:"bigquery"`
-	Notes            []string                     `json:"notes"`
+	BigQuery         mybigquery.UserDataInventory  `json:"bigquery"`
+	Notes            []string                      `json:"notes"`
 }
 
 func main() {
@@ -58,11 +58,20 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("inspect Firestore: %w", err)
 	}
 
+	constants, err := repo.ReadSystemConstantsConfig(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("read system constants: %w", err)
+	}
 	projectID, err := utils.GetGcpProjectID(ctx, clientOption)
 	if err != nil {
 		return fmt.Errorf("resolve GCP project ID: %w", err)
 	}
-	bqClient, err := mybigquery.NewBigqueryClient(ctx, projectID, clientOption, "US")
+	bqClient, err := mybigquery.NewBigqueryClient(
+		ctx,
+		projectID,
+		clientOption,
+		constants.GcpRegion,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize BigQuery: %w", err)
 	}
