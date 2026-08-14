@@ -24,7 +24,10 @@ CI を緑にすること自体を目的に仕様を弱めてはいけません�
 
 ## 現在の構成
 
-- `fsl/`: FSL による形式仕様と検証スクリプト
+- `fsl/`: FSL による形式仕様、検証、language-neutral conformance vector の生成
+- `system/core/repository/seat_formalspec_test.go`: `formalspec` build tag のときだけ有効になる Go conformance adapter
 - 最初の対象: `SeatSession`（座席の Work / Break 状態遷移）
 
-次段階では FSL の conformance vector と Go 実装を接続しますが、通常の Go テストや本番ランタイムは FSL 非依存のまま維持します。
+CI では FSL が生成した conformance vector を oracle として `SeatDoc` の実装を照合します。vector は一時生成物でコミットせず、通常の `go test ./...` と本番ランタイムは FSL 非依存のまま維持します。
+
+将来 FSL を置き換える場合は、`formal-spec/fsl/` と build tag 付き adapter / 専用 CI の入力部分だけを交換し、本番コードや Firestore schema には波及させません。
