@@ -47,19 +47,22 @@ requirement metadata は検証そのものの代替ではありません。契�
 
 ## CI gate
 
-PR の形式仕様 job では以下を実行します。
+PR の `Formal Spec (FSL)` job では以下を実行します。
 
 ```text
 fslc check
 fslc verify --depth 8 --vacuity error
 fslc conformance seat_session.fsl --depth 4
 Go conformance adapter (build tag: formalspec)
-fslc html --depth 8
 ```
 
 Go adapter は FSL の `conformance.v1` JSON を読み、各 reachable state / action instance について `SeatDoc` の実装結果を照合します。`requires_failed` の vector では Go 側も error を返し、`SeatDoc` が変更されないことまで確認します。仕様で新しい outcome が現れた場合は自動で skip せず、分類を要求して失敗します。
 
-`Formal Spec Report` workflow は形式仕様が変わった PR で `seat_session.html` を生成し、GitHub Actions artifact `seat-session-fsl-report` として 14 日間保持します。レポートは自己完結 HTML で、state / action / property、requirement metadata、検証結果、witness などを CLI なしでレビューするための補助資料です。
+## Review report
+
+`Formal Spec Report` workflow は形式仕様が変わった PR で `fslc html --depth 8` を1回だけ実行し、`seat_session.html` を GitHub Actions artifact `seat-session-fsl-report` として 14 日間保持します。main formal gate と分離することで、検証・conformance の gate にレポート生成コストを重複させません。
+
+レポートは自己完結 HTML で、state / action / property、requirement metadata、検証結果、witness などを CLI なしでレビューするための補助資料です。HTML 生成に失敗した場合は `Formal Spec Report` workflow 自体が失敗します。
 
 Linux バイナリは Ubuntu 24.04 ABI を前提としているため、専用 CI job は `ubuntu-24.04` を使います。
 
