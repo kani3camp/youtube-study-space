@@ -24,13 +24,13 @@ const (
 )
 
 type report struct {
-	GeneratedAt time.Time                 `json:"generated_at"`
-	Cutoff      time.Time                 `json:"cutoff"`
-	Config      configAudit               `json:"config"`
-	Firestore   firestoreAudit            `json:"firestore"`
+	GeneratedAt time.Time                           `json:"generated_at"`
+	Cutoff      time.Time                           `json:"cutoff"`
+	Config      configAudit                         `json:"config"`
+	Firestore   firestoreAudit                      `json:"firestore"`
 	BigQuery    mybigquery.RawLiveChatRetentionAudit `json:"bigquery"`
-	GCS         gcsAudit                  `json:"gcs"`
-	Warnings    []string                  `json:"warnings,omitempty"`
+	GCS         gcsAudit                            `json:"gcs"`
+	Warnings    []string                            `json:"warnings,omitempty"`
 }
 
 type configAudit struct {
@@ -44,14 +44,14 @@ type firestoreAudit struct {
 }
 
 type gcsAudit struct {
-	BucketName               string                  `json:"bucket_name"`
-	Location                 string                  `json:"location,omitempty"`
-	VersioningEnabled        bool                    `json:"versioning_enabled"`
-	LifecycleRules           []storage.LifecycleRule `json:"lifecycle_rules,omitempty"`
-	RetentionPeriod          string                  `json:"retention_period,omitempty"`
-	RetentionPolicyLocked    bool                    `json:"retention_policy_locked,omitempty"`
-	SoftDeleteRetention      string                  `json:"soft_delete_retention,omitempty"`
-	AttributesInspectionError string                 `json:"attributes_inspection_error,omitempty"`
+	BucketName                string                  `json:"bucket_name"`
+	Location                  string                  `json:"location,omitempty"`
+	VersioningEnabled         bool                    `json:"versioning_enabled"`
+	LifecycleRules            []storage.LifecycleRule `json:"lifecycle_rules,omitempty"`
+	RetentionPeriod           string                  `json:"retention_period,omitempty"`
+	RetentionPolicyLocked     bool                    `json:"retention_policy_locked,omitempty"`
+	SoftDeleteRetention       string                  `json:"soft_delete_retention,omitempty"`
+	AttributesInspectionError string                  `json:"attributes_inspection_error,omitempty"`
 }
 
 func main() {
