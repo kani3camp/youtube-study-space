@@ -20,6 +20,11 @@ type FirestoreDeleteResult struct {
 	FirebaseUID string         `json:"firebase_uid,omitempty"`
 }
 
+type myPageDeletionTarget struct {
+	ownerExists bool
+	firebaseUID string
+}
+
 var deleteLookups = []collectionLookup{
 	// Active seats are removed first so the seat becomes available even if a
 	// later historical-data deletion fails and the operation has to be retried.
@@ -55,8 +60,16 @@ func DeleteFirestoreUserData(
 		return FirestoreDeleteResult{}, errors.New("firestore client is nil")
 	}
 
+	// Validate any MyPage ownership mapping before making the first write so a
+	// malformed mapping cannot turn a request into an avoidable partial deletion.
+	myPageTarget, err := resolveMyPageDeletionTarget(ctx, client, youtubeChannelID)
+	if err != nil {
+		return FirestoreDeleteResult{}, fmt.Errorf("preflight mypage mapping: %w", err)
+	}
+
 	result := FirestoreDeleteResult{
 		Collections: make(map[string]int, len(deleteLookups)+1),
+		FirebaseUID: myPageTarget.firebaseUID,
 	}
 
 	for _, lookup := range deleteLookups {
@@ -73,12 +86,11 @@ func DeleteFirestoreUserData(
 		result.Collections[lookup.collection] = deleted
 	}
 
-	mypageDeleted, firebaseUID, err := deleteMyPageMappings(ctx, client, youtubeChannelID)
+	mypageDeleted, err := deleteMyPageMappings(ctx, client, youtubeChannelID, myPageTarget)
 	if err != nil {
 		return result, fmt.Errorf("delete mypage mappings: %w", err)
 	}
 	result.MyPage = mypageDeleted
-	result.FirebaseUID = firebaseUID
 
 	userDeleted, err := deleteDocumentIfExists(ctx, client.Collection(repository.USERS).Doc(youtubeChannelID))
 	if err != nil {
@@ -119,49 +131,66 @@ func deleteDocumentsByField(
 	}
 }
 
-func deleteMyPageMappings(
+func resolveMyPageDeletionTarget(
 	ctx context.Context,
 	client repository.DBClient,
 	youtubeChannelID string,
-) (int, string, error) {
+) (myPageDeletionTarget, error) {
 	ownerRef := client.Collection(mypageChannelOwnersCollection).Doc(youtubeChannelID)
 	ownerSnapshot, err := ownerRef.Get(ctx)
 	if status.Code(err) == codes.NotFound {
-		return 0, "", nil
+		return myPageDeletionTarget{}, nil
 	}
 	if err != nil {
-		return 0, "", fmt.Errorf("get mypage channel owner: %w", err)
+		return myPageDeletionTarget{}, fmt.Errorf("get mypage channel owner: %w", err)
 	}
 
 	rawFirebaseUID, ok := ownerSnapshot.Data()[firebaseUIDField]
 	if !ok {
-		return 0, "", errors.New("mypage channel owner is missing firebase uid")
+		return myPageDeletionTarget{}, errors.New("mypage channel owner is missing firebase uid")
 	}
 	firebaseUID, ok := rawFirebaseUID.(string)
 	if !ok {
-		return 0, "", fmt.Errorf("mypage channel owner firebase uid has unexpected type %T", rawFirebaseUID)
+		return myPageDeletionTarget{}, fmt.Errorf(
+			"mypage channel owner firebase uid has unexpected type %T",
+			rawFirebaseUID,
+		)
 	}
 	firebaseUID = strings.TrimSpace(firebaseUID)
 	if firebaseUID == "" {
-		return 0, "", errors.New("mypage channel owner firebase uid is empty")
+		return myPageDeletionTarget{}, errors.New("mypage channel owner firebase uid is empty")
+	}
+
+	return myPageDeletionTarget{ownerExists: true, firebaseUID: firebaseUID}, nil
+}
+
+func deleteMyPageMappings(
+	ctx context.Context,
+	client repository.DBClient,
+	youtubeChannelID string,
+	target myPageDeletionTarget,
+) (int, error) {
+	if !target.ownerExists {
+		return 0, nil
 	}
 
 	deleted := 0
-	accountRef := client.Collection(mypageUsersCollection).Doc(firebaseUID)
+	accountRef := client.Collection(mypageUsersCollection).Doc(target.firebaseUID)
 	accountDeleted, err := deleteDocumentIfExists(ctx, accountRef)
 	if err != nil {
-		return deleted, firebaseUID, fmt.Errorf("delete mypage linked account: %w", err)
+		return deleted, fmt.Errorf("delete mypage linked account: %w", err)
 	}
 	if accountDeleted {
 		deleted++
 	}
 
+	ownerRef := client.Collection(mypageChannelOwnersCollection).Doc(youtubeChannelID)
 	if _, err := ownerRef.Delete(ctx); err != nil {
-		return deleted, firebaseUID, fmt.Errorf("delete mypage channel owner: %w", err)
+		return deleted, fmt.Errorf("delete mypage channel owner: %w", err)
 	}
 	deleted++
 
-	return deleted, firebaseUID, nil
+	return deleted, nil
 }
 
 func deleteDocumentIfExists(ctx context.Context, ref *firestore.DocumentRef) (bool, error) {
