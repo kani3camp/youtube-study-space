@@ -109,7 +109,7 @@ func countDocumentsByField(
 		Documents(ctx).
 		GetAll()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("query matching documents: %w", err)
 	}
 	return len(docs), nil
 }
@@ -125,11 +125,21 @@ func inspectMyPageMappings(
 		return MyPageMappingInventory{}, nil
 	}
 	if err != nil {
-		return MyPageMappingInventory{}, err
+		return MyPageMappingInventory{}, fmt.Errorf("get mypage channel owner: %w", err)
 	}
 
 	inventory := MyPageMappingInventory{ChannelOwnerDocument: 1}
-	firebaseUID, _ := ownerSnapshot.Data()[firebaseUIDField].(string)
+	rawFirebaseUID, ok := ownerSnapshot.Data()[firebaseUIDField]
+	if !ok {
+		return inventory, nil
+	}
+	firebaseUID, ok := rawFirebaseUID.(string)
+	if !ok {
+		return MyPageMappingInventory{}, fmt.Errorf(
+			"mypage channel owner firebase uid has unexpected type %T",
+			rawFirebaseUID,
+		)
+	}
 	firebaseUID = strings.TrimSpace(firebaseUID)
 	if firebaseUID == "" {
 		return inventory, nil
@@ -153,7 +163,7 @@ func documentExists(ctx context.Context, ref *firestore.DocumentRef) (bool, erro
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("get document %q: %w", ref.Path, err)
 	}
 	return true, nil
 }
