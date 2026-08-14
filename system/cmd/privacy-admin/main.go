@@ -17,10 +17,10 @@ import (
 )
 
 type inspectOutput struct {
-	YouTubeChannelID string                         `json:"youtube_channel_id"`
-	Firestore        privacyops.FirestoreInventory  `json:"firestore"`
-	BigQuery         mybigquery.UserDataInventory   `json:"bigquery"`
-	Notes            []string                       `json:"notes"`
+	YouTubeChannelID string                        `json:"youtube_channel_id"`
+	Firestore        privacyops.FirestoreInventory `json:"firestore"`
+	BigQuery         mybigquery.UserDataInventory  `json:"bigquery"`
+	Notes            []string                      `json:"notes"`
 }
 
 func main() {
@@ -44,6 +44,7 @@ func run(ctx context.Context, args []string) error {
 	if credentialFilePath == "" {
 		return errors.New("CREDENTIAL_FILE_LOCATION is required")
 	}
+	//nolint:staticcheck // Credential file path is operator-controlled and restricted to the service-account JSON used for this admin command.
 	clientOption := option.WithCredentialsFile(credentialFilePath)
 
 	repo, err := repository.NewFirestoreController(ctx, clientOption)
@@ -51,7 +52,9 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("initialize Firestore: %w", err)
 	}
 	defer func() {
-		_ = repo.FirestoreClient().Close()
+		if err := repo.FirestoreClient().Close(); err != nil {
+			fmt.Fprintln(os.Stderr, "privacy-admin: close Firestore:", err)
+		}
 	}()
 
 	firestoreInventory, err := privacyops.InspectFirestore(ctx, repo.FirestoreClient(), youtubeChannelID)
