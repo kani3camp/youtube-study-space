@@ -39,7 +39,9 @@ func NewDiscordBot(token string, textChannelID string) (*DiscordBot, error) {
 }
 
 func (bot *DiscordBot) SendMessage(ctx context.Context, message string) error {
-	slog.InfoContext(ctx, "sending a message to Discord.", "message", message)
+	// Message bodies may contain raw YouTube chat/user data. Log only the
+	// delivery event so process logs do not become a second long-lived copy.
+	slog.InfoContext(ctx, "sending a message to Discord")
 	_, err := bot.session.ChannelMessageSend(bot.textChannelID, message)
 	if err != nil {
 		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)
