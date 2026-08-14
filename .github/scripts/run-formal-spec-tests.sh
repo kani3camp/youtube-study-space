@@ -11,3 +11,12 @@ FSLC="$("$fsl_root/scripts/install.sh")"
 export FSLC
 
 bash "$fsl_root/scripts/verify.sh"
+
+vectors_dir="${FSL_GENERATED_DIR:-$fsl_root/generated}"
+vectors="$vectors_dir/seat_session.conformance.json"
+bash "$fsl_root/scripts/conformance.sh" "$vectors" >/dev/null
+
+(
+	cd "$repo_root/system"
+	FSL_SEAT_CONFORMANCE_FILE="$vectors" go test -count=1 -tags=formalspec -run '^TestSeatFSLConformance$' ./core/repository
+)
