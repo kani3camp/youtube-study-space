@@ -43,6 +43,7 @@ type liveChatMessageTransactionRepository interface {
 //   - parse/validation failures: first-use User creation + reply intent + Processed
 //   - !info / !seat: first-use User creation + reply intent + Processed
 //   - !more: Seat update + reply intent + Processed
+//   - !rank: User setting + optional Seat appearance + reply intent + Processed
 //
 // Unsupported executable commands return ErrDurableCommandNotSupported before
 // opening a transaction, leaving the caller-owned Inbox lease unchanged.
@@ -83,7 +84,7 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 			return ErrDurableCommandNotSupported
 		}
 		switch prepared.CommandDetails.CommandType {
-		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More:
+		case utils.NotCommand, utils.InvalidCommand, utils.Info, utils.Seat, utils.More, utils.Rank:
 			// Supported by this migration slice.
 		default:
 			return ErrDurableCommandNotSupported
@@ -151,14 +152,19 @@ func (app *WorkspaceApp) ProcessClaimedDurableInboxMessage(
 				if err != nil {
 					return err
 				}
+			case utils.Rank:
+				reply, err = app.buildDurableRankReplyTx(ctx, tx, &userDoc, userExists)
+				if err != nil {
+					return err
+				}
 			default:
 				return ErrDurableCommandNotSupported
 			}
 		}
 
-		// All transaction reads are complete before this point. Query commands may
-		// also perform external read-only repository reads. !more may already have
-		// staged its Seat write in tx, but no further transaction read occurs here.
+		// All transaction reads are complete before this point. Supported write
+		// commands may already have staged their domain writes in tx, but no later
+		// transaction read occurs here.
 		if !userExists {
 			if err := app.Repository.CreateUser(ctx, tx, app.ProcessedUserID, userDoc); err != nil {
 				return fmt.Errorf("create first-use durable user: %w", err)
