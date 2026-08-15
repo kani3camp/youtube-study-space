@@ -55,27 +55,27 @@ type safetyCheck struct {
 }
 
 type previewOutput struct {
-	GeneratedAt                    time.Time     `json:"generated_at"`
-	Cutoff                         time.Time     `json:"cutoff"`
-	BucketName                     string        `json:"bucket_name"`
-	VersioningEnabled              bool          `json:"versioning_enabled"`
-	SoftDeleteRetention            string        `json:"soft_delete_retention,omitempty"`
-	TotalSnapshotPrefixes          int           `json:"total_snapshot_prefixes"`
-	RawChatSnapshotPrefixes        int           `json:"raw_chat_snapshot_prefixes"`
-	ExpiredRawChatSnapshotPrefixes int           `json:"expired_raw_chat_snapshot_prefixes"`
-	CandidateObjectCount           int64         `json:"candidate_object_count"`
-	CandidateBytes                 int64         `json:"candidate_bytes"`
-	OldestRawChatPrefix            string        `json:"oldest_raw_chat_prefix,omitempty"`
-	NewestRawChatPrefix            string        `json:"newest_raw_chat_prefix,omitempty"`
-	NewestRawChatCreatedAt         string        `json:"newest_raw_chat_created_at,omitempty"`
-	CleanSnapshotsAfterNewestRaw   int           `json:"clean_snapshots_after_newest_raw"`
-	NewestCleanPrefix              string        `json:"newest_clean_prefix,omitempty"`
-	LatestSnapshotPrefix           string        `json:"latest_snapshot_prefix,omitempty"`
-	LatestSnapshotCreatedAt        string        `json:"latest_snapshot_created_at,omitempty"`
-	SafetyChecks                   []safetyCheck `json:"safety_checks"`
-	ReadyToApply                   bool          `json:"ready_to_apply"`
-	RequiredConfirmation           string        `json:"required_confirmation,omitempty"`
-	Notes                          []string      `json:"notes,omitempty"`
+	GeneratedAt                    time.Time      `json:"generated_at"`
+	Target                         gcsPurgeTarget `json:"target"`
+	Cutoff                         time.Time      `json:"cutoff"`
+	VersioningEnabled              bool           `json:"versioning_enabled"`
+	SoftDeleteRetention            string         `json:"soft_delete_retention,omitempty"`
+	TotalSnapshotPrefixes          int            `json:"total_snapshot_prefixes"`
+	RawChatSnapshotPrefixes        int            `json:"raw_chat_snapshot_prefixes"`
+	ExpiredRawChatSnapshotPrefixes int            `json:"expired_raw_chat_snapshot_prefixes"`
+	CandidateObjectCount           int64          `json:"candidate_object_count"`
+	CandidateBytes                 int64          `json:"candidate_bytes"`
+	OldestRawChatPrefix            string         `json:"oldest_raw_chat_prefix,omitempty"`
+	NewestRawChatPrefix            string         `json:"newest_raw_chat_prefix,omitempty"`
+	NewestRawChatCreatedAt         string         `json:"newest_raw_chat_created_at,omitempty"`
+	CleanSnapshotsAfterNewestRaw   int            `json:"clean_snapshots_after_newest_raw"`
+	NewestCleanPrefix              string         `json:"newest_clean_prefix,omitempty"`
+	LatestSnapshotPrefix           string         `json:"latest_snapshot_prefix,omitempty"`
+	LatestSnapshotCreatedAt        string         `json:"latest_snapshot_created_at,omitempty"`
+	SafetyChecks                   []safetyCheck  `json:"safety_checks"`
+	ReadyToApply                   bool           `json:"ready_to_apply"`
+	RequiredConfirmation           string         `json:"required_confirmation,omitempty"`
+	Notes                          []string       `json:"notes,omitempty"`
 }
 
 func main() {
@@ -86,7 +86,18 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if len(args) < 2 {
+	if len(args) < 5 {
+		return usageError()
+	}
+
+	command := strings.TrimSpace(args[1])
+	environment := strings.TrimSpace(args[2])
+	expectedProjectID := strings.TrimSpace(args[3])
+	expectedBucketName := strings.TrimSpace(args[4])
+	if command == "preview" && len(args) != 5 {
+		return usageError()
+	}
+	if command != "preview" && command != "apply" {
 		return usageError()
 	}
 
@@ -112,9 +123,20 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("read system constants: %w", err)
 	}
-	bucketName := strings.TrimSpace(constants.GcsFirestoreExportBucketName)
-	if bucketName == "" {
-		return errors.New("gcs-firestore-export-bucket-name is empty")
+	actualProjectID, err := utils.GetGcpProjectID(ctx, clientOption)
+	if err != nil {
+		return fmt.Errorf("resolve GCP project ID: %w", err)
+	}
+	configuredBucketName := strings.TrimSpace(constants.GcsFirestoreExportBucketName)
+	target, err := buildGCSPurgeTarget(
+		environment,
+		expectedProjectID,
+		actualProjectID,
+		expectedBucketName,
+		configuredBucketName,
+	)
+	if err != nil {
+		return err
 	}
 
 	storageClient, err := storage.NewClient(ctx, clientOption)
@@ -126,30 +148,31 @@ func run(ctx context.Context, args []string) error {
 			fmt.Fprintln(os.Stderr, "privacy-gcs-admin: close GCS client:", err)
 		}
 	}()
-	bucket := storageClient.Bucket(bucketName)
+	bucket := storageClient.Bucket(target.BucketName)
 
 	now := time.Now().UTC()
 	inventory, err := inspectBucket(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	preview := buildPreview(now, bucketName, inventory)
+	preview := buildPreview(now, target, inventory)
 
-	switch args[1] {
+	switch command {
 	case "preview":
-		if len(args) != 2 {
-			return usageError()
-		}
 		return writeJSON(preview)
 	case "apply":
-		return apply(ctx, bucket, preview, inventory, args[2:])
+		return apply(ctx, bucket, preview, inventory, args[5:])
 	default:
 		return usageError()
 	}
 }
 
 func usageError() error {
-	return errors.New("usage: privacy-gcs-admin preview | privacy-gcs-admin apply --expected-prefixes <count> --expected-objects <count> --confirm <token>")
+	return errors.New(
+		"usage: privacy-gcs-admin preview <development|production> <expected-project-id> <expected-bucket-name> OR " +
+			"privacy-gcs-admin apply <development|production> <expected-project-id> <expected-bucket-name> " +
+			"--expected-prefixes <count> --expected-objects <count> --confirm <token> [--allow-production]",
+	)
 }
 
 func inspectBucket(ctx context.Context, bucket *storage.BucketHandle) (bucketInventory, error) {
@@ -213,12 +236,12 @@ func inspectBucket(ctx context.Context, bucket *storage.BucketHandle) (bucketInv
 	}, nil
 }
 
-func buildPreview(now time.Time, bucketName string, inventory bucketInventory) previewOutput {
+func buildPreview(now time.Time, target gcsPurgeTarget, inventory bucketInventory) previewOutput {
 	cutoff := now.AddDate(0, 0, -rawYouTubeDataRetentionDays)
 	out := previewOutput{
 		GeneratedAt:           now,
+		Target:                target,
 		Cutoff:                cutoff,
-		BucketName:            bucketName,
 		VersioningEnabled:     inventory.VersioningEnabled,
 		TotalSnapshotPrefixes: len(inventory.Prefixes),
 	}
@@ -318,11 +341,15 @@ func apply(
 	expectedPrefixes := flags.Int("expected-prefixes", -1, "expected expired raw-chat snapshot prefix count")
 	expectedObjects := flags.Int64("expected-objects", -1, "expected object count across candidate prefixes")
 	confirm := flags.String("confirm", "", "exact confirmation token returned by preview")
+	allowProduction := flags.Bool("allow-production", false, "explicitly allow a production apply")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("parse apply flags: %w", err)
 	}
 	if flags.NArg() != 0 || *expectedPrefixes < 0 || *expectedObjects < 0 || *confirm == "" {
 		return usageError()
+	}
+	if err := validateGCSApplyTarget(preview.Target, *allowProduction); err != nil {
+		return err
 	}
 	if !preview.ReadyToApply {
 		return errors.New("refusing GCS deletion because preview safety checks are not all satisfied")
@@ -358,20 +385,20 @@ func apply(
 	if err != nil {
 		return fmt.Errorf("post-delete bucket inspection: %w", err)
 	}
-	postPreview := buildPreview(time.Now().UTC(), preview.BucketName, postInventory)
+	postPreview := buildPreview(time.Now().UTC(), preview.Target, postInventory)
 	if postPreview.RawChatSnapshotPrefixes != 0 {
 		return fmt.Errorf("post-delete verification failed: %d live raw-chat snapshot prefixes remain", postPreview.RawChatSnapshotPrefixes)
 	}
 
 	return writeJSON(struct {
 		Status              string        `json:"status"`
-		BucketName          string        `json:"bucket_name"`
+		Target              gcsPurgeTarget `json:"target"`
 		DeletedLiveObjects  int64         `json:"deleted_live_objects"`
 		SoftDeleteRetention string        `json:"soft_delete_retention,omitempty"`
 		PostCheck           previewOutput `json:"post_check"`
 	}{
 		Status:              "deleted live raw-chat snapshot prefixes",
-		BucketName:          preview.BucketName,
+		Target:              preview.Target,
 		DeletedLiveObjects:  deletedObjects,
 		SoftDeleteRetention: preview.SoftDeleteRetention,
 		PostCheck:           postPreview,
@@ -393,10 +420,12 @@ func deletionOrder(objects []objectRef) []objectRef {
 
 func confirmationToken(preview previewOutput) string {
 	return fmt.Sprintf(
-		"DELETE %d GCS FIRESTORE EXPORT SNAPSHOTS CONTAINING RAW YOUTUBE CHAT (%d OBJECTS) FROM %s THROUGH %s",
+		"DELETE %d GCS FIRESTORE EXPORT SNAPSHOTS CONTAINING RAW YOUTUBE CHAT (%d OBJECTS) FROM %s PROJECT %s BUCKET %s THROUGH %s",
 		preview.ExpiredRawChatSnapshotPrefixes,
 		preview.CandidateObjectCount,
-		preview.BucketName,
+		strings.ToUpper(preview.Target.Environment),
+		preview.Target.ProjectID,
+		preview.Target.BucketName,
 		strings.TrimSuffix(preview.NewestRawChatPrefix, "/"),
 	)
 }
