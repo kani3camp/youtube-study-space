@@ -1,9 +1,11 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateRetryIntervalSec(t *testing.T) {
@@ -70,4 +72,12 @@ func TestCalculateRetryIntervalSec(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestYoutubeBotDoesNotPersistRawLiveChatHistory(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(source), "AddLiveChatHistoryDoc(")
+	assert.NotContains(t, string(source), "failed to add live chat history")
 }
