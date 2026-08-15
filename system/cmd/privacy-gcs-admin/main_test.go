@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+func testGCSTarget(bucketName string) gcsPurgeTarget {
+	return gcsPurgeTarget{
+		Environment: developmentEnvironment,
+		ProjectID:   "youtube-study-space-dev",
+		BucketName:  bucketName,
+	}
+}
+
 func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +38,7 @@ func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testi
 		})
 	}
 
-	got := buildPreview(now, "backup-bucket", bucketInventory{Prefixes: prefixes})
+	got := buildPreview(now, testGCSTarget("backup-bucket"), bucketInventory{Prefixes: prefixes})
 
 	if !got.ReadyToApply {
 		t.Fatalf("ReadyToApply = false, safety checks = %#v", got.SafetyChecks)
@@ -47,6 +55,9 @@ func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testi
 	if got.RequiredConfirmation == "" {
 		t.Fatal("RequiredConfirmation is empty")
 	}
+	if !strings.Contains(got.RequiredConfirmation, "DEVELOPMENT PROJECT youtube-study-space-dev BUCKET backup-bucket") {
+		t.Fatalf("RequiredConfirmation does not bind target: %q", got.RequiredConfirmation)
+	}
 }
 
 func TestBuildPreviewRefusesWhenRecentSnapshotStillContainsRawChat(t *testing.T) {
@@ -62,7 +73,7 @@ func TestBuildPreviewRefusesWhenRecentSnapshotStillContainsRawChat(t *testing.T)
 		},
 	}}
 
-	got := buildPreview(now, "backup-bucket", inventory)
+	got := buildPreview(now, testGCSTarget("backup-bucket"), inventory)
 	if got.ReadyToApply {
 		t.Fatalf("ReadyToApply = true, want false")
 	}
@@ -91,7 +102,7 @@ func TestBuildPreviewRefusesWhenVersioningEnabled(t *testing.T) {
 		})
 	}
 
-	got := buildPreview(now, "backup-bucket", bucketInventory{
+	got := buildPreview(now, testGCSTarget("backup-bucket"), bucketInventory{
 		Prefixes:          prefixes,
 		VersioningEnabled: true,
 	})
