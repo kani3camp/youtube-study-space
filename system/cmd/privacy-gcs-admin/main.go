@@ -295,7 +295,7 @@ func buildPreview(
 			out.OldestRawChatPrefix = prefix.Prefix
 		}
 		if prefix.LatestCreatedAt.After(newestRaw) {
-			newestRaw = prefix.Latrefix.LatestCreatedAt
+			newestRaw = prefix.LatestCreatedAt
 			out.NewestRawChatPrefix = prefix.Prefix
 			out.NewestRawChatCreatedAt = formatTime(prefix.LatestCreatedAt)
 		}
