@@ -44,25 +44,40 @@ This deliberately sacrifices old copies of other collections inside the affected
 
 ## Guarded operator command
 
+Every invocation must identify the target environment, expected GCP project ID, and expected GCS bucket. The command resolves the project ID from the active credentials and the bucket name from Firestore configuration, then refuses to continue if either differs from the operator-supplied target.
+
 Preview is read-only:
 
 ```bash
 cd system
-go run ./cmd/privacy-gcs-admin preview
+go run ./cmd/privacy-gcs-admin preview \
+  development <development-project-id> <development-bucket-name>
 ```
 
-The preview reports candidate prefix count, candidate object count/bytes, newest raw-chat snapshot, clean snapshots after it, safety checks, and an exact confirmation token.
+The preview reports the target environment/project/bucket, candidate prefix count, candidate object count/bytes, newest raw-chat snapshot, clean snapshots after it, safety checks, and an exact target-bound confirmation token.
 
-Only when every safety check passes can the destructive command run:
+Only when every safety check passes can the destructive development command run:
 
 ```bash
 go run ./cmd/privacy-gcs-admin apply \
+  development <development-project-id> <development-bucket-name> \
   --expected-prefixes <preview value> \
   --expected-objects <preview value> \
   --confirm '<exact preview token>'
 ```
 
-The command re-scans the bucket immediately before deletion. A changed prefix/object count or confirmation token stops the operation.
+Production apply additionally requires the explicit production switch:
+
+```bash
+go run ./cmd/privacy-gcs-admin apply \
+  production <production-project-id> <production-bucket-name> \
+  --expected-prefixes <preview value> \
+  --expected-objects <preview value> \
+  --confirm '<exact preview token>' \
+  --allow-production
+```
+
+The command re-scans the bucket immediately before deletion. A changed target, prefix/object count, or confirmation token stops the operation. Production deletion remains a manual operator action.
 
 Within each candidate prefix, non-raw objects are deleted before raw-chat objects. This ordering keeps at least one raw marker present until the rest of that snapshot has been deleted, so a retry after a partial failure can still rediscover the snapshot as a cleanup candidate.
 
