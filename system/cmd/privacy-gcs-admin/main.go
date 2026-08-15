@@ -56,27 +56,27 @@ type safetyCheck struct {
 }
 
 type previewOutput struct {
-	GeneratedAt                    time.Time      `json:"generated_at"`
-	Target                         gcsPurgeTarget `json:"target"`
-	FirestoreRawChatRows           int64          `json:"firestore_raw_chat_rows"`
-	VersioningEnabled              bool           `json:"versioning_enabled"`
-	SoftDeleteRetention            string         `json:"soft_delete_retention,omitempty"`
-	TotalSnapshotPrefixes          int            `json:"total_snapshot_prefixes"`
-	RawChatSnapshotPrefixes        int            `json:"raw_chat_snapshot_prefixes"`
-	CandidateRawChatSnapshotPrefixes int          `json:"candidate_raw_chat_snapshot_prefixes"`
-	CandidateObjectCount           int64          `json:"candidate_object_count"`
-	CandidateBytes                 int64          `json:"candidate_bytes"`
-	OldestRawChatPrefix            string         `json:"oldest_raw_chat_prefix,omitempty"`
-	NewestRawChatPrefix            string         `json:"newest_raw_chat_prefix,omitempty"`
-	NewestRawChatCreatedAt         string         `json:"newest_raw_chat_created_at,omitempty"`
-	CleanSnapshotsAfterNewestRaw   int            `json:"clean_snapshots_after_newest_raw"`
-	NewestCleanPrefix              string         `json:"newest_clean_prefix,omitempty"`
-	LatestSnapshotPrefix           string         `json:"latest_snapshot_prefix,omitempty"`
-	LatestSnapshotCreatedAt        string         `json:"latest_snapshot_created_at,omitempty"`
-	SafetyChecks                   []safetyCheck  `json:"safety_checks"`
-	ReadyToApply                   bool           `json:"ready_to_apply"`
-	RequiredConfirmation           string         `json:"required_confirmation,omitempty"`
-	Notes                          []string       `json:"notes,omitempty"`
+	GeneratedAt                      time.Time      `json:"generated_at"`
+	Target                           gcsPurgeTarget `json:"target"`
+	FirestoreRawChatRows             int64          `json:"firestore_raw_chat_rows"`
+	VersioningEnabled                bool           `json:"versioning_enabled"`
+	SoftDeleteRetention              string         `json:"soft_delete_retention,omitempty"`
+	TotalSnapshotPrefixes            int            `json:"total_snapshot_prefixes"`
+	RawChatSnapshotPrefixes          int            `json:"raw_chat_snapshot_prefixes"`
+	CandidateRawChatSnapshotPrefixes int            `json:"candidate_raw_chat_snapshot_prefixes"`
+	CandidateObjectCount             int64          `json:"candidate_object_count"`
+	CandidateBytes                   int64          `json:"candidate_bytes"`
+	OldestRawChatPrefix              string         `json:"oldest_raw_chat_prefix,omitempty"`
+	NewestRawChatPrefix              string         `json:"newest_raw_chat_prefix,omitempty"`
+	NewestRawChatCreatedAt           string         `json:"newest_raw_chat_created_at,omitempty"`
+	CleanSnapshotsAfterNewestRaw     int            `json:"clean_snapshots_after_newest_raw"`
+	NewestCleanPrefix                string         `json:"newest_clean_prefix,omitempty"`
+	LatestSnapshotPrefix             string         `json:"latest_snapshot_prefix,omitempty"`
+	LatestSnapshotCreatedAt          string         `json:"latest_snapshot_created_at,omitempty"`
+	SafetyChecks                     []safetyCheck  `json:"safety_checks"`
+	ReadyToApply                     bool           `json:"ready_to_apply"`
+	RequiredConfirmation             string         `json:"required_confirmation,omitempty"`
+	Notes                            []string       `json:"notes,omitempty"`
 }
 
 func main() {
@@ -295,7 +295,7 @@ func buildPreview(
 			out.OldestRawChatPrefix = prefix.Prefix
 		}
 		if prefix.LatestCreatedAt.After(newestRaw) {
-			newestRaw = prefix.LatestCreatedAt
+			newestRaw = prefix.Latrefix.LatestCreatedAt
 			out.NewestRawChatPrefix = prefix.Prefix
 			out.NewestRawChatCreatedAt = formatTime(prefix.LatestCreatedAt)
 		}
