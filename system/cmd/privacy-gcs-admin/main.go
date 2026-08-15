@@ -391,11 +391,11 @@ func apply(
 	}
 
 	return writeJSON(struct {
-		Status              string        `json:"status"`
+		Status              string         `json:"status"`
 		Target              gcsPurgeTarget `json:"target"`
-		DeletedLiveObjects  int64         `json:"deleted_live_objects"`
-		SoftDeleteRetention string        `json:"soft_delete_retention,omitempty"`
-		PostCheck           previewOutput `json:"post_check"`
+		DeletedLiveObjects  int64          `json:"deleted_live_objects"`
+		SoftDeleteRetention string         `json:"soft_delete_retention,omitempty"`
+		PostCheck           previewOutput  `json:"post_check"`
 	}{
 		Status:              "deleted live raw-chat snapshot prefixes",
 		Target:              preview.Target,
