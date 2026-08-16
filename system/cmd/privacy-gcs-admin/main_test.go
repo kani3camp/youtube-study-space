@@ -6,15 +6,20 @@ import (
 	"time"
 )
 
-func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testing.T) {
-	t.Parallel()
+func testGCSTarget(bucketName string) gcsPurgeTarget {
+	return gcsPurgeTarget{
+		Environment: developmentEnvironment,
+		ProjectID:   "youtube-study-space-dev",
+		BucketName:  bucketName,
+	}
+}
 
+func readyPrefixInventory() (time.Time, []prefixInventory) {
 	now := time.Date(2026, time.August, 14, 14, 15, 0, 0, time.UTC)
-	oldRaw := time.Date(2026, time.June, 23, 15, 0, 0, 0, time.UTC)
-
+	oldRaw := time.Date(2026, time.August, 5, 15, 0, 0, 0, time.UTC)
 	prefixes := []prefixInventory{
 		{
-			Prefix:          "2026-06-23T15:00:00_1/",
+			Prefix:          "raw-2026-08-05/",
 			ObjectCount:     12,
 			Bytes:           120,
 			LatestCreatedAt: oldRaw,
@@ -29,14 +34,20 @@ func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testi
 			LatestCreatedAt: time.Date(2026, time.August, day+6, 15, 0, 0, 0, time.UTC),
 		})
 	}
+	return now, prefixes
+}
 
-	got := buildPreview(now, "backup-bucket", bucketInventory{Prefixes: prefixes})
+func TestBuildPreviewReadyWhenFirestoreDrainedAndCleanSnapshotsFollow(t *testing.T) {
+	t.Parallel()
+
+	now, prefixes := readyPrefixInventory()
+	got := buildPreview(now, testGCSTarget("backup-bucket"), bucketInventory{Prefixes: prefixes}, 0)
 
 	if !got.ReadyToApply {
 		t.Fatalf("ReadyToApply = false, safety checks = %#v", got.SafetyChecks)
 	}
-	if got.RawChatSnapshotPrefixes != 1 || got.ExpiredRawChatSnapshotPrefixes != 1 {
-		t.Fatalf("raw prefix counts = %d/%d, want 1/1", got.RawChatSnapshotPrefixes, got.ExpiredRawChatSnapshotPrefixes)
+	if got.RawChatSnapshotPrefixes != 1 || got.CandidateRawChatSnapshotPrefixes != 1 {
+		t.Fatalf("raw/candidate prefix counts = %d/%d, want 1/1", got.RawChatSnapshotPrefixes, got.CandidateRawChatSnapshotPrefixes)
 	}
 	if got.CandidateObjectCount != 12 || got.CandidateBytes != 120 {
 		t.Fatalf("candidate objects/bytes = %d/%d, want 12/120", got.CandidateObjectCount, got.CandidateBytes)
@@ -47,27 +58,47 @@ func TestBuildPreviewReadyWhenRawSnapshotsAreOldAndCleanSnapshotsFollow(t *testi
 	if got.RequiredConfirmation == "" {
 		t.Fatal("RequiredConfirmation is empty")
 	}
+	if !strings.Contains(got.RequiredConfirmation, "DEVELOPMENT PROJECT youtube-study-space-dev BUCKET backup-bucket") {
+		t.Fatalf("RequiredConfirmation does not bind target: %q", got.RequiredConfirmation)
+	}
 }
 
-func TestBuildPreviewRefusesWhenRecentSnapshotStillContainsRawChat(t *testing.T) {
+func TestBuildPreviewRefusesUntilFirestoreRawChatDrains(t *testing.T) {
+	t.Parallel()
+
+	now, prefixes := readyPrefixInventory()
+	got := buildPreview(now, testGCSTarget("backup-bucket"), bucketInventory{Prefixes: prefixes}, 1)
+	if got.ReadyToApply {
+		t.Fatal("ReadyToApply = true while Firestore raw chat rows remain")
+	}
+	if got.RequiredConfirmation != "" {
+		t.Fatalf("RequiredConfirmation = %q, want empty", got.RequiredConfirmation)
+	}
+}
+
+func TestBuildPreviewRefusesWhenNotEnoughCleanSnapshotsFollowRaw(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 14, 14, 15, 0, 0, time.UTC)
 	inventory := bucketInventory{Prefixes: []prefixInventory{
 		{
-			Prefix:          "2026-08-13T15:00:00_1/",
+			Prefix:          "raw/",
 			ObjectCount:     9,
-			LatestCreatedAt: now.Add(-23 * time.Hour),
+			LatestCreatedAt: now.Add(-48 * time.Hour),
 			ContainsRawChat: true,
+		},
+		{
+			Prefix:          "clean/",
+			LatestCreatedAt: now.Add(-24 * time.Hour),
 		},
 	}}
 
-	got := buildPreview(now, "backup-bucket", inventory)
+	got := buildPreview(now, testGCSTarget("backup-bucket"), inventory, 0)
 	if got.ReadyToApply {
 		t.Fatalf("ReadyToApply = true, want false")
 	}
-	if got.ExpiredRawChatSnapshotPrefixes != 0 {
-		t.Fatalf("ExpiredRawChatSnapshotPrefixes = %d, want 0", got.ExpiredRawChatSnapshotPrefixes)
+	if got.CandidateRawChatSnapshotPrefixes != 1 {
+		t.Fatalf("CandidateRawChatSnapshotPrefixes = %d, want 1", got.CandidateRawChatSnapshotPrefixes)
 	}
 	if got.RequiredConfirmation != "" {
 		t.Fatalf("RequiredConfirmation = %q, want empty", got.RequiredConfirmation)
@@ -77,24 +108,11 @@ func TestBuildPreviewRefusesWhenRecentSnapshotStillContainsRawChat(t *testing.T)
 func TestBuildPreviewRefusesWhenVersioningEnabled(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.August, 14, 14, 15, 0, 0, time.UTC)
-	prefixes := []prefixInventory{{
-		Prefix:          "raw/",
-		ObjectCount:     3,
-		LatestCreatedAt: now.AddDate(0, 0, -60),
-		ContainsRawChat: true,
-	}}
-	for day := 1; day <= minimumCleanSnapshotsAfterRaw; day++ {
-		prefixes = append(prefixes, prefixInventory{
-			Prefix:          "clean-" + time.Date(2026, time.August, day+6, 15, 0, 0, 0, time.UTC).Format("2006-01-02") + "/",
-			LatestCreatedAt: time.Date(2026, time.August, day+6, 15, 0, 0, 0, time.UTC),
-		})
-	}
-
-	got := buildPreview(now, "backup-bucket", bucketInventory{
+	now, prefixes := readyPrefixInventory()
+	got := buildPreview(now, testGCSTarget("backup-bucket"), bucketInventory{
 		Prefixes:          prefixes,
 		VersioningEnabled: true,
-	})
+	}, 0)
 	if got.ReadyToApply {
 		t.Fatal("ReadyToApply = true with versioning enabled")
 	}
