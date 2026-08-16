@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -21,7 +22,7 @@ import (
 
 const (
 	rawLiveChatPathMarker         = "/all_namespaces/kind_live-chat-history/"
-	rawYouTubeDataRetentionDays   = 30
+	firestoreCountAlias           = "row_count"
 	minimumCleanSnapshotsAfterRaw = 7
 	maximumLatestSnapshotAge      = 72 * time.Hour
 )
@@ -55,27 +56,27 @@ type safetyCheck struct {
 }
 
 type previewOutput struct {
-	GeneratedAt                    time.Time     `json:"generated_at"`
-	Cutoff                         time.Time     `json:"cutoff"`
-	BucketName                     string        `json:"bucket_name"`
-	VersioningEnabled              bool          `json:"versioning_enabled"`
-	SoftDeleteRetention            string        `json:"soft_delete_retention,omitempty"`
-	TotalSnapshotPrefixes          int           `json:"total_snapshot_prefixes"`
-	RawChatSnapshotPrefixes        int           `json:"raw_chat_snapshot_prefixes"`
-	ExpiredRawChatSnapshotPrefixes int           `json:"expired_raw_chat_snapshot_prefixes"`
-	CandidateObjectCount           int64         `json:"candidate_object_count"`
-	CandidateBytes                 int64         `json:"candidate_bytes"`
-	OldestRawChatPrefix            string        `json:"oldest_raw_chat_prefix,omitempty"`
-	NewestRawChatPrefix            string        `json:"newest_raw_chat_prefix,omitempty"`
-	NewestRawChatCreatedAt         string        `json:"newest_raw_chat_created_at,omitempty"`
-	CleanSnapshotsAfterNewestRaw   int           `json:"clean_snapshots_after_newest_raw"`
-	NewestCleanPrefix              string        `json:"newest_clean_prefix,omitempty"`
-	LatestSnapshotPrefix           string        `json:"latest_snapshot_prefix,omitempty"`
-	LatestSnapshotCreatedAt        string        `json:"latest_snapshot_created_at,omitempty"`
-	SafetyChecks                   []safetyCheck `json:"safety_checks"`
-	ReadyToApply                   bool          `json:"ready_to_apply"`
-	RequiredConfirmation           string        `json:"required_confirmation,omitempty"`
-	Notes                          []string      `json:"notes,omitempty"`
+	GeneratedAt                      time.Time      `json:"generated_at"`
+	Target                           gcsPurgeTarget `json:"target"`
+	FirestoreRawChatRows             int64          `json:"firestore_raw_chat_rows"`
+	VersioningEnabled                bool           `json:"versioning_enabled"`
+	SoftDeleteRetention              string         `json:"soft_delete_retention,omitempty"`
+	TotalSnapshotPrefixes            int            `json:"total_snapshot_prefixes"`
+	RawChatSnapshotPrefixes          int            `json:"raw_chat_snapshot_prefixes"`
+	CandidateRawChatSnapshotPrefixes int            `json:"candidate_raw_chat_snapshot_prefixes"`
+	CandidateObjectCount             int64          `json:"candidate_object_count"`
+	CandidateBytes                   int64          `json:"candidate_bytes"`
+	OldestRawChatPrefix              string         `json:"oldest_raw_chat_prefix,omitempty"`
+	NewestRawChatPrefix              string         `json:"newest_raw_chat_prefix,omitempty"`
+	NewestRawChatCreatedAt           string         `json:"newest_raw_chat_created_at,omitempty"`
+	CleanSnapshotsAfterNewestRaw     int            `json:"clean_snapshots_after_newest_raw"`
+	NewestCleanPrefix                string         `json:"newest_clean_prefix,omitempty"`
+	LatestSnapshotPrefix             string         `json:"latest_snapshot_prefix,omitempty"`
+	LatestSnapshotCreatedAt          string         `json:"latest_snapshot_created_at,omitempty"`
+	SafetyChecks                     []safetyCheck  `json:"safety_checks"`
+	ReadyToApply                     bool           `json:"ready_to_apply"`
+	RequiredConfirmation             string         `json:"required_confirmation,omitempty"`
+	Notes                            []string       `json:"notes,omitempty"`
 }
 
 func main() {
@@ -86,7 +87,18 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if len(args) < 2 {
+	if len(args) < 5 {
+		return usageError()
+	}
+
+	command := strings.TrimSpace(args[1])
+	environment := strings.TrimSpace(args[2])
+	expectedProjectID := strings.TrimSpace(args[3])
+	expectedBucketName := strings.TrimSpace(args[4])
+	if command == "preview" && len(args) != 5 {
+		return usageError()
+	}
+	if command != "preview" && command != "apply" {
 		return usageError()
 	}
 
@@ -112,9 +124,25 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("read system constants: %w", err)
 	}
-	bucketName := strings.TrimSpace(constants.GcsFirestoreExportBucketName)
-	if bucketName == "" {
-		return errors.New("gcs-firestore-export-bucket-name is empty")
+	actualProjectID, err := utils.GetGcpProjectID(ctx, clientOption)
+	if err != nil {
+		return fmt.Errorf("resolve GCP project ID: %w", err)
+	}
+	configuredBucketName := strings.TrimSpace(constants.GcsFirestoreExportBucketName)
+	target, err := buildGCSPurgeTarget(
+		environment,
+		expectedProjectID,
+		actualProjectID,
+		expectedBucketName,
+		configuredBucketName,
+	)
+	if err != nil {
+		return err
+	}
+
+	firestoreRawChatRows, err := countRawLiveChatRows(ctx, repo.FirestoreClient())
+	if err != nil {
+		return err
 	}
 
 	storageClient, err := storage.NewClient(ctx, clientOption)
@@ -126,30 +154,48 @@ func run(ctx context.Context, args []string) error {
 			fmt.Fprintln(os.Stderr, "privacy-gcs-admin: close GCS client:", err)
 		}
 	}()
-	bucket := storageClient.Bucket(bucketName)
+	bucket := storageClient.Bucket(target.BucketName)
 
 	now := time.Now().UTC()
 	inventory, err := inspectBucket(ctx, bucket)
 	if err != nil {
 		return err
 	}
-	preview := buildPreview(now, bucketName, inventory)
+	preview := buildPreview(now, target, inventory, firestoreRawChatRows)
 
-	switch args[1] {
+	switch command {
 	case "preview":
-		if len(args) != 2 {
-			return usageError()
-		}
 		return writeJSON(preview)
 	case "apply":
-		return apply(ctx, bucket, preview, inventory, args[2:])
+		return apply(ctx, bucket, preview, inventory, args[5:])
 	default:
 		return usageError()
 	}
 }
 
 func usageError() error {
-	return errors.New("usage: privacy-gcs-admin preview | privacy-gcs-admin apply --expected-prefixes <count> --expected-objects <count> --confirm <token>")
+	return errors.New(
+		"usage: privacy-gcs-admin preview <development|production> <expected-project-id> <expected-bucket-name> OR " +
+			"privacy-gcs-admin apply <development|production> <expected-project-id> <expected-bucket-name> " +
+			"--expected-prefixes <count> --expected-objects <count> --confirm <token> [--allow-production]",
+	)
+}
+
+func countRawLiveChatRows(ctx context.Context, client repository.DBClient) (int64, error) {
+	query := client.Collection(repository.LiveChatHistory).Query
+	result, err := query.NewAggregationQuery().WithCount(firestoreCountAlias).Get(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count Firestore raw live chat rows: %w", err)
+	}
+	rawCount, ok := result[firestoreCountAlias]
+	if !ok {
+		return 0, fmt.Errorf("count aggregation missing alias %q", firestoreCountAlias)
+	}
+	countValue, ok := rawCount.(*firestorepb.Value)
+	if !ok {
+		return 0, fmt.Errorf("count aggregation has unexpected type %T", rawCount)
+	}
+	return countValue.GetIntegerValue(), nil
 }
 
 func inspectBucket(ctx context.Context, bucket *storage.BucketHandle) (bucketInventory, error) {
@@ -213,12 +259,16 @@ func inspectBucket(ctx context.Context, bucket *storage.BucketHandle) (bucketInv
 	}, nil
 }
 
-func buildPreview(now time.Time, bucketName string, inventory bucketInventory) previewOutput {
-	cutoff := now.AddDate(0, 0, -rawYouTubeDataRetentionDays)
+func buildPreview(
+	now time.Time,
+	target gcsPurgeTarget,
+	inventory bucketInventory,
+	firestoreRawChatRows int64,
+) previewOutput {
 	out := previewOutput{
 		GeneratedAt:           now,
-		Cutoff:                cutoff,
-		BucketName:            bucketName,
+		Target:                target,
+		FirestoreRawChatRows:  firestoreRawChatRows,
 		VersioningEnabled:     inventory.VersioningEnabled,
 		TotalSnapshotPrefixes: len(inventory.Prefixes),
 	}
@@ -238,6 +288,9 @@ func buildPreview(now time.Time, bucketName string, inventory bucketInventory) p
 			continue
 		}
 		out.RawChatSnapshotPrefixes++
+		out.CandidateRawChatSnapshotPrefixes++
+		out.CandidateObjectCount += prefix.ObjectCount
+		out.CandidateBytes += prefix.Bytes
 		if out.OldestRawChatPrefix == "" {
 			out.OldestRawChatPrefix = prefix.Prefix
 		}
@@ -245,11 +298,6 @@ func buildPreview(now time.Time, bucketName string, inventory bucketInventory) p
 			newestRaw = prefix.LatestCreatedAt
 			out.NewestRawChatPrefix = prefix.Prefix
 			out.NewestRawChatCreatedAt = formatTime(prefix.LatestCreatedAt)
-		}
-		if prefix.LatestCreatedAt.Before(cutoff) {
-			out.ExpiredRawChatSnapshotPrefixes++
-			out.CandidateObjectCount += prefix.ObjectCount
-			out.CandidateBytes += prefix.Bytes
 		}
 	}
 
@@ -261,18 +309,22 @@ func buildPreview(now time.Time, bucketName string, inventory bucketInventory) p
 		out.NewestCleanPrefix = prefix.Prefix
 	}
 
-	allRawExpired := out.RawChatSnapshotPrefixes > 0 && out.RawChatSnapshotPrefixes == out.ExpiredRawChatSnapshotPrefixes
 	latestRecent := !latestSnapshot.IsZero() && now.Sub(latestSnapshot) <= maximumLatestSnapshotAge
 	checks := []safetyCheck{
+		{
+			Name:   "firestore_raw_chat_drained",
+			Passed: firestoreRawChatRows == 0,
+			Detail: fmt.Sprintf("firestore_raw_chat_rows=%d", firestoreRawChatRows),
+		},
 		{
 			Name:   "object_versioning_disabled",
 			Passed: !inventory.VersioningEnabled,
 			Detail: fmt.Sprintf("versioning_enabled=%t", inventory.VersioningEnabled),
 		},
 		{
-			Name:   "all_raw_chat_snapshots_expired",
-			Passed: allRawExpired,
-			Detail: fmt.Sprintf("raw=%d expired=%d", out.RawChatSnapshotPrefixes, out.ExpiredRawChatSnapshotPrefixes),
+			Name:   "raw_chat_snapshots_present",
+			Passed: out.RawChatSnapshotPrefixes > 0,
+			Detail: fmt.Sprintf("raw=%d", out.RawChatSnapshotPrefixes),
 		},
 		{
 			Name:   "clean_snapshots_exist_after_raw",
@@ -298,7 +350,8 @@ func buildPreview(now time.Time, bucketName string, inventory bucketInventory) p
 	out.Notes = []string{
 		"preview is read-only",
 		"apply deletes complete Firestore export prefixes that contain raw live-chat data; it does not partially edit snapshots",
-		"clean snapshots newer than the newest raw-chat snapshot are preserved",
+		"Firestore live-chat-history must be fully drained before GCS deletion becomes ready",
+		"at least seven clean snapshots newer than the newest raw-chat snapshot are preserved",
 	}
 	if inventory.SoftDelete > 0 {
 		out.Notes = append(out.Notes, "deleted objects remain recoverable in GCS soft delete until the configured retention expires")
@@ -315,20 +368,24 @@ func apply(
 ) error {
 	flags := flag.NewFlagSet("apply", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	expectedPrefixes := flags.Int("expected-prefixes", -1, "expected expired raw-chat snapshot prefix count")
+	expectedPrefixes := flags.Int("expected-prefixes", -1, "expected raw-chat snapshot prefix count")
 	expectedObjects := flags.Int64("expected-objects", -1, "expected object count across candidate prefixes")
 	confirm := flags.String("confirm", "", "exact confirmation token returned by preview")
+	allowProduction := flags.Bool("allow-production", false, "explicitly allow a production apply")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("parse apply flags: %w", err)
 	}
 	if flags.NArg() != 0 || *expectedPrefixes < 0 || *expectedObjects < 0 || *confirm == "" {
 		return usageError()
 	}
+	if err := validateGCSApplyTarget(preview.Target, *allowProduction); err != nil {
+		return err
+	}
 	if !preview.ReadyToApply {
 		return errors.New("refusing GCS deletion because preview safety checks are not all satisfied")
 	}
-	if *expectedPrefixes != preview.ExpiredRawChatSnapshotPrefixes {
-		return fmt.Errorf("candidate prefix count changed: expected=%d actual=%d", *expectedPrefixes, preview.ExpiredRawChatSnapshotPrefixes)
+	if *expectedPrefixes != preview.CandidateRawChatSnapshotPrefixes {
+		return fmt.Errorf("candidate prefix count changed: expected=%d actual=%d", *expectedPrefixes, preview.CandidateRawChatSnapshotPrefixes)
 	}
 	if *expectedObjects != preview.CandidateObjectCount {
 		return fmt.Errorf("candidate object count changed: expected=%d actual=%d", *expectedObjects, preview.CandidateObjectCount)
@@ -339,7 +396,7 @@ func apply(
 
 	deletedObjects := int64(0)
 	for _, prefix := range inventory.Prefixes {
-		if !prefix.ContainsRawChat || !prefix.LatestCreatedAt.Before(preview.Cutoff) {
+		if !prefix.ContainsRawChat {
 			continue
 		}
 		for _, object := range deletionOrder(prefix.Objects) {
@@ -358,20 +415,20 @@ func apply(
 	if err != nil {
 		return fmt.Errorf("post-delete bucket inspection: %w", err)
 	}
-	postPreview := buildPreview(time.Now().UTC(), preview.BucketName, postInventory)
+	postPreview := buildPreview(time.Now().UTC(), preview.Target, postInventory, preview.FirestoreRawChatRows)
 	if postPreview.RawChatSnapshotPrefixes != 0 {
 		return fmt.Errorf("post-delete verification failed: %d live raw-chat snapshot prefixes remain", postPreview.RawChatSnapshotPrefixes)
 	}
 
 	return writeJSON(struct {
-		Status              string        `json:"status"`
-		BucketName          string        `json:"bucket_name"`
-		DeletedLiveObjects  int64         `json:"deleted_live_objects"`
-		SoftDeleteRetention string        `json:"soft_delete_retention,omitempty"`
-		PostCheck           previewOutput `json:"post_check"`
+		Status              string         `json:"status"`
+		Target              gcsPurgeTarget `json:"target"`
+		DeletedLiveObjects  int64          `json:"deleted_live_objects"`
+		SoftDeleteRetention string         `json:"soft_delete_retention,omitempty"`
+		PostCheck           previewOutput  `json:"post_check"`
 	}{
 		Status:              "deleted live raw-chat snapshot prefixes",
-		BucketName:          preview.BucketName,
+		Target:              preview.Target,
 		DeletedLiveObjects:  deletedObjects,
 		SoftDeleteRetention: preview.SoftDeleteRetention,
 		PostCheck:           postPreview,
@@ -393,10 +450,12 @@ func deletionOrder(objects []objectRef) []objectRef {
 
 func confirmationToken(preview previewOutput) string {
 	return fmt.Sprintf(
-		"DELETE %d GCS FIRESTORE EXPORT SNAPSHOTS CONTAINING RAW YOUTUBE CHAT (%d OBJECTS) FROM %s THROUGH %s",
-		preview.ExpiredRawChatSnapshotPrefixes,
+		"DELETE %d GCS FIRESTORE EXPORT SNAPSHOTS CONTAINING RAW YOUTUBE CHAT (%d OBJECTS) FROM %s PROJECT %s BUCKET %s THROUGH %s",
+		preview.CandidateRawChatSnapshotPrefixes,
 		preview.CandidateObjectCount,
-		preview.BucketName,
+		strings.ToUpper(preview.Target.Environment),
+		preview.Target.ProjectID,
+		preview.Target.BucketName,
 		strings.TrimSuffix(preview.NewestRawChatPrefix, "/"),
 	)
 }
