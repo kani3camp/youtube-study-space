@@ -1,11 +1,12 @@
 # GCS raw YouTube chat snapshot cleanup
 
-## Production finding
+## 2026-08-14 development bucket finding
 
-The 2026-08-14 read-only retention audit found that the configured Firestore export bucket contains long-lived mixed snapshots rather than a disposable transfer-only staging area.
+The 2026-08-14 read-only retention audit found that the configured Firestore export bucket contained long-lived mixed snapshots rather than a disposable transfer-only staging area.
 
-Observed production values:
+The audited bucket was the **development** bucket:
 
+- GCP project: `test-youtube-study-space`
 - bucket: `firestore-backup-test-youtube-study-space`
 - live objects: 18,910
 - live bytes: about 1.53 GB
@@ -17,7 +18,14 @@ Observed production values:
 - soft delete: 7 days
 - bucket lifecycle: none
 
-The bucket contains export artifacts for at least:
+The confirmed production target is separate:
+
+- GCP project: `youtube-study-space`
+- bucket: `firestore-backup-youtube-study-space`
+
+Do not apply the development bucket observations to production by assumption. Every production preview must inspect and report the current attributes of `firestore-backup-youtube-study-space` before any apply is considered.
+
+The audited development bucket contains export artifacts for at least:
 
 - `live-chat-history`
 - `users`
@@ -48,12 +56,14 @@ With the current five-day Firestore retention and daily exports, the producer cu
 
 Every invocation must identify the target environment, expected GCP project ID, and expected GCS bucket. The command resolves the project ID from the active credentials and the bucket name from Firestore configuration, then refuses to continue if either differs from the operator-supplied target.
 
-Preview is read-only:
+Development preview is read-only:
 
 ```bash
 cd system
 go run ./cmd/privacy-gcs-admin preview \
-  development <development-project-id> <development-bucket-name>
+  development \
+  test-youtube-study-space \
+  firestore-backup-test-youtube-study-space
 ```
 
 The preview reports the target environment/project/bucket, current Firestore raw-chat row count, candidate prefix count, candidate object count/bytes, newest raw-chat snapshot, clean snapshots after it, safety checks, and an exact target-bound confirmation token.
@@ -64,17 +74,30 @@ Only when every safety check passes can the destructive development command run:
 
 ```bash
 go run ./cmd/privacy-gcs-admin apply \
-  development <development-project-id> <development-bucket-name> \
+  development \
+  test-youtube-study-space \
+  firestore-backup-test-youtube-study-space \
   --expected-prefixes <preview value> \
   --expected-objects <preview value> \
   --confirm '<exact preview token>'
+```
+
+Production preview is also read-only and uses the separately confirmed production target:
+
+```bash
+go run ./cmd/privacy-gcs-admin preview \
+  production \
+  youtube-study-space \
+  firestore-backup-youtube-study-space
 ```
 
 Production apply additionally requires the explicit production switch:
 
 ```bash
 go run ./cmd/privacy-gcs-admin apply \
-  production <production-project-id> <production-bucket-name> \
+  production \
+  youtube-study-space \
+  firestore-backup-youtube-study-space \
   --expected-prefixes <preview value> \
   --expected-objects <preview value> \
   --confirm '<exact preview token>' \
@@ -87,9 +110,9 @@ Within each candidate prefix, non-raw objects are deleted before raw-chat object
 
 ## Soft delete
 
-The production bucket currently has a seven-day soft-delete policy. Deleting a live object therefore does not immediately hard-delete it. The object becomes soft-deleted and recoverable until the soft-delete retention expires.
+The audited development bucket had a seven-day soft-delete policy on 2026-08-14. Deleting a live object from that bucket therefore does not immediately hard-delete it; the object remains recoverable until the configured soft-delete retention expires.
 
-The cleanup command reports this explicitly and only verifies removal from the live object namespace. Permanent hard deletion follows the bucket soft-delete policy.
+Do not assume the production bucket has the same current policy. The production preview must report the actual `firestore-backup-youtube-study-space` soft-delete retention before any production apply. The cleanup command verifies removal from the live object namespace; permanent hard deletion follows the policy reported for the target bucket.
 
 ## Follow-up
 
