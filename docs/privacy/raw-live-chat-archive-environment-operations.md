@@ -4,10 +4,10 @@ This document records the non-secret environment values and the actual operator 
 
 ## Confirmed environment targets
 
-| Environment | GCP project ID | BigQuery dataset | Raw table | Firestore backup GCS bucket |
-| --- | --- | --- | --- | --- |
-| development | `test-youtube-study-space` | `firestore_export` | `live-chat-history` | `firestore-backup-test-youtube-study-space` |
-| production | `youtube-study-space` | `firestore_export` | `live-chat-history` | `firestore-backup-youtube-study-space` |
+| Environment | GCP project ID | BigQuery dataset | Raw table | Firestore backup GCS bucket | AWS CLI profile |
+| --- | --- | --- | --- | --- | --- |
+| development | `test-youtube-study-space` | `firestore_export` | `live-chat-history` | `firestore-backup-test-youtube-study-space` | `soraride-dev` |
+| production | `youtube-study-space` | `firestore_export` | `live-chat-history` | `firestore-backup-youtube-study-space` | `soraride-prod` |
 
 These values are operator-confirmed. The destructive admin commands still resolve the project from the selected service-account credential and refuse to continue when it differs from the explicit expected project. The GCS command also checks the bucket configured in Firestore system constants against the explicit expected bucket.
 
@@ -81,14 +81,15 @@ The purpose is to verify that fetched chat messages are still processed in memor
 
 #1002 changes the `transfer-bq` code used by the ECS Fargate daily batch. Updating the streaming-PC bot does not update this batch runtime.
 
-Use the repository's normal development AWS CDK flow from `aws-cdk/`:
+Use the confirmed development AWS profile from `aws-cdk/`:
 
 ```bash
-pnpm cdk:diff --profile <development-aws-profile>
-pnpm cdk:deploy --profile <development-aws-profile>
+cd aws-cdk
+pnpm cdk:diff --profile soraride-dev
+pnpm cdk:deploy --profile soraride-dev
 ```
 
-Use the existing development AWS profile. Do not substitute the production profile.
+Do not substitute the production profile.
 
 The migration's development Day 0 should be recorded only after both A and B are complete and the development bot smoke test has succeeded. Record the timestamp in JST and UTC if convenient.
 
@@ -214,13 +215,15 @@ Only then answer `yes`.
 
 ### AWS production deployment
 
-Use the normal production AWS profile after the `dev` to `main` release has been completed:
+Use the confirmed production AWS profile after the `dev` to `main` release has been completed:
 
 ```bash
 cd aws-cdk
-pnpm cdk:diff --profile <production-aws-profile>
-pnpm cdk:deploy --profile <production-aws-profile>
+pnpm cdk:diff --profile soraride-prod
+pnpm cdk:deploy --profile soraride-prod
 ```
+
+Do not substitute the development profile.
 
 Production Day 0 is recorded only after the released production bot and production daily-batch archive exclusion are both active.
 
@@ -305,7 +308,8 @@ The following values are runtime/operator values and should not be hard-coded:
 - confirmation tokens returned by previews;
 - preview candidate row / object / prefix counts;
 - BigQuery cutoff RFC3339 timestamp;
-- Day 0 timestamps;
-- AWS CLI profile names until confirmed from the operator environment.
+- Day 0 timestamps.
+
+The AWS CLI profile names are now confirmed and fixed in this document as `soraride-dev` for development and `soraride-prod` for production.
 
 All destructive values must come from a fresh preview or from the explicitly selected operator environment.
