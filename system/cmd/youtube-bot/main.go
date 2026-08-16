@@ -163,23 +163,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			}
 		}
 
-		// chatMessagesを保存
-		for _, chatMessage := range chatMessages {
-			// only if chatMessage has a text message
-			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
-				continue
-			}
-
-			if err = app.AddLiveChatHistoryDoc(ctx, chatMessage); err != nil {
-				app.MessageToOwnerWithError(ctx, "(1回目) failed to add live chat history", err)
-				time.Sleep(2 * time.Second)
-				if err2 := app.AddLiveChatHistoryDoc(ctx, chatMessage); err2 != nil {
-					app.MessageToOwnerWithError(ctx, "(2回目) failed to add live chat history", err2)
-					// pass
-				}
-			}
-		}
-
 		// process the command (includes not command)
 		for _, chatMessage := range chatMessages {
 			if youtubebot.IsFanFundingEvent(chatMessage) {
