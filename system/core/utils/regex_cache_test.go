@@ -1,9 +1,12 @@
 package utils
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func TestCachedRegex_ReusesCompiledRegexp(t *testing.T) {
-	compiledRegexCache = syncMapForTest(t)
+	compiledRegexCache = sync.Map{}
 
 	first, err := cachedRegex("荒らし")
 	if err != nil {
@@ -20,7 +23,7 @@ func TestCachedRegex_ReusesCompiledRegexp(t *testing.T) {
 }
 
 func TestContainsRegexWithIndex_UsesCachedRegexAndPreservesBehavior(t *testing.T) {
-	compiledRegexCache = syncMapForTest(t)
+	compiledRegexCache = sync.Map{}
 
 	patterns := []string{"荒らし", "要確認"}
 
@@ -49,7 +52,7 @@ func TestContainsRegexWithIndex_UsesCachedRegexAndPreservesBehavior(t *testing.T
 }
 
 func TestContainsRegexWithIndex_InvalidRegexStillReturnsCompileError(t *testing.T) {
-	compiledRegexCache = syncMapForTest(t)
+	compiledRegexCache = sync.Map{}
 
 	found, index, err := ContainsRegexWithIndex([]string{"ok", "["}, "no match")
 	if err == nil {
@@ -61,9 +64,4 @@ func TestContainsRegexWithIndex_InvalidRegexStillReturnsCompileError(t *testing.
 	if index != 0 {
 		t.Fatalf("ContainsRegexWithIndex() index = %d, want 0 on error", index)
 	}
-}
-
-func syncMapForTest(t *testing.T) sync.Map {
-	t.Helper()
-	return sync.Map{}
 }
