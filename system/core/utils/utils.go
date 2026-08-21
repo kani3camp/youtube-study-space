@@ -81,16 +81,24 @@ func Contains[T comparable](s []T, e T) bool {
 
 func cachedRegex(pattern string) (*regexp.Regexp, error) {
 	if cached, ok := compiledRegexCache.Load(pattern); ok {
-		return cached.(*regexp.Regexp), nil
+		compiled, ok := cached.(*regexp.Regexp)
+		if !ok {
+			return nil, fmt.Errorf("cached regex has unexpected type %T", cached)
+		}
+		return compiled, nil
 	}
 
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("compile regex %q: %w", pattern, err)
 	}
 
 	actual, _ := compiledRegexCache.LoadOrStore(pattern, compiled)
-	return actual.(*regexp.Regexp), nil
+	actualRegex, ok := actual.(*regexp.Regexp)
+	if !ok {
+		return nil, fmt.Errorf("cached regex has unexpected type %T", actual)
+	}
+	return actualRegex, nil
 }
 
 func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
