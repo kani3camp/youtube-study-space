@@ -9,10 +9,9 @@ import (
 	"time"
 )
 
-const (
-	defaultDeleteConcurrency = 16
-	deleteProgressInterval    = 5 * time.Second
-)
+const defaultDeleteConcurrency = 16
+
+const deleteProgressInterval = 5 * time.Second
 
 type objectDeleteFunc func(context.Context, objectRef) error
 
@@ -111,7 +110,7 @@ func deleteObjectsBounded(
 		close(results)
 	}()
 
-	fmt.Fprintf(
+	writeProgress(
 		progressWriter,
 		"privacy-gcs-admin: delete phase=%s started total=%d concurrency=%d\n",
 		phase,
@@ -128,7 +127,7 @@ func deleteObjectsBounded(
 		case result, ok := <-results:
 			if !ok {
 				summary.Skipped = summary.Total - summary.Deleted - summary.Failed
-				fmt.Fprintf(
+				writeProgress(
 					progressWriter,
 					"privacy-gcs-admin: delete phase=%s finished deleted=%d failed=%d skipped=%d total=%d\n",
 					phase,
@@ -171,7 +170,7 @@ func deleteObjectsBounded(
 			summary.Deleted++
 		case <-ticker.C:
 			completed := summary.Deleted + summary.Failed
-			fmt.Fprintf(
+			writeProgress(
 				progressWriter,
 				"privacy-gcs-admin: delete phase=%s progress completed=%d/%d deleted=%d failed=%d\n",
 				phase,
@@ -181,5 +180,11 @@ func deleteObjectsBounded(
 				summary.Failed,
 			)
 		}
+	}
+}
+
+func writeProgress(writer io.Writer, format string, args ...any) {
+	if _, err := fmt.Fprintf(writer, format, args...); err != nil {
+		return
 	}
 }
