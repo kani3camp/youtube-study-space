@@ -13,7 +13,7 @@ assert_exact_groups() {
 	local expected
 
 	output="$($detector --paths "$@")"
-	for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all; do
+	for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all; do
 		expected=false
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
@@ -26,6 +26,9 @@ assert_exact_groups() {
 }
 
 assert_exact_groups "" README.md
+assert_exact_groups formal_spec formal-spec/README.md
+assert_exact_groups formal_spec formal-spec/fsl/specs/seat_session.fsl
+assert_exact_groups formal_spec .github/scripts/run-formal-spec-tests.sh
 assert_exact_groups firestore_integration firebase/firebase.json
 assert_exact_groups firestore_integration firebase/firestore.rules
 assert_exact_groups firestore_integration firebase/firestore.indexes.json
@@ -34,6 +37,10 @@ assert_exact_groups youtube_monitor biome.json
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
 assert_exact_groups "system firestore_integration" system/core/repository/firestore_controller.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/workspace_app_private_test.go
+assert_exact_groups "system firestore_integration formal_spec" system/core/repository/seat.go
+assert_exact_groups "system firestore_integration formal_spec" system/core/repository/models.go
+assert_exact_groups "system firestore_integration formal_spec" system/core/repository/seat_formalspec_test.go
+assert_exact_groups "system firestore_integration formal_spec" system/core/timeutil/time.go
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
@@ -42,15 +49,15 @@ assert_exact_groups room_image_prompt tools/room-image-prompt/cmd/room-image-pro
 assert_exact_groups menu_image_generator tools/menu-image-generator/src/index.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/workflows/ci.yml
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/workflows/deploy-docs.yml
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/test-detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all" .github/scripts/run-firestore-integration-tests.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/run-firestore-integration-tests.sh
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration all; do
+for group in system room_image_prompt menu_image_generator youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all; do
 	if ! printf '%s\n' "$manual_output" | grep -Fxq "$group=true"; then
 		echo "Expected workflow_dispatch to select $group" >&2
 		exit 1
