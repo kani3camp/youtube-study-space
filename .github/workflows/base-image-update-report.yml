@@ -1,0 +1,42 @@
+name: Base Image Update Report
+
+# Dependabot-triggered pull_request workflows receive a read-only token.
+# pull_request_target is used only so the trusted base-branch workflow can update
+# the PR comment. Never checkout or execute the PR head revision in this workflow.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "system/Dockerfile*"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: base-image-update-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Verify and Report Base Image Digests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted base revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Verify Docker Buildx availability
+        run: docker buildx version
+
+      - name: Generate or update PR report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/base-image-update-report.mjs
