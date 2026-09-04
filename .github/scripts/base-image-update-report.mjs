@@ -5,6 +5,26 @@ import { pathToFileURL } from "node:url";
 
 export const COMMENT_MARKER = "<!-- base-image-update-report -->";
 
+const ALLOWED_REGISTRIES = new Set(["docker.io", "public.ecr.aws", "gcr.io"]);
+
+export function registryHost(image) {
+  const firstComponent = image.split("/")[0];
+  if (
+    image.includes("/") &&
+    (firstComponent.includes(".") || firstComponent.includes(":") || firstComponent === "localhost")
+  ) {
+    return firstComponent.toLowerCase();
+  }
+  return "docker.io";
+}
+
+export function canVerifyRegistryUpdate(oldImage, newImage) {
+  return (
+    oldImage.image === newImage.image &&
+    ALLOWED_REGISTRIES.has(registryHost(newImage.image))
+  );
+}
+
 export function parseFromImages(content) {
   const images = [];
   for (const [index, line] of content.split(/\r?\n/).entries()) {
@@ -35,11 +55,16 @@ export function parsePinnedImage(ref) {
   const colonIndex = taggedRef.lastIndexOf(":");
   if (colonIndex <= slashIndex) return null;
 
+  const image = taggedRef.slice(0, colonIndex);
+  const tag = taggedRef.slice(colonIndex + 1);
+  if (!/^[A-Za-z0-9._/:~-]+$/.test(image)) return null;
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(tag)) return null;
+
   return {
     ref,
     taggedRef,
-    image: taggedRef.slice(0, colonIndex),
-    tag: taggedRef.slice(colonIndex + 1),
+    image,
+    tag,
     digest,
   };
 }
@@ -262,10 +287,15 @@ async function main() {
     for (const update of detectDigestUpdates(baseContent, headContent)) {
       let resolvedDigest = null;
       let verificationError = null;
-      try {
-        resolvedDigest = resolveTagDigest(update.newImage.taggedRef);
-      } catch (error) {
-        verificationError = error instanceof Error ? error.message : String(error);
+      if (!canVerifyRegistryUpdate(update.oldImage, update.newImage)) {
+        verificationError =
+          "Automatic verification skipped because the image repository changed or the registry is not allowlisted.";
+      } else {
+        try {
+          resolvedDigest = resolveTagDigest(update.newImage.taggedRef);
+        } catch (error) {
+          verificationError = error instanceof Error ? error.message : String(error);
+        }
       }
       entries.push({ file, ...update, resolvedDigest, verificationError });
     }
