@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   COMMENT_MARKER,
+  canVerifyRegistryUpdate,
   detectDigestUpdates,
   parseFromImages,
   parsePinnedImage,
   publicGalleryUrl,
+  registryHost,
   renderReport,
 } from "./base-image-update-report.mjs";
 
@@ -51,6 +53,19 @@ test("detectDigestUpdates also reports pinned tag changes", () => {
   assert.equal(updates.length, 1);
   assert.equal(updates[0].oldImage.tag, "1.26");
   assert.equal(updates[0].newImage.tag, "1.27");
+});
+
+test("registry verification is restricted to the existing image repository and known registries", () => {
+  assert.equal(registryHost("golang"), "docker.io");
+  assert.equal(registryHost("public.ecr.aws/lambda/provided"), "public.ecr.aws");
+  assert.equal(registryHost("gcr.io/distroless/static-debian12"), "gcr.io");
+
+  const oldImage = parsePinnedImage(`public.ecr.aws/lambda/provided:al2023@${OLD}`);
+  const sameRepository = parsePinnedImage(`public.ecr.aws/lambda/provided:al2023@${NEW}`);
+  const changedRepository = parsePinnedImage(`evil.example/repo:al2023@${NEW}`);
+
+  assert.equal(canVerifyRegistryUpdate(oldImage, sameRepository), true);
+  assert.equal(canVerifyRegistryUpdate(oldImage, changedRepository), false);
 });
 
 test("publicGalleryUrl returns a stable ECR Public Gallery repository URL", () => {
