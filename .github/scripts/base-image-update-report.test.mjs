@@ -83,6 +83,10 @@ test("googleArtifactRegistryUrl maps gcr.io images to the Artifact Registry cons
     googleArtifactRegistryUrl("gcr.io/distroless/static-debian12"),
     "https://console.cloud.google.com/artifacts/docker/distroless/us/gcr.io/static-debian12",
   );
+  assert.equal(
+    googleArtifactRegistryUrl("gcr.io/google.com/cloudsdktool/google-cloud-cli"),
+    "https://console.cloud.google.com/artifacts/docker/google.com:cloudsdktool/us/gcr.io/google-cloud-cli",
+  );
   assert.equal(googleArtifactRegistryUrl("public.ecr.aws/lambda/provided"), null);
 });
 
