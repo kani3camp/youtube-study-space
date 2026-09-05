@@ -93,11 +93,14 @@ flowchart LR
     Bot -->|検証・状態更新| DB[(Firestore)]
     DB -->|現在の部屋情報| Monitor[Next.jsの配信画面]
     Monitor --> Stream[24時間YouTubeライブ]
+    Monitor -->|希望席数| SeatAPI[席数調整API]
+    SeatAPI -->|desired_* を更新| DB
+    Bot -->|desired_* と現在値を調整| DB
     Bot -->|応答| Chat
     Stream --> User
 ```
 
-チャットにコマンドが投稿されると、バックエンドが内容を解析・検証し、Firestoreのトランザクションで部屋の状態を更新します。配信画面は現在の状態を読み取り、仮想の作業部屋として描画します。定期的なメンテナンスや集計処理にはAWS上のワークロードも利用しています。
+チャットにコマンドが投稿されると、バックエンドが内容を解析・検証し、Firestoreのトランザクションで部屋の状態を更新します。配信画面は現在の状態を読み取り仮想の作業部屋として描画しますが、**現在の実装では表示専用ではありません**。Monitorはルーム定義と利用状況から希望席数を計算してAPIへ送り、Bot側が現在の席数へ反映します。そのため、座席数を含むレイアウト変更は制御ロジックにも波及し得ます。開発者向けの詳細は [`docs/development/architecture.md`](./docs/development/architecture.md) を参照してください。定期的なメンテナンスや集計処理にはAWS上のワークロードも利用しています。
 
 <details>
 <summary><strong>仕組みに興味がある方向け：リポジトリ構成</strong></summary>

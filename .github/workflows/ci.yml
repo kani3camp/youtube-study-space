@@ -67,6 +67,16 @@ jobs:
       - name: Check Node LTS ignore expiry
         run: tools/ci/check-node-lts-ignore-expiry.sh
 
+  documentation-references:
+    name: Documentation References
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check repository-relative documentation links
+        run: python3 .github/scripts/check-doc-references.py
+
   check-i18n-generate:
     name: Generated Files Up-to-Date
     needs: changes
@@ -487,6 +497,7 @@ jobs:
       - changes
       - base-image-update-report-test
       - node-lts-ignore-expiry
+      - documentation-references
       - check-i18n-generate
       - go-lint
       - system-go-test
