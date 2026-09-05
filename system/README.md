@@ -1,3 +1,31 @@
+# Go Backend (`system/`)
+
+`system/` contains the Go backend, YouTube/Discord integrations, Firestore repository/application logic, Lambda handlers, and Fargate batch jobs. Repository-wide agent rules are in [`../AGENTS.md`](../AGENTS.md), and system-specific AI guidance is in [`AI_COLLABORATION_GUIDE.md`](./AI_COLLABORATION_GUIDE.md).
+
+## Initial setup and safe verification
+
+Use [`go.mod`](./go.mod) as the canonical Go/toolchain/dependency source.
+
+```sh
+cd system
+go mod download
+go test -shuffle=on ./...
+```
+
+For lint/generation, use the same commands documented in `../AGENTS.md` and CI. Firestore behavior that depends on Emulator semantics is checked from the repository root:
+
+```sh
+bash .github/scripts/run-firestore-integration-tests.sh
+```
+
+These checks are intentionally separate from real-service execution.
+
+## Real-service execution
+
+`go run ./cmd/youtube-bot` is **not a normal test command**. Startup loads local environment/credential configuration, connects to configured Google/YouTube/Discord services, and can post chat/notifications or mutate Firestore state.
+
+Only run it for an explicitly authorized real-environment smoke test. Before proceeding past startup, verify the Google Cloud Project ID printed by the program is the intended target. Never copy credential values into documentation, issues, or logs.
+
 
 ## i18n翻訳関数の自動生成
 
@@ -95,4 +123,4 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
   docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{.Manifest.Digest}}'
   ```
   取得した `sha256:...` を Dockerfile の `FROM ...@sha256:...` に差し替えて PR を出す。
-- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。詳細は [`AI_COLLABORATION_GUIDE.md`](./AI_COLLABORATION_GUIDE.md) の「Go toolchain とベースイメージのバージョン整合」を参照。
+- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。この「base image 更新運用」を `system/` における詳細手順の正本とする。
