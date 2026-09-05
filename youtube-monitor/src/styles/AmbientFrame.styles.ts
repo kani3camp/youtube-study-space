@@ -17,6 +17,7 @@ import {
 	TWILIGHT_TONE_STUDY_ACCENT_COLORS,
 	TWILIGHT_TONE_TEXT_COLORS,
 } from '../lib/time-theme-colors'
+import { verticalLayout } from '../lib/vertical-layout'
 
 const surfaceVariables = (colors: AmbientSurfaceColors) => css`
 	--ambient-shell-bg: ${toCssRgba(colors.shell)};
@@ -171,4 +172,18 @@ export const bottomLight = css`
 		linear-gradient(100deg, transparent 15%, currentColor 50%, transparent 85%);
 	background-size: 45% 160%, 55% 100%;
 	animation: ${driftBottom} 86s ease-in-out infinite alternate;
+`
+
+export const verticalRightLight = css`
+	z-index: 0;
+	width: 120px;
+	height: ${verticalLayout.canvas.height}px;
+	opacity: calc(var(--ambient-animation-opacity) * 0.5);
+`
+
+export const verticalBottomLight = css`
+	z-index: 0;
+	width: ${verticalLayout.canvas.width}px;
+	height: 160px;
+	opacity: calc(var(--ambient-animation-opacity) * 0.5);
 `

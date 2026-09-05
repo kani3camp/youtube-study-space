@@ -21,6 +21,18 @@ export const message = css`
 	color: var(--ambient-text-primary);
 `
 
+export const verticalMessage = css`
+	position: relative;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 24px;
+	height: 100%;
+	width: 100%;
+	padding: 0 0 0 24px;
+	box-sizing: border-box;
+`
+
 export const pageInfo = css`
 	width: 45%;
 	height: 100%;
@@ -29,8 +41,39 @@ export const pageInfo = css`
 	justify-content: center;
 `
 
+export const verticalPageInfo = css`
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: auto;
+	height: 100%;
+	gap: 20px;
+	padding: 0;
+	box-sizing: border-box;
+	white-space: nowrap;
+`
+
 export const pageIndex = css`
 	display: inline-block;
+`
+
+export const verticalPageIndex = css`
+	display: inline-flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: 10px;
+`
+
+export const verticalPageLabel = css`
+	font-size: 0.62rem;
+	font-weight: 600;
+`
+
+export const verticalPageNumber = css`
+	font-size: 0.76rem;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
 `
 
 export const memberOnly = css`
@@ -42,7 +85,22 @@ export const memberOnly = css`
     font-size: 0.6rem;
     color: white;
     background-color: #2ba640;
-    border-radius: 0.3rem;
+	border-radius: 0.3rem;
+`
+
+export const verticalMemberOnly = css`
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: auto;
+	height: 34px;
+	margin: 0;
+	padding: 0 14px;
+	box-sizing: border-box;
+	font-size: 0.48rem;
+	white-space: nowrap;
+	border-radius: 999px;
 `
 
 export const numStudyingPeople = css`
@@ -56,4 +114,28 @@ export const numStudyingPeople = css`
 	transition:
 		background-color var(--ambient-background-transition-duration, 30s) linear,
 		border-color var(--ambient-background-transition-duration, 30s) linear;
+`
+
+export const verticalNumStudyingPeople = css`
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	width: auto;
+	height: 100%;
+	padding: 0;
+	box-sizing: border-box;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 0.72rem;
+	font-weight: 700;
+	white-space: nowrap;
+`
+
+export const verticalShape = css`
+	position: relative;
+	inset: auto;
+	height: 100%;
+	width: 100%;
 `

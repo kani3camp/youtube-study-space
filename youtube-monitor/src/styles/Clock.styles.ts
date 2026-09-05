@@ -35,3 +35,31 @@ export const timeStringStyle = css`
 	font-weight: 800;
 	line-height: 1.6rem;
 `
+
+export const verticalShape = css`
+	position: relative;
+	top: auto;
+	right: auto;
+	height: 100%;
+	width: 100%;
+`
+
+export const verticalClockStyle = css`
+	position: relative;
+	height: 100%;
+	width: 100%;
+	padding: 0 12px 0 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+`
+
+export const verticalTimeStringStyle = css`
+	font-size: 0.9rem;
+	line-height: 1;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+`
