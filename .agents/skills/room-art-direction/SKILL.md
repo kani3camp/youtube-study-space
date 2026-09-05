@@ -33,7 +33,7 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 | Direction B | `references/direction-b-full-scene-anime.md` | 全景アニメ系。現代アニメの自然さ、劇場アニメの光と空気、クリーンなセル表現を統合 |
 | Direction C | `references/direction-c-clean-abstract-graphic.md` | 抽象・グラフィック系。形・色面・構成を主役にし、明るいパステル配色と非写実的な物体表現を重視 |
 
-ユーザーが Direction A / CG・レンダー系、Direction B / アニメ系、Direction C / 抽象・グラフィック系などを指定した場合は、対応する reference を読む。
+管理人が Direction A / CG・レンダー系、Direction B / アニメ系、Direction C / 抽象・グラフィック系などを指定した場合は、対応する reference を読む。
 
 方向性が明示されていない場合、既存 Direction を勝手にデフォルト扱いしない。必要なら複数方向を比較できる形で提示する。
 
@@ -148,4 +148,4 @@ Direction を新規追加・大幅更新したときは、可能なら次の Sub
 4. 過去生成物から抽出したモチーフと、実際の描画ルールを分離する。
 5. Subject Swap Test で題材依存になっていないことを確認する。
 
-既存 Direction の内容を、新しい Direction に合わせて平均化しない。複数の好みは複数の方向性として共存させる。
+既存 Direction の内容を、新しい Direction に合わせて平均化しない。管理人の複数の好みは複数の方向性として共存させる。
