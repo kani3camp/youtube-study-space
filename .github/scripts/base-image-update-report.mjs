@@ -110,6 +110,28 @@ export function publicGalleryUrl(taggedRef) {
   return `https://gallery.ecr.aws/${repository}`;
 }
 
+export function googleArtifactRegistryUrl(image) {
+  const prefix = "gcr.io/";
+  if (!image.startsWith(prefix)) return null;
+
+  const parts = image.slice(prefix.length).split("/");
+  if (parts.length < 2) return null;
+
+  let encodedProject;
+  if (parts[0].includes(".")) {
+    if (parts.length < 3) return null;
+    const domain = parts.shift();
+    const projectId = parts.shift();
+    encodedProject = `${encodeURIComponent(domain)}:${encodeURIComponent(projectId)}`;
+  } else {
+    encodedProject = encodeURIComponent(parts.shift());
+  }
+
+  if (!encodedProject || parts.length === 0) return null;
+  const encodedImagePath = parts.map(encodeURIComponent).join("/");
+  return `https://console.cloud.google.com/artifacts/docker/${encodedProject}/us/gcr.io/${encodedImagePath}`;
+}
+
 export function renderReport(entries) {
   const lines = [
     COMMENT_MARKER,
@@ -123,6 +145,7 @@ export function renderReport(entries) {
     const { file, stage, line, oldImage, newImage, resolvedDigest, verificationError } = entry;
     const matches = resolvedDigest === newImage.digest;
     const galleryUrl = publicGalleryUrl(newImage.taggedRef);
+    const artifactRegistryUrl = googleArtifactRegistryUrl(newImage.image);
 
     lines.push(`### ${matches ? "✅" : "❌"} \`${newImage.taggedRef}\``);
     lines.push("");
@@ -151,6 +174,10 @@ export function renderReport(entries) {
     lines.push("");
     if (galleryUrl) {
       lines.push(`🔗 [View \`${newImage.image}\` in Amazon ECR Public Gallery](${galleryUrl})`);
+      lines.push("");
+    }
+    if (artifactRegistryUrl) {
+      lines.push(`🔗 [View \`${newImage.image}\` in Google Artifact Registry](${artifactRegistryUrl})`);
       lines.push("");
     }
   }
