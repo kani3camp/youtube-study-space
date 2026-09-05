@@ -6,6 +6,7 @@ import {
   COMMENT_MARKER,
   canVerifyRegistryUpdate,
   detectDigestUpdates,
+  googleArtifactRegistryUrl,
   parseFromImages,
   parsePinnedImage,
   publicGalleryUrl,
@@ -75,6 +76,36 @@ test("publicGalleryUrl returns a stable ECR Public Gallery repository URL", () =
     "https://gallery.ecr.aws/lambda/provided",
   );
   assert.equal(publicGalleryUrl("golang:1.26"), null);
+});
+
+test("googleArtifactRegistryUrl maps gcr.io images to the Artifact Registry console", () => {
+  assert.equal(
+    googleArtifactRegistryUrl("gcr.io/distroless/static-debian12"),
+    "https://console.cloud.google.com/artifacts/docker/distroless/us/gcr.io/static-debian12",
+  );
+  assert.equal(googleArtifactRegistryUrl("public.ecr.aws/lambda/provided"), null);
+});
+
+test("renderReport includes Google Artifact Registry link for gcr.io images", () => {
+  const update = detectDigestUpdates(
+    `FROM gcr.io/distroless/static-debian12:nonroot@${OLD}\n`,
+    `FROM gcr.io/distroless/static-debian12:nonroot@${NEW}\n`,
+  )[0];
+
+  const report = renderReport([
+    {
+      file: "system/Dockerfile.fargate",
+      ...update,
+      resolvedDigest: NEW,
+      verificationError: null,
+    },
+  ]);
+
+  assert.match(report, /View \`gcr\.io\/distroless\/static-debian12\` in Google Artifact Registry/);
+  assert.match(
+    report,
+    /https:\/\/console\.cloud\.google\.com\/artifacts\/docker\/distroless\/us\/gcr\.io\/static-debian12/,
+  );
 });
 
 test("renderReport includes verified digests and ECR Public Gallery link", () => {
