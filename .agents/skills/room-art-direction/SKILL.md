@@ -63,6 +63,11 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 `tools/room-image-prompt/data/prompt_template.txt` のような既存資料を参照する場合も、この区別を維持する。
 その資料に含まれる用途制約は利用してよいが、特定の色・レンダリング・質感の指定を、選択中の Direction より優先しない。
 
+> [!IMPORTANT]
+> `tools/room-image-prompt` の現行 CLI 出力は、`prompt_template.txt` に残る legacy な画風指定（3D 建築レンダリング風を避ける、ベクターライク、素材感控えめ、落ち着いた配色など）をそのまま含むため、Direction A / B / C 適用時には CLI の生成結果をそのまま画像生成モデルへ渡さない。
+> `prompt_template.txt` からアスペクト比、座席カード配置、人物・文字の禁止などの**用途制約だけを抽出**し、画風に関する部分は**選択中の Direction の定義で置き換える**。
+> 将来的に CLI 側で「共通用途制約」と「Style / Direction」を物理的に分離するまでは、このルールを互換境界とする。
+
 ### 2. Direction の不変条件を読む
 
 選択された reference の以下を抽出する。
