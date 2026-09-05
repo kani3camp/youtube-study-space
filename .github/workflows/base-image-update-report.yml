@@ -6,8 +6,6 @@ name: Base Image Update Report
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
-    paths:
-      - "system/Dockerfile*"
 
 permissions:
   contents: read
@@ -32,14 +30,11 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
-      - name: Verify Docker Buildx availability
-        if: steps.checkout.outcome == 'success'
-        id: buildx
-        continue-on-error: true
-        run: docker buildx version
-
+      # The script checks the PR changed-files list first. If no system/Dockerfile*
+      # remains in the final PR diff, it removes any stale report comment and exits
+      # before invoking Docker Buildx.
       - name: Generate or update PR report
-        if: steps.checkout.outcome == 'success' && steps.buildx.outcome == 'success'
+        if: steps.checkout.outcome == 'success'
         id: report
         continue-on-error: true
         env:
@@ -54,10 +49,9 @@ jobs:
         continue-on-error: true
         env:
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
-          BUILDX_OUTCOME: ${{ steps.buildx.outcome }}
           REPORT_OUTCOME: ${{ steps.report.outcome }}
         run: |
-          if [[ "$CHECKOUT_OUTCOME" != "success" || "$BUILDX_OUTCOME" != "success" || "$REPORT_OUTCOME" != "success" ]]; then
+          if [[ "$CHECKOUT_OUTCOME" != "success" || "$REPORT_OUTCOME" != "success" ]]; then
             echo "::warning::Base image update reporting did not complete successfully. This check is advisory and does not block merging."
           fi
           echo "Base Image Update Report is advisory; merge gating is handled by the normal CI workflow."
