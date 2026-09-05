@@ -78,6 +78,10 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
 `Dockerfile.lambda` / `Dockerfile.fargate` の `FROM` は、`image:tag@sha256:...` の形式で **digest 固定** している（再現可能ビルドのため。詳細は issue #693）。digest の更新は基本的に Dependabot の docker ecosystem PR に任せる。
 
 - **Dependabot からの digest 更新 PR が来たとき**:
+  - `Base Image Update Report` workflow が、旧/新 digest、現在タグの digest、一致判定を同じ PR コメントへ自動で投稿・更新する
+- workflow はすべての PR `opened` / `synchronize` / `reopened` を拾い、最終差分から Dockerfile 更新が消えた場合は古い report comment を削除する。Dockerfile 更新がない場合は registry 照合を行わず終了する
+  - Amazon ECR Public のイメージでは、対応する ECR Public Gallery へのリンクもコメントに表示する
+  - registry の現在タグと pinned digest を検証できない場合はコメント／Actions warningで明示するが、この report workflow 自体は advisory としてマージをブロックしない
   1. `aws-cdk/` で `pnpm cdk:diff --profile <dev プロファイル>` を実行し、変更が digest 差し替えだけであることを確認
   2. `pnpm cdk:deploy --profile <dev プロファイル>` で dev 環境にデプロイしてスモーク確認
   3. 問題なければ prod プロファイルで同じ手順を実行
