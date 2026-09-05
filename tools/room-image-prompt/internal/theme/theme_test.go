@@ -151,16 +151,30 @@ func TestReadTemplate_TC_D2_empty(t *testing.T) {
 
 func TestReadTemplate_RequiresExactlyOneStylePlaceholder(t *testing.T) {
 	t.Parallel()
-	fsys := fstest.MapFS{
-		templateFile:    {Data: []byte("COMMON_ONLY\n")},
-		legacyStyleFile: {Data: []byte("STYLE\n")},
+
+	tests := []struct {
+		name     string
+		template string
+	}{
+		{name: "missing", template: "COMMON_ONLY\n"},
+		{name: "multiple", template: "{{STYLE}}\n{{STYLE}}\n"},
 	}
-	_, err := ReadTemplate(fsys)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !strings.Contains(err.Error(), stylePlaceholder) {
-		t.Fatalf("expected placeholder hint: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fsys := fstest.MapFS{
+				templateFile:    {Data: []byte(tt.template)},
+				legacyStyleFile: {Data: []byte("STYLE\n")},
+			}
+			_, err := ReadTemplate(fsys)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), stylePlaceholder) {
+				t.Fatalf("expected placeholder hint: %v", err)
+			}
+		})
 	}
 }
 
