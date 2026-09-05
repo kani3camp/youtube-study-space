@@ -125,6 +125,6 @@ test("report workflow remains advisory and non-blocking", () => {
   assert.match(workflow, /name: Checkout trusted base revision[\s\S]*?continue-on-error: true/);
   assert.match(workflow, /name: Verify Docker Buildx availability[\s\S]*?continue-on-error: true/);
   assert.match(workflow, /name: Generate or update PR report[\s\S]*?continue-on-error: true/);
-  assert.match(workflow, /name: Keep report advisory[\s\S]*?if: always\(\)/);
+  assert.match(workflow, /name: Keep report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
   assert.match(workflow, /does not block merging/);
 });
