@@ -115,10 +115,19 @@ export function googleArtifactRegistryUrl(image) {
   if (!image.startsWith(prefix)) return null;
 
   const parts = image.slice(prefix.length).split("/");
-  const project = parts.shift();
-  if (!project || parts.length === 0) return null;
+  if (parts.length < 2) return null;
 
-  const encodedProject = encodeURIComponent(project);
+  let encodedProject;
+  if (parts[0].includes(".")) {
+    if (parts.length < 3) return null;
+    const domain = parts.shift();
+    const projectId = parts.shift();
+    encodedProject = `${encodeURIComponent(domain)}:${encodeURIComponent(projectId)}`;
+  } else {
+    encodedProject = encodeURIComponent(parts.shift());
+  }
+
+  if (!encodedProject || parts.length === 0) return null;
   const encodedImagePath = parts.map(encodeURIComponent).join("/");
   return `https://console.cloud.google.com/artifacts/docker/${encodedProject}/us/gcr.io/${encodedImagePath}`;
 }
