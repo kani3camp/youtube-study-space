@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func testdataDir(t *testing.T, name string) fs.FS {
@@ -145,5 +146,35 @@ func TestReadTemplate_TC_D2_empty(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "空") {
 		t.Fatalf("expected empty-template hint: %v", err)
+	}
+}
+
+func TestReadTemplate_RequiresExactlyOneStylePlaceholder(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		templateFile:    {Data: []byte("COMMON_ONLY\n")},
+		legacyStyleFile: {Data: []byte("STYLE\n")},
+	}
+	_, err := ReadTemplate(fsys)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), stylePlaceholder) {
+		t.Fatalf("expected placeholder hint: %v", err)
+	}
+}
+
+func TestReadTemplate_RejectsEmptyLegacyStyle(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		templateFile:    {Data: []byte("BEFORE\n{{STYLE}}\nAFTER\n")},
+		legacyStyleFile: {Data: []byte("\n")},
+	}
+	_, err := ReadTemplate(fsys)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), legacyStyleFile) || !strings.Contains(err.Error(), "空") {
+		t.Fatalf("expected empty-style hint: %v", err)
 	}
 }
