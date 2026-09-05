@@ -51,6 +51,7 @@ jobs:
 
       - name: Keep report advisory
         if: always()
+        continue-on-error: true
         env:
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           BUILDX_OUTCOME: ${{ steps.buildx.outcome }}
