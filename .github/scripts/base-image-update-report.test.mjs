@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -116,4 +117,14 @@ test("renderReport is explicit when registry verification fails", () => {
 
   assert.match(report, /❌ Pinned digest does not match the current registry tag/);
   assert.match(report, /One or more pinned digests could not be verified/);
+});
+
+test("report workflow remains advisory and non-blocking", () => {
+  const workflow = readFileSync(".github/workflows/base-image-update-report.yml", "utf8");
+
+  assert.match(workflow, /name: Checkout trusted base revision[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /name: Verify Docker Buildx availability[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /name: Generate or update PR report[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /name: Keep report advisory[\s\S]*?if: always\(\)/);
+  assert.match(workflow, /does not block merging/);
 });
