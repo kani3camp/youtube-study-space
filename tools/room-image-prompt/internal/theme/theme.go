@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	templateFile      = "prompt_template.txt"
-	legacyStyleFile   = "style_legacy.txt"
+	templateFile     = "prompt_template.txt"
+	legacyStyleFile  = "style_legacy.txt"
 	stylePlaceholder = "{{STYLE}}"
 )
 
