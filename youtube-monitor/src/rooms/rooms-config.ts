@@ -16,7 +16,6 @@ import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-s
 import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
 import { MoonNightRoom1 } from './layouts/moon-night-room-1'
 import { MoonNightRoom2 } from './layouts/moon-night-room-2'
-import { ResortSeaRoom } from './layouts/resort-sea-room'
 
 type AllRoomsConfig = {
 	generalBasicRooms: RoomLayout[]
@@ -50,7 +49,6 @@ const prodAllRooms: AllRoomsConfig = {
 		BookOfficeRoom,
 		MemberBoxRooms2,
 		MemberBoxRooms3,
-		ResortSeaRoom,
 		MemberIllustratedRoomSpring,
 		MemberIllustratedRoom1,
 	],
@@ -58,7 +56,6 @@ const prodAllRooms: AllRoomsConfig = {
 		BookOfficeRoom,
 		MemberBoxRooms2,
 		MemberBoxRooms3,
-		ResortSeaRoom,
 		MemberIllustratedRoomSpring,
 		MemberIllustratedRoom1,
 	],
