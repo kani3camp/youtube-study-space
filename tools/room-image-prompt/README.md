@@ -1,6 +1,6 @@
 # room-image-prompt
 
-ルーム画像生成（画像生成モデル等）向けのプロンプトを組み立て、`output/` に保存する Go CLI です。候補テキストと共通テンプレートは `data/` に置き、`go:embed` でバイナリに同梱します。Direction A/B/C の正は `.agents/skills/room-art-direction/references/` にあり、CLI用style assetはそこから生成します。
+ルーム画像生成（画像生成モデル等）向けのプロンプトを組み立て、`output/` に保存する Go CLI です。候補テキストと共通テンプレートは `data/` に置き、`go:embed` でバイナリに同梱します。Direction A/B/C/D の正は `.agents/skills/room-art-direction/references/` にあり、CLI用style assetはそこから生成します。
 
 ## 必要環境
 
@@ -16,7 +16,7 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 
 引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 10〜15** を1回一様乱数で決定します。`data/prompt_template.txt` の `{{STYLE}}` に既定の `data/style_legacy.txt` を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
 
-`-style direction-a` / `direction-b` / `direction-c` で管理人のアートディレクションを選択できます。`-style-file <path>` を指定すると、任意の UTF-8 テキストをスタイルとして注入できます。未指定時は後方互換のため `legacy` です。
+`-style direction-a` / `direction-b` / `direction-c` / `direction-d` で管理人のアートディレクションを選択できます。`-style-file <path>` を指定すると、任意の UTF-8 テキストをスタイルとして注入できます。未指定時は後方互換のため `legacy` です。
 
 - **標準エラー**: `出力: <ファイル名>` に続き、`クリップボードにコピーしました` または `コピーに失敗しました` を1行ずつ出します。Linux などで `xclip` / `xsel` が無い環境ではコピーが失敗し得ます。
 - **標準出力**: **保存したファイルの絶対パスを1行**だけ出します（スクリプト向け）。
@@ -46,7 +46,7 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 
 ### Direction の単一の正と生成
 
-Direction A/B/C の canonical source は `.agents/skills/room-art-direction/references/direction-*.md` です。各Markdownの **`## Prompt guidance` セクションだけ**をCLI向けの実行用fragmentとして抽出します。Summary / Core / Avoid / Non-goals / Review checklist まで丸ごとCLIへ入れないため、Agent向け文書の表現力と実行プロンプトの簡潔さを両立します。
+Direction A/B/C/D の canonical source は `.agents/skills/room-art-direction/references/direction-*.md` です。各Markdownの **`## Prompt guidance` セクションだけ**をCLI向けの実行用fragmentとして抽出します。Summary / Core / Avoid / Non-goals / Review checklist まで丸ごとCLIへ入れないため、Agent向け文書の表現力と実行プロンプトの簡潔さを両立します。
 
 生成は次で行います。
 
@@ -71,7 +71,7 @@ go generate ./data
 | `-version` | バージョン表示して終了 |
 | `-out <path>` | 出力ファイル（省略時は上記タイムスタンプ名） |
 | `-seed <uint64>` | 乱数シード（10進）。省略時は非固定 |
-| `-style <name>` | `legacy` または生成済み `direction-a` / `direction-b` / `direction-c`。省略時は `legacy` |
+| `-style <name>` | `legacy` または生成済み `direction-a` / `direction-b` / `direction-c` / `direction-d` / `direction-d`。省略時は `legacy` |
 | `-style-file <path>` | 任意の UTF-8 スタイル本文をファイルから読み込む。 `-style` と同時指定不可 |
 
 開発中は `go run` でも可です。
@@ -84,6 +84,7 @@ go run ./cmd/room-image-prompt -seed 1 -style legacy
 go run ./cmd/room-image-prompt -seed 1 -style direction-a
 go run ./cmd/room-image-prompt -seed 1 -style direction-b
 go run ./cmd/room-image-prompt -seed 1 -style direction-c
+go run ./cmd/room-image-prompt -seed 1 -style direction-d
 go run ./cmd/room-image-prompt -seed 1 -style-file ./my-style.txt
 ```
 
