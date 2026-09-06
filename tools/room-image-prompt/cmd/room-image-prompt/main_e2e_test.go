@@ -10,6 +10,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/kani3camp/youtube-study-space/tools/room-image-prompt/data"
 )
 
 func moduleRoot(t *testing.T) string {
@@ -123,7 +125,8 @@ func TestResolveStyle(t *testing.T) {
 	t.Parallel()
 
 	fsys := fstest.MapFS{
-		"style_legacy.txt": {Data: []byte("LEGACY_STYLE\n")},
+		"style_legacy.txt":                {Data: []byte("LEGACY_STYLE\n")},
+		"style_direction_a.generated.txt": {Data: []byte("DIRECTION_A\n")},
 	}
 	customPath := filepath.Join(t.TempDir(), "custom-style.txt")
 	if err := os.WriteFile(customPath, []byte("CUSTOM_STYLE\n"), 0o644); err != nil {
@@ -140,8 +143,10 @@ func TestResolveStyle(t *testing.T) {
 		{name: "default legacy", want: "LEGACY_STYLE\n"},
 		{name: "explicit legacy", styleName: legacyStyleName, want: "LEGACY_STYLE\n"},
 		{name: "custom file", styleFile: customPath, want: "CUSTOM_STYLE\n"},
+		{name: "direction style", styleName: "direction-a", want: "DIRECTION_A\n"},
 		{name: "conflicting sources", styleName: legacyStyleName, styleFile: customPath, wantErr: true},
-		{name: "unsupported named style", styleName: "direction-a", wantErr: true},
+		{name: "missing direction style", styleName: "direction-z", wantErr: true},
+		{name: "unsupported named style", styleName: "other", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -161,6 +166,61 @@ func TestResolveStyle(t *testing.T) {
 				t.Fatalf("style mismatch: got %q want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveBundledDirectionStyles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		marker string
+	}{
+		{name: "direction-a", marker: "premium game environment art"},
+		{name: "direction-b", marker: "full-scene anime environment illustration"},
+		{name: "direction-c", marker: "clean abstract graphic spatial illustration"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			style, err := resolveStyle(data.FS, tt.name, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(style, tt.marker) {
+				t.Fatalf("style %q does not contain marker %q: %s", tt.name, tt.marker, style)
+			}
+		})
+	}
+}
+
+func TestCLI_DirectionStyle(t *testing.T) {
+	t.Parallel()
+
+	dir := moduleRoot(t)
+	outFile := filepath.Join(t.TempDir(), "direction-a.txt")
+	cmd := exec.Command(
+		"go", "run", "./cmd/room-image-prompt",
+		"-seed", "1",
+		"-style", "direction-a",
+		"-out", outFile,
+	)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	body, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	if !strings.Contains(got, "premium game environment art") {
+		t.Fatalf("direction-a style was not injected:\n%s", got)
+	}
+	if strings.Contains(got, "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
+		t.Fatalf("legacy style should not be injected with direction-a:\n%s", got)
 	}
 }
 

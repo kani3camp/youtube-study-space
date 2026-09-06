@@ -243,3 +243,32 @@ func TestApplyStyle_RejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+func TestReadDirectionStyle(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"style_direction_a.generated.txt": {Data: []byte("DIRECTION_A\n")},
+	}
+	got, err := ReadDirectionStyle(fsys, "direction-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "DIRECTION_A\n" {
+		t.Fatalf("direction style mismatch: %q", got)
+	}
+}
+
+func TestReadDirectionStyle_RejectsInvalidOrMissingStyle(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{}
+	for _, name := range []string{"direction-", "direction-a-extra", "Direction-a", "direction-z"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ReadDirectionStyle(fsys, name); err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}

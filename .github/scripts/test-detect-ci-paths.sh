@@ -46,6 +46,7 @@ assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
 assert_exact_groups docs_site docs-site/docs/intro.md
 assert_exact_groups room_image_prompt tools/room-image-prompt/cmd/room-image-prompt/main.go
+assert_exact_groups room_image_prompt .agents/skills/room-art-direction/references/direction-a-clean-vivid-digital.md
 assert_exact_groups menu_image_generator tools/menu-image-generator/src/index.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc

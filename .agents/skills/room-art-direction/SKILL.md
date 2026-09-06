@@ -64,9 +64,9 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 その資料に含まれる用途制約は利用してよいが、特定の色・レンダリング・質感の指定を、選択中の Direction より優先しない。
 
 > [!IMPORTANT]
-> `tools/room-image-prompt` の現行 CLI 出力は、`prompt_template.txt` に残る legacy な画風指定（3D 建築レンダリング風を避ける、ベクターライク、素材感控えめ、落ち着いた配色など）をそのまま含むため、Direction A / B / C 適用時には CLI の生成結果をそのまま画像生成モデルへ渡さない。
-> `prompt_template.txt` からアスペクト比、座席カード配置、人物・文字の禁止などの**用途制約だけを抽出**し、画風に関する部分は**選択中の Direction の定義で置き換える**。
-> 将来的に CLI 側で「共通用途制約」と「Style / Direction」を物理的に分離するまでは、このルールを互換境界とする。
+> Direction の canonical source は `references/direction-*.md` である。CLI用の `tools/room-image-prompt/data/style_direction_*.generated.txt` は各referenceの **`## Prompt guidance` セクションから自動生成**されるため、生成物を直接編集しない。
+> Direction を変更したら `cd tools/room-image-prompt && go generate ./data` を実行し、生成物も同じ変更に含める。CIはcanonical Markdownと生成物の不一致を拒否する。
+> CLIでは `-style direction-a` / `direction-b` / `direction-c` で生成済みDirectionを利用できる。未指定時だけ後方互換のため `legacy` を使う。
 
 ### 2. Direction の不変条件を読む
 
@@ -150,7 +150,10 @@ Direction を新規追加・大幅更新したときは、可能なら次の Sub
 1. `references/direction-<id>-<name>.md` を追加する。
 2. このファイルの「現在のアートディレクション」表へ追加する。
 3. Core / Prefer / Avoid / Non-goals を必ず書く。
-4. 過去生成物から抽出したモチーフと、実際の描画ルールを分離する。
-5. Subject Swap Test で題材依存になっていないことを確認する。
+4. **`## Prompt guidance` を必ず1つだけ置き、CLIへ渡してよい簡潔なstyle fragmentだけを書く。** このセクションが実行用styleのcanonical sourceになる。
+5. 過去生成物から抽出したモチーフと、実際の描画ルールを分離する。
+6. Subject Swap Test で題材依存になっていないことを確認する。
+7. `cd tools/room-image-prompt && go generate ./data` を実行し、生成された `style_direction_*.generated.txt` をコミットする。
+8. `go test ./...` でcanonical sourceと生成物の同期を確認する。
 
 既存 Direction の内容を、新しい Direction に合わせて平均化しない。管理人の複数の好みは複数の方向性として共存させる。

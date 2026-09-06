@@ -1,0 +1,10 @@
+- full-scene anime environment illustration
+- every object rendered consistently in anime visual language
+- modern anime realism without strong caricature
+- cinematic animated-film lighting and atmosphere
+- clean cel-style shapes and controlled outlines
+- beautiful deliberate color design
+- illustrated materials rather than photoreal PBR materials
+- polished, vivid, clean digital finish
+- no paper or film grain
+- not a family-cartoon or heavily deformed style
