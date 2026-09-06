@@ -164,7 +164,7 @@ func resolveStyle(fsys fs.FS, styleName, styleFile string) (string, error) {
 	case "", legacyStyleName:
 		style, err := theme.ReadLegacyStyle(fsys)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("legacy style 読込: %w", err)
 		}
 		return style, nil
 	default:
