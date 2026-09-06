@@ -1,10 +1,13 @@
-- unmistakably 2D full-scene anime environment illustration; the result must read as a finished animation-film frame, not as softened 3D CG
+- unmistakably 2D full-scene anime key visual or animation-film still; the scene must look illustrated from the first glance, never like softened 3D CG
 - every object, building, plant, sky and distant element rendered in one consistent anime illustration language
-- clean cel-style color planes, selective crisp line accents, intentionally simplified illustrated surfaces and graphic shadow shapes
+- strong cel-value grouping: large intentionally designed light, midtone and shadow shapes instead of continuous realistic shading
+- visible anime line economy: selective crisp contour and structural lines only where they clarify forms, with confident omission elsewhere
+- illustrated surfaces with simplified material cues; suggest wood, stone, glass and foliage through shape, color and controlled highlights rather than PBR texture
 - cinematic anime color scripting with expressive warm/cool relationships, atmospheric perspective, luminous sky light and purposeful light-and-shadow design
-- use stylized perspective and shape design to create a memorable scene; avoid ordinary real-estate or rooftop-cafe visualization
-- preserve spatial depth, vertical structures and scenic vistas, but express them through illustrated color, shape and atmosphere rather than PBR materials
+- use stylized perspective, shape exaggeration and authored silhouettes to make the scene memorable while keeping the same underlying architecture and seat layout
+- preserve spatial depth, vertical structures and scenic vistas through layered color, line and atmosphere rather than 3D gloss
 - readable medium-scale detail and a strong scene-level composition, with calm seat-card zones embedded inside a visually authored environment
 - modern, sophisticated anime realism without chibi, family-cartoon or heavily deformed proportions
-- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural diagram look and generic pastel block visualization
+- avoid earthy brown realism dominating the whole image; keep color relationships deliberately authored and visually fresh
+- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural visualization, concept-render paintover look and generic pastel block visualization
 - no paper texture, watercolor wash, film grain or aged cel texture
