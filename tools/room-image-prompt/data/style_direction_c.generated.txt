@@ -1,6 +1,7 @@
 - unmistakably abstract graphic spatial illustration built from simplified 2D or gentle 2.5D geometric forms, not a realistic architectural render
 - aggressively simplify furniture, architecture, plants and landscape into clean silhouettes, blocks, curves and color fields
 - soft pastel-forward palette using several coordinated colors such as sky blue, mint, cream, butter yellow, pale peach and periwinkle, with airy light neutrals
+- respect the specified time of day, weather and light direction exactly; pastel styling changes the rendering language, not the environmental conditions
 - bold color blocking, elegant negative space, repeated shape rhythm and playful spatial composition are more important than realistic materials
 - use flat or very gently shaded planes with simple graphic shadows; avoid realistic reflections, gloss, roughness, wood grain, grass texture, stone texture and photographic vegetation
 - allow impossible or stylized geometry, exaggerated curves, floating planes, unusual steps or abstract openings when they improve the composition
