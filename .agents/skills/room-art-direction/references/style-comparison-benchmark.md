@@ -119,3 +119,15 @@ Direction定義は特定モデルへ最適化しすぎない。モデル比較�
 - indoor industrial atrium
 
 Subject Swapではgeometry一致ではなく、各Directionの描画原理が残ることを優先する。
+
+
+## Secondary diagnostic: neutral geometry anchor
+
+geometry driftを切り分けたい場合だけ、スタイル中立のclay / blockout / massing model画像を補助的に使う。
+
+- 完成したA/B/C画像をreferenceにしない
+- neutral anchorは白〜薄いグレー中心で、PBR、アニメ線、パステル色面を持たせない
+- productionの共通用途制約とfixed text fixtureを**必ず同時に再宣言**する
+- anchorの材質・陰影・色は無視し、camera / floor plan / seat positions / major blocksだけを保持させる
+
+neutral anchor結果はStyle fidelityの主判定には使わず、`geometry drift` の診断用とする。
