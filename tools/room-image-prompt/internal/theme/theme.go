@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"bytes"
 	"fmt"
 	"io/fs"
 	"math/rand/v2"
@@ -77,27 +76,46 @@ func BuildTheme(fsys fs.FS, r *rand.Rand) (Theme, error) {
 	return t, nil
 }
 
-// ReadTemplate loads the common prompt template and the legacy style block, normalizes CRLF to LF,
-// and injects the style block at exactly one {{STYLE}} placeholder.
-//
-// The style is deliberately stored separately so later callers can replace it with an explicit
-// art direction without duplicating or parsing the common usage constraints.
+// ReadTemplate loads and validates the common prompt template without choosing a style.
 func ReadTemplate(fsys fs.FS) (string, error) {
 	tmpl, err := readRequiredText(fsys, templateFile)
 	if err != nil {
 		return "", err
 	}
-	if count := strings.Count(tmpl, stylePlaceholder); count != 1 {
-		return "", fmt.Errorf("%q: %s は1個必要です（実際: %d個）", templateFile, stylePlaceholder, count)
+	if err := validateStylePlaceholder(tmpl); err != nil {
+		return "", fmt.Errorf("%q: %w", templateFile, err)
+	}
+	return tmpl, nil
+}
+
+// ReadLegacyStyle loads the bundled legacy style used when no explicit style is supplied.
+func ReadLegacyStyle(fsys fs.FS) (string, error) {
+	return readRequiredText(fsys, legacyStyleFile)
+}
+
+// ApplyStyle injects style into exactly one {{STYLE}} placeholder.
+// It accepts arbitrary style text so callers do not need to encode named art directions here.
+func ApplyStyle(template, style string) (string, error) {
+	template = normalizeNewlines(template)
+	if err := validateStylePlaceholder(template); err != nil {
+		return "", err
 	}
 
-	style, err := readRequiredText(fsys, legacyStyleFile)
-	if err != nil {
-		return "", err
+	style = normalizeNewlines(style)
+	if strings.TrimSpace(style) == "" {
+		return "", fmt.Errorf("style: テキストが空です")
 	}
 	style = strings.TrimRight(style, "\n")
 
-	return strings.Replace(tmpl, stylePlaceholder, style, 1), nil
+	return strings.Replace(template, stylePlaceholder, style, 1), nil
+}
+
+func validateStylePlaceholder(template string) error {
+	count := strings.Count(template, stylePlaceholder)
+	if count != 1 {
+		return fmt.Errorf("%s は1個必要です（実際: %d個）", stylePlaceholder, count)
+	}
+	return nil
 }
 
 func readRequiredText(fsys fs.FS, name string) (string, error) {
@@ -105,9 +123,13 @@ func readRequiredText(fsys fs.FS, name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read %q: %w", name, err)
 	}
-	s := string(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")))
+	s := normalizeNewlines(string(b))
 	if strings.TrimSpace(s) == "" {
 		return "", fmt.Errorf("%q: テキストが空です", name)
 	}
 	return s, nil
+}
+
+func normalizeNewlines(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }
