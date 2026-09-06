@@ -48,6 +48,8 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 
 Direction A/B/C/D の canonical source は `.agents/skills/room-art-direction/references/direction-*.md` です。各Markdownの **`## Prompt guidance` セクションだけ**をCLI向けの実行用fragmentとして抽出します。Summary / Core / Avoid / Non-goals / Review checklist まで丸ごとCLIへ入れないため、Agent向け文書の表現力と実行プロンプトの簡潔さを両立します。
 
+Direction D の最終品質確認は ChatGPT Chat / GPT-5.6 Sol / High を主基準とします。このCLIは最終画像を生成するものではなく、再利用可能なpromptを組み立てる役割です。Codex / Work / 軽量モデル固有の生成癖を補正するための文言は、canonical styleへ安易に追加しません。
+
 生成は次で行います。
 
 ```bash
