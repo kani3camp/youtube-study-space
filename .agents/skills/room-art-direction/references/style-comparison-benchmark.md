@@ -23,6 +23,15 @@ Direction A / B / C の描画差だけを比較するための再現可能な検
 
 中立アンカー自体は評価対象にしない。目的はgeometry lockだけである。
 
+比較variantの生成では、reference lock と Direction fragment だけでなく、**production と同じ共通用途制約を必ず併用する**。時間帯・天気・座席数などのbenchmark条件も各variantで再宣言する。reference画像に条件が写っていても、モデルへ再度テキスト指定する。
+
+各variantの入力順序は原則として次にする。
+
+1. production の共通用途制約
+2. benchmark の固定テーマ・構造条件
+3. neutral reference lock
+4. 選択した Direction の `## Prompt guidance`
+
 各variantには次を追加する。
 
 > Preserve the exact camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, skyline, time of day, weather and lighting direction from the neutral reference image. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction. Ignore the neutral reference's clay material and placeholder shading.
