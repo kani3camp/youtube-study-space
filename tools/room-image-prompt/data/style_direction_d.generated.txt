@@ -1,0 +1,14 @@
+- unmistakably clean, cozy, polished digital environment illustration with a friendly and approachable lifestyle feel
+- clearly illustrated at first glance; never resemble a photograph, realistic interior render, architectural visualization or PBR 3D scene
+- feel somewhere between a polished casual simulation-game environment and a modern lifestyle editorial illustration
+- simplify furniture, architecture, plants, props and distant scenery into clean readable shapes with carefully designed silhouettes
+- use soft controlled shading with broad simple light and shadow groups; use gentle gradients sparingly only to support form
+- keep materials deliberately stylized and simplified; communicate wood, fabric, glass, metal and foliage through color, value and small controlled highlights rather than realistic surface texture
+- avoid micro-texture such as detailed wood grain, fabric weave, stone roughness, realistic material roughness and physically accurate reflections
+- keep foliage and small objects organized into clear illustrated forms rather than photographic detail
+- keep linework minimal or nearly invisible; define forms primarily through shape design, value separation, color and soft light
+- use a harmonious restrained palette with a pleasant warm/cool balance; avoid muddy dullness, hyper-realistic color and generic brown-orange cozy treatment
+- keep the scene visually rich enough to feel inhabited and intentional, but calm, tidy and readable rather than cluttered
+- respect the specified time of day, weather and light direction exactly; stylize those conditions instead of replacing them
+- remain more representational and softly dimensional than abstract graphic Direction C, less materially physical and cinematic than Direction A, and clearly distinct from cel-rendered anime Direction B
+- no photorealism, architectural visualization, ray-traced look, realistic depth of field, painterly texture, paper grain, watercolor, sketchiness or thick cartoon outlines
