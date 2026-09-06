@@ -189,7 +189,7 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 	}
 }
 
-func TestDirectionDRejectsRenderAndPainterlyFallback(t *testing.T) {
+func TestDirectionDRejectsRenderPainterlyAndShowroomFallback(t *testing.T) {
 	t.Parallel()
 
 	style, err := resolveStyle(data.FS, "direction-d", "")
@@ -198,9 +198,13 @@ func TestDirectionDRejectsRenderAndPainterlyFallback(t *testing.T) {
 	}
 	for _, required := range []string{
 		"clean, polished digital environment illustration",
-		"not as photorealism, architectural visualization, interior CG, anime background art, or painterly concept art",
+		"hospitality marketing art, or a real-estate / showroom render",
 		"keep edges crisp and object separation clear",
 		"avoid washed-out milky pastel fog",
+		"avoid monomaterial beige / white / pale-wood minimalism",
+		"avoid dramatic centerpiece compositions built around oversized sculptural lighting",
+		"avoid turning the room into a staged café, hotel lounge, luxury lobby, or brochure-like hospitality space",
+		"slightly lived-in, but not sterile, showroom-empty",
 		"no atmospheric haze",
 	} {
 		if !strings.Contains(style, required) {
@@ -209,6 +213,7 @@ func TestDirectionDRejectsRenderAndPainterlyFallback(t *testing.T) {
 	}
 	for _, forbidden := range []string{
 		"premium game environment art that feels like an explorable",
+		"include one or two bold architectural or environmental hero forms",
 		"dramatic directional light, reflections and shadow depth",
 	} {
 		if strings.Contains(style, forbidden) {
