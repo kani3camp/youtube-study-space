@@ -38,6 +38,9 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 
 方向性が明示されていない場合、既存 Direction を勝手にデフォルト扱いしない。必要なら複数方向を比較できる形で提示する。
 
+> [!NOTE]
+> Direction D の品質基準は ChatGPT Chat / GPT-5.6 Sol / High での生成を主とする。Codex / Work / 軽量モデル固有の失敗を補正するための長いnegativeを canonical Direction へ積み増さない。別経路の生成結果はモデル比較として切り分ける。
+
 ## ワークフロー
 
 ### 1. 用途制約と画風を分ける
