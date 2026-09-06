@@ -29,7 +29,7 @@ A/B/Cで以下を**完全に同じテキスト**として指定する。
 
 ## Secondary protocol: neutral geometry anchor
 
-同一geometryでの変換能力も確認したい場合だけ、A/B/Cのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
+geometry driftを切り分けたい場合だけ、A/B/Cのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
 
 完成したDirection A/B/C画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
 
@@ -41,25 +41,36 @@ neutral anchor は白〜薄いグレー中心にし、次を避ける。
 - pastel color design
 - painterly texture
 
-固定対象:
+### Reference で固定するもの
+
+neutral anchor は**geometryだけ**を固定する。
 
 - camera position and lens / field of view
 - architecture and floor plan
 - platform heights and stair positions
 - seat count and seat positions
 - hero structure position and silhouette
+- major architectural blocks
 - distant skyline / horizon
+
+### Text fixture で固定するもの
+
+condition とproduction constraintsはreferenceから継承せず、各variantで**同じテキストを再宣言**する。
+
 - time of day
 - weather
 - light direction
+- production の共通用途制約
+- people / text / UI constraints
+- fixed text fixture の構造条件
 
-中立アンカー自体は評価対象にしない。目的はgeometry lockだけである。
+中立アンカー自体は評価対象にしない。材質・陰影・色も継承対象にしない。
 
-各variantには production の共通用途制約とbenchmark条件を**再度テキストでも指定**した上で、次を追加する。
+各variantには上記text fixtureを再宣言した上で、次を追加する。
 
-> Preserve the exact camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, skyline, time of day, weather and lighting direction from the neutral reference image. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction. Ignore the neutral reference's clay material and placeholder shading.
+> Preserve only the camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, major blocks and skyline from the neutral reference image. Do not inherit its materials, shading, colors, time of day, weather or lighting. Use the text fixture for all environmental conditions and production constraints. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction.
 
-referenceによってStyle fidelityが明らかに低下する場合、そのモデルではこのsecondary protocolを採用しない。geometry fidelityとstyle fidelityのトレードオフとして記録する。
+neutral anchor結果はStyle fidelityの主判定には使わず、`geometry drift` の診断用とする。referenceによってStyle fidelityが明らかに低下する場合、そのモデルではこのsecondary protocolを採用しない。geometry fidelityとstyle fidelityのトレードオフとして記録する。
 
 ## Fixed text fixture
 
@@ -120,14 +131,3 @@ Direction定義は特定モデルへ最適化しすぎない。モデル比較�
 
 Subject Swapではgeometry一致ではなく、各Directionの描画原理が残ることを優先する。
 
-
-## Secondary diagnostic: neutral geometry anchor
-
-geometry driftを切り分けたい場合だけ、スタイル中立のclay / blockout / massing model画像を補助的に使う。
-
-- 完成したA/B/C画像をreferenceにしない
-- neutral anchorは白〜薄いグレー中心で、PBR、アニメ線、パステル色面を持たせない
-- productionの共通用途制約とfixed text fixtureを**必ず同時に再宣言**する
-- anchorの材質・陰影・色は無視し、camera / floor plan / seat positions / major blocksだけを保持させる
-
-neutral anchor結果はStyle fidelityの主判定には使わず、`geometry drift` の診断用とする。
