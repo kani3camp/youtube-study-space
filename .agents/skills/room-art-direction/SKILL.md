@@ -121,6 +121,12 @@ Direction を保ったまま、題材・建築・地形・時代・世界観・�
 
 比較画像で「CG は夕方、アニメは昼、グラフィックは晴天」のように条件が混ざると、スタイル差を正しく評価できない。
 
+厳密なスタイル比較では、まず `references/style-comparison-benchmark.md` の**text-locked fixture**を使い、題材・構造アンカー・時間帯・天気・光源条件を同一テキストで固定する。画像referenceはgeometryを揃えやすい反面、そのreference固有の材質・陰影・3D感がDirectionへ混入することがあるため、Style fidelityの一次判定にはしない。
+
+同一geometryでの変換能力も確認したい場合は、A/B/Cのどれにも属さないneutral clay / blockout画像をsecondary benchmarkとして使う。完成したA/B/C画像をreferenceにしない。reference使用時に画風が弱まった場合は、失敗をDirection定義へそのまま取り込まず、**reference bias / geometry-style trade-off**として分離評価する。
+
+生成ごとの空間設計差は Style fidelity とは別に **geometry drift**、時間帯・天気・光源のズレは **condition drift** として記録する。
+
 ### 6. 結果をレビューする
 
 レビューでは最低でも次の2軸を分けて評価する。

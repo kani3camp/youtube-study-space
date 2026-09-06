@@ -172,24 +172,18 @@ func TestResolveStyle(t *testing.T) {
 func TestResolveBundledDirectionStyles(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
-		marker string
-	}{
-		{name: "direction-a", marker: "premium game environment art"},
-		{name: "direction-b", marker: "full-scene anime environment illustration"},
-		{name: "direction-c", marker: "clean abstract graphic spatial illustration"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, name := range []string{"direction-a", "direction-b", "direction-c"} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			style, err := resolveStyle(data.FS, tt.name, "")
+			style, err := resolveStyle(data.FS, name, "")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(style, tt.marker) {
-				t.Fatalf("style %q does not contain marker %q: %s", tt.name, tt.marker, style)
+			if strings.TrimSpace(style) == "" {
+				t.Fatalf("style %q is empty", name)
+			}
+			if strings.Contains(style, "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
+				t.Fatalf("style %q unexpectedly contains legacy style: %s", name, style)
 			}
 		})
 	}

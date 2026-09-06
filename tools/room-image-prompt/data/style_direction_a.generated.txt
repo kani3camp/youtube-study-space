@@ -1,12 +1,12 @@
-- polished cinematic stylized CG environment
-- premium game environment art
-- vivid deliberate color design
-- convincing but stylized materials
-- crisp readable geometry
-- strong depth and spatial layering
-- dramatic but readable lighting
-- imaginative memorable environment
-- stylized rather than strictly photorealistic
-- no hand-drawn contour feeling
-- no paper, watercolor, painterly or grain texture
-- avoid generic luxury interior and brown-orange cozy treatment
+- unmistakably polished cinematic stylized 3D CG environment, with dimensional form, materials and lighting as the primary visual language
+- premium game environment art that feels like an explorable, memorable game location rather than an architectural visualization
+- strong verticality, layered depth, overlooks, openings and a clear sense that the world continues beyond the frame
+- include one or two bold architectural or environmental hero forms; do not reduce the scene to rows of ordinary tables on a generic terrace
+- vivid deliberate color scripting with clear hue relationships and accent colors; avoid beige, brown and pale neutral dominance
+- convincing but art-directed material contrast such as glass, water, metal, stone, wood, translucency or glow where appropriate
+- dramatic directional light, reflections and shadow depth are welcome outside UI-safe seat zones
+- respect the specified time of day, weather and light direction exactly; create visual drama within those conditions and never replace daylight with sunset, dusk or night unless the theme explicitly asks for it
+- rich controlled detail around the environment while keeping seat-card surfaces calm and readable
+- stylized rather than strictly photorealistic; avoid corporate rooftop, stock cafe, luxury-hotel and real-estate-render aesthetics
+- clearly more dimensional and materially rich than an anime illustration or flat graphic style
+- no hand-drawn contour feeling, paper, watercolor, painterly canvas or film-grain texture
