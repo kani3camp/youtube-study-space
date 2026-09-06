@@ -76,23 +76,21 @@
 
 ## Prompt guidance
 
-- clean abstract graphic spatial illustration
-- simplified geometric architecture and furniture
-- soft pastel palette with multiple coordinated colors
-- airy whites and light neutrals
-- crisp clean edges
-- flat to gently shaded color planes
-- stylized non-photoreal materials
-- clear readable composition
-- elegant negative space and shape rhythm
-- no realistic texture, no PBR material detail
-- no paper, watercolor, painterly or grain texture
-- avoid neon-purple default palette
+- unmistakably abstract graphic spatial illustration built from simplified 2D or gentle 2.5D geometric forms, not a realistic architectural render
+- aggressively simplify furniture, architecture, plants and landscape into clean silhouettes, blocks, curves and color fields
+- soft pastel-forward palette using several coordinated colors such as sky blue, mint, cream, butter yellow, pale peach and periwinkle, with airy light neutrals
+- bold color blocking, elegant negative space, repeated shape rhythm and playful spatial composition are more important than realistic materials
+- use flat or very gently shaded planes with simple graphic shadows; avoid realistic reflections, gloss, roughness, wood grain, grass texture, stone texture and photographic vegetation
+- allow impossible or stylized geometry, exaggerated curves, floating planes, unusual steps or abstract openings when they improve the composition
+- keep the workspace and seat zones legible, but do not turn the scene into a conventional office, cafe, lawn garden or real-estate visualization
+- objects must remain intentionally non-realistic even when the subject is familiar
+- clearly distinct from both anime illustration and game-CG rendering: minimal material realism, no PBR look, no cinematic 3D lighting
+- no paper, watercolor, painterly or grain texture; avoid neon-purple default palette
 
 ## Review checklist
 
-- [ ] 物体がリアルなCG質感へ戻っていない
-- [ ] 形と色面の構成が主役になっている
+- [ ] 家具・植物・地面を含め、物体がリアルなCG質感や写実テクスチャへ戻っていない
+- [ ] 形・色面・余白・反復リズムが主役で、通常の建築ビジュアライゼーションに見えない
 - [ ] パステル系の配色が複数色で意図的に設計されている
 - [ ] 白・余白が適切に使われ、画面が軽やか
 - [ ] 単純化しても空間構造と座席が読み取れる
