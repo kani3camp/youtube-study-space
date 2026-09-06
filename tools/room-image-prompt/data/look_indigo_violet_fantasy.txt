@@ -1,6 +1,7 @@
 ## Look profile: Indigo Violet Fantasy
 
 - bias the palette toward deep blue, indigo, violet and clear cyan, with restrained warm cream or amber accents for focal contrast
+- when the active Direction explicitly calls for a light pastel palette, reinterpret deep indigo and violet as small cool accents or soft shadow notes; keep large surfaces within that Direction's broader pastel range instead of turning the whole scene blue-purple
 - create a luminous fantasy atmosphere through colored light relationships and crisp glowing accents, not through foggy haze or bloom
 - keep dark areas chromatic rather than muddy black; preserve readable blue-violet shadow masses and bright cyan or warm highlights
 - let foliage remain recognizably green where appropriate, but allow cool blue-violet shadow notes to tie it into the overall palette
