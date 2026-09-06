@@ -8,7 +8,7 @@ Direction A / B / C / D の描画差だけを比較するための再現可能�
 
 **Style fidelity の判定は text-only を主とする。**
 
-実生成では、画像referenceを強くロックするとgeometryは揃いやすい一方、reference側の3D形状・陰影・材質表現まで残り、特にDirection B / Cの描画言語を弱める場合があった。そのため「同じgeometryに見えること」を優先して本来の画風を潰さない。
+実生成では、画像referenceを強くロックするとgeometryは揃いやすい一方、reference側の3D形状・陰影・材質表現まで残り、特にDirection B / C / Dの描画言語を弱める場合があった。そのため「同じgeometryに見えること」を優先して本来の画風を潰さない。
 
 A/B/C/Dで以下を**完全に同じテキスト**として指定する。
 
@@ -31,7 +31,7 @@ A/B/C/Dで以下を**完全に同じテキスト**として指定する。
 
 geometry driftを切り分けたい場合だけ、A/B/C/Dのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
 
-完成したDirection A/B/C/D/D画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
+完成したDirection A/B/C/D画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
 
 neutral anchor は白〜薄いグレー中心にし、次を避ける。
 
