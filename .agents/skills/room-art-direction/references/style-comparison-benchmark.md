@@ -1,6 +1,6 @@
 # Style Comparison Benchmark
 
-Direction A / B / C の描画差だけを比較するための再現可能な検証プロトコル。
+Direction A / B / C / D の描画差だけを比較するための再現可能な検証プロトコル。
 
 これは管理人のアートディレクションそのものではなく、**比較のためだけの固定fixture**である。ここに含まれる屋上、テラス、樹木などを各Directionの必須モチーフへ昇格させない。
 
@@ -10,7 +10,7 @@ Direction A / B / C の描画差だけを比較するための再現可能な検
 
 実生成では、画像referenceを強くロックするとgeometryは揃いやすい一方、reference側の3D形状・陰影・材質表現まで残り、特にDirection B / Cの描画言語を弱める場合があった。そのため「同じgeometryに見えること」を優先して本来の画風を潰さない。
 
-A/B/Cで以下を**完全に同じテキスト**として指定する。
+A/B/C/Dで以下を**完全に同じテキスト**として指定する。
 
 - production の共通用途制約
 - 題材
@@ -29,9 +29,9 @@ A/B/Cで以下を**完全に同じテキスト**として指定する。
 
 ## Secondary protocol: neutral geometry anchor
 
-geometry driftを切り分けたい場合だけ、A/B/Cのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
+geometry driftを切り分けたい場合だけ、A/B/C/Dのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
 
-完成したDirection A/B/C画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
+完成したDirection A/B/C/D/D画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
 
 neutral anchor は白〜薄いグレー中心にし、次を避ける。
 
@@ -74,7 +74,7 @@ neutral anchor結果はStyle fidelityの主判定には使わず、`geometry dri
 
 ## Fixed text fixture
 
-text-only比較では、少なくとも次の構造アンカーをA/B/Cで完全に同一にする。
+text-only比較では、少なくとも次の構造アンカーをA/B/C/Dで完全に同一にする。
 
 - 16:9
 - clear bright early afternoon
@@ -101,6 +101,7 @@ Direction定義は特定モデルへ最適化しすぎない。モデル比較�
 - A: 立体・素材・光・ゲーム環境としての高揚感
 - B: 2Dアニメの線・value grouping・色面・空気感
 - C: 非写実的な形・色面・余白・簡略化
+- D: 整理された具体形・柔らかな陰影・簡略化した素材・クリーンなデジタル仕上げ
 
 ### Geometry drift
 - カメラが変わっていないか
