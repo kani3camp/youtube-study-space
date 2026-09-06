@@ -189,7 +189,7 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 	}
 }
 
-func TestDirectionDRejectsRenderLikeFallback(t *testing.T) {
+func TestDirectionDRejectsRenderAndPainterlyFallback(t *testing.T) {
 	t.Parallel()
 
 	style, err := resolveStyle(data.FS, "direction-d", "")
@@ -197,9 +197,11 @@ func TestDirectionDRejectsRenderLikeFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
-		"illustration-first digital environment image",
-		"no interior-render look",
-		"simplify it further",
+		"clean, polished digital environment illustration",
+		"not as photorealism, architectural visualization, interior CG, anime background art, or painterly concept art",
+		"keep edges crisp and object separation clear",
+		"avoid washed-out milky pastel fog",
+		"no atmospheric haze",
 	} {
 		if !strings.Contains(style, required) {
 			t.Fatalf("direction-d style is missing %q:\n%s", required, style)
