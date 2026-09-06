@@ -15,14 +15,14 @@ import (
 )
 
 const (
-	gcpAuthModeEnv                    = "GCP_AUTH_MODE"
-	gcpAuthModeLegacy                 = "legacy"
-	gcpAuthModeWIF                    = "wif"
-	googleCloudProjectEnv             = "GOOGLE_CLOUD_PROJECT"
-	gcpWIFAudienceEnv                 = "GCP_WIF_AUDIENCE"
-	gcpWIFServiceAccountEmailEnv      = "GCP_WIF_SERVICE_ACCOUNT_EMAIL"
-	awsSubjectTokenType               = "urn:ietf:params:aws:token-type:aws4_request"
-	googleCloudPlatformScope          = "https://www.googleapis.com/auth/cloud-platform"
+	gcpAuthModeEnv                   = "GCP_AUTH_MODE"
+	gcpAuthModeLegacy                = "legacy"
+	gcpAuthModeWIF                   = "wif"
+	googleCloudProjectEnv            = "GOOGLE_CLOUD_PROJECT"
+	gcpWIFAudienceEnv                = "GCP_WIF_AUDIENCE"
+	gcpWIFServiceAccountEmailEnv     = "GCP_WIF_SERVICE_ACCOUNT_EMAIL"
+	awsSubjectTokenType              = "urn:ietf:params:aws:token-type:aws4_request"
+	googleCloudPlatformScope         = "https://www.googleapis.com/auth/cloud-platform"
 	iamCredentialsServiceAccountPath = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 )
 
