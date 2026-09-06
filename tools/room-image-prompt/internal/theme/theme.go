@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"bytes"
 	"fmt"
 	"io/fs"
 	"math/rand/v2"
@@ -9,7 +8,11 @@ import (
 	"strings"
 )
 
-const templateFile = "prompt_template.txt"
+const (
+	templateFile     = "prompt_template.txt"
+	legacyStyleFile  = "style_legacy.txt"
+	stylePlaceholder = "{{STYLE}}"
+)
 
 // Seat count is chosen uniformly in [seatCountMin, seatCountMax] (inclusive) without a data file.
 const (
@@ -73,15 +76,93 @@ func BuildTheme(fsys fs.FS, r *rand.Rand) (Theme, error) {
 	return t, nil
 }
 
-// ReadTemplate loads and normalizes prompt_template.txt (CRLF -> LF). Returns error if empty after trim.
+// ReadTemplate loads and validates the common prompt template without choosing a style.
 func ReadTemplate(fsys fs.FS) (string, error) {
-	b, err := fs.ReadFile(fsys, templateFile)
+	tmpl, err := readRequiredText(fsys, templateFile)
 	if err != nil {
-		return "", fmt.Errorf("read %q: %w", templateFile, err)
+		return "", err
 	}
-	s := string(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")))
+	if err := validateStylePlaceholder(tmpl); err != nil {
+		return "", fmt.Errorf("%q: %w", templateFile, err)
+	}
+	return tmpl, nil
+}
+
+// ReadLegacyStyle loads the bundled legacy style used when no explicit style is supplied.
+func ReadLegacyStyle(fsys fs.FS) (string, error) {
+	return readRequiredText(fsys, legacyStyleFile)
+}
+
+// ReadDirectionStyle loads a generated Direction style asset by its CLI name, such as direction-a.
+func ReadDirectionStyle(fsys fs.FS, styleName string) (string, error) {
+	filename, err := directionStyleFilename(styleName)
+	if err != nil {
+		return "", err
+	}
+	style, err := readRequiredText(fsys, filename)
+	if err != nil {
+		return "", fmt.Errorf("read direction style %q: %w", styleName, err)
+	}
+	return style, nil
+}
+
+// ApplyStyle injects style into exactly one {{STYLE}} placeholder.
+// It accepts arbitrary style text so callers do not need to encode named art directions here.
+func ApplyStyle(template, style string) (string, error) {
+	template = normalizeNewlines(template)
+	if err := validateStylePlaceholder(template); err != nil {
+		return "", err
+	}
+
+	style = normalizeNewlines(style)
+	if strings.TrimSpace(style) == "" {
+		return "", fmt.Errorf("style: テキストが空です")
+	}
+	style = strings.TrimRight(style, "\n")
+
+	return strings.Replace(template, stylePlaceholder, style, 1), nil
+}
+
+func directionStyleFilename(styleName string) (string, error) {
+	parts := strings.Split(styleName, "-")
+	if len(parts) != 2 || parts[0] != "direction" || !validDirectionID(parts[1]) {
+		return "", fmt.Errorf("invalid direction style name %q", styleName)
+	}
+	return "style_direction_" + parts[1] + ".generated.txt", nil
+}
+
+func validDirectionID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func validateStylePlaceholder(template string) error {
+	count := strings.Count(template, stylePlaceholder)
+	if count != 1 {
+		return fmt.Errorf("%s は1個必要です（実際: %d個）", stylePlaceholder, count)
+	}
+	return nil
+}
+
+func readRequiredText(fsys fs.FS, name string) (string, error) {
+	b, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return "", fmt.Errorf("read %q: %w", name, err)
+	}
+	s := normalizeNewlines(string(b))
 	if strings.TrimSpace(s) == "" {
-		return "", fmt.Errorf("%q: テンプレートが空です", templateFile)
+		return "", fmt.Errorf("%q: テキストが空です", name)
 	}
 	return s, nil
+}
+
+func normalizeNewlines(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }

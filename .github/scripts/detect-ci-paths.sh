@@ -96,7 +96,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		tools/room-image-prompt/*)
+		.agents/skills/room-art-direction/references/*|tools/room-image-prompt/*)
 			room_image_prompt=true
 			matched=true
 			;;
