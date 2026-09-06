@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,6 +85,9 @@ func TestCLI_StdoutPath_TC_C2_extension(t *testing.T) {
 	if !strings.Contains(string(body), "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
 		t.Fatalf("default output should keep legacy style:\n%s", body)
 	}
+	if !strings.Contains(string(body), "## Look profile:") {
+		t.Fatalf("default output should auto-select a bundled Look:\n%s", body)
+	}
 }
 
 func TestCLI_StyleFile(t *testing.T) {
@@ -101,6 +105,7 @@ func TestCLI_StyleFile(t *testing.T) {
 		"go", "run", "./cmd/room-image-prompt",
 		"-seed", "1",
 		"-style-file", styleFile,
+		"-look", "none",
 		"-out", outFile,
 	)
 	cmd.Dir = dir
@@ -169,6 +174,110 @@ func TestResolveStyle(t *testing.T) {
 	}
 }
 
+func TestResolveLook(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"look_indigo_violet_fantasy.txt": {Data: []byte("INDIGO\n")},
+		"look_airy_garden.txt":            {Data: []byte("AIRY\n")},
+		"look_coral_aqua_glow.txt":        {Data: []byte("CORAL\n")},
+		"look_crystal_lucent.txt":         {Data: []byte("CRYSTAL\n")},
+	}
+	customPath := filepath.Join(t.TempDir(), "custom-look.txt")
+	if err := os.WriteFile(customPath, []byte("CUSTOM_LOOK\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name     string
+		lookName string
+		lookFile string
+		wantName string
+		wantText string
+		wantAuto bool
+		wantErr  bool
+	}{
+		{name: "default auto", wantAuto: true},
+		{name: "explicit auto", lookName: "auto", wantAuto: true},
+		{name: "none", lookName: "none", wantName: "none"},
+		{name: "named", lookName: "airy-garden", wantName: "airy-garden", wantText: "AIRY\n"},
+		{name: "custom file", lookFile: customPath, wantName: "custom", wantText: "CUSTOM_LOOK\n"},
+		{name: "conflicting sources", lookName: "airy-garden", lookFile: customPath, wantErr: true},
+		{name: "invalid", lookName: "other", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveLook(fsys, tt.lookName, tt.lookFile, rand.New(rand.NewPCG(42, 0)))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantAuto {
+				if got.Name == "auto" || got.Name == "none" || strings.TrimSpace(got.Text) == "" {
+					t.Fatalf("auto Look was not resolved: %+v", got)
+				}
+				return
+			}
+			if got.Name != tt.wantName || got.Text != tt.wantText {
+				t.Fatalf("look mismatch: got %+v want name=%q text=%q", got, tt.wantName, tt.wantText)
+			}
+		})
+	}
+}
+
+func TestComposeVisualGuidance(t *testing.T) {
+	t.Parallel()
+
+	if got := composeVisualGuidance("STYLE\n", ""); got != "STYLE\n" {
+		t.Fatalf("none Look should preserve style exactly: %q", got)
+	}
+	got := composeVisualGuidance("STYLE\r\n", "LOOK\r\n")
+	want := "STYLE\n\nLOOK\n"
+	if got != want {
+		t.Fatalf("composed guidance mismatch: got %q want %q", got, want)
+	}
+}
+
+func TestCLI_LookProfile(t *testing.T) {
+	t.Parallel()
+
+	dir := moduleRoot(t)
+	outFile := filepath.Join(t.TempDir(), "look.txt")
+	cmd := exec.Command(
+		"go", "run", "./cmd/room-image-prompt",
+		"-seed", "1",
+		"-style", "direction-d",
+		"-look", "crystal-lucent",
+		"-out", outFile,
+	)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	body, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, required := range []string{
+		"clean 2D digital environment illustration",
+		"## Look profile: Crystal Lucent",
+		"pale cyan, periwinkle, lavender",
+	} {
+		if !strings.Contains(got, required) {
+			t.Fatalf("combined Direction + Look output is missing %q:\n%s", required, got)
+		}
+	}
+}
+
 func TestResolveBundledDirectionStyles(t *testing.T) {
 	t.Parallel()
 
@@ -231,6 +340,7 @@ func TestCLI_DirectionStyle(t *testing.T) {
 		"go", "run", "./cmd/room-image-prompt",
 		"-seed", "1",
 		"-style", "direction-a",
+		"-look", "none",
 		"-out", outFile,
 	)
 	cmd.Dir = dir
