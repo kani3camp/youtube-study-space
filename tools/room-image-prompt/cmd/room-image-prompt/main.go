@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -59,7 +60,7 @@ func run() error {
 	version := fs.Bool("version", false, "バージョンを表示して終了")
 	outPath := fs.String("out", "", "出力ファイルパス（省略時はカレントの output/prompt-<タイムスタンプ>.txt）")
 	seedStr := fs.String("seed", "", "乱数シード（10進 uint64）。省略時は非固定")
-	styleName := fs.String("style", "", "内蔵スタイル名（現在は legacy のみ）。省略時は legacy")
+	styleName := fs.String("style", "", "内蔵スタイル名（legacy または生成済み direction-*）。省略時は legacy")
 	styleFile := fs.String("style-file", "", "任意スタイルを読み込む UTF-8 テキストファイル（-style と同時指定不可）")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -168,7 +169,14 @@ func resolveStyle(fsys fs.FS, styleName, styleFile string) (string, error) {
 		}
 		return style, nil
 	default:
-		return "", fmt.Errorf("-style %q は未対応です（現在は %q のみ）", styleName, legacyStyleName)
+		if strings.HasPrefix(styleName, "direction-") {
+			style, err := theme.ReadDirectionStyle(fsys, styleName)
+			if err != nil {
+				return "", fmt.Errorf("named style %q 読込: %w", styleName, err)
+			}
+			return style, nil
+		}
+		return "", fmt.Errorf("-style %q は未対応です（legacy または生成済み direction-* を指定してください）", styleName)
 	}
 }
 

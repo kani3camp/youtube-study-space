@@ -1,0 +1,12 @@
+- clean abstract graphic spatial illustration
+- simplified geometric architecture and furniture
+- soft pastel palette with multiple coordinated colors
+- airy whites and light neutrals
+- crisp clean edges
+- flat to gently shaded color planes
+- stylized non-photoreal materials
+- clear readable composition
+- elegant negative space and shape rhythm
+- no realistic texture, no PBR material detail
+- no paper, watercolor, painterly or grain texture
+- avoid neon-purple default palette

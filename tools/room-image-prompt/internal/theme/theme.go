@@ -93,6 +93,19 @@ func ReadLegacyStyle(fsys fs.FS) (string, error) {
 	return readRequiredText(fsys, legacyStyleFile)
 }
 
+// ReadDirectionStyle loads a generated Direction style asset by its CLI name, such as direction-a.
+func ReadDirectionStyle(fsys fs.FS, styleName string) (string, error) {
+	filename, err := directionStyleFilename(styleName)
+	if err != nil {
+		return "", err
+	}
+	style, err := readRequiredText(fsys, filename)
+	if err != nil {
+		return "", fmt.Errorf("read direction style %q: %w", styleName, err)
+	}
+	return style, nil
+}
+
 // ApplyStyle injects style into exactly one {{STYLE}} placeholder.
 // It accepts arbitrary style text so callers do not need to encode named art directions here.
 func ApplyStyle(template, style string) (string, error) {
@@ -108,6 +121,26 @@ func ApplyStyle(template, style string) (string, error) {
 	style = strings.TrimRight(style, "\n")
 
 	return strings.Replace(template, stylePlaceholder, style, 1), nil
+}
+
+func directionStyleFilename(styleName string) (string, error) {
+	parts := strings.Split(styleName, "-")
+	if len(parts) != 2 || parts[0] != "direction" || !validDirectionID(parts[1]) {
+		return "", fmt.Errorf("invalid direction style name %q", styleName)
+	}
+	return "style_direction_" + parts[1] + ".generated.txt", nil
+}
+
+func validDirectionID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func validateStylePlaceholder(template string) error {
