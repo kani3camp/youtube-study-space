@@ -1,6 +1,7 @@
 ## Look profile: Crystal Lucent
 
-- use a light luminous palette of pale cyan, periwinkle, lavender, soft violet, milky white, faint pink and warm cream accents
+- use a light luminous palette led by pale cyan, mint, milky white, warm cream and very light aqua, with periwinkle, lavender, soft violet and faint pink as secondary accents rather than default base colors
+- when the active Direction calls for broad pastel variety, distribute large color fields across cool, warm and neutral families; do not let lavender, violet or periwinkle dominate walls, floor, background and lighting at the same time
 - emphasize transparent, translucent, glasslike or crystalline visual cues where the scene naturally supports them, creating a light and open material impression
 - prefer clean refraction-like color shifts, rim highlights and layered transparency cues over heavy opaque surfaces or dense metallic gloss
 - keep transparent elements readable against the background through clear value and hue separation rather than realistic optical complexity
