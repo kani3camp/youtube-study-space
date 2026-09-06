@@ -1,14 +1,17 @@
-- unmistakably clean, cozy, polished digital environment illustration with a friendly and approachable lifestyle feel
-- clearly illustrated at first glance; never resemble a photograph, realistic interior render, architectural visualization or PBR 3D scene
-- feel somewhere between a polished casual simulation-game environment and a modern lifestyle editorial illustration
-- simplify furniture, architecture, plants, props and distant scenery into clean readable shapes with carefully designed silhouettes
-- use soft controlled shading with broad simple light and shadow groups; use gentle gradients sparingly only to support form
-- keep materials deliberately stylized and simplified; communicate wood, fabric, glass, metal and foliage through color, value and small controlled highlights rather than realistic surface texture
-- avoid micro-texture such as detailed wood grain, fabric weave, stone roughness, realistic material roughness and physically accurate reflections
-- keep foliage and small objects organized into clear illustrated forms rather than photographic detail
-- keep linework minimal or nearly invisible; define forms primarily through shape design, value separation, color and soft light
-- use a harmonious restrained palette with a pleasant warm/cool balance; avoid muddy dullness, hyper-realistic color and generic brown-orange cozy treatment
-- keep the scene visually rich enough to feel inhabited and intentional, but calm, tidy and readable rather than cluttered
-- respect the specified time of day, weather and light direction exactly; stylize those conditions instead of replacing them
-- remain more representational and softly dimensional than abstract graphic Direction C, less materially physical and cinematic than Direction A, and clearly distinct from cel-rendered anime Direction B
-- no photorealism, architectural visualization, ray-traced look, realistic depth of field, painterly texture, paper grain, watercolor, sketchiness or thick cartoon outlines
+- unmistakably an illustration-first digital environment image; it must read as a designed illustration at first glance, never as a rendered photograph or realistic 3D interior
+- use a softly modeled 2D / 2.5D illustration language with simplified geometry, clean silhouettes and deliberately reduced object detail
+- prioritize shape design, color grouping and visual clarity over physically convincing materials, lighting or camera realism
+- keep major surfaces as smooth, clean color planes with broad value separation; shading should be soft and simple, not continuous photorealistic rendering
+- use only restrained form gradients and simple graphic contact shadows; avoid realistic global illumination, bounce light, ray-traced reflections, glossy floors and complex naturalistic shadow behavior
+- keep materials highly simplified and mostly matte; suggest wood, fabric, glass, metal and foliage through color, value and a few controlled highlights rather than surface texture or physical material response
+- eliminate micro-texture such as visible wood grain, fabric weave, stone roughness, realistic roughness variation, tiny specular detail and physically accurate glass reflections
+- simplify plants into designed leaf clusters and readable masses; simplify books, decor and small props into tidy graphic forms rather than individually rendered objects
+- treat windows, exterior scenery and distant architecture as layered illustrated color shapes with reduced detail, never as a realistic scenic render
+- keep linework minimal or nearly invisible; separate forms through silhouette, color and value rather than contour drawing
+- use clear, harmonious color families with a pleasant warm/cool balance and moderate saturation; cozy feeling should come from color relationships and arrangement, not from amber cinematic lighting or a brown-orange render filter
+- keep the image calm, friendly, tidy and approachable, with enough detail to feel intentional but without filling every surface with decoration
+- when the common production prompt asks for memorable architecture, scenery, light or depth, express that individuality through shape, color, composition and simplified layering rather than by increasing rendering realism
+- respect the specified time of day, weather and light direction exactly, but depict those conditions in a simplified illustrative language
+- distinctly less cinematic, glossy and materially physical than Direction A; less line-based and less cel-shaded than Direction B; more representational and softly dimensional than Direction C
+- if the result begins to resemble interior CG, architectural visualization, a game-engine screenshot or a realistic render, simplify it further: flatter materials, broader color shapes, fewer reflections, simpler shadows and less micro-detail
+- no photorealism, no architectural visualization, no interior-render look, no PBR material look, no ray-traced look, no glossy showroom finish, no realistic depth of field, no lens blur, no bokeh, no bloom, no volumetric cinematic lighting, no painterly texture, no watercolor, no paper grain, no sketchiness, no thick outlines, no hard anime cel shading
