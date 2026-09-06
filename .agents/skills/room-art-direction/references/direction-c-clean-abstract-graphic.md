@@ -20,8 +20,11 @@
 - シンプルでも「のっぺり」にはせず、形と色の関係で奥行きを作る。
 
 ### パステルを軸にした配色
-- 水色、ミント、淡い青、クリーム、ペールイエロー、ピーチ、淡いラベンダーなどの軽い色を好相性な基準とする。
+- 水色・ミント・淡い青などの寒色、クリーム・ペールイエロー、ピーチ・淡いコーラルなどの暖色を組み合わせ、複数の色相系統が共存する軽い配色を基準とする。
 - 1色のフィルターをかけるのではなく、複数のパステル色を役割ごとに配置する。
+- 大きな色面は寒色・暖色・ニュートラルへ分散させ、複数の色相系統が画面内で明確に読めるようにする。
+- ラベンダー・ペリウィンクル・紫は使ってよいが、小さなアクセントまたは局所的な影色に留め、画面全体の基調色にはしない。
+- 壁・床・背景・照明を同じ紫系へ寄せて、画面全体が紫のフィルターをかけたようになる状態を避ける。
 - 白・明るいニュートラルを余白として使い、色面を呼吸させる。
 - 彩度を落としすぎて灰色っぽくしない。
 - ピンク・紫・ネオン固定にはしない。
@@ -56,7 +59,7 @@
 - PBR的な細かい反射や粗さ
 - 木目・布目・石肌などの写実テクスチャ
 - 暗く重い色調への固定
-- ピンク・紫・ネオン一辺倒
+- ピンク・紫・ラベンダー・ペリウィンクルが画面全体を支配する単色寄りの配色
 - 彩度が低すぎる灰色っぽい画面
 - 手描き・水彩・紙の質感
 - 太い黒輪郭
@@ -79,7 +82,8 @@
 
 - unmistakably abstract graphic spatial illustration built from simplified 2D or gentle 2.5D geometric forms, not a realistic architectural render
 - aggressively simplify furniture, architecture, plants and landscape into clean silhouettes, blocks, curves and color fields
-- soft pastel-forward palette using several coordinated colors such as sky blue, mint, cream, butter yellow, pale peach and periwinkle, with airy light neutrals
+- soft pastel-forward palette with broad hue variety across cool and warm families, using coordinated sky blue, mint, cream, butter yellow, pale peach and soft coral with airy light neutrals; lavender or periwinkle may appear only as small optional accents, never as the dominant overall cast
+- distribute large color fields across distinct hue families; do not tint walls, floor, background and lighting all toward lavender, violet or purple
 - respect the specified time of day, weather and light direction exactly; pastel styling changes the rendering language, not the environmental conditions
 - bold color blocking, elegant negative space, repeated shape rhythm and playful spatial composition are more important than realistic materials
 - use flat or very gently shaded planes with simple graphic shadows; avoid realistic reflections, gloss, roughness, wood grain, grass texture, stone texture and photographic vegetation
@@ -87,13 +91,14 @@
 - keep the workspace and seat zones legible, but do not turn the scene into a conventional office, cafe, lawn garden or real-estate visualization
 - objects must remain intentionally non-realistic even when the subject is familiar
 - clearly distinct from both anime illustration and game-CG rendering: minimal material realism, no PBR look, no cinematic 3D lighting
-- no paper, watercolor, painterly or grain texture; avoid neon-purple default palette
+- no paper, watercolor, painterly or grain texture; avoid monochromatic or purple-biased palettes, lavender/violet/periwinkle washes, and single-hue pastel filters
 
 ## Review checklist
 
 - [ ] 家具・植物・地面を含め、物体がリアルなCG質感や写実テクスチャへ戻っていない
 - [ ] 形・色面・余白・反復リズムが主役で、通常の建築ビジュアライゼーションに見えない
 - [ ] パステル系の配色が複数色で意図的に設計されている
+- [ ] 紫・ラベンダー・ペリウィンクルが大面積を支配せず、寒色・暖色・ニュートラルの色面が分散している
 - [ ] 白・余白が適切に使われ、画面が軽やか
 - [ ] 単純化しても空間構造と座席が読み取れる
 - [ ] 手描き・紙・絵の具の質感がない
