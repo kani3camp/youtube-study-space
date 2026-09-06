@@ -67,18 +67,17 @@
 
 ## Prompt guidance
 
-- polished cinematic stylized CG environment
-- premium game environment art
-- vivid deliberate color design
-- convincing but stylized materials
-- crisp readable geometry
-- strong depth and spatial layering
-- dramatic but readable lighting
-- imaginative memorable environment
-- stylized rather than strictly photorealistic
-- no hand-drawn contour feeling
-- no paper, watercolor, painterly or grain texture
-- avoid generic luxury interior and brown-orange cozy treatment
+- unmistakably polished cinematic stylized 3D CG environment, with dimensional form, materials and lighting as the primary visual language
+- premium game environment art that feels like an explorable, memorable game location rather than an architectural visualization
+- strong verticality, layered depth, overlooks, openings and a clear sense that the world continues beyond the frame
+- include one or two bold architectural or environmental hero forms; do not reduce the scene to rows of ordinary tables on a generic terrace
+- vivid deliberate color scripting with clear hue relationships and accent colors; avoid beige, brown and pale neutral dominance
+- convincing but art-directed material contrast such as glass, water, metal, stone, wood, translucency or glow where appropriate
+- dramatic directional light, reflections and shadow depth are welcome outside UI-safe seat zones
+- rich controlled detail around the environment while keeping seat-card surfaces calm and readable
+- stylized rather than strictly photorealistic; avoid corporate rooftop, stock cafe, luxury-hotel and real-estate-render aesthetics
+- clearly more dimensional and materially rich than an anime illustration or flat graphic style
+- no hand-drawn contour feeling, paper, watercolor, painterly canvas or film-grain texture
 
 ## Review checklist
 
@@ -86,7 +85,7 @@
 - [ ] 素材差が光や質感から感じられる
 - [ ] ライティングが奥行きと魅力を作っている
 - [ ] フォトリアル一辺倒ではなくスタイライズされている
-- [ ] 無難なインテリアに平均化されず、わくわくする
-- [ ] 色設計が意図的
+- [ ] 無難なインテリアや建築ビジュアライゼーションに平均化されず、主役形状・高低差・景観などのわくわくする要素がある
+- [ ] ベージュ・木目・淡色だけに寄らず、色設計が意図的
 - [ ] 手描き・紙・絵の具系の質感に寄っていない
 - [ ] 題材をDirectionの必須条件と誤認していない
