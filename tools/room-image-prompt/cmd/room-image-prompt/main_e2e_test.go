@@ -189,7 +189,7 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 	}
 }
 
-func TestDirectionDRejectsRenderPainterlyAndShowroomFallback(t *testing.T) {
+func TestDirectionDUsesConcreteRenderingOperations(t *testing.T) {
 	t.Parallel()
 
 	style, err := resolveStyle(data.FS, "direction-d", "")
@@ -197,27 +197,27 @@ func TestDirectionDRejectsRenderPainterlyAndShowroomFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
-		"clean, polished digital environment illustration",
-		"hospitality marketing art, or a real-estate / showroom render",
+		"clean 2D digital environment illustration",
+		"smooth matte color planes",
+		"roughly 3〜4 value levels",
+		"avoid continuous airbrushed gradients",
 		"keep edges crisp and object separation clear",
-		"avoid washed-out milky pastel fog",
-		"avoid monomaterial beige / white / pale-wood minimalism",
-		"avoid dramatic centerpiece compositions built around oversized sculptural lighting",
-		"avoid turning the room into a staged café, hotel lounge, luxury lobby, or brochure-like hospitality space",
-		"slightly lived-in, but not sterile, showroom-empty",
-		"no atmospheric haze",
+		"omit wood grain or reduce it to only a few graphic lines",
+		"reduce reflections to a small number of simplified color shapes",
+		"avoid dull, muddy or washed-out color",
 	} {
 		if !strings.Contains(style, required) {
 			t.Fatalf("direction-d style is missing %q:\n%s", required, style)
 		}
 	}
-	for _, forbidden := range []string{
-		"premium game environment art that feels like an explorable",
-		"include one or two bold architectural or environmental hero forms",
-		"dramatic directional light, reflections and shadow depth",
+	for _, obsolete := range []string{
+		"hospitality marketing art",
+		"real-estate / showroom render",
+		"oversized sculptural lighting",
+		"monomaterial beige / white / pale-wood minimalism",
 	} {
-		if strings.Contains(style, forbidden) {
-			t.Fatalf("direction-d style unexpectedly contains Direction A rendering cue %q:\n%s", forbidden, style)
+		if strings.Contains(style, obsolete) {
+			t.Fatalf("direction-d style still contains obsolete Codex-specific workaround %q:\n%s", obsolete, style)
 		}
 	}
 }
