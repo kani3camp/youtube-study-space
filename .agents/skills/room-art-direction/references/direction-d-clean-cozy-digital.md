@@ -16,15 +16,18 @@
 
 ### やわらかな立体感と陰影
 - 大きく整理された明部・中間調・影で立体を作る。
-- 緩やかなグラデーションは形を支える範囲で使ってよい。
-- 接地感と奥行きは残すが、レイトレーシングやPBRのような複雑な光学表現は使わない。
-- Direction B のような明確なセル影ではなく、より柔らかく連続的なデジタルシェーディングを使う。
+- 緩やかなグラデーションは形を支える範囲で使ってよいが、画面全体を連続的な写実シェーディングで覆わない。
+- 接地感と奥行きは残すが、レイトレーシング、複雑な間接光、強い反射、フォトリアルな接触影などの物理レンダー表現は使わない。
+- Direction B のような明確なセル影ではなく、より柔らかなデジタルシェーディングを使う。ただし「柔らかな3Dレンダー」にはしない。
+- 光は空間を物理的に再現するためではなく、形と色面を読みやすく整理するために使う。
 
 ### 素材は「分かるが写実的ではない」
 - 木、布、ガラス、金属、植物などは、色・明度差・簡潔なハイライトで判別できればよい。
 - 木目、布目、石肌、粗さ、細かな反射などのマイクロテクスチャを描き込まない。
-- ガラスや水面の反射・透明感は単純化し、物理的な正確さより画面の読みやすさを優先する。
+- 床や家具を光沢面として扱わず、基本はマットで整理された色面として見せる。
+- ガラスや水面の反射・透明感は単純化し、鏡面反射や物理的な正確さより画面の読みやすさを優先する。
 - 植物は葉を写真のように再現せず、整理された葉形やまとまりとして描く。
+- 遠景や窓外も写真のような景観描写にせず、色面とレイヤーで整理したイラスト背景として扱う。
 
 ### 調和した色設計
 - 暖色と寒色を心地よく組み合わせ、明快で落ち着いた色関係を作る。
@@ -82,27 +85,32 @@
 
 ## Prompt guidance
 
-- unmistakably clean, cozy, polished digital environment illustration with a friendly and approachable lifestyle feel
-- clearly illustrated at first glance; never resemble a photograph, realistic interior render, architectural visualization or PBR 3D scene
-- feel somewhere between a polished casual simulation-game environment and a modern lifestyle editorial illustration
-- simplify furniture, architecture, plants, props and distant scenery into clean readable shapes with carefully designed silhouettes
-- use soft controlled shading with broad simple light and shadow groups; use gentle gradients sparingly only to support form
-- keep materials deliberately stylized and simplified; communicate wood, fabric, glass, metal and foliage through color, value and small controlled highlights rather than realistic surface texture
-- avoid micro-texture such as detailed wood grain, fabric weave, stone roughness, realistic material roughness and physically accurate reflections
-- keep foliage and small objects organized into clear illustrated forms rather than photographic detail
-- keep linework minimal or nearly invisible; define forms primarily through shape design, value separation, color and soft light
-- use a harmonious restrained palette with a pleasant warm/cool balance; avoid muddy dullness, hyper-realistic color and generic brown-orange cozy treatment
-- keep the scene visually rich enough to feel inhabited and intentional, but calm, tidy and readable rather than cluttered
-- respect the specified time of day, weather and light direction exactly; stylize those conditions instead of replacing them
-- remain more representational and softly dimensional than abstract graphic Direction C, less materially physical and cinematic than Direction A, and clearly distinct from cel-rendered anime Direction B
-- no photorealism, architectural visualization, ray-traced look, realistic depth of field, painterly texture, paper grain, watercolor, sketchiness or thick cartoon outlines
+- unmistakably an illustration-first digital environment image; it must read as a designed illustration at first glance, never as a rendered photograph or realistic 3D interior
+- use a softly modeled 2D / 2.5D illustration language with simplified geometry, clean silhouettes and deliberately reduced object detail
+- prioritize shape design, color grouping and visual clarity over physically convincing materials, lighting or camera realism
+- keep major surfaces as smooth, clean color planes with broad value separation; shading should be soft and simple, not continuous photorealistic rendering
+- use only restrained form gradients and simple graphic contact shadows; avoid realistic global illumination, bounce light, ray-traced reflections, glossy floors and complex naturalistic shadow behavior
+- keep materials highly simplified and mostly matte; suggest wood, fabric, glass, metal and foliage through color, value and a few controlled highlights rather than surface texture or physical material response
+- eliminate micro-texture such as visible wood grain, fabric weave, stone roughness, realistic roughness variation, tiny specular detail and physically accurate glass reflections
+- simplify plants into designed leaf clusters and readable masses; simplify books, decor and small props into tidy graphic forms rather than individually rendered objects
+- treat windows, exterior scenery and distant architecture as layered illustrated color shapes with reduced detail, never as a realistic scenic render
+- keep linework minimal or nearly invisible; separate forms through silhouette, color and value rather than contour drawing
+- use clear, harmonious color families with a pleasant warm/cool balance and moderate saturation; cozy feeling should come from color relationships and arrangement, not from amber cinematic lighting or a brown-orange render filter
+- keep the image calm, friendly, tidy and approachable, with enough detail to feel intentional but without filling every surface with decoration
+- when the common production prompt asks for memorable architecture, scenery, light or depth, express that individuality through shape, color, composition and simplified layering rather than by increasing rendering realism
+- respect the specified time of day, weather and light direction exactly, but depict those conditions in a simplified illustrative language
+- distinctly less cinematic, glossy and materially physical than Direction A; less line-based and less cel-shaded than Direction B; more representational and softly dimensional than Direction C
+- if the result begins to resemble interior CG, architectural visualization, a game-engine screenshot or a realistic render, simplify it further: flatter materials, broader color shapes, fewer reflections, simpler shadows and less micro-detail
+- no photorealism, no architectural visualization, no interior-render look, no PBR material look, no ray-traced look, no glossy showroom finish, no realistic depth of field, no lens blur, no bokeh, no bloom, no volumetric cinematic lighting, no painterly texture, no watercolor, no paper grain, no sketchiness, no thick outlines, no hard anime cel shading
 
 ## Review checklist
 
 - [ ] 一目で写真・建築CGではなくデジタルイラストと分かる
 - [ ] 家具・建築・植物が具体的に読める一方、形が適度に簡略化されている
 - [ ] 陰影が柔らかく整理され、PBRやレイトレーシングの複雑さへ戻っていない
+- [ ] 床・家具・窓が光沢や写実反射で建築CGらしくなっていない
 - [ ] 木・布・ガラスなどの素材は判別できるが、写実テクスチャが主役ではない
+- [ ] 窓外や遠景も写真風ではなく、整理されたイラスト背景として見える
 - [ ] 太い輪郭線や強いセル影に依存せず、Direction B と区別できる
 - [ ] 幾何学的抽象化やフラット色面に寄りすぎず、Direction C と区別できる
 - [ ] 映画的CG素材・反射・ライティングが強くなりすぎず、Direction A と区別できる
