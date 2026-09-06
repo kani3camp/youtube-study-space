@@ -14,7 +14,9 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 ./room-image-prompt -version
 ```
 
-引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 10〜15** を1回一様乱数で決定します。`data/prompt_template.txt` の `{{STYLE}}` に `data/style_legacy.txt` を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
+引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 10〜15** を1回一様乱数で決定します。`data/prompt_template.txt` の `{{STYLE}}` に既定の `data/style_legacy.txt` を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
+
+`-style-file <path>` を指定すると、legacy style の代わりに任意の UTF-8 テキストをスタイルとして注入できます。
 
 - **標準エラー**: `出力: <ファイル名>` に続き、`クリップボードにコピーしました` または `コピーに失敗しました` を1行ずつ出します。Linux などで `xclip` / `xsel` が無い環境ではコピーが失敗し得ます。
 - **標準出力**: **保存したファイルの絶対パスを1行**だけ出します（スクリプト向け）。
@@ -39,8 +41,9 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 | `data/prompt_template.txt` | アスペクト比、UIを重ねる領域、人物・文字の禁止など、スタイルに依存しない共通用途制約。スタイル挿入位置として `{{STYLE}}` を1個だけ持つ |
 | `data/style_legacy.txt` | 従来の画風指定。現行CLIでは後方互換のため、このスタイルを `{{STYLE}}` に挿入する |
 
-この分離は、共通用途制約と画風を物理的に切り離すためのものです。**この段階ではCLIの生成結果自体は従来と同じ legacy スタイルを維持します。**
-Direction A / B / C の選択と組み立ては後続変更で扱います。
+共通テンプレートの読み込みとスタイル注入は内部APIでも分離されています。CLIはスタイル未指定時に legacy を使い、`-style-file` では任意のスタイル本文を注入できます。
+
+Direction A / B / C の本文はこのツール配下へ複製しません。具体的な Direction とCLIの接続、および canonical source の扱いは後続変更で行います。
 
 出力に付与するテーマブロックの行ラベルは、順に `世界観` / `時間帯` / `作業空間` / `座席レイアウト` / `座席数` です（`internal/theme` の `FormatThemeBlock`）。`座席数` は10〜15の乱数で、専用の候補ファイルはありません。
 
@@ -56,6 +59,8 @@ Direction A / B / C の選択と組み立ては後続変更で扱います。
 | `-version` | バージョン表示して終了 |
 | `-out <path>` | 出力ファイル（省略時は上記タイムスタンプ名） |
 | `-seed <uint64>` | 乱数シード（10進）。省略時は非固定 |
+| `-style <name>` | 内蔵スタイル名。現在は `legacy` のみ。省略時も `legacy` |
+| `-style-file <path>` | 任意の UTF-8 スタイル本文をファイルから読み込む。 `-style` と同時指定不可 |
 
 開発中は `go run` でも可です。
 
@@ -63,6 +68,8 @@ Direction A / B / C の選択と組み立ては後続変更で扱います。
 cd tools/room-image-prompt
 go run ./cmd/room-image-prompt -version
 go run ./cmd/room-image-prompt -seed 1
+go run ./cmd/room-image-prompt -seed 1 -style legacy
+go run ./cmd/room-image-prompt -seed 1 -style-file ./my-style.txt
 ```
 
 ## テスト

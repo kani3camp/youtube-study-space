@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 )
 
@@ -72,6 +73,94 @@ func TestCLI_StdoutPath_TC_C2_extension(t *testing.T) {
 	}
 	if okCopy && failCopy {
 		t.Fatalf("stderr should contain only one clipboard status\ngot %q", errOut)
+	}
+
+	body, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
+		t.Fatalf("default output should keep legacy style:\n%s", body)
+	}
+}
+
+func TestCLI_StyleFile(t *testing.T) {
+	t.Parallel()
+
+	dir := moduleRoot(t)
+	tmp := t.TempDir()
+	styleFile := filepath.Join(tmp, "custom-style.txt")
+	if err := os.WriteFile(styleFile, []byte("CUSTOM_STYLE\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outFile := filepath.Join(tmp, "custom.txt")
+
+	cmd := exec.Command(
+		"go", "run", "./cmd/room-image-prompt",
+		"-seed", "1",
+		"-style-file", styleFile,
+		"-out", outFile,
+	)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	body, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	if !strings.Contains(got, "CUSTOM_STYLE") {
+		t.Fatalf("custom style was not injected:\n%s", got)
+	}
+	if strings.Contains(got, "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
+		t.Fatalf("legacy style should not be injected with -style-file:\n%s", got)
+	}
+}
+
+func TestResolveStyle(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"style_legacy.txt": {Data: []byte("LEGACY_STYLE\n")},
+	}
+	customPath := filepath.Join(t.TempDir(), "custom-style.txt")
+	if err := os.WriteFile(customPath, []byte("CUSTOM_STYLE\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name      string
+		styleName string
+		styleFile string
+		want      string
+		wantErr   bool
+	}{
+		{name: "default legacy", want: "LEGACY_STYLE\n"},
+		{name: "explicit legacy", styleName: legacyStyleName, want: "LEGACY_STYLE\n"},
+		{name: "custom file", styleFile: customPath, want: "CUSTOM_STYLE\n"},
+		{name: "conflicting sources", styleName: legacyStyleName, styleFile: customPath, wantErr: true},
+		{name: "unsupported named style", styleName: "direction-a", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveStyle(fsys, tt.styleName, tt.styleFile)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("style mismatch: got %q want %q", got, tt.want)
+			}
+		})
 	}
 }
 
