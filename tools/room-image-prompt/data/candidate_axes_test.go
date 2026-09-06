@@ -42,6 +42,7 @@ func TestCandidateAxesStaySeparated(t *testing.T) {
 			file: "04_seat_layout.txt",
 			forbidden: []string{
 				"UI", "カード", "座席番号", "撮影", "安全地帯", "背景低密度", "画面",
+				"水盤", "水景", "水辺", "本棚", "書棚", "ラグ",
 			},
 		},
 	}
