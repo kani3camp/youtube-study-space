@@ -189,6 +189,32 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 	}
 }
 
+func TestDirectionDRejectsRenderLikeFallback(t *testing.T) {
+	t.Parallel()
+
+	style, err := resolveStyle(data.FS, "direction-d", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"illustration-first digital environment image",
+		"no interior-render look",
+		"simplify it further",
+	} {
+		if !strings.Contains(style, required) {
+			t.Fatalf("direction-d style is missing %q:\n%s", required, style)
+		}
+	}
+	for _, forbidden := range []string{
+		"premium game environment art that feels like an explorable",
+		"dramatic directional light, reflections and shadow depth",
+	} {
+		if strings.Contains(style, forbidden) {
+			t.Fatalf("direction-d style unexpectedly contains Direction A rendering cue %q:\n%s", forbidden, style)
+		}
+	}
+}
+
 func TestCLI_DirectionStyle(t *testing.T) {
 	t.Parallel()
 
