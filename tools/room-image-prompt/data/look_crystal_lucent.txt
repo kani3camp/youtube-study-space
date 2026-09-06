@@ -1,0 +1,9 @@
+## Look profile: Crystal Lucent
+
+- use a light luminous palette of pale cyan, periwinkle, lavender, soft violet, milky white, faint pink and warm cream accents
+- emphasize transparent, translucent, glasslike or crystalline visual cues where the scene naturally supports them, creating a light and open material impression
+- prefer clean refraction-like color shifts, rim highlights and layered transparency cues over heavy opaque surfaces or dense metallic gloss
+- keep transparent elements readable against the background through clear value and hue separation rather than realistic optical complexity
+- allow water, glass, crystal-like structures and polished details to share a coherent sense of clarity without turning every object into glass
+- preserve the requested time of day and weather, adapting brightness and translucency to the scene instead of forcing a uniformly bright fantasy glow
+- keep the active Direction's rendering language intact; use simplified graphic transparency in 2D Directions and richer material depth only where the selected Direction supports it
