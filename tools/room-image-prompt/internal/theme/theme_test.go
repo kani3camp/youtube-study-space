@@ -264,7 +264,6 @@ func TestReadDirectionStyle_RejectsInvalidOrMissingStyle(t *testing.T) {
 
 	fsys := fstest.MapFS{}
 	for _, name := range []string{"direction-", "direction-a-extra", "Direction-a", "direction-z"} {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			if _, err := ReadDirectionStyle(fsys, name); err == nil {
