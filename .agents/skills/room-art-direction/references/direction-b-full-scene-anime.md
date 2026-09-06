@@ -69,22 +69,22 @@
 
 ## Prompt guidance
 
-- full-scene anime environment illustration
-- every object rendered consistently in anime visual language
-- modern anime realism without strong caricature
-- cinematic animated-film lighting and atmosphere
-- clean cel-style shapes and controlled outlines
-- beautiful deliberate color design
-- illustrated materials rather than photoreal PBR materials
-- polished, vivid, clean digital finish
-- no paper or film grain
-- not a family-cartoon or heavily deformed style
+- unmistakably 2D full-scene anime environment illustration; the result must read as a finished animation-film frame, not as softened 3D CG
+- every object, building, plant, sky and distant element rendered in one consistent anime illustration language
+- clean cel-style color planes, selective crisp line accents, intentionally simplified illustrated surfaces and graphic shadow shapes
+- cinematic anime color scripting with expressive warm/cool relationships, atmospheric perspective, luminous sky light and purposeful light-and-shadow design
+- use stylized perspective and shape design to create a memorable scene; avoid ordinary real-estate or rooftop-cafe visualization
+- preserve spatial depth, vertical structures and scenic vistas, but express them through illustrated color, shape and atmosphere rather than PBR materials
+- readable medium-scale detail and a strong scene-level composition, with calm seat-card zones embedded inside a visually authored environment
+- modern, sophisticated anime realism without chibi, family-cartoon or heavily deformed proportions
+- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural diagram look and generic pastel block visualization
+- no paper texture, watercolor wash, film grain or aged cel texture
 
 ## Review checklist
 
 - [ ] 背景だけでなく全景がアニメ表現で統一されている
-- [ ] CGレンダー寄りの素材感が主役になっていない
+- [ ] 3Dレンダーの光沢・PBR素材・建築ビジュアライゼーション感が主役になっていない
 - [ ] デフォルメが強すぎない
 - [ ] 色・光・空気感が一枚絵として魅力を作っている
-- [ ] 線や影が整理され、クリーンである
+- [ ] セル風の色面・影・選択的な線が整理され、2Dアニメの一枚絵として明確に読める
 - [ ] 時間帯や題材に依存せず成立する
