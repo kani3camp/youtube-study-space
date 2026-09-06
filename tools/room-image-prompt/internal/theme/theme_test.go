@@ -74,6 +74,14 @@ func TestRenderFinal_TC_C1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	style, err := ReadLegacyStyle(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err = ApplyStyle(tmpl, style)
+	if err != nil {
+		t.Fatal(err)
+	}
 	th, err := BuildTheme(fsys, rand.New(rand.NewPCG(1, 0)))
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +114,14 @@ func TestWriteFinal_TC_C2(t *testing.T) {
 	t.Parallel()
 	fsys := testdataDir(t, "build_single")
 	tmpl, err := ReadTemplate(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	style, err := ReadLegacyStyle(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err = ApplyStyle(tmpl, style)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,17 +194,52 @@ func TestReadTemplate_RequiresExactlyOneStylePlaceholder(t *testing.T) {
 	}
 }
 
-func TestReadTemplate_RejectsEmptyLegacyStyle(t *testing.T) {
+func TestReadLegacyStyle_RejectsEmpty(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{
-		templateFile:    {Data: []byte("BEFORE\n{{STYLE}}\nAFTER\n")},
 		legacyStyleFile: {Data: []byte("\n")},
 	}
-	_, err := ReadTemplate(fsys)
+	_, err := ReadLegacyStyle(fsys)
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), legacyStyleFile) || !strings.Contains(err.Error(), "空") {
 		t.Fatalf("expected empty-style hint: %v", err)
+	}
+}
+
+func TestApplyStyle_CustomStyle(t *testing.T) {
+	t.Parallel()
+
+	got, err := ApplyStyle("BEFORE\r\n{{STYLE}}\r\nAFTER\r\n", "CUSTOM\r\nSTYLE\r\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "BEFORE\nCUSTOM\nSTYLE\nAFTER\n"
+	if got != want {
+		t.Fatalf("styled template mismatch:\ngot  %q\nwant %q", got, want)
+	}
+}
+
+func TestApplyStyle_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+		style    string
+	}{
+		{name: "missing placeholder", template: "COMMON_ONLY\n", style: "STYLE\n"},
+		{name: "multiple placeholders", template: "{{STYLE}}\n{{STYLE}}\n", style: "STYLE\n"},
+		{name: "empty style", template: "BEFORE\n{{STYLE}}\nAFTER\n", style: "\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ApplyStyle(tt.template, tt.style); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
