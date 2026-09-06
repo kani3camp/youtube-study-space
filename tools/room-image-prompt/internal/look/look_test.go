@@ -39,9 +39,9 @@ func TestResolveAutoIsDeterministicAndBundled(t *testing.T) {
 
 	fsys := fstest.MapFS{
 		"look_indigo_violet_fantasy.txt": {Data: []byte("INDIGO\n")},
-		"look_airy_garden.txt":            {Data: []byte("AIRY\n")},
-		"look_coral_aqua_glow.txt":        {Data: []byte("CORAL\n")},
-		"look_crystal_lucent.txt":         {Data: []byte("CRYSTAL\n")},
+		"look_airy_garden.txt":           {Data: []byte("AIRY\n")},
+		"look_coral_aqua_glow.txt":       {Data: []byte("CORAL\n")},
+		"look_crystal_lucent.txt":        {Data: []byte("CRYSTAL\n")},
 	}
 	a, err := Resolve(fsys, AutoName, rand.New(rand.NewPCG(42, 0)))
 	if err != nil {
