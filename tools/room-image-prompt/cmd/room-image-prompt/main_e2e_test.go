@@ -125,8 +125,8 @@ func TestResolveStyle(t *testing.T) {
 	t.Parallel()
 
 	fsys := fstest.MapFS{
-		"style_legacy.txt":                    {Data: []byte("LEGACY_STYLE\n")},
-		"style_direction_a.generated.txt":     {Data: []byte("DIRECTION_A\n")},
+		"style_legacy.txt":                {Data: []byte("LEGACY_STYLE\n")},
+		"style_direction_a.generated.txt": {Data: []byte("DIRECTION_A\n")},
 	}
 	customPath := filepath.Join(t.TempDir(), "custom-style.txt")
 	if err := os.WriteFile(customPath, []byte("CUSTOM_STYLE\n"), 0o644); err != nil {
