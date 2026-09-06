@@ -179,9 +179,9 @@ func TestResolveLook(t *testing.T) {
 
 	fsys := fstest.MapFS{
 		"look_indigo_violet_fantasy.txt": {Data: []byte("INDIGO\n")},
-		"look_airy_garden.txt":            {Data: []byte("AIRY\n")},
-		"look_coral_aqua_glow.txt":        {Data: []byte("CORAL\n")},
-		"look_crystal_lucent.txt":         {Data: []byte("CRYSTAL\n")},
+		"look_airy_garden.txt":           {Data: []byte("AIRY\n")},
+		"look_coral_aqua_glow.txt":       {Data: []byte("CORAL\n")},
+		"look_crystal_lucent.txt":        {Data: []byte("CRYSTAL\n")},
 	}
 	customPath := filepath.Join(t.TempDir(), "custom-look.txt")
 	if err := os.WriteFile(customPath, []byte("CUSTOM_LOOK\n"), 0o644); err != nil {
