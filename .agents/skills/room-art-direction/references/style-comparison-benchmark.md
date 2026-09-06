@@ -4,9 +4,11 @@ Direction A / B / C の描画差だけを比較するための再現可能な検
 
 これは管理人のアートディレクションそのものではなく、**比較のためだけの固定fixture**である。ここに含まれる屋上、テラス、樹木などを各Directionの必須モチーフへ昇格させない。
 
-## Preferred protocol: image-reference lock
+## Preferred protocol: neutral geometry anchor
 
-画像参照を使えるモデルでは、まず1枚の基準構図を作る。その画像をA/B/Cすべてへ同じ `image` reference として渡し、以下を固定する。
+画像参照を使えるモデルでは、まず**スタイル中立の構図アンカー**を1枚作る。完成したDirection A/B/C画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播し、比較を汚染するためである。
+
+中立アンカーは、白〜薄いグレー中心のclay / blockout / massing model風にし、PBR素材、アニメ線、パステル色面など、A/B/C固有の画風をできるだけ持たせない。その画像をA/B/Cすべてへ同じ `image` reference として渡し、以下を固定する。
 
 - camera position and lens / field of view
 - architecture and floor plan
@@ -19,9 +21,11 @@ Direction A / B / C の描画差だけを比較するための再現可能な検
 - light direction
 - major hue placement when possible
 
+中立アンカー自体は評価対象にしない。目的はgeometry lockだけである。
+
 各variantには次を追加する。
 
-> Preserve the exact camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, skyline, time of day, weather and lighting direction from the reference image. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction.
+> Preserve the exact camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, skyline, time of day, weather and lighting direction from the neutral reference image. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction. Ignore the neutral reference's clay material and placeholder shading.
 
 比較時は、スタイル差と同時に構図が変わった場合、その差を `geometry drift` として別評価する。
 
