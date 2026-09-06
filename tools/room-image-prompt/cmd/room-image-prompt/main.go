@@ -111,7 +111,7 @@ func run() error {
 	}
 	look, err := resolveLook(fsys, *lookName, *lookFile, rng)
 	if err != nil {
-		return fmt.Errorf("Look読込: %w", err)
+		return fmt.Errorf("look読込: %w", err)
 	}
 	visualGuidance := composeVisualGuidance(style, look.Text)
 	styledTemplate, err := theme.ApplyStyle(tmpl, visualGuidance)
@@ -207,7 +207,7 @@ func resolveLook(fsys fs.FS, lookName, lookFile string, rng *rand.Rand) (lookpro
 
 	selection, err := lookprofile.Resolve(fsys, lookName, rng)
 	if err != nil {
-		return lookprofile.Selection{}, err
+		return lookprofile.Selection{}, fmt.Errorf("bundled look解決: %w", err)
 	}
 	return selection, nil
 }
