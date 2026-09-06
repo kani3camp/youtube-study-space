@@ -172,7 +172,7 @@ func TestResolveStyle(t *testing.T) {
 func TestResolveBundledDirectionStyles(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"direction-a", "direction-b", "direction-c"} {
+	for _, name := range []string{"direction-a", "direction-b", "direction-c", "direction-d"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			style, err := resolveStyle(data.FS, name, "")
@@ -186,6 +186,39 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 				t.Fatalf("style %q unexpectedly contains legacy style: %s", name, style)
 			}
 		})
+	}
+}
+
+func TestDirectionDUsesConcreteRenderingOperations(t *testing.T) {
+	t.Parallel()
+
+	style, err := resolveStyle(data.FS, "direction-d", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"clean 2D digital environment illustration",
+		"smooth matte color planes",
+		"roughly 3〜4 value levels",
+		"avoid continuous airbrushed gradients",
+		"keep edges crisp and object separation clear",
+		"omit wood grain or reduce it to only a few graphic lines",
+		"reduce reflections to a small number of simplified color shapes",
+		"avoid dull, muddy or washed-out color",
+	} {
+		if !strings.Contains(style, required) {
+			t.Fatalf("direction-d style is missing %q:\n%s", required, style)
+		}
+	}
+	for _, obsolete := range []string{
+		"hospitality marketing art",
+		"real-estate / showroom render",
+		"oversized sculptural lighting",
+		"monomaterial beige / white / pale-wood minimalism",
+	} {
+		if strings.Contains(style, obsolete) {
+			t.Fatalf("direction-d style still contains obsolete Codex-specific workaround %q:\n%s", obsolete, style)
+		}
 	}
 }
 

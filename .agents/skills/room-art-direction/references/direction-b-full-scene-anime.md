@@ -65,6 +65,7 @@
 
 - Direction A より素材の物理感を弱め、線・色面・アニメとしての統一感を強くする。
 - Direction C より現実の空間構造と物体の具体性を残す。
+- Direction D より線・セル影・2Dアニメとしての統一感を強くする。
 - Direction B は「アニメの一場面として存在できる全景」が判断基準。
 
 ## Prompt guidance
