@@ -69,15 +69,18 @@
 
 ## Prompt guidance
 
-- unmistakably 2D full-scene anime environment illustration; the result must read as a finished animation-film frame, not as softened 3D CG
+- unmistakably 2D full-scene anime key visual or animation-film still; the scene must look illustrated from the first glance, never like softened 3D CG
 - every object, building, plant, sky and distant element rendered in one consistent anime illustration language
-- clean cel-style color planes, selective crisp line accents, intentionally simplified illustrated surfaces and graphic shadow shapes
+- strong cel-value grouping: large intentionally designed light, midtone and shadow shapes instead of continuous realistic shading
+- visible anime line economy: selective crisp contour and structural lines only where they clarify forms, with confident omission elsewhere
+- illustrated surfaces with simplified material cues; suggest wood, stone, glass and foliage through shape, color and controlled highlights rather than PBR texture
 - cinematic anime color scripting with expressive warm/cool relationships, atmospheric perspective, luminous sky light and purposeful light-and-shadow design
-- use stylized perspective and shape design to create a memorable scene; avoid ordinary real-estate or rooftop-cafe visualization
-- preserve spatial depth, vertical structures and scenic vistas, but express them through illustrated color, shape and atmosphere rather than PBR materials
+- use stylized perspective, shape exaggeration and authored silhouettes to make the scene memorable while keeping the same underlying architecture and seat layout
+- preserve spatial depth, vertical structures and scenic vistas through layered color, line and atmosphere rather than 3D gloss
 - readable medium-scale detail and a strong scene-level composition, with calm seat-card zones embedded inside a visually authored environment
 - modern, sophisticated anime realism without chibi, family-cartoon or heavily deformed proportions
-- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural diagram look and generic pastel block visualization
+- avoid earthy brown realism dominating the whole image; keep color relationships deliberately authored and visually fresh
+- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural visualization, concept-render paintover look and generic pastel block visualization
 - no paper texture, watercolor wash, film grain or aged cel texture
 
 ## Review checklist
@@ -85,6 +88,6 @@
 - [ ] 背景だけでなく全景がアニメ表現で統一されている
 - [ ] 3Dレンダーの光沢・PBR素材・建築ビジュアライゼーション感が主役になっていない
 - [ ] デフォルメが強すぎない
-- [ ] 色・光・空気感が一枚絵として魅力を作っている
-- [ ] セル風の色面・影・選択的な線が整理され、2Dアニメの一枚絵として明確に読める
+- [ ] 茶系の現実的素材色へ単調に寄らず、色・光・空気感が一枚絵として魅力を作っている
+- [ ] 大きなセル風value groupingと選択的な線が整理され、柔らかい3Dではなく2Dアニメの一枚絵として一目で読める
 - [ ] 時間帯や題材に依存せず成立する
