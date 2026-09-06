@@ -65,7 +65,7 @@ func TestGeneratedStylesUpToDate(t *testing.T) {
 	for _, artifact := range artifacts {
 		styles[artifact.StyleName] = true
 	}
-	for _, required := range []string{"direction-a", "direction-b", "direction-c"} {
+	for _, required := range []string{"direction-a", "direction-b", "direction-c", "direction-d"} {
 		if !styles[required] {
 			t.Fatalf("required generated style is missing: %q", required)
 		}
