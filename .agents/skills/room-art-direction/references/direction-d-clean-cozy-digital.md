@@ -62,6 +62,11 @@
 
 - フォトリアルな写真表現
 - 建築ビジュアライゼーションや不動産CG
+- real-estate brochure / showroom / premium interior render のような見え方
+- カフェ広告、ホテルラウンジ、ホスピタリティ販促ビジュアルのような staging
+- 巨大照明・円形家具・中央象徴物などを使った theatrical focal composition
+- 白木・白壁・ベージュ中心の monomaterial minimalism
+- sterile で staged な「高級だが生活感の薄い空間」
 - PBR素材、レイトレーシング風反射、物理的に精密なガラスや金属
 - 木目・布目・石肌などの写実的な微細テクスチャ
 - 強い被写界深度、レンズボケ、写真レンズ由来の演出
@@ -90,8 +95,8 @@
 
 ## Prompt guidance
 
-- unmistakably a clean, polished digital environment illustration with a friendly and approachable lifestyle feel
-- the result must read as an intentionally designed illustration at first glance, not as photorealism, architectural visualization, interior CG, anime background art, or painterly concept art
+- unmistakably a clean, polished digital environment illustration with a friendly, approachable, everyday lifestyle feel
+- the result must read as an intentionally designed illustration at first glance, not as photorealism, architectural visualization, interior CG, anime background art, painterly concept art, hospitality marketing art, or a real-estate / showroom render
 - prioritize clean shape design, readable silhouettes, tidy object grouping, and clear visual organization
 - keep the image representational and spatial, but clearly simplified and illustration-first
 - use soft but controlled shading with clearly organized light, midtone, and shadow masses
@@ -99,18 +104,22 @@
 - use gentle gradients only in a restrained way to support form; do not let gradients dominate the image
 - major surfaces should read as clean, smooth color planes with simple form shading rather than textured, airbrushed, or painterly surfaces
 - keep materials simplified and mostly matte; suggest wood, fabric, glass, metal, and foliage through color, value, and a few controlled highlights only
-- avoid realistic material behavior and avoid painterly material treatment; no wood-grain emphasis, fabric weave, stone texture, rough brush texture, or atmospheric paint haze
+- avoid realistic material behavior and avoid painterly material treatment; no wood-grain emphasis, fabric weave, stone texture, rough brush texture, atmospheric paint haze, glossy flooring, or luxury showroom material rendering
+- avoid monomaterial beige / white / pale-wood minimalism; use clearer color-family separation so the space does not look like an expensive staged interior render
 - simplify plants, books, and small props into neat, designed illustrated forms rather than naturalistic detail, individually rendered clutter, or painterly clusters
 - treat windows and exterior scenery as simplified layered illustrated backdrops with reduced detail, not as scenic matte paintings, anime background paintings, or realistic landscape renders
 - keep linework minimal or nearly invisible, but preserve crisp form boundaries through shape, color, and value
 - use a harmonious restrained palette with clear color separation, moderate saturation, and a pleasant warm/cool balance
 - avoid washed-out milky pastel fog, muddy low-contrast color, sepia grading, and generic brown-orange cozy treatment
-- maintain a calm, cozy, tidy atmosphere, but do not express coziness through blur, haze, diffuse glow, bloom, or painterly softness
-- when the common production prompt asks for memorable architecture, scenery, light, or depth, express that individuality through clean shape design, color relationships, composition, and simplified layering rather than increased rendering realism or atmospheric effects
+- maintain a calm, cozy, tidy atmosphere, but do not express coziness through blur, haze, diffuse glow, bloom, luxury styling, or painterly softness
+- avoid dramatic centerpiece compositions built around oversized sculptural lighting, iconic furniture heroes, circular focal layouts, grand lobby staging, or premium hospitality visual tropes
+- avoid turning the room into a staged café, hotel lounge, luxury lobby, or brochure-like hospitality space; keep the feeling more everyday, usable, and study/work oriented even when the theme is cozy
+- when the common production prompt asks for memorable architecture, scenery, light, or depth, express that individuality through clean shape design, color relationships, composition, and simplified layering rather than increased rendering realism, luxury styling, or cinematic staging
 - respect the specified time of day, weather, and light direction exactly, while depicting those conditions with clean illustrative shapes and controlled value groups
+- the space may feel thoughtfully arranged and slightly lived-in, but not sterile, showroom-empty, or overly decorated
 - distinctly less cinematic, glossy, and materially physical than Direction A; distinctly less line-based, cel-shaded, and anime-background-like than Direction B; distinctly more representational and spatially descriptive than Direction C
-- if the result starts to resemble interior CG, architectural visualization, anime background art, painterly concept art, or a soft storybook scene, correct it by making shapes cleaner, edges crisper, colors clearer, gradients more restrained, reflections simpler, and micro-detail lower
-- no photorealism, no architectural visualization, no interior-render look, no PBR material look, no ray-traced look, no glossy showroom finish, no realistic depth of field, no lens blur, no bokeh, no bloom, no atmospheric haze, no misty wash, no volumetric cinematic lighting, no painterly brush texture, no rough concept-art blending, no watercolor, no paper grain, no sketchiness, no thick outlines, no hard anime cel shading
+- if the result starts to resemble interior CG, architectural visualization, anime background art, painterly concept art, a luxury showroom, a café brochure, or a hospitality render, correct it by making shapes cleaner, edges crisper, colors clearer, gradients more restrained, reflections simpler, focal objects less theatrical, and the overall room more illustration-first
+- no photorealism, no architectural visualization, no interior-render look, no real-estate brochure look, no hospitality marketing look, no luxury showroom finish, no PBR material look, no ray-traced look, no glossy showroom finish, no realistic depth of field, no lens blur, no bokeh, no bloom, no atmospheric haze, no misty wash, no volumetric cinematic lighting, no painterly brush texture, no rough concept-art blending, no watercolor, no paper grain, no sketchiness, no thick outlines, no hard anime cel shading
 
 ## Review checklist
 
@@ -126,5 +135,10 @@
 - [ ] 幾何学的抽象化やフラット色面に寄りすぎず、Direction C と区別できる
 - [ ] 映画的CG素材・反射・ライティングが強くなりすぎず、Direction A と区別できる
 - [ ] 色が調和しており、茶・ベージュ・オレンジだけの generic cozy に平均化されていない
+- [ ] 高級内装CG・不動産CG・showroom render のような見え方になっていない
+- [ ] カフェ広告・ホテルラウンジ・ホスピタリティ販促のような staging になっていない
+- [ ] 巨大照明や象徴家具など、一点豪華主義の theatrical focal object に依存していない
+- [ ] 白木・白壁・ベージュ一色の monomaterial minimalism に偏っていない
+- [ ] 日常的で使える空間として読め、sterile すぎず、かといって clutter でもない
 - [ ] 紙・絵の具・粒子・ブラシの質感がない
 - [ ] 特定の家具、植物、本、窓、時間帯、天気をDirectionの必須条件にしていない
