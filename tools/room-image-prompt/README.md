@@ -71,7 +71,7 @@ go generate ./data
 | `-version` | バージョン表示して終了 |
 | `-out <path>` | 出力ファイル（省略時は上記タイムスタンプ名） |
 | `-seed <uint64>` | 乱数シード（10進）。省略時は非固定 |
-| `-style <name>` | `legacy` または生成済み `direction-a` / `direction-b` / `direction-c` / `direction-d` / `direction-d`。省略時は `legacy` |
+| `-style <name>` | `legacy` または生成済み `direction-a` / `direction-b` / `direction-c` / `direction-d`。省略時は `legacy` |
 | `-style-file <path>` | 任意の UTF-8 スタイル本文をファイルから読み込む。 `-style` と同時指定不可 |
 
 開発中は `go run` でも可です。
