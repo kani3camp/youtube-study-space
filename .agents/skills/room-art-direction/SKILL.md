@@ -32,8 +32,9 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 | Direction A | `references/direction-a-clean-vivid-digital.md` | CG / ゲーム環境系。立体・素材・ライティングを強く使い、わくわくする高品質スタイライズド環境アート |
 | Direction B | `references/direction-b-full-scene-anime.md` | 全景アニメ系。現代アニメの自然さ、劇場アニメの光と空気、クリーンなセル表現を統合 |
 | Direction C | `references/direction-c-clean-abstract-graphic.md` | 抽象・グラフィック系。形・色面・構成を主役にし、明るいパステル配色と非写実的な物体表現を重視 |
+| Direction D | `references/direction-d-clean-cozy-digital.md` | クリーン・コージーなデジタルイラスト系。整理された具体形、柔らかな陰影、簡略化した素材、調和した色設計を重視 |
 
-管理人が Direction A / CG・レンダー系、Direction B / アニメ系、Direction C / 抽象・グラフィック系などを指定した場合は、対応する reference を読む。
+管理人が Direction A / CG・レンダー系、Direction B / アニメ系、Direction C / 抽象・グラフィック系、Direction D / クリーン・コージーなデジタルイラスト系などを指定した場合は、対応する reference を読む。
 
 方向性が明示されていない場合、既存 Direction を勝手にデフォルト扱いしない。必要なら複数方向を比較できる形で提示する。
 
@@ -66,7 +67,7 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 > [!IMPORTANT]
 > Direction の canonical source は `references/direction-*.md` である。CLI用の `tools/room-image-prompt/data/style_direction_*.generated.txt` は各referenceの **`## Prompt guidance` セクションから自動生成**されるため、生成物を直接編集しない。
 > Direction を変更したら `cd tools/room-image-prompt && go generate ./data` を実行し、生成物も同じ変更に含める。CIはcanonical Markdownと生成物の不一致を拒否する。
-> CLIでは `-style direction-a` / `direction-b` / `direction-c` で生成済みDirectionを利用できる。未指定時だけ後方互換のため `legacy` を使う。
+> CLIでは `-style direction-a` / `direction-b` / `direction-c` / `direction-d` で生成済みDirectionを利用できる。未指定時だけ後方互換のため `legacy` を使う。
 
 ### 2. Direction の不変条件を読む
 
@@ -123,7 +124,7 @@ Direction を保ったまま、題材・建築・地形・時代・世界観・�
 
 厳密なスタイル比較では、まず `references/style-comparison-benchmark.md` の**text-locked fixture**を使い、題材・構造アンカー・時間帯・天気・光源条件を同一テキストで固定する。画像referenceはgeometryを揃えやすい反面、そのreference固有の材質・陰影・3D感がDirectionへ混入することがあるため、Style fidelityの一次判定にはしない。
 
-同一geometryでの変換能力も確認したい場合は、A/B/Cのどれにも属さないneutral clay / blockout画像をsecondary benchmarkとして使う。完成したA/B/C画像をreferenceにしない。reference使用時に画風が弱まった場合は、失敗をDirection定義へそのまま取り込まず、**reference bias / geometry-style trade-off**として分離評価する。
+同一geometryでの変換能力も確認したい場合は、A/B/C/Dのどれにも属さないneutral clay / blockout画像をsecondary benchmarkとして使う。完成したA/B/C/D画像をreferenceにしない。reference使用時に画風が弱まった場合は、失敗をDirection定義へそのまま取り込まず、**reference bias / geometry-style trade-off**として分離評価する。
 
 生成ごとの空間設計差は Style fidelity とは別に **geometry drift**、時間帯・天気・光源のズレは **condition drift** として記録する。
 

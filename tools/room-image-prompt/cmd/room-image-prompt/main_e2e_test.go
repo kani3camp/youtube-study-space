@@ -172,7 +172,7 @@ func TestResolveStyle(t *testing.T) {
 func TestResolveBundledDirectionStyles(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"direction-a", "direction-b", "direction-c"} {
+	for _, name := range []string{"direction-a", "direction-b", "direction-c", "direction-d"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			style, err := resolveStyle(data.FS, name, "")
