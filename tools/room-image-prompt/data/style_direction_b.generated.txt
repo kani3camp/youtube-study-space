@@ -1,14 +1,13 @@
-- unmistakably 2D full-scene anime key visual or animation-film still; the scene must look illustrated from the first glance, never like softened 3D CG
-- every object, building, plant, sky and distant element rendered in one consistent anime illustration language
-- strong cel-value grouping: large intentionally designed light, midtone and shadow shapes instead of continuous realistic shading
-- visible anime line economy: selective crisp contour and structural lines only where they clarify forms, with confident omission elsewhere
-- illustrated surfaces with simplified material cues; suggest wood, stone, glass and foliage through shape, color and controlled highlights rather than PBR texture
-- cinematic anime color scripting with expressive warm/cool relationships, atmospheric perspective, luminous sky light and purposeful light-and-shadow design
+- unmistakably 2D full-scene anime animation still or key visual; the entire scene must look drawn and cel-rendered from the first glance, never like softened 3D CG
+- every object, building, plant, sky and distant element rendered in one consistent 2D anime illustration language
+- use clean digital anime linework with selective medium-thin contour and structural lines, with confident omission where lines are unnecessary
+- use 2-to-3-step cel shading with large deliberately designed light, midtone and shadow groups; avoid continuous physically realistic gradients on objects
+- simplify material cues into flat color, cel shadow and small controlled highlights; suggest wood, stone, glass and foliage without PBR texture
+- foliage should read as stylized anime foliage masses rather than photographic vegetation
+- architecture should be illustrated through shape, line and flat color rather than physically based rendering
+- create spatial depth through layered color, atmospheric perspective and drawn perspective, not through 3D gloss or realistic material response
+- use fresh, deliberate anime color scripting with clear warm/cool separation and a bright daytime palette when the theme specifies daylight
 - respect the specified time of day, weather and light direction exactly; anime styling must not silently substitute a different time or weather
-- use stylized perspective, shape exaggeration and authored silhouettes to make the scene memorable while keeping the same underlying architecture and seat layout
-- preserve spatial depth, vertical structures and scenic vistas through layered color, line and atmosphere rather than 3D gloss
-- readable medium-scale detail and a strong scene-level composition, with calm seat-card zones embedded inside a visually authored environment
-- modern, sophisticated anime realism without chibi, family-cartoon or heavily deformed proportions
-- avoid earthy brown realism dominating the whole image; keep color relationships deliberately authored and visually fresh
-- explicitly avoid 3D-render gloss, realistic material roughness, miniature-diorama look, architectural visualization, concept-render paintover look and generic pastel block visualization
+- keep the result sophisticated and modern, not chibi, not family-cartoon and not children's animation
+- explicitly avoid realistic material roughness, ray-traced reflection look, 3D-render gloss, physically based glass or metal response, miniature-diorama look, architectural visualization, real-estate render, concept-render paintover and generic pastel-block diagram style
 - no paper texture, watercolor wash, film grain or aged cel texture
