@@ -113,13 +113,6 @@ export class AwsCdkStack extends cdk.Stack {
 			},
 		)
 
-		// NOTE: 現状、DynamoDBのテーブルは別途作成しておく必要がある
-		const dynamoDBAccessPolicy = new iam.PolicyStatement({
-			actions: ['dynamodb:GetItem'],
-			effect: iam.Effect.ALLOW,
-			resources: ['arn:aws:dynamodb:*:*:table/secrets'],
-		})
-
 		// =========================
 		// ECS/Fargate: Daily Batch
 		// =========================
@@ -205,9 +198,6 @@ export class AwsCdkStack extends cdk.Stack {
 				},
 			},
 		)
-		// DynamoDB secrets テーブルへのアクセス付与
-		taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy)
-
 		const batchContainer = taskDefinition.addContainer('daily-batch', {
 			image: ecs.ContainerImage.fromDockerImageAsset(batchImageAsset),
 			logging: ecs.LogDrivers.awsLogs({
@@ -237,9 +227,6 @@ export class AwsCdkStack extends cdk.Stack {
 				reservedConcurrentExecutions: 1,
 				environment: googleAuthEnvironment,
 			},
-		)
-		;(snsNotifyDiscordFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
@@ -658,9 +645,6 @@ export class AwsCdkStack extends cdk.Stack {
 				environment: googleAuthEnvironment,
 			},
 		)
-		;(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
-		)
 		createLambdaErrorAlarm(
 			setDesiredMaxSeatsFunction,
 			'SetDesiredMaxSeatsErrorsAlarm',
@@ -678,9 +662,6 @@ export class AwsCdkStack extends cdk.Stack {
 				environment: googleAuthEnvironment,
 			},
 		)
-		;(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
-		)
 		createLambdaErrorAlarm(
 			youtubeOrganizeDatabaseFunction,
 			'YoutubeOrganizeDatabaseErrorsAlarm',
@@ -697,9 +678,6 @@ export class AwsCdkStack extends cdk.Stack {
 				reservedConcurrentExecutions: undefined,
 				environment: googleAuthEnvironment,
 			},
-		)
-		;(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			checkLiveStreamStatusFunction,
@@ -722,9 +700,6 @@ export class AwsCdkStack extends cdk.Stack {
 			},
 		)
 		openaiApiKeySecret.grantRead(updateWorkNameTrendFunction)
-		;(updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
-		)
 		createLambdaErrorAlarm(
 			updateWorkNameTrendFunction,
 			'UpdateWorkNameTrendErrorsAlarm',
@@ -740,9 +715,6 @@ export class AwsCdkStack extends cdk.Stack {
 				timeout: cdk.Duration.seconds(30),
 				environment: googleAuthEnvironment,
 			},
-		)
-		;(errorLogNotifyDiscordFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			errorLogNotifyDiscordFunction,
