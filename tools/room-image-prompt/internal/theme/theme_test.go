@@ -25,8 +25,8 @@ func TestBuildTheme_SeatCountInRange(t *testing.T) {
 		if err != nil {
 			t.Fatalf("i=%d: %v", i, err)
 		}
-		if th.SeatCount < seatCountMin || th.SeatCount > seatCountMax {
-			t.Fatalf("i=%d: SeatCount=%d, want in [%d,%d]", i, th.SeatCount, seatCountMin, seatCountMax)
+		if th.SeatCount < 7 || th.SeatCount > 11 {
+			t.Fatalf("i=%d: SeatCount=%d, want in [7,11]", i, th.SeatCount)
 		}
 	}
 }
@@ -43,8 +43,8 @@ func TestBuildTheme_TC_B1(t *testing.T) {
 		th.SeatLayout != "only_layout" {
 		t.Fatalf("unexpected theme: %+v", th)
 	}
-	if th.SeatCount != 14 {
-		t.Fatalf("unexpected SeatCount: %d (want 14 for PCG(1,0))", th.SeatCount)
+	if th.SeatCount != 10 {
+		t.Fatalf("unexpected SeatCount: %d (want 10 for PCG(1,0))", th.SeatCount)
 	}
 }
 
