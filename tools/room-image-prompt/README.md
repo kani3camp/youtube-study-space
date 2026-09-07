@@ -14,7 +14,7 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 ./room-image-prompt -version
 ```
 
-引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 10〜15** を1回一様乱数で決定します。さらに、色・光・材質感を担当する bundled **Look profile を1つ自動選択**します。`data/prompt_template.txt` の `{{STYLE}}` には Direction / style と Look を合成した visual guidance を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
+引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 7〜11** を1回一様乱数で決定します。さらに、色・光・材質感を担当する bundled **Look profile を1つ自動選択**します。`data/prompt_template.txt` の `{{STYLE}}` には Direction / style と Look を合成した visual guidance を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
 
 `-style direction-a` / `direction-b` / `direction-c` / `direction-d` で管理人のアートディレクションを選択できます。`-style-file <path>` を指定すると任意の UTF-8 テキストをスタイルとして注入できます。style 未指定時は後方互換のため `legacy` です。
 
@@ -34,7 +34,7 @@ Look は `-look <name>` で固定でき、`-look none` で無効化できます�
 | `data/03_workspace_type.txt` | **Workspace Type**。そのSceneの中に作る、実際の作業・学習・休憩空間の種類 |
 | `data/04_seat_layout.txt` | **Seat Layout**。座席の空間的な配置・ゾーニング・動線だけを持つ |
 
-座席数（10〜15）は専用ファイルを使わず、毎回一様乱数で1つ選びます。
+座席数（7〜11）は専用ファイルを使わず、毎回一様乱数で1つ選びます。
 
 #### 候補軸の設計原則
 
@@ -98,11 +98,11 @@ go generate ./data
 
 生成済みファイルがcanonical Markdownと一致しない場合はGo testが失敗します。また、Direction referenceの変更でもRoom Image Prompt CIが起動するようpath routingで保護します。
 
-出力に付与するテーマブロックの行ラベルは、順に `世界観` / `時間帯` / `作業空間` / `座席レイアウト` / `座席数` です（`internal/theme` の `FormatThemeBlock`）。`座席数` は10〜15の乱数で、専用の候補ファイルはありません。
+出力に付与するテーマブロックの行ラベルは、順に `世界観` / `時間帯` / `作業空間` / `座席レイアウト` / `座席数` です（`internal/theme` の `FormatThemeBlock`）。`座席数` は7〜11の乱数で、専用の候補ファイルはありません。
 
 ### v1 の挙動と将来拡張
 
-- **v1（現状）**: 4ファイル分は、当該ファイル内の候補から **一様な独立乱数** で1行ずつ選びます。`座席数` は 10〜15 から1回一様乱数で決めます。その後、Look 未指定時は bundled Look 4種から1つを一様に選びます。Theme と Look の相性スコアや条件付き再抽選は行いません。
+- **v1（現状）**: 4ファイル分は、当該ファイル内の候補から **一様な独立乱数** で1行ずつ選びます。`座席数` は 7〜11 から1回一様乱数で決めます。その後、Look 未指定時は bundled Look 4種から1つを一様に選びます。Theme と Look の相性スコアや条件付き再抽選は行いません。
 - **将来拡張（未実装）の例**: 前段に応じた候補の重み付け、相性スコア、条件付き再抽選など。必要になったらアルゴリズムを差し替え可能な位置に集約する想定です。
 
 ### オプション
