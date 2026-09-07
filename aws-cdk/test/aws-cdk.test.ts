@@ -210,9 +210,17 @@ describe('AwsCdkStack', () => {
 		})
 	})
 
-	test('removes legacy DynamoDB credential reads while retaining the gateway endpoint', () => {
+	test('removes legacy DynamoDB credential reads while retaining the DynamoDB gateway endpoint', () => {
 		const json = createTemplate().toJSON() as {
-			Resources?: Record<string, unknown>
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						ServiceName?: unknown
+					}
+				}
+			>
 		}
 		const resources = json.Resources ?? {}
 		const serialized = JSON.stringify(resources)
@@ -220,17 +228,12 @@ describe('AwsCdkStack', () => {
 		expect(serialized).not.toContain('dynamodb:GetItem')
 		expect(serialized).not.toContain('arn:aws:dynamodb:*:*:table/secrets')
 
-		const gatewayEndpoints = Object.values(resources).filter((resource) => {
-			if (
-				typeof resource !== 'object' ||
-				resource === null ||
-				!('Type' in resource)
-			) {
-				return false
-			}
-			return (resource as { Type?: string }).Type === 'AWS::EC2::VPCEndpoint'
-		})
-		expect(gatewayEndpoints.length).toBeGreaterThan(0)
+		const dynamodbGatewayEndpoints = Object.values(resources).filter(
+			(resource) =>
+				resource.Type === 'AWS::EC2::VPCEndpoint' &&
+				JSON.stringify(resource.Properties?.ServiceName).includes('dynamodb'),
+		)
+		expect(dynamodbGatewayEndpoints).toHaveLength(1)
 	})
 
 	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
