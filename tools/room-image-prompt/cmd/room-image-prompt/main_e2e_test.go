@@ -270,7 +270,7 @@ func TestCLI_LookProfile(t *testing.T) {
 	for _, required := range []string{
 		"clean 2D digital environment illustration",
 		"## Look profile: Crystal Lucent",
-		"pale cyan, periwinkle, lavender",
+		"pale cyan, mint, milky white",
 	} {
 		if !strings.Contains(got, required) {
 			t.Fatalf("combined Direction + Look output is missing %q:\n%s", required, got)
@@ -293,6 +293,64 @@ func TestResolveBundledDirectionStyles(t *testing.T) {
 			}
 			if strings.Contains(style, "写真風、3D建築レンダリング風、フォトリアル表現にはしないでください。") {
 				t.Fatalf("style %q unexpectedly contains legacy style: %s", name, style)
+			}
+		})
+	}
+}
+
+func TestDirectionCBalancesPastelHueFamilies(t *testing.T) {
+	t.Parallel()
+
+	style, err := resolveStyle(data.FS, "direction-c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"broad hue variety across cool and warm families",
+		"lavender or periwinkle may appear only as small optional accents",
+		"do not tint walls, floor, background and lighting all toward lavender, violet or purple",
+		"avoid monochromatic or purple-biased palettes",
+	} {
+		if !strings.Contains(style, required) {
+			t.Fatalf("direction-c style is missing %q:\n%s", required, style)
+		}
+	}
+	for _, obsolete := range []string{
+		"pale peach and periwinkle",
+		"avoid neon-purple default palette",
+	} {
+		if strings.Contains(style, obsolete) {
+			t.Fatalf("direction-c style still contains purple-biasing guidance %q:\n%s", obsolete, style)
+		}
+	}
+}
+
+func TestPurpleLooksRespectPastelDirections(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		required string
+	}{
+		{
+			name:     "indigo-violet-fantasy",
+			required: "keep large surfaces within that Direction's broader pastel range",
+		},
+		{
+			name:     "crystal-lucent",
+			required: "do not let lavender, violet or periwinkle dominate",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveLook(data.FS, tt.name, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(got.Text, tt.required) {
+				t.Fatalf("look %q is missing pastel compatibility guidance %q:\n%s", tt.name, tt.required, got.Text)
 			}
 		})
 	}
