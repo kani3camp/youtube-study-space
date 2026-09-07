@@ -59,6 +59,49 @@ export class AwsCdkStack extends cdk.Stack {
 		})
 
 		// =========================
+		// Google Cloud authentication migration
+		// =========================
+		const gcpAuthMode = new cdk.CfnParameter(this, 'GcpAuthMode', {
+			type: 'String',
+			default: 'legacy',
+			allowedValues: ['legacy', 'wif'],
+			description:
+				'Google Cloud auth mode for AWS workloads. Keep legacy until WIF is configured and verified.',
+		})
+		const googleCloudProject = new cdk.CfnParameter(
+			this,
+			'GoogleCloudProject',
+			{
+				type: 'String',
+				default: '',
+				description:
+					'Google Cloud project ID. Required when GcpAuthMode=wif so Firestore can resolve the project explicitly.',
+			},
+		)
+		const gcpWifAudience = new cdk.CfnParameter(this, 'GcpWifAudience', {
+			type: 'String',
+			default: '',
+			description:
+				'Full Workload Identity Federation provider audience. Required when GcpAuthMode=wif.',
+		})
+		const gcpWifServiceAccountEmail = new cdk.CfnParameter(
+			this,
+			'GcpWifServiceAccountEmail',
+			{
+				type: 'String',
+				default: '',
+				description:
+					'Google service account email impersonated through WIF. Required when GcpAuthMode=wif.',
+			},
+		)
+		const googleAuthEnvironment = {
+			GCP_AUTH_MODE: gcpAuthMode.valueAsString,
+			GOOGLE_CLOUD_PROJECT: googleCloudProject.valueAsString,
+			GCP_WIF_AUDIENCE: gcpWifAudience.valueAsString,
+			GCP_WIF_SERVICE_ACCOUNT_EMAIL: gcpWifServiceAccountEmail.valueAsString,
+		}
+
+		// =========================
 		// Secrets Manager
 		// =========================
 		const openaiApiKeySecret = new secretsmanager.Secret(
@@ -172,6 +215,7 @@ export class AwsCdkStack extends cdk.Stack {
 				streamPrefix: 'daily-batch',
 			}),
 			environment: {
+				...googleAuthEnvironment,
 				// ECS/Fargate でも AWS_REGION は基本入るが、念のため DEFAULT もセット
 				AWS_REGION: cdk.Stack.of(this).region,
 				AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
@@ -191,6 +235,7 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'sns_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
 				reservedConcurrentExecutions: 1,
+				environment: googleAuthEnvironment,
 			},
 		)
 		;(snsNotifyDiscordFunction.role as iam.Role).addToPolicy(
@@ -610,6 +655,7 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'set_desired_max_seats'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
+				environment: googleAuthEnvironment,
 			},
 		)
 		;(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
@@ -629,6 +675,7 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'youtube_organize_database'),
 				timeout: cdk.Duration.seconds(50),
 				reservedConcurrentExecutions: 1,
+				environment: googleAuthEnvironment,
 			},
 		)
 		;(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
@@ -648,6 +695,7 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'check_live_stream_status'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
+				environment: googleAuthEnvironment,
 			},
 		)
 		;(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
@@ -668,6 +716,7 @@ export class AwsCdkStack extends cdk.Stack {
 				timeout: cdk.Duration.minutes(5),
 				reservedConcurrentExecutions: 1,
 				environment: {
+					...googleAuthEnvironment,
 					SECRET_NAME: openaiApiKeySecret.secretName,
 				},
 			},
@@ -689,6 +738,7 @@ export class AwsCdkStack extends cdk.Stack {
 				functionName: 'error_log_notify_discord',
 				code: createLambdaImageCode(systemDir, 'error_log_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
+				environment: googleAuthEnvironment,
 			},
 		)
 		;(errorLogNotifyDiscordFunction.role as iam.Role).addToPolicy(

@@ -132,6 +132,84 @@ describe('AwsCdkStack', () => {
 		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
 	})
 
+	test('defines rollback-safe WIF parameters and propagates them to Google Cloud workloads', () => {
+		const t = createTemplate()
+		t.hasParameter('GcpAuthMode', {
+			Type: 'String',
+			Default: 'legacy',
+			AllowedValues: ['legacy', 'wif'],
+		})
+		t.hasParameter('GoogleCloudProject', { Type: 'String', Default: '' })
+		t.hasParameter('GcpWifAudience', { Type: 'String', Default: '' })
+		t.hasParameter('GcpWifServiceAccountEmail', {
+			Type: 'String',
+			Default: '',
+		})
+
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						Environment?: {
+							Variables?: Record<string, unknown>
+						}
+					}
+				}
+			>
+		}
+		const credentialUsingLambdas = new Set([
+			'sns_notify_discord',
+			'set_desired_max_seats',
+			'youtube_organize_database',
+			'check_live_stream_status',
+			'update_work_name_trend',
+			'error_log_notify_discord',
+		])
+		const lambdaResources = Object.values(json.Resources ?? {}).filter(
+			(resource) =>
+				resource.Type === 'AWS::Lambda::Function' &&
+				credentialUsingLambdas.has(resource.Properties?.FunctionName ?? ''),
+		)
+		expect(lambdaResources).toHaveLength(credentialUsingLambdas.size)
+		for (const resource of lambdaResources) {
+			expect(resource.Properties?.Environment?.Variables).toEqual(
+				expect.objectContaining({
+					GCP_AUTH_MODE: { Ref: 'GcpAuthMode' },
+					GOOGLE_CLOUD_PROJECT: { Ref: 'GoogleCloudProject' },
+					GCP_WIF_AUDIENCE: { Ref: 'GcpWifAudience' },
+					GCP_WIF_SERVICE_ACCOUNT_EMAIL: {
+						Ref: 'GcpWifServiceAccountEmail',
+					},
+				}),
+			)
+		}
+
+		t.hasResourceProperties('AWS::ECS::TaskDefinition', {
+			ContainerDefinitions: Match.arrayWith([
+				Match.objectLike({
+					Environment: Match.arrayWith([
+						{ Name: 'GCP_AUTH_MODE', Value: { Ref: 'GcpAuthMode' } },
+						{
+							Name: 'GOOGLE_CLOUD_PROJECT',
+							Value: { Ref: 'GoogleCloudProject' },
+						},
+						{
+							Name: 'GCP_WIF_AUDIENCE',
+							Value: { Ref: 'GcpWifAudience' },
+						},
+						{
+							Name: 'GCP_WIF_SERVICE_ACCOUNT_EMAIL',
+							Value: { Ref: 'GcpWifServiceAccountEmail' },
+						},
+					]),
+				}),
+			]),
+		})
+	})
+
 	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
 		const t = createTemplate()
 		const json = t.toJSON() as {
