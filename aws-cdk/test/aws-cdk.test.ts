@@ -132,13 +132,8 @@ describe('AwsCdkStack', () => {
 		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
 	})
 
-	test('defines rollback-safe WIF parameters and propagates them to Google Cloud workloads', () => {
+	test('defines WIF parameters and propagates them to Google Cloud workloads', () => {
 		const t = createTemplate()
-		t.hasParameter('GcpAuthMode', {
-			Type: 'String',
-			Default: 'legacy',
-			AllowedValues: ['legacy', 'wif'],
-		})
 		t.hasParameter('GoogleCloudProject', { Type: 'String', Default: '' })
 		t.hasParameter('GcpWifAudience', { Type: 'String', Default: '' })
 		t.hasParameter('GcpWifServiceAccountEmail', {
@@ -177,7 +172,6 @@ describe('AwsCdkStack', () => {
 		for (const resource of lambdaResources) {
 			expect(resource.Properties?.Environment?.Variables).toEqual(
 				expect.objectContaining({
-					GCP_AUTH_MODE: { Ref: 'GcpAuthMode' },
 					GOOGLE_CLOUD_PROJECT: { Ref: 'GoogleCloudProject' },
 					GCP_WIF_AUDIENCE: { Ref: 'GcpWifAudience' },
 					GCP_WIF_SERVICE_ACCOUNT_EMAIL: {
@@ -191,7 +185,6 @@ describe('AwsCdkStack', () => {
 			ContainerDefinitions: Match.arrayWith([
 				Match.objectLike({
 					Environment: Match.arrayWith([
-						{ Name: 'GCP_AUTH_MODE', Value: { Ref: 'GcpAuthMode' } },
 						{
 							Name: 'GOOGLE_CLOUD_PROJECT',
 							Value: { Ref: 'GoogleCloudProject' },
