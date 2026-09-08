@@ -5,11 +5,12 @@ import RoomVisual from './RoomVisual'
 jest.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: ComponentPropsWithoutRef<'img'>) => {
-		const { alt, height, src, width } = props
+		const { alt, height, src, style, width } = props
 		return (
 			<span
 				role="img"
 				aria-label={alt}
+				data-filter={style?.filter}
 				data-height={height}
 				data-src={typeof src === 'string' ? src : ''}
 				data-width={width}
@@ -32,6 +33,7 @@ describe('RoomVisual static compatibility', () => {
 		expect(image).toHaveAttribute('data-src', '/images/rooms/test-room.png')
 		expect(image).toHaveAttribute('data-width', '1520')
 		expect(image).toHaveAttribute('data-height', '900')
+		expect(image).not.toHaveAttribute('data-filter')
 	})
 
 	test('keeps rendering the static floor image when a scene config is present', () => {
@@ -44,9 +46,11 @@ describe('RoomVisual static compatibility', () => {
 			/>,
 		)
 
-		expect(screen.getByRole('img', { name: 'room image' })).toHaveAttribute(
-			'data-src',
-			'/images/rooms/test-room.png',
+		const image = screen.getByRole('img', { name: 'room image' })
+		expect(image).toHaveAttribute('data-src', '/images/rooms/test-room.png')
+		expect(image).toHaveAttribute(
+			'data-filter',
+			'var(--scene-ambient-filter, none)',
 		)
 	})
 

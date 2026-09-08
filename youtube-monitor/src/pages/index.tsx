@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore'
 import type { GetStaticProps } from 'next'
 import { serverSideTranslations } from 'next-i18next/pages/serverSideTranslations'
-import { type FC, useEffect, useState } from 'react'
+import { type FC, useEffect, useRef, useState } from 'react'
 import AmbientFrame from '../components/AmbientFrame'
 import BackgroundImage from '../components/BackgroundImage'
 import BgmPlayer from '../components/BgmPlayer'
@@ -17,6 +17,7 @@ import Seats from '../components/MainContent'
 import MenuDisplay from '../components/MenuDisplay'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
+import { useSceneClockCssVariables } from '../hooks/use-scene-clock-css-variables'
 import { useTimeTheme } from '../hooks/use-time-theme'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
 import { themedRoot } from '../styles/AmbientFrame.styles'
@@ -24,7 +25,9 @@ import type { Menu } from '../types/api'
 
 const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
+	const sceneRootRef = useRef<HTMLDivElement>(null)
 	const { timeTheme, textTone, contrastBridge } = useTimeTheme()
+	useSceneClockCssVariables(sceneRootRef)
 
 	useEffect(() => {
 		const app = getFirebaseApp()
@@ -50,6 +53,7 @@ const Home: FC = () => {
 
 	return (
 		<div
+			ref={sceneRootRef}
 			css={themedRoot}
 			data-time-theme={timeTheme}
 			data-text-tone={textTone}

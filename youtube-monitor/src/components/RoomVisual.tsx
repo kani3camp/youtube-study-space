@@ -16,10 +16,18 @@ export type RoomVisualProps = {
  * prop is accepted so later ambient/living renderers can be introduced behind
  * this component without changing seat/layout ownership.
  */
-const RoomVisual: FC<RoomVisualProps> = ({ floorImage, width, height }) => {
+const RoomVisual: FC<RoomVisualProps> = ({ floorImage, width, height, scene }) => {
 	if (!floorImage) {
 		return null
 	}
+
+	const ambientStyle =
+		scene?.mode === 'ambient'
+			? {
+					filter: 'var(--scene-ambient-filter, none)',
+					transition: 'filter 1s linear',
+				}
+			: undefined
 
 	return (
 		<Image
@@ -28,6 +36,7 @@ const RoomVisual: FC<RoomVisualProps> = ({ floorImage, width, height }) => {
 			width={width}
 			height={height}
 			priority={true}
+			style={ambientStyle}
 		/>
 	)
 }

@@ -79,7 +79,7 @@ Layer/asset schema is intentionally deferred until the renderer PR so the config
 ## Rollout stack
 
 1. Static compatibility boundary and types.
-2. Continuous Scene Clock and Ambient mode.
+2. Continuous Scene Clock and Ambient mode. **Implemented:** one JST clock writes CSS variables without per-frame React state; Ambient rooms consume a conservative CSS color-grade filter.
 3. PixiJS/WebGL renderer lifecycle and fallback.
 4. One Living Room PoC.
 5. Performance, asset lifecycle, context-loss/error handling.
@@ -106,3 +106,17 @@ Every stage keeps the smallest deterministic contract possible:
 - real weather API integration
 - changing room seat counts or ordering
 - requiring scene assets for every new room
+
+## Scene Clock debug controls
+
+Debug query parameters are honored only when `NEXT_PUBLIC_DEBUG=true`.
+
+- `?sceneTime=17:30` freezes the Scene Clock at 17:30 JST.
+- `?sceneSpeed=720` accelerates the current Scene Clock 720x.
+- `?sceneTime=00:00&sceneSpeed=720` reviews a full 24-hour cycle in two real minutes.
+
+The normal clock updates root CSS variables once per second without putting Scene Clock state into React render state. Static rooms do not consume these variables.
+
+### Ambient implementation
+
+Ambient remains an opt-in room mode and requires no assets beyond `floor_image`. The initial implementation applies a deliberately conservative CSS filter driven by continuous Scene Clock parameters. No existing production room is opted in by this PR, so rollout can be reviewed separately from the clock/runtime change.
