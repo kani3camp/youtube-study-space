@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import type { FC } from 'react'
+import { useLiveRoomScenesEnabled } from '../hooks/use-live-room-scenes-enabled'
 import type { RoomSceneConfig } from '../types/room-scene'
 import LivingSceneLayer from './LivingSceneLayer'
 
@@ -25,12 +26,14 @@ const RoomVisual: FC<RoomVisualProps> = ({
 	active,
 	scene,
 }) => {
+	const liveRoomScenesEnabled = useLiveRoomScenesEnabled()
+
 	if (!floorImage) {
 		return null
 	}
 
 	const ambientStyle =
-		scene?.mode === 'ambient'
+		liveRoomScenesEnabled && scene?.mode === 'ambient'
 			? {
 					filter: 'var(--scene-ambient-filter, none)',
 					transition: 'filter 1s linear',
@@ -47,7 +50,7 @@ const RoomVisual: FC<RoomVisualProps> = ({
 				priority={true}
 				style={ambientStyle}
 			/>
-			{scene?.mode === 'living' && (
+			{liveRoomScenesEnabled && scene?.mode === 'living' && (
 				<LivingSceneLayer
 					active={active}
 					width={width}

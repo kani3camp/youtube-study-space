@@ -17,6 +17,7 @@ import Seats from '../components/MainContent'
 import MenuDisplay from '../components/MenuDisplay'
 import Timer from '../components/Timer'
 import Usage from '../components/Usage'
+import { useLiveRoomScenesEnabled } from '../hooks/use-live-room-scenes-enabled'
 import { useSceneClockCssVariables } from '../hooks/use-scene-clock-css-variables'
 import { useTimeTheme } from '../hooks/use-time-theme'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
@@ -27,7 +28,8 @@ const Home: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
 	const sceneRootRef = useRef<HTMLDivElement>(null)
 	const { timeTheme, textTone, contrastBridge } = useTimeTheme()
-	useSceneClockCssVariables(sceneRootRef)
+	const liveRoomScenesEnabled = useLiveRoomScenesEnabled()
+	useSceneClockCssVariables(sceneRootRef, liveRoomScenesEnabled)
 
 	useEffect(() => {
 		const app = getFirebaseApp()
@@ -58,6 +60,7 @@ const Home: FC = () => {
 			data-time-theme={timeTheme}
 			data-text-tone={textTone}
 			data-contrast-bridge={contrastBridge ? 'true' : undefined}
+			data-live-room-scenes={liveRoomScenesEnabled ? 'on' : 'off'}
 			style={{
 				height: 1080,
 				width: 1920,

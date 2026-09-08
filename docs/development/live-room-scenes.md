@@ -83,7 +83,7 @@ Layer/asset schema is intentionally deferred until the renderer PR so the config
 3. PixiJS/WebGL renderer lifecycle and fallback. **Implemented:** PixiJS is loaded only for Living rooms; one shared WebGL Application moves between active room hosts and stops on hidden pages.
 4. One Living Room PoC. **Implemented on the integration branch:** Lume / Main Café Floor / Rainy uses slow window rain, continuous time tint, and lamp glow over the existing static room image.
 5. Performance, asset lifecycle, context-loss/error handling. **Implemented:** Living rendering is capped at 30fps, transient initialization can retry, and an active scene can resume after WebGL context restoration without reviving a hidden room.
-6. Production documentation, soak-test procedure, rollout controls.
+6. Production documentation, soak-test procedure, rollout controls. **Implemented:** fail-closed environment opt-in, production URL kill switch, and an OBS acceptance/rollback runbook.
 
 All intermediate PRs target `feature/live-room-scenes`. Only the final integration PR targets `dev`, and that PR must not be merged by an agent.
 
@@ -179,3 +179,17 @@ The Living runtime is designed for a long-running OBS browser source rather than
 - Destroy removes both context-loss and context-restored listeners and invalidates pending recovery.
 
 This recovery path deliberately does not add a separate timer/polling loop. Browser context restoration remains event-driven, while ordinary page activity remains controlled by the existing room `display` state.
+
+
+## Rollout controls
+
+Live Room Scenes do not activate merely because a room contains a `scene` config.
+
+- `NEXT_PUBLIC_LIVE_ROOM_SCENES_ENABLED=true` is required to enable Ambient/Living rendering in a normal build.
+- Missing, `false`, or any other value keeps room rendering Static.
+- `?liveScenes=off`, `false`, or `0` disables scenes at runtime even when the build is enabled. This is the production emergency kill switch.
+- URL force-on is restricted to DEBUG builds: `?liveScenes=on`, `true`, or `1`.
+- Until Next router query state is ready, scenes remain disabled. This prevents a short Living flash before a URL kill switch is parsed.
+- When scenes are disabled, the Scene Clock CSS-variable interval does not run and Living canvases are not mounted.
+
+Operational verification and rollback steps are documented in [Live Room Scenes rollout runbook](./live-room-scenes-rollout.md).
