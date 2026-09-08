@@ -15,9 +15,9 @@ export type RoomVisualProps = {
 /**
  * Compatibility boundary for room visuals.
  *
- * Static room rendering remains authoritative in this PR. The optional scene
- * prop is accepted so later ambient/living renderers can be introduced behind
- * this component without changing seat/layout ownership.
+ * Static room rendering remains authoritative in this PR. Optional scene
+ * rendering only color-grades or layers on top of the existing floor image,
+ * so disabling scenes always returns to the original static room.
  */
 const RoomVisual: FC<RoomVisualProps> = ({
 	floorImage,
@@ -32,8 +32,8 @@ const RoomVisual: FC<RoomVisualProps> = ({
 		return null
 	}
 
-	const ambientStyle =
-		liveRoomScenesEnabled && scene?.mode === 'ambient'
+	const sceneColorGradeStyle =
+		liveRoomScenesEnabled && scene !== undefined
 			? {
 					filter: 'var(--scene-ambient-filter, none)',
 					transition: 'filter 1s linear',
@@ -48,7 +48,7 @@ const RoomVisual: FC<RoomVisualProps> = ({
 				width={width}
 				height={height}
 				priority={true}
-				style={ambientStyle}
+				style={sceneColorGradeStyle}
 			/>
 			{liveRoomScenesEnabled && scene?.mode === 'living' && (
 				<LivingSceneLayer
