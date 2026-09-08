@@ -23,13 +23,14 @@ const SCENE_VARIABLES = [
 
 export function useSceneClockCssVariables(
 	targetRef: RefObject<HTMLElement | null>,
+	enabled = true,
 ): void {
 	const router = useRouter()
 	const sceneTimeQuery = router.query.sceneTime
 	const sceneSpeedQuery = router.query.sceneSpeed
 
 	useEffect(() => {
-		if (!router.isReady || targetRef.current === null) {
+		if (!enabled || !router.isReady || targetRef.current === null) {
 			return
 		}
 
@@ -80,5 +81,5 @@ export function useSceneClockCssVariables(
 				target.style.removeProperty(variable)
 			}
 		}
-	}, [router.isReady, sceneSpeedQuery, sceneTimeQuery, targetRef])
+	}, [enabled, router.isReady, sceneSpeedQuery, sceneTimeQuery, targetRef])
 }
