@@ -81,7 +81,7 @@ Layer/asset schema is intentionally deferred until the renderer PR so the config
 1. Static compatibility boundary and types.
 2. Continuous Scene Clock and Ambient mode. **Implemented:** one JST clock writes CSS variables without per-frame React state; Ambient rooms consume a conservative CSS color-grade filter.
 3. PixiJS/WebGL renderer lifecycle and fallback. **Implemented:** PixiJS is loaded only for Living rooms; one shared WebGL Application moves between active room hosts and stops on hidden pages.
-4. One Living Room PoC.
+4. One Living Room PoC. **Implemented on the integration branch:** Lume / Main Café Floor / Rainy uses slow window rain, continuous time tint, and lamp glow over the existing static room image.
 5. Performance, asset lifecycle, context-loss/error handling.
 6. Production documentation, soak-test procedure, rollout controls.
 
@@ -138,3 +138,30 @@ Runtime rules:
 - The renderer explicitly prefers WebGL 2, transparent output, one physical output pixel per scene pixel, and a private ticker.
 
 The renderer currently has no Living primitives or assets. Those are introduced by the PoC PR after the lifecycle boundary is verified.
+
+
+## Lume Living PoC
+
+The first Living profile is `lume-rainy-poc`, attached only to `CafeRainyRoom`.
+
+The source room image already contains the architectural composition, rain-streaked glass, and warm practical lighting. The PoC therefore does **not** replace or split the static image. It adds only transparent vector primitives:
+
+- 24 deterministic, slow rain streaks placed inside selected window panes;
+- a conservative full-room cool veil controlled by `--scene-night-amount`;
+- a slightly stronger cool tint over window panes;
+- a small sunset warmth veil controlled by `--scene-sunset-amount`;
+- layered warm circles around existing lamp positions controlled by `--scene-lamp-intensity`.
+
+Scene Clock CSS variables are sampled once per second and eased on the Pixi ticker. Rain position updates every frame, but the particle count is deliberately small to avoid high-frequency compression noise.
+
+The profile is defined in the public codebase and requires no new binary scene assets. The existing room image remains deployment-provided and is still the complete fallback.
+
+### Stacking invariant
+
+Living effects render above the room image but below seat and partition UI:
+
+1. static room image
+2. Living Scene canvas
+3. seat / partition UI
+
+This ensures environmental motion cannot reduce seat text readability.
