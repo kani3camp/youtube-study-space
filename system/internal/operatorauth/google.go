@@ -13,13 +13,15 @@ import (
 )
 
 const (
-	AWSProfileEnv         = "AWS_PROFILE"
 	awsAccessKeyIDEnv     = "AWS_ACCESS_KEY_ID"
 	awsSecretAccessKeyEnv = "AWS_SECRET_ACCESS_KEY"
 	awsSessionTokenEnv    = "AWS_SESSION_TOKEN"
 
 	developmentProjectID = "test-youtube-study-space"
 	productionProjectID  = "youtube-study-space"
+
+	developmentAWSProfile = "soraride-google-operator-dev"
+	productionAWSProfile  = "soraride-google-operator-prod"
 )
 
 type GoogleConfig struct {
@@ -31,7 +33,7 @@ type GoogleConfig struct {
 
 func GoogleConfigFromEnv(environment, expectedProjectID string) (GoogleConfig, error) {
 	environment = strings.TrimSpace(environment)
-	environmentProjectID, err := projectIDForEnvironment(environment)
+	environmentProjectID, awsProfile, err := targetForEnvironment(environment)
 	if err != nil {
 		return GoogleConfig{}, err
 	}
@@ -49,17 +51,13 @@ func GoogleConfigFromEnv(environment, expectedProjectID string) (GoogleConfig, e
 		)
 	}
 
-	profile := strings.TrimSpace(os.Getenv(AWSProfileEnv))
-	if profile == "" {
-		return GoogleConfig{}, fmt.Errorf("%s is required for local operator authentication", AWSProfileEnv)
-	}
-
 	if staticAWSCredentialsPresent() {
 		return GoogleConfig{}, fmt.Errorf(
-			"%s/%s/%s must be unset for local operator authentication; refusing to let environment credentials override the selected SSO profile",
+			"%s/%s/%s must be unset for local operator authentication; refusing to let environment credentials override the dedicated operator profile %q",
 			awsAccessKeyIDEnv,
 			awsSecretAccessKeyEnv,
 			awsSessionTokenEnv,
+			awsProfile,
 		)
 	}
 
@@ -78,7 +76,7 @@ func GoogleConfigFromEnv(environment, expectedProjectID string) (GoogleConfig, e
 	return GoogleConfig{
 		Environment: environment,
 		ProjectID:   expectedProjectID,
-		AWSProfile:  profile,
+		AWSProfile:  awsProfile,
 		WIF:         wif,
 	}, nil
 }
@@ -91,14 +89,14 @@ func (c GoogleConfig) ClientOption(ctx context.Context) (option.ClientOption, er
 	return clientOption, nil
 }
 
-func projectIDForEnvironment(environment string) (string, error) {
+func targetForEnvironment(environment string) (string, string, error) {
 	switch environment {
 	case "development":
-		return developmentProjectID, nil
+		return developmentProjectID, developmentAWSProfile, nil
 	case "production":
-		return productionProjectID, nil
+		return productionProjectID, productionAWSProfile, nil
 	default:
-		return "", fmt.Errorf("environment must be development or production: %q", environment)
+		return "", "", fmt.Errorf("environment must be development or production: %q", environment)
 	}
 }
 
