@@ -147,9 +147,10 @@ The first Living profile is `lume-rainy-poc`, attached only to `CafeRainyRoom`.
 The source room image already contains the architectural composition, rain-streaked glass, and warm practical lighting. The PoC therefore does **not** replace or split the static image. It adds only transparent vector primitives:
 
 - 24 deterministic, slow rain streaks placed inside selected window panes;
-- a conservative full-room cool veil controlled by `--scene-night-amount`;
+- continuous base-image color grading from Scene Clock brightness / saturation / warmth / night values;
+- a light full-room cool veil controlled by `--scene-night-amount`;
 - a slightly stronger cool tint over window panes;
-- a small sunset warmth veil controlled by `--scene-sunset-amount`;
+- a restrained sunset warmth veil controlled by `--scene-sunset-amount`;
 - layered warm circles around existing lamp positions controlled by `--scene-lamp-intensity`.
 
 Scene Clock CSS variables are sampled once per second and eased on the Pixi ticker. Rain position updates every frame, but the particle count is deliberately small to avoid high-frequency compression noise.
