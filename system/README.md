@@ -58,8 +58,8 @@ aws sso login --profile soraride-dev
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 
 export GOOGLE_CLOUD_PROJECT=test-youtube-study-space
-export GCP_WIF_AUDIENCE=<development-wif-provider-audience>
-export GCP_WIF_SERVICE_ACCOUNT_EMAIL=<development-service-account-email>
+export GCP_WIF_AUDIENCE='<development-wif-provider-audience>'
+export GCP_WIF_SERVICE_ACCOUNT_EMAIL='<development-service-account-email>'
 
 go run ./cmd/google-auth-preflight \
   development test-youtube-study-space
