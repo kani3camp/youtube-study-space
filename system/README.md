@@ -133,7 +133,7 @@ Fargate向けにはside-effect-freeなpreflightを用意している。
 /app/batch preflight
 ```
 
-Fargate imageは既存の `Dockerfile.fargate` を `BUILD_TARGET=./cmd/youtube-bot` でビルドするため、container内の実行ファイル名は移行中も `/app/batch` のまま。preflightはFirestoreのcredentials設定、system constants、menu docsとNGワード用Google Sheetsをread-onlyで確認し、YouTube/Discordへの投稿やFirestore更新は行わない。
+Fargate imageは既存の `Dockerfile.fargate` を `BUILD_TARGET=./cmd/youtube-bot` でビルドするため、container内の実行ファイル名は移行中も `/app/batch` のまま。preflightはFirestoreのcredentials設定、system constants、menu docsとNGワード用Google Sheetsをread-onlyで確認し、YouTube/Discordへの投稿やFirestore更新は行わない。既存の対話起動が警告対象にしているzero-value constantsもJSONへ列挙するが、`false` / `0` が正当な設定もあるため一律エラーにはしない。
 
 ECS Serviceは初期状態でdesired count 0とし、Task RoleのGoogle WIF trustとpreflightが完了するまで常駐起動しない。実切替では配信PCの旧Botを停止してからServiceを1へ上げ、同じライブチャットを2つのBotが同時処理しないことを優先する。
 
