@@ -3,6 +3,7 @@ import { Constants } from '../lib/constants'
 
 export const roomLayout = css`
     position: relative;
+    isolation: isolate;
     top: 0;
     left: 0;
     width: 100%;
