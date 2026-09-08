@@ -1,9 +1,9 @@
 name: Generate Pixi Lockfile
 
 on:
-  push:
+  pull_request:
     branches:
-      - tooling/generate-pixi-lock
+      - feature/live-room-scenes
 
 jobs:
   generate:
