@@ -86,8 +86,8 @@ go generate ./...
 - オーケストレーション: AWS Step Functions（直列実行）
 - スケジュール: EventBridge Scheduler が **毎日 00:00 JST**（CDK では UTC 15:00）に `start_daily_batch` Lambda を実行し、Step Functions が起動。**SFN 定義では先頭に 15 秒の Wait（日付境界ずれ対策）**のあと ECS タスクが実行される
 - 実行順序（ECS 上のジョブ）: `reset-daily-total` → `update-rp` → `transfer-bq`
-- 認証情報: DynamoDB `secrets` テーブルからGCP SA JSON取得
-- ネットワーク: Public Subnet, Public IP割当, DynamoDB Gateway VPC Endpoint
+- Google Cloud認証: AWS Task RoleからWorkload Identity Federation (WIF)で既存Service Accountをimpersonate
+- ネットワーク: Public Subnet, Public IP割当, HTTPS/DNS/ECS Task credential endpointへの最小egress
 - ログ: CloudWatch Logs（ECS/Step Functions/Lambda）
 - 通知: CloudWatch Alarm/SFN失敗 → SNS → `sns_notify_discord` Lambda → Discord
 
