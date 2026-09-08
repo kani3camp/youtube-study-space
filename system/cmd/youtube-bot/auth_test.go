@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"app.modules/internal/googleauth"
 )
 
 func TestValidateYoutubeBotTarget(t *testing.T) {
@@ -14,12 +16,12 @@ func TestValidateYoutubeBotTarget(t *testing.T) {
 		{
 			name:        "development",
 			environment: "development",
-			projectID:   youtubeBotDevelopmentProjectID,
+			projectID:   googleauth.DevelopmentProjectID,
 		},
 		{
 			name:        "production",
 			environment: "production",
-			projectID:   youtubeBotProductionProjectID,
+			projectID:   googleauth.ProductionProjectID,
 		},
 	}
 	for _, tt := range tests {
@@ -32,14 +34,14 @@ func TestValidateYoutubeBotTarget(t *testing.T) {
 }
 
 func TestValidateYoutubeBotTargetRejectsUnknownEnvironment(t *testing.T) {
-	err := validateYoutubeBotTarget("disabled", youtubeBotDevelopmentProjectID)
+	err := validateYoutubeBotTarget("disabled", googleauth.DevelopmentProjectID)
 	if err == nil || !strings.Contains(err.Error(), youtubeBotEnvironmentEnv) {
 		t.Fatalf("expected environment error, got %v", err)
 	}
 }
 
 func TestValidateYoutubeBotTargetRejectsProjectMismatch(t *testing.T) {
-	err := validateYoutubeBotTarget("development", youtubeBotProductionProjectID)
+	err := validateYoutubeBotTarget("development", googleauth.ProductionProjectID)
 	if err == nil || !strings.Contains(err.Error(), "environment/project mismatch") {
 		t.Fatalf("expected project mismatch, got %v", err)
 	}
@@ -64,7 +66,7 @@ func TestInitGoogleClientRejectsUnknownModeBeforeCredentialAccess(t *testing.T) 
 func TestInitGoogleClientWIFRejectsTargetBeforeAWSCredentialAccess(t *testing.T) {
 	t.Setenv(youtubeBotAuthModeEnv, youtubeBotAuthModeWIF)
 	t.Setenv(youtubeBotEnvironmentEnv, "development")
-	t.Setenv(googleCloudProjectEnvName, youtubeBotProductionProjectID)
+	t.Setenv(googleCloudProjectEnvName, googleauth.ProductionProjectID)
 	t.Setenv("GCP_WIF_AUDIENCE", "")
 	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "")
 
