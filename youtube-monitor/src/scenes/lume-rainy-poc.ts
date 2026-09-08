@@ -76,7 +76,7 @@ export function createLumeRainDropSpecs(seed = 0x4c554d45): LumeRainDropSpec[] {
 				x: pane.x + 8 + random() * Math.max(1, pane.width - 16),
 				y: pane.y + random() * pane.height,
 				minY: pane.y - length,
-				maxY: pane.y + pane.height + length,
+				maxY: pane.y + pane.height,
 				length,
 				speed: 26 + random() * 20,
 				alpha: 0.1 + random() * 0.11,
