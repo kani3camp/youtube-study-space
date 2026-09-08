@@ -48,35 +48,32 @@ export function useSceneClockCssVariables(
 				'--scene-ambient-filter',
 				buildAmbientSceneFilter(state),
 			)
-			target.style.setProperty(
-			'--scene-brightness',
-			String(state.brightness),
-		)
-			target.style.setProperty(
-			'--scene-saturation',
-			String(state.saturation),
-		)
+			target.style.setProperty('--scene-brightness', String(state.brightness))
+			target.style.setProperty('--scene-saturation', String(state.saturation))
 			target.style.setProperty('--scene-warmth', String(state.warmth))
 			target.style.setProperty(
-			'--scene-sunset-amount',
-			String(state.sunsetAmount),
-		)
+				'--scene-sunset-amount',
+				String(state.sunsetAmount),
+			)
 			target.style.setProperty(
-			'--scene-night-amount',
-			String(state.nightAmount),
-		)
+				'--scene-night-amount',
+				String(state.nightAmount),
+			)
 			target.style.setProperty(
-			'--scene-lamp-intensity',
-			String(state.lampIntensity),
-		)
+				'--scene-lamp-intensity',
+				String(state.lampIntensity),
+			)
 			target.style.setProperty(
-			'--scene-sky-brightness',
-			String(state.skyBrightness),
-		)
+				'--scene-sky-brightness',
+				String(state.skyBrightness),
+			)
 		}
 
 		update()
-		const intervalId = window.setInterval(update, SCENE_CLOCK_UPDATE_INTERVAL_MS)
+		const intervalId = window.setInterval(
+			update,
+			SCENE_CLOCK_UPDATE_INTERVAL_MS,
+		)
 		return () => {
 			window.clearInterval(intervalId)
 			for (const variable of SCENE_VARIABLES) {
