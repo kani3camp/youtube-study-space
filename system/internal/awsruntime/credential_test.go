@@ -20,15 +20,6 @@ func (f fakeAWSCredentialsProvider) Retrieve(context.Context) (aws.Credentials, 
 	return f.credentials, f.err
 }
 
-func TestGoogleClientOptionRejectsUnknownAuthMode(t *testing.T) {
-	t.Setenv(gcpAuthModeEnv, "wat")
-
-	_, err := GoogleClientOption(context.Background())
-	if err == nil || !strings.Contains(err.Error(), gcpAuthModeEnv) {
-		t.Fatalf("expected invalid auth mode error, got %v", err)
-	}
-}
-
 func TestWIFConfigFromEnv(t *testing.T) {
 	t.Setenv(googleCloudProjectEnv, "test-youtube-study-space")
 	t.Setenv(gcpWIFAudienceEnv, "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev")
@@ -97,7 +88,6 @@ func TestAWSSDKSecurityCredentialsProviderPropagatesRetrieveError(t *testing.T) 
 }
 
 func TestGoogleClientOptionWIFUsesAWSDefaultCredentialChain(t *testing.T) {
-	t.Setenv(gcpAuthModeEnv, gcpAuthModeWIF)
 	t.Setenv(googleCloudProjectEnv, "test-youtube-study-space")
 	t.Setenv(gcpWIFAudienceEnv, "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev")
 	t.Setenv(gcpWIFServiceAccountEmailEnv, "runtime@test-youtube-study-space.iam.gserviceaccount.com")
