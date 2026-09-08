@@ -1,9 +1,9 @@
-import Image from 'next/image'
 import { type FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatsPage.styles'
 import type { Seat } from '../types/api'
 import type { RoomLayout } from '../types/room-layout'
+import RoomVisual from './RoomVisual'
 import SeatBox from './SeatBox'
 
 export type LayoutPageProps = {
@@ -202,15 +202,12 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						}
 			}
 		>
-			{propsMemo.roomLayout.floor_image && (
-				<Image
-					alt="room image"
-					src={propsMemo.roomLayout.floor_image}
-					width={roomShape.widthPx}
-					height={roomShape.heightPx}
-					priority={true}
-				/>
-			)}
+			<RoomVisual
+				floorImage={propsMemo.roomLayout.floor_image}
+				scene={propsMemo.roomLayout.scene}
+				width={roomShape.widthPx}
+				height={roomShape.heightPx}
+			/>
 
 			{seatList}
 

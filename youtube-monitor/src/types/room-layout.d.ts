@@ -1,5 +1,8 @@
+import type { RoomSceneConfig } from './room-scene'
+
 export type RoomLayout = {
 	floor_image: string
+	scene?: RoomSceneConfig
 	font_size_ratio: number
 	room_shape: {
 		height: number
