@@ -50,7 +50,9 @@ describe('LivingSceneRuntimeManager', () => {
 
 	test('does not attach an async initialization result after the room was hidden', async () => {
 		const application = createFakeApplication()
-		let resolveApplication: ((value: LivingSceneApplication) => void) | undefined
+		let resolveApplication:
+			| ((value: LivingSceneApplication) => void)
+			| undefined
 		const createApplication: CreateLivingSceneApplication = () =>
 			new Promise((resolve) => {
 				resolveApplication = resolve

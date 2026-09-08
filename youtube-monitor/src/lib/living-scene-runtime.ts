@@ -50,7 +50,8 @@ async function createPixiLivingSceneApplication(
 		canvas,
 		start: () => app.start(),
 		stop: () => app.stop(),
-		resize: (nextWidth, nextHeight) => app.renderer.resize(nextWidth, nextHeight),
+		resize: (nextWidth, nextHeight) =>
+			app.renderer.resize(nextWidth, nextHeight),
 		destroy: () => app.destroy({ removeView: true }, true),
 	}
 }
