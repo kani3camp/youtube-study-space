@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { livingSceneRuntime } from '../lib/living-scene-runtime'
 import LivingSceneLayer from './LivingSceneLayer'
 
@@ -17,10 +17,14 @@ describe('LivingSceneLayer', () => {
 	})
 
 	test('activates the shared runtime only while the room page is visible', async () => {
-		const { rerender } = render(
+		const { container, rerender } = render(
 			<LivingSceneLayer active={false} width={1520} height={900} />,
 		)
-		const host = screen.getByTestId('living-scene-host')
+		const host = container.firstElementChild
+		expect(host).toBeInstanceOf(HTMLElement)
+		if (!(host instanceof HTMLElement)) {
+			throw new Error('living scene host was not rendered')
+		}
 
 		expect(runtimeMock.activate).not.toHaveBeenCalled()
 		expect(runtimeMock.deactivate).toHaveBeenCalledWith(host)
