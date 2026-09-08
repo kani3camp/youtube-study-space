@@ -79,8 +79,8 @@ export function createLumeRainDropSpecs(seed = 0x4c554d45): LumeRainDropSpec[] {
 				maxY: pane.y + pane.height,
 				length,
 				speed: 26 + random() * 20,
-				alpha: 0.1 + random() * 0.11,
-				width: 0.8 + random() * 0.7,
+				alpha: 0.28 + random() * 0.2,
+				width: 1.05 + random() * 0.7,
 			})
 		}
 	}
@@ -149,13 +149,13 @@ export function createLumeRainyScene(
 	for (const lamp of LAMP_GLOWS) {
 		glowGraphic
 			.circle(lamp.x, lamp.y, lamp.radius * 1.55)
-			.fill({ color: 0xffba64, alpha: 0.012 })
+			.fill({ color: 0xffba64, alpha: 0.022 })
 			.circle(lamp.x, lamp.y, lamp.radius * 1.15)
-			.fill({ color: 0xffbd68, alpha: 0.018 })
+			.fill({ color: 0xffbd68, alpha: 0.036 })
 			.circle(lamp.x, lamp.y, lamp.radius * 0.78)
-			.fill({ color: 0xffc371, alpha: 0.028 })
+			.fill({ color: 0xffc371, alpha: 0.06 })
 			.circle(lamp.x, lamp.y, lamp.radius * 0.42)
-			.fill({ color: 0xffca7d, alpha: 0.042 })
+			.fill({ color: 0xffca7d, alpha: 0.095 })
 	}
 	lampGlow.alpha = 0
 	lampGlow.addChild(glowGraphic)
@@ -177,7 +177,7 @@ export function createLumeRainyScene(
 			return { ...spec, graphic }
 		},
 	)
-	rain.alpha = 0.28
+	rain.alpha = 0.52
 
 	let targetNight = 0
 	let targetSunset = 0
@@ -207,11 +207,11 @@ export function createLumeRainyScene(
 		currentSunset = approach(currentSunset, targetSunset, deltaSeconds)
 		currentLamp = approach(currentLamp, targetLamp, deltaSeconds)
 
-		nightVeil.alpha = currentNight * 0.18
-		windowTint.alpha = currentNight * 0.075
-		sunsetVeil.alpha = currentSunset * 0.055
-		lampGlow.alpha = currentLamp * 0.9
-		rain.alpha = 0.27 + currentNight * 0.08
+		nightVeil.alpha = currentNight * 0.28
+		windowTint.alpha = currentNight * 0.14
+		sunsetVeil.alpha = currentSunset * 0.12
+		lampGlow.alpha = currentLamp
+		rain.alpha = 0.52 + currentNight * 0.08
 
 		for (const drop of rainDrops) {
 			drop.graphic.y += drop.speed * deltaSeconds
