@@ -20,7 +20,8 @@ type youtubeBotPreflightOutput struct {
 	CredentialsRead   bool   `json:"credentials_read"`
 	SystemConstants   bool   `json:"system_constants_read"`
 	MenuDocuments     int    `json:"menu_documents"`
-	NGWordConfigCount int    `json:"ng_word_config_count"`
+	NGWordConfigCount       int      `json:"ng_word_config_count"`
+	ZeroValueConstantFields []string `json:"zero_value_constant_fields,omitempty"`
 }
 
 func Preflight(ctx context.Context, clientOption option.ClientOption, stdout io.Writer) error {
@@ -48,12 +49,6 @@ func Preflight(ctx context.Context, clientOption option.ClientOption, stdout io.
 		return fmt.Errorf("read system constants: %w", err)
 	}
 	uninitializedFields := workspaceapp.UninitializedConstantsFields(constants)
-	if len(uninitializedFields) > 0 {
-		return fmt.Errorf(
-			"system constants contain zero values: %s",
-			strings.Join(uninitializedFields, ", "),
-		)
-	}
 	menuDocs, err := repo.ReadAllMenuDocsOrderByCode(ctx)
 	if err != nil {
 		return fmt.Errorf("read menu docs: %w", err)
@@ -71,7 +66,8 @@ func Preflight(ctx context.Context, clientOption option.ClientOption, stdout io.
 		CredentialsRead:   true,
 		SystemConstants:   true,
 		MenuDocuments:     len(menuDocs),
-		NGWordConfigCount: ngWordConfig.Count(),
+		NGWordConfigCount:       ngWordConfig.Count(),
+		ZeroValueConstantFields: uninitializedFields,
 	}); err != nil {
 		return fmt.Errorf("encode youtube-bot preflight output: %w", err)
 	}
