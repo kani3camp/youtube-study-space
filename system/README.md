@@ -28,25 +28,44 @@ Only run it for an explicitly authorized real-environment smoke test. Before pro
 
 ## Local operator Google WIF preflight
 
-`cmd/google-auth-preflight` is a read-only canary for local operator authentication through AWS IAM Identity Center and Google Workload Identity Federation. It does not load `.env`, post to YouTube/Discord, or mutate Firestore; after authentication it only reads the system constants document.
+`cmd/google-auth-preflight` is a read-only canary for local operator authentication through AWS IAM Identity Center, a dedicated AWS operator role, and Google Workload Identity Federation. It does not load `.env`, post to YouTube/Discord, or mutate Firestore; after authentication it only reads the system constants document.
 
-The command requires an explicit target plus non-secret WIF settings and an AWS shared-config profile. Static AWS credential environment variables are rejected so they cannot silently override the selected SSO profile.
+The command binds each environment to both a known Google Cloud project and a dedicated AWS shared-config profile:
+
+- development: `test-youtube-study-space` + `soraride-google-operator-dev`
+- production: `youtube-study-space` + `soraride-google-operator-prod`
+
+Those dedicated profiles must assume the environment's narrow Google-operator role from the existing IAM Identity Center source profile. Do not point them at the broad source role itself.
+
+```ini
+[profile soraride-google-operator-dev]
+source_profile = soraride-dev
+role_arn = <development-dedicated-google-operator-role-arn>
+region = ap-northeast-1
+
+[profile soraride-google-operator-prod]
+source_profile = soraride-prod
+role_arn = <production-dedicated-google-operator-role-arn>
+region = ap-northeast-1
+```
+
+Log in to the source IAM Identity Center profile, then provide the non-secret WIF settings for the selected environment. Static AWS credential environment variables are rejected so they cannot override the dedicated profile.
 
 ```bash
 cd system
 
+aws sso login --profile soraride-dev
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
-export AWS_PROFILE=<operator-profile>
-export GOOGLE_CLOUD_PROJECT=<expected-project-id>
-export GCP_WIF_AUDIENCE=<wif-provider-audience>
-export GCP_WIF_SERVICE_ACCOUNT_EMAIL=<service-account-email>
 
-go run ./cmd/google-auth-preflight \\
-  development <expected-project-id>
+export GOOGLE_CLOUD_PROJECT=test-youtube-study-space
+export GCP_WIF_AUDIENCE=<development-wif-provider-audience>
+export GCP_WIF_SERVICE_ACCOUNT_EMAIL=<development-service-account-email>
+
+go run ./cmd/google-auth-preflight \
+  development test-youtube-study-space
 ```
 
-The `development` / `production` argument is bound to its known Google Cloud project before credential loading. A mismatched environment/project pair, or a mismatch between the explicit project and `GOOGLE_CLOUD_PROJECT`, fails before AWS credentials are loaded.
-
+The `development` / `production` argument is bound to its known project and dedicated profile before credential loading. A mismatched environment/project pair, or a mismatch between the explicit project and `GOOGLE_CLOUD_PROJECT`, fails before AWS credentials are loaded. Google WIF must trust the dedicated operator role, not the broad IAM Identity Center source role.
 
 ## i18n翻訳関数の自動生成
 
