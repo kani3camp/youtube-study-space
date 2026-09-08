@@ -46,7 +46,9 @@ describe('Scene Clock', () => {
 
 describe('Scene Clock debug query', () => {
 	test('sceneTime HH:mmを受け入れる', () => {
-		expect(parseDebugSceneTime('17:30', true)).toBe((17 * 60 + 30) * 60)
+		expect(parseDebugSceneTime('17:30', true)).toBe(
+			(17 * 60 + 30) * 60,
+		)
 	})
 
 	test.each(['24:00', '12:60', '7:30', 'unknown'])(
