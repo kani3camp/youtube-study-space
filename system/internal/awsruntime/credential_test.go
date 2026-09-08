@@ -20,28 +20,31 @@ func (f fakeAWSCredentialsProvider) Retrieve(context.Context) (aws.Credentials, 
 	return f.credentials, f.err
 }
 
-func TestWIFConfigFromEnv(t *testing.T) {
+func TestGoogleWIFConfigFromEnv(t *testing.T) {
 	t.Setenv(googleCloudProjectEnv, "test-youtube-study-space")
 	t.Setenv(gcpWIFAudienceEnv, "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev")
 	t.Setenv(gcpWIFServiceAccountEmailEnv, "runtime@test-youtube-study-space.iam.gserviceaccount.com")
 
-	got, err := wifConfigFromEnv()
+	got, err := GoogleWIFConfigFromEnv()
 	if err != nil {
-		t.Fatalf("wifConfigFromEnv returned error: %v", err)
+		t.Fatalf("GoogleWIFConfigFromEnv returned error: %v", err)
 	}
-	if got.audience != "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev" {
-		t.Fatalf("unexpected audience: %q", got.audience)
+	if got.ProjectID != "test-youtube-study-space" {
+		t.Fatalf("unexpected project ID: %q", got.ProjectID)
 	}
-	if got.serviceAccountEmail != "runtime@test-youtube-study-space.iam.gserviceaccount.com" {
-		t.Fatalf("unexpected service account email: %q", got.serviceAccountEmail)
+	if got.Audience != "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev" {
+		t.Fatalf("unexpected audience: %q", got.Audience)
+	}
+	if got.ServiceAccountEmail != "runtime@test-youtube-study-space.iam.gserviceaccount.com" {
+		t.Fatalf("unexpected service account email: %q", got.ServiceAccountEmail)
 	}
 }
 
-func TestWIFConfigFromEnvRequiresProjectID(t *testing.T) {
+func TestGoogleWIFConfigFromEnvRequiresProjectID(t *testing.T) {
 	t.Setenv(gcpWIFAudienceEnv, "audience")
 	t.Setenv(gcpWIFServiceAccountEmailEnv, "runtime@example.iam.gserviceaccount.com")
 
-	_, err := wifConfigFromEnv()
+	_, err := GoogleWIFConfigFromEnv()
 	if err == nil || !strings.Contains(err.Error(), googleCloudProjectEnv) {
 		t.Fatalf("expected missing project ID error, got %v", err)
 	}
@@ -110,5 +113,40 @@ func TestGoogleClientOptionWIFUsesAWSDefaultCredentialChain(t *testing.T) {
 
 	if _, err := GoogleClientOption(context.Background()); err != nil {
 		t.Fatalf("GoogleClientOption returned error: %v", err)
+	}
+}
+
+func TestGoogleClientOptionWithConfigUsesExplicitAWSProfile(t *testing.T) {
+	t.Setenv("AWS_REGION", "ap-northeast-1")
+
+	originalLoadDefaultAWSConfig := loadDefaultAWSConfig
+	var gotProfile string
+	loadDefaultAWSConfig = func(_ context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error) {
+		options := config.LoadOptions{}
+		for _, optFn := range optFns {
+			if err := optFn(&options); err != nil {
+				return aws.Config{}, err
+			}
+		}
+		gotProfile = options.SharedConfigProfile
+		return aws.Config{
+			Region:      "ap-northeast-1",
+			Credentials: fakeAWSCredentialsProvider{credentials: aws.Credentials{AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret", SessionToken: "session"}},
+		}, nil
+	}
+	t.Cleanup(func() {
+		loadDefaultAWSConfig = originalLoadDefaultAWSConfig
+	})
+
+	_, err := GoogleClientOptionWithConfig(context.Background(), GoogleWIFConfig{
+		ProjectID:           "test-youtube-study-space",
+		Audience:            "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/aws/providers/dev",
+		ServiceAccountEmail: "runtime@test-youtube-study-space.iam.gserviceaccount.com",
+	}, "soraride-dev")
+	if err != nil {
+		t.Fatalf("GoogleClientOptionWithConfig returned error: %v", err)
+	}
+	if gotProfile != "soraride-dev" {
+		t.Fatalf("AWS profile = %q, want soraride-dev", gotProfile)
 	}
 }
