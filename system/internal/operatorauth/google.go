@@ -10,15 +10,13 @@ import (
 	"google.golang.org/api/option"
 
 	"app.modules/internal/awsruntime"
+	"app.modules/internal/googleauth"
 )
 
 const (
 	awsAccessKeyIDEnv     = "AWS_ACCESS_KEY_ID"
 	awsSecretAccessKeyEnv = "AWS_SECRET_ACCESS_KEY"
 	awsSessionTokenEnv    = "AWS_SESSION_TOKEN"
-
-	developmentProjectID = "test-youtube-study-space"
-	productionProjectID  = "youtube-study-space"
 
 	developmentAWSProfile = "soraride-google-operator-dev"
 	productionAWSProfile  = "soraride-google-operator-prod"
@@ -33,7 +31,11 @@ type GoogleConfig struct {
 
 func GoogleConfigFromEnv(environment, expectedProjectID string) (GoogleConfig, error) {
 	environment = strings.TrimSpace(environment)
-	environmentProjectID, awsProfile, err := targetForEnvironment(environment)
+	environmentProjectID, err := googleauth.ProjectIDForEnvironment(environment)
+	if err != nil {
+		return GoogleConfig{}, fmt.Errorf("resolve Google project target: %w", err)
+	}
+	awsProfile, err := operatorProfileForEnvironment(environment)
 	if err != nil {
 		return GoogleConfig{}, err
 	}
@@ -89,14 +91,14 @@ func (c GoogleConfig) ClientOption(ctx context.Context) (option.ClientOption, er
 	return clientOption, nil
 }
 
-func targetForEnvironment(environment string) (string, string, error) {
+func operatorProfileForEnvironment(environment string) (string, error) {
 	switch environment {
 	case "development":
-		return developmentProjectID, developmentAWSProfile, nil
+		return developmentAWSProfile, nil
 	case "production":
-		return productionProjectID, productionAWSProfile, nil
+		return productionAWSProfile, nil
 	default:
-		return "", "", fmt.Errorf("environment must be development or production: %q", environment)
+		return "", fmt.Errorf("operator profile is not configured for environment %q", environment)
 	}
 }
 
