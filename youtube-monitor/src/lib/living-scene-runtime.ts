@@ -1,8 +1,13 @@
+import { createLivingSceneForProfile } from '../scenes/living-scene-profile'
+import type { LivingSceneInstance } from '../scenes/living-scene-profile'
+import type { LivingSceneProfile } from '../types/room-scene'
+
 export type LivingSceneApplication = {
 	canvas: HTMLCanvasElement
 	start: () => void
 	stop: () => void
 	resize: (width: number, height: number) => void
+	setProfile: (profile: LivingSceneProfile) => boolean
 	destroy: () => void
 }
 
@@ -15,13 +20,14 @@ export type LivingSceneActivation = {
 	host: HTMLElement
 	width: number
 	height: number
+	profile: LivingSceneProfile
 }
 
 async function createPixiLivingSceneApplication(
 	width: number,
 	height: number,
 ): Promise<LivingSceneApplication> {
-	const { Application } = await import('pixi.js')
+	const { Application, Container, Graphics } = await import('pixi.js')
 	const app = new Application()
 
 	await app.init({
@@ -46,13 +52,61 @@ async function createPixiLivingSceneApplication(
 	canvas.style.height = '100%'
 	canvas.style.pointerEvents = 'none'
 
+	const sceneRoot = new Container()
+	app.stage.addChild(sceneRoot)
+
+	let currentProfile: LivingSceneProfile | undefined
+	let currentScene: LivingSceneInstance | undefined
+
+	const setProfile = (profile: LivingSceneProfile): boolean => {
+		if (currentProfile === profile && currentScene !== undefined) {
+			return true
+		}
+
+		currentScene?.destroy()
+		currentScene = undefined
+		currentProfile = undefined
+
+		try {
+			const scene = createLivingSceneForProfile(profile, {
+				root: sceneRoot,
+				ticker: app.ticker,
+				makeContainer: () => new Container(),
+				makeGraphics: () => new Graphics(),
+				getHost: () => canvas.parentElement,
+			})
+			if (scene === undefined) {
+				return false
+			}
+			currentScene = scene
+			currentProfile = profile
+			currentScene.resize(app.renderer.width, app.renderer.height)
+			return true
+		} catch (error) {
+			console.error(
+				`[living-scene] failed to configure profile: ${profile}`,
+				error,
+			)
+			return false
+		}
+	}
+
 	return {
 		canvas,
 		start: () => app.start(),
 		stop: () => app.stop(),
-		resize: (nextWidth, nextHeight) =>
-			app.renderer.resize(nextWidth, nextHeight),
-		destroy: () => app.destroy({ removeView: true }, true),
+		resize: (nextWidth, nextHeight) => {
+			app.renderer.resize(nextWidth, nextHeight)
+			currentScene?.resize(nextWidth, nextHeight)
+		},
+		setProfile,
+		destroy: () => {
+			currentScene?.destroy()
+			currentScene = undefined
+			currentProfile = undefined
+			sceneRoot.destroy({ children: true })
+			app.destroy({ removeView: true }, true)
+		},
 	}
 }
 
@@ -75,6 +129,7 @@ export class LivingSceneRuntimeManager {
 		host,
 		width,
 		height,
+		profile,
 	}: LivingSceneActivation): Promise<boolean> {
 		const revision = ++this.activationRevision
 		this.requestedHost = host
@@ -102,6 +157,12 @@ export class LivingSceneRuntimeManager {
 
 		if (this.activeHost !== undefined && this.activeHost !== host) {
 			application.stop()
+		}
+
+		if (!application.setProfile(profile)) {
+			application.stop()
+			application.canvas.hidden = true
+			return false
 		}
 
 		application.resize(width, height)
