@@ -82,7 +82,7 @@ Layer/asset schema is intentionally deferred until the renderer PR so the config
 2. Continuous Scene Clock and Ambient mode. **Implemented:** one JST clock writes CSS variables without per-frame React state; Ambient rooms consume a conservative CSS color-grade filter.
 3. PixiJS/WebGL renderer lifecycle and fallback. **Implemented:** PixiJS is loaded only for Living rooms; one shared WebGL Application moves between active room hosts and stops on hidden pages.
 4. One Living Room PoC. **Implemented on the integration branch:** Lume / Main Café Floor / Rainy uses slow window rain, continuous time tint, and lamp glow over the existing static room image.
-5. Performance, asset lifecycle, context-loss/error handling.
+5. Performance, asset lifecycle, context-loss/error handling. **Implemented:** Living rendering is capped at 30fps, transient initialization can retry, and an active scene can resume after WebGL context restoration without reviving a hidden room.
 6. Production documentation, soak-test procedure, rollout controls.
 
 All intermediate PRs target `feature/live-room-scenes`. Only the final integration PR targets `dev`, and that PR must not be merged by an agent.
@@ -165,3 +165,17 @@ Living effects render above the room image but below seat and partition UI:
 3. seat / partition UI
 
 This ensures environmental motion cannot reduce seat text readability.
+
+
+## Runtime hardening
+
+The Living runtime is designed for a long-running OBS browser source rather than a short interactive session.
+
+- Pixi's private ticker is capped at **30fps**, matching the target livestream frame rate and avoiding unnecessary 60fps scene updates.
+- A failed initial Pixi/WebGL initialization leaves the static room visible and clears the cached failed promise. A later room activation can retry instead of permanently disabling Living scenes for the tab.
+- On `webglcontextlost`, the active enhancement is stopped and hidden immediately while the static room remains visible.
+- On `webglcontextrestored`, the previous Living scene is reactivated only when its host is still attached and has not been deactivated during the outage.
+- Page switching or unmounting clears any pending recovery, so a previously visible room cannot unexpectedly restart after a delayed WebGL restore.
+- Destroy removes both context-loss and context-restored listeners and invalidates pending recovery.
+
+This recovery path deliberately does not add a separate timer/polling loop. Browser context restoration remains event-driven, while ordinary page activity remains controlled by the existing room `display` state.
