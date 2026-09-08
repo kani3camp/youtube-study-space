@@ -159,7 +159,7 @@ export function parseDebugSceneTime(
 	if (!debugEnabled || typeof value !== 'string') {
 		return undefined
 	}
-	const match = /^(\\d{2}):(\\d{2})$/.exec(value)
+	const match = /^(\d{2}):(\d{2})$/.exec(value)
 	if (!match) {
 		return undefined
 	}
