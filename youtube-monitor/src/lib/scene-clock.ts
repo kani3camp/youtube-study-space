@@ -131,7 +131,9 @@ export function getJapanClockSeconds(date: Date): number {
 	return hours * 60 * 60 + minutes * 60 + seconds
 }
 
-export function getSceneStateAtClockSeconds(clockSeconds: number): SceneState {
+export function getSceneStateAtClockSeconds(
+	clockSeconds: number,
+): SceneState {
 	const normalized = normalizeSceneClockSeconds(clockSeconds)
 	const nextIndex = SCENE_KEYFRAMES.findIndex(
 		(keyframe) => keyframe.atSeconds > normalized,
@@ -179,7 +181,11 @@ export function parseDebugSceneSpeed(
 		return undefined
 	}
 	const parsed = Number(value)
-	if (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_DEBUG_SCENE_SPEED) {
+	if (
+		!Number.isFinite(parsed) ||
+		parsed < 0 ||
+		parsed > MAX_DEBUG_SCENE_SPEED
+	) {
 		return undefined
 	}
 	return parsed
@@ -213,7 +219,9 @@ export function getSceneClockSecondsAt(
 const compactNumber = (value: number) => Number(value.toFixed(4))
 
 export function buildAmbientSceneFilter(state: SceneState): string {
-	const sepia = clamp01(state.warmth * 0.14 + state.nightAmount * 0.025)
+	const sepia = clamp01(
+		state.warmth * 0.14 + state.nightAmount * 0.025,
+	)
 	const hueRotateDeg = state.nightAmount * 8 - state.sunsetAmount * 5
 	const contrast = 1 - state.nightAmount * 0.04
 	return [
