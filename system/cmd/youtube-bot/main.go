@@ -50,18 +50,17 @@ func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
 }
 
-func Bot(ctx context.Context, clientOption option.ClientOption, interactive bool) {
+func Bot(ctx context.Context, clientOption option.ClientOption, interactive bool) error {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, interactive, clientOption)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error", err)
-		return
+		return fmt.Errorf("initialize workspace app: %w", err)
 	}
 	defer app.CloseFirestoreClient()
 
 	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
 	if err != nil {
 		app.MessageToOwnerWithError(ctx, "failed loadNGWordConfig()", err)
-		return
+		return fmt.Errorf("load NG word config: %w", err)
 	}
 
 	app.MessageToOwner(ctx, fmt.Sprintf("Botが起動しました。\n全規制ワード数: %d", ngWordConfig.Count()))
@@ -228,5 +227,7 @@ func main() {
 		panic("usage: youtube-bot [preflight]")
 	}
 
-	Bot(ctx, clientOption, interactive)
+	if err := Bot(ctx, clientOption, interactive); err != nil {
+		panic(err)
+	}
 }
