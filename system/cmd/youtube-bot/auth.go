@@ -9,6 +9,7 @@ import (
 
 	"app.modules/core/utils"
 	"app.modules/internal/awsruntime"
+	"app.modules/internal/googleauth"
 
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
@@ -20,9 +21,6 @@ const (
 	youtubeBotAuthModeLegacy  = "service-account"
 	youtubeBotAuthModeWIF     = "wif"
 	googleCloudProjectEnvName = "GOOGLE_CLOUD_PROJECT"
-
-	youtubeBotDevelopmentProjectID = "test-youtube-study-space"
-	youtubeBotProductionProjectID  = "youtube-study-space"
 )
 
 func initGoogleClient(ctx context.Context) (option.ClientOption, bool, error) {
@@ -92,18 +90,9 @@ func initWIFGoogleClient(ctx context.Context) (option.ClientOption, error) {
 }
 
 func validateYoutubeBotTarget(environment, projectID string) error {
-	var expectedProjectID string
-	switch environment {
-	case "development":
-		expectedProjectID = youtubeBotDevelopmentProjectID
-	case "production":
-		expectedProjectID = youtubeBotProductionProjectID
-	default:
-		return fmt.Errorf(
-			"%s must be development or production, got %q",
-			youtubeBotEnvironmentEnv,
-			environment,
-		)
+	expectedProjectID, err := googleauth.ProjectIDForEnvironment(environment)
+	if err != nil {
+		return fmt.Errorf("%s: %w", youtubeBotEnvironmentEnv, err)
 	}
 	if projectID == "" {
 		return fmt.Errorf("%s is required", googleCloudProjectEnvName)
