@@ -203,7 +203,7 @@ describe('AwsCdkStack', () => {
 		})
 	})
 
-	test('removes legacy DynamoDB credential reads while retaining the DynamoDB gateway endpoint', () => {
+	test('removes legacy DynamoDB credential reads and gateway endpoint', () => {
 		const json = createTemplate().toJSON() as {
 			Resources?: Record<
 				string,
@@ -226,7 +226,7 @@ describe('AwsCdkStack', () => {
 				resource.Type === 'AWS::EC2::VPCEndpoint' &&
 				JSON.stringify(resource.Properties?.ServiceName).includes('dynamodb'),
 		)
-		expect(dynamodbGatewayEndpoints).toHaveLength(1)
+		expect(dynamodbGatewayEndpoints).toHaveLength(0)
 	})
 
 	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
