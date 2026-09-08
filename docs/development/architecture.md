@@ -85,3 +85,15 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 **Current fact:** the monitor participates in max-seat control as described above.
 
 **Design direction:** prefer moving control decisions out of the presentation client so the monitor can eventually become a read/render-only component. This is a target boundary, not a statement that migration is complete. Until code changes remove the request path, reviews and tests must assume the current control loop exists.
+
+## Livestream room visual boundary
+
+Room visuals are being evolved behind a compatibility boundary so room/seat control semantics stay independent from optional visual enhancement.
+
+- `RoomLayout.floor_image` remains the required static room asset and fallback.
+- `RoomLayout.scene` is optional. Omission means the room stays static.
+- Seat boxes, names, work content, room capacity, and paging remain in the existing React/DOM and layout paths.
+- Scene loading must never block page navigation.
+- Dynamic scene rendering must not change basic/temporary room seat counts or desired-seat calculations.
+
+The staged design and rollout contract are documented in [`live-room-scenes.md`](./live-room-scenes.md).
