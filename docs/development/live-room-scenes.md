@@ -80,7 +80,7 @@ Layer/asset schema is intentionally deferred until the renderer PR so the config
 
 1. Static compatibility boundary and types.
 2. Continuous Scene Clock and Ambient mode. **Implemented:** one JST clock writes CSS variables without per-frame React state; Ambient rooms consume a conservative CSS color-grade filter.
-3. PixiJS/WebGL renderer lifecycle and fallback.
+3. PixiJS/WebGL renderer lifecycle and fallback. **Implemented:** PixiJS is loaded only for Living rooms; one shared WebGL Application moves between active room hosts and stops on hidden pages.
 4. One Living Room PoC.
 5. Performance, asset lifecycle, context-loss/error handling.
 6. Production documentation, soak-test procedure, rollout controls.
@@ -120,3 +120,21 @@ The normal clock updates root CSS variables once per second without putting Scen
 ### Ambient implementation
 
 Ambient remains an opt-in room mode and requires no assets beyond `floor_image`. The initial implementation applies a deliberately conservative CSS filter driven by continuous Scene Clock parameters. No existing production room is opted in by this PR, so rollout can be reviewed separately from the clock/runtime change.
+
+
+## Living renderer runtime
+
+Living mode keeps the static `floor_image` in the DOM at all times. The PixiJS canvas is a transparent enhancement layer above it.
+
+Runtime rules:
+
+- PixiJS is dynamically imported only when a Living room becomes active.
+- One `Application` is shared by the browser tab rather than one WebGL context per room.
+- The shared canvas is moved to the currently active Living room host.
+- Hidden room pages deactivate the runtime and stop its ticker.
+- A page switch never waits for PixiJS initialization; the static image is already visible.
+- Initialization failure leaves the static image untouched.
+- `webglcontextlost` hides/stops the enhancement layer and keeps the static fallback visible.
+- The renderer explicitly prefers WebGL 2, transparent output, one physical output pixel per scene pixel, and a private ticker.
+
+The renderer currently has no Living primitives or assets. Those are introduced by the PoC PR after the lifecycle boundary is verified.

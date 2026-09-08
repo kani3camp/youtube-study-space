@@ -2,6 +2,13 @@ import { render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import RoomVisual from './RoomVisual'
 
+jest.mock('./LivingSceneLayer', () => ({
+	__esModule: true,
+	default: ({ active }: { active: boolean }) => (
+		<span data-testid="living-scene-layer" data-active={String(active)} />
+	),
+}))
+
 jest.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: ComponentPropsWithoutRef<'img'>) => {
@@ -23,6 +30,7 @@ describe('RoomVisual static compatibility', () => {
 	test('renders the static floor image when no scene is configured', () => {
 		render(
 			<RoomVisual
+				active={true}
 				floorImage="/images/rooms/test-room.png"
 				width={1520}
 				height={900}
@@ -39,6 +47,7 @@ describe('RoomVisual static compatibility', () => {
 	test('keeps rendering the static floor image when a scene config is present', () => {
 		render(
 			<RoomVisual
+				active={true}
 				floorImage="/images/rooms/test-room.png"
 				scene={{ mode: 'ambient' }}
 				width={1520}
@@ -54,9 +63,30 @@ describe('RoomVisual static compatibility', () => {
 		)
 	})
 
+	test('keeps the static fallback while a living scene layer is active', () => {
+		render(
+			<RoomVisual
+				active={true}
+				floorImage="/images/rooms/test-room.png"
+				scene={{ mode: 'living' }}
+				width={1520}
+				height={900}
+			/>,
+		)
+
+		expect(screen.getByRole('img', { name: 'room image' })).toHaveAttribute(
+			'data-src',
+			'/images/rooms/test-room.png',
+		)
+		expect(screen.getByTestId('living-scene-layer')).toHaveAttribute(
+			'data-active',
+			'true',
+		)
+	})
+
 	test('renders nothing when the room has no floor image', () => {
 		const { container } = render(
-			<RoomVisual floorImage="" width={1520} height={900} />,
+			<RoomVisual active={true} floorImage="" width={1520} height={900} />,
 		)
 
 		expect(container).toBeEmptyDOMElement()
