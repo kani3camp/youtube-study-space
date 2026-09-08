@@ -2,6 +2,7 @@ import type { RoomLayout } from '../../types/room-layout'
 
 export const CafeRainyRoom: RoomLayout = {
 	floor_image: '/images/rooms/cafe-rainy-room.png',
+	scene: { mode: 'living', profile: 'lume-rainy-poc' },
 	font_size_ratio: 0.015,
 	room_shape: {
 		width: 1520,
