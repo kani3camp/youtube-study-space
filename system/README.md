@@ -45,7 +45,7 @@ go run ./cmd/google-auth-preflight \\
   development <expected-project-id>
 ```
 
-Use `production` only with the production project ID. A mismatch between the explicit project argument and `GOOGLE_CLOUD_PROJECT` fails before AWS credentials are loaded.
+The `development` / `production` argument is bound to its known Google Cloud project before credential loading. A mismatched environment/project pair, or a mismatch between the explicit project and `GOOGLE_CLOUD_PROJECT`, fails before AWS credentials are loaded.
 
 
 ## i18n翻訳関数の自動生成
