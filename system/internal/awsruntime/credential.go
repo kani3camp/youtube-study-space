@@ -23,9 +23,12 @@ const (
 
 var loadDefaultAWSConfig = config.LoadDefaultConfig
 
-type wifConfig struct {
-	audience            string
-	serviceAccountEmail string
+// GoogleWIFConfig is the non-secret configuration required to exchange AWS
+// credentials for short-lived Google Cloud credentials through WIF.
+type GoogleWIFConfig struct {
+	ProjectID           string
+	Audience            string
+	ServiceAccountEmail string
 }
 
 type awsSDKSecurityCredentialsProvider struct {
@@ -60,26 +63,35 @@ func (p *awsSDKSecurityCredentialsProvider) AwsSecurityCredentials(ctx context.C
 // GoogleClientOption returns the Google Cloud client credential option for AWS
 // workloads using Workload Identity Federation and service account impersonation.
 func GoogleClientOption(ctx context.Context) (option.ClientOption, error) {
-	return wifGoogleClientOption(ctx)
-}
-
-func wifGoogleClientOption(ctx context.Context) (option.ClientOption, error) {
-	wif, err := wifConfigFromEnv()
+	wif, err := GoogleWIFConfigFromEnv()
 	if err != nil {
 		return nil, err
 	}
+	return GoogleClientOptionWithConfig(ctx, wif, "")
+}
 
+// GoogleClientOptionWithConfig creates a Google Cloud client credential option
+// from explicit WIF settings. When awsProfile is non-empty, AWS credentials are
+// loaded from that shared-config profile; otherwise the normal AWS SDK default
+// credential chain is used.
+func GoogleClientOptionWithConfig(ctx context.Context, wif GoogleWIFConfig, awsProfile string) (option.ClientOption, error) {
+	if err := validateGoogleWIFConfig(wif); err != nil {
+		return nil, err
+	}
+
+	loadOptions := make([]func(*config.LoadOptions) error, 0, 2)
+	if profile := strings.TrimSpace(awsProfile); profile != "" {
+		loadOptions = append(loadOptions, config.WithSharedConfigProfile(profile))
+	}
 	region := strings.TrimSpace(os.Getenv("AWS_REGION"))
 	if region == "" {
 		region = strings.TrimSpace(os.Getenv("AWS_DEFAULT_REGION"))
 	}
-
-	var awsConfig aws.Config
-	if region == "" {
-		awsConfig, err = loadDefaultAWSConfig(ctx)
-	} else {
-		awsConfig, err = loadDefaultAWSConfig(ctx, config.WithRegion(region))
+	if region != "" {
+		loadOptions = append(loadOptions, config.WithRegion(region))
 	}
+
+	awsConfig, err := loadDefaultAWSConfig(ctx, loadOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
@@ -92,9 +104,9 @@ func wifGoogleClientOption(ctx context.Context) (option.ClientOption, error) {
 		credentials: awsConfig.Credentials,
 	}
 	credentials, err := externalaccount.NewCredentials(&externalaccount.Options{
-		Audience:                       wif.audience,
+		Audience:                       wif.Audience,
 		SubjectTokenType:               awsSubjectTokenType,
-		ServiceAccountImpersonationURL: fmt.Sprintf(iamCredentialsServiceAccountPath, wif.serviceAccountEmail),
+		ServiceAccountImpersonationURL: fmt.Sprintf(iamCredentialsServiceAccountPath, wif.ServiceAccountEmail),
 		Scopes:                         []string{googleCloudPlatformScope},
 		AwsSecurityCredentialsProvider: awsProvider,
 	})
@@ -105,25 +117,31 @@ func wifGoogleClientOption(ctx context.Context) (option.ClientOption, error) {
 	return option.WithAuthCredentials(credentials), nil
 }
 
-func wifConfigFromEnv() (wifConfig, error) {
-	if strings.TrimSpace(os.Getenv(googleCloudProjectEnv)) == "" {
-		return wifConfig{}, fmt.Errorf("%s is required", googleCloudProjectEnv)
+// GoogleWIFConfigFromEnv loads the non-secret Google WIF settings shared by
+// AWS runtimes and local operator commands.
+func GoogleWIFConfigFromEnv() (GoogleWIFConfig, error) {
+	wif := GoogleWIFConfig{
+		ProjectID:           strings.TrimSpace(os.Getenv(googleCloudProjectEnv)),
+		Audience:            strings.TrimSpace(os.Getenv(gcpWIFAudienceEnv)),
+		ServiceAccountEmail: strings.TrimSpace(os.Getenv(gcpWIFServiceAccountEmailEnv)),
 	}
-
-	audience := strings.TrimSpace(os.Getenv(gcpWIFAudienceEnv))
-	if audience == "" {
-		return wifConfig{}, fmt.Errorf("%s is required", gcpWIFAudienceEnv)
+	if err := validateGoogleWIFConfig(wif); err != nil {
+		return GoogleWIFConfig{}, err
 	}
+	return wif, nil
+}
 
-	serviceAccountEmail := strings.TrimSpace(os.Getenv(gcpWIFServiceAccountEmailEnv))
-	if serviceAccountEmail == "" {
-		return wifConfig{}, fmt.Errorf("%s is required", gcpWIFServiceAccountEmailEnv)
+func validateGoogleWIFConfig(wif GoogleWIFConfig) error {
+	if strings.TrimSpace(wif.ProjectID) == "" {
+		return fmt.Errorf("%s is required", googleCloudProjectEnv)
 	}
-
-	return wifConfig{
-		audience:            audience,
-		serviceAccountEmail: serviceAccountEmail,
-	}, nil
+	if strings.TrimSpace(wif.Audience) == "" {
+		return fmt.Errorf("%s is required", gcpWIFAudienceEnv)
+	}
+	if strings.TrimSpace(wif.ServiceAccountEmail) == "" {
+		return fmt.Errorf("%s is required", gcpWIFServiceAccountEmailEnv)
+	}
+	return nil
 }
 
 // FirestoreClientOption is kept as a compatibility wrapper for existing call sites.
