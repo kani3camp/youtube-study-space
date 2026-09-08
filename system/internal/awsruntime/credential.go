@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"app.modules/internal/awsruntime/mydynamodb"
-
 	"cloud.google.com/go/auth/credentials/externalaccount"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -15,9 +13,6 @@ import (
 )
 
 const (
-	gcpAuthModeEnv                   = "GCP_AUTH_MODE"
-	gcpAuthModeLegacy                = "legacy"
-	gcpAuthModeWIF                   = "wif"
 	googleCloudProjectEnv            = "GOOGLE_CLOUD_PROJECT"
 	gcpWIFAudienceEnv                = "GCP_WIF_AUDIENCE"
 	gcpWIFServiceAccountEmailEnv     = "GCP_WIF_SERVICE_ACCOUNT_EMAIL"
@@ -63,31 +58,9 @@ func (p *awsSDKSecurityCredentialsProvider) AwsSecurityCredentials(ctx context.C
 }
 
 // GoogleClientOption returns the Google Cloud client credential option for AWS
-// workloads. During the migration, legacy DynamoDB-backed service account
-// credentials remain the default so deployments are rollback-safe.
+// workloads using Workload Identity Federation and service account impersonation.
 func GoogleClientOption(ctx context.Context) (option.ClientOption, error) {
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv(gcpAuthModeEnv)))
-	if mode == "" {
-		mode = gcpAuthModeLegacy
-	}
-
-	switch mode {
-	case gcpAuthModeLegacy:
-		return legacyGoogleClientOption()
-	case gcpAuthModeWIF:
-		return wifGoogleClientOption(ctx)
-	default:
-		return nil, fmt.Errorf("%s must be %q or %q, got %q", gcpAuthModeEnv, gcpAuthModeLegacy, gcpAuthModeWIF, mode)
-	}
-}
-
-func legacyGoogleClientOption() (option.ClientOption, error) {
-	credentialBytes, err := mydynamodb.FetchFirebaseCredentialsAsBytes()
-	if err != nil {
-		return nil, fmt.Errorf("in FetchFirebaseCredentialsAsBytes: %w", err)
-	}
-	//nolint:staticcheck // Temporary legacy fallback. Removed after production WIF validation and credential-key retirement.
-	return option.WithCredentialsJSON(credentialBytes), nil
+	return wifGoogleClientOption(ctx)
 }
 
 func wifGoogleClientOption(ctx context.Context) (option.ClientOption, error) {
@@ -134,17 +107,17 @@ func wifGoogleClientOption(ctx context.Context) (option.ClientOption, error) {
 
 func wifConfigFromEnv() (wifConfig, error) {
 	if strings.TrimSpace(os.Getenv(googleCloudProjectEnv)) == "" {
-		return wifConfig{}, fmt.Errorf("%s is required when %s=%s", googleCloudProjectEnv, gcpAuthModeEnv, gcpAuthModeWIF)
+		return wifConfig{}, fmt.Errorf("%s is required", googleCloudProjectEnv)
 	}
 
 	audience := strings.TrimSpace(os.Getenv(gcpWIFAudienceEnv))
 	if audience == "" {
-		return wifConfig{}, fmt.Errorf("%s is required when %s=%s", gcpWIFAudienceEnv, gcpAuthModeEnv, gcpAuthModeWIF)
+		return wifConfig{}, fmt.Errorf("%s is required", gcpWIFAudienceEnv)
 	}
 
 	serviceAccountEmail := strings.TrimSpace(os.Getenv(gcpWIFServiceAccountEmailEnv))
 	if serviceAccountEmail == "" {
-		return wifConfig{}, fmt.Errorf("%s is required when %s=%s", gcpWIFServiceAccountEmailEnv, gcpAuthModeEnv, gcpAuthModeWIF)
+		return wifConfig{}, fmt.Errorf("%s is required", gcpWIFServiceAccountEmailEnv)
 	}
 
 	return wifConfig{
@@ -153,9 +126,8 @@ func wifConfigFromEnv() (wifConfig, error) {
 	}, nil
 }
 
-// FirestoreClientOption is kept as a migration compatibility wrapper for
-// existing call sites. New code should use GoogleClientOption with the caller's
-// context. This wrapper is removed together with the legacy auth path.
+// FirestoreClientOption is kept as a compatibility wrapper for existing call sites.
+// New code should prefer GoogleClientOption with the caller's context.
 func FirestoreClientOption() (option.ClientOption, error) {
 	return GoogleClientOption(context.Background())
 }

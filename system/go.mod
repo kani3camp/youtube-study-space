@@ -11,8 +11,6 @@ require (
 	github.com/aws/aws-lambda-go v1.54.0
 	github.com/aws/aws-sdk-go-v2 v1.43.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.32
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.55
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.62.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.45.1
 	github.com/bwmarrin/discordgo v0.29.0
