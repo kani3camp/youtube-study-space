@@ -5,7 +5,15 @@ import (
 	"testing"
 )
 
+func clearStaticAWSEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+}
+
 func TestGoogleConfigFromEnv(t *testing.T) {
+	clearStaticAWSEnv(t)
 	t.Setenv(AWSProfileEnv, "study-space-dev")
 	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-youtube-study-space")
 	t.Setenv("GCP_WIF_AUDIENCE", "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/operator/providers/aws")
@@ -27,6 +35,7 @@ func TestGoogleConfigFromEnv(t *testing.T) {
 }
 
 func TestGoogleConfigFromEnvRejectsConfiguredProjectMismatch(t *testing.T) {
+	clearStaticAWSEnv(t)
 	t.Setenv(AWSProfileEnv, "study-space-prod")
 	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-youtube-study-space")
 	t.Setenv("GCP_WIF_AUDIENCE", "audience")
@@ -39,6 +48,8 @@ func TestGoogleConfigFromEnvRejectsConfiguredProjectMismatch(t *testing.T) {
 }
 
 func TestGoogleConfigFromEnvRequiresExplicitAWSProfile(t *testing.T) {
+	clearStaticAWSEnv(t)
+	t.Setenv(AWSProfileEnv, "")
 	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-youtube-study-space")
 	t.Setenv("GCP_WIF_AUDIENCE", "audience")
 	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "operator@example.iam.gserviceaccount.com")
