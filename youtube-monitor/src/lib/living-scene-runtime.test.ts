@@ -95,7 +95,9 @@ describe('LivingSceneRuntimeManager', () => {
 		const createApplication: jest.MockedFunction<CreateLivingSceneApplication> =
 			jest
 				.fn()
-				.mockRejectedValueOnce(new Error('temporary WebGL initialization error'))
+				.mockRejectedValueOnce(
+					new Error('temporary WebGL initialization error'),
+				)
 				.mockResolvedValue(application)
 		const manager = new LivingSceneRuntimeManager(createApplication)
 		const host = document.createElement('div')

@@ -139,20 +139,14 @@ export class LivingSceneRuntimeManager {
 		try {
 			application = await this.ensureApplication(width, height)
 		} catch (error) {
-			if (
-				revision === this.activationRevision &&
-				this.requestedHost === host
-			) {
+			if (revision === this.activationRevision && this.requestedHost === host) {
 				this.requestedHost = undefined
 			}
 			console.error('[living-scene] failed to initialize PixiJS', error)
 			return false
 		}
 
-		if (
-			revision !== this.activationRevision ||
-			this.requestedHost !== host
-		) {
+		if (revision !== this.activationRevision || this.requestedHost !== host) {
 			return false
 		}
 
