@@ -36,11 +36,11 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 
 	authConfig, err := operatorauth.GoogleConfigFromEnv(environment, expectedProjectID)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve operator Google auth config: %w", err)
 	}
 	clientOption, err := authConfig.ClientOption(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("initialize operator Google credentials: %w", err)
 	}
 
 	repo, err := repository.NewFirestoreController(ctx, clientOption)
