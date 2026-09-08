@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"app.modules/core/repository"
+	"app.modules/core/workspaceapp"
 
 	"google.golang.org/api/option"
 )
@@ -45,6 +46,13 @@ func Preflight(ctx context.Context, clientOption option.ClientOption, stdout io.
 	constants, err := repo.ReadSystemConstantsConfig(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("read system constants: %w", err)
+	}
+	uninitializedFields := workspaceapp.UninitializedConstantsFields(constants)
+	if len(uninitializedFields) > 0 {
+		return fmt.Errorf(
+			"system constants contain zero values: %s",
+			strings.Join(uninitializedFields, ", "),
+		)
 	}
 	menuDocs, err := repo.ReadAllMenuDocsOrderByCode(ctx)
 	if err != nil {
