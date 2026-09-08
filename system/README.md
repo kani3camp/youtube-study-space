@@ -26,6 +26,27 @@ These checks are intentionally separate from real-service execution.
 
 Only run it for an explicitly authorized real-environment smoke test. Before proceeding past startup, verify the Google Cloud Project ID printed by the program is the intended target. Never copy credential values into documentation, issues, or logs.
 
+## Local operator Google WIF preflight
+
+`cmd/google-auth-preflight` is a read-only canary for local operator authentication through AWS IAM Identity Center and Google Workload Identity Federation. It does not load `.env`, post to YouTube/Discord, or mutate Firestore; after authentication it only reads the system constants document.
+
+The command requires an explicit target plus non-secret WIF settings and an AWS shared-config profile. Static AWS credential environment variables are rejected so they cannot silently override the selected SSO profile.
+
+```bash
+cd system
+
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+export AWS_PROFILE=<operator-profile>
+export GOOGLE_CLOUD_PROJECT=<expected-project-id>
+export GCP_WIF_AUDIENCE=<wif-provider-audience>
+export GCP_WIF_SERVICE_ACCOUNT_EMAIL=<service-account-email>
+
+go run ./cmd/google-auth-preflight \\
+  development <expected-project-id>
+```
+
+Use `production` only with the production project ID. A mismatch between the explicit project argument and `GOOGLE_CLOUD_PROJECT` fails before AWS credentials are loaded.
+
 
 ## i18n翻訳関数の自動生成
 
