@@ -65,26 +65,30 @@
 
 - Direction A より素材の物理感を弱め、線・色面・アニメとしての統一感を強くする。
 - Direction C より現実の空間構造と物体の具体性を残す。
+- Direction D より線・セル影・2Dアニメとしての統一感を強くする。
 - Direction B は「アニメの一場面として存在できる全景」が判断基準。
 
 ## Prompt guidance
 
-- full-scene anime environment illustration
-- every object rendered consistently in anime visual language
-- modern anime realism without strong caricature
-- cinematic animated-film lighting and atmosphere
-- clean cel-style shapes and controlled outlines
-- beautiful deliberate color design
-- illustrated materials rather than photoreal PBR materials
-- polished, vivid, clean digital finish
-- no paper or film grain
-- not a family-cartoon or heavily deformed style
+- unmistakably 2D full-scene anime animation still or key visual; the entire scene must look drawn and cel-rendered from the first glance, never like softened 3D CG
+- every object, building, plant, sky and distant element rendered in one consistent 2D anime illustration language
+- use clean digital anime linework with selective medium-thin contour and structural lines, with confident omission where lines are unnecessary
+- use 2-to-3-step cel shading with large deliberately designed light, midtone and shadow groups; avoid continuous physically realistic gradients on objects
+- simplify material cues into flat color, cel shadow and small controlled highlights; suggest wood, stone, glass and foliage without PBR texture
+- foliage should read as stylized anime foliage masses rather than photographic vegetation
+- architecture should be illustrated through shape, line and flat color rather than physically based rendering
+- create spatial depth through layered color, atmospheric perspective and drawn perspective, not through 3D gloss or realistic material response
+- use fresh, deliberate anime color scripting with clear warm/cool separation and a bright daytime palette when the theme specifies daylight
+- respect the specified time of day, weather and light direction exactly; anime styling must not silently substitute a different time or weather
+- keep the result sophisticated and modern, not chibi, not family-cartoon and not children's animation
+- explicitly avoid realistic material roughness, ray-traced reflection look, 3D-render gloss, physically based glass or metal response, miniature-diorama look, architectural visualization, real-estate render, concept-render paintover and generic pastel-block diagram style
+- no paper texture, watercolor wash, film grain or aged cel texture
 
 ## Review checklist
 
 - [ ] 背景だけでなく全景がアニメ表現で統一されている
-- [ ] CGレンダー寄りの素材感が主役になっていない
+- [ ] 3Dレンダーの光沢・PBR素材・建築ビジュアライゼーション感が主役になっていない
 - [ ] デフォルメが強すぎない
-- [ ] 色・光・空気感が一枚絵として魅力を作っている
-- [ ] 線や影が整理され、クリーンである
+- [ ] 茶系の現実的素材色へ単調に寄らず、色・光・空気感が一枚絵として魅力を作っている
+- [ ] 2〜3段階のセル影、選択的な中細線、illustrated material cues が揃い、柔らかい3Dではなく2Dアニメの一枚絵として一目で読める
 - [ ] 時間帯や題材に依存せず成立する
