@@ -2,17 +2,20 @@ import type { FC } from 'react'
 import { useEffect, useRef } from 'react'
 import { livingSceneRuntime } from '../lib/living-scene-runtime'
 import * as styles from '../styles/LivingSceneLayer.styles'
+import type { LivingSceneProfile } from '../types/room-scene'
 
 type LivingSceneLayerProps = {
 	active: boolean
 	width: number
 	height: number
+	profile: LivingSceneProfile
 }
 
 const LivingSceneLayer: FC<LivingSceneLayerProps> = ({
 	active,
 	width,
 	height,
+	profile,
 }) => {
 	const hostRef = useRef<HTMLDivElement>(null)
 
@@ -27,11 +30,11 @@ const LivingSceneLayer: FC<LivingSceneLayerProps> = ({
 			return
 		}
 
-		void livingSceneRuntime.activate({ host, width, height })
+		void livingSceneRuntime.activate({ host, width, height, profile })
 		return () => {
 			livingSceneRuntime.deactivate(host)
 		}
-	}, [active, height, width])
+	}, [active, height, profile, width])
 
 	return <div ref={hostRef} css={styles.host} aria-hidden="true" />
 }

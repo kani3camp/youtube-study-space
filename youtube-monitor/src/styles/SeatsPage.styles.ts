@@ -3,6 +3,7 @@ import { Constants } from '../lib/constants'
 
 export const roomLayout = css`
     position: relative;
+    isolation: isolate;
     top: 0;
     left: 0;
     width: 100%;
@@ -14,5 +15,6 @@ export const roomLayout = css`
 
 export const partition = css`
 	position: absolute;
+	z-index: 2;
 	background-color: #2d2b41;
 `

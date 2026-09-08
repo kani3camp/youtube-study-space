@@ -48,7 +48,12 @@ const RoomVisual: FC<RoomVisualProps> = ({
 				style={ambientStyle}
 			/>
 			{scene?.mode === 'living' && (
-				<LivingSceneLayer active={active} width={width} height={height} />
+				<LivingSceneLayer
+					active={active}
+					width={width}
+					height={height}
+					profile={scene.profile}
+				/>
 			)}
 		</>
 	)

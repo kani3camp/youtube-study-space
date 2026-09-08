@@ -8,6 +8,7 @@ function createFakeApplication(): LivingSceneApplication & {
 	start: jest.Mock
 	stop: jest.Mock
 	resize: jest.Mock
+	setProfile: jest.Mock
 	destroy: jest.Mock
 } {
 	return {
@@ -15,6 +16,7 @@ function createFakeApplication(): LivingSceneApplication & {
 		start: jest.fn(),
 		stop: jest.fn(),
 		resize: jest.fn(),
+		setProfile: jest.fn(() => true),
 		destroy: jest.fn(),
 	}
 }
@@ -29,9 +31,15 @@ describe('LivingSceneRuntimeManager', () => {
 		const secondHost = document.createElement('div')
 
 		await expect(
-			manager.activate({ host: firstHost, width: 1520, height: 900 }),
+			manager.activate({
+				host: firstHost,
+				width: 1520,
+				height: 900,
+				profile: 'lume-rainy-poc',
+			}),
 		).resolves.toBe(true)
 		expect(createApplication).toHaveBeenCalledTimes(1)
+		expect(application.setProfile).toHaveBeenLastCalledWith('lume-rainy-poc')
 		expect(firstHost).toContainElement(application.canvas)
 		expect(application.resize).toHaveBeenLastCalledWith(1520, 900)
 		expect(application.start).toHaveBeenCalledTimes(1)
@@ -40,7 +48,12 @@ describe('LivingSceneRuntimeManager', () => {
 		expect(application.stop).toHaveBeenCalledTimes(1)
 
 		await expect(
-			manager.activate({ host: secondHost, width: 1200, height: 800 }),
+			manager.activate({
+				host: secondHost,
+				width: 1200,
+				height: 800,
+				profile: 'lume-rainy-poc',
+			}),
 		).resolves.toBe(true)
 		expect(createApplication).toHaveBeenCalledTimes(1)
 		expect(secondHost).toContainElement(application.canvas)
@@ -60,13 +73,39 @@ describe('LivingSceneRuntimeManager', () => {
 		const manager = new LivingSceneRuntimeManager(createApplication)
 		const host = document.createElement('div')
 
-		const activation = manager.activate({ host, width: 1520, height: 900 })
+		const activation = manager.activate({
+			host,
+			width: 1520,
+			height: 900,
+			profile: 'lume-rainy-poc',
+		})
 		manager.deactivate(host)
 		resolveApplication?.(application)
 
 		await expect(activation).resolves.toBe(false)
 		expect(host).not.toContainElement(application.canvas)
 		expect(application.start).not.toHaveBeenCalled()
+	})
+
+	test('keeps the static fallback when a profile cannot be configured', async () => {
+		const application = createFakeApplication()
+		application.setProfile.mockReturnValue(false)
+		const manager = new LivingSceneRuntimeManager(() =>
+			Promise.resolve(application),
+		)
+		const host = document.createElement('div')
+
+		await expect(
+			manager.activate({
+				host,
+				width: 1520,
+				height: 900,
+				profile: 'lume-rainy-poc',
+			}),
+		).resolves.toBe(false)
+		expect(host).not.toContainElement(application.canvas)
+		expect(application.start).not.toHaveBeenCalled()
+		expect(application.canvas.hidden).toBe(true)
 	})
 
 	test('falls back after WebGL context loss', async () => {
@@ -76,7 +115,12 @@ describe('LivingSceneRuntimeManager', () => {
 		)
 		const host = document.createElement('div')
 
-		await manager.activate({ host, width: 1520, height: 900 })
+		await manager.activate({
+			host,
+			width: 1520,
+			height: 900,
+			profile: 'lume-rainy-poc',
+		})
 		application.canvas.dispatchEvent(
 			new Event('webglcontextlost', { cancelable: true }),
 		)
@@ -84,7 +128,12 @@ describe('LivingSceneRuntimeManager', () => {
 		expect(application.canvas.hidden).toBe(true)
 		expect(application.stop).toHaveBeenCalled()
 		await expect(
-			manager.activate({ host, width: 1520, height: 900 }),
+			manager.activate({
+				host,
+				width: 1520,
+				height: 900,
+				profile: 'lume-rainy-poc',
+			}),
 		).resolves.toBe(false)
 	})
 
@@ -95,7 +144,12 @@ describe('LivingSceneRuntimeManager', () => {
 		)
 		const host = document.createElement('div')
 
-		await manager.activate({ host, width: 1520, height: 900 })
+		await manager.activate({
+			host,
+			width: 1520,
+			height: 900,
+			profile: 'lume-rainy-poc',
+		})
 		manager.destroy()
 
 		expect(application.stop).toHaveBeenCalled()

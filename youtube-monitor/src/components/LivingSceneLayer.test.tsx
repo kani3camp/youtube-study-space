@@ -18,7 +18,12 @@ describe('LivingSceneLayer', () => {
 
 	test('activates the shared runtime only while the room page is visible', async () => {
 		const { container, rerender } = render(
-			<LivingSceneLayer active={false} width={1520} height={900} />,
+			<LivingSceneLayer
+				active={false}
+				width={1520}
+				height={900}
+				profile="lume-rainy-poc"
+			/>,
 		)
 		const host = container.firstElementChild
 		expect(host).toBeInstanceOf(HTMLElement)
@@ -30,16 +35,31 @@ describe('LivingSceneLayer', () => {
 		expect(runtimeMock.deactivate).toHaveBeenCalledWith(host)
 
 		await act(async () => {
-			rerender(<LivingSceneLayer active={true} width={1520} height={900} />)
+			rerender(
+				<LivingSceneLayer
+					active={true}
+					width={1520}
+					height={900}
+					profile="lume-rainy-poc"
+				/>,
+			)
 		})
 
 		expect(runtimeMock.activate).toHaveBeenCalledWith({
 			host,
 			width: 1520,
 			height: 900,
+			profile: 'lume-rainy-poc',
 		})
 
-		rerender(<LivingSceneLayer active={false} width={1520} height={900} />)
+		rerender(
+			<LivingSceneLayer
+				active={false}
+				width={1520}
+				height={900}
+				profile="lume-rainy-poc"
+			/>,
+		)
 		expect(runtimeMock.deactivate).toHaveBeenCalledWith(host)
 	})
 })

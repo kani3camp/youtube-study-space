@@ -7,5 +7,5 @@ export const host = css`
 	height: 100%;
 	overflow: hidden;
 	pointer-events: none;
-	z-index: 0;
+	z-index: 1;
 `

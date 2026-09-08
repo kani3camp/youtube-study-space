@@ -4,8 +4,12 @@ import RoomVisual from './RoomVisual'
 
 jest.mock('./LivingSceneLayer', () => ({
 	__esModule: true,
-	default: ({ active }: { active: boolean }) => (
-		<span data-testid="living-scene-layer" data-active={String(active)} />
+	default: ({ active, profile }: { active: boolean; profile: string }) => (
+		<span
+			data-testid="living-scene-layer"
+			data-active={String(active)}
+			data-profile={profile}
+		/>
 	),
 }))
 
@@ -68,7 +72,7 @@ describe('RoomVisual static compatibility', () => {
 			<RoomVisual
 				active={true}
 				floorImage="/images/rooms/test-room.png"
-				scene={{ mode: 'living' }}
+				scene={{ mode: 'living', profile: 'lume-rainy-poc' }}
 				width={1520}
 				height={900}
 			/>,
@@ -78,10 +82,9 @@ describe('RoomVisual static compatibility', () => {
 			'data-src',
 			'/images/rooms/test-room.png',
 		)
-		expect(screen.getByTestId('living-scene-layer')).toHaveAttribute(
-			'data-active',
-			'true',
-		)
+		const livingLayer = screen.getByTestId('living-scene-layer')
+		expect(livingLayer).toHaveAttribute('data-active', 'true')
+		expect(livingLayer).toHaveAttribute('data-profile', 'lume-rainy-poc')
 	})
 
 	test('renders nothing when the room has no floor image', () => {
