@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
-	"google.golang.org/api/option"
 
 	"app.modules/core/repository"
-	"app.modules/core/utils"
+	"app.modules/internal/operatorauth"
 )
 
 const firestoreCountAlias = "row_count"
@@ -21,6 +20,7 @@ const firestoreCountAlias = "row_count"
 type auditTarget struct {
 	Environment string `json:"environment"`
 	ProjectID   string `json:"project_id"`
+	AuthMode    string `json:"auth_mode"`
 	Collection  string `json:"collection"`
 }
 
@@ -44,34 +44,17 @@ func run(ctx context.Context, args []string) error {
 	}
 	environment := strings.TrimSpace(args[1])
 	expectedProjectID := strings.TrimSpace(args[2])
-	if environment != "development" && environment != "production" {
-		return fmt.Errorf("environment must be development or production: %q", environment)
-	}
-	if expectedProjectID == "" {
-		return errors.New("expected GCP project ID is required")
-	}
-
-	utils.LoadEnv(".env")
-	credentialFilePath := strings.TrimSpace(os.Getenv("CREDENTIAL_FILE_LOCATION"))
-	if credentialFilePath == "" {
-		return errors.New("CREDENTIAL_FILE_LOCATION is required")
-	}
-	//nolint:staticcheck // Operator-controlled credential file for this read-only audit.
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-
-	actualProjectID, err := utils.GetGcpProjectID(ctx, clientOption)
+	target, err := operatorauth.ResolveTarget(environment, expectedProjectID)
 	if err != nil {
-		return fmt.Errorf("resolve GCP project ID: %w", err)
-	}
-	if actualProjectID != expectedProjectID {
-		return fmt.Errorf(
-			"GCP project mismatch: expected=%q credential=%q; refusing to audit",
-			expectedProjectID,
-			actualProjectID,
-		)
+		return err
 	}
 
-	repo, err := repository.NewFirestoreController(ctx, clientOption)
+	credentials, err := operatorauth.NewGoogleCredentials(ctx, target)
+	if err != nil {
+		return fmt.Errorf("initialize Google credentials: %w", err)
+	}
+
+	repo, err := repository.NewFirestoreController(ctx, credentials.ClientOption)
 	if err != nil {
 		return fmt.Errorf("initialize Firestore: %w", err)
 	}
@@ -89,8 +72,9 @@ func run(ctx context.Context, args []string) error {
 	output := auditOutput{
 		GeneratedAt: time.Now().UTC(),
 		Target: auditTarget{
-			Environment: environment,
-			ProjectID:   actualProjectID,
+			Environment: target.Environment,
+			ProjectID:   credentials.ProjectID,
+			AuthMode:    credentials.AuthMode,
 			Collection:  repository.LiveChatHistory,
 		},
 		TotalRows: totalRows,
