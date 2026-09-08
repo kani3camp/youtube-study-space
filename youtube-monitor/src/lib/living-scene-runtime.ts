@@ -162,6 +162,8 @@ export class LivingSceneRuntimeManager {
 		if (!application.setProfile(profile)) {
 			application.stop()
 			application.canvas.hidden = true
+			this.requestedHost = undefined
+			this.activeHost = undefined
 			return false
 		}
 
