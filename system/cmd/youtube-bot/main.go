@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"app.modules/core/workspaceapp"
@@ -57,16 +56,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption, interactive bool
 		return fmt.Errorf("initialize workspace app: %w", err)
 	}
 	defer app.CloseFirestoreClient()
-
-	if !interactive {
-		uninitializedFields := workspaceapp.UninitializedConstantsFields(app.Configs.Constants)
-		if len(uninitializedFields) > 0 {
-			return fmt.Errorf(
-				"system constants contain zero values in headless mode: %s",
-				strings.Join(uninitializedFields, ", "),
-			)
-		}
-	}
 
 	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
 	if err != nil {
