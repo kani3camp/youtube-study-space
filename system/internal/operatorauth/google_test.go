@@ -14,7 +14,7 @@ func clearStaticAWSEnv(t *testing.T) {
 
 func TestGoogleConfigFromEnv(t *testing.T) {
 	clearStaticAWSEnv(t)
-	t.Setenv(AWSProfileEnv, "study-space-dev")
+	t.Setenv("AWS_PROFILE", "broad-profile-that-must-be-ignored")
 	t.Setenv("GOOGLE_CLOUD_PROJECT", developmentProjectID)
 	t.Setenv("GCP_WIF_AUDIENCE", "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/operator/providers/aws")
 	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "operator@test-youtube-study-space.iam.gserviceaccount.com")
@@ -29,8 +29,23 @@ func TestGoogleConfigFromEnv(t *testing.T) {
 	if got.ProjectID != developmentProjectID {
 		t.Fatalf("project ID = %q", got.ProjectID)
 	}
-	if got.AWSProfile != "study-space-dev" {
-		t.Fatalf("AWS profile = %q", got.AWSProfile)
+	if got.AWSProfile != developmentAWSProfile {
+		t.Fatalf("AWS profile = %q, want %q", got.AWSProfile, developmentAWSProfile)
+	}
+}
+
+func TestGoogleConfigFromEnvBindsProductionProfile(t *testing.T) {
+	clearStaticAWSEnv(t)
+	t.Setenv("GOOGLE_CLOUD_PROJECT", productionProjectID)
+	t.Setenv("GCP_WIF_AUDIENCE", "audience")
+	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "operator@example.iam.gserviceaccount.com")
+
+	got, err := GoogleConfigFromEnv("production", productionProjectID)
+	if err != nil {
+		t.Fatalf("GoogleConfigFromEnv returned error: %v", err)
+	}
+	if got.AWSProfile != productionAWSProfile {
+		t.Fatalf("AWS profile = %q, want %q", got.AWSProfile, productionAWSProfile)
 	}
 }
 
@@ -43,7 +58,6 @@ func TestGoogleConfigFromEnvRejectsEnvironmentProjectMismatch(t *testing.T) {
 
 func TestGoogleConfigFromEnvRejectsConfiguredProjectMismatch(t *testing.T) {
 	clearStaticAWSEnv(t)
-	t.Setenv(AWSProfileEnv, "study-space-prod")
 	t.Setenv("GOOGLE_CLOUD_PROJECT", developmentProjectID)
 	t.Setenv("GCP_WIF_AUDIENCE", "audience")
 	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "operator@example.iam.gserviceaccount.com")
@@ -54,21 +68,7 @@ func TestGoogleConfigFromEnvRejectsConfiguredProjectMismatch(t *testing.T) {
 	}
 }
 
-func TestGoogleConfigFromEnvRequiresExplicitAWSProfile(t *testing.T) {
-	clearStaticAWSEnv(t)
-	t.Setenv(AWSProfileEnv, "")
-	t.Setenv("GOOGLE_CLOUD_PROJECT", developmentProjectID)
-	t.Setenv("GCP_WIF_AUDIENCE", "audience")
-	t.Setenv("GCP_WIF_SERVICE_ACCOUNT_EMAIL", "operator@example.iam.gserviceaccount.com")
-
-	_, err := GoogleConfigFromEnv("development", developmentProjectID)
-	if err == nil || !strings.Contains(err.Error(), AWSProfileEnv) {
-		t.Fatalf("expected missing AWS profile error, got %v", err)
-	}
-}
-
 func TestGoogleConfigFromEnvRejectsStaticAWSCredentials(t *testing.T) {
-	t.Setenv(AWSProfileEnv, "study-space-dev")
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
 	t.Setenv("AWS_SESSION_TOKEN", "session")
