@@ -46,6 +46,29 @@ If any other project ID is printed, answer anything other than `yes` and correct
 
 This startup check is part of the environment-switch safety boundary. The `.env` comment-out state alone is not sufficient evidence of the selected environment.
 
+### Operator WIF canary
+
+`raw-chat-drain-audit` is the first read-only operator command that can use AWS IAM Identity Center credentials through Google Workload Identity Federation. This is a rollback-safe canary only: until the cloud-side operator WIF trust is provisioned and verified, the default remains the existing service-account credential path.
+
+WIF mode is selected from the shell. It intentionally does not load `OPERATOR_GCP_AUTH_MODE` or Google WIF settings from `system/.env`:
+
+```bash
+cd system
+aws sso login --profile soraride-dev
+
+export OPERATOR_GCP_AUTH_MODE=wif
+export GOOGLE_CLOUD_PROJECT=test-youtube-study-space
+export GCP_WIF_AUDIENCE='<development WIF audience>'
+export GCP_WIF_SERVICE_ACCOUNT_EMAIL='<development service account email>'
+
+go run ./cmd/raw-chat-drain-audit \
+  development test-youtube-study-space
+```
+
+The command binds `development` to `test-youtube-study-space` and AWS profile `soraride-dev` before loading credentials. Production is similarly bound to `youtube-study-space` and `soraride-prod`. A mismatched environment/project pair is rejected before AWS credentials are loaded. Successful canary output includes `"auth_mode": "wif"`.
+
+Do not copy the actual WIF audience or service-account email into this public runbook. Use the internal infrastructure runbook for those non-secret but environment-specific values.
+
 ## Development Day 0 procedure
 
 The Firestore producer change and the BigQuery archive change run in different places and must both be represented in the development environment before the migration wait window is treated as started.
@@ -95,9 +118,9 @@ The migration's development Day 0 should be recorded only after both A and B are
 
 ## Development read-only checks
 
-All Go admin / audit commands below load the same `system/.env` and resolve the credential project. They do not require changing the active `gcloud` project.
+Unless an operator command is explicitly run in the WIF canary mode described above, the existing admin / audit commands continue to load `system/.env` and resolve the credential project. They do not require changing the active `gcloud` project.
 
-Before each development command, select the development credential in `.env`. The command must refuse to continue if the credential project is not `test-youtube-study-space`.
+Before each development command that still uses the legacy path, select the development credential in `.env`. `raw-chat-drain-audit` may instead use the WIF canary mode. In both modes, the command must refuse to continue unless the explicit environment/project pair is `development` / `test-youtube-study-space`.
 
 ### Firestore drain
 
