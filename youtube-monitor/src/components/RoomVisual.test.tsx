@@ -7,9 +7,10 @@ jest.mock('../hooks/use-live-room-scenes-enabled', () => ({
 	useLiveRoomScenesEnabled: jest.fn(() => true),
 }))
 
-const liveRoomScenesEnabledMock = useLiveRoomScenesEnabled as jest.MockedFunction<
-	typeof useLiveRoomScenesEnabled
->
+const liveRoomScenesEnabledMock =
+	useLiveRoomScenesEnabled as jest.MockedFunction<
+		typeof useLiveRoomScenesEnabled
+	>
 
 jest.mock('./LivingSceneLayer', () => ({
 	__esModule: true,
@@ -99,7 +100,6 @@ describe('RoomVisual static compatibility', () => {
 		expect(livingLayer).toHaveAttribute('data-active', 'true')
 		expect(livingLayer).toHaveAttribute('data-profile', 'lume-rainy-poc')
 	})
-
 
 	test('renders only the static fallback while Live Room Scenes is disabled', () => {
 		liveRoomScenesEnabledMock.mockReturnValue(false)
