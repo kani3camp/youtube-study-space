@@ -61,13 +61,6 @@ export class AwsCdkStack extends cdk.Stack {
 		// =========================
 		// Google Cloud authentication migration
 		// =========================
-		const gcpAuthMode = new cdk.CfnParameter(this, 'GcpAuthMode', {
-			type: 'String',
-			default: 'legacy',
-			allowedValues: ['legacy', 'wif'],
-			description:
-				'Google Cloud auth mode for AWS workloads. Keep legacy until WIF is configured and verified.',
-		})
 		const googleCloudProject = new cdk.CfnParameter(
 			this,
 			'GoogleCloudProject',
@@ -75,14 +68,14 @@ export class AwsCdkStack extends cdk.Stack {
 				type: 'String',
 				default: '',
 				description:
-					'Google Cloud project ID. Required when GcpAuthMode=wif so Firestore can resolve the project explicitly.',
+					'Google Cloud project ID used by AWS workloads authenticated through WIF.',
 			},
 		)
 		const gcpWifAudience = new cdk.CfnParameter(this, 'GcpWifAudience', {
 			type: 'String',
 			default: '',
 			description:
-				'Full Workload Identity Federation provider audience. Required when GcpAuthMode=wif.',
+				'Full Workload Identity Federation provider audience.',
 		})
 		const gcpWifServiceAccountEmail = new cdk.CfnParameter(
 			this,
@@ -91,11 +84,10 @@ export class AwsCdkStack extends cdk.Stack {
 				type: 'String',
 				default: '',
 				description:
-					'Google service account email impersonated through WIF. Required when GcpAuthMode=wif.',
+					'Google service account email impersonated through WIF.',
 			},
 		)
 		const googleAuthEnvironment = {
-			GCP_AUTH_MODE: gcpAuthMode.valueAsString,
 			GOOGLE_CLOUD_PROJECT: googleCloudProject.valueAsString,
 			GCP_WIF_AUDIENCE: gcpWifAudience.valueAsString,
 			GCP_WIF_SERVICE_ACCOUNT_EMAIL: gcpWifServiceAccountEmail.valueAsString,
