@@ -4,13 +4,7 @@ import RoomVisual from './RoomVisual'
 
 jest.mock('./LivingSceneLayer', () => ({
 	__esModule: true,
-	default: ({
-		active,
-		profile,
-	}: {
-		active: boolean
-		profile: string
-	}) => (
+	default: ({ active, profile }: { active: boolean; profile: string }) => (
 		<span
 			data-testid="living-scene-layer"
 			data-active={String(active)}

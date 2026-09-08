@@ -65,9 +65,7 @@ function createDeterministicRandom(seed: number): () => number {
 	}
 }
 
-export function createLumeRainDropSpecs(
-	seed = 0x4c554d45,
-): LumeRainDropSpec[] {
+export function createLumeRainDropSpecs(seed = 0x4c554d45): LumeRainDropSpec[] {
 	const random = createDeterministicRandom(seed)
 	const drops: LumeRainDropSpec[] = []
 

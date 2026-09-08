@@ -21,6 +21,4 @@ export type LivingRoomSceneConfig = {
  * Omitting scene keeps the room fully static. Living profiles are explicit so
  * an unknown/missing profile cannot silently start an empty WebGL renderer.
  */
-export type RoomSceneConfig =
-	| AmbientRoomSceneConfig
-	| LivingRoomSceneConfig
+export type RoomSceneConfig = AmbientRoomSceneConfig | LivingRoomSceneConfig

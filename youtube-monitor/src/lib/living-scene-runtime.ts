@@ -1,5 +1,5 @@
-import { createLivingSceneForProfile } from '../scenes/living-scene-profile'
 import type { LivingSceneInstance } from '../scenes/living-scene-profile'
+import { createLivingSceneForProfile } from '../scenes/living-scene-profile'
 import type { LivingSceneProfile } from '../types/room-scene'
 
 export type LivingSceneApplication = {
