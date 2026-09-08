@@ -32,6 +32,17 @@ func TestRunRejectsUnknownEnvironmentBeforeCredentialAccess(t *testing.T) {
 	}
 }
 
+func TestRunRejectsEnvironmentProjectMismatchBeforeCredentialAccess(t *testing.T) {
+	err := run(
+		context.Background(),
+		[]string{"google-auth-preflight", "development", "youtube-study-space"},
+		&bytes.Buffer{},
+	)
+	if err == nil || !strings.Contains(err.Error(), "environment/project mismatch") {
+		t.Fatalf("expected environment/project mismatch, got %v", err)
+	}
+}
+
 func TestRunRejectsConfiguredProjectMismatchBeforeCredentialAccess(t *testing.T) {
 	clearOperatorCredentialEnv(t)
 	t.Setenv("AWS_PROFILE", "study-space-prod")
