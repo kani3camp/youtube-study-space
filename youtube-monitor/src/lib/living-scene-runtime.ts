@@ -2,6 +2,8 @@ import type { LivingSceneInstance } from '../scenes/living-scene-profile'
 import { createLivingSceneForProfile } from '../scenes/living-scene-profile'
 import type { LivingSceneProfile } from '../types/room-scene'
 
+export const LIVING_SCENE_MAX_FPS = 30
+
 export type LivingSceneApplication = {
 	canvas: HTMLCanvasElement
 	start: () => void
@@ -43,6 +45,7 @@ async function createPixiLivingSceneApplication(
 		preferWebGLVersion: 2,
 		powerPreference: 'high-performance',
 	})
+	app.ticker.maxFPS = LIVING_SCENE_MAX_FPS
 
 	const canvas = app.canvas as HTMLCanvasElement
 	canvas.setAttribute('aria-hidden', 'true')
@@ -115,8 +118,9 @@ export class LivingSceneRuntimeManager {
 	private applicationPromise: Promise<LivingSceneApplication> | undefined
 	private requestedHost: HTMLElement | undefined
 	private activeHost: HTMLElement | undefined
+	private activeActivation: LivingSceneActivation | undefined
+	private recoveryActivation: LivingSceneActivation | undefined
 	private activationRevision = 0
-	private unavailable = false
 
 	constructor(
 		private readonly createApplication: CreateLivingSceneApplication = (
@@ -125,32 +129,29 @@ export class LivingSceneRuntimeManager {
 		) => createPixiLivingSceneApplication(width, height),
 	) {}
 
-	async activate({
-		host,
-		width,
-		height,
-		profile,
-	}: LivingSceneActivation): Promise<boolean> {
+	async activate(activation: LivingSceneActivation): Promise<boolean> {
+		const { host, width, height, profile } = activation
 		const revision = ++this.activationRevision
 		this.requestedHost = host
-
-		if (this.unavailable) {
-			return false
-		}
+		this.recoveryActivation = undefined
 
 		let application: LivingSceneApplication
 		try {
 			application = await this.ensureApplication(width, height)
 		} catch (error) {
-			this.unavailable = true
+			if (
+				revision === this.activationRevision &&
+				this.requestedHost === host
+			) {
+				this.requestedHost = undefined
+			}
 			console.error('[living-scene] failed to initialize PixiJS', error)
 			return false
 		}
 
 		if (
 			revision !== this.activationRevision ||
-			this.requestedHost !== host ||
-			this.unavailable
+			this.requestedHost !== host
 		) {
 			return false
 		}
@@ -164,6 +165,7 @@ export class LivingSceneRuntimeManager {
 			application.canvas.hidden = true
 			this.requestedHost = undefined
 			this.activeHost = undefined
+			this.activeActivation = undefined
 			return false
 		}
 
@@ -173,6 +175,7 @@ export class LivingSceneRuntimeManager {
 		}
 		application.canvas.hidden = false
 		this.activeHost = host
+		this.activeActivation = activation
 		application.start()
 		return true
 	}
@@ -181,6 +184,12 @@ export class LivingSceneRuntimeManager {
 		if (this.requestedHost === host) {
 			this.requestedHost = undefined
 			this.activationRevision++
+		}
+		if (this.recoveryActivation?.host === host) {
+			this.recoveryActivation = undefined
+		}
+		if (this.activeActivation?.host === host) {
+			this.activeActivation = undefined
 		}
 
 		if (this.activeHost !== host) {
@@ -195,7 +204,8 @@ export class LivingSceneRuntimeManager {
 		this.activationRevision++
 		this.requestedHost = undefined
 		this.activeHost = undefined
-		this.unavailable = false
+		this.activeActivation = undefined
+		this.recoveryActivation = undefined
 
 		const application = this.application
 		this.application = undefined
@@ -207,6 +217,10 @@ export class LivingSceneRuntimeManager {
 		application.canvas.removeEventListener(
 			'webglcontextlost',
 			this.handleContextLost,
+		)
+		application.canvas.removeEventListener(
+			'webglcontextrestored',
+			this.handleContextRestored,
 		)
 		application.stop()
 		application.destroy()
@@ -224,12 +238,23 @@ export class LivingSceneRuntimeManager {
 			this.applicationPromise = this.createApplication(width, height)
 		}
 
-		const application = await this.applicationPromise
+		let application: LivingSceneApplication
+		try {
+			application = await this.applicationPromise
+		} catch (error) {
+			this.applicationPromise = undefined
+			throw error
+		}
+
 		if (this.application === undefined) {
 			this.application = application
 			application.canvas.addEventListener(
 				'webglcontextlost',
 				this.handleContextLost,
+			)
+			application.canvas.addEventListener(
+				'webglcontextrestored',
+				this.handleContextRestored,
 			)
 		}
 		return this.application
@@ -238,14 +263,31 @@ export class LivingSceneRuntimeManager {
 	private readonly handleContextLost = (event: Event): void => {
 		event.preventDefault()
 		this.activationRevision++
+		this.recoveryActivation = this.activeActivation
 		this.requestedHost = undefined
 		this.activeHost = undefined
-		this.unavailable = true
+		this.activeActivation = undefined
 
 		if (this.application !== undefined) {
 			this.application.stop()
 			this.application.canvas.hidden = true
 		}
+	}
+
+	private readonly handleContextRestored = (): void => {
+		const recovery = this.recoveryActivation
+		if (recovery === undefined || !recovery.host.isConnected) {
+			this.recoveryActivation = undefined
+			return
+		}
+
+		queueMicrotask(() => {
+			if (this.recoveryActivation !== recovery) {
+				return
+			}
+			this.recoveryActivation = undefined
+			void this.activate(recovery)
+		})
 	}
 }
 
