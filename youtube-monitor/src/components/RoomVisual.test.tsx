@@ -1,6 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
+import { useLiveRoomScenesEnabled } from '../hooks/use-live-room-scenes-enabled'
 import RoomVisual from './RoomVisual'
+
+jest.mock('../hooks/use-live-room-scenes-enabled', () => ({
+	useLiveRoomScenesEnabled: jest.fn(() => true),
+}))
+
+const liveRoomScenesEnabledMock = useLiveRoomScenesEnabled as jest.MockedFunction<
+	typeof useLiveRoomScenesEnabled
+>
 
 jest.mock('./LivingSceneLayer', () => ({
 	__esModule: true,
@@ -31,6 +40,10 @@ jest.mock('next/image', () => ({
 }))
 
 describe('RoomVisual static compatibility', () => {
+	beforeEach(() => {
+		liveRoomScenesEnabledMock.mockReturnValue(true)
+	})
+
 	test('renders the static floor image when no scene is configured', () => {
 		render(
 			<RoomVisual
@@ -85,6 +98,43 @@ describe('RoomVisual static compatibility', () => {
 		const livingLayer = screen.getByTestId('living-scene-layer')
 		expect(livingLayer).toHaveAttribute('data-active', 'true')
 		expect(livingLayer).toHaveAttribute('data-profile', 'lume-rainy-poc')
+	})
+
+
+	test('renders only the static fallback while Live Room Scenes is disabled', () => {
+		liveRoomScenesEnabledMock.mockReturnValue(false)
+		render(
+			<RoomVisual
+				active={true}
+				floorImage="/images/rooms/test-room.png"
+				scene={{ mode: 'living', profile: 'lume-rainy-poc' }}
+				width={1520}
+				height={900}
+			/>,
+		)
+
+		expect(screen.getByRole('img', { name: 'room image' })).toHaveAttribute(
+			'data-src',
+			'/images/rooms/test-room.png',
+		)
+		expect(screen.queryByTestId('living-scene-layer')).not.toBeInTheDocument()
+	})
+
+	test('does not apply Ambient grading while Live Room Scenes is disabled', () => {
+		liveRoomScenesEnabledMock.mockReturnValue(false)
+		render(
+			<RoomVisual
+				active={true}
+				floorImage="/images/rooms/test-room.png"
+				scene={{ mode: 'ambient' }}
+				width={1520}
+				height={900}
+			/>,
+		)
+
+		expect(screen.getByRole('img', { name: 'room image' })).not.toHaveAttribute(
+			'data-filter',
+		)
 	})
 
 	test('renders nothing when the room has no floor image', () => {
