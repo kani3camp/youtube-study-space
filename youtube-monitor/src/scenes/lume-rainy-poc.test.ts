@@ -9,7 +9,7 @@ describe('Lume rainy Living Scene', () => {
 		expect(first).toHaveLength(24)
 	})
 
-	test('keeps rain motion slow and visually sparse', () => {
+	test('keeps rain motion slow and visually sparse while remaining reviewable', () => {
 		for (const drop of createLumeRainDropSpecs()) {
 			expect(drop.x).toBeGreaterThanOrEqual(0)
 			expect(drop.x).toBeLessThanOrEqual(1520)
@@ -19,8 +19,10 @@ describe('Lume rainy Living Scene', () => {
 			expect(drop.length).toBeLessThanOrEqual(34)
 			expect(drop.speed).toBeGreaterThanOrEqual(26)
 			expect(drop.speed).toBeLessThanOrEqual(46)
-			expect(drop.alpha).toBeGreaterThanOrEqual(0.1)
-			expect(drop.alpha).toBeLessThanOrEqual(0.21)
+			expect(drop.alpha).toBeGreaterThanOrEqual(0.28)
+			expect(drop.alpha).toBeLessThanOrEqual(0.48)
+			expect(drop.width).toBeGreaterThanOrEqual(1.05)
+			expect(drop.width).toBeLessThanOrEqual(1.75)
 		}
 	})
 })
