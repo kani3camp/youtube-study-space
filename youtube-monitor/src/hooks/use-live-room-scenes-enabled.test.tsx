@@ -1,7 +1,7 @@
+import { TextEncoder } from 'node:util'
 import { render, screen } from '@testing-library/react'
 import type { NextRouter } from 'next/router'
 import { useRouter } from 'next/router'
-import { renderToString } from 'react-dom/server'
 import { useLiveRoomScenesEnabled } from './use-live-room-scenes-enabled'
 
 jest.mock('next/router', () => ({
@@ -31,8 +31,10 @@ describe('useLiveRoomScenesEnabled', () => {
 		useRouterMock.mockReset()
 	})
 
-	test('keeps the server render hydration-safe even when debug force-on is present', () => {
+	test('keeps the server render hydration-safe even when debug force-on is present', async () => {
 		useRouterMock.mockReturnValue(createRouter({ liveScenes: 'on' }))
+		Object.assign(globalThis, { TextEncoder })
+		const { renderToString } = await import('react-dom/server')
 
 		const html = renderToString(<Probe />)
 
