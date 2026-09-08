@@ -37,3 +37,34 @@ aws sts get-caller-identity --profile プロファイル名
     pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
     ```
   - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。
+
+
+## youtube-bot Fargate Service
+
+The stack defines a dedicated `youtube-bot` Fargate Service on the existing batch VPC/cluster.
+
+Safety defaults:
+
+- `YoutubeBotDesiredCount=0`: deploying the stack alone does not start a bot task.
+- `YoutubeBotEnvironment=disabled`: the WIF/headless container rejects startup until an explicit `development` or `production` target is deployed.
+- deployment uses minimum healthy percent 0 / maximum healthy percent 100, so desired count 1 replaces the old task before starting the new task instead of temporarily running two bot tasks.
+- unexpected task exits (`EssentialContainerExited` / `TaskFailedToStart`) are forwarded to `AlarmsTopic`.
+- the bot has a dedicated task role, log group, and security group. Public-IP HTTPS egress is used to avoid adding a NAT gateway.
+
+New outputs:
+
+- `YoutubeBotTaskDefinitionArn`
+- `YoutubeBotTaskRoleArn`
+- `YoutubeBotServiceName`
+- `YoutubeBotSecurityGroupId`
+
+The safe rollout order is:
+
+1. deploy the environment with `YoutubeBotDesiredCount=0` and the correct `YoutubeBotEnvironment`;
+2. take `YoutubeBotTaskRoleArn` from the stack output and add that role to the environment's Google WIF provider condition and Service Account `workloadIdentityUser` binding;
+3. run the task definition once with container command `preflight`;
+4. only after preflight succeeds, stop the streaming-PC bot;
+5. set `YoutubeBotDesiredCount=1`;
+6. verify live-chat command/moderation behavior.
+
+Do not set desired count 1 before the old streaming-PC bot is stopped.

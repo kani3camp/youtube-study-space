@@ -100,6 +100,74 @@ describe('AwsCdkStack', () => {
 		})
 	})
 
+	test('defines youtube-bot as a dormant stop-before-start Fargate service', () => {
+		template.hasParameter('YoutubeBotDesiredCount', {
+			Type: 'Number',
+			Default: 0,
+		})
+		template.hasParameter('YoutubeBotEnvironment', {
+			Type: 'String',
+			Default: 'disabled',
+		})
+
+		template.hasResourceProperties(
+			'AWS::ECS::Service',
+			Match.objectLike({
+				ServiceName: 'youtube-bot',
+				DesiredCount: { Ref: 'YoutubeBotDesiredCount' },
+				DeploymentConfiguration: Match.objectLike({
+					MaximumPercent: 100,
+					MinimumHealthyPercent: 0,
+					DeploymentCircuitBreaker: {
+						Enable: true,
+						Rollback: true,
+					},
+				}),
+				NetworkConfiguration: Match.objectLike({
+					AwsvpcConfiguration: Match.objectLike({
+						AssignPublicIp: 'ENABLED',
+					}),
+				}),
+			}),
+		)
+
+		template.hasResourceProperties('AWS::ECS::TaskDefinition', {
+			ContainerDefinitions: Match.arrayWith([
+				Match.objectLike({
+					Name: 'youtube-bot',
+					Environment: Match.arrayWith([
+						{ Name: 'YOUTUBE_BOT_AUTH_MODE', Value: 'wif' },
+						{
+							Name: 'YOUTUBE_BOT_ENVIRONMENT',
+							Value: { Ref: 'YoutubeBotEnvironment' },
+						},
+						{
+							Name: 'GOOGLE_CLOUD_PROJECT',
+							Value: { Ref: 'GoogleCloudProject' },
+						},
+					]),
+				}),
+			]),
+		})
+	})
+
+	test('notifies on unexpected youtube-bot task stops', () => {
+		template.hasResourceProperties(
+			'AWS::Events::Rule',
+			Match.objectLike({
+				EventPattern: Match.objectLike({
+					source: ['aws.ecs'],
+					'detail-type': ['ECS Task State Change'],
+					detail: Match.objectLike({
+						group: ['service:youtube-bot'],
+						lastStatus: ['STOPPED'],
+						stopCode: ['EssentialContainerExited', 'TaskFailedToStart'],
+					}),
+				}),
+			}),
+		)
+	})
+
 	test('exposes the required batch outputs', () => {
 		template.hasOutput('BatchClusterArn', {})
 		template.hasOutput('DailyBatchTaskDefinitionArn', {})

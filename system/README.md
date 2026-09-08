@@ -120,6 +120,23 @@ go generate ./...
 ```
 
 
+## youtube-bot のFargate移行
+
+`cmd/youtube-bot` は移行期間中、2つのGoogle Cloud認証経路を持つ。
+
+- 既定値 / `YOUTUBE_BOT_AUTH_MODE=service-account`: 現在の配信PC互換経路。 `.env` と `CREDENTIAL_FILE_LOCATION` を読み、従来どおりproject IDの対話確認を行う。
+- `YOUTUBE_BOT_AUTH_MODE=wif`: ECS/Fargate用。 `.env` やService Account JSONを読まず、Task RoleからGoogle WIFを利用する。`YOUTUBE_BOT_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` の組み合わせが既知のdevelopment/production対象と一致しない場合はAWS credential取得前に停止する。
+
+Fargate向けにはside-effect-freeなpreflightを用意している。
+
+```bash
+/app/batch preflight
+```
+
+Fargate imageは既存の `Dockerfile.fargate` を `BUILD_TARGET=./cmd/youtube-bot` でビルドするため、container内の実行ファイル名は移行中も `/app/batch` のまま。preflightはFirestoreのcredentials設定、system constants、menu docsとNGワード用Google Sheetsをread-onlyで確認し、YouTube/Discordへの投稿やFirestore更新は行わない。既存の対話起動が警告対象にしているzero-value constantsもJSONへ列挙するが、`false` / `0` が正当な設定もあるため一律エラーにはしない。
+
+ECS Serviceは初期状態でdesired count 0とし、Task RoleのGoogle WIF trustとpreflightが完了するまで常駐起動しない。実切替では配信PCの旧Botを停止してからServiceを1へ上げ、同じライブチャットを2つのBotが同時処理しないことを優先する。
+
 ## 日次バッチ（ECS Fargate）と通知（SNS→Lambda→Discord）
 
 - 実行基盤: AWS ECS Fargate (arm64) 上の単一バッチコンテナ

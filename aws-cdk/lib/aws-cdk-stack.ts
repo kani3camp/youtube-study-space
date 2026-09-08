@@ -93,6 +93,29 @@ export class AwsCdkStack extends cdk.Stack {
 			GCP_WIF_SERVICE_ACCOUNT_EMAIL: gcpWifServiceAccountEmail.valueAsString,
 		}
 
+		const youtubeBotDesiredCount = new cdk.CfnParameter(
+			this,
+			'YoutubeBotDesiredCount',
+			{
+				type: 'Number',
+				default: 0,
+				allowedValues: ['0', '1'],
+				description:
+					'Youtube bot Fargate service desired count. Keep 0 until WIF trust and preflight are complete.',
+			},
+		)
+		const youtubeBotEnvironment = new cdk.CfnParameter(
+			this,
+			'YoutubeBotEnvironment',
+			{
+				type: 'String',
+				default: 'disabled',
+				allowedValues: ['disabled', 'development', 'production'],
+				description:
+					'Explicit youtube-bot target environment. The container rejects disabled or a project mismatch.',
+			},
+		)
+
 		// =========================
 		// Secrets Manager
 		// =========================
@@ -153,6 +176,36 @@ export class AwsCdkStack extends cdk.Stack {
 			'ECS task metadata/credentials',
 		)
 
+		const youtubeBotSecurityGroup = new ec2.SecurityGroup(
+			this,
+			'YoutubeBotSecurityGroup',
+			{
+				vpc,
+				allowAllOutbound: false,
+				description: 'Minimal egress for youtube-bot Fargate service',
+			},
+		)
+		youtubeBotSecurityGroup.addEgressRule(
+			ec2.Peer.anyIpv4(),
+			ec2.Port.tcp(443),
+			'HTTPS to YouTube, Google APIs, and Discord',
+		)
+		youtubeBotSecurityGroup.addEgressRule(
+			ec2.Peer.ipv4('169.254.169.253/32'),
+			ec2.Port.tcp(53),
+			'DNS TCP to VPC resolver',
+		)
+		youtubeBotSecurityGroup.addEgressRule(
+			ec2.Peer.ipv4('169.254.169.253/32'),
+			ec2.Port.udp(53),
+			'DNS UDP to VPC resolver',
+		)
+		youtubeBotSecurityGroup.addEgressRule(
+			ec2.Peer.ipv4('169.254.170.2/32'),
+			ec2.Port.tcp(80),
+			'ECS task metadata/credentials',
+		)
+
 		const cluster = new ecs.Cluster(this, 'BatchCluster', { vpc })
 
 		const batchLogGroup = new logs.LogGroup(this, 'BatchLogGroup', {
@@ -195,9 +248,82 @@ export class AwsCdkStack extends cdk.Stack {
 			},
 		})
 
+		const youtubeBotLogGroup = new logs.LogGroup(this, 'YoutubeBotLogGroup', {
+			retention: logs.RetentionDays.INFINITE,
+		})
+		const youtubeBotImageAsset = new ecr_assets.DockerImageAsset(
+			this,
+			'YoutubeBotImage',
+			{
+				directory: systemDir,
+				file: DOCKERFILE_FARGATE,
+				platform: Platform.LINUX_ARM64,
+				buildArgs: {
+					BUILD_TARGET: './cmd/youtube-bot',
+				},
+			},
+		)
+		const youtubeBotTaskDefinition = new ecs.FargateTaskDefinition(
+			this,
+			'YoutubeBotTaskDefinition',
+			{
+				cpu: 256,
+				memoryLimitMiB: 512,
+				runtimePlatform: {
+					cpuArchitecture: ecs.CpuArchitecture.ARM64,
+					operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
+				},
+			},
+		)
+		youtubeBotTaskDefinition.addContainer('youtube-bot', {
+			image: ecs.ContainerImage.fromDockerImageAsset(youtubeBotImageAsset),
+			logging: ecs.LogDrivers.awsLogs({
+				logGroup: youtubeBotLogGroup,
+				streamPrefix: 'youtube-bot',
+			}),
+			environment: {
+				...googleAuthEnvironment,
+				YOUTUBE_BOT_AUTH_MODE: 'wif',
+				YOUTUBE_BOT_ENVIRONMENT: youtubeBotEnvironment.valueAsString,
+				AWS_REGION: cdk.Stack.of(this).region,
+				AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
+			},
+		})
+
 		// SNS topic for CloudWatch alarms and subscription to Discord notify Lambda
 		const alarmsTopic = new sns.Topic(this, 'AlarmsTopic', {
 			displayName: 'youtube-study-space-alarms',
+		})
+
+		const youtubeBotService = new ecs.FargateService(
+			this,
+			'YoutubeBotService',
+			{
+				cluster,
+				taskDefinition: youtubeBotTaskDefinition,
+				serviceName: 'youtube-bot',
+				desiredCount: youtubeBotDesiredCount.valueAsNumber,
+				assignPublicIp: true,
+				vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+				securityGroups: [youtubeBotSecurityGroup],
+				platformVersion: ecs.FargatePlatformVersion.LATEST,
+				minHealthyPercent: 0,
+				maxHealthyPercent: 100,
+				circuitBreaker: { rollback: true },
+			},
+		)
+		new events.Rule(this, 'YoutubeBotUnexpectedStopRule', {
+			eventPattern: {
+				source: ['aws.ecs'],
+				detailType: ['ECS Task State Change'],
+				detail: {
+					clusterArn: [cluster.clusterArn],
+					group: ['service:youtube-bot'],
+					lastStatus: ['STOPPED'],
+					stopCode: ['EssentialContainerExited', 'TaskFailedToStart'],
+				},
+			},
+			targets: [new targets.SnsTopic(alarmsTopic)],
 		})
 		// Unified SNS consumer Lambda for all infra/app alerts
 		const snsNotifyDiscordFunction = new lambda.DockerImageFunction(
@@ -276,6 +402,22 @@ export class AwsCdkStack extends cdk.Stack {
 		new cdk.CfnOutput(this, 'BatchVpcId', {
 			value: vpc.vpcId,
 			exportName: 'BatchVpcId',
+		})
+		new cdk.CfnOutput(this, 'YoutubeBotTaskDefinitionArn', {
+			value: youtubeBotTaskDefinition.taskDefinitionArn,
+			exportName: 'YoutubeBotTaskDefinitionArn',
+		})
+		new cdk.CfnOutput(this, 'YoutubeBotTaskRoleArn', {
+			value: youtubeBotTaskDefinition.taskRole.roleArn,
+			exportName: 'YoutubeBotTaskRoleArn',
+		})
+		new cdk.CfnOutput(this, 'YoutubeBotServiceName', {
+			value: youtubeBotService.serviceName,
+			exportName: 'YoutubeBotServiceName',
+		})
+		new cdk.CfnOutput(this, 'YoutubeBotSecurityGroupId', {
+			value: youtubeBotSecurityGroup.securityGroupId,
+			exportName: 'YoutubeBotSecurityGroupId',
 		})
 
 		// =========================

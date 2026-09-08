@@ -46,6 +46,21 @@ type Configs struct {
 	LiveChatBotChannelID string
 }
 
+// UninitializedConstantsFields returns zero-valued system constant fields using
+// the same check as the interactive workspace startup guard.
+func UninitializedConstantsFields(constants repository.ConstantsConfigDoc) []string {
+	v := reflect.ValueOf(constants)
+	var uninitializedFields []string
+	for i := 0; i < v.NumField(); i++ {
+		if v.Field(i).IsZero() {
+			fieldName := v.Type().Field(i).Name
+			fieldValue := fmt.Sprintf("%v", v.Field(i))
+			uninitializedFields = append(uninitializedFields, fieldName+" = "+fieldValue)
+		}
+	}
+	return uninitializedFields
+}
+
 func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.ClientOption) (*WorkspaceApp, error) {
 	if err := i18n.LoadLocaleFolderFS(); err != nil {
 		return nil, fmt.Errorf("in LoadLocaleFolderFS(): %w", err)
@@ -100,15 +115,7 @@ func NewWorkspaceApp(ctx context.Context, interactive bool, clientOption option.
 	}
 
 	// 全ての項目が初期化できているか確認
-	v := reflect.ValueOf(configs.Constants)
-	var uninitializedFields []string
-	for i := 0; i < v.NumField(); i++ {
-		if v.Field(i).IsZero() {
-			fieldName := v.Type().Field(i).Name
-			fieldValue := fmt.Sprintf("%v", v.Field(i))
-			uninitializedFields = append(uninitializedFields, fieldName+" = "+fieldValue)
-		}
-	}
+	uninitializedFields := UninitializedConstantsFields(configs.Constants)
 
 	if interactive && len(uninitializedFields) > 0 {
 		fmt.Println("The following fields may not be initialized:")
