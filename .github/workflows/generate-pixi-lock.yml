@@ -1,0 +1,32 @@
+name: Generate Pixi Lockfile
+
+on:
+  push:
+    branches:
+      - tooling/generate-pixi-lock
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+      - name: Generate package metadata
+        working-directory: youtube-monitor
+        run: pnpm add 'pixi.js@^8.20.1' --lockfile-only
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pixi-package-metadata
+          path: |
+            youtube-monitor/package.json
+            youtube-monitor/pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 1
