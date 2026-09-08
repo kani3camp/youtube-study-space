@@ -16,7 +16,12 @@ export type RoomVisualProps = {
  * prop is accepted so later ambient/living renderers can be introduced behind
  * this component without changing seat/layout ownership.
  */
-const RoomVisual: FC<RoomVisualProps> = ({ floorImage, width, height, scene }) => {
+const RoomVisual: FC<RoomVisualProps> = ({
+	floorImage,
+	width,
+	height,
+	scene,
+}) => {
 	if (!floorImage) {
 		return null
 	}
