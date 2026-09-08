@@ -1,11 +1,13 @@
 import Image from 'next/image'
 import type { FC } from 'react'
 import type { RoomSceneConfig } from '../types/room-scene'
+import LivingSceneLayer from './LivingSceneLayer'
 
 export type RoomVisualProps = {
 	floorImage: string
 	width: number
 	height: number
+	active: boolean
 	scene?: RoomSceneConfig
 }
 
@@ -20,6 +22,7 @@ const RoomVisual: FC<RoomVisualProps> = ({
 	floorImage,
 	width,
 	height,
+	active,
 	scene,
 }) => {
 	if (!floorImage) {
@@ -35,14 +38,19 @@ const RoomVisual: FC<RoomVisualProps> = ({
 			: undefined
 
 	return (
-		<Image
-			alt="room image"
-			src={floorImage}
-			width={width}
-			height={height}
-			priority={true}
-			style={ambientStyle}
-		/>
+		<>
+			<Image
+				alt="room image"
+				src={floorImage}
+				width={width}
+				height={height}
+				priority={true}
+				style={ambientStyle}
+			/>
+			{scene?.mode === 'living' && (
+				<LivingSceneLayer active={active} width={width} height={height} />
+			)}
+		</>
 	)
 }
 

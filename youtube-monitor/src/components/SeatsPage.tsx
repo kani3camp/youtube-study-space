@@ -203,6 +203,7 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 			}
 		>
 			<RoomVisual
+				active={propsMemo.display}
 				floorImage={propsMemo.roomLayout.floor_image}
 				scene={propsMemo.roomLayout.scene}
 				width={roomShape.widthPx}
