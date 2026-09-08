@@ -30,10 +30,7 @@ describe('RoomVisual static compatibility', () => {
 		)
 
 		const image = screen.getByRole('img', { name: 'room image' })
-		expect(image).toHaveAttribute(
-		'data-src',
-		'/images/rooms/test-room.png',
-	)
+		expect(image).toHaveAttribute('data-src', '/images/rooms/test-room.png')
 		expect(image).toHaveAttribute('data-width', '1520')
 		expect(image).toHaveAttribute('data-height', '900')
 		expect(image).not.toHaveAttribute('data-filter')
