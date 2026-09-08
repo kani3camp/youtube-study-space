@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -18,10 +17,7 @@ import (
 	"app.modules/core/youtubebot"
 
 	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
-
 	"app.modules/core/timeutil"
-	"app.modules/core/utils"
 )
 
 const (
@@ -29,29 +25,13 @@ const (
 	RetryIntervalCalculationBase = 1.2
 )
 
-func Init() (option.ClientOption, context.Context, error) {
-	utils.LoadEnv(".env")
-	credentialFilePath := os.Getenv("CREDENTIAL_FILE_LOCATION")
-
+func Init() (option.ClientOption, context.Context, bool, error) {
 	ctx := context.Background()
-	//nolint:staticcheck // Credential file path is repo/operator-controlled and restricted to the service account JSON used for this app.
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-
-	creds, err := transport.Creds(ctx, clientOption)
+	clientOption, interactive, err := initGoogleClient(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load Google credentials: %w", err)
+		return nil, nil, false, err
 	}
-	fmt.Printf("Project ID: %s\n", creds.ProjectID)
-	fmt.Println("Is this the correct project ID? (yes/no)")
-	var s string
-	if _, err := fmt.Scanln(&s); err != nil {
-		return nil, nil, fmt.Errorf("failed to read project confirmation: %w", err)
-	}
-	if s != "yes" {
-		return nil, nil, errors.New("aborted")
-	}
-
-	return clientOption, ctx, nil
+	return clientOption, ctx, interactive, nil
 }
 
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
@@ -70,8 +50,8 @@ func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 	return math.Min(MaxRetryIntervalSeconds, math.Pow(base, float64(numContinuousFailed)))
 }
 
-func Bot(ctx context.Context, clientOption option.ClientOption) {
-	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
+func Bot(ctx context.Context, clientOption option.ClientOption, interactive bool) {
+	app, err := workspaceapp.NewWorkspaceApp(ctx, interactive, clientOption)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error", err)
 		return
@@ -230,10 +210,23 @@ func loadNGWordConfig(
 }
 
 func main() {
-	clientOption, ctx, err := Init()
+	clientOption, ctx, interactive, err := Init()
 	if err != nil {
 		panic(err)
 	}
 
-	Bot(ctx, clientOption)
+	if len(os.Args) == 2 && os.Args[1] == "preflight" {
+		if interactive {
+			panic("youtube-bot preflight requires WIF/headless mode")
+		}
+		if err := Preflight(ctx, clientOption, os.Stdout); err != nil {
+			panic(err)
+		}
+		return
+	}
+	if len(os.Args) != 1 {
+		panic("usage: youtube-bot [preflight]")
+	}
+
+	Bot(ctx, clientOption, interactive)
 }
