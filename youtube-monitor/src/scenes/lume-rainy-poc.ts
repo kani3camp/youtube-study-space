@@ -207,9 +207,9 @@ export function createLumeRainyScene(
 		currentSunset = approach(currentSunset, targetSunset, deltaSeconds)
 		currentLamp = approach(currentLamp, targetLamp, deltaSeconds)
 
-		nightVeil.alpha = currentNight * 0.28
-		windowTint.alpha = currentNight * 0.14
-		sunsetVeil.alpha = currentSunset * 0.12
+		nightVeil.alpha = currentNight * 0.1
+		windowTint.alpha = currentNight * 0.08
+		sunsetVeil.alpha = currentSunset * 0.045
 		lampGlow.alpha = currentLamp
 		rain.alpha = 0.52 + currentNight * 0.08
 
