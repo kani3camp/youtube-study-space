@@ -48,13 +48,31 @@ export function useSceneClockCssVariables(
 				'--scene-ambient-filter',
 				buildAmbientSceneFilter(state),
 			)
-			target.style.setProperty('--scene-brightness', String(state.brightness))
-			target.style.setProperty('--scene-saturation', String(state.saturation))
+			target.style.setProperty(
+			'--scene-brightness',
+			String(state.brightness),
+		)
+			target.style.setProperty(
+			'--scene-saturation',
+			String(state.saturation),
+		)
 			target.style.setProperty('--scene-warmth', String(state.warmth))
-			target.style.setProperty('--scene-sunset-amount', String(state.sunsetAmount))
-			target.style.setProperty('--scene-night-amount', String(state.nightAmount))
-			target.style.setProperty('--scene-lamp-intensity', String(state.lampIntensity))
-			target.style.setProperty('--scene-sky-brightness', String(state.skyBrightness))
+			target.style.setProperty(
+			'--scene-sunset-amount',
+			String(state.sunsetAmount),
+		)
+			target.style.setProperty(
+			'--scene-night-amount',
+			String(state.nightAmount),
+		)
+			target.style.setProperty(
+			'--scene-lamp-intensity',
+			String(state.lampIntensity),
+		)
+			target.style.setProperty(
+			'--scene-sky-brightness',
+			String(state.skyBrightness),
+		)
 		}
 
 		update()
