@@ -62,7 +62,7 @@ describe('RoomVisual static compatibility', () => {
 		expect(image).not.toHaveAttribute('data-filter')
 	})
 
-	test('keeps rendering the static floor image when a scene config is present', () => {
+	test('color-grades an Ambient room while keeping its static floor image', () => {
 		render(
 			<RoomVisual
 				active={true}
@@ -81,7 +81,7 @@ describe('RoomVisual static compatibility', () => {
 		)
 	})
 
-	test('keeps the static fallback while a living scene layer is active', () => {
+	test('color-grades the static fallback while a Living scene layer is active', () => {
 		render(
 			<RoomVisual
 				active={true}
@@ -93,15 +93,15 @@ describe('RoomVisual static compatibility', () => {
 		)
 
 		expect(screen.getByRole('img', { name: 'room image' })).toHaveAttribute(
-			'data-src',
-			'/images/rooms/test-room.png',
+			'data-filter',
+			'var(--scene-ambient-filter, none)',
 		)
 		const livingLayer = screen.getByTestId('living-scene-layer')
 		expect(livingLayer).toHaveAttribute('data-active', 'true')
 		expect(livingLayer).toHaveAttribute('data-profile', 'lume-rainy-poc')
 	})
 
-	test('renders only the static fallback while Live Room Scenes is disabled', () => {
+	test('renders only the ungraded static fallback while Live Room Scenes is disabled', () => {
 		liveRoomScenesEnabledMock.mockReturnValue(false)
 		render(
 			<RoomVisual
@@ -113,9 +113,8 @@ describe('RoomVisual static compatibility', () => {
 			/>,
 		)
 
-		expect(screen.getByRole('img', { name: 'room image' })).toHaveAttribute(
-			'data-src',
-			'/images/rooms/test-room.png',
+		expect(screen.getByRole('img', { name: 'room image' })).not.toHaveAttribute(
+			'data-filter',
 		)
 		expect(screen.queryByTestId('living-scene-layer')).not.toBeInTheDocument()
 	})
