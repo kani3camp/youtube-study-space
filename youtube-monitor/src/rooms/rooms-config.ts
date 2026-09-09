@@ -18,14 +18,14 @@ import { MoonNightRoom1 } from './layouts/moon-night-room-1'
 import { MoonNightRoom2 } from './layouts/moon-night-room-2'
 import { ResortSeaRoom } from './layouts/resort-sea-room'
 
-type AllRoomsConfig = {
+export type AllRoomsConfig = {
 	generalBasicRooms: RoomLayout[]
 	generalTemporaryRooms: RoomLayout[]
 	memberBasicRooms: RoomLayout[]
 	memberTemporaryRooms: RoomLayout[]
 }
 
-const prodAllRooms: AllRoomsConfig = {
+export const prodAllRooms: AllRoomsConfig = {
 	generalBasicRooms: [
 		Chabio2Room,
 		CampRoom,
@@ -64,7 +64,7 @@ const prodAllRooms: AllRoomsConfig = {
 	],
 }
 
-const testAllRooms: AllRoomsConfig = {
+export const testAllRooms: AllRoomsConfig = {
 	generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
 	generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
 	memberBasicRooms: [BookOfficeRoom],

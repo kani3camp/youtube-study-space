@@ -131,3 +131,64 @@ export const updatedAt = css`
 	transition: background-color
 		var(--ambient-background-transition-duration, 30s) linear;
 `
+
+export const verticalShape = css`
+	position: relative;
+	left: auto;
+	bottom: auto;
+	display: block;
+	height: 100%;
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+`
+
+export const verticalContainer = css`
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	min-width: 0;
+	padding: 10px 16px 8px;
+	box-sizing: border-box;
+	gap: 4px;
+	backdrop-filter: none;
+	mask-image: none;
+	overflow: hidden;
+`
+
+export const verticalMarqueeViewport = css`
+	display: flex;
+	align-items: center;
+	flex: 1;
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	border-radius: 8px;
+`
+
+export const verticalMarquee = css`
+	min-width: 0;
+	overflow: hidden;
+`
+
+export const verticalGenreItem = css`
+	margin: 0 0.45rem;
+`
+
+export const verticalUpdatedAt = css`
+	align-self: flex-end;
+	margin-right: 2px;
+	font-size: 0.36rem;
+`
+
+export const verticalEmptyState = css`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	width: 100%;
+	color: var(--ambient-text-muted);
+	font-size: 0.68rem;
+	text-align: center;
+`

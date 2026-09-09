@@ -29,6 +29,7 @@
 	"part_type.mid_night2": "深夜Ⅱ",
 	"part_type.early_morning": "早朝",
 	"message.room": "ページ{{index}} / {{length}}",
+	"message.page_label": "ページ",
 	"member": "メンバー限定",
 	"message.num_studying_people": "{{value}}人が作業中",
 	"work_name_trend.updating": "作業トレンド解析中...",

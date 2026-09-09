@@ -1,5 +1,12 @@
 import { useTranslation } from 'next-i18next/pages'
-import { type FC, memo, useCallback, useEffect, useState } from 'react'
+import {
+	type CSSProperties,
+	type FC,
+	memo,
+	useCallback,
+	useEffect,
+	useState,
+} from 'react'
 import { useInterval } from '../lib/common'
 import { componentBackground, componentStyle } from '../styles/common.style'
 import * as styles from '../styles/Menu.styles'
@@ -15,9 +22,10 @@ export type MenuItemAndImage = {
 
 type MenuDisplayProps = {
 	menuItems: Menu[]
+	style?: CSSProperties
 }
 
-const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
+const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems, style }) => {
 	const PAGING_INTERVAL_SEC = 5
 
 	const { t } = useTranslation()
@@ -89,7 +97,7 @@ const MenuDisplay: FC<MenuDisplayProps> = ({ menuItems }) => {
 	}
 
 	return (
-		<div css={[styles.shape, componentBackground]}>
+		<div css={[styles.shape, componentBackground]} style={style}>
 			<div css={[styles.menu, componentStyle]}>
 				<h4 css={styles.menuTitle}>{t('menu.title')}</h4>
 

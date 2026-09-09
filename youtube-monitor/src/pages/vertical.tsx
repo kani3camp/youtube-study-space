@@ -1,9 +1,9 @@
 import type { GetStaticProps } from 'next'
 import { serverSideTranslations } from 'next-i18next/pages/serverSideTranslations'
 import type { FC } from 'react'
-import HorizontalMonitor from '../components/monitor/HorizontalMonitor'
+import VerticalMonitor from '../components/monitor/VerticalMonitor'
 
-const Home: FC = () => <HorizontalMonitor />
+const Vertical: FC = () => <VerticalMonitor />
 
 export const getStaticProps: GetStaticProps = async ({ locale }) => ({
 	props: {
@@ -11,4 +11,4 @@ export const getStaticProps: GetStaticProps = async ({ locale }) => ({
 	},
 })
 
-export default Home
+export default Vertical
