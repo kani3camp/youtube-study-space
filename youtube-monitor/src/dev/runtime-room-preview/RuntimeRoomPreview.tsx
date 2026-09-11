@@ -26,6 +26,10 @@ const initialVisibility: OverlayVisibility = {
 	validationState: true,
 }
 
+const roomWidth = Constants.screenWidth - Constants.sideBarWidth
+const roomHeight = Constants.screenHeight - Constants.messageBarHeight
+const messageWidth = roomWidth - Constants.tickerWidth
+
 type Props = {
 	fixtures?: RuntimeRoomPreviewFixture[]
 	initialFixtureId?: string
@@ -179,8 +183,18 @@ const RuntimeRoomPreview: FC<Props> = ({
 					height: Constants.screenHeight * scale,
 				}}
 			>
-				<div css={styles.fullFrame} style={{ transform: `scale(${scale})` }}>
-					<div css={styles.roomRegion}>
+				<div
+					css={styles.fullFrame}
+					style={{
+						width: Constants.screenWidth,
+						height: Constants.screenHeight,
+						transform: `scale(${scale})`,
+					}}
+				>
+					<div
+						css={styles.roomRegion}
+						style={{ width: roomWidth, height: roomHeight }}
+					>
 						{!roomLayout.floor_image && (
 							<div css={styles.cleanImagePlaceholder} />
 						)}
@@ -262,11 +276,34 @@ const RuntimeRoomPreview: FC<Props> = ({
 								))}
 						</svg>
 					</div>
-					<div css={[styles.frameRegion, styles.sidebarRegion]}>
-						右サイドバー 400 × 1080
+					<div
+						css={[styles.frameRegion, styles.sidebarRegion]}
+						style={{
+							width: Constants.sideBarWidth,
+							height: Constants.screenHeight,
+						}}
+					>
+						Sidebar {Constants.sideBarWidth} × {Constants.screenHeight}
 					</div>
-					<div css={[styles.frameRegion, styles.messageRegion]}>
-						下メッセージ領域 1520 × 80
+					<div
+						css={[styles.frameRegion, styles.bottomRegion]}
+						style={{
+							left: 0,
+							width: messageWidth,
+							height: Constants.messageBarHeight,
+						}}
+					>
+						Message {messageWidth} × {Constants.messageBarHeight}
+					</div>
+					<div
+						css={[styles.frameRegion, styles.bottomRegion]}
+						style={{
+							left: messageWidth,
+							width: Constants.tickerWidth,
+							height: Constants.messageBarHeight,
+						}}
+					>
+						Ticker {Constants.tickerWidth} × {Constants.messageBarHeight}
 					</div>
 				</div>
 			</div>

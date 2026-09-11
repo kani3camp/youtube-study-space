@@ -72,8 +72,6 @@ export const fullFrame = css`
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 1920px;
-	height: 1080px;
 	transform-origin: top left;
 	background: #17202a;
 `
@@ -82,8 +80,6 @@ export const roomRegion = css`
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 1520px;
-	height: 1000px;
 	overflow: hidden;
 	background: linear-gradient(145deg, #dbe5e5 0%, #cadad3 48%, #b9c9d0 100%);
 `
@@ -114,16 +110,11 @@ export const sidebarRegion = css`
 	position: absolute;
 	top: 0;
 	right: 0;
-	width: 400px;
-	height: 1080px;
 `
 
-export const messageRegion = css`
+export const bottomRegion = css`
 	position: absolute;
 	bottom: 0;
-	left: 0;
-	width: 1520px;
-	height: 80px;
 `
 
 export const overlay = css`

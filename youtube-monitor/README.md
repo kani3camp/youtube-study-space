@@ -56,7 +56,7 @@ These values are **build-only placeholders**. They do not prove connectivity or 
 
 ## Runtime Roomの実寸プレビュー
 
-Runtime Room画像は、最終配信フレーム（1920 × 1080）の左上1520 × 1000へ表示します。右400pxはサイドバー、下80pxはメッセージ領域です。新規Runtime RoomのClean Imageは当面1520 × 1000を正とし、16:9画像を暗黙に引き伸ばしません。
+Runtime Room画像は、最終配信フレーム（1920 × 1080）の左上1520 × 1000へ表示します。右400pxはSidebar、左1520pxの下80pxはMessage（920 × 80）とTicker（600 × 80）です。新規Runtime RoomのClean Imageは当面1520 × 1000を正とし、16:9画像を暗黙に引き伸ばしません。
 
 Storybookの `Development/Runtime Room Preview` では、本番と同じ `SeatsPage` / `SeatBox` / CSS / 左上原点の座標変換を使い、全体フレーム上で実寸相当の配置を確認できます。Firestoreや実環境APIへは接続しません。
 

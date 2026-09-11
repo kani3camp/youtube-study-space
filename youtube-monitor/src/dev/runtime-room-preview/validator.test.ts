@@ -111,6 +111,83 @@ function overlayMapWithSeats(
 	}
 }
 
+function validateSeatZone(
+	zone: OverlayZone,
+	seat: RuntimeRoomOverlayMap['seats'][number],
+) {
+	const overlayMap = overlayMapWithSeats([seat])
+	overlayMap.runtime_preview.seat_zones = [zone]
+	overlayMap.runtime_preview.seat_zone_by_seat_id = { [seat.id]: zone.id }
+	return validateRuntimeRoom(overlayMap, 'general').seatZoneMisses
+}
+
+test('a SeatBox fully contained by a rectangular Seat Zone is allowed', () => {
+	const zone: OverlayZone = {
+		id: 'seat-zone',
+		label: 'seat-zone',
+		shape: { type: 'rect', x: 0, y: 0, width: 200, height: 150 },
+	}
+	expect(validateSeatZone(zone, { id: 1, x: 20, y: 20, rotate: 0 })).toEqual([])
+})
+
+test('a SeatBox touching a polygon Seat Zone boundary is allowed', () => {
+	const zone: OverlayZone = {
+		id: 'seat-zone',
+		label: 'seat-zone',
+		shape: {
+			type: 'polygon',
+			points: [
+				{ x: 0, y: 0 },
+				{ x: 140, y: 0 },
+				{ x: 140, y: 100 },
+				{ x: 0, y: 100 },
+			],
+		},
+	}
+	expect(validateSeatZone(zone, { id: 1, x: 0, y: 0, rotate: 0 })).toEqual([])
+})
+
+test('a SeatBox extending outside a convex polygon Seat Zone is a miss', () => {
+	const zone: OverlayZone = {
+		id: 'seat-zone',
+		label: 'seat-zone',
+		shape: {
+			type: 'polygon',
+			points: [
+				{ x: 0, y: 0 },
+				{ x: 200, y: 0 },
+				{ x: 0, y: 200 },
+			],
+		},
+	}
+	expect(validateSeatZone(zone, { id: 1, x: 20, y: 20, rotate: 0 })).toEqual([
+		{ seatId: 1, zoneId: 'seat-zone' },
+	])
+})
+
+test('a SeatBox crossing a concave polygon notch is a miss even when all corners are inside', () => {
+	const zone: OverlayZone = {
+		id: 'seat-zone',
+		label: 'seat-zone',
+		shape: {
+			type: 'polygon',
+			points: [
+				{ x: -20, y: -20 },
+				{ x: 60, y: -20 },
+				{ x: 60, y: 50 },
+				{ x: 80, y: 50 },
+				{ x: 80, y: -20 },
+				{ x: 160, y: -20 },
+				{ x: 160, y: 120 },
+				{ x: -20, y: 120 },
+			],
+		},
+	}
+	expect(validateSeatZone(zone, { id: 1, x: 0, y: 0, rotate: 0 })).toEqual([
+		{ seatId: 1, zoneId: 'seat-zone' },
+	])
+})
+
 test('a seat may touch the room edge but one-pixel overflow is detected', () => {
 	const exactEdge = validateRuntimeRoom(
 		overlayMapWithSeats([{ id: 1, x: 1380, y: 900, rotate: 0 }]),

@@ -146,6 +146,23 @@ function segmentsProperlyIntersect(
 	)
 }
 
+function polygonsProperlyIntersect(first: Point[], second: Point[]): boolean {
+	for (let firstIndex = 0; firstIndex < first.length; firstIndex++) {
+		const firstStart = first[firstIndex]
+		const firstEnd = first[(firstIndex + 1) % first.length]
+		for (let secondIndex = 0; secondIndex < second.length; secondIndex++) {
+			const secondStart = second[secondIndex]
+			const secondEnd = second[(secondIndex + 1) % second.length]
+			if (
+				segmentsProperlyIntersect(firstStart, firstEnd, secondStart, secondEnd)
+			) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 function pointInsidePolygonStrict(point: Point, polygon: Point[]): boolean {
 	let inside = false
 	for (
@@ -204,29 +221,7 @@ export function boundsOverlapZone(bounds: Bounds, zone: OverlayZone): boolean {
 	) {
 		return true
 	}
-	for (
-		let rectangleIndex = 0;
-		rectangleIndex < rectangle.length;
-		rectangleIndex++
-	) {
-		const rectangleStart = rectangle[rectangleIndex]
-		const rectangleEnd = rectangle[(rectangleIndex + 1) % rectangle.length]
-		for (let polygonIndex = 0; polygonIndex < polygon.length; polygonIndex++) {
-			const polygonStart = polygon[polygonIndex]
-			const polygonEnd = polygon[(polygonIndex + 1) % polygon.length]
-			if (
-				segmentsProperlyIntersect(
-					rectangleStart,
-					rectangleEnd,
-					polygonStart,
-					polygonEnd,
-				)
-			) {
-				return true
-			}
-		}
-	}
-	return false
+	return polygonsProperlyIntersect(rectangle, polygon)
 }
 
 function pointInsidePolygonInclusive(point: Point, polygon: Point[]): boolean {
@@ -248,9 +243,27 @@ function pointInsidePolygonInclusive(point: Point, polygon: Point[]): boolean {
 }
 
 function boundsInsideZone(bounds: Bounds, zone: OverlayZone): boolean {
+	if (zone.shape.type === 'rect') {
+		return (
+			bounds.left >= zone.shape.x - EPSILON &&
+			bounds.top >= zone.shape.y - EPSILON &&
+			bounds.right <= zone.shape.x + zone.shape.width + EPSILON &&
+			bounds.bottom <= zone.shape.y + zone.shape.height + EPSILON
+		)
+	}
 	const polygon = zonePoints(zone)
-	return boundsPoints(bounds).every((point) =>
-		pointInsidePolygonInclusive(point, polygon),
+	const rectangle = boundsPoints(bounds)
+	if (
+		!rectangle.every((point) => pointInsidePolygonInclusive(point, polygon))
+	) {
+		return false
+	}
+
+	// Four contained corners are insufficient for a concave polygon: an inward
+	// notch can cross a rectangle edge or place polygon boundary inside it.
+	return (
+		!polygon.some((point) => pointInsidePolygonStrict(point, rectangle)) &&
+		!polygonsProperlyIntersect(rectangle, polygon)
 	)
 }
 
