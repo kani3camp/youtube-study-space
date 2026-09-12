@@ -4,7 +4,7 @@ import { Template } from 'aws-cdk-lib/assertions'
 import { requireNonEmptyStringParameters } from '../lib/required-parameter-guard'
 
 describe('requireNonEmptyStringParameters', () => {
-	test('adds CloudFormation rules that reject empty values', () => {
+	test('removes defaults and rejects empty values', () => {
 		const app = new cdk.App()
 		const stack = new cdk.Stack(app, 'TestStack')
 		new cdk.CfnParameter(stack, 'GoogleCloudProject', {
@@ -14,7 +14,9 @@ describe('requireNonEmptyStringParameters', () => {
 
 		requireNonEmptyStringParameters(stack, ['GoogleCloudProject'])
 
-		expect(Template.fromStack(stack).toJSON().Rules).toEqual({
+		const template = Template.fromStack(stack).toJSON()
+		expect(template.Parameters.GoogleCloudProject).toEqual({ Type: 'String' })
+		expect(template.Rules).toEqual({
 			RequireGoogleCloudProject: {
 				Assertions: [
 					{
