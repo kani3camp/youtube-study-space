@@ -309,16 +309,12 @@ const SeatBox: FC<SeatProps> = (props) => {
 			? props.seatFontSizePx * 0.63
 			: generalDisplayNameAutoFontSizePx
 		: 0
-	const seatSurfaceStartColor = props.isUsed
-		? props.processingSeat.appearance.color_code1
+	const seatSurfaceColor = props.isUsed
+		? Constants.seatBackgroundColor
 		: Constants.vacantSeatBackgroundColor
-	const seatSurfaceEndColor =
-		props.isUsed && props.processingSeat.appearance.color_gradient_enabled
-			? props.processingSeat.appearance.color_code2
-			: seatSurfaceStartColor
 	const seatSurfaceStyle = {
-		'--seat-surface-start': seatSurfaceStartColor,
-		'--seat-surface-end': seatSurfaceEndColor,
+		'--seat-surface-start': seatSurfaceColor,
+		'--seat-surface-end': seatSurfaceColor,
 	} as CSSProperties
 
 	return (

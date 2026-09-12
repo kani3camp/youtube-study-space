@@ -349,7 +349,7 @@ describe('SeatBox general seat font fitting', () => {
 })
 
 describe('SeatBox translucent surface', () => {
-	test('keeps the existing appearance colors on a separate surface layer', () => {
+	test('keeps the neutral surface separate from appearance colors', () => {
 		const SeatBox = loadSeatBox()
 		const { container, rerender } = render(
 			<SeatBox
@@ -375,10 +375,10 @@ describe('SeatBox translucent surface', () => {
 		expect(usedSurface).not.toBeNull()
 		expect(usedSurface?.getAttribute('aria-hidden')).toBe('true')
 		expect(usedSurface?.getAttribute('style')).toContain(
-			'--seat-surface-start: #5BD27D',
+			'--seat-surface-start: #F4EFE7',
 		)
 		expect(usedSurface?.getAttribute('style')).toContain(
-			'--seat-surface-end: #008CFF',
+			'--seat-surface-end: #F4EFE7',
 		)
 
 		rerender(<SeatBox {...createBaseProps({ isUsed: false })} />)
