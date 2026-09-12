@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { detectDigestUnpins } from "./base-image-pin-check.mjs";
+import {
+  detectUnpinnedExternalBaseImages,
+  parseFromStages,
+} from "./base-image-pin-check.mjs";
 import {
   COMMENT_MARKER,
   canVerifyRegistryUpdate,
@@ -58,32 +61,67 @@ test("detectDigestUpdates also reports pinned tag changes", () => {
   assert.equal(updates[0].newImage.tag, "1.27");
 });
 
-test("detectDigestUnpins reports pinned-to-unpinned changes", () => {
-  const base = `FROM golang:1.26@${OLD} AS build\nFROM public.ecr.aws/lambda/provided:al2023@${OLD}\n`;
-  const head = "FROM golang:1.26 AS build\nFROM public.ecr.aws/lambda/provided:al2023\n";
-  const violations = detectDigestUnpins(base, head);
+test("parseFromStages preserves aliases for internal-stage detection", () => {
+  assert.deepEqual(
+    parseFromStages(`FROM --platform=linux/amd64 golang:1.26@${OLD} AS build\nFROM build AS final\n`),
+    [
+      { stage: 1, line: 1, image: `golang:1.26@${OLD}`, alias: "build" },
+      { stage: 2, line: 2, image: "build", alias: "final" },
+    ],
+  );
+});
 
-  assert.deepEqual(violations, [
+test("pin invariant catches an unpinned existing stage after a pinned stage is inserted first", () => {
+  const head = [
+    `FROM alpine:3.20@${NEW} AS prepare`,
+    `FROM golang:1.26@${OLD} AS build`,
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    "",
+  ].join("\n");
+
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
     {
-      stage: 1,
-      line: 1,
-      oldRef: `golang:1.26@${OLD}`,
-      newRef: "golang:1.26",
-    },
-    {
-      stage: 2,
-      line: 2,
-      oldRef: `public.ecr.aws/lambda/provided:al2023@${OLD}`,
-      newRef: "public.ecr.aws/lambda/provided:al2023",
+      stage: 3,
+      line: 3,
+      ref: "public.ecr.aws/lambda/provided:al2023",
     },
   ]);
 });
 
-test("detectDigestUnpins allows pinned digest and tag updates", () => {
-  const base = `FROM golang:1.26@${OLD} AS build\n`;
-  const head = `FROM golang:1.27@${NEW} AS build\n`;
+test("pin invariant catches an unpinned external stage after stage reordering", () => {
+  const head = [
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    `FROM golang:1.26@${OLD} AS build`,
+    "",
+  ].join("\n");
 
-  assert.deepEqual(detectDigestUnpins(base, head), []);
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("pin invariant rejects a newly added unpinned external stage", () => {
+  assert.deepEqual(detectUnpinnedExternalBaseImages("FROM node:22 AS build\n"), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "node:22",
+    },
+  ]);
+});
+
+test("pin invariant allows references to previously declared internal stages", () => {
+  const head = `FROM golang:1.26@${OLD} AS build\nFROM build AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
+});
+
+test("pin invariant allows scratch and pinned external base images", () => {
+  const head = `FROM golang:1.27@${NEW} AS build\nFROM scratch AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
 });
 
 test("registry verification is restricted to the existing image repository and known registries", () => {
