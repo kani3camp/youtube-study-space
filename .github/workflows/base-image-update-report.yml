@@ -63,4 +63,4 @@ jobs:
           if [[ "$REPORT_OUTCOME" == "failure" ]]; then
             echo "::warning::Base image registry verification did not complete successfully. Registry freshness reporting is advisory."
           fi
-          echo "Digest pinning of external base images is a blocking safety check; registry digest freshness reporting is advisory."
+          echo "Digest pin removal is a blocking safety check; all external base images in changed Dockerfiles must remain sha256-pinned; registry digest freshness reporting is advisory."
