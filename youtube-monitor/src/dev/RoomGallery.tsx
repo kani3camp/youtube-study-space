@@ -156,20 +156,11 @@ const RoomCard = ({
 				>
 					{entry.enabled ? 'Enabled' : 'Disabled'}
 				</span>
-				{entry.categories.map((category) => (
-					<span key={category} css={styles.badge}>
-						{category}
-					</span>
-				))}
-				{entry.kinds.map((kind) => (
-					<span key={kind} css={styles.badge}>
-						{kind}
-					</span>
-				))}
 			</div>
 			<div css={styles.cardMeta}>
+				{entry.categories[0] && <span>{entry.categories[0]}</span>}
 				<span>{entry.seatCount} seats</span>
-				<span>{entry.layout.floor_image ? 'floor image' : 'No image'}</span>
+				{!entry.layout.floor_image && <span>No image</span>}
 			</div>
 		</div>
 	</button>
