@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  detectUnpinnedExternalBaseImages,
+  parseFromStages,
+} from "./base-image-pin-check.mjs";
+import {
   COMMENT_MARKER,
   canVerifyRegistryUpdate,
   detectDigestUpdates,
@@ -55,6 +59,69 @@ test("detectDigestUpdates also reports pinned tag changes", () => {
   assert.equal(updates.length, 1);
   assert.equal(updates[0].oldImage.tag, "1.26");
   assert.equal(updates[0].newImage.tag, "1.27");
+});
+
+test("parseFromStages preserves aliases for internal-stage detection", () => {
+  assert.deepEqual(
+    parseFromStages(`FROM --platform=linux/amd64 golang:1.26@${OLD} AS build\nFROM build AS final\n`),
+    [
+      { stage: 1, line: 1, image: `golang:1.26@${OLD}`, alias: "build" },
+      { stage: 2, line: 2, image: "build", alias: "final" },
+    ],
+  );
+});
+
+test("pin invariant catches an unpinned existing stage after a pinned stage is inserted first", () => {
+  const head = [
+    `FROM alpine:3.20@${NEW} AS prepare`,
+    `FROM golang:1.26@${OLD} AS build`,
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    "",
+  ].join("\n");
+
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
+    {
+      stage: 3,
+      line: 3,
+      ref: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("pin invariant catches an unpinned external stage after stage reordering", () => {
+  const head = [
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    `FROM golang:1.26@${OLD} AS build`,
+    "",
+  ].join("\n");
+
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("pin invariant rejects a newly added unpinned external stage", () => {
+  assert.deepEqual(detectUnpinnedExternalBaseImages("FROM node:22 AS build\n"), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "node:22",
+    },
+  ]);
+});
+
+test("pin invariant allows references to previously declared internal stages", () => {
+  const head = `FROM golang:1.26@${OLD} AS build\nFROM build AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
+});
+
+test("pin invariant allows scratch and pinned external base images", () => {
+  const head = `FROM golang:1.27@${NEW} AS build\nFROM scratch AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
 });
 
 test("registry verification is restricted to the existing image repository and known registries", () => {
@@ -154,14 +221,22 @@ test("renderReport is explicit when registry verification fails", () => {
   assert.match(report, /One or more pinned digests could not be verified/);
 });
 
-test("report workflow remains advisory and catches stale-comment cleanup", () => {
+test("digest pin safety is blocking while registry reporting remains advisory", () => {
   const workflow = readFileSync(".github/workflows/base-image-update-report.yml", "utf8");
 
   assert.match(workflow, /pull_request_target:[\s\S]*?types: \[opened, synchronize, reopened\]/);
   assert.doesNotMatch(workflow, /pull_request_target:[\s\S]*?paths:/);
   assert.doesNotMatch(workflow, /Verify Docker Buildx availability/);
-  assert.match(workflow, /name: Checkout trusted base revision[\s\S]*?continue-on-error: true/);
+
+  const pinCheckStep = workflow.match(
+    /- name: Reject unpinned base image changes[\s\S]*?(?=\n\s*- name:)/,
+  )?.[0];
+  assert.ok(pinCheckStep);
+  assert.match(pinCheckStep, /node \.github\/scripts\/base-image-pin-check\.mjs/);
+  assert.doesNotMatch(pinCheckStep, /continue-on-error:/);
+
   assert.match(workflow, /name: Generate or update PR report[\s\S]*?continue-on-error: true/);
-  assert.match(workflow, /name: Keep report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
-  assert.match(workflow, /does not block merging/);
+  assert.match(workflow, /name: Keep registry report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /Digest pin removal is a blocking safety check/);
+  assert.match(workflow, /registry digest freshness reporting is advisory/);
 });
