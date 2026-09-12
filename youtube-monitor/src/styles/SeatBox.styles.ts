@@ -34,7 +34,7 @@ export const seatSurface = css`
 	background:
 		linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.42)),
 		linear-gradient(135deg, var(--seat-surface-start), var(--seat-surface-end));
-	opacity: 0.68;
+	opacity: 0.6;
 	backdrop-filter: blur(1.5px) saturate(1.08);
 	-webkit-backdrop-filter: blur(1.5px) saturate(1.08);
 `
