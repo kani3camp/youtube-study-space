@@ -1,7 +1,9 @@
 package awsruntime
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -35,13 +37,18 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
-func jsonResponse(request *http.Request, body string) *http.Response {
+func jsonResponse(t *testing.T, request *http.Request, body any) *http.Response {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal mock JSON response: %v", err)
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
 		},
-		Body:    io.NopCloser(strings.NewReader(body)),
+		Body:    io.NopCloser(bytes.NewReader(payload)),
 		Request: request,
 	}
 }
@@ -181,14 +188,21 @@ func TestGoogleClientOptionWIFExchangesAndImpersonatesToken(t *testing.T) {
 			if !strings.Contains(subjectToken, "GetCallerIdentity") {
 				t.Errorf("STS subject_token did not contain signed AWS GetCallerIdentity request: %q", subjectToken)
 			}
-			return jsonResponse(request, `{"access_token":"federated-token","expires_in":3600,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer"}`), nil
+			return jsonResponse(t, request, map[string]any{
+				"access_token":      "federated-token",
+				"expires_in":        3600,
+				"issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+				"token_type":        "Bearer",
+			}), nil
 		case "iamcredentials.googleapis.com":
 			impersonationCalls++
 			if got := request.Header.Get("Authorization"); got != "Bearer federated-token" {
 				t.Errorf("unexpected impersonation authorization header: %q", got)
 			}
-			expireTime := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-			return jsonResponse(request, `{"accessToken":"impersonated-token","expireTime":"`+expireTime+`"}`), nil
+			return jsonResponse(t, request, map[string]any{
+				"accessToken": "impersonated-token",
+				"expireTime":  time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+			}), nil
 		default:
 			t.Errorf("unexpected WIF HTTP request: %s", request.URL.String())
 			return &http.Response{
