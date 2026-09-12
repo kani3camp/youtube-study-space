@@ -228,6 +228,13 @@ test("digest pin safety is blocking while registry reporting remains advisory", 
   assert.doesNotMatch(workflow, /pull_request_target:[\s\S]*?paths:/);
   assert.doesNotMatch(workflow, /Verify Docker Buildx availability/);
 
+  const checkoutStep = workflow.match(
+    /- name: Checkout trusted workflow revision[\s\S]*?(?=\n\s*- name:)/,
+  )?.[0];
+  assert.ok(checkoutStep);
+  assert.match(checkoutStep, /ref: \$\{\{ github\.workflow_sha \}\}/);
+  assert.doesNotMatch(checkoutStep, /github\.event\.pull_request\.base\.sha/);
+
   const pinCheckStep = workflow.match(
     /- name: Reject unpinned base image changes[\s\S]*?(?=\n\s*- name:)/,
   )?.[0];

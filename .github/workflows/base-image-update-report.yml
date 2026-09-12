@@ -22,11 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout trusted base revision
+      # pull_request_target loads this workflow from a trusted revision that can differ
+      # from the PR base (for example dev workflow checking a dev -> main release PR).
+      # Checkout the exact workflow revision so its companion scripts always exist.
+      - name: Checkout trusted workflow revision
         id: checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.workflow_sha }}
           persist-credentials: false
 
       # Digest pinning is a reproducibility/supply-chain invariant. This guard reads
