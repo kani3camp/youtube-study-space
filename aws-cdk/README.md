@@ -24,86 +24,38 @@ aws sts get-caller-identity --profile プロファイル名
 - `pnpm cdk:diff` compare deployed stack with current state
 - `pnpm cdk:synth` emits the synthesized CloudFormation template
 
-## Google Cloud WIF パラメータ
+## Google Cloud WIF / CDK deploy
 
-AWS上のLambda/FargateからGoogle CloudへアクセスするワークロードはWorkload Identity Federationを使用する。以下のCloudFormationパラメータはすべて必須で、空文字の場合はCloudFormation Rulesによりリソース更新前にデプロイを拒否する。
+AWS上のLambda/FargateからGoogle CloudへアクセスするワークロードはWorkload Identity Federationを使用する。WIF用CloudFormationパラメータは必須で、空文字はデプロイ前に拒否される。
 
-このリポジトリは Online Study Space の実システムを運用するためのリポジトリであるため、秘密ではない環境識別子は運用事故を防ぐ目的で正本として記載する。一方、AWS access key / secret access key / session token、Google service account private key / JSON key、OAuth client secret、API token、passwordなどの認証情報・秘密値はリポジトリ、Issue、PR本文、ログへ記載しない。
+このリポジトリは Online Study Space の実システム用なので、秘密ではない環境識別子は正本として管理する。AWS access key / secret access key / session token、Google service account private key / JSON key、OAuth client secret、API token、passwordなどの秘密値はコミットしない。
 
-### Production環境の識別子
+| Env | AWS profile | AWS account | GCP project | GCP project number | Google service account |
+| --- | --- | --- | --- | --- | --- |
+| dev | `soraride-dev` | `657533259235` | `test-youtube-study-space` | `48101442817` | `test-youtube-study-space@appspot.gserviceaccount.com` |
+| prod | `soraride-prod` | `652333062396` | `youtube-study-space` | `906336399194` | `youtube-study-space@appspot.gserviceaccount.com` |
 
-- AWS profile: `soraride-prod`
-- AWS account ID: `652333062396`
-- CloudFormation stack: `AwsCdkStack`
-- Google Cloud project ID: `youtube-study-space`
-- Google Cloud project number: `906336399194`
-- WIF audience: `//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider`
-- Google service account: `youtube-study-space@appspot.gserviceaccount.com`
+両環境ともWorkload Identity Poolは `aws-runtime`、Providerは `aws-provider`、CloudFormation stackは `AwsCdkStack`。`scripts/cdk-env.sh` が環境ごとのWIF audienceを組み立て、`aws sts get-caller-identity` でAWS account IDを照合してからCDKを実行する。
 
-CloudFormationパラメータとの対応は以下。
+### dev
 
-- `GoogleCloudProject`: `youtube-study-space`
-- `GcpWifAudience`: `//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider`
-- `GcpWifServiceAccountEmail`: `youtube-study-space@appspot.gserviceaccount.com`
+```bash
+aws sso login --profile soraride-dev
+bash scripts/cdk-env.sh dev diff
+# diffを確認してから
+bash scripts/cdk-env.sh dev deploy
+```
 
-### Productionへのdiff / deploy
-
-Productionではprofile名だけを信用せず、`aws sts get-caller-identity` で実際のAWS account IDを検証してからCDKを実行する。Stack名と各parameterの所属Stackも明示し、将来Stackが増えた場合の誤適用を避ける。
-
-まずAWS SSOへログインする。
+### prod
 
 ```bash
 aws sso login --profile soraride-prod
+bash scripts/cdk-env.sh prod diff
+# diffを確認してから
+bash scripts/cdk-env.sh prod deploy
 ```
 
-次に、対象AWSアカウントを検証した上で `cdk:diff` を確認する。
-
-```bash
-(
-  set -euo pipefail
-
-  EXPECTED_AWS_ACCOUNT="652333062396"
-
-  ACTUAL_AWS_ACCOUNT=$(aws sts get-caller-identity \
-    --profile soraride-prod \
-    --query Account \
-    --output text)
-
-  test "$ACTUAL_AWS_ACCOUNT" = "$EXPECTED_AWS_ACCOUNT"
-
-  corepack pnpm cdk:diff AwsCdkStack \
-    --profile soraride-prod \
-    --parameters 'AwsCdkStack:GoogleCloudProject=youtube-study-space' \
-    --parameters 'AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider' \
-    --parameters 'AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com'
-)
-```
-
-`cdk:diff` の内容を確認した後、同じAWSアカウント検証を通してdeployする。
-
-```bash
-(
-  set -euo pipefail
-
-  EXPECTED_AWS_ACCOUNT="652333062396"
-
-  ACTUAL_AWS_ACCOUNT=$(aws sts get-caller-identity \
-    --profile soraride-prod \
-    --query Account \
-    --output text)
-
-  test "$ACTUAL_AWS_ACCOUNT" = "$EXPECTED_AWS_ACCOUNT"
-
-  corepack pnpm cdk:deploy AwsCdkStack \
-    --profile soraride-prod \
-    --require-approval never \
-    --parameters 'AwsCdkStack:GoogleCloudProject=youtube-study-space' \
-    --parameters 'AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider' \
-    --parameters 'AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com'
-)
-```
-
-特に旧DynamoDBサービスアカウントJSON認証からWIFへ切り替える最初の更新では、3値を指定せずに進めないこと。CloudFormation Rulesは空値による実行時障害を防ぐための最後の防波堤であり、対象AWSアカウントの照合や `cdk:diff` の確認の代替ではない。
+`deploy` はaccount照合後に `--require-approval never` で実行する。WIFパラメータを手入力する必要はない。
 
 ## 日次バッチと通知の運用メモ
 
