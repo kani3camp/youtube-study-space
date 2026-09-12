@@ -1,7 +1,13 @@
 /** @jsxImportSource @emotion/react */
 import { css, keyframes } from '@emotion/react'
 import Image from 'next/image'
-import { type FC, type SyntheticEvent, useEffect, useState } from 'react'
+import {
+	type CSSProperties,
+	type FC,
+	type SyntheticEvent,
+	useEffect,
+	useState,
+} from 'react'
 import { fontFamily, validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatBox.styles'
@@ -303,6 +309,17 @@ const SeatBox: FC<SeatProps> = (props) => {
 			? props.seatFontSizePx * 0.63
 			: generalDisplayNameAutoFontSizePx
 		: 0
+	const seatSurfaceStartColor = props.isUsed
+		? props.processingSeat.appearance.color_code1
+		: Constants.vacantSeatBackgroundColor
+	const seatSurfaceEndColor =
+		props.isUsed && props.processingSeat.appearance.color_gradient_enabled
+			? props.processingSeat.appearance.color_code2
+			: seatSurfaceStartColor
+	const seatSurfaceStyle = {
+		'--seat-surface-start': seatSurfaceStartColor,
+		'--seat-surface-end': seatSurfaceEndColor,
+	} as CSSProperties
 
 	return (
 		<div
@@ -315,11 +332,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 				width: `${props.seatShape.widthPx}px`,
 				height: `${props.seatShape.heightPx}px`,
 				fontSize: `${props.seatFontSizePx}px`,
-				backgroundColor: props.isUsed
-					? Constants.seatBackgroundColor
-					: Constants.vacantSeatBackgroundColor,
 			}}
 		>
+			<div
+				aria-hidden="true"
+				data-seat-surface={props.isUsed ? 'used' : 'vacant'}
+				css={styles.seatSurface}
+				style={seatSurfaceStyle}
+			/>
+
 			{/* Accent Bar */}
 			{props.isUsed && (
 				<div
