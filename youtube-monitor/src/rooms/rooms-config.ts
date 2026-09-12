@@ -1,98 +1,118 @@
-import { ROOM_CONFIG } from '../lib/constants'
+import { ROOM_CONFIG, type RoomConfigName } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
-import { Anonymous1Room } from './layouts/anonymous1'
-import { BookOfficeRoom } from './layouts/book-office-room'
-import { CafeRainyRoom } from './layouts/cafe-rainy-room'
-import { CampRoom } from './layouts/camp-room'
-import { Chabio1Room } from './layouts/chabio1-room'
-import { Chabio2Room } from './layouts/chabio2-room'
-import { Freepik3Room } from './layouts/freepik3-room'
-import { Freepik5Room } from './layouts/freepik5-room'
-import { Freepik7Room } from './layouts/freepik7-room'
-import { Freepik8Room } from './layouts/freepik8-room'
-import { MemberBoxRooms2 } from './layouts/member-box-rooms-2'
-import { MemberBoxRooms3 } from './layouts/member-box-rooms-3'
-import { MemberIllustratedRoomSpring } from './layouts/member-illustrated-room-spring'
-import { MemberIllustratedRoom1 } from './layouts/member-illustrated-room1'
-import { MoonNightRoom1 } from './layouts/moon-night-room-1'
-import { MoonNightRoom2 } from './layouts/moon-night-room-2'
-import { ResortSeaRoom } from './layouts/resort-sea-room'
+import { type RoomId, roomRegistry } from './room-registry'
 
-type AllRoomsConfig = {
-	generalBasicRooms: RoomLayout[]
-	generalTemporaryRooms: RoomLayout[]
-	memberBasicRooms: RoomLayout[]
-	memberTemporaryRooms: RoomLayout[]
+export type RoomConfig = {
+	readonly generalBasicRooms: readonly RoomId[]
+	readonly generalTemporaryRooms: readonly RoomId[]
+	readonly memberBasicRooms: readonly RoomId[]
+	readonly memberTemporaryRooms: readonly RoomId[]
 }
 
-const prodAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [
-		Chabio2Room,
-		CampRoom,
-		CafeRainyRoom,
-		Anonymous1Room,
-		Freepik8Room,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
-	generalTemporaryRooms: [
-		CampRoom,
-		Chabio1Room,
-		Freepik3Room,
-		CafeRainyRoom,
-		Freepik5Room,
-		Freepik8Room,
-		Freepik7Room,
-		MoonNightRoom1,
-		MoonNightRoom2,
-	],
-	memberBasicRooms: [
-		BookOfficeRoom,
-		MemberBoxRooms2,
-		MemberBoxRooms3,
-		ResortSeaRoom,
-		MemberIllustratedRoomSpring,
-		MemberIllustratedRoom1,
-	],
-	memberTemporaryRooms: [
-		BookOfficeRoom,
-		MemberBoxRooms2,
-		MemberBoxRooms3,
-		ResortSeaRoom,
-		MemberIllustratedRoomSpring,
-		MemberIllustratedRoom1,
-	],
+export type ResolvedRoomConfig = {
+	readonly [K in keyof RoomConfig]: RoomLayout[]
 }
 
-const testAllRooms: AllRoomsConfig = {
-	generalBasicRooms: [MoonNightRoom1, MoonNightRoom2],
-	generalTemporaryRooms: [MoonNightRoom1, MoonNightRoom2],
-	memberBasicRooms: [BookOfficeRoom],
-	memberTemporaryRooms: [BookOfficeRoom],
-}
+export const roomConfigs = {
+	PROD: {
+		generalBasicRooms: [
+			'chabio2',
+			'camp',
+			'cafeRainy',
+			'anonymous1',
+			'freepik8',
+			'moonNight1',
+			'moonNight2',
+		],
+		generalTemporaryRooms: [
+			'camp',
+			'chabio1',
+			'freepik3',
+			'cafeRainy',
+			'freepik5',
+			'freepik8',
+			'freepik7',
+			'moonNight1',
+			'moonNight2',
+		],
+		memberBasicRooms: [
+			'bookOffice',
+			'memberBoxRooms2',
+			'memberBoxRooms3',
+			'resortSea',
+			'memberIllustratedRoomSpring',
+			'memberIllustratedRoom1',
+		],
+		memberTemporaryRooms: [
+			'bookOffice',
+			'memberBoxRooms2',
+			'memberBoxRooms3',
+			'resortSea',
+			'memberIllustratedRoomSpring',
+			'memberIllustratedRoom1',
+		],
+	},
+	DEV: {
+		generalBasicRooms: ['moonNight1', 'moonNight2'],
+		generalTemporaryRooms: ['moonNight1', 'moonNight2'],
+		memberBasicRooms: ['bookOffice'],
+		memberTemporaryRooms: ['bookOffice'],
+	},
+} as const satisfies Record<RoomConfigName, RoomConfig>
 
-export const allRooms: AllRoomsConfig = (function getAllRooms() {
-	switch (ROOM_CONFIG) {
-		case 'PROD':
-			return prodAllRooms
-		case 'DEV':
-			return testAllRooms
-		default:
-			throw new Error(`unknown ROOM_CONFIG: ${ROOM_CONFIG}`)
+const roomConfigCategories = [
+	'generalBasicRooms',
+	'memberBasicRooms',
+	'generalTemporaryRooms',
+	'memberTemporaryRooms',
+] as const satisfies readonly (keyof RoomConfig)[]
+
+export function validateRoomConfig(config: RoomConfig): void {
+	for (const category of roomConfigCategories) {
+		const roomIds = config[category]
+		if (new Set(roomIds).size !== roomIds.length) {
+			throw new Error(`duplicate Room ID in ${category}`)
+		}
+		for (const roomId of roomIds) {
+			if (!(roomId in roomRegistry)) {
+				throw new Error(`unknown Room ID in ${category}: ${roomId}`)
+			}
+		}
 	}
-})()
+}
 
-export const numSeatsInGeneralAllBasicRooms = (): number => {
-	let numSeatsBasicRooms = 0
-	for (const room of allRooms.generalBasicRooms) {
-		numSeatsBasicRooms += room.seats.length
-	}
-	return numSeatsBasicRooms
+for (const config of Object.values(roomConfigs)) {
+	validateRoomConfig(config)
 }
-export const numSeatsInMemberAllBasicRooms = (): number => {
-	let numSeatsBasicRooms = 0
-	for (const room of allRooms.memberBasicRooms) {
-		numSeatsBasicRooms += room.seats.length
+
+export const resolveRoomConfig = (config: RoomConfig): ResolvedRoomConfig => {
+	validateRoomConfig(config)
+	return {
+		generalBasicRooms: config.generalBasicRooms.map(
+			(roomId) => roomRegistry[roomId].layout,
+		),
+		generalTemporaryRooms: config.generalTemporaryRooms.map(
+			(roomId) => roomRegistry[roomId].layout,
+		),
+		memberBasicRooms: config.memberBasicRooms.map(
+			(roomId) => roomRegistry[roomId].layout,
+		),
+		memberTemporaryRooms: config.memberTemporaryRooms.map(
+			(roomId) => roomRegistry[roomId].layout,
+		),
 	}
-	return numSeatsBasicRooms
 }
+
+export const allRooms = resolveRoomConfig(roomConfigs[ROOM_CONFIG])
+
+export const numSeatsInGeneralAllBasicRooms = (): number =>
+	allRooms.generalBasicRooms.reduce(
+		(count, room) => count + room.seats.length,
+		0,
+	)
+
+export const numSeatsInMemberAllBasicRooms = (): number =>
+	allRooms.memberBasicRooms.reduce(
+		(count, room) => count + room.seats.length,
+		0,
+	)

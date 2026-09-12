@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import { type FC, useMemo } from 'react'
+import { type FC, useEffect, useMemo, useState } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatsPage.styles'
 import type { Seat } from '../types/api'
@@ -22,6 +22,13 @@ export const SeatState = {
 
 const SeatsPage: FC<LayoutPageProps> = (props) => {
 	const propsMemo = useMemo(() => props, [props])
+	const [floorImageFailed, setFloorImageFailed] = useState(false)
+	const floorImage = props.roomLayout.floor_image
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: floor_image変更時に画像エラー状態をリセットする意図的なeffect
+	useEffect(() => {
+		setFloorImageFailed(false)
+	}, [floorImage])
 
 	const roomShape = useMemo(() => {
 		const frameWidth = Constants.screenWidth - Constants.sideBarWidth
@@ -202,14 +209,19 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						}
 			}
 		>
-			{propsMemo.roomLayout.floor_image && (
+			{floorImage && !floorImageFailed && (
 				<Image
 					alt="room image"
-					src={propsMemo.roomLayout.floor_image}
+					src={floorImage}
 					width={roomShape.widthPx}
 					height={roomShape.heightPx}
 					priority={true}
+					onError={() => setFloorImageFailed(true)}
 				/>
+			)}
+
+			{floorImageFailed && (
+				<div css={styles.floorImageFallback} aria-hidden="true" />
 			)}
 
 			{seatList}
