@@ -68,5 +68,16 @@ When room/seat layout behavior changes, verify at least:
 
 - horizontal and vertical variants that share the changed logic;
 - basic-room seat counts and page boundaries;
-- desired max-seat calculation and API request payloads;
-- temporary-room switching when the change touches temporary layouts.
+- fixed-seat mode and variable-seat mode behavior;
+- temporary-room coverage in variable mode;
+- that the desired seat counts sent by the monitor are expected for both general/member rooms.
+
+## Seat-count control sources
+
+- Room definitions and basic/temporary room composition: `src/rooms/rooms-config.ts`
+- Desired-seat calculation and API request: `src/components/MainContent.tsx`
+- API path: `src/lib/api-config.ts`
+- Backend endpoint: `../system/cmd/lambda/set_desired_max_seats/main.go`
+- Backend reconciliation: `../system/core/workspaceapp/max_seats_adjustment.go`
+
+The current behavior and the desired future responsibility boundary are documented in [`../docs/development/architecture.md`](../docs/development/architecture.md).
