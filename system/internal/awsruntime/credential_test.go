@@ -237,7 +237,9 @@ func TestGoogleClientOptionWIFExchangesAndImpersonatesToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticated request failed: %v", err)
 	}
-	response.Body.Close()
+	if err := response.Body.Close(); err != nil {
+		t.Fatalf("close response body: %v", err)
+	}
 
 	if retrieveCalls == 0 {
 		t.Fatal("AWS credentials provider was not used")
