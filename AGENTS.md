@@ -100,7 +100,7 @@ For transactional behavior, verify both commit and rollback/atomicity where fail
 ```sh
 cd youtube-monitor
 pnpm check
-pnpm test --runInBand
+pnpm test
 pnpm build
 ```
 

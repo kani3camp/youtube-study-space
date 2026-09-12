@@ -22,7 +22,7 @@ All variables below use the `NEXT_PUBLIC_` prefix and are bundled into browser-v
 | --- | --- | --- |
 | `NEXT_PUBLIC_DEBUG` | Enables monitor debug behavior. Must be `true` or `false`. | Yes |
 | `NEXT_PUBLIC_CHANNEL_GL` | Selects channel-specific behavior. Must be `true` or `false`. | Yes |
-| `NEXT_PUBLIC_ROOM_CONFIG` | Selects the room/layout configuration. Must be a non-empty string. | Yes |
+| `NEXT_PUBLIC_ROOM_CONFIG` | Selects the room/layout configuration. Must be `PROD` or `DEV`. | Yes |
 | `NEXT_PUBLIC_API_ENDPOINT` | Base URL for monitor API calls such as `/set_desired_max_seats`. | Yes |
 | `NEXT_PUBLIC_API_KEY` | Client-side API request configuration used by the fetcher. It must not be treated as a server secret because it is shipped to the browser. | Yes |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase/Firestore project identifier used by the client. | Yes |
