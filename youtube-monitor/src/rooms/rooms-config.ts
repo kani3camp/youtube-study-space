@@ -1,12 +1,15 @@
 import { ROOM_CONFIG, type RoomConfigName } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
-import { type RoomId, roomRegistry } from './room-registry'
+import {
+	type RuntimeRoomId,
+	runtimeRoomRegistry,
+} from './runtime-room-registry'
 
 export type RoomConfig = {
-	readonly generalBasicRooms: readonly RoomId[]
-	readonly generalTemporaryRooms: readonly RoomId[]
-	readonly memberBasicRooms: readonly RoomId[]
-	readonly memberTemporaryRooms: readonly RoomId[]
+	readonly generalBasicRooms: readonly RuntimeRoomId[]
+	readonly generalTemporaryRooms: readonly RuntimeRoomId[]
+	readonly memberBasicRooms: readonly RuntimeRoomId[]
+	readonly memberTemporaryRooms: readonly RuntimeRoomId[]
 }
 
 export type ResolvedRoomConfig = {
@@ -74,7 +77,7 @@ export function validateRoomConfig(config: RoomConfig): void {
 			throw new Error(`duplicate Room ID in ${category}`)
 		}
 		for (const roomId of roomIds) {
-			if (!(roomId in roomRegistry)) {
+			if (!(roomId in runtimeRoomRegistry)) {
 				throw new Error(`unknown Room ID in ${category}: ${roomId}`)
 			}
 		}
@@ -89,16 +92,16 @@ export const resolveRoomConfig = (config: RoomConfig): ResolvedRoomConfig => {
 	validateRoomConfig(config)
 	return {
 		generalBasicRooms: config.generalBasicRooms.map(
-			(roomId) => roomRegistry[roomId].layout,
+			(roomId) => runtimeRoomRegistry[roomId],
 		),
 		generalTemporaryRooms: config.generalTemporaryRooms.map(
-			(roomId) => roomRegistry[roomId].layout,
+			(roomId) => runtimeRoomRegistry[roomId],
 		),
 		memberBasicRooms: config.memberBasicRooms.map(
-			(roomId) => roomRegistry[roomId].layout,
+			(roomId) => runtimeRoomRegistry[roomId],
 		),
 		memberTemporaryRooms: config.memberTemporaryRooms.map(
-			(roomId) => roomRegistry[roomId].layout,
+			(roomId) => runtimeRoomRegistry[roomId],
 		),
 	}
 }
