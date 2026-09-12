@@ -2,31 +2,53 @@
 
 import { pathToFileURL } from "node:url";
 
-import { parseFromImages, parsePinnedImage } from "./base-image-update-report.mjs";
+import { parsePinnedImage } from "./base-image-update-report.mjs";
 
-export function detectDigestUnpins(baseContent, headContent) {
-  const before = parseFromImages(baseContent);
-  const after = parseFromImages(headContent);
-  const violations = [];
-  const count = Math.max(before.length, after.length);
+export function parseFromStages(content) {
+  const stages = [];
+  for (const [index, line] of content.split(/\r?\n/).entries()) {
+    const trimmed = line.trim();
+    if (!/^FROM\s+/i.test(trimmed)) continue;
 
-  for (let index = 0; index < count; index += 1) {
-    const oldStage = before[index];
-    const newStage = after[index];
-    if (!oldStage || !newStage || oldStage.image === newStage.image) continue;
+    const parts = trimmed.split(/\s+/);
+    let imageIndex = 1;
+    while (parts[imageIndex]?.startsWith("--")) imageIndex += 1;
+    if (!parts[imageIndex]) continue;
 
-    const oldImage = parsePinnedImage(oldStage.image);
-    if (!oldImage) continue;
+    const alias = /^AS$/i.test(parts[imageIndex + 1] || "")
+      ? parts[imageIndex + 2] || null
+      : null;
 
-    const newImage = parsePinnedImage(newStage.image);
-    if (newImage) continue;
-
-    violations.push({
-      stage: newStage.stage,
-      line: newStage.line,
-      oldRef: oldStage.image,
-      newRef: newStage.image,
+    stages.push({
+      stage: stages.length + 1,
+      line: index + 1,
+      image: parts[imageIndex],
+      alias,
     });
+  }
+  return stages;
+}
+
+export function detectUnpinnedExternalBaseImages(headContent) {
+  const declaredAliases = new Set();
+  const violations = [];
+
+  for (const stage of parseFromStages(headContent)) {
+    const normalizedRef = stage.image.toLowerCase();
+    const isInternalStage = declaredAliases.has(normalizedRef);
+    const isScratch = normalizedRef === "scratch";
+
+    if (!isInternalStage && !isScratch && !parsePinnedImage(stage.image)) {
+      violations.push({
+        stage: stage.stage,
+        line: stage.line,
+        ref: stage.image,
+      });
+    }
+
+    if (stage.alias) {
+      declaredAliases.add(stage.alias.toLowerCase());
+    }
   }
 
   return violations;
@@ -84,7 +106,6 @@ async function getFileContent(repository, path, ref) {
 async function main() {
   const repository = requireEnv("GITHUB_REPOSITORY");
   const pullNumber = Number(requireEnv("PR_NUMBER"));
-  const baseSha = requireEnv("BASE_SHA");
   const headSha = requireEnv("HEAD_SHA");
 
   if (!Number.isInteger(pullNumber) || pullNumber <= 0) {
@@ -93,35 +114,30 @@ async function main() {
 
   const changedFiles = await paginatedGithubRequest(`/repos/${repository}/pulls/${pullNumber}/files`);
   const dockerfiles = changedFiles.filter(
-    (file) => /^system\/Dockerfile[^/]*$/.test(file.filename) && file.status !== "added" && file.status !== "removed",
+    (file) => /^system\/Dockerfile[^/]*$/.test(file.filename) && file.status !== "removed",
   );
 
   const violations = [];
   for (const file of dockerfiles) {
-    const basePath = file.status === "renamed" && file.previous_filename ? file.previous_filename : file.filename;
-    const [baseContent, headContent] = await Promise.all([
-      getFileContent(repository, basePath, baseSha),
-      getFileContent(repository, file.filename, headSha),
-    ]);
-
-    for (const violation of detectDigestUnpins(baseContent, headContent)) {
+    const headContent = await getFileContent(repository, file.filename, headSha);
+    for (const violation of detectUnpinnedExternalBaseImages(headContent)) {
       violations.push({ file: file.filename, ...violation });
     }
   }
 
   if (violations.length === 0) {
-    console.log("No base image digest pins were removed.");
+    console.log("All external base images in changed system Dockerfiles are digest pinned.");
     return;
   }
 
   for (const violation of violations) {
     console.error(
-      `::error file=${violation.file},line=${violation.line}::Base image digest pin removed in stage ${violation.stage}: ${violation.oldRef} -> ${violation.newRef}`,
+      `::error file=${violation.file},line=${violation.line}::External base image in stage ${violation.stage} must be pinned by sha256 digest: ${violation.ref}`,
     );
   }
 
   throw new Error(
-    `${violations.length} base image reference(s) removed required sha256 digest pinning`,
+    `${violations.length} external base image reference(s) are missing required sha256 digest pinning`,
   );
 }
 
