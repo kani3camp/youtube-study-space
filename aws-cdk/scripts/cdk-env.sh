@@ -54,6 +54,9 @@ CDK_ARGS=(
   --parameters "AwsCdkStack:GcpWifServiceAccountEmail=${GCP_SERVICE_ACCOUNT}"
 )
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$SCRIPT_DIR/.."
+
 if [[ "$ACTION" == "diff" ]]; then
   corepack pnpm cdk:diff "${CDK_ARGS[@]}"
 else
