@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { detectDigestUnpins } from "./base-image-pin-check.mjs";
 import {
   COMMENT_MARKER,
   canVerifyRegistryUpdate,
@@ -55,6 +56,34 @@ test("detectDigestUpdates also reports pinned tag changes", () => {
   assert.equal(updates.length, 1);
   assert.equal(updates[0].oldImage.tag, "1.26");
   assert.equal(updates[0].newImage.tag, "1.27");
+});
+
+test("detectDigestUnpins reports pinned-to-unpinned changes", () => {
+  const base = `FROM golang:1.26@${OLD} AS build\nFROM public.ecr.aws/lambda/provided:al2023@${OLD}\n`;
+  const head = "FROM golang:1.26 AS build\nFROM public.ecr.aws/lambda/provided:al2023\n";
+  const violations = detectDigestUnpins(base, head);
+
+  assert.deepEqual(violations, [
+    {
+      stage: 1,
+      line: 1,
+      oldRef: `golang:1.26@${OLD}`,
+      newRef: "golang:1.26",
+    },
+    {
+      stage: 2,
+      line: 2,
+      oldRef: `public.ecr.aws/lambda/provided:al2023@${OLD}`,
+      newRef: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("detectDigestUnpins allows pinned digest and tag updates", () => {
+  const base = `FROM golang:1.26@${OLD} AS build\n`;
+  const head = `FROM golang:1.27@${NEW} AS build\n`;
+
+  assert.deepEqual(detectDigestUnpins(base, head), []);
 });
 
 test("registry verification is restricted to the existing image repository and known registries", () => {
@@ -154,14 +183,22 @@ test("renderReport is explicit when registry verification fails", () => {
   assert.match(report, /One or more pinned digests could not be verified/);
 });
 
-test("report workflow remains advisory and catches stale-comment cleanup", () => {
+test("digest pin safety is blocking while registry reporting remains advisory", () => {
   const workflow = readFileSync(".github/workflows/base-image-update-report.yml", "utf8");
 
   assert.match(workflow, /pull_request_target:[\s\S]*?types: \[opened, synchronize, reopened\]/);
   assert.doesNotMatch(workflow, /pull_request_target:[\s\S]*?paths:/);
   assert.doesNotMatch(workflow, /Verify Docker Buildx availability/);
-  assert.match(workflow, /name: Checkout trusted base revision[\s\S]*?continue-on-error: true/);
+
+  const pinCheckStep = workflow.match(
+    /- name: Reject unpinned base image changes[\s\S]*?(?=\n\s*- name:)/,
+  )?.[0];
+  assert.ok(pinCheckStep);
+  assert.match(pinCheckStep, /node \.github\/scripts\/base-image-pin-check\.mjs/);
+  assert.doesNotMatch(pinCheckStep, /continue-on-error:/);
+
   assert.match(workflow, /name: Generate or update PR report[\s\S]*?continue-on-error: true/);
-  assert.match(workflow, /name: Keep report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
-  assert.match(workflow, /does not block merging/);
+  assert.match(workflow, /name: Keep registry report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /Digest pin removal is a blocking safety check/);
+  assert.match(workflow, /registry digest freshness reporting is advisory/);
 });
