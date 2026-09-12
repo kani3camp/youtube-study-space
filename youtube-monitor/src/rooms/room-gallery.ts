@@ -28,9 +28,10 @@ export function getRoomGalleryEntries(
 	const config = roomConfigs[configName]
 	const categoryByRoom = new Map<RoomId, Set<RoomGalleryCategory>>()
 	const kindByRoom = new Map<RoomId, Set<RoomGalleryKind>>()
-	const firstCategoryIndexByRoom = new Map<RoomId, number>()
+	const configRankByRoom = new Map<RoomId, number>()
+	let nextConfigRank = 0
 
-	for (const [categoryIndex, category] of roomConfigCategoryOrder.entries()) {
+	for (const category of roomConfigCategoryOrder) {
 		for (const roomId of config[category]) {
 			const categories = categoryByRoom.get(roomId) ?? new Set()
 			categories.add(category.startsWith('general') ? 'General' : 'Member')
@@ -40,9 +41,10 @@ export function getRoomGalleryEntries(
 			kinds.add(category.endsWith('BasicRooms') ? 'Basic' : 'Temporary')
 			kindByRoom.set(roomId, kinds)
 
-			if (!firstCategoryIndexByRoom.has(roomId)) {
-				firstCategoryIndexByRoom.set(roomId, categoryIndex)
+			if (!configRankByRoom.has(roomId)) {
+				configRankByRoom.set(roomId, nextConfigRank)
 			}
+			nextConfigRank += 1
 		}
 	}
 
@@ -57,8 +59,8 @@ export function getRoomGalleryEntries(
 				enabled: categoryByRoom.has(id),
 				categories: [...(categoryByRoom.get(id) ?? [])],
 				kinds: [...(kindByRoom.get(id) ?? [])],
-				firstCategoryIndex:
-					firstCategoryIndexByRoom.get(id) ??
+				configRank:
+					configRankByRoom.get(id) ??
 					roomConfigCategoryOrder.length + registryIndex,
 			}
 		})
@@ -66,7 +68,7 @@ export function getRoomGalleryEntries(
 			if (a.enabled !== b.enabled) {
 				return a.enabled ? -1 : 1
 			}
-			return a.firstCategoryIndex - b.firstCategoryIndex
+			return a.configRank - b.configRank
 		})
-		.map(({ firstCategoryIndex: _firstCategoryIndex, ...entry }) => entry)
+		.map(({ configRank: _configRank, ...entry }) => entry)
 }

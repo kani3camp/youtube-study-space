@@ -158,7 +158,9 @@ const RoomCard = ({
 				</span>
 			</div>
 			<div css={styles.cardMeta}>
-				{entry.categories[0] && <span>{entry.categories[0]}</span>}
+				<span>
+					{[...entry.categories, ...entry.kinds].join(' / ') || 'Uncategorized'}
+				</span>
 				<span>{entry.seatCount} seats</span>
 				{!entry.layout.floor_image && <span>No image</span>}
 			</div>

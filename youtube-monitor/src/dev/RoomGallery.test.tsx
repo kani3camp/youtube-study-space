@@ -1,6 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef } from 'react'
+import { getRoomGalleryEntries } from '../rooms/room-gallery'
+import { roomRegistry } from '../rooms/room-registry'
 import RoomGallery from './RoomGallery'
 
 jest.mock('next/font/google', () => ({
@@ -40,13 +42,29 @@ test('renders every registry room under the two gallery sections', () => {
 		screen.getByRole('heading', { name: 'Currently Enabled' }),
 	).toBeVisible()
 	expect(screen.getByRole('heading', { name: 'Other Rooms' })).toBeVisible()
-	expect(screen.getAllByRole('button', { name: /\(.+\)$/ })).toHaveLength(40)
+	expect(screen.getAllByRole('button', { name: /\(.+\)$/ })).toHaveLength(
+		Object.keys(roomRegistry).length,
+	)
 	expect(
 		screen.getByRole('button', { name: 'Chabio 2 (chabio2)' }),
 	).toBeVisible()
 	expect(
 		screen.getByRole('button', { name: 'Template (template)' }),
 	).toBeVisible()
+})
+
+test('shows every applicable category and room kind on each card', () => {
+	const entries = getRoomGalleryEntries('PROD')
+	render(<RoomGallery />)
+
+	for (const entry of entries) {
+		const card = screen.getByRole('button', {
+			name: `${entry.displayName} (${entry.id})`,
+		})
+		expect(card).toHaveTextContent(
+			[...entry.categories, ...entry.kinds].join(' / ') || 'Uncategorized',
+		)
+	}
 })
 
 test('switches config and updates enabled room badges', async () => {

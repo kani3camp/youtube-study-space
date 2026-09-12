@@ -74,30 +74,14 @@ test('gallery entries include each registered room once and keep enabled rooms f
 	)
 })
 
-test('gallery sorting follows category priority and registry order for other rooms', () => {
+test('gallery sorting follows the configured room order and registry order for other rooms', () => {
 	const entries = getRoomGalleryEntries('PROD')
 	const enabledIds = entries
 		.filter((entry) => entry.enabled)
 		.map((entry) => entry.id)
-	const expectedEnabledIds = [
-		'chabio2',
-		'camp',
-		'cafeRainy',
-		'anonymous1',
-		'freepik8',
-		'moonNight1',
-		'moonNight2',
-		'bookOffice',
-		'memberBoxRooms2',
-		'memberBoxRooms3',
-		'resortSea',
-		'memberIllustratedRoomSpring',
-		'memberIllustratedRoom1',
-		'chabio1',
-		'freepik3',
-		'freepik5',
-		'freepik7',
-	]
+	const expectedEnabledIds = roomConfigCategoryOrder
+		.flatMap((category) => roomConfigs.PROD[category])
+		.filter((roomId, index, roomIds) => roomIds.indexOf(roomId) === index)
 
 	expect(enabledIds).toEqual(expectedEnabledIds)
 })

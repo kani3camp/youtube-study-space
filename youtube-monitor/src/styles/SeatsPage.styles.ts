@@ -16,15 +16,3 @@ export const partition = css`
 	position: absolute;
 	background-color: #2d2b41;
 `
-
-export const floorImageFallback = css`
-	position: absolute;
-	inset: 0;
-	background:
-		radial-gradient(
-			circle at 18% 15%,
-			rgba(255, 255, 255, 0.7),
-			transparent 42%
-		),
-		#d9d0c2;
-`
