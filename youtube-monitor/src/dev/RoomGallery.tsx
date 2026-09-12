@@ -190,13 +190,7 @@ const RoomGallery = () => {
 	return (
 		<div css={styles.page}>
 			<header css={styles.header}>
-				<p css={styles.eyebrow}>Development / Room Gallery</p>
 				<h1 css={styles.title}>Room Gallery</h1>
-				<p css={styles.description}>
-					Compare every registered room with production SeatBox rendering.
-					Select a room to inspect its background, seats, and partitions at a
-					larger size.
-				</p>
 			</header>
 
 			<div css={styles.toolbar}>

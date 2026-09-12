@@ -12,43 +12,26 @@ export const page = css`
 
 export const header = css`
 	max-width: 1800px;
-	margin: 0 auto 1rem;
-`
-
-export const eyebrow = css`
-	margin: 0 0 0.2rem;
-	color: #8c6c4a;
-	font-size: 0.62rem;
-	font-weight: 800;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
+	margin: 0 auto 0.7rem;
 `
 
 export const title = css`
 	margin: 0;
 	color: #302a25;
-	font-size: clamp(1.3rem, 2.2vw, 1.85rem);
+	font-size: clamp(0.95rem, 1.6vw, 1.3rem);
 	line-height: 1.1;
-`
-
-export const description = css`
-	max-width: 55rem;
-	margin: 0.4rem 0 0;
-	color: #695e54;
-	font-size: 0.78rem;
-	line-height: 1.45;
 `
 
 export const toolbar = css`
 	display: flex;
 	flex-wrap: wrap;
 	align-items: end;
-	gap: 0.7rem;
+	gap: 0.5rem;
 	max-width: 1800px;
-	margin: 0 auto 1.1rem;
-	padding: 0.7rem 0.85rem;
+	margin: 0 auto 0.75rem;
+	padding: 0.5rem 0.65rem;
 	border: 1px solid rgba(117, 91, 62, 0.18);
-	border-radius: 0.8rem;
+	border-radius: 0.65rem;
 	background: rgba(255, 252, 247, 0.82);
 	box-shadow: 0 0.75rem 2rem rgba(102, 79, 54, 0.08);
 `
@@ -56,12 +39,12 @@ export const toolbar = css`
 export const controlGroup = css`
 	display: flex;
 	flex-direction: column;
-	gap: 0.25rem;
+	gap: 0.18rem;
 `
 
 export const controlLabel = css`
 	color: #806e5d;
-	font-size: 0.58rem;
+	font-size: 0.46rem;
 	font-weight: 800;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
@@ -70,20 +53,20 @@ export const controlLabel = css`
 export const segmentedControl = css`
 	display: inline-flex;
 	flex-wrap: wrap;
-	gap: 0.2rem;
-	padding: 0.2rem;
-	border-radius: 0.7rem;
+	gap: 0.15rem;
+	padding: 0.15rem;
+	border-radius: 0.55rem;
 	background: #ebe3d8;
 `
 
 export const segment = css`
-	padding: 0.32rem 0.58rem;
+	padding: 0.24rem 0.42rem;
 	border: 0;
-	border-radius: 0.5rem;
+	border-radius: 0.4rem;
 	color: #65594e;
 	background: transparent;
 	font: inherit;
-	font-size: 0.7rem;
+	font-size: 0.55rem;
 	cursor: pointer;
 
 	&:hover,
@@ -101,9 +84,9 @@ export const activeSegment = css`
 
 export const workspace = css`
 	display: grid;
-	grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+	grid-template-columns: minmax(0, 1.2fr) minmax(24rem, 1fr);
 	align-items: start;
-	gap: 1rem;
+	gap: 0.75rem;
 	max-width: 1800px;
 	margin: 0 auto;
 
@@ -117,7 +100,7 @@ export const list = css`
 `
 
 export const section = css`
-	margin-bottom: 1.2rem;
+	margin-bottom: 0.85rem;
 `
 
 export const sectionHeader = css`
@@ -125,31 +108,31 @@ export const sectionHeader = css`
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 1rem;
-	margin-bottom: 0.55rem;
+	margin-bottom: 0.4rem;
 `
 
 export const sectionTitle = css`
 	margin: 0;
 	color: #3c3026;
-	font-size: 0.9rem;
+	font-size: 0.7rem;
 `
 
 export const sectionCount = css`
 	color: #8d7965;
-	font-size: 0.64rem;
+	font-size: 0.5rem;
 `
 
 export const cards = css`
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
-	gap: 0.6rem;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.4rem;
 `
 
 export const roomCard = css`
 	min-width: 0;
-	padding: 0.35rem;
+	padding: 0.25rem;
 	border: 1px solid rgba(117, 91, 62, 0.18);
-	border-radius: 0.7rem;
+	border-radius: 0.55rem;
 	color: inherit;
 	background: rgba(255, 252, 247, 0.88);
 	font: inherit;
@@ -198,15 +181,15 @@ export const previewCanvas = css`
 
 export const noImageLabel = css`
 	position: absolute;
-	top: 0.4rem;
-	right: 0.4rem;
+	top: 0.3rem;
+	right: 0.3rem;
 	z-index: 2;
-	padding: 0.2rem 0.35rem;
+	padding: 0.14rem 0.25rem;
 	border: 1px solid rgba(66, 53, 42, 0.2);
 	border-radius: 999px;
 	color: #5d4b3b;
 	background: rgba(255, 250, 239, 0.86);
-	font-size: 0.52rem;
+	font-size: 0.42rem;
 	font-weight: 800;
 	letter-spacing: 0.04em;
 `
@@ -214,22 +197,22 @@ export const noImageLabel = css`
 export const cardBody = css`
 	display: flex;
 	flex-direction: column;
-	gap: 0.25rem;
-	padding: 0.4rem 0.15rem 0.15rem;
+	gap: 0.16rem;
+	padding: 0.28rem 0.1rem 0.1rem;
 `
 
 export const cardTitleRow = css`
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 0.35rem;
+	gap: 0.2rem;
 `
 
 export const cardTitle = css`
 	min-width: 0;
 	overflow: hidden;
 	color: #382c23;
-	font-size: 0.75rem;
+	font-size: 0.58rem;
 	font-weight: 800;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -238,23 +221,23 @@ export const cardTitle = css`
 export const roomId = css`
 	color: #987d62;
 	font-family: monospace;
-	font-size: 0.58rem;
+	font-size: 0.46rem;
 `
 
 export const badgeRow = css`
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.2rem;
+	gap: 0.15rem;
 `
 
 export const badge = css`
 	display: inline-flex;
 	align-items: center;
-	padding: 0.16rem 0.3rem;
+	padding: 0.11rem 0.22rem;
 	border-radius: 999px;
 	color: #685a4c;
 	background: #eee6db;
-	font-size: 0.52rem;
+	font-size: 0.42rem;
 	font-weight: 800;
 	line-height: 1;
 `
@@ -272,9 +255,9 @@ export const disabledBadge = css`
 export const cardMeta = css`
 	display: flex;
 	justify-content: space-between;
-	gap: 0.5rem;
+	gap: 0.3rem;
 	color: #887767;
-	font-size: 0.58rem;
+	font-size: 0.46rem;
 `
 
 export const detailPanel = css`
