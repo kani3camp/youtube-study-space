@@ -30,14 +30,14 @@ jobs:
           persist-credentials: false
 
       # Digest pinning is a reproducibility/supply-chain invariant. This guard reads
-      # PR file contents through the GitHub API and fails before the advisory report
-      # can treat a pinned -> unpinned change as "no digest update".
+      # changed system/Dockerfile* files from the PR head through the GitHub API and
+      # rejects any external base image that is not sha256-pinned. Internal stage
+      # aliases and scratch are allowed. The PR head is never checked out or executed.
       - name: Reject unpinned base image changes
         id: pin-check
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/base-image-pin-check.mjs
 
@@ -63,4 +63,4 @@ jobs:
           if [[ "$REPORT_OUTCOME" == "failure" ]]; then
             echo "::warning::Base image registry verification did not complete successfully. Registry freshness reporting is advisory."
           fi
-          echo "Digest pin removal is a blocking safety check; registry digest freshness reporting is advisory."
+          echo "Digest pinning of external base images is a blocking safety check; registry digest freshness reporting is advisory."
