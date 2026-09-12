@@ -32,11 +32,17 @@ The validation/consumers are in `src/lib/constants.ts`, `src/lib/api-config.ts`,
 
 ## Verification without real external connections
 
-Lint/check and tests do not require a real Firebase/API project:
+Lint/check and tests do not require a real Firebase/API project. Unit and component tests use Vitest with jsdom.
 
 ```sh
 pnpm check
-pnpm test --runInBand
+pnpm test
+```
+
+For watch mode during local development:
+
+```sh
+pnpm test:watch
 ```
 
 For a production build, use the same non-secret dummy configuration as CI when the goal is only to prove that the application compiles:

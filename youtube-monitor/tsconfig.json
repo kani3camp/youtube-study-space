@@ -17,7 +17,7 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"moduleResolution": "bundler",
-		"types": ["@emotion/react/types/css-prop", "jest"],
+		"types": ["@emotion/react/types/css-prop", "vitest/globals"],
 		"incremental": true
 	},
 	"include": ["./**/*"],
