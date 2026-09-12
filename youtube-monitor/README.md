@@ -54,6 +54,39 @@ pnpm build
 
 These values are **build-only placeholders**. They do not prove connectivity or behavior against a deployed environment.
 
+## Runtime Roomの実寸プレビュー
+
+Runtime Room画像は、最終配信フレーム（1920 × 1080）の左上1520 × 1000へ表示します。右400pxはSidebar、左1520pxの下80pxはMessage（920 × 80）とTicker（600 × 80）です。新規Runtime RoomのClean Imageは当面1520 × 1000を正とし、16:9画像を暗黙に引き伸ばしません。
+
+Storybookの `Development/Runtime Room Preview` では、本番と同じ `SeatsPage` / `SeatBox` / CSS / 左上原点の座標変換を使い、全体フレーム上で実寸相当の配置を確認できます。Firestoreや実環境APIへは接続しません。
+
+```sh
+cd youtube-monitor
+NEXT_PUBLIC_DEBUG=false \
+NEXT_PUBLIC_CHANNEL_GL=false \
+NEXT_PUBLIC_ROOM_CONFIG=DEV \
+NEXT_PUBLIC_API_ENDPOINT=http://localhost:3000 \
+NEXT_PUBLIC_API_KEY=preview-dummy-api-key \
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=preview-dummy-project \
+NEXT_PUBLIC_FIREBASE_API_KEY=preview-dummy-firebase-api-key \
+pnpm storybook
+```
+
+プレビュー上部のボタンで `general`（140 × 100）と `member`（230 × 150）を切り替えます。同じ画像・同じSeat Anchorを維持したまま、メンバー席でのstress testができます。チェックボックスでSeat Zone、Protected Visual Zone、main circulation、Seat Anchor、回転後外接矩形、validation結果を個別に表示できます。赤い外接矩形と `FAIL` は、SeatBox同士の正の面積を持つ重なり、Room外へのはみ出し、保護領域・主動線への侵入、指定Seat Zone外のいずれかを表します。境界へ接しているだけの場合は衝突にしません。
+
+fixtureは [`src/dev/runtime-room-preview/fixtures.ts`](./src/dev/runtime-room-preview/fixtures.ts) に追加します。`RuntimeRoomOverlayMap` は `RoomLayout`そのものへ開発専用metadataを隣接させた型です。`room_shape`、`seat_shape`、`seats[].x/y/rotate` を一度だけ定義し、その同じオブジェクトをDOMプレビュー、validator、最終 `RoomLayout` として使ってください。Clean Imageを `public/` 以下へ置き、`floor_image`へ絶対パスを設定します。座標は0〜1へ正規化せず、Room左上を原点とする1520 × 1000論理座標で記述します。
+
+Runtime Room追加時は、次を両profileで確認します。
+
+- 全席の椅子・作業面とSeatBoxの対応が読める
+- 一般席で合格し、同じ画像を共用する場合はメンバー席でも合格する
+- 空席、利用中、長い作業名、休憩、メンバー、プロフィール画像ありの表示が背景と競合しない
+- 回転後外接矩形が相互に重ならず、1520 × 1000内に収まる
+- Protected Visual Zoneとmain circulationを覆わず、各席が指定Seat Zone内に収まる
+- 失敗時はSeatBoxを縮小せず、Seat Plan、カメラ、家具間隔、動線の順で再構図する
+
+`Calo current相当 — 既知UI互換性問題` は成功例ではなく、10席の短いベイでの衝突、港景、横動線との競合をvalidatorが検出し続けるための回帰fixtureです。
+
 ## Real-environment verification
 
 Use real environment values only when the task explicitly requires an authorized environment smoke test. Confirm the target environment before opening the monitor because it subscribes to Firestore and can send desired-seat-count requests.
