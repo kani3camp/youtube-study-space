@@ -1,5 +1,17 @@
 import { validateString } from './common'
 
+export const roomConfigNames = ['PROD', 'DEV'] as const
+export type RoomConfigName = (typeof roomConfigNames)[number]
+
+export const parseRoomConfigName = (
+	value: string | undefined,
+): RoomConfigName => {
+	if (value === 'PROD' || value === 'DEV') {
+		return value
+	}
+	throw Error(`invalid NEXT_PUBLIC_ROOM_CONFIG: ${value?.toString()}`)
+}
+
 if (
 	process.env.NEXT_PUBLIC_DEBUG !== 'true' &&
 	process.env.NEXT_PUBLIC_DEBUG !== 'false'
@@ -20,10 +32,12 @@ export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
 
 if (!validateString(process.env.NEXT_PUBLIC_ROOM_CONFIG)) {
 	throw Error(
-		`invalid NEXT_PUBLIC_ROOMS_CONFIG: ${process.env.NEXT_PUBLIC_ROOM_CONFIG?.toString()}`,
+		`invalid NEXT_PUBLIC_ROOM_CONFIG: ${process.env.NEXT_PUBLIC_ROOM_CONFIG?.toString()}`,
 	)
 }
-export const ROOM_CONFIG = process.env.NEXT_PUBLIC_ROOM_CONFIG
+export const ROOM_CONFIG = parseRoomConfigName(
+	process.env.NEXT_PUBLIC_ROOM_CONFIG,
+)
 
 export const sidebarCardVerticalInsetPx = 16
 export const sidebarCardHorizontalInsetPx = 40
