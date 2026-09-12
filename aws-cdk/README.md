@@ -44,8 +44,8 @@ AWS上のLambda/FargateからGoogle Cloudへアクセスするワークロード
 ```text
 cd aws-cdk
 aws sso login --profile soraride-dev
-corepack pnpm cdk:diff AwsCdkStack --profile soraride-dev --parameters "AwsCdkStack:GoogleCloudProject=test-youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/48101442817/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=test-youtube-study-space@appspot.gserviceaccount.com"
-corepack pnpm cdk:deploy AwsCdkStack --profile soraride-dev --require-approval never --parameters "AwsCdkStack:GoogleCloudProject=test-youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/48101442817/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=test-youtube-study-space@appspot.gserviceaccount.com"
+pnpm cdk:diff AwsCdkStack --profile soraride-dev --parameters "AwsCdkStack:GoogleCloudProject=test-youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/48101442817/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=test-youtube-study-space@appspot.gserviceaccount.com"
+pnpm cdk:deploy AwsCdkStack --profile soraride-dev --require-approval never --parameters "AwsCdkStack:GoogleCloudProject=test-youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/48101442817/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=test-youtube-study-space@appspot.gserviceaccount.com"
 ```
 
 `cdk:diff` の内容を確認してから `cdk:deploy` を実行する。
@@ -55,8 +55,8 @@ corepack pnpm cdk:deploy AwsCdkStack --profile soraride-dev --require-approval n
 ```text
 cd aws-cdk
 aws sso login --profile soraride-prod
-corepack pnpm cdk:diff AwsCdkStack --profile soraride-prod --parameters "AwsCdkStack:GoogleCloudProject=youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com"
-corepack pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --parameters "AwsCdkStack:GoogleCloudProject=youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com"
+pnpm cdk:diff AwsCdkStack --profile soraride-prod --parameters "AwsCdkStack:GoogleCloudProject=youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com"
+pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --parameters "AwsCdkStack:GoogleCloudProject=youtube-study-space" --parameters "AwsCdkStack:GcpWifAudience=//iam.googleapis.com/projects/906336399194/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider" --parameters "AwsCdkStack:GcpWifServiceAccountEmail=youtube-study-space@appspot.gserviceaccount.com"
 ```
 
 `cdk:diff` の内容を確認してから `cdk:deploy` を実行する。
