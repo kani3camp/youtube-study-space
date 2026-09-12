@@ -5,18 +5,18 @@ import { getRoomGalleryEntries } from '../rooms/room-gallery'
 import { roomRegistry } from '../rooms/room-registry'
 import RoomGallery from './RoomGallery'
 
-jest.mock('next/font/google', () => ({
-	M_PLUS_Rounded_1c: jest.fn(() => ({
+vi.mock('next/font/google', () => ({
+	M_PLUS_Rounded_1c: vi.fn(() => ({
 		style: { fontFamily: 'M PLUS Rounded 1c' },
 		className: 'mock-font-class',
 	})),
-	Source_Code_Pro: jest.fn(() => ({
+	Source_Code_Pro: vi.fn(() => ({
 		style: { fontFamily: 'mock-source-code-pro' },
 		className: 'mock-source-code-pro-class',
 	})),
 }))
 
-jest.mock('next/image', () => ({
+vi.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: ComponentPropsWithoutRef<'img'>) => {
 		const { alt, src } = props
@@ -32,7 +32,7 @@ jest.mock('next/image', () => ({
 }))
 
 beforeAll(() => {
-	jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 })
 
 test('renders every registry room under the two gallery sections', () => {

@@ -7,12 +7,12 @@ import {
 	validateRoomConfig,
 } from './rooms-config'
 
-jest.mock('next/font/google', () => ({
-	M_PLUS_Rounded_1c: jest.fn(() => ({
+vi.mock('next/font/google', () => ({
+	M_PLUS_Rounded_1c: vi.fn(() => ({
 		style: { fontFamily: 'M PLUS Rounded 1c' },
 		className: 'mock-font-class',
 	})),
-	Source_Code_Pro: jest.fn(() => ({
+	Source_Code_Pro: vi.fn(() => ({
 		style: { fontFamily: 'mock-source-code-pro' },
 		className: 'mock-source-code-pro-class',
 	})),
