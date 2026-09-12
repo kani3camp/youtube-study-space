@@ -16,25 +16,23 @@ describe('requireNonEmptyStringParameters', () => {
 
 		const template = Template.fromStack(stack).toJSON()
 		expect(template.Parameters.GoogleCloudProject).toEqual({ Type: 'String' })
-		expect(template.Rules).toEqual({
-			RequireGoogleCloudProject: {
-				Assertions: [
-					{
-						Assert: {
-							'Fn::Not': [
-								{
-									'Fn::Equals': [
-										{ Ref: 'GoogleCloudProject' },
-										'',
-									],
-								},
-							],
-						},
-						AssertDescription:
-							'GoogleCloudProject must be provided and must not be empty.',
+		expect(template.Rules.RequireGoogleCloudProject).toEqual({
+			Assertions: [
+				{
+					Assert: {
+						'Fn::Not': [
+							{
+								'Fn::Equals': [
+									{ Ref: 'GoogleCloudProject' },
+									'',
+								],
+							},
+						],
 					},
-				],
-			},
+					AssertDescription:
+						'GoogleCloudProject must be provided and must not be empty.',
+				},
+			],
 		})
 	})
 
