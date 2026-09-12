@@ -14,7 +14,6 @@ import (
 	"cloud.google.com/go/auth/credentials/externalaccount"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"google.golang.org/api/option/internaloption"
 	htransport "google.golang.org/api/transport/http"
 )
 
@@ -237,7 +236,6 @@ func TestGoogleClientOptionWIFExchangesAndImpersonatesToken(t *testing.T) {
 			}, nil
 		}),
 		clientOption,
-		internaloption.EnableNewAuthLibrary(),
 	)
 	if err != nil {
 		t.Fatalf("create authenticated transport: %v", err)
