@@ -39,7 +39,6 @@ export const Constants = {
 	colorBarHeight: 100,
 	menuHeight: 310,
 	timerHeight: 260,
-	seatBackgroundColor: '#F4EFE7',
 	vacantSeatBackgroundColor: '#ded5c6ff',
 	breakBadgeZIndex: 10,
 	bgmVolume: DEBUG ? 0.1 : 0.3,
