@@ -10,6 +10,7 @@ export const requireNonEmptyStringParameters = (
 			throw new Error(`CloudFormation parameter not found: ${parameterId}`)
 		}
 
+		parameter.default = undefined
 		new cdk.CfnRule(stack, `Require${parameterId}`, {
 			assertions: [
 				{
