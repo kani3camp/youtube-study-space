@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { type FC, type SyntheticEvent, useEffect, useState } from 'react'
 import { fontFamily, validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
+import { seatAppearanceV2SchemaVersion } from '../lib/seat-appearance-schema'
 import * as styles from '../styles/SeatBox.styles'
 import {
 	seatDisplayNameFontWeight,
@@ -14,6 +15,7 @@ import {
 	seatBorderWidthPx,
 } from '../styles/seatBoxMetrics'
 import type { Seat } from '../types/api'
+import RankBadge from './RankBadge'
 import { SeatState } from './SeatsPage'
 
 export type SeatProps = {
@@ -202,7 +204,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 	const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
 	const displayName = props.isUsed ? props.processingSeat.user_display_name : ''
 	const menuCode = props.isUsed ? props.processingSeat.menu_code : ''
-	const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
+	const appearance = props.processingSeat?.appearance
+	const numStars = props.isUsed ? (appearance?.num_stars ?? 0) : 0
+	const isV2Appearance =
+		appearance?.schema_version === seatAppearanceV2SchemaVersion
+	const showRankBadge =
+		props.isUsed &&
+		isV2Appearance &&
+		appearance?.rank_visible === true &&
+		appearance.rank !== undefined
 	const profileImageUrl = props.isUsed
 		? props.processingSeat.user_profile_image_url
 		: ''
@@ -237,12 +247,21 @@ const SeatBox: FC<SeatProps> = (props) => {
 			? `${props.hoursElapsed}h ${props.minutesElapsed % 60}m`
 			: `${Math.max(props.minutesElapsed, 0)}m`
 	const accentBarStyle = props.isUsed
-		? props.processingSeat.appearance.color_gradient_enabled
+		? isV2Appearance
 			? css`
+				background-color: ${appearance?.top_bar_color};
+              mask-image: linear-gradient(
+                  rgba(0, 0, 0, 1) 0%,
+                  rgba(0, 0, 0, 0.5) 30%,
+                  rgba(0, 0, 0, 0) 100%
+              );
+          `
+			: appearance?.color_gradient_enabled
+				? css`
               background-image: linear-gradient(
                   90deg,
-                  ${props.processingSeat.appearance.color_code1},
-                  ${props.processingSeat.appearance.color_code2}
+					${appearance?.color_code1},
+					${appearance?.color_code2}
               );
               background-size: 300% 300%;
               animation: ${colorGradientKeyframes} 4s linear infinite;
@@ -252,8 +271,8 @@ const SeatBox: FC<SeatProps> = (props) => {
                   rgba(0, 0, 0, 0) 100%
               );
           `
-			: css`
-              background-color: ${props.processingSeat.appearance.color_code1};
+				: css`
+			  background-color: ${appearance?.color_code1};
               mask-image: linear-gradient(
                   rgba(0, 0, 0, 1) 0%,
                   rgba(0, 0, 0, 0.5) 30%,
@@ -323,6 +342,11 @@ const SeatBox: FC<SeatProps> = (props) => {
 			{/* Accent Bar */}
 			{props.isUsed && (
 				<div
+					data-testid="seat-accent-bar"
+					data-schema-version={appearance?.schema_version ?? 1}
+					data-gradient-enabled={
+						!isV2Appearance && appearance?.color_gradient_enabled === true
+					}
 					css={[styles.accentBar, accentBarStyle]}
 					style={{
 						height: `${Math.max(
@@ -333,8 +357,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 				/>
 			)}
 
+			{showRankBadge && (
+				<RankBadge
+					rank={appearance?.rank ?? 0}
+					fontSizePx={props.seatFontSizePx * 0.45}
+				/>
+			)}
+
 			{/* ★Mark */}
-			{numStars > 0 && (
+			{!showRankBadge && numStars > 0 && (
 				<div
 					css={styles.starsBadge}
 					style={{

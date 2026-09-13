@@ -103,6 +103,29 @@ export const starsBadge = css`
     transform: translateY(1px);
 `
 
+export const rankBadge = css`
+    position: absolute;
+    top: 0.18rem;
+    right: 0.18rem;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18em;
+    box-sizing: border-box;
+    padding: 0.14em 0.3em 0.12em;
+    border: 1px solid;
+    border-radius: 999px;
+    font-weight: ${seatEmphasisFontWeight};
+    line-height: 1;
+    white-space: nowrap;
+`
+
+export const rankBadgeCrown = css`
+	width: 1em;
+	height: 1em;
+	flex-shrink: 0;
+`
+
 export const memberContent = css`
 	position: relative;
 	display: flex;
