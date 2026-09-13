@@ -31,8 +31,6 @@ import { MemberSimpleRoom1 } from './layouts/member-simple-room1'
 import { MoonNightRoom1 } from './layouts/moon-night-room-1'
 import { MoonNightRoom2 } from './layouts/moon-night-room-2'
 import { oneSeatRoom } from './layouts/one-seat-room'
-import { OtomeGameCafeRoom1 } from './layouts/otome-game-cafe-room-1'
-import { OtomeGameCafeRoom2 } from './layouts/otome-game-cafe-room-2'
 import { ResortSeaRoom } from './layouts/resort-sea-room'
 import { SeaOfSeatRoom } from './layouts/sea-of-seat-room'
 import { SimpleRoom } from './layouts/simple-room'
@@ -101,14 +99,6 @@ export const roomRegistry = {
 		layout: MemberSimpleRoom1,
 	},
 	oneSeat: { displayName: 'One Seat', layout: oneSeatRoom },
-	otomeGameCafe1: {
-		displayName: 'Otome Game Cafe 1',
-		layout: OtomeGameCafeRoom1,
-	},
-	otomeGameCafe2: {
-		displayName: 'Otome Game Cafe 2',
-		layout: OtomeGameCafeRoom2,
-	},
 	seaOfSeat: { displayName: 'Sea of Seat', layout: SeaOfSeatRoom },
 	simple: { displayName: 'Simple', layout: SimpleRoom },
 	takochan: { displayName: 'Takochan', layout: takochanRoom },
