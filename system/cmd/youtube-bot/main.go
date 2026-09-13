@@ -78,10 +78,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	defer app.CloseFirestoreClient()
 
-	slog.InfoContext(ctx, "seat appearance writer capability",
-		"seat-appearance-schema-write", utils.SeatAppearanceSchemaVersion,
-		"seat-appearance-legacy-write", utils.SeatAppearanceLegacyWriteEnabled,
-	)
+	utils.LogSeatAppearanceWriterCapability(ctx)
 
 	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
 	if err != nil {

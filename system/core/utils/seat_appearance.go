@@ -1,12 +1,24 @@
 package utils
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 )
+
+// LogSeatAppearanceWriterCapability は、Seat を書き込む process が V2 dual-write に
+// 対応済みであることを起動ログに残す。Release 2 Gate では youtube-bot と
+// youtube_organize_database の両方でこのログを確認する。
+func LogSeatAppearanceWriterCapability(ctx context.Context) {
+	slog.InfoContext(ctx, "seat appearance writer capability",
+		"seat-appearance-schema-write", SeatAppearanceSchemaVersion,
+		"seat-appearance-legacy-write", SeatAppearanceLegacyWriteEnabled,
+	)
+}
 
 const (
 	FavoriteColorAvailableThresholdHours = 1000
