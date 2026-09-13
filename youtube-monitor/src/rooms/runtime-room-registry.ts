@@ -1,6 +1,7 @@
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { BookOfficeRoom } from './layouts/book-office-room'
+import { BookOfficeRoom2 } from './layouts/book-office-room-2'
 import { CafeRainyRoom } from './layouts/cafe-rainy-room'
 import { CampRoom } from './layouts/camp-room'
 import { Chabio1Room } from './layouts/chabio1-room'
@@ -30,6 +31,7 @@ export const runtimeRoomRegistry = {
 	freepik5: Freepik5Room,
 	freepik7: Freepik7Room,
 	bookOffice: BookOfficeRoom,
+	bookOffice2: BookOfficeRoom2,
 	memberBoxRooms2: MemberBoxRooms2,
 	memberBoxRooms3: MemberBoxRooms3,
 	resortSea: ResortSeaRoom,
