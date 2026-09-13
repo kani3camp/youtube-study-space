@@ -347,3 +347,51 @@ describe('SeatBox general seat font fitting', () => {
 		})
 	})
 })
+
+describe('SeatBox translucent surface', () => {
+	test('keeps the neutral surface separate from appearance colors', () => {
+		const SeatBox = loadSeatBox()
+		const { container, rerender } = render(
+			<SeatBox
+				{...createBaseProps({
+					processingSeat: {
+						...createBaseProps().processingSeat,
+						appearance: {
+							color_code1: '#5BD27D',
+							color_code2: '#008CFF',
+							num_stars: 0,
+							color_gradient_enabled: true,
+						},
+					},
+				})}
+			/>,
+		)
+
+		const seat = container.firstElementChild
+		const usedSurface = container.querySelector('[data-seat-surface="used"]')
+
+		expect(seat).not.toBeNull()
+		expect(seat?.style.backgroundColor).toBe('')
+		expect(usedSurface).not.toBeNull()
+		expect(usedSurface?.getAttribute('aria-hidden')).toBe('true')
+		expect(usedSurface?.getAttribute('style')).toContain(
+			'--seat-surface-start: #F4EFE7',
+		)
+		expect(usedSurface?.getAttribute('style')).toContain(
+			'--seat-surface-end: #F4EFE7',
+		)
+
+		rerender(<SeatBox {...createBaseProps({ isUsed: false })} />)
+		const vacantSurface = container.querySelector(
+			'[data-seat-surface="vacant"]',
+		)
+
+		expect(vacantSurface).not.toBeNull()
+		expect(vacantSurface?.getAttribute('style')).toContain(
+			'--seat-surface-start: #ded5c6ff',
+		)
+		expect(vacantSurface?.getAttribute('style')).toContain(
+			'--seat-surface-end: #ded5c6ff',
+		)
+	})
+})
