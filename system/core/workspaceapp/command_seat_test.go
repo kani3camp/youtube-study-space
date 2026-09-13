@@ -326,6 +326,10 @@ func TestSystem_In(t *testing.T) {
 					assert.Equal(t, utils.SeatAppearanceSchemaVersion, seat.Appearance.SchemaVersion)
 					assert.NotEmpty(t, seat.Appearance.TopBarColor)
 					assert.Equal(t, utils.RankByRP(0), seat.Appearance.Rank)
+					if tt.seatMoved {
+						assert.Zero(t, tt.currentSeatOfUser.Appearance.SchemaVersion, "move fixture must start as V1")
+						assert.Equal(t, utils.ColorHours0To5, seat.Appearance.TopBarColor)
+					}
 					return nil
 				}).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()

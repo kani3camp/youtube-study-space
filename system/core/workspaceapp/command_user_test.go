@@ -263,6 +263,74 @@ func TestSystem_RankPromotesV1SeatToV2(t *testing.T) {
 	assert.NoError(t, app.Rank(context.Background(), &utils.CommandDetails{CommandType: utils.Rank}))
 }
 
+func TestSystem_MyFavoriteColorPromotesV1SeatToV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
+	v1Seat := repository.SeatDoc{
+		SeatID:                  1,
+		UserID:                  "test_user_id",
+		State:                   repository.WorkState,
+		EnteredAt:               fixedNow,
+		CurrentStateStartedAt:   fixedNow,
+		CurrentSegmentStartedAt: fixedNow,
+		Appearance: repository.SeatAppearance{
+			ColorCode1: utils.ColorHoursFrom1000,
+		},
+	}
+	user := repository.UserDoc{
+		TotalStudySec: 1000 * 60 * 60,
+		RankPoint:     15000,
+	}
+
+	mockDB := mock_myfirestore.NewMockRepository(ctrl)
+	mockFirestoreClient := mock_myfirestore.NewMockDBClient(ctrl)
+	mockFirestoreClient.EXPECT().RunTransaction(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, f func(context.Context, *firestore.Transaction) error, _ ...firestore.TransactionOption) error {
+			return f(ctx, &firestore.Transaction{})
+		},
+	)
+	mockDB.EXPECT().FirestoreClient().Return(mockFirestoreClient)
+	mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", true).
+		Return(repository.SeatDoc{}, status.Error(codes.NotFound, "")).AnyTimes()
+	mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", false).
+		Return(v1Seat, nil).AnyTimes()
+	mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return([]repository.SeatDoc{v1Seat}, nil)
+	mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), "test_user_id").Return(user, nil).AnyTimes()
+	mockDB.EXPECT().UpdateUserFavoriteColor(gomock.Any(), "test_user_id", utils.ColorHours700To1000).Return(nil)
+	mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), false).
+		DoAndReturn(func(_ context.Context, _ *firestore.Transaction, seat repository.SeatDoc, _ bool) error {
+			assert.Equal(t, utils.SeatAppearanceSchemaVersion, seat.Appearance.SchemaVersion)
+			assert.Equal(t, utils.ColorHours700To1000, seat.Appearance.TopBarColor)
+			assert.Equal(t, 2, seat.Appearance.Rank)
+			assert.False(t, seat.Appearance.RankVisible)
+			assert.Equal(t, utils.ColorHours700To1000, seat.Appearance.ColorCode1)
+			assert.False(t, seat.Appearance.ColorGradientEnabled)
+			return nil
+		})
+
+	mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
+	mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), "@テストユーザー さん、お気に入りカラーを更新しました🎨").Return(nil)
+
+	app := WorkspaceApp{
+		Repository:               mockDB,
+		LiveChatBot:              mockLiveChatBot,
+		alertOwnerBot:            moderatorbot.DummyMessageBot{},
+		ProcessedUserID:          "test_user_id",
+		ProcessedUserDisplayName: "テストユーザー",
+		nowFunc:                  func() time.Time { return fixedNow },
+	}
+
+	if err := i18n.LoadLocaleFolderFS(); err != nil {
+		t.Fatal(err)
+	}
+	assert.NoError(t, app.My(context.Background(), []utils.MyOption{{
+		Type:        utils.FavoriteColor,
+		StringValue: utils.ColorName700To1000,
+	}}))
+}
+
 func TestSystem_My(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

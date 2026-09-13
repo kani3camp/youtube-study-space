@@ -11,7 +11,9 @@ import (
 const (
 	FavoriteColorAvailableThresholdHours = 1000
 	SeatAppearanceSchemaVersion          = 2
-	SeatAppearanceLegacyWriteEnabled     = true
+	// SeatAppearanceLegacyWriteEnabled describes the deployed writer capability.
+	// It is not a feature flag; Release 2 must remove the legacy assignments explicitly.
+	SeatAppearanceLegacyWriteEnabled = true
 
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
@@ -59,6 +61,8 @@ const (
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (repository.SeatAppearance, error) {
+	// totalStudySec must be non-negative even when rank is visible because V2 always
+	// derives its canonical top bar from cumulative study time.
 	topBarColor, err := TotalStudySecToColorCode(totalStudySec)
 	if err != nil {
 		return repository.SeatAppearance{}, err
@@ -89,6 +93,7 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 }
 
 // RankByRP converts the existing 10,000-point RP bands to R1-R10.
+// Callers must provide normalized RP in [0, 99999]; behavior outside that range is not contracted.
 func RankByRP(rp int) int {
 	if rp < 1e4 {
 		return 1
