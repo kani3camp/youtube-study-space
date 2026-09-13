@@ -88,6 +88,44 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.CurrentSegmentStartedAt.UTC(), got.CurrentSegmentStartedAt)
 }
 
+func TestFirestoreRepository_SeatAppearanceV2DualWrite(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	want := newSeatDoc(4, "seat-v2-user", "session-v2")
+	want.Appearance = repository.SeatAppearance{
+		SchemaVersion:        2,
+		TopBarColor:          "#ABCDEF",
+		Rank:                 7,
+		RankVisible:          true,
+		ColorCode1:           "#111111",
+		ColorCode2:           "#222222",
+		NumStars:             3,
+		ColorGradientEnabled: true,
+	}
+
+	runTransaction(t, controller, func(_ context.Context, tx *firestore.Transaction) error {
+		return controller.CreateSeat(tx, want, false)
+	})
+
+	got, err := controller.ReadSeat(context.Background(), nil, want.SeatID, false)
+	require.NoError(t, err)
+	assert.Equal(t, want.Appearance, got.Appearance)
+
+	doc, err := controller.FirestoreClient().Collection(repository.SEATS).
+		Doc("4").Get(context.Background())
+	require.NoError(t, err)
+	rawAppearance, ok := doc.Data()["appearance"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, int64(2), rawAppearance["schema-version"])
+	assert.Equal(t, "#ABCDEF", rawAppearance["top-bar-color"])
+	assert.Equal(t, int64(7), rawAppearance["rank"])
+	assert.Equal(t, true, rawAppearance["rank-visible"])
+	assert.Equal(t, "#111111", rawAppearance["color-code1"])
+	assert.Equal(t, "#222222", rawAppearance["color-code2"])
+	assert.Equal(t, int64(3), rawAppearance["num-stars"])
+	assert.Equal(t, true, rawAppearance["color-gradient-enabled"])
+}
+
 func TestFirestoreRepository_SeatCollectionsAreSeparated(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
@@ -162,6 +200,7 @@ func TestFirestoreRepository_UpdateSeat(t *testing.T) {
 	assert.Equal(t, original.EnteredAt.UTC(), got.EnteredAt)
 	assert.Equal(t, original.Until.UTC(), got.Until)
 	assert.Equal(t, original.Appearance, got.Appearance)
+	assert.NotEqual(t, 2, got.Appearance.SchemaVersion)
 	assert.Equal(t, original.UserProfileImageURL, got.UserProfileImageURL)
 }
 

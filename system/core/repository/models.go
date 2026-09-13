@@ -93,6 +93,12 @@ const (
 )
 
 type SeatAppearance struct {
+	SchemaVersion int    `json:"schema_version" firestore:"schema-version"`
+	TopBarColor   string `json:"top_bar_color" firestore:"top-bar-color"`
+	Rank          int    `json:"rank" firestore:"rank"`
+	RankVisible   bool   `json:"rank_visible" firestore:"rank-visible"`
+
+	// Release 1 compatibility fields. Keep their V1 meaning until the Contract release.
 	ColorCode1           string `json:"color_code1" firestore:"color-code1"`
 	ColorCode2           string `json:"color_code2" firestore:"color-code2"`
 	NumStars             int    `json:"num_stars" firestore:"num-stars"`
