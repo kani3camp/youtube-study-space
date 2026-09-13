@@ -25,6 +25,7 @@ const ignoredSourceSuffixes = [
 	'.stories.ts',
 	'.stories.tsx',
 ]
+const ignoredSourceDirectories = new Set(['dev', 'stories'])
 const runtimeAssetPattern = /(['"`])(\/(?:images|chime)\/[^'"`\s?#]+)\1/g
 
 const isSourceFile = (filePath) => {
@@ -34,7 +35,7 @@ const isSourceFile = (filePath) => {
 	return !ignoredSourceSuffixes.some((suffix) => filePath.endsWith(suffix))
 }
 
-const walkFiles = async (directory) => {
+const walkFiles = async (directory, shouldIgnoreDirectory = () => false) => {
 	let entries
 	try {
 		entries = await readdir(directory, { withFileTypes: true })
@@ -49,7 +50,10 @@ const walkFiles = async (directory) => {
 	for (const entry of entries) {
 		const entryPath = path.join(directory, entry.name)
 		if (entry.isDirectory()) {
-			files.push(...(await walkFiles(entryPath)))
+			if (shouldIgnoreDirectory(entryPath)) {
+				continue
+			}
+			files.push(...(await walkFiles(entryPath, shouldIgnoreDirectory)))
 		} else if (entry.isFile()) {
 			files.push(entryPath)
 		}
@@ -59,7 +63,10 @@ const walkFiles = async (directory) => {
 
 export const collectReferencedRuntimeAssets = async (srcDir) => {
 	const assets = new Set()
-	for (const filePath of await walkFiles(srcDir)) {
+	const shouldIgnoreSourceDirectory = (directory) =>
+		ignoredSourceDirectories.has(path.relative(srcDir, directory))
+
+	for (const filePath of await walkFiles(srcDir, shouldIgnoreSourceDirectory)) {
 		if (!isSourceFile(filePath)) {
 			continue
 		}
