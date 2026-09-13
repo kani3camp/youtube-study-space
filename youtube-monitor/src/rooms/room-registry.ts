@@ -1,6 +1,7 @@
 import type { RoomLayout } from '../types/room-layout'
 import { Anonymous1Room } from './layouts/anonymous1'
 import { BookOfficeRoom } from './layouts/book-office-room'
+import { BookOfficeRoom2 } from './layouts/book-office-room-2'
 import { CafeRainyRoom } from './layouts/cafe-rainy-room'
 import { CafeWinterNightRoom } from './layouts/cafe-winter-night-room'
 import { CampRoom } from './layouts/camp-room'
@@ -53,6 +54,7 @@ export const roomRegistry = {
 	freepik5: { displayName: 'Freepik 5', layout: Freepik5Room },
 	freepik7: { displayName: 'Freepik 7', layout: Freepik7Room },
 	bookOffice: { displayName: 'Book Office', layout: BookOfficeRoom },
+	bookOffice2: { displayName: 'Book Office 2', layout: BookOfficeRoom2 },
 	memberBoxRooms2: {
 		displayName: 'Member Box Rooms 2',
 		layout: MemberBoxRooms2,

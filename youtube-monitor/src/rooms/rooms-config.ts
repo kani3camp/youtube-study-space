@@ -40,6 +40,7 @@ export const roomConfigs = {
 		],
 		memberBasicRooms: [
 			'bookOffice',
+			'bookOffice2',
 			'memberBoxRooms2',
 			'memberBoxRooms3',
 			'memberIllustratedRoomSpring',
@@ -47,6 +48,7 @@ export const roomConfigs = {
 		],
 		memberTemporaryRooms: [
 			'bookOffice',
+			'bookOffice2',
 			'memberBoxRooms2',
 			'memberBoxRooms3',
 			'memberIllustratedRoomSpring',
@@ -56,8 +58,8 @@ export const roomConfigs = {
 	DEV: {
 		generalBasicRooms: ['moonNight1', 'moonNight2'],
 		generalTemporaryRooms: ['moonNight1', 'moonNight2'],
-		memberBasicRooms: ['bookOffice'],
-		memberTemporaryRooms: ['bookOffice'],
+		memberBasicRooms: ['bookOffice', 'bookOffice2'],
+		memberTemporaryRooms: ['bookOffice', 'bookOffice2'],
 	},
 } as const satisfies Record<RoomConfigName, RoomConfig>
 
