@@ -78,3 +78,29 @@ test('ignores asset references that only exist in tests or stories', async () =>
 		assert.deepEqual(result.referencedAssets, [])
 	})
 })
+
+test('ignores top-level src/dev and src/stories directories only', async () => {
+	await withFixture(async (rootDir) => {
+		await writeFixtureFile(
+			rootDir,
+			'src/dev/room-gallery-fixtures.ts',
+			"const image = '/images/sample_profile.svg'\n",
+		)
+		await writeFixtureFile(
+			rootDir,
+			'src/stories/runtime-fixtures.ts',
+			"const image = '/images/story-directory-only.png'\n",
+		)
+		await writeFixtureFile(
+			rootDir,
+			'src/components/dev/runtime.ts',
+			"const image = '/images/nested-runtime.png'\n",
+		)
+		await writeFixtureFile(rootDir, 'public/images/nested-runtime.png')
+		await writeFixtureFile(rootDir, 'public/audio/bgm.mp3')
+
+		const result = await inspectRuntimeAssets(rootDir)
+		assert.deepEqual(result.issues, [])
+		assert.deepEqual(result.referencedAssets, ['/images/nested-runtime.png'])
+	})
+})
