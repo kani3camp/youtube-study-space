@@ -14,6 +14,23 @@ cd youtube-monitor
 pnpm install --frozen-lockfile
 ```
 
+## Runtime assets
+
+The livestream depends on runtime media under `public/` that is intentionally not fully tracked in this repository. Before an operational build or start, make sure the required images, chimes, and BGM files have been provisioned locally.
+
+```sh
+pnpm verify:assets
+```
+
+The validator checks that image/chime paths referenced by production source files exist as non-empty files under `public/`, and that `public/audio/` contains at least one non-empty `.mp3` file. Both operational commands run this validation automatically:
+
+```sh
+pnpm build
+pnpm start
+```
+
+`pnpm build:ci` intentionally skips runtime asset validation. It is reserved for CI and other source-only compilation checks where the private/local runtime media is not provisioned.
+
 ## Environment variables
 
 All variables below use the `NEXT_PUBLIC_` prefix and are bundled into browser-visible code. **Do not put server-only credentials or secrets in them.** Environment-specific real values should still stay out of issues, logs, and documentation examples.
@@ -32,7 +49,7 @@ The validation/consumers are in `src/lib/constants.ts`, `src/lib/api-config.ts`,
 
 ## Verification without real external connections
 
-Lint/check and tests do not require a real Firebase/API project. Unit and component tests use Vitest with jsdom.
+Lint/check and tests do not require a real Firebase/API project. Unit and component tests use Vitest with jsdom, and runtime asset validation has deterministic Node.js tests.
 
 ```sh
 pnpm check
@@ -45,7 +62,7 @@ For watch mode during local development:
 pnpm test:watch
 ```
 
-For a production build, use the same non-secret dummy configuration as CI when the goal is only to prove that the application compiles:
+For a source-only production compilation check, use the same non-secret dummy configuration as CI:
 
 ```sh
 NEXT_PUBLIC_DEBUG=false \
@@ -55,10 +72,10 @@ NEXT_PUBLIC_API_ENDPOINT=http://localhost:3000 \
 NEXT_PUBLIC_API_KEY=ci-dummy-api-key \
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=ci-dummy-project \
 NEXT_PUBLIC_FIREBASE_API_KEY=ci-dummy-firebase-api-key \
-pnpm build
+pnpm build:ci
 ```
 
-These values are **build-only placeholders**. They do not prove connectivity or behavior against a deployed environment.
+These values are **build-only placeholders**. They do not prove connectivity or behavior against a deployed environment, and `build:ci` does not prove that runtime media has been provisioned.
 
 ## Real-environment verification
 

@@ -6,8 +6,10 @@
 	"main": "index.js",
 	"scripts": {
 		"dev": "next",
-		"build": "next build",
-		"start": "next start -p 18080",
+		"build": "pnpm verify:assets && next build",
+		"build:ci": "next build",
+		"start": "pnpm verify:assets && next start -p 18080",
+		"verify:assets": "node scripts/verify-runtime-assets.mjs",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format .",
@@ -17,7 +19,8 @@
 		"check:fix:unsafe": "biome check --write --unsafe .",
 		"storybook": "storybook dev -p 6006 --no-open",
 		"build-storybook": "storybook build",
-		"test": "vitest run",
+		"test": "vitest run && pnpm test:assets",
+		"test:assets": "node --test scripts/verify-runtime-assets.test.mjs",
 		"test:watch": "vitest"
 	},
 	"keywords": [],
