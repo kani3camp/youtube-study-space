@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func testdataDir(t *testing.T, name string) fs.FS {
@@ -24,8 +25,8 @@ func TestBuildTheme_SeatCountInRange(t *testing.T) {
 		if err != nil {
 			t.Fatalf("i=%d: %v", i, err)
 		}
-		if th.SeatCount < seatCountMin || th.SeatCount > seatCountMax {
-			t.Fatalf("i=%d: SeatCount=%d, want in [%d,%d]", i, th.SeatCount, seatCountMin, seatCountMax)
+		if th.SeatCount < 7 || th.SeatCount > 11 {
+			t.Fatalf("i=%d: SeatCount=%d, want in [7,11]", i, th.SeatCount)
 		}
 	}
 }
@@ -42,8 +43,8 @@ func TestBuildTheme_TC_B1(t *testing.T) {
 		th.SeatLayout != "only_layout" {
 		t.Fatalf("unexpected theme: %+v", th)
 	}
-	if th.SeatCount != 14 {
-		t.Fatalf("unexpected SeatCount: %d (want 14 for PCG(1,0))", th.SeatCount)
+	if th.SeatCount != 10 {
+		t.Fatalf("unexpected SeatCount: %d (want 10 for PCG(1,0))", th.SeatCount)
 	}
 }
 
@@ -70,6 +71,14 @@ func TestRenderFinal_TC_C1(t *testing.T) {
 	t.Parallel()
 	fsys := testdataDir(t, "build_single")
 	tmpl, err := ReadTemplate(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	style, err := ReadLegacyStyle(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err = ApplyStyle(tmpl, style)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +114,14 @@ func TestWriteFinal_TC_C2(t *testing.T) {
 	t.Parallel()
 	fsys := testdataDir(t, "build_single")
 	tmpl, err := ReadTemplate(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	style, err := ReadLegacyStyle(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err = ApplyStyle(tmpl, style)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,5 +162,113 @@ func TestReadTemplate_TC_D2_empty(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "空") {
 		t.Fatalf("expected empty-template hint: %v", err)
+	}
+}
+
+func TestReadTemplate_RequiresExactlyOneStylePlaceholder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+	}{
+		{name: "missing", template: "COMMON_ONLY\n"},
+		{name: "multiple", template: "{{STYLE}}\n{{STYLE}}\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fsys := fstest.MapFS{
+				templateFile:    {Data: []byte(tt.template)},
+				legacyStyleFile: {Data: []byte("STYLE\n")},
+			}
+			_, err := ReadTemplate(fsys)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), stylePlaceholder) {
+				t.Fatalf("expected placeholder hint: %v", err)
+			}
+		})
+	}
+}
+
+func TestReadLegacyStyle_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		legacyStyleFile: {Data: []byte("\n")},
+	}
+	_, err := ReadLegacyStyle(fsys)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), legacyStyleFile) || !strings.Contains(err.Error(), "空") {
+		t.Fatalf("expected empty-style hint: %v", err)
+	}
+}
+
+func TestApplyStyle_CustomStyle(t *testing.T) {
+	t.Parallel()
+
+	got, err := ApplyStyle("BEFORE\r\n{{STYLE}}\r\nAFTER\r\n", "CUSTOM\r\nSTYLE\r\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "BEFORE\nCUSTOM\nSTYLE\nAFTER\n"
+	if got != want {
+		t.Fatalf("styled template mismatch:\ngot  %q\nwant %q", got, want)
+	}
+}
+
+func TestApplyStyle_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+		style    string
+	}{
+		{name: "missing placeholder", template: "COMMON_ONLY\n", style: "STYLE\n"},
+		{name: "multiple placeholders", template: "{{STYLE}}\n{{STYLE}}\n", style: "STYLE\n"},
+		{name: "empty style", template: "BEFORE\n{{STYLE}}\nAFTER\n", style: "\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ApplyStyle(tt.template, tt.style); err == nil {
+				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestReadDirectionStyle(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{
+		"style_direction_a.generated.txt": {Data: []byte("DIRECTION_A\n")},
+	}
+	got, err := ReadDirectionStyle(fsys, "direction-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "DIRECTION_A\n" {
+		t.Fatalf("direction style mismatch: %q", got)
+	}
+}
+
+func TestReadDirectionStyle_RejectsInvalidOrMissingStyle(t *testing.T) {
+	t.Parallel()
+
+	fsys := fstest.MapFS{}
+	for _, name := range []string{"direction-", "direction-a-extra", "Direction-a", "direction-z"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := ReadDirectionStyle(fsys, name); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }

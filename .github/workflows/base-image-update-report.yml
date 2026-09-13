@@ -1,0 +1,69 @@
+name: Base Image Update Report
+
+# Dependabot-triggered pull_request workflows receive a read-only token.
+# pull_request_target is used only so the trusted base-branch workflow can inspect
+# PR metadata and update the PR comment. Never checkout or execute the PR head revision.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: base-image-update-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Check and Report Base Image Digests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # pull_request_target loads this workflow from a trusted revision that can differ
+      # from the PR base (for example dev workflow checking a dev -> main release PR).
+      # Checkout the exact workflow revision so its companion scripts always exist.
+      - name: Checkout trusted workflow revision
+        id: checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+
+      # Digest pinning is a reproducibility/supply-chain invariant. This guard reads
+      # changed system/Dockerfile* files from the PR head through the GitHub API and
+      # rejects any external base image that is not sha256-pinned. Internal stage
+      # aliases and scratch are allowed. The PR head is never checked out or executed.
+      - name: Reject unpinned base image changes
+        id: pin-check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/base-image-pin-check.mjs
+
+      # The report checks the PR changed-files list first. If no system/Dockerfile*
+      # remains in the final PR diff, it removes any stale report comment and exits
+      # before invoking Docker Buildx. Registry freshness verification stays advisory.
+      - name: Generate or update PR report
+        id: report
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/base-image-update-report.mjs
+
+      - name: Keep registry report advisory
+        if: always()
+        continue-on-error: true
+        env:
+          REPORT_OUTCOME: ${{ steps.report.outcome }}
+        run: |
+          if [[ "$REPORT_OUTCOME" == "failure" ]]; then
+            echo "::warning::Base image registry verification did not complete successfully. Registry freshness reporting is advisory."
+          fi
+          echo "Digest pin removal is a blocking safety check; all external base images in changed Dockerfiles must remain sha256-pinned; registry digest freshness reporting is advisory."

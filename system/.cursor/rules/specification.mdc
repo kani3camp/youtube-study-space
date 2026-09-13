@@ -1,11 +1,14 @@
 ---
 description: オンライン作業部屋の仕様・要件など
-globs: 
+globs:
 alwaysApply: true
 ---
 # 概要
 
-このプログラムは、YouTubeのライブチャットにコマンドを書き込むことで入退室など操作ができるオンライン自習室システムです。
+このプログラムは、YouTubeのライブチャットにコマンドを書き込むことで入退室などを操作できるオンライン作業部屋システムです。
 
+# 参照順
 
-上記に加えて、@AI_COLLABORATION_GUIDE.mdも参照してください。
+1. リポジトリ共通の判断・PR・検証ルールはルートの `AGENTS.md` を参照する。
+2. `system/` 固有の構成・検証・実サービス起動上の注意は `AI_COLLABORATION_GUIDE.md` を参照する。
+3. 席状態・Firestore・privacy・monitor制御など、作業別の専門文書は `AGENTS.md` の「Task-specific Contracts」から辿る。

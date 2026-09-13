@@ -4,18 +4,18 @@ import type { ComponentPropsWithoutRef } from 'react'
 import { act } from 'react'
 import type { SeatProps } from './SeatBox'
 
-jest.mock('next/font/google', () => ({
-	M_PLUS_Rounded_1c: jest.fn(() => ({
+vi.mock('next/font/google', () => ({
+	M_PLUS_Rounded_1c: vi.fn(() => ({
 		style: { fontFamily: 'M PLUS Rounded 1c' },
 		className: 'mock-font-class',
 	})),
-	Source_Code_Pro: jest.fn(() => ({
+	Source_Code_Pro: vi.fn(() => ({
 		style: { fontFamily: 'mock-source-code-pro' },
 		className: 'mock-source-code-pro-class',
 	})),
 }))
 
-jest.mock('next/image', () => ({
+vi.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: ComponentPropsWithoutRef<'img'>) => {
 		const { alt, src } = props
@@ -60,8 +60,8 @@ afterAll(() => {
 	}
 })
 
-function loadSeatBox() {
-	const seatBoxModule = require('./SeatBox') as typeof import('./SeatBox')
+async function loadSeatBox() {
+	const seatBoxModule = await import('./SeatBox')
 	seatBoxModule.resetMeasureTextContextForTest()
 	return seatBoxModule.default
 }
@@ -167,7 +167,7 @@ describe('SeatBox general seat font fitting', () => {
 	const originalDocumentFonts = document.fonts
 
 	function mockMeasureTextWithWidths(widths: number[]) {
-		const measureText = jest.fn(() => {
+		const measureText = vi.fn(() => {
 			const width = widths.shift()
 			if (width === undefined) {
 				throw new Error('measureText width queue is empty')
@@ -177,7 +177,7 @@ describe('SeatBox general seat font fitting', () => {
 
 		Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
 			configurable: true,
-			value: jest.fn(
+			value: vi.fn(
 				() =>
 					({
 						font: '',
@@ -198,7 +198,7 @@ describe('SeatBox general seat font fitting', () => {
 			configurable: true,
 			value: originalDocumentFonts,
 		})
-		jest.restoreAllMocks()
+		vi.restoreAllMocks()
 	})
 
 	test('remeasures general work name after web fonts are ready', async () => {
@@ -210,7 +210,7 @@ describe('SeatBox general seat font fitting', () => {
 			},
 		})
 		mockMeasureTextWithWidths([220, 160])
-		const SeatBox = loadSeatBox()
+		const SeatBox = await loadSeatBox()
 
 		render(
 			<SeatBox
@@ -264,7 +264,7 @@ describe('SeatBox general seat font fitting', () => {
 			},
 		})
 		mockMeasureTextWithWidths([240, 150])
-		const SeatBox = loadSeatBox()
+		const SeatBox = await loadSeatBox()
 
 		render(
 			<SeatBox
@@ -319,7 +319,7 @@ describe('SeatBox general seat font fitting', () => {
 			value: undefined,
 		})
 		mockMeasureTextWithWidths([220])
-		const SeatBox = loadSeatBox()
+		const SeatBox = await loadSeatBox()
 
 		render(
 			<SeatBox

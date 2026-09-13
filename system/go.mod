@@ -3,6 +3,7 @@ module app.modules
 go 1.25.8
 
 require (
+	cloud.google.com/go/auth v0.20.0
 	cloud.google.com/go/bigquery v1.79.0
 	cloud.google.com/go/firestore v1.24.0
 	cloud.google.com/go/storage v1.64.0
@@ -10,8 +11,6 @@ require (
 	github.com/aws/aws-lambda-go v1.54.0
 	github.com/aws/aws-sdk-go-v2 v1.43.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.32
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.55
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.62.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.45.1
 	github.com/bwmarrin/discordgo v0.29.0
@@ -29,7 +28,6 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.11.0 // indirect

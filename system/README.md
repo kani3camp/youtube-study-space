@@ -1,3 +1,31 @@
+# Go Backend (`system/`)
+
+`system/` contains the Go backend, YouTube/Discord integrations, Firestore repository/application logic, Lambda handlers, and Fargate batch jobs. Repository-wide agent rules are in [`../AGENTS.md`](../AGENTS.md), and system-specific AI guidance is in [`AI_COLLABORATION_GUIDE.md`](./AI_COLLABORATION_GUIDE.md).
+
+## Initial setup and safe verification
+
+Use [`go.mod`](./go.mod) as the canonical Go/toolchain/dependency source.
+
+```sh
+cd system
+go mod download
+go test -shuffle=on ./...
+```
+
+For lint/generation, use the same commands documented in `../AGENTS.md` and CI. Firestore behavior that depends on Emulator semantics is checked from the repository root:
+
+```sh
+bash .github/scripts/run-firestore-integration-tests.sh
+```
+
+These checks are intentionally separate from real-service execution.
+
+## Real-service execution
+
+`go run ./cmd/youtube-bot` is **not a normal test command**. Startup loads local environment/credential configuration, connects to configured Google/YouTube/Discord services, and can post chat/notifications or mutate Firestore state.
+
+Only run it for an explicitly authorized real-environment smoke test. Before proceeding past startup, verify the Google Cloud Project ID printed by the program is the intended target. Never copy credential values into documentation, issues, or logs.
+
 
 ## i18n翻訳関数の自動生成
 
@@ -58,8 +86,8 @@ go generate ./...
 - オーケストレーション: AWS Step Functions（直列実行）
 - スケジュール: EventBridge Scheduler が **毎日 00:00 JST**（CDK では UTC 15:00）に `start_daily_batch` Lambda を実行し、Step Functions が起動。**SFN 定義では先頭に 15 秒の Wait（日付境界ずれ対策）**のあと ECS タスクが実行される
 - 実行順序（ECS 上のジョブ）: `reset-daily-total` → `update-rp` → `transfer-bq`
-- 認証情報: DynamoDB `secrets` テーブルからGCP SA JSON取得
-- ネットワーク: Public Subnet, Public IP割当, DynamoDB Gateway VPC Endpoint
+- Google Cloud認証: AWS Task RoleからWorkload Identity Federation (WIF)で既存Service Accountをimpersonate
+- ネットワーク: Public Subnet, Public IP割当, HTTPS/DNS/ECS Task credential endpointへの最小egress
 - ログ: CloudWatch Logs（ECS/Step Functions/Lambda）
 - 通知: CloudWatch Alarm/SFN失敗 → SNS → `sns_notify_discord` Lambda → Discord
 
@@ -78,6 +106,11 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
 `Dockerfile.lambda` / `Dockerfile.fargate` の `FROM` は、`image:tag@sha256:...` の形式で **digest 固定** している（再現可能ビルドのため。詳細は issue #693）。digest の更新は基本的に Dependabot の docker ecosystem PR に任せる。
 
 - **Dependabot からの digest 更新 PR が来たとき**:
+  - `Base Image Update Report` workflow が、旧/新 digest、現在タグの digest、一致判定を同じ PR コメントへ自動で投稿・更新する
+  - workflow はすべての PR `opened` / `synchronize` / `reopened` を拾い、最終差分から Dockerfile 更新が消えた場合は古い report comment を削除する。Dockerfile 更新がない場合は registry 照合を行わず終了する
+  - Amazon ECR Public のイメージでは、対応する ECR Public Gallery へのリンクもコメントに表示する
+  - `gcr.io` のイメージでは、対応する Google Artifact Registry のイメージ画面へのリンクもコメントに表示する
+  - registry の現在タグと pinned digest を検証できない場合はコメント／Actions warningで明示するが、この report workflow 自体は advisory としてマージをブロックしない
   1. `aws-cdk/` で `pnpm cdk:diff --profile <dev プロファイル>` を実行し、変更が digest 差し替えだけであることを確認
   2. `pnpm cdk:deploy --profile <dev プロファイル>` で dev 環境にデプロイしてスモーク確認
   3. 問題なければ prod プロファイルで同じ手順を実行
@@ -90,4 +123,4 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
   docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{.Manifest.Digest}}'
   ```
   取得した `sha256:...` を Dockerfile の `FROM ...@sha256:...` に差し替えて PR を出す。
-- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。詳細は [`AI_COLLABORATION_GUIDE.md`](./AI_COLLABORATION_GUIDE.md) の「Go toolchain とベースイメージのバージョン整合」を参照。
+- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。この「base image 更新運用」を `system/` における詳細手順の正本とする。

@@ -56,7 +56,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/actions/*)
+		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -96,7 +96,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		tools/room-image-prompt/*)
+		.agents/skills/room-art-direction/references/*|tools/room-image-prompt/*)
 			room_image_prompt=true
 			matched=true
 			;;

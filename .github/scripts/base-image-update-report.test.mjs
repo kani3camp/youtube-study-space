@@ -1,0 +1,262 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import {
+  detectUnpinnedExternalBaseImages,
+  parseFromStages,
+} from "./base-image-pin-check.mjs";
+import {
+  COMMENT_MARKER,
+  canVerifyRegistryUpdate,
+  detectDigestUpdates,
+  googleArtifactRegistryUrl,
+  parseFromImages,
+  parsePinnedImage,
+  publicGalleryUrl,
+  registryHost,
+  renderReport,
+  selectModifiedDockerfiles,
+} from "./base-image-update-report.mjs";
+
+const OLD = "sha256:d8d858dc6f7a6552ffc131e029802c28969c8211d311c33f9400449e30cf7442";
+const NEW = "sha256:6d97a9ef52d2d84ef361172b7cfc12ca673a7e6dd722fd4b195b3f15bfcdb767";
+
+test("parseFromImages extracts multi-stage FROM images", () => {
+  const images = parseFromImages(`FROM --platform=linux/amd64 golang:1.26@${OLD} AS build\nFROM public.ecr.aws/lambda/provided:al2023@${NEW}\n`);
+  assert.deepEqual(images, [
+    { stage: 1, line: 1, image: `golang:1.26@${OLD}` },
+    { stage: 2, line: 2, image: `public.ecr.aws/lambda/provided:al2023@${NEW}` },
+  ]);
+});
+
+test("parsePinnedImage separates image, tag, and digest", () => {
+  assert.deepEqual(parsePinnedImage(`public.ecr.aws/lambda/provided:al2023@${NEW}`), {
+    ref: `public.ecr.aws/lambda/provided:al2023@${NEW}`,
+    taggedRef: "public.ecr.aws/lambda/provided:al2023",
+    image: "public.ecr.aws/lambda/provided",
+    tag: "al2023",
+    digest: NEW,
+  });
+});
+
+test("detectDigestUpdates finds PR 1045-style digest-only changes", () => {
+  const base = `FROM golang:1.26@${OLD} AS build\nFROM public.ecr.aws/lambda/provided:al2023@${OLD}\n`;
+  const head = `FROM golang:1.26@${OLD} AS build\nFROM public.ecr.aws/lambda/provided:al2023@${NEW}\n`;
+  const updates = detectDigestUpdates(base, head);
+
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].stage, 2);
+  assert.equal(updates[0].line, 2);
+  assert.equal(updates[0].oldImage.digest, OLD);
+  assert.equal(updates[0].newImage.digest, NEW);
+});
+
+test("detectDigestUpdates also reports pinned tag changes", () => {
+  const base = `FROM golang:1.26@${OLD} AS build\n`;
+  const head = `FROM golang:1.27@${NEW} AS build\n`;
+  const updates = detectDigestUpdates(base, head);
+
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].oldImage.tag, "1.26");
+  assert.equal(updates[0].newImage.tag, "1.27");
+});
+
+test("selectModifiedDockerfiles skips added and removed files that do not exist on both refs", () => {
+  assert.deepEqual(
+    selectModifiedDockerfiles([
+      { filename: "system/Dockerfile.lambda", status: "modified" },
+      { filename: "system/Dockerfile.new", status: "added" },
+      { filename: "system/Dockerfile.old", status: "removed" },
+      { filename: "system/internal/app.go", status: "modified" },
+    ]),
+    ["system/Dockerfile.lambda"],
+  );
+});
+
+test("parseFromStages preserves aliases for internal-stage detection", () => {
+  assert.deepEqual(
+    parseFromStages(`FROM --platform=linux/amd64 golang:1.26@${OLD} AS build\nFROM build AS final\n`),
+    [
+      { stage: 1, line: 1, image: `golang:1.26@${OLD}`, alias: "build" },
+      { stage: 2, line: 2, image: "build", alias: "final" },
+    ],
+  );
+});
+
+test("pin invariant catches an unpinned existing stage after a pinned stage is inserted first", () => {
+  const head = [
+    `FROM alpine:3.20@${NEW} AS prepare`,
+    `FROM golang:1.26@${OLD} AS build`,
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    "",
+  ].join("\n");
+
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
+    {
+      stage: 3,
+      line: 3,
+      ref: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("pin invariant catches an unpinned external stage after stage reordering", () => {
+  const head = [
+    "FROM public.ecr.aws/lambda/provided:al2023",
+    `FROM golang:1.26@${OLD} AS build`,
+    "",
+  ].join("\n");
+
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "public.ecr.aws/lambda/provided:al2023",
+    },
+  ]);
+});
+
+test("pin invariant rejects a newly added unpinned external stage", () => {
+  assert.deepEqual(detectUnpinnedExternalBaseImages("FROM node:22 AS build\n"), [
+    {
+      stage: 1,
+      line: 1,
+      ref: "node:22",
+    },
+  ]);
+});
+
+test("pin invariant allows references to previously declared internal stages", () => {
+  const head = `FROM golang:1.26@${OLD} AS build\nFROM build AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
+});
+
+test("pin invariant allows scratch and pinned external base images", () => {
+  const head = `FROM golang:1.27@${NEW} AS build\nFROM scratch AS final\n`;
+  assert.deepEqual(detectUnpinnedExternalBaseImages(head), []);
+});
+
+test("registry verification is restricted to the existing image repository and known registries", () => {
+  assert.equal(registryHost("golang"), "docker.io");
+  assert.equal(registryHost("public.ecr.aws/lambda/provided"), "public.ecr.aws");
+  assert.equal(registryHost("gcr.io/distroless/static-debian12"), "gcr.io");
+
+  const oldImage = parsePinnedImage(`public.ecr.aws/lambda/provided:al2023@${OLD}`);
+  const sameRepository = parsePinnedImage(`public.ecr.aws/lambda/provided:al2023@${NEW}`);
+  const changedRepository = parsePinnedImage(`evil.example/repo:al2023@${NEW}`);
+
+  assert.equal(canVerifyRegistryUpdate(oldImage, sameRepository), true);
+  assert.equal(canVerifyRegistryUpdate(oldImage, changedRepository), false);
+});
+
+test("publicGalleryUrl returns a stable ECR Public Gallery repository URL", () => {
+  assert.equal(
+    publicGalleryUrl("public.ecr.aws/lambda/provided:al2023"),
+    "https://gallery.ecr.aws/lambda/provided",
+  );
+  assert.equal(publicGalleryUrl("golang:1.26"), null);
+});
+
+test("googleArtifactRegistryUrl maps gcr.io images to the Artifact Registry console", () => {
+  assert.equal(
+    googleArtifactRegistryUrl("gcr.io/distroless/static-debian12"),
+    "https://console.cloud.google.com/artifacts/docker/distroless/us/gcr.io/static-debian12",
+  );
+  assert.equal(
+    googleArtifactRegistryUrl("gcr.io/google.com/cloudsdktool/google-cloud-cli"),
+    "https://console.cloud.google.com/artifacts/docker/google.com:cloudsdktool/us/gcr.io/google-cloud-cli",
+  );
+  assert.equal(googleArtifactRegistryUrl("public.ecr.aws/lambda/provided"), null);
+});
+
+test("renderReport includes Google Artifact Registry link for gcr.io images", () => {
+  const update = detectDigestUpdates(
+    `FROM gcr.io/distroless/static-debian12:nonroot@${OLD}\n`,
+    `FROM gcr.io/distroless/static-debian12:nonroot@${NEW}\n`,
+  )[0];
+
+  const report = renderReport([
+    {
+      file: "system/Dockerfile.fargate",
+      ...update,
+      resolvedDigest: NEW,
+      verificationError: null,
+    },
+  ]);
+
+  assert.match(report, /View \`gcr\.io\/distroless\/static-debian12\` in Google Artifact Registry/);
+  assert.match(
+    report,
+    /https:\/\/console\.cloud\.google\.com\/artifacts\/docker\/distroless\/us\/gcr\.io\/static-debian12/,
+  );
+});
+
+test("renderReport includes verified digests and ECR Public Gallery link", () => {
+  const update = detectDigestUpdates(
+    `FROM public.ecr.aws/lambda/provided:al2023@${OLD}\n`,
+    `FROM public.ecr.aws/lambda/provided:al2023@${NEW}\n`,
+  )[0];
+
+  const report = renderReport([
+    {
+      file: "system/Dockerfile.lambda",
+      ...update,
+      resolvedDigest: NEW,
+      verificationError: null,
+    },
+  ]);
+
+  assert.match(report, new RegExp(COMMENT_MARKER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(report, /## 🐳 Base image update report/);
+  assert.match(report, /✅ Pinned digest matches the current registry tag/);
+  assert.match(report, new RegExp(OLD));
+  assert.match(report, new RegExp(NEW));
+  assert.match(report, /https:\/\/gallery\.ecr\.aws\/lambda\/provided/);
+});
+
+test("renderReport is explicit when registry verification fails", () => {
+  const update = detectDigestUpdates(
+    `FROM public.ecr.aws/lambda/provided:al2023@${OLD}\n`,
+    `FROM public.ecr.aws/lambda/provided:al2023@${NEW}\n`,
+  )[0];
+
+  const report = renderReport([
+    {
+      file: "system/Dockerfile.lambda",
+      ...update,
+      resolvedDigest: OLD,
+      verificationError: null,
+    },
+  ]);
+
+  assert.match(report, /❌ Pinned digest does not match the current registry tag/);
+  assert.match(report, /One or more pinned digests could not be verified/);
+});
+
+test("digest pin safety is blocking while registry reporting remains advisory", () => {
+  const workflow = readFileSync(".github/workflows/base-image-update-report.yml", "utf8");
+
+  assert.match(workflow, /pull_request_target:[\s\S]*?types: \[opened, synchronize, reopened\]/);
+  assert.doesNotMatch(workflow, /pull_request_target:[\s\S]*?paths:/);
+  assert.doesNotMatch(workflow, /Verify Docker Buildx availability/);
+
+  const checkoutStep = workflow.match(
+    /- name: Checkout trusted workflow revision[\s\S]*?(?=\n\s*- name:)/,
+  )?.[0];
+  assert.ok(checkoutStep);
+  assert.match(checkoutStep, /ref: \$\{\{ github\.workflow_sha \}\}/);
+  assert.doesNotMatch(checkoutStep, /github\.event\.pull_request\.base\.sha/);
+
+  const pinCheckStep = workflow.match(
+    /- name: Reject unpinned base image changes[\s\S]*?(?=\n\s*- name:)/,
+  )?.[0];
+  assert.ok(pinCheckStep);
+  assert.match(pinCheckStep, /node \.github\/scripts\/base-image-pin-check\.mjs/);
+  assert.doesNotMatch(pinCheckStep, /continue-on-error:/);
+
+  assert.match(workflow, /name: Generate or update PR report[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /name: Keep registry report advisory[\s\S]*?if: always\(\)[\s\S]*?continue-on-error: true/);
+  assert.match(workflow, /Digest pin removal is a blocking safety check/);
+  assert.match(workflow, /registry digest freshness reporting is advisory/);
+});

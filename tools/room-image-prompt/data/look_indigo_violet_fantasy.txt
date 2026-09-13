@@ -1,0 +1,10 @@
+## Look profile: Indigo Violet Fantasy
+
+- bias the palette toward deep blue, indigo, violet and clear cyan, with restrained warm cream or amber accents for focal contrast
+- when the active Direction explicitly calls for a light pastel palette, reinterpret deep indigo and violet as small cool accents or soft shadow notes; keep large surfaces within that Direction's broader pastel range instead of turning the whole scene blue-purple
+- create a luminous fantasy atmosphere through colored light relationships and crisp glowing accents, not through foggy haze or bloom
+- keep dark areas chromatic rather than muddy black; preserve readable blue-violet shadow masses and bright cyan or warm highlights
+- let foliage remain recognizably green where appropriate, but allow cool blue-violet shadow notes to tie it into the overall palette
+- when water, glass or polished surfaces are present, let them catch selective cyan, violet and warm highlights while preserving the active Direction's material language
+- preserve the requested time of day and weather; during daytime express this look through cool shadows and colored accents rather than turning the scene into night
+- keep the active Direction's rendering language intact; this Look controls palette, lighting mood and material emphasis, not the underlying illustration / anime / CG grammar
