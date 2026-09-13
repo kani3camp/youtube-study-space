@@ -109,7 +109,7 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 		options: SnapshotOptions,
 	): Seat {
 		const data = snapshot.data(options)
-		const appearance = data.appearance
+		const appearance = data.appearance ?? {}
 		const schemaVersion = appearance['schema-version']
 		const schemaKind = classifySeatAppearanceSchemaVersion(schemaVersion)
 		if (schemaKind === 'unsupported') {

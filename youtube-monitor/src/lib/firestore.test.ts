@@ -25,7 +25,7 @@ function snapshotWith(data: Record<string, unknown>): QueryDocumentSnapshot {
 	} as unknown as QueryDocumentSnapshot
 }
 
-function firestoreSeatWithAppearance(appearance: Record<string, unknown>) {
+function firestoreSeatWithAppearance(appearance: unknown) {
 	return {
 		'seat-id': 1,
 		'user-id': 'user-1',
@@ -53,6 +53,24 @@ const legacyAppearance = {
 }
 
 describe('firestoreSeatConverter appearance migration contract', () => {
+	test.each([undefined, null])(
+		'reads a missing appearance (%s) as an empty V1 fallback',
+		(appearance) => {
+			const seat = firestoreSeatConverter.fromFirestore(
+				snapshotWith(firestoreSeatWithAppearance(appearance)),
+				{} as SnapshotOptions,
+			)
+
+			expect(seat.appearance).toEqual({
+				schema_version: undefined,
+				color_code1: undefined,
+				color_code2: undefined,
+				num_stars: undefined,
+				color_gradient_enabled: undefined,
+			})
+		},
+	)
+
 	test('reads a V1 appearance without inferring V2 from field values', () => {
 		const seat = firestoreSeatConverter.fromFirestore(
 			snapshotWith(
