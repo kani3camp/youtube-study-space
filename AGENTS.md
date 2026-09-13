@@ -101,10 +101,10 @@ For transactional behavior, verify both commit and rollback/atomicity where fail
 cd youtube-monitor
 pnpm check
 pnpm test
-pnpm build
+pnpm build:ci
 ```
 
-Read `youtube-monitor/README.md` for the environment variables required by `pnpm build` and the CI-safe dummy values. Keep horizontal/vertical or other variants sharing domain/data behavior unless the requirement is intentionally variant-specific. When shared behavior changes, cover the relevant variants rather than assuming one rendering path represents all of them.
+Read `youtube-monitor/README.md` for the environment variables required by `pnpm build:ci` and the CI-safe dummy values. `pnpm build` and `pnpm start` are operational commands that also validate locally provisioned runtime image/audio assets. Keep horizontal/vertical or other variants sharing domain/data behavior unless the requirement is intentionally variant-specific. When shared behavior changes, cover the relevant variants rather than assuming one rendering path represents all of them.
 
 ### AWS CDK (`aws-cdk/`)
 
