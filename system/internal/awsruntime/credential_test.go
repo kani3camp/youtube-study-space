@@ -70,6 +70,7 @@ func TestWIFConfigFromEnv(t *testing.T) {
 }
 
 func TestWIFConfigFromEnvRequiresProjectID(t *testing.T) {
+	t.Setenv(googleCloudProjectEnv, "")
 	t.Setenv(gcpWIFAudienceEnv, "audience")
 	t.Setenv(gcpWIFServiceAccountEmailEnv, "runtime@example.iam.gserviceaccount.com")
 

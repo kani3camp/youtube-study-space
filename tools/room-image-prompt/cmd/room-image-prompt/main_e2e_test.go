@@ -134,7 +134,11 @@ func TestResolveStyle(t *testing.T) {
 		"style_direction_a.generated.txt": {Data: []byte("DIRECTION_A\n")},
 	}
 	customPath := filepath.Join(t.TempDir(), "custom-style.txt")
-	if err := os.WriteFile(customPath, []byte("CUSTOM_STYLE\n"), 0o644); err != nil {
+	if err := os.WriteFile(customPath, []byte("CUSTOM_STYLE\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	emptyPath := filepath.Join(t.TempDir(), "empty-style.txt")
+	if err := os.WriteFile(emptyPath, []byte(" \r\n\t"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -147,7 +151,8 @@ func TestResolveStyle(t *testing.T) {
 	}{
 		{name: "default legacy", want: "LEGACY_STYLE\n"},
 		{name: "explicit legacy", styleName: legacyStyleName, want: "LEGACY_STYLE\n"},
-		{name: "custom file", styleFile: customPath, want: "CUSTOM_STYLE\n"},
+		{name: "custom file normalizes CRLF", styleFile: customPath, want: "CUSTOM_STYLE\n"},
+		{name: "empty custom file", styleFile: emptyPath, wantErr: true},
 		{name: "direction style", styleName: "direction-a", want: "DIRECTION_A\n"},
 		{name: "conflicting sources", styleName: legacyStyleName, styleFile: customPath, wantErr: true},
 		{name: "missing direction style", styleName: "direction-z", wantErr: true},
@@ -353,6 +358,27 @@ func TestPurpleLooksRespectPastelDirections(t *testing.T) {
 				t.Fatalf("look %q is missing pastel compatibility guidance %q:\n%s", tt.name, tt.required, got.Text)
 			}
 		})
+	}
+}
+
+func TestAiryGardenLookDoesNotInjectSceneContent(t *testing.T) {
+	t.Parallel()
+
+	got, err := resolveLook(data.FS, "airy-garden", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{
+		"fantasy-garden",
+		"stone, tile or architectural surfaces",
+		"bookshelves, wood furniture",
+	} {
+		if strings.Contains(got.Text, forbidden) {
+			t.Fatalf("airy-garden Look still injects scene content %q:\n%s", forbidden, got.Text)
+		}
+	}
+	if !strings.Contains(got.Text, "do not introduce scenery, architecture, furniture or vegetation") {
+		t.Fatalf("airy-garden Look is missing the no-content-injection contract:\n%s", got.Text)
 	}
 }
 

@@ -16,6 +16,7 @@ import {
   publicGalleryUrl,
   registryHost,
   renderReport,
+  selectModifiedDockerfiles,
 } from "./base-image-update-report.mjs";
 
 const OLD = "sha256:d8d858dc6f7a6552ffc131e029802c28969c8211d311c33f9400449e30cf7442";
@@ -59,6 +60,18 @@ test("detectDigestUpdates also reports pinned tag changes", () => {
   assert.equal(updates.length, 1);
   assert.equal(updates[0].oldImage.tag, "1.26");
   assert.equal(updates[0].newImage.tag, "1.27");
+});
+
+test("selectModifiedDockerfiles skips added and removed files that do not exist on both refs", () => {
+  assert.deepEqual(
+    selectModifiedDockerfiles([
+      { filename: "system/Dockerfile.lambda", status: "modified" },
+      { filename: "system/Dockerfile.new", status: "added" },
+      { filename: "system/Dockerfile.old", status: "removed" },
+      { filename: "system/internal/app.go", status: "modified" },
+    ]),
+    ["system/Dockerfile.lambda"],
+  );
 });
 
 test("parseFromStages preserves aliases for internal-stage detection", () => {

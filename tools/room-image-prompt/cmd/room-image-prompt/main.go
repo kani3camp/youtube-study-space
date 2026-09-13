@@ -166,7 +166,11 @@ func resolveStyle(fsys fs.FS, styleName, styleFile string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("-style-file %q: %w", styleFile, err)
 		}
-		return string(b), nil
+		text := strings.ReplaceAll(string(b), "\r\n", "\n")
+		if strings.TrimSpace(text) == "" {
+			return "", fmt.Errorf("-style-file %q: テキストが空です", styleFile)
+		}
+		return text, nil
 	}
 
 	switch styleName {
