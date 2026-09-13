@@ -240,6 +240,13 @@ function encodeRepositoryPath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+export function selectModifiedDockerfiles(changedFiles) {
+  return changedFiles
+    .filter((file) => file.status === "modified")
+    .map((file) => file.filename)
+    .filter((filename) => /^system\/Dockerfile[^/]*$/.test(filename));
+}
+
 async function getFileContent(repository, path, ref) {
   const response = await githubRequest(
     `/repos/${repository}/contents/${encodeRepositoryPath(path)}?ref=${encodeURIComponent(ref)}`,
@@ -300,9 +307,7 @@ async function main() {
   }
 
   const changedFiles = await paginatedGithubRequest(`/repos/${repository}/pulls/${pullNumber}/files`);
-  const dockerfiles = changedFiles
-    .map((file) => file.filename)
-    .filter((filename) => /^system\/Dockerfile[^/]*$/.test(filename));
+  const dockerfiles = selectModifiedDockerfiles(changedFiles);
 
   const entries = [];
   for (const file of dockerfiles) {
