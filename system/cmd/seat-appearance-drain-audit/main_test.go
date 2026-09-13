@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"app.modules/core/repository"
@@ -21,6 +22,19 @@ func TestRunRequiresExplicitTarget(t *testing.T) {
 	err := run(context.Background(), []string{"seat-appearance-drain-audit"}, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("run() error = nil, want usage error")
+	}
+}
+
+func TestRunRefusesFirestoreEmulatorHost(t *testing.T) {
+	t.Setenv("FIRESTORE_EMULATOR_HOST", "localhost:8080")
+	t.Setenv("CREDENTIAL_FILE_LOCATION", "")
+
+	err := run(context.Background(), []string{"seat-appearance-drain-audit", "expected-project"}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("run() error = nil, want emulator rejection")
+	}
+	if !strings.Contains(err.Error(), "FIRESTORE_EMULATOR_HOST") {
+		t.Fatalf("run() error = %q, want FIRESTORE_EMULATOR_HOST rejection", err)
 	}
 }
 

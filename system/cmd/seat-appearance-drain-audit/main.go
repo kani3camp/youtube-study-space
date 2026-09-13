@@ -35,6 +35,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("expected GCP project ID is required")
 	}
 
+	if host := strings.TrimSpace(os.Getenv("FIRESTORE_EMULATOR_HOST")); host != "" {
+		return fmt.Errorf("FIRESTORE_EMULATOR_HOST=%q is set; refusing drain audit", host)
+	}
+
 	utils.LoadEnv(".env")
 	credentialFilePath := strings.TrimSpace(os.Getenv("CREDENTIAL_FILE_LOCATION"))
 	if credentialFilePath == "" {
