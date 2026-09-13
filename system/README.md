@@ -26,7 +26,7 @@ Release 2 の前に、read-only CLI で `seats` / `member-seats` の V1 残数�
 
 ```sh
 cd system
-go run ./cmd/seat-appearance-drain-audit production <expected-project-id>
+go run ./cmd/seat-appearance-drain-audit <expected-project-id>
 ```
 
 デプロイ順序、production gate、rollback 条件は [`../docs/development/seat-appearance-v2-rollout.md`](../docs/development/seat-appearance-v2-rollout.md) を参照する。

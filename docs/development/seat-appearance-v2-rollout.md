@@ -21,7 +21,7 @@ Issue #1107 の SeatAppearance V2 は、互換期間を設けて段階的にリ�
 
 ```sh
 cd system
-go run ./cmd/seat-appearance-drain-audit production <expected-project-id>
+go run ./cmd/seat-appearance-drain-audit <expected-project-id>
 ```
 
 出力形式は次のとおり。

@@ -8,12 +8,12 @@ import (
 	"app.modules/core/repository"
 )
 
-func TestRunRejectsUnknownEnvironmentBeforeCredentialAccess(t *testing.T) {
+func TestRunRequiresExpectedProjectIDBeforeCredentialAccess(t *testing.T) {
 	t.Setenv("CREDENTIAL_FILE_LOCATION", "")
 
-	err := run(context.Background(), []string{"seat-appearance-drain-audit", "staging", "project-id"}, &bytes.Buffer{})
+	err := run(context.Background(), []string{"seat-appearance-drain-audit", ""}, &bytes.Buffer{})
 	if err == nil {
-		t.Fatal("run() error = nil, want environment validation error")
+		t.Fatal("run() error = nil, want project ID validation error")
 	}
 }
 

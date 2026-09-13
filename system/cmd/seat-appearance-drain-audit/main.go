@@ -27,14 +27,10 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, out io.Writer) error {
-	if len(args) != 3 {
+	if len(args) != 2 {
 		return usageError()
 	}
-	environment := strings.TrimSpace(args[1])
-	expectedProjectID := strings.TrimSpace(args[2])
-	if environment != "development" && environment != "production" {
-		return fmt.Errorf("environment must be development or production: %q", environment)
-	}
+	expectedProjectID := strings.TrimSpace(args[1])
 	if expectedProjectID == "" {
 		return errors.New("expected GCP project ID is required")
 	}
@@ -64,6 +60,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("initialize Firestore: %w", err)
 	}
 	defer func() {
+		// A close failure does not invalidate counts already read and reported.
 		if err := repo.FirestoreClient().Close(); err != nil {
 			fmt.Fprintln(os.Stderr, "seat-appearance-drain-audit: close Firestore:", err)
 		}
@@ -107,5 +104,5 @@ func writeReport(out io.Writer, counts drainCounts) error {
 }
 
 func usageError() error {
-	return errors.New("usage: seat-appearance-drain-audit <development|production> <expected-project-id>")
+	return errors.New("usage: seat-appearance-drain-audit <expected-project-id>")
 }
