@@ -113,7 +113,7 @@ export const rankBadge = css`
     gap: 0.18em;
     box-sizing: border-box;
     padding: 0.14em 0.3em 0.12em;
-    border: 1px solid;
+    border: 0.3px solid;
     border-radius: 999px;
     font-weight: ${seatEmphasisFontWeight};
     line-height: 1;
