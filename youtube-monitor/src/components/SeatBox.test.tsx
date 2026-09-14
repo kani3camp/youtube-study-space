@@ -347,3 +347,97 @@ describe('SeatBox general seat font fitting', () => {
 		})
 	})
 })
+
+describe('SeatBox appearance migration', () => {
+	test('shows the V2 rank badge instead of stars when rank is visible', async () => {
+		const SeatBox = await loadSeatBox()
+		const baseProps = createBaseProps()
+
+		render(
+			<SeatBox
+				{...createBaseProps({
+					memberOnly: true,
+					processingSeat: {
+						...baseProps.processingSeat,
+						appearance: {
+							...baseProps.processingSeat.appearance,
+							schema_version: 2,
+							top_bar_color: '#123456',
+							rank: 5,
+							rank_visible: true,
+							num_stars: 3,
+							color_gradient_enabled: true,
+						},
+					},
+				})}
+			/>,
+		)
+
+		const badge = screen.getByLabelText('ランク R5')
+		expect(badge).toHaveTextContent('R5')
+		expect(badge).toHaveStyle({
+			color: '#6557C7',
+			backgroundColor: '#EEECFB',
+			borderColor: '#4B3FA0',
+		})
+		expect(screen.queryByText('★×3')).not.toBeInTheDocument()
+
+		const accentBar = screen.getByTestId('seat-accent-bar')
+		expect(accentBar).toHaveAttribute('data-schema-version', '2')
+		expect(accentBar).toHaveAttribute('data-gradient-enabled', 'false')
+	})
+
+	test('shows stars for V2 when rank is hidden', async () => {
+		const SeatBox = await loadSeatBox()
+		const baseProps = createBaseProps()
+
+		render(
+			<SeatBox
+				{...createBaseProps({
+					memberOnly: true,
+					processingSeat: {
+						...baseProps.processingSeat,
+						appearance: {
+							...baseProps.processingSeat.appearance,
+							schema_version: 2,
+							top_bar_color: '#123456',
+							rank: 5,
+							rank_visible: false,
+							num_stars: 2,
+						},
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.queryByLabelText('ランク R5')).not.toBeInTheDocument()
+		expect(screen.getByText('★×2')).toBeInTheDocument()
+	})
+
+	test('keeps the V1 gradient and stars during mixed-schema rollout', async () => {
+		const SeatBox = await loadSeatBox()
+		const baseProps = createBaseProps()
+
+		render(
+			<SeatBox
+				{...createBaseProps({
+					memberOnly: true,
+					processingSeat: {
+						...baseProps.processingSeat,
+						appearance: {
+							...baseProps.processingSeat.appearance,
+							num_stars: 1,
+							color_gradient_enabled: true,
+						},
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.getByText('★×1')).toBeInTheDocument()
+		expect(screen.getByTestId('seat-accent-bar')).toHaveAttribute(
+			'data-gradient-enabled',
+			'true',
+		)
+	})
+})

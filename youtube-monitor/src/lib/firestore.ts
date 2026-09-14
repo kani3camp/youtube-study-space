@@ -13,6 +13,10 @@ import type {
 } from 'firebase/firestore'
 import type { Menu, Seat, WorkNameTrend } from '../types/api'
 import { validateString } from './common'
+import {
+	classifySeatAppearanceSchemaVersion,
+	seatAppearanceV2SchemaVersion,
+} from './seat-appearance-schema'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
 	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
@@ -67,6 +71,22 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
 
 export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 	toFirestore(seat: Seat): DocumentData {
+		const appearance = seat.appearance
+		const firestoreAppearance: DocumentData = {
+			'color-code1': appearance.color_code1,
+			'color-code2': appearance.color_code2,
+			'num-stars': appearance.num_stars,
+			'color-gradient-enabled': appearance.color_gradient_enabled,
+		}
+		if (appearance.schema_version !== undefined) {
+			firestoreAppearance['schema-version'] = appearance.schema_version
+		}
+		if (appearance.schema_version === seatAppearanceV2SchemaVersion) {
+			firestoreAppearance['top-bar-color'] = appearance.top_bar_color
+			firestoreAppearance.rank = appearance.rank
+			firestoreAppearance['rank-visible'] = appearance.rank_visible
+		}
+
 		return {
 			'seat-id': seat.seat_id,
 			'user-id': seat.user_id,
@@ -75,11 +95,7 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 			'break-work-name': seat.break_work_name,
 			'entered-at': seat.entered_at,
 			until: seat.until,
-			appearance: {
-				'color-code': seat.appearance.color_code1,
-				'num-stars': seat.appearance.num_stars,
-				'glow-animation': seat.appearance.color_gradient_enabled,
-			},
+			appearance: firestoreAppearance,
 			'menu-code': seat.menu_code,
 			state: seat.state,
 			'current-state-started-at': seat.current_state_started_at,
@@ -93,6 +109,30 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 		options: SnapshotOptions,
 	): Seat {
 		const data = snapshot.data(options)
+		const appearance = data.appearance ?? {}
+		const schemaVersion = appearance['schema-version']
+		const schemaKind = classifySeatAppearanceSchemaVersion(schemaVersion)
+		if (schemaKind === 'unsupported') {
+			console.warn(
+				`Unsupported SeatAppearance schema-version ${String(schemaVersion)} for seat ${String(data['seat-id'])}; using legacy appearance fallback`,
+			)
+		}
+		const convertedAppearance = {
+			schema_version:
+				typeof schemaVersion === 'number' ? schemaVersion : undefined,
+			color_code1: appearance['color-code1'],
+			color_code2: appearance['color-code2'],
+			num_stars: appearance['num-stars'],
+			color_gradient_enabled: appearance['color-gradient-enabled'],
+		}
+		if (schemaKind === 'v2') {
+			Object.assign(convertedAppearance, {
+				top_bar_color: appearance['top-bar-color'],
+				rank: appearance.rank,
+				rank_visible: appearance['rank-visible'],
+			})
+		}
+
 		return {
 			seat_id: data['seat-id'],
 			user_id: data['user-id'],
@@ -101,12 +141,7 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 			break_work_name: data['break-work-name'],
 			entered_at: data['entered-at'],
 			until: data.until,
-			appearance: {
-				color_code1: data.appearance['color-code1'],
-				color_code2: data.appearance['color-code2'],
-				num_stars: data.appearance['num-stars'],
-				color_gradient_enabled: data.appearance['color-gradient-enabled'],
-			},
+			appearance: convertedAppearance,
 			menu_code: data['menu-code'],
 			state: data.state,
 			current_state_started_at: data['current-state-started-at'],
