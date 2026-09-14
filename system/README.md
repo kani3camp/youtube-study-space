@@ -20,6 +20,17 @@ bash .github/scripts/run-firestore-integration-tests.sh
 
 These checks are intentionally separate from real-service execution.
 
+## SeatAppearance V2 drain audit
+
+Release 2 の前に、read-only CLI で `seats` / `member-seats` の V1 残数を確認する。
+
+```sh
+cd system
+go run ./cmd/seat-appearance-drain-audit <expected-project-id>
+```
+
+デプロイ順序、production gate、rollback 条件は [`../docs/development/seat-appearance-v2-rollout.md`](../docs/development/seat-appearance-v2-rollout.md) を参照する。
+
 ## Real-service execution
 
 `go run ./cmd/youtube-bot` is **not a normal test command**. Startup loads local environment/credential configuration, connects to configured Google/YouTube/Discord services, and can post chat/notifications or mutate Firestore state.
