@@ -47,7 +47,7 @@ export const seatBody = css`
 
 export const headerRow = css`
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	justify-content: space-between;
 	height: 0.7rem;
 `
@@ -55,7 +55,6 @@ export const headerRow = css`
 export const headerLeft = css`
 	display: flex;
 	align-items: center;
-	align-self: stretch;
 	min-width: 0;
 	gap: 0.2rem;
 `
@@ -104,15 +103,16 @@ export const starsBadge = css`
 `
 
 export const rankBadge = css`
-    position: absolute;
-    top: 0.18rem;
-    right: 0.18rem;
+    --rank-badge-inline-padding: 0.3em;
+
     z-index: 1;
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
+    margin-inline-end: calc(-1 * var(--rank-badge-inline-padding));
     gap: 0.18em;
     box-sizing: border-box;
-    padding: 0.14em 0.3em 0.12em;
+    padding: 0.13em var(--rank-badge-inline-padding);
     border: 0.3px solid;
     border-radius: 999px;
     font-weight: ${seatEmphasisFontWeight};

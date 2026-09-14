@@ -357,13 +357,6 @@ const SeatBox: FC<SeatProps> = (props) => {
 				/>
 			)}
 
-			{showRankBadge && (
-				<RankBadge
-					rank={appearance?.rank ?? 0}
-					fontSizePx={props.seatFontSizePx * 0.45}
-				/>
-			)}
-
 			{/* ★Mark */}
 			{!showRankBadge && numStars > 0 && (
 				<div
@@ -411,6 +404,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 								/>
 							)}
 						</div>
+
+						{showRankBadge && (
+							<RankBadge
+								rank={appearance?.rank ?? 0}
+								fontSizePx={
+									props.seatFontSizePx * (props.memberOnly ? 0.68 : 0.6)
+								}
+							/>
+						)}
 					</div>
 				)}
 
