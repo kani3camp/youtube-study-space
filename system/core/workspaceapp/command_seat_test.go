@@ -321,7 +321,17 @@ func TestSystem_In(t *testing.T) {
 				mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", gomock.Any()).
 					Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			}
-			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			mockDB.EXPECT().CreateSeat(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ *firestore.Transaction, seat repository.SeatDoc, _ bool) error {
+					assert.Equal(t, utils.SeatAppearanceSchemaVersion, seat.Appearance.SchemaVersion)
+					assert.NotEmpty(t, seat.Appearance.TopBarColor)
+					assert.Equal(t, utils.RankByRP(0), seat.Appearance.Rank)
+					if tt.seatMoved {
+						assert.Zero(t, tt.currentSeatOfUser.Appearance.SchemaVersion, "move fixture must start as V1")
+						assert.Equal(t, utils.ColorHours0To5, seat.Appearance.TopBarColor)
+					}
+					return nil
+				}).AnyTimes()
 			mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), "test_user_id", gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockDB.EXPECT().UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(gomock.Any(), gomock.Any(), "test_user_id", true, gomock.Any()).Return(nil).AnyTimes()
@@ -780,6 +790,7 @@ func TestSystem_Change(t *testing.T) {
 			mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), tt.userIsMember).DoAndReturn(func(ctx context.Context, tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
 				assert.Equal(t, tt.currentSeatDoc.SeatID, seat.SeatID)
 				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
+				assert.Equal(t, tt.currentSeatDoc.Appearance.SchemaVersion, seat.Appearance.SchemaVersion)
 
 				// 時間が指定されている場合のみ検証
 				if tt.commandDetails.ChangeOption.IsDurationMinSet {

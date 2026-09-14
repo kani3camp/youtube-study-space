@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,10 @@ func TestGetSeatAppearance(t *testing.T) {
 			rp:            0,
 			favoriteColor: "",
 			expected: repository.SeatAppearance{
+				SchemaVersion:        SeatAppearanceSchemaVersion,
+				TopBarColor:          ColorHours0To5,
+				Rank:                 1,
+				RankVisible:          false,
 				ColorCode1:           ColorHours0To5,
 				ColorCode2:           "",
 				NumStars:             0,
@@ -38,6 +43,10 @@ func TestGetSeatAppearance(t *testing.T) {
 			rp:            15000,
 			favoriteColor: "",
 			expected: repository.SeatAppearance{
+				SchemaVersion:        SeatAppearanceSchemaVersion,
+				TopBarColor:          ColorHours0To5,
+				Rank:                 2,
+				RankVisible:          true,
 				ColorCode1:           ColorRank2,
 				ColorCode2:           ColorRank3,
 				NumStars:             0,
@@ -51,6 +60,10 @@ func TestGetSeatAppearance(t *testing.T) {
 			rp:            0,
 			favoriteColor: "#FF00FF",
 			expected: repository.SeatAppearance{
+				SchemaVersion:        SeatAppearanceSchemaVersion,
+				TopBarColor:          "#FF00FF",
+				Rank:                 1,
+				RankVisible:          false,
 				ColorCode1:           "#FF00FF",
 				ColorCode2:           "",
 				NumStars:             1,
@@ -64,6 +77,10 @@ func TestGetSeatAppearance(t *testing.T) {
 			rp:            0,
 			favoriteColor: "#FF00FF",
 			expected: repository.SeatAppearance{
+				SchemaVersion:        SeatAppearanceSchemaVersion,
+				TopBarColor:          ColorHours700To1000,
+				Rank:                 1,
+				RankVisible:          false,
 				ColorCode1:           ColorHours700To1000,
 				ColorCode2:           "",
 				NumStars:             0,
@@ -84,6 +101,57 @@ func TestGetSeatAppearance(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetSeatAppearanceV2TopBarDoesNotDependOnRankVisibility(t *testing.T) {
+	const totalStudySec = 3600 * 1001
+	const favoriteColor = "#123456"
+
+	rankHidden, err := GetSeatAppearance(totalStudySec, false, 45000, favoriteColor)
+	assert.NoError(t, err)
+	rankVisible, err := GetSeatAppearance(totalStudySec, true, 45000, favoriteColor)
+	assert.NoError(t, err)
+
+	assert.Equal(t, favoriteColor, rankHidden.TopBarColor)
+	assert.Equal(t, rankHidden.TopBarColor, rankVisible.TopBarColor)
+	assert.Equal(t, 1, rankVisible.NumStars)
+	assert.False(t, rankHidden.ColorGradientEnabled)
+	assert.True(t, rankVisible.ColorGradientEnabled)
+	assert.Equal(t, ColorRank5, rankVisible.ColorCode1)
+}
+
+func TestRankByRP(t *testing.T) {
+	tests := []struct {
+		rp   int
+		rank int
+	}{
+		{rp: 0, rank: 1},
+		{rp: 9999, rank: 1},
+		{rp: 10000, rank: 2},
+		{rp: 19999, rank: 2},
+		{rp: 20000, rank: 3},
+		{rp: 29999, rank: 3},
+		{rp: 30000, rank: 4},
+		{rp: 39999, rank: 4},
+		{rp: 40000, rank: 5},
+		{rp: 49999, rank: 5},
+		{rp: 50000, rank: 6},
+		{rp: 59999, rank: 6},
+		{rp: 60000, rank: 7},
+		{rp: 69999, rank: 7},
+		{rp: 70000, rank: 8},
+		{rp: 79999, rank: 8},
+		{rp: 80000, rank: 9},
+		{rp: 89999, rank: 9},
+		{rp: 90000, rank: 10},
+		{rp: 99999, rank: 10},
+	}
+
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.rp), func(t *testing.T) {
+			assert.Equal(t, tt.rank, RankByRP(tt.rp))
 		})
 	}
 }
