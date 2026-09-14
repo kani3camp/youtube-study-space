@@ -1,16 +1,31 @@
 package utils
 
 import (
+	"context"
 	"errors"
-	"reflect"
+	"log/slog"
 	"strconv"
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 )
 
+// LogSeatAppearanceWriterCapability は、Seat を書き込む process が V2 dual-write に
+// 対応済みであることを起動ログに残す。Release 2 Gate では youtube-bot と
+// youtube_organize_database の両方でこのログを確認する。
+func LogSeatAppearanceWriterCapability(ctx context.Context) {
+	slog.InfoContext(ctx, "seat appearance writer capability",
+		"seat-appearance-schema-write", SeatAppearanceSchemaVersion,
+		"seat-appearance-legacy-write", SeatAppearanceLegacyWriteEnabled,
+	)
+}
+
 const (
 	FavoriteColorAvailableThresholdHours = 1000
+	SeatAppearanceSchemaVersion          = 2
+	// SeatAppearanceLegacyWriteEnabled describes the deployed writer capability.
+	// It is not a feature flag; Release 2 must remove the legacy assignments explicitly.
+	SeatAppearanceLegacyWriteEnabled = true
 
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
@@ -58,28 +73,47 @@ const (
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (repository.SeatAppearance, error) {
+	// totalStudySec must be non-negative even when rank is visible because V2 always
+	// derives its canonical top bar from cumulative study time.
+	topBarColor, err := TotalStudySecToColorCode(totalStudySec)
+	if err != nil {
+		return repository.SeatAppearance{}, err
+	}
+	if CanUseFavoriteColor(totalStudySec) && favoriteColor != "" {
+		topBarColor = favoriteColor
+	}
+
+	// Release 1 dual-write: these fields retain their V1 semantics for old monitors.
 	var colorCode1 string
 	var colorCode2 string
 	if rankVisible {
 		colorCode1, colorCode2 = RankPointToColorCodePair(rp)
 	} else {
-		if CanUseFavoriteColor(totalStudySec) && !reflect.ValueOf(favoriteColor).IsZero() {
-			colorCode1 = favoriteColor
-		} else {
-			var err error
-			colorCode1, err = TotalStudySecToColorCode(totalStudySec)
-			if err != nil {
-				return repository.SeatAppearance{}, err
-			}
-		}
+		colorCode1 = topBarColor
 	}
 
 	return repository.SeatAppearance{
+		SchemaVersion:        SeatAppearanceSchemaVersion,
+		TopBarColor:          topBarColor,
+		Rank:                 RankByRP(rp),
+		RankVisible:          rankVisible,
 		ColorCode1:           colorCode1,
 		ColorCode2:           colorCode2,
 		NumStars:             TotalStudySecToNumStars(totalStudySec),
 		ColorGradientEnabled: rankVisible,
 	}, nil
+}
+
+// RankByRP converts the existing 10,000-point RP bands to R1-R10.
+// Callers must provide normalized RP in [0, 99999]; behavior outside that range is not contracted.
+func RankByRP(rp int) int {
+	if rp < 1e4 {
+		return 1
+	}
+	if rp >= 9e4 {
+		return 10
+	}
+	return rp/1e4 + 1
 }
 
 func CanUseFavoriteColor(totalStudySec int) bool {

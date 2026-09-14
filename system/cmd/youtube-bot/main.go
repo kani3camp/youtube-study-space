@@ -78,6 +78,8 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 	defer app.CloseFirestoreClient()
 
+	utils.LogSeatAppearanceWriterCapability(ctx)
+
 	ngWordConfig, err := loadNGWordConfig(ctx, clientOption, app.Configs.Constants.BotConfigSpreadsheetID)
 	if err != nil {
 		app.MessageToOwnerWithError(ctx, "failed loadNGWordConfig()", err)
