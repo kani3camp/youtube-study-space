@@ -346,10 +346,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run check
-        run: |
-          pnpm exec biome check . --write
-          git diff -- .
-          git diff --quiet --exit-code -- .
+        run: pnpm exec biome check . --reporter=github
 
   youtube-monitor-test:
     name: YouTube Monitor Test
