@@ -156,7 +156,8 @@ describe('SeatBox general seat font fitting', () => {
 	function mockMeasureTextWithWidths(widths: number[]) {
 		const measureText = vi.fn(() => {
 			const width = widths.shift()
-			if (width === undefined) throw new Error('measureText width queue is empty')
+			if (width === undefined)
+				throw new Error('measureText width queue is empty')
 			return { width } as TextMetrics
 		})
 		Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
@@ -260,12 +261,16 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.8,
 			minEm: 0.5,
 		})
-		await waitFor(() => expect(fontSizePxOf(displayName)).toBeCloseTo(fallback, 5))
+		await waitFor(() =>
+			expect(fontSizePxOf(displayName)).toBeCloseTo(fallback, 5),
+		)
 		await act(async () => {
 			fontsReady.resolve()
 			await fontsReady.promise
 		})
-		await waitFor(() => expect(fontSizePxOf(displayName)).toBeCloseTo(loaded, 5))
+		await waitFor(() =>
+			expect(fontSizePxOf(displayName)).toBeCloseTo(loaded, 5),
+		)
 	})
 
 	test('keeps rendering safely when document.fonts is unavailable', async () => {
