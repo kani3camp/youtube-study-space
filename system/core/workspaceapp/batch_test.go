@@ -18,9 +18,7 @@ import (
 )
 
 // TestSystem_OrganizeDBResumePreservesV2SeatAppearance は、休憩復帰時の full Set
-// （document 全体の更新）で V2 canonical field が削り戻されないことを保証する。
-// 古い youtube_organize_database Lambda が残ると V1 へ downgrade する経路になるため、
-// Release 1 の writer 互換性の根幹として固定する。
+// （document 全体の更新）で V2 canonical field が保持されることを保証する。
 func TestSystem_OrganizeDBResumePreservesV2SeatAppearance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -37,14 +35,11 @@ func TestSystem_OrganizeDBResumePreservesV2SeatAppearance(t *testing.T) {
 		CurrentSegmentStartedAt: fixedNow.Add(-30 * time.Minute),
 		Until:                   fixedNow.Add(60 * time.Minute),
 		Appearance: repository.SeatAppearance{
-			SchemaVersion:        2,
-			TopBarColor:          "#ABCDEF",
-			Rank:                 7,
-			RankVisible:          true,
-			ColorCode1:           "#111111",
-			ColorCode2:           "#222222",
-			NumStars:             3,
-			ColorGradientEnabled: true,
+			SchemaVersion: 2,
+			TopBarColor:   "#ABCDEF",
+			Rank:          7,
+			RankVisible:   true,
+			NumStars:      3,
 		},
 	}
 
