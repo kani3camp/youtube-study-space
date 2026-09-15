@@ -71,7 +71,10 @@ function readSeatAppearanceV2(
 	seatId: unknown,
 ): SeatAppearance {
 	const schemaVersion = appearance?.['schema-version']
-	if (schemaVersion !== seatAppearanceV2SchemaVersion) {
+	if (
+		appearance === undefined ||
+		schemaVersion !== seatAppearanceV2SchemaVersion
+	) {
 		throw new Error(
 			`Unsupported SeatAppearance schema-version ${String(schemaVersion)} for seat ${String(seatId)}; expected schema-version ${seatAppearanceV2SchemaVersion.toString()}`,
 		)
