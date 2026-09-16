@@ -15,14 +15,6 @@ func (s *SeatDoc) ClearWorkName() {
 	s.WorkName = ""
 }
 
-func (s *SeatDoc) SetBreakWorkName(name string) {
-	s.BreakWorkName = name
-}
-
-func (s *SeatDoc) ClearBreakWorkName() {
-	s.BreakWorkName = ""
-}
-
 func (s *SeatDoc) SetMenuCode(code string) {
 	s.MenuCode = code
 }
@@ -64,7 +56,6 @@ func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
 //
 // 引数:
 //   - now: 休憩開始時刻（JSTを想定）
-//   - breakWorkName: 休憩中の作業名
 //   - breakDurationMin: 休憩時間（分）
 //
 // 前提条件:
@@ -72,7 +63,7 @@ func (s *SeatDoc) RemainingBreakMin(now time.Time) int {
 //
 // 戻り値:
 //   - error: 前提条件を満たさない場合は非 nil。正常に遷移した場合は nil。
-func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationMin int) error {
+func (s *SeatDoc) StartBreak(now time.Time, breakDurationMin int) error {
 	if s.State != WorkState {
 		return fmt.Errorf("requires work state: seatID=%d userID=%s state=%s", s.SeatID, s.UserID, s.State)
 	}
@@ -95,7 +86,6 @@ func (s *SeatDoc) StartBreak(now time.Time, breakWorkName string, breakDurationM
 	s.CurrentSegmentStartedAt = now
 	s.CumulativeWorkSec = cumulativeWorkSec
 	s.DailyCumulativeWorkSec = dailyCumulativeWorkSec
-	s.BreakWorkName = breakWorkName
 
 	// 休憩終了時刻がUntilを超えるときはUntilも延長する
 	if breakUntil.After(s.Until) {
@@ -245,18 +235,12 @@ func (s *SeatDoc) GenerateWorkSegment(now time.Time, isMemberSeat bool) (WorkSeg
 		return WorkSegmentDoc{}, fmt.Errorf("currentSegmentStartedAt is zero for seatID: %d, userID: %s, isMemberSeat: %v", s.SeatID, s.UserID, isMemberSeat)
 	}
 
-	var workName string
-	if s.State == WorkState {
-		workName = s.WorkName
-	} else {
-		workName = s.BreakWorkName
-	}
 	return WorkSegmentDoc{
 		UserID:       s.UserID,
 		SeatID:       s.SeatID,
 		IsMemberSeat: isMemberSeat,
 		SessionID:    s.SessionID,
-		WorkName:     workName,
+		WorkName:     s.WorkName,
 		SegmentType:  s.State,
 		StartedAt:    s.CurrentSegmentStartedAt,
 		EndedAt:      now,
