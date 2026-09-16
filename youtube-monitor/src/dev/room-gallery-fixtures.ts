@@ -23,7 +23,7 @@ const createSeat = (seatId: number, variant: number): Seat => {
 		work_name: isLong
 			? '長い作業名でもSeatBoxの中で読みやすく表示できるか確認する作業'
 			: isBreak
-				? 'コーヒー休憩中'
+				? '集中作業に戻る'
 				: `作業サンプル ${seatId}`,
 		entered_at: fixtureNow,
 		until: fixtureUntil,
