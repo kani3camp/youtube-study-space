@@ -31,7 +31,6 @@ function firestoreSeatWithAppearance(appearance: unknown) {
 		'user-id': 'user-1',
 		'user-display-name': 'ユーザー',
 		'work-name': '作業',
-		'break-work-name': '',
 		'entered-at': timestamp,
 		until: timestamp,
 		appearance,
@@ -133,8 +132,7 @@ describe('firestoreSeatConverter SeatAppearance V2 contract', () => {
 					}),
 				),
 				{} as SnapshotOptions,
-			),
-		).toThrow('Malformed SeatAppearance V2 for seat 1')
+			).toThrow('Malformed SeatAppearance V2 for seat 1')
 	})
 
 	test('writes only V2 canonical fields', () => {
@@ -152,6 +150,7 @@ describe('firestoreSeatConverter SeatAppearance V2 contract', () => {
 		expect(written.appearance).not.toHaveProperty('color-code1')
 		expect(written.appearance).not.toHaveProperty('color-code2')
 		expect(written.appearance).not.toHaveProperty('color-gradient-enabled')
+		expect(written).not.toHaveProperty('break-work-name')
 	})
 })
 
@@ -161,7 +160,6 @@ function baseSeat(appearance: Seat['appearance']): Seat {
 		user_id: 'user-1',
 		user_display_name: 'ユーザー',
 		work_name: '作業',
-		break_work_name: '',
 		entered_at: timestamp,
 		until: timestamp,
 		appearance,
