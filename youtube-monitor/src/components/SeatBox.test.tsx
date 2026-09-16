@@ -123,7 +123,6 @@ function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 			user_id: 'user1',
 			user_display_name: 'ユーザー名',
 			work_name: '作業内容',
-			break_work_name: '',
 			entered_at: timestamp,
 			until: timestamp,
 			appearance: {
