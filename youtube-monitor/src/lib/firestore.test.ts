@@ -132,7 +132,8 @@ describe('firestoreSeatConverter SeatAppearance V2 contract', () => {
 					}),
 				),
 				{} as SnapshotOptions,
-			).toThrow('Malformed SeatAppearance V2 for seat 1')
+			),
+		).toThrow('Malformed SeatAppearance V2 for seat 1')
 	})
 
 	test('writes only V2 canonical fields', () => {
