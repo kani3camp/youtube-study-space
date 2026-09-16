@@ -56,6 +56,17 @@ const memberSeatShape = {
 	heightPx: 150,
 }
 
+const createV2Appearance = (
+	overrides: Partial<SeatAppearance> = {},
+): SeatAppearance => ({
+	schema_version: 2,
+	top_bar_color: '#5BD27D',
+	rank: 5,
+	rank_visible: false,
+	num_stars: 0,
+	...overrides,
+})
+
 const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 	const now = Timestamp.now()
 
@@ -67,12 +78,7 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 		break_work_name: '',
 		entered_at: now,
 		until: now,
-		appearance: {
-			color_code1: '#5BD27D',
-			color_code2: '#008CFF',
-			num_stars: 5,
-			color_gradient_enabled: false,
-		},
+		appearance: createV2Appearance({ num_stars: 5 }),
 		menu_code: '',
 		state: SeatState.Work,
 		current_state_started_at: now,
@@ -87,20 +93,6 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 		...overrides,
 	}
 }
-
-const createV2Appearance = (
-	overrides: Partial<SeatAppearance> = {},
-): SeatAppearance => ({
-	schema_version: 2,
-	top_bar_color: '#5BD27D',
-	rank: 5,
-	rank_visible: true,
-	color_code1: '#6557C7',
-	color_code2: '#8D4BC2',
-	num_stars: 0,
-	color_gradient_enabled: true,
-	...overrides,
-})
 
 const createBaseArgs = (
 	overrides: Partial<SeatStoryProps> = {},
@@ -186,26 +178,13 @@ export const InUseInBreak: Story = {
 	}),
 }
 
-export const LegacyV1RankGradient: Story = {
-	name: 'V1互換 一般席 ランクグラデーション',
-	args: createBaseArgs({
-		isUsed: true,
-		processingSeat: createSeat({
-			appearance: {
-				color_code1: '#5BD27D',
-				color_code2: '#008CFF',
-				num_stars: 5,
-				color_gradient_enabled: true,
-			},
-		}),
-	}),
-}
-
 export const V2GeneralRankBadge: Story = {
 	name: 'V2 一般席 ランクバッジ',
 	args: createBaseArgs({
 		isUsed: true,
-		processingSeat: createSeat({ appearance: createV2Appearance() }),
+		processingSeat: createSeat({
+			appearance: createV2Appearance({ rank_visible: true }),
+		}),
 	}),
 }
 
@@ -227,6 +206,7 @@ export const V2GeneralRankVisibleFavoriteColor: Story = {
 			appearance: createV2Appearance({
 				top_bar_color: '#243B6B',
 				rank: 10,
+				rank_visible: true,
 				num_stars: 2,
 			}),
 		}),
@@ -327,23 +307,6 @@ export const InUseMemberInBreak: Story = {
 		}),
 	}),
 }
-export const LegacyV1MemberRankGradient: Story = {
-	name: 'V1互換 メンバー席 ランクグラデーション',
-	args: createBaseArgs({
-		isUsed: true,
-		memberOnly: true,
-		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
-		seatShape: memberSeatShape,
-		processingSeat: createSeat({
-			appearance: {
-				color_code1: '#5BD27D',
-				color_code2: '#008CFF',
-				num_stars: 5,
-				color_gradient_enabled: true,
-			},
-		}),
-	}),
-}
 
 export const V2MemberRankBadge: Story = {
 	name: 'V2 メンバー席 ランクバッジ',
@@ -353,7 +316,11 @@ export const V2MemberRankBadge: Story = {
 		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
 		seatShape: memberSeatShape,
 		processingSeat: createSeat({
-			appearance: createV2Appearance({ rank: 10, top_bar_color: '#243B6B' }),
+			appearance: createV2Appearance({
+				rank: 10,
+				rank_visible: true,
+				top_bar_color: '#243B6B',
+			}),
 		}),
 	}),
 }
@@ -373,7 +340,11 @@ const rankGalleryArgs = Array.from({ length: 10 }, (_, index) => {
 		processingSeat: createSeat({
 			seat_id: rank,
 			user_display_name: `R${rank.toString()} ユーザー`,
-			appearance: createV2Appearance({ rank, top_bar_color: topBarColor }),
+			appearance: createV2Appearance({
+				rank,
+				rank_visible: true,
+				top_bar_color: topBarColor,
+			}),
 		}),
 		seatPosition: { x: 0, y: 0, rotate: 0 },
 	})
@@ -403,50 +374,4 @@ export const V2RankPalette: Story = {
 				),
 			),
 		),
-}
-
-export const MixedV1AndV2: Story = {
-	name: '移行中 V1・V2混在',
-	args: createBaseArgs(),
-	render: () => {
-		const v1Args = createBaseArgs({
-			globalSeatId: 1,
-			isUsed: true,
-			processingSeat: createSeat({
-				appearance: {
-					color_code1: '#5BD27D',
-					color_code2: '#008CFF',
-					num_stars: 1,
-					color_gradient_enabled: true,
-				},
-			}),
-			seatPosition: { x: 0, y: 0, rotate: 0 },
-		})
-		const v2Args = createBaseArgs({
-			globalSeatId: 2,
-			isUsed: true,
-			processingSeat: createSeat({
-				appearance: createV2Appearance({
-					rank: 8,
-					top_bar_color: '#5BD27D',
-				}),
-			}),
-			seatPosition: { x: 0, y: 0, rotate: 0 },
-		})
-
-		return React.createElement(
-			'div',
-			{ style: { display: 'flex', gap: '16px' } },
-			...[v1Args, v2Args].map((args) =>
-				React.createElement(
-					'div',
-					{
-						key: args.globalSeatId,
-						style: previewFrameStyle(generalSeatShape),
-					},
-					React.createElement(SeatBoxStory, args),
-				),
-			),
-		)
-	},
 }
