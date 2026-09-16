@@ -75,7 +75,6 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 		user_id: 'user1',
 		user_display_name: 'ユーザー名',
 		work_name: '作業内容',
-		break_work_name: '',
 		entered_at: now,
 		until: now,
 		appearance: createV2Appearance({ num_stars: 5 }),
@@ -172,7 +171,6 @@ export const InUseInBreak: Story = {
 		isUsed: true,
 		processingSeat: createSeat({
 			work_name: '実装タスク',
-			break_work_name: 'コーヒー休憩',
 			state: SeatState.Break,
 		}),
 	}),
@@ -302,7 +300,6 @@ export const InUseMemberInBreak: Story = {
 		seatShape: memberSeatShape,
 		processingSeat: createSeat({
 			work_name: '実装タスク',
-			break_work_name: 'コーヒー休憩',
 			state: SeatState.Break,
 		}),
 	}),
