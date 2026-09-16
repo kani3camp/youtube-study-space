@@ -114,7 +114,6 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 			'user-id': seat.user_id,
 			'user-display-name': seat.user_display_name,
 			'work-name': seat.work_name,
-			'break-work-name': seat.break_work_name,
 			'entered-at': seat.entered_at,
 			until: seat.until,
 			appearance: {
@@ -142,7 +141,6 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 			user_id: data['user-id'],
 			user_display_name: data['user-display-name'],
 			work_name: data['work-name'],
-			break_work_name: data['break-work-name'],
 			entered_at: data['entered-at'],
 			until: data.until,
 			appearance: readSeatAppearanceV2(data.appearance, data['seat-id']),
