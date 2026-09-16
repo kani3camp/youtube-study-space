@@ -38,7 +38,6 @@ func newSeatDoc(seatID int, userID string, sessionID string) repository.SeatDoc 
 		SessionID:       sessionID,
 		UserDisplayName: "テストユーザー",
 		WorkName:        "初期作業",
-		BreakWorkName:   "初期休憩作業",
 		EnteredAt:       time.Date(2026, 8, 2, 9, 0, 0, 0, jst),
 		Until:           time.Date(2026, 8, 2, 18, 0, 0, 0, jst),
 		Appearance: repository.SeatAppearance{
@@ -75,7 +74,6 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.SessionID, got.SessionID)
 	assert.Equal(t, want.UserDisplayName, got.UserDisplayName)
 	assert.Equal(t, want.WorkName, got.WorkName)
-	assert.Equal(t, want.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, want.Appearance, got.Appearance)
 	assert.Equal(t, want.MenuCode, got.MenuCode)
 	assert.Equal(t, want.State, got.State)
@@ -175,7 +173,6 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 
 	updated := original
 	updated.WorkName = "更新後の作業"
-	updated.BreakWorkName = "更新後の休憩作業"
 	updated.State = repository.BreakState
 	updated.CurrentStateStartedAt = time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	updated.CurrentStateUntil = time.Date(2026, 8, 2, 12, 30, 0, 0, time.UTC)
@@ -191,7 +188,6 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 	got, err := controller.ReadSeat(ctx, nil, updated.SeatID, false)
 	require.NoError(t, err)
 	assert.Equal(t, updated.WorkName, got.WorkName)
-	assert.Equal(t, updated.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, updated.State, got.State)
 	assert.Equal(t, updated.CurrentStateStartedAt, got.CurrentStateStartedAt)
 	assert.Equal(t, updated.CurrentStateUntil, got.CurrentStateUntil)
@@ -246,7 +242,7 @@ func TestFirestoreRepository_UserCreateAndRead(t *testing.T) {
 		TotalStudySec:               86400,
 		RegistrationDate:            time.Date(2026, 7, 1, 9, 0, 0, 0, jst),
 		StatusMessage:               "集中中",
-		LastEntered:                 time.Date(2026, 8, 2, 8, 30, 0, 0, jst),
+		LastEntered:                 time.Date(2026, 8, 2, 8, 30, 0, 0, 0, jst),
 		LastExited:                  time.Date(2026, 8, 1, 18, 0, 0, 0, jst),
 		RankVisible:                 true,
 		DefaultStudyMin:             50,
