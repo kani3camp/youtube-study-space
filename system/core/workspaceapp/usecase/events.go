@@ -63,14 +63,6 @@ type ChangeUpdatedWork struct {
 
 func (ChangeUpdatedWork) isEvent() {}
 
-type ChangeUpdatedBreak struct {
-	WorkName     string
-	SeatID       int
-	IsMemberSeat bool
-}
-
-func (ChangeUpdatedBreak) isEvent() {}
-
 type ChangeWorkDurationRejectedBefore struct {
 	RequestedMin             int
 	RealtimeEntryDurationMin int
@@ -162,7 +154,6 @@ func (MoreSummary) isEvent() {}
 type BreakStarted struct {
 	SeatID       int
 	IsMemberSeat bool
-	WorkName     string
 	DurationMin  int
 }
 
@@ -234,13 +225,6 @@ type ClearWork struct {
 }
 
 func (ClearWork) isEvent() {}
-
-type ClearBreak struct {
-	SeatID       int
-	IsMemberSeat bool
-}
-
-func (ClearBreak) isEvent() {}
 
 // Result aggregates events produced by a usecase execution.
 type Result struct {
