@@ -1,19 +1,9 @@
 import {
-	classifySeatAppearanceSchemaVersion,
 	seatAppearanceSchemaReadCapability,
+	seatAppearanceV2SchemaVersion,
 } from './seat-appearance-schema'
 
-test.each([
-	{ value: undefined, expected: 'v1' },
-	{ value: 0, expected: 'v1' },
-	{ value: 1, expected: 'v1' },
-	{ value: 2, expected: 'v2' },
-	{ value: 3, expected: 'unsupported' },
-	{ value: '2', expected: 'unsupported' },
-])('classifies schema-version $value as $expected', ({ value, expected }) => {
-	expect(classifySeatAppearanceSchemaVersion(value)).toBe(expected)
-})
-
-test('advertises V1/V2 dual-read capability', () => {
-	expect(seatAppearanceSchemaReadCapability).toBe('1,2')
+test('contracts the supported SeatAppearance schema to V2', () => {
+	expect(seatAppearanceV2SchemaVersion).toBe(2)
+	expect(seatAppearanceSchemaReadCapability).toBe('2')
 })

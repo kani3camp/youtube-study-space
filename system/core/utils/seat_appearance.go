@@ -10,22 +10,17 @@ import (
 	"app.modules/core/timeutil"
 )
 
-// LogSeatAppearanceWriterCapability は、Seat を書き込む process が V2 dual-write に
-// 対応済みであることを起動ログに残す。Release 2 Gate では youtube-bot と
-// youtube_organize_database の両方でこのログを確認する。
+// LogSeatAppearanceWriterCapability は、Seat を書き込む process が
+// SeatAppearance V2 canonical write に対応済みであることを起動ログに残す。
 func LogSeatAppearanceWriterCapability(ctx context.Context) {
 	slog.InfoContext(ctx, "seat appearance writer capability",
 		"seat-appearance-schema-write", SeatAppearanceSchemaVersion,
-		"seat-appearance-legacy-write", SeatAppearanceLegacyWriteEnabled,
 	)
 }
 
 const (
 	FavoriteColorAvailableThresholdHours = 1000
 	SeatAppearanceSchemaVersion          = 2
-	// SeatAppearanceLegacyWriteEnabled describes the deployed writer capability.
-	// It is not a feature flag; Release 2 must remove the legacy assignments explicitly.
-	SeatAppearanceLegacyWriteEnabled = true
 
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
@@ -58,18 +53,6 @@ const (
 	ColorName500To700  = "青紫"
 	ColorName700To1000 = "紫"
 	ColorNameFrom1000  = "ピンク"
-
-	ColorRank1         = "#D8D8D8"
-	ColorRank2         = "#93FF66"
-	ColorRank3         = "#FFFF66"
-	ColorRank4         = "#FFC666"
-	ColorRank5         = "#FF6666"
-	ColorRank6         = "#00FFFF"
-	ColorRank7         = "#95ABED"
-	ColorRank8         = "#BDB7E5"
-	ColorRank9         = "#BF80DF"
-	ColorRank10        = "#FF66FF"
-	ColorRank10andMore = "#FF5252"
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (repository.SeatAppearance, error) {
@@ -83,24 +66,12 @@ func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColo
 		topBarColor = favoriteColor
 	}
 
-	// Release 1 dual-write: these fields retain their V1 semantics for old monitors.
-	var colorCode1 string
-	var colorCode2 string
-	if rankVisible {
-		colorCode1, colorCode2 = RankPointToColorCodePair(rp)
-	} else {
-		colorCode1 = topBarColor
-	}
-
 	return repository.SeatAppearance{
-		SchemaVersion:        SeatAppearanceSchemaVersion,
-		TopBarColor:          topBarColor,
-		Rank:                 RankByRP(rp),
-		RankVisible:          rankVisible,
-		ColorCode1:           colorCode1,
-		ColorCode2:           colorCode2,
-		NumStars:             TotalStudySecToNumStars(totalStudySec),
-		ColorGradientEnabled: rankVisible,
+		SchemaVersion: SeatAppearanceSchemaVersion,
+		TopBarColor:   topBarColor,
+		Rank:          RankByRP(rp),
+		RankVisible:   rankVisible,
+		NumStars:      TotalStudySecToNumStars(totalStudySec),
 	}, nil
 }
 
@@ -246,29 +217,5 @@ func ColorCodeToColorName(colorCode string) string {
 		return ColorNameFrom1000
 	default:
 		return "不明"
-	}
-}
-
-func RankPointToColorCodePair(rp int) (string, string) {
-	if rp < 1e4 {
-		return ColorRank1, ColorRank2
-	} else if rp < 2e4 {
-		return ColorRank2, ColorRank3
-	} else if rp < 3e4 {
-		return ColorRank3, ColorRank4
-	} else if rp < 4e4 {
-		return ColorRank4, ColorRank5
-	} else if rp < 5e4 {
-		return ColorRank5, ColorRank6
-	} else if rp < 6e4 {
-		return ColorRank6, ColorRank7
-	} else if rp < 7e4 {
-		return ColorRank7, ColorRank8
-	} else if rp < 8e4 {
-		return ColorRank8, ColorRank9
-	} else if rp < 9e4 {
-		return ColorRank9, ColorRank10
-	} else {
-		return ColorRank10, ColorRank10andMore
 	}
 }

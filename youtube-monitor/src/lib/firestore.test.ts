@@ -45,139 +45,113 @@ function firestoreSeatWithAppearance(appearance: unknown) {
 	}
 }
 
-const legacyAppearance = {
-	'color-code1': '#111111',
-	'color-code2': '#222222',
+const canonicalAppearance = {
+	'schema-version': 2,
+	'top-bar-color': '#ABCDEF',
+	rank: 5,
+	'rank-visible': true,
 	'num-stars': 3,
-	'color-gradient-enabled': true,
 }
 
-describe('firestoreSeatConverter appearance migration contract', () => {
-	test.each([undefined, null])(
-		'reads a missing appearance (%s) as an empty V1 fallback',
-		(appearance) => {
-			const seat = firestoreSeatConverter.fromFirestore(
-				snapshotWith(firestoreSeatWithAppearance(appearance)),
-				{} as SnapshotOptions,
-			)
+describe('firestoreSeatConverter SeatAppearance V2 contract', () => {
+	test('reads V2 canonical fields', () => {
+		const seat = firestoreSeatConverter.fromFirestore(
+			snapshotWith(firestoreSeatWithAppearance(canonicalAppearance)),
+			{} as SnapshotOptions,
+		)
 
-			expect(seat.appearance).toEqual({
-				schema_version: undefined,
-				color_code1: undefined,
-				color_code2: undefined,
-				num_stars: undefined,
-				color_gradient_enabled: undefined,
-			})
+		expect(seat.appearance).toEqual({
+			schema_version: 2,
+			top_bar_color: '#ABCDEF',
+			rank: 5,
+			rank_visible: true,
+			num_stars: 3,
+		})
+	})
+
+	test('ignores Release 1 legacy fields on a V2 document', () => {
+		const seat = firestoreSeatConverter.fromFirestore(
+			snapshotWith(
+				firestoreSeatWithAppearance({
+					...canonicalAppearance,
+					'color-code1': '#111111',
+					'color-code2': '#222222',
+					'color-gradient-enabled': true,
+				}),
+			),
+			{} as SnapshotOptions,
+		)
+
+		expect(seat.appearance).toEqual({
+			schema_version: 2,
+			top_bar_color: '#ABCDEF',
+			rank: 5,
+			rank_visible: true,
+			num_stars: 3,
+		})
+	})
+
+	test.each([undefined, null])(
+		'rejects a missing appearance instead of using a V1 fallback (%s)',
+		(appearance) => {
+			expect(() =>
+				firestoreSeatConverter.fromFirestore(
+					snapshotWith(firestoreSeatWithAppearance(appearance)),
+					{} as SnapshotOptions,
+				),
+			).toThrow('expected schema-version 2')
 		},
 	)
 
-	test('reads a V1 appearance without inferring V2 from field values', () => {
-		const seat = firestoreSeatConverter.fromFirestore(
-			snapshotWith(
-				firestoreSeatWithAppearance({
-					...legacyAppearance,
-					'top-bar-color': '#ABCDEF',
-					rank: 5,
-					'rank-visible': true,
-				}),
+	test('rejects an unsupported schema-version instead of falling back', () => {
+		expect(() =>
+			firestoreSeatConverter.fromFirestore(
+				snapshotWith(
+					firestoreSeatWithAppearance({
+						...canonicalAppearance,
+						'schema-version': 3,
+						'color-code1': '#111111',
+					}),
+				),
+				{} as SnapshotOptions,
 			),
-			{} as SnapshotOptions,
-		)
-
-		expect(seat.appearance).toEqual({
-			schema_version: undefined,
-			color_code1: '#111111',
-			color_code2: '#222222',
-			num_stars: 3,
-			color_gradient_enabled: true,
-		})
+		).toThrow('Unsupported SeatAppearance schema-version 3')
 	})
 
-	test('reads V2 canonical fields only when schema-version is exactly 2', () => {
-		const seat = firestoreSeatConverter.fromFirestore(
-			snapshotWith(
-				firestoreSeatWithAppearance({
-					...legacyAppearance,
-					'schema-version': 2,
-					'top-bar-color': '#ABCDEF',
-					rank: 5,
-					'rank-visible': true,
-				}),
+	test.each([
+		{ name: 'top-bar-color', patch: { 'top-bar-color': undefined } },
+		{ name: 'rank', patch: { rank: undefined } },
+		{ name: 'rank-visible', patch: { 'rank-visible': undefined } },
+		{ name: 'num-stars', patch: { 'num-stars': undefined } },
+	])('rejects a malformed V2 appearance missing $name', ({ patch }) => {
+		expect(() =>
+			firestoreSeatConverter.fromFirestore(
+				snapshotWith(
+					firestoreSeatWithAppearance({
+						...canonicalAppearance,
+						...patch,
+					}),
+				),
+				{} as SnapshotOptions,
 			),
-			{} as SnapshotOptions,
-		)
-
-		expect(seat.appearance).toEqual({
-			schema_version: 2,
-			top_bar_color: '#ABCDEF',
-			rank: 5,
-			rank_visible: true,
-			color_code1: '#111111',
-			color_code2: '#222222',
-			num_stars: 3,
-			color_gradient_enabled: true,
-		})
+		).toThrow('Malformed SeatAppearance V2 for seat 1')
 	})
 
-	test('reports an unsupported schema-version and uses the legacy fallback', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-		const seat = firestoreSeatConverter.fromFirestore(
-			snapshotWith(
-				firestoreSeatWithAppearance({
-					...legacyAppearance,
-					'schema-version': 3,
-					'top-bar-color': '#ABCDEF',
-					rank: 9,
-					'rank-visible': true,
-				}),
-			),
-			{} as SnapshotOptions,
+	test('writes only V2 canonical fields', () => {
+		const written = firestoreSeatConverter.toFirestore(
+			baseSeat({
+				schema_version: 2,
+				top_bar_color: '#ABCDEF',
+				rank: 5,
+				rank_visible: true,
+				num_stars: 3,
+			}),
 		)
 
-		expect(seat.appearance.schema_version).toBe(3)
-		expect(seat.appearance.top_bar_color).toBeUndefined()
-		expect(seat.appearance.rank).toBeUndefined()
-		expect(seat.appearance.rank_visible).toBeUndefined()
-		expect(warn).toHaveBeenCalledWith(
-			'Unsupported SeatAppearance schema-version 3 for seat 1; using legacy appearance fallback',
-		)
-		warn.mockRestore()
-	})
-
-	test('writes symmetric V1 legacy field names', () => {
-		const seat = baseSeat({
-			color_code1: '#111111',
-			color_code2: '#222222',
-			num_stars: 3,
-			color_gradient_enabled: true,
-		})
-
-		const written = firestoreSeatConverter.toFirestore(seat)
-
-		expect(written.appearance).toEqual(legacyAppearance)
-	})
-
-	test('writes V2 canonical and legacy compatibility fields together', () => {
-		const seat = baseSeat({
-			schema_version: 2,
-			top_bar_color: '#ABCDEF',
-			rank: 5,
-			rank_visible: true,
-			color_code1: '#111111',
-			color_code2: '#222222',
-			num_stars: 3,
-			color_gradient_enabled: true,
-		})
-
-		const written = firestoreSeatConverter.toFirestore(seat)
-
-		expect(written.appearance).toEqual({
-			...legacyAppearance,
-			'schema-version': 2,
-			'top-bar-color': '#ABCDEF',
-			rank: 5,
-			'rank-visible': true,
-		})
+		expect(written.appearance).toEqual(canonicalAppearance)
+		expect(written.appearance).not.toHaveProperty('color-code1')
+		expect(written.appearance).not.toHaveProperty('color-code2')
+		expect(written.appearance).not.toHaveProperty('color-gradient-enabled')
 	})
 })
 

@@ -46,13 +46,11 @@ afterAll(() => {
 	} else {
 		process.env.NEXT_PUBLIC_DEBUG = originalNextPublicDebug
 	}
-
 	if (originalNextPublicChannelGl === undefined) {
 		delete process.env.NEXT_PUBLIC_CHANNEL_GL
 	} else {
 		process.env.NEXT_PUBLIC_CHANNEL_GL = originalNextPublicChannelGl
 	}
-
 	if (originalNextPublicRoomConfig === undefined) {
 		delete process.env.NEXT_PUBLIC_ROOM_CONFIG
 	} else {
@@ -94,9 +92,7 @@ function expectedFontSizePx({
 	minEm: number
 }) {
 	let fontSizePx = seatFontSizePx * baseEm
-	if (text === '') {
-		return fontSizePx
-	}
+	if (text === '') return fontSizePx
 	if (measuredWidthPx > lineWidthPx) {
 		fontSizePx *= lineWidthPx / measuredWidthPx
 		fontSizePx *= 0.95
@@ -131,10 +127,11 @@ function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 			entered_at: timestamp,
 			until: timestamp,
 			appearance: {
-				color_code1: '#5BD27D',
-				color_code2: '#008CFF',
+				schema_version: 2,
+				top_bar_color: '#5BD27D',
+				rank: 5,
+				rank_visible: false,
 				num_stars: 0,
-				color_gradient_enabled: false,
 			},
 			menu_code: '',
 			state: 'work',
@@ -144,19 +141,9 @@ function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 			daily_cumulative_work_sec: 0,
 			user_profile_image_url: '',
 		},
-		seatPosition: {
-			x: 0,
-			y: 0,
-			rotate: 0,
-		},
-		seatShape: {
-			widthPx: GENERAL_SEAT_WIDTH_PX,
-			heightPx: 100,
-		},
-		roomShape: {
-			widthPx: 1520,
-			heightPx: 1000,
-		},
+		seatPosition: { x: 0, y: 0, rotate: 0 },
+		seatShape: { widthPx: GENERAL_SEAT_WIDTH_PX, heightPx: 100 },
+		roomShape: { widthPx: 1520, heightPx: 1000 },
 		menuImageMap: new Map<string, string>(),
 		...overrides,
 	}
@@ -169,23 +156,17 @@ describe('SeatBox general seat font fitting', () => {
 	function mockMeasureTextWithWidths(widths: number[]) {
 		const measureText = vi.fn(() => {
 			const width = widths.shift()
-			if (width === undefined) {
+			if (width === undefined)
 				throw new Error('measureText width queue is empty')
-			}
 			return { width } as TextMetrics
 		})
-
 		Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
 			configurable: true,
 			value: vi.fn(
 				() =>
-					({
-						font: '',
-						measureText,
-					}) as unknown as CanvasRenderingContext2D,
+					({ font: '', measureText }) as unknown as CanvasRenderingContext2D,
 			),
 		})
-
 		return measureText
 	}
 
@@ -205,13 +186,10 @@ describe('SeatBox general seat font fitting', () => {
 		const fontsReady = createDeferredPromise<void>()
 		Object.defineProperty(document, 'fonts', {
 			configurable: true,
-			value: {
-				ready: fontsReady.promise,
-			},
+			value: { ready: fontsReady.promise },
 		})
 		mockMeasureTextWithWidths([220, 160])
 		const SeatBox = await loadSeatBox()
-
 		render(
 			<SeatBox
 				{...createBaseProps({
@@ -222,9 +200,8 @@ describe('SeatBox general seat font fitting', () => {
 				})}
 			/>,
 		)
-
 		const workName = await screen.findByText('おかえりなさいませ👋')
-		const expectedFallbackFontSizePx = expectedFontSizePx({
+		const fallback = expectedFontSizePx({
 			text: 'おかえりなさいませ👋',
 			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
 			lineWidthPx: GENERAL_SEAT_LINE_WIDTH_PX,
@@ -232,7 +209,7 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.95,
 			minEm: 0.63,
 		})
-		const expectedLoadedFontSizePx = expectedFontSizePx({
+		const loaded = expectedFontSizePx({
 			text: 'おかえりなさいませ👋',
 			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
 			lineWidthPx: GENERAL_SEAT_LINE_WIDTH_PX,
@@ -240,32 +217,22 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.95,
 			minEm: 0.63,
 		})
-
-		await waitFor(() => {
-			expect(fontSizePxOf(workName)).toBeCloseTo(expectedFallbackFontSizePx, 5)
-		})
-
+		await waitFor(() => expect(fontSizePxOf(workName)).toBeCloseTo(fallback, 5))
 		await act(async () => {
 			fontsReady.resolve()
 			await fontsReady.promise
 		})
-
-		await waitFor(() => {
-			expect(fontSizePxOf(workName)).toBeCloseTo(expectedLoadedFontSizePx, 5)
-		})
+		await waitFor(() => expect(fontSizePxOf(workName)).toBeCloseTo(loaded, 5))
 	})
 
 	test('remeasures display name when work name is empty', async () => {
 		const fontsReady = createDeferredPromise<void>()
 		Object.defineProperty(document, 'fonts', {
 			configurable: true,
-			value: {
-				ready: fontsReady.promise,
-			},
+			value: { ready: fontsReady.promise },
 		})
 		mockMeasureTextWithWidths([240, 150])
 		const SeatBox = await loadSeatBox()
-
 		render(
 			<SeatBox
 				{...createBaseProps({
@@ -277,9 +244,8 @@ describe('SeatBox general seat font fitting', () => {
 				})}
 			/>,
 		)
-
 		const displayName = await screen.findByText('おかえりなさいませ👋')
-		const expectedFallbackFontSizePx = expectedFontSizePx({
+		const fallback = expectedFontSizePx({
 			text: 'おかえりなさいませ👋',
 			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
 			lineWidthPx: GENERAL_SEAT_LINE_WIDTH_PX,
@@ -287,7 +253,7 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.8,
 			minEm: 0.5,
 		})
-		const expectedLoadedFontSizePx = expectedFontSizePx({
+		const loaded = expectedFontSizePx({
 			text: 'おかえりなさいませ👋',
 			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
 			lineWidthPx: GENERAL_SEAT_LINE_WIDTH_PX,
@@ -295,22 +261,16 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.8,
 			minEm: 0.5,
 		})
-
-		await waitFor(() => {
-			expect(fontSizePxOf(displayName)).toBeCloseTo(
-				expectedFallbackFontSizePx,
-				5,
-			)
-		})
-
+		await waitFor(() =>
+			expect(fontSizePxOf(displayName)).toBeCloseTo(fallback, 5),
+		)
 		await act(async () => {
 			fontsReady.resolve()
 			await fontsReady.promise
 		})
-
-		await waitFor(() => {
-			expect(fontSizePxOf(displayName)).toBeCloseTo(expectedLoadedFontSizePx, 5)
-		})
+		await waitFor(() =>
+			expect(fontSizePxOf(displayName)).toBeCloseTo(loaded, 5),
+		)
 	})
 
 	test('keeps rendering safely when document.fonts is unavailable', async () => {
@@ -320,7 +280,6 @@ describe('SeatBox general seat font fitting', () => {
 		})
 		mockMeasureTextWithWidths([220])
 		const SeatBox = await loadSeatBox()
-
 		render(
 			<SeatBox
 				{...createBaseProps({
@@ -331,9 +290,8 @@ describe('SeatBox general seat font fitting', () => {
 				})}
 			/>,
 		)
-
 		const workName = await screen.findByText('おかえりなさいませ👋')
-		const expectedFontSize = expectedFontSizePx({
+		const expected = expectedFontSizePx({
 			text: 'おかえりなさいませ👋',
 			seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
 			lineWidthPx: GENERAL_SEAT_LINE_WIDTH_PX,
@@ -341,18 +299,14 @@ describe('SeatBox general seat font fitting', () => {
 			baseEm: 0.95,
 			minEm: 0.63,
 		})
-
-		await waitFor(() => {
-			expect(fontSizePxOf(workName)).toBeCloseTo(expectedFontSize, 5)
-		})
+		await waitFor(() => expect(fontSizePxOf(workName)).toBeCloseTo(expected, 5))
 	})
 })
 
-describe('SeatBox appearance migration', () => {
-	test('shows the V2 rank badge instead of stars when rank is visible', async () => {
+describe('SeatBox SeatAppearance V2 contract', () => {
+	test('shows the rank badge instead of stars when rank is visible', async () => {
 		const SeatBox = await loadSeatBox()
 		const baseProps = createBaseProps()
-
 		render(
 			<SeatBox
 				{...createBaseProps({
@@ -361,18 +315,15 @@ describe('SeatBox appearance migration', () => {
 						...baseProps.processingSeat,
 						appearance: {
 							...baseProps.processingSeat.appearance,
-							schema_version: 2,
 							top_bar_color: '#123456',
 							rank: 5,
 							rank_visible: true,
 							num_stars: 3,
-							color_gradient_enabled: true,
 						},
 					},
 				})}
 			/>,
 		)
-
 		const badge = screen.getByLabelText('ランク R5')
 		expect(badge).toHaveTextContent('R5')
 		expect(badge).toHaveStyle({
@@ -381,16 +332,15 @@ describe('SeatBox appearance migration', () => {
 			borderColor: '#4B3FA0',
 		})
 		expect(screen.queryByText('★×3')).not.toBeInTheDocument()
-
-		const accentBar = screen.getByTestId('seat-accent-bar')
-		expect(accentBar).toHaveAttribute('data-schema-version', '2')
-		expect(accentBar).toHaveAttribute('data-gradient-enabled', 'false')
+		expect(screen.getByTestId('seat-accent-bar')).toHaveAttribute(
+			'data-schema-version',
+			'2',
+		)
 	})
 
-	test('shows stars for V2 when rank is hidden', async () => {
+	test('shows stars when rank is hidden', async () => {
 		const SeatBox = await loadSeatBox()
 		const baseProps = createBaseProps()
-
 		render(
 			<SeatBox
 				{...createBaseProps({
@@ -399,7 +349,6 @@ describe('SeatBox appearance migration', () => {
 						...baseProps.processingSeat,
 						appearance: {
 							...baseProps.processingSeat.appearance,
-							schema_version: 2,
 							top_bar_color: '#123456',
 							rank: 5,
 							rank_visible: false,
@@ -409,35 +358,46 @@ describe('SeatBox appearance migration', () => {
 				})}
 			/>,
 		)
-
 		expect(screen.queryByLabelText('ランク R5')).not.toBeInTheDocument()
 		expect(screen.getByText('★×2')).toBeInTheDocument()
 	})
 
-	test('keeps the V1 gradient and stars during mixed-schema rollout', async () => {
+	test('uses top-bar-color regardless of rank visibility', async () => {
 		const SeatBox = await loadSeatBox()
 		const baseProps = createBaseProps()
-
-		render(
+		const { rerender } = render(
 			<SeatBox
 				{...createBaseProps({
-					memberOnly: true,
 					processingSeat: {
 						...baseProps.processingSeat,
 						appearance: {
 							...baseProps.processingSeat.appearance,
-							num_stars: 1,
-							color_gradient_enabled: true,
+							top_bar_color: '#123456',
+							rank_visible: false,
 						},
 					},
 				})}
 			/>,
 		)
-
-		expect(screen.getByText('★×1')).toBeInTheDocument()
-		expect(screen.getByTestId('seat-accent-bar')).toHaveAttribute(
-			'data-gradient-enabled',
-			'true',
+		expect(screen.getByTestId('seat-accent-bar')).toHaveStyle({
+			backgroundColor: '#123456',
+		})
+		rerender(
+			<SeatBox
+				{...createBaseProps({
+					processingSeat: {
+						...baseProps.processingSeat,
+						appearance: {
+							...baseProps.processingSeat.appearance,
+							top_bar_color: '#123456',
+							rank_visible: true,
+						},
+					},
+				})}
+			/>,
 		)
+		expect(screen.getByTestId('seat-accent-bar')).toHaveStyle({
+			backgroundColor: '#123456',
+		})
 	})
 })
