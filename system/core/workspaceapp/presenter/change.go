@@ -18,9 +18,6 @@ func BuildChangeMessage(res usecase.Result, displayName string) string {
 		case usecase.ChangeUpdatedWork:
 			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			builder.WriteString(i18nmsg.CommandChangeUpdateWork(e.WorkName, seat))
-		case usecase.ChangeUpdatedBreak:
-			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
-			builder.WriteString(i18nmsg.CommandChangeUpdateBreak(e.WorkName, seat))
 		case usecase.ChangeWorkDurationRejectedBefore:
 			builder.WriteString(i18nmsg.CommandChangeWorkDurationBefore(e.RequestedMin, e.RealtimeEntryDurationMin, e.RemainingWorkMin))
 		case usecase.ChangeWorkDurationRejectedAfter:
