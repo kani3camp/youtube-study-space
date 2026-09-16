@@ -105,12 +105,11 @@ type SeatDoc struct {
 	UserID                  string         `json:"user_id" firestore:"user-id"`
 	SessionID               string         `json:"session_id" firestore:"session-id"`
 	UserDisplayName         string         `json:"user_display_name" firestore:"user-display-name"`
-	WorkName                string         `json:"work_name" firestore:"work-name"`             // 作業名
-	BreakWorkName           string         `json:"break_work_name" firestore:"break-work-name"` // 休憩中の作業名
-	EnteredAt               time.Time      `json:"entered_at" firestore:"entered-at"`           // 入室日時
-	Until                   time.Time      `json:"until" firestore:"until"`                     // 自動退室予定時刻
-	Appearance              SeatAppearance `json:"appearance" firestore:"appearance"`           // 席の見え方
-	MenuCode                string         `json:"menu_code" firestore:"menu-code"`             // メニューコード
+	WorkName                string         `json:"work_name" firestore:"work-name"` // 作業名
+	EnteredAt               time.Time      `json:"entered_at" firestore:"entered-at"` // 入室日時
+	Until                   time.Time      `json:"until" firestore:"until"` // 自動退室予定時刻
+	Appearance              SeatAppearance `json:"appearance" firestore:"appearance"` // 席の見え方
+	MenuCode                string         `json:"menu_code" firestore:"menu-code"` // メニューコード
 	State                   SeatState      `json:"state" firestore:"state"`
 	CurrentStateStartedAt   time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
 	CurrentStateUntil       time.Time      `json:"current_state_until" firestore:"current-state-until"`
