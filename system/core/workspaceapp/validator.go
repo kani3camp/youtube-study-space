@@ -185,7 +185,7 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			}
 		}
 	case repository.BreakState:
-		// 休憩内容
+		// 作業名
 		// pass
 
 		// 休憩時間
