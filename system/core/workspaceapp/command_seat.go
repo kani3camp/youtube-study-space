@@ -251,7 +251,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				inOption.SeatID,
 				isTargetMemberSeat,
 				inOption.MinWorkOrderOption.WorkName,
-				"",
 				inOption.MinWorkOrderOption.DurationMin,
 				seatAppearance,
 				targetMenuItem.Code,
