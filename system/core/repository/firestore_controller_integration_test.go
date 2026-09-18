@@ -242,7 +242,7 @@ func TestFirestoreRepository_UserCreateAndRead(t *testing.T) {
 		TotalStudySec:               86400,
 		RegistrationDate:            time.Date(2026, 7, 1, 9, 0, 0, 0, jst),
 		StatusMessage:               "集中中",
-		LastEntered:                 time.Date(2026, 8, 2, 8, 30, 0, 0, 0, jst),
+		LastEntered:                 time.Date(2026, 8, 2, 8, 30, 0, 0, jst),
 		LastExited:                  time.Date(2026, 8, 1, 18, 0, 0, 0, jst),
 		RankVisible:                 true,
 		DefaultStudyMin:             50,
