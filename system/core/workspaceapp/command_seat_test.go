@@ -268,7 +268,7 @@ func TestSystem_In(t *testing.T) {
 					SeatID:       1,
 					MinWorkOrderOption: &utils.MinWorkOrderOption{
 						IsWorkNameSet:    true,
-						WorkName:         "",
+						WorkName:         "", // 空文字列で明示的に設定
 						IsDurationMinSet: true,
 						DurationMin:      60,
 					},
@@ -378,6 +378,7 @@ func TestSystem_In(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.In(context.Background(), &tt.commandDetails.InOption)
 
 			assert.Nil(t, err)
@@ -434,7 +435,7 @@ func TestSystem_Out(t *testing.T) {
 			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", tt.userIsMember).Return(repository.SeatDoc{
 				SeatID:                  1,
 				UserID:                  "test_user_id",
-				CurrentSegmentStartedAt: fixedNow.Add(-time.Hour),
+				CurrentSegmentStartedAt: fixedNow.Add(-time.Hour), // 適当な値
 			}, nil).AnyTimes()
 			mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), "test_user_id", !tt.userIsMember).Return(repository.SeatDoc{}, status.Errorf(codes.NotFound, "")).AnyTimes()
 			mockDB.EXPECT().ReadWorkStateSegmentsBySessionID(gomock.Any(), gomock.Any()).Return([]repository.WorkSegmentDoc{}, nil).Times(1)
@@ -461,6 +462,7 @@ func TestSystem_Out(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.Out(context.Background())
 
 			assert.Nil(t, err)
@@ -632,6 +634,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.ShowSeatInfo(context.Background(), &tt.commandDetails.SeatOption)
 
 			assert.Nil(t, err)
@@ -722,7 +725,7 @@ func TestSystem_Change(t *testing.T) {
 				ChangeOption: utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: false,
-					WorkName:         "",
+					WorkName:         "", // 空文字列で明示的にクリア
 				},
 			},
 			userIsMember: false,
@@ -750,7 +753,7 @@ func TestSystem_Change(t *testing.T) {
 				ChangeOption: utils.MinWorkOrderOption{
 					IsWorkNameSet:    true,
 					IsDurationMinSet: false,
-					WorkName:         "",
+					WorkName:         "", // 空文字列で明示的にクリア
 				},
 			},
 			userIsMember: false,
@@ -789,10 +792,12 @@ func TestSystem_Change(t *testing.T) {
 				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 				assert.Equal(t, tt.currentSeatDoc.Appearance.SchemaVersion, seat.Appearance.SchemaVersion)
 
+				// 時間が指定されている場合のみ検証
 				if tt.commandDetails.ChangeOption.IsDurationMinSet {
 					assert.Equal(t, tt.commandDetails.ChangeOption.DurationMin, int(seat.Until.Sub(seat.EnteredAt).Minutes()))
 				}
 
+				// 作業名が指定されている場合のみ検証
 				if tt.commandDetails.ChangeOption.IsWorkNameSet {
 					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
 				}
@@ -822,6 +827,7 @@ func TestSystem_Change(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.Change(context.Background(), &tt.commandDetails.ChangeOption)
 
 			assert.Nil(t, err)
@@ -934,7 +940,7 @@ func TestSystem_More(t *testing.T) {
 				CommandType: utils.More,
 				MoreOption: utils.MoreOption{
 					IsDurationMinSet: true,
-					DurationMin:      270,
+					DurationMin:      270, // ちょうど360分になる延長
 				},
 			},
 			userIsMember: false,
@@ -944,7 +950,7 @@ func TestSystem_More(t *testing.T) {
 				State:                 repository.WorkState,
 				CurrentStateStartedAt: fixedNow.Add(-10 * time.Minute),
 				EnteredAt:             fixedNow.Add(-10 * time.Minute),
-				Until:                 fixedNow.Add(90 * time.Minute),
+				Until:                 fixedNow.Add(90 * time.Minute), // 90分残り
 			},
 			expectedExtraTimeMin: 270,
 			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
@@ -997,6 +1003,7 @@ func TestSystem_More(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.More(context.Background(), &tt.commandDetails.MoreOption)
 
 			assert.Nil(t, err)
@@ -1031,7 +1038,6 @@ func TestSystem_Break(t *testing.T) {
 			currentSeatDoc: &repository.SeatDoc{
 				SeatID:                  5,
 				UserID:                  "test_user_id",
-				WorkName:                "資格勉強",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1054,7 +1060,6 @@ func TestSystem_Break(t *testing.T) {
 			currentSeatDoc: &repository.SeatDoc{
 				SeatID:                  7,
 				UserID:                  "test_user_id",
-				WorkName:                "資格勉強",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1076,7 +1081,6 @@ func TestSystem_Break(t *testing.T) {
 			currentSeatDoc: &repository.SeatDoc{
 				SeatID:                  5,
 				UserID:                  "test_user_id",
-				WorkName:                "資格勉強",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1102,7 +1106,6 @@ func TestSystem_Break(t *testing.T) {
 			currentSeatDoc: &repository.SeatDoc{
 				SeatID:                  5,
 				UserID:                  "test_user_id",
-				WorkName:                "資格勉強",
 				State:                   repository.WorkState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -1111,6 +1114,7 @@ func TestSystem_Break(t *testing.T) {
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（最大20分、5番席）",
 		},
+
 	}
 
 	for _, tt := range breakTestCases {
@@ -1157,6 +1161,7 @@ func TestSystem_Break(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.Break(context.Background(), &tt.commandDetails.BreakOption)
 
 			assert.Nil(t, err)
@@ -1259,7 +1264,7 @@ func TestSystem_Resume(t *testing.T) {
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.Resume,
 				ResumeOption: utils.WorkNameOption{
-					IsWorkNameSet: false,
+					IsWorkNameSet: false, // 作業名未指定
 				},
 			},
 			userIsMember: false,
@@ -1284,7 +1289,7 @@ func TestSystem_Resume(t *testing.T) {
 				CommandType: utils.Resume,
 				ResumeOption: utils.WorkNameOption{
 					IsWorkNameSet: true,
-					WorkName:      "",
+					WorkName:      "", // 空文字列で明示的にクリア
 				},
 			},
 			userIsMember: false,
@@ -1347,9 +1352,12 @@ func TestSystem_Resume(t *testing.T) {
 				assert.Equal(t, tt.currentSeatDoc.UserID, seat.UserID)
 				assert.Equal(t, repository.WorkState, seat.State)
 
+				// 作業名の検証
 				if tt.commandDetails.ResumeOption.IsWorkNameSet {
+					// 明示的に指定された作業名
 					assert.Equal(t, tt.commandDetails.ResumeOption.WorkName, seat.WorkName)
 				} else {
+					// 未指定なら既存の作業名を引き継ぐ
 					assert.Equal(t, tt.currentSeatDoc.WorkName, seat.WorkName)
 				}
 				return nil
@@ -1376,6 +1384,7 @@ func TestSystem_Resume(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.Resume(context.Background(), &tt.commandDetails.ResumeOption)
 
 			assert.Nil(t, err)
@@ -1397,6 +1406,7 @@ func TestSystem_Order(t *testing.T) {
 			Name: "コーヒー",
 		},
 	}
+	// メニューコードで昇順ソート
 	sort.Slice(menuDocs, func(i, j int) bool {
 		return menuDocs[i].Code < menuDocs[j].Code
 	})
@@ -1578,6 +1588,7 @@ func TestSystem_Order(t *testing.T) {
 				panic(fmt.Errorf("in LoadLocaleFolderFS(): %w", err))
 			}
 
+			// テスト対象の関数を実行
 			err := app.Order(context.Background(), &tt.commandDetails.OrderOption)
 
 			assert.Nil(t, err)
