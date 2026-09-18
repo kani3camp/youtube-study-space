@@ -19,6 +19,7 @@ func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 	case utils.My:
 		return app.ValidateMy(command)
 	case utils.Change:
+		// seatStateに依存するためChange()の中で行う。
 		return ""
 	case utils.Seat:
 		return app.ValidateSeat(command)
@@ -48,6 +49,7 @@ func (app *WorkspaceApp) ValidateCommand(command utils.CommandDetails) string {
 }
 
 func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
+	// 作業時間の値
 	inputWorkMin := command.InOption.MinWorkOrderOption.DurationMin
 	if inputWorkMin != 0 {
 		expect := app.Configs.Constants.MinWorkTimeMin <= inputWorkMin && inputWorkMin <= app.Configs.Constants.MaxWorkTimeMin
@@ -55,9 +57,17 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 			return i18nmsg.ValidateInvalidWorkTimeRange(app.Configs.Constants.MinWorkTimeMin, app.Configs.Constants.MaxWorkTimeMin)
 		}
 	}
-	if command.InOption.IsSeatIDSet && command.InOption.SeatID < 0 {
-		return i18nmsg.ValidateNegativeSeatId()
+	// 席番号
+	if command.InOption.IsSeatIDSet {
+		if command.InOption.SeatID < 0 {
+			return i18nmsg.ValidateNegativeSeatId()
+		}
 	}
+
+	// 作業名は特に制限はない
+	// pass
+
+	// メニュー番号
 	if command.InOption.MinWorkOrderOption.IsOrderSet {
 		num := command.InOption.MinWorkOrderOption.OrderNum
 		expect := 0 < num && num <= len(app.SortedMenuItems)
@@ -65,13 +75,19 @@ func (app *WorkspaceApp) ValidateIn(command utils.CommandDetails) string {
 			return i18nmsg.ValidateInvalidMenuNumberRange(len(app.SortedMenuItems))
 		}
 	}
+
 	return ""
 }
 
-func (app *WorkspaceApp) ValidateInfo(_ utils.CommandDetails) string { return "" }
+func (app *WorkspaceApp) ValidateInfo(_ utils.CommandDetails) string {
+	// pass
+
+	return ""
+}
 
 func (app *WorkspaceApp) ValidateMy(command utils.CommandDetails) string {
 	var isRankVisibleSet, isDefaultStudyMinSet, isFavoriteColorSet bool
+
 	for _, option := range command.MyOptions {
 		switch option.Type {
 		case utils.RankVisible:
@@ -107,42 +123,60 @@ func (app *WorkspaceApp) ValidateMy(command utils.CommandDetails) string {
 	return ""
 }
 
-func (app *WorkspaceApp) ValidateSeat(_ utils.CommandDetails) string { return "" }
+func (app *WorkspaceApp) ValidateSeat(_ utils.CommandDetails) string {
+	// pass
+
+	return ""
+}
 
 func (app *WorkspaceApp) ValidateKick(command utils.CommandDetails) string {
+	// 指定座席番号
 	if command.KickOption.SeatID <= 0 {
 		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
+
 	return ""
 }
 
 func (app *WorkspaceApp) ValidateCheck(command utils.CommandDetails) string {
+	// 指定座席番号
 	if command.CheckOption.SeatID <= 0 {
 		return i18nmsg.ValidateNonOneOrMoreSeatId()
 	}
+
 	return ""
 }
 
 func (app *WorkspaceApp) ValidateBlock(command utils.CommandDetails) string {
+	// 指定座席番号
 	if command.BlockOption.SeatID <= 0 {
 		return "席番号は1以上にしてください。"
 	}
+
 	return ""
 }
 
 func (app *WorkspaceApp) ValidateReport(command utils.CommandDetails) string {
+	// 空欄でないか
 	if command.ReportOption.Message == "" {
 		return i18nmsg.ParseMissingMessage(utils.ReportCommand)
 	}
+
 	return ""
 }
 
 func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, seatState repository.SeatState) error {
+	// オプションが1つ以上指定されているか
 	if changeOption.NumOptionsSet() == 0 {
 		return errors.New(i18nmsg.ValidateMissingOption())
 	}
+
 	switch seatState {
 	case repository.WorkState:
+		// 作業内容
+		// pass
+
+		// 入室時間
 		if changeOption.IsDurationMinSet {
 			inputDurationMin := changeOption.DurationMin
 			expect := app.Configs.Constants.MinWorkTimeMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxWorkTimeMin
@@ -151,6 +185,10 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			}
 		}
 	case repository.BreakState:
+		// 休憩内容
+		// pass
+
+		// 休憩時間
 		if changeOption.IsDurationMinSet {
 			inputDurationMin := changeOption.DurationMin
 			expect := app.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxBreakDurationMin
@@ -159,13 +197,16 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			}
 		}
 	}
+
 	return nil
 }
 
 func (app *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
+	// 時間オプション
 	if command.MoreOption.IsDurationMinSet && command.MoreOption.DurationMin <= 0 {
 		return i18nmsg.ValidateNonOneOrMoreExtendedTime()
 	}
+
 	return ""
 }
 
@@ -173,6 +214,8 @@ func (app *WorkspaceApp) ValidateBreak(command utils.CommandDetails) string {
 	if command.BreakOption.IsWorkNameSet || command.BreakOption.IsOrderSet {
 		return i18nmsg.ParseInvalidOption()
 	}
+
+	// 休憩時間
 	if command.BreakOption.IsDurationMinSet {
 		inputDurationMin := command.BreakOption.DurationMin
 		expect := app.Configs.Constants.MinBreakDurationMin <= inputDurationMin && inputDurationMin <= app.Configs.Constants.MaxBreakDurationMin
@@ -180,10 +223,16 @@ func (app *WorkspaceApp) ValidateBreak(command utils.CommandDetails) string {
 			return i18nmsg.ValidateInvalidBreakTimeRange(app.Configs.Constants.MinBreakDurationMin, app.Configs.Constants.MaxBreakDurationMin)
 		}
 	}
+
 	return ""
 }
 
-func (app *WorkspaceApp) ValidateResume(_ utils.CommandDetails) string { return "" }
+func (app *WorkspaceApp) ValidateResume(_ utils.CommandDetails) string {
+	// 作業名
+	// pass
+
+	return ""
+}
 
 func (app *WorkspaceApp) ValidateOrder(command utils.CommandDetails) string {
 	if !command.OrderOption.ClearFlag {
@@ -193,5 +242,6 @@ func (app *WorkspaceApp) ValidateOrder(command utils.CommandDetails) string {
 			return i18nmsg.ValidateInvalidMenuNumberRange(len(app.SortedMenuItems))
 		}
 	}
+
 	return ""
 }
