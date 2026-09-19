@@ -560,15 +560,33 @@ func ParseMore(argStr string) (*CommandDetails, string) {
 }
 
 func ParseBreak(argStr string) (*CommandDetails, string) {
-	// 追加オプションチェック
-	options, message := ParseMinWorkOrderOptions(argStr)
-	if message != "" {
-		return nil, message
+	fields := strings.Fields(argStr)
+	option := BreakOption{}
+
+	if len(fields) == 0 {
+		return &CommandDetails{
+			CommandType: Break,
+			BreakOption: option,
+		}, ""
 	}
+
+	if fields[0] != TimeOptionKey {
+		return nil, i18nmsg.ParseInvalidOption()
+	}
+	if len(fields) != 2 {
+		return nil, i18nmsg.ParseCheckOption(TimeOptionPrefix)
+	}
+
+	durationMin, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return nil, i18nmsg.ParseCheckOption(TimeOptionPrefix)
+	}
+	option.IsDurationMinSet = true
+	option.DurationMin = durationMin
 
 	return &CommandDetails{
 		CommandType: Break,
-		BreakOption: *options,
+		BreakOption: option,
 	}, ""
 }
 
