@@ -1114,7 +1114,6 @@ func TestSystem_Break(t *testing.T) {
 			},
 			expectedReplyMessage: "@テストユーザー さんが休憩します☕（最大20分、5番席）",
 		},
-
 	}
 
 	for _, tt := range breakTestCases {
