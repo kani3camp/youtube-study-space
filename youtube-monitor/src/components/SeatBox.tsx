@@ -200,7 +200,6 @@ const SeatBox: FC<SeatProps> = (props) => {
 	}
 
 	const workName = processingSeat?.work_name ?? ''
-	const breakWorkName = processingSeat?.break_work_name ?? ''
 	const isBreak = processingSeat?.state === SeatState.Break
 	const displayName = processingSeat?.user_display_name ?? ''
 	const menuCode = processingSeat?.menu_code ?? ''
@@ -208,8 +207,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 	const numStars = appearance?.num_stars ?? 0
 	const showRankBadge = appearance?.rank_visible ?? false
 	const profileImageUrl = processingSeat?.user_profile_image_url ?? ''
-	const currentWorkName =
-		isBreak && validateString(breakWorkName) ? breakWorkName : workName
+	const currentWorkName = workName
 	const hasWorkName = currentWorkName !== ''
 	const hasMemberWorkName = props.memberOnly && validateString(currentWorkName)
 	const menuImageSrc =
@@ -265,7 +263,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 	)
 	const generalSeatCanAutoFit = props.isUsed && !props.memberOnly
 
-	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整。
+	// 文字幅に応じて作業名のフォントサイズを調整。
 	// 下限は同席のユーザー名と同じ 0.63 em に揃える（これ以上は縮めず ellipsis に任せる）。
 	const generalWorkNameFontSizePx = useFittedGeneralSeatLineFontSizePx({
 		enabled: generalSeatCanAutoFit && hasWorkName,

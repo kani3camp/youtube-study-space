@@ -15,79 +15,56 @@ func TestParseBreak(t *testing.T) {
 			Input: "!break",
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    false,
-					IsDurationMinSet: false,
-				},
+				BreakOption: BreakOption{},
 			},
 		},
 		{
-			Name:  "休憩（オプション付き）",
-			Input: "!break min=23 work=休憩",
+			Name:  "休憩（時間オプション付き）",
+			Input: "!break min=23",
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    true,
+				BreakOption: BreakOption{
 					IsDurationMinSet: true,
-					WorkName:         "休憩",
 					DurationMin:      23,
 				},
 			},
 		},
-
+		{
+			Name:    "休憩（workオプションは無効）",
+			Input:   "!break work coffee",
+			WillErr: true,
+		},
+		{
+			Name:    "休憩（orderオプションは無効）",
+			Input:   "!break order 1",
+			WillErr: true,
+		},
 		{
 			Name:     "メンバーによる絵文字休憩",
 			Input:    TestEmojiBreak0,
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    false,
-					IsDurationMinSet: false,
-				},
+				BreakOption: BreakOption{},
 			},
 		},
 		{
-			Name:     "メンバーによる休憩（オプション付き）",
-			Input:    "!break min=23 work=休憩",
+			Name:     "メンバーによる絵文字休憩（時間オプション付き）",
+			Input:    TestEmojiBreak0 + TestEmojiMin0 + "20",
 			IsMember: true,
 			Output: &CommandDetails{
 				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					IsDurationMinSet: true,
-					WorkName:         "休憩",
-					DurationMin:      23,
-				},
-			},
-		},
-		{
-			Name:     "メンバーによる絵文字休憩（オプション付き）",
-			Input:    TestEmojiBreak0 + TestEmojiMin0 + "20 " + TestEmojiWork0 + "coffee",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					IsDurationMinSet: true,
-					WorkName:         "coffee",
-					DurationMin:      20,
-				},
-			},
-		},
-		{
-			Name:     "絵文字コマンドの隣は空白なしも可",
-			Input:    TestEmojiBreak0 + TestEmojiMin0 + "20" + TestEmojiWork0 + "coffee",
-			IsMember: true,
-			Output: &CommandDetails{
-				CommandType: Break,
-				BreakOption: MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					WorkName:         "coffee",
+				BreakOption: BreakOption{
 					IsDurationMinSet: true,
 					DurationMin:      20,
 				},
 			},
+		},
+		{
+			Name:     "メンバーによる絵文字休憩（workオプションは無効）",
+			Input:    TestEmojiBreak0 + TestEmojiWork0 + "coffee",
+			IsMember: true,
+			WillErr:  true,
 		},
 
 		{

@@ -25,7 +25,6 @@ const createSeat = (seatId: number, variant: number): Seat => {
 			: isBreak
 				? '集中作業に戻る'
 				: `作業サンプル ${seatId}`,
-		break_work_name: isBreak ? 'コーヒー休憩中' : '',
 		entered_at: fixtureNow,
 		until: fixtureUntil,
 		appearance: {

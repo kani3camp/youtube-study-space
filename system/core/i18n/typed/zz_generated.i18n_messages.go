@@ -276,11 +276,6 @@ func CommandChangeUpdateWork(workName string, seat string) string {
 	return engine.TranslateDefault("command-change:update-work", workName, seat)
 }
 
-// CommandChangeUpdateBreak: key "command-change:update-break"
-func CommandChangeUpdateBreak(workName string, seat string) string {
-	return engine.TranslateDefault("command-change:update-break", workName, seat)
-}
-
 // CommandChangeWorkDurationBefore: key "command-change:work-duration-before"
 func CommandChangeWorkDurationBefore(requestedMin int, realtimeEntryDurationMin int, remainingWorkMin int) string {
 	return engine.TranslateDefault("command-change:work-duration-before", requestedMin, realtimeEntryDurationMin, remainingWorkMin)
@@ -342,8 +337,8 @@ func CommandBreakWarn(username string, minBreakIntervalMin int, currentWorkedMin
 }
 
 // CommandBreakBreak: key "command-break:break"
-func CommandBreakBreak(username string, workName string, maxBreakDurationMin int, seat string) string {
-	return engine.TranslateDefault("command-break:break", username, workName, maxBreakDurationMin, seat)
+func CommandBreakBreak(username string, maxBreakDurationMin int, seat string) string {
+	return engine.TranslateDefault("command-break:break", username, maxBreakDurationMin, seat)
 }
 
 // CommandResumeBreakOnly: key "command-resume:break-only"
@@ -379,11 +374,6 @@ func OthersForceMove(username string, seat string) string {
 // OthersClearWork: key "others:clear-work"
 func OthersClearWork(username string, seat string) string {
 	return engine.TranslateDefault("others:clear-work", username, seat)
-}
-
-// OthersClearBreak: key "others:clear-break"
-func OthersClearBreak(username string, seat string) string {
-	return engine.TranslateDefault("others:clear-break", username, seat)
 }
 
 // ParseInvalidSeatId: key "parse:invalid-seat-id"

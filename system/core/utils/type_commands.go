@@ -12,7 +12,7 @@ type CommandDetails struct {
 	ReportOption ReportOption
 	ChangeOption MinWorkOrderOption
 	MoreOption   MoreOption
-	BreakOption  MinWorkOrderOption // NOTE: !breakではorderオプションもパースはするが注文処理はされない
+	BreakOption  BreakOption
 	ResumeOption WorkNameOption
 	OrderOption  OrderOption
 }
@@ -90,6 +90,11 @@ type ReportOption struct {
 }
 
 type MoreOption struct {
+	IsDurationMinSet bool
+	DurationMin      int
+}
+
+type BreakOption struct {
 	IsDurationMinSet bool
 	DurationMin      int
 }
