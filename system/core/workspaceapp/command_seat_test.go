@@ -1097,7 +1097,7 @@ func TestSystem_Break(t *testing.T) {
 			},
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.Break,
-				BreakOption: utils.MinWorkOrderOption{
+				BreakOption: utils.BreakOption{
 					IsDurationMinSet: true,
 					DurationMin:      20,
 				},
