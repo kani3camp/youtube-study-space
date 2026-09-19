@@ -37,17 +37,15 @@ func TestValidateBreakOptions(t *testing.T) {
 		assert.Empty(t, app.ValidateBreak(*command))
 	})
 
-	t.Run("rejects work option", func(t *testing.T) {
+	t.Run("rejects work option during parsing", func(t *testing.T) {
 		command, parseMessage := utils.ParseCommand("!break work coffee", false)
-		require.Empty(t, parseMessage)
-		require.Equal(t, utils.Break, command.CommandType)
-		assert.NotEmpty(t, app.ValidateBreak(*command))
+		require.NotEmpty(t, parseMessage)
+		assert.Nil(t, command)
 	})
 
-	t.Run("rejects order option", func(t *testing.T) {
+	t.Run("rejects order option during parsing", func(t *testing.T) {
 		command, parseMessage := utils.ParseCommand("!break order 1", false)
-		require.Empty(t, parseMessage)
-		require.Equal(t, utils.Break, command.CommandType)
-		assert.NotEmpty(t, app.ValidateBreak(*command))
+		require.NotEmpty(t, parseMessage)
+		assert.Nil(t, command)
 	})
 }
