@@ -57,7 +57,7 @@ Change your work name or entry time.
 This command can only be used while you're in the room.
 You need to specify at least one option.
 
-If you're in break mode, you can change the break content and break time.
+If you're in break mode, you can still change the work name and break time.
 
 ### Change work name
 
