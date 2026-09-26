@@ -307,6 +307,27 @@ describe('SeatBox general seat font fitting', () => {
 	})
 })
 
+describe('SeatBox break-state work name', () => {
+	test('shows the break badge and regular work name during a break', async () => {
+		const SeatBox = await loadSeatBox()
+		render(
+			<SeatBox
+				{...createBaseProps({
+					memberOnly: true,
+					processingSeat: {
+						...createBaseSeat(),
+						work_name: '資格勉強',
+						state: 'break',
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.getByText('休み')).toBeInTheDocument()
+		expect(screen.getByText('資格勉強')).toBeInTheDocument()
+	})
+})
+
 describe('SeatBox SeatAppearance V2 contract', () => {
 	test('shows the rank badge instead of stars when rank is visible', async () => {
 		const SeatBox = await loadSeatBox()
