@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import type { Timestamp } from 'firebase/firestore'
 import type { ComponentPropsWithoutRef } from 'react'
 import { act } from 'react'
+import type { Seat } from '../types/api'
 import type { SeatProps } from './SeatBox'
 
 vi.mock('next/font/google', () => ({
@@ -107,8 +108,33 @@ function fontSizePxOf(element: HTMLElement) {
 	return Number.parseFloat(element.style.fontSize)
 }
 
-function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
+function createBaseSeat(): Seat {
 	const timestamp = {} as Timestamp
+	return {
+		seat_id: 123,
+		user_id: 'user1',
+		user_display_name: 'ユーザー名',
+		work_name: '作業内容',
+		entered_at: timestamp,
+		until: timestamp,
+		appearance: {
+			schema_version: 2,
+			top_bar_color: '#5BD27D',
+			rank: 5,
+			rank_visible: false,
+			num_stars: 0,
+		},
+		menu_code: '',
+		state: 'work',
+		current_state_started_at: timestamp,
+		current_state_until: timestamp,
+		cumulative_work_sec: 0,
+		daily_cumulative_work_sec: 0,
+		user_profile_image_url: '',
+	}
+}
+
+function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 	return {
 		globalSeatId: 123,
 		isUsed: true,
@@ -118,28 +144,7 @@ function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 		hoursElapsed: 1,
 		minutesElapsed: 3,
 		seatFontSizePx: GENERAL_SEAT_FONT_SIZE,
-		processingSeat: {
-			seat_id: 123,
-			user_id: 'user1',
-			user_display_name: 'ユーザー名',
-			work_name: '作業内容',
-			entered_at: timestamp,
-			until: timestamp,
-			appearance: {
-				schema_version: 2,
-				top_bar_color: '#5BD27D',
-				rank: 5,
-				rank_visible: false,
-				num_stars: 0,
-			},
-			menu_code: '',
-			state: 'work',
-			current_state_started_at: timestamp,
-			current_state_until: timestamp,
-			cumulative_work_sec: 0,
-			daily_cumulative_work_sec: 0,
-			user_profile_image_url: '',
-		},
+		processingSeat: createBaseSeat(),
 		seatPosition: { x: 0, y: 0, rotate: 0 },
 		seatShape: { widthPx: GENERAL_SEAT_WIDTH_PX, heightPx: 100 },
 		roomShape: { widthPx: 1520, heightPx: 1000 },
@@ -193,7 +198,7 @@ describe('SeatBox general seat font fitting', () => {
 			<SeatBox
 				{...createBaseProps({
 					processingSeat: {
-						...createBaseProps().processingSeat,
+						...createBaseSeat(),
 						work_name: 'おかえりなさいませ👋',
 					},
 				})}
@@ -236,7 +241,7 @@ describe('SeatBox general seat font fitting', () => {
 			<SeatBox
 				{...createBaseProps({
 					processingSeat: {
-						...createBaseProps().processingSeat,
+						...createBaseSeat(),
 						work_name: '',
 						user_display_name: 'おかえりなさいませ👋',
 					},
@@ -283,7 +288,7 @@ describe('SeatBox general seat font fitting', () => {
 			<SeatBox
 				{...createBaseProps({
 					processingSeat: {
-						...createBaseProps().processingSeat,
+						...createBaseSeat(),
 						work_name: 'おかえりなさいませ👋',
 					},
 				})}
@@ -305,15 +310,15 @@ describe('SeatBox general seat font fitting', () => {
 describe('SeatBox SeatAppearance V2 contract', () => {
 	test('shows the rank badge instead of stars when rank is visible', async () => {
 		const SeatBox = await loadSeatBox()
-		const baseProps = createBaseProps()
+		const baseSeat = createBaseSeat()
 		render(
 			<SeatBox
 				{...createBaseProps({
 					memberOnly: true,
 					processingSeat: {
-						...baseProps.processingSeat,
+						...baseSeat,
 						appearance: {
-							...baseProps.processingSeat.appearance,
+							...baseSeat.appearance,
 							top_bar_color: '#123456',
 							rank: 5,
 							rank_visible: true,
@@ -339,15 +344,15 @@ describe('SeatBox SeatAppearance V2 contract', () => {
 
 	test('shows stars when rank is hidden', async () => {
 		const SeatBox = await loadSeatBox()
-		const baseProps = createBaseProps()
+		const baseSeat = createBaseSeat()
 		render(
 			<SeatBox
 				{...createBaseProps({
 					memberOnly: true,
 					processingSeat: {
-						...baseProps.processingSeat,
+						...baseSeat,
 						appearance: {
-							...baseProps.processingSeat.appearance,
+							...baseSeat.appearance,
 							top_bar_color: '#123456',
 							rank: 5,
 							rank_visible: false,
@@ -363,14 +368,14 @@ describe('SeatBox SeatAppearance V2 contract', () => {
 
 	test('uses top-bar-color regardless of rank visibility', async () => {
 		const SeatBox = await loadSeatBox()
-		const baseProps = createBaseProps()
+		const baseSeat = createBaseSeat()
 		const { rerender } = render(
 			<SeatBox
 				{...createBaseProps({
 					processingSeat: {
-						...baseProps.processingSeat,
+						...baseSeat,
 						appearance: {
-							...baseProps.processingSeat.appearance,
+							...baseSeat.appearance,
 							top_bar_color: '#123456',
 							rank_visible: false,
 						},
@@ -385,9 +390,9 @@ describe('SeatBox SeatAppearance V2 contract', () => {
 			<SeatBox
 				{...createBaseProps({
 					processingSeat: {
-						...baseProps.processingSeat,
+						...baseSeat,
 						appearance: {
-							...baseProps.processingSeat.appearance,
+							...baseSeat.appearance,
 							top_bar_color: '#123456',
 							rank_visible: true,
 						},
