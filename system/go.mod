@@ -1,6 +1,6 @@
 module app.modules
 
-go 1.25.8
+go 1.27.1
 
 require (
 	cloud.google.com/go/auth v0.20.0
