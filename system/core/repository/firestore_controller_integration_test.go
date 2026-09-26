@@ -154,7 +154,7 @@ func TestFirestoreRepository_SeatCollectionsAreSeparated(t *testing.T) {
 	assert.NotEqual(t, gotGeneral.SessionID, gotMember.SessionID)
 }
 
-func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *testing.T) {
+func TestFirestoreRepository_UpdateSeatRemovesLegacyFields(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
 	original := newSeatDoc(7, "seat-update-user", "session-update")
@@ -168,6 +168,7 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 		{Path: "appearance.color-code1", Value: "#111111"},
 		{Path: "appearance.color-code2", Value: "#222222"},
 		{Path: "appearance.color-gradient-enabled", Value: true},
+		{Path: "break-work-name", Value: "旧休憩内容"},
 	})
 	require.NoError(t, err)
 
@@ -207,7 +208,9 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 
 	doc, err := controller.FirestoreClient().Collection(repository.SEATS).Doc("7").Get(ctx)
 	require.NoError(t, err)
-	rawAppearance, ok := doc.Data()["appearance"].(map[string]interface{})
+	rawData := doc.Data()
+	assert.NotContains(t, rawData, "break-work-name")
+	rawAppearance, ok := rawData["appearance"].(map[string]interface{})
 	require.True(t, ok)
 	assert.NotContains(t, rawAppearance, "color-code1")
 	assert.NotContains(t, rawAppearance, "color-code2")
