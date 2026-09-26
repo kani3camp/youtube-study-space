@@ -110,6 +110,29 @@ export function publicGalleryUrl(taggedRef) {
   return `https://gallery.ecr.aws/${repository}`;
 }
 
+export function dockerHubUrl(image, tag) {
+  if (registryHost(image) !== "docker.io") return null;
+
+  let repository = image;
+  if (repository.startsWith("docker.io/")) {
+    repository = repository.slice("docker.io/".length);
+  }
+
+  if (repository.startsWith("library/")) {
+    repository = repository.slice("library/".length);
+  }
+
+  if (!repository) return null;
+
+  const encodedTag = encodeURIComponent(tag);
+  if (!repository.includes("/")) {
+    return `https://hub.docker.com/_/${encodeURIComponent(repository)}/tags?name=${encodedTag}`;
+  }
+
+  const encodedRepository = repository.split("/").map(encodeURIComponent).join("/");
+  return `https://hub.docker.com/r/${encodedRepository}/tags?name=${encodedTag}`;
+}
+
 export function googleArtifactRegistryUrl(image) {
   const prefix = "gcr.io/";
   if (!image.startsWith(prefix)) return null;
@@ -145,6 +168,7 @@ export function renderReport(entries) {
     const { file, stage, line, oldImage, newImage, resolvedDigest, verificationError } = entry;
     const matches = resolvedDigest === newImage.digest;
     const galleryUrl = publicGalleryUrl(newImage.taggedRef);
+    const hubUrl = dockerHubUrl(newImage.image, newImage.tag);
     const artifactRegistryUrl = googleArtifactRegistryUrl(newImage.image);
 
     lines.push(`### ${matches ? "✅" : "❌"} \`${newImage.taggedRef}\``);
@@ -174,6 +198,10 @@ export function renderReport(entries) {
     lines.push("");
     if (galleryUrl) {
       lines.push(`🔗 [View \`${newImage.image}\` in Amazon ECR Public Gallery](${galleryUrl})`);
+      lines.push("");
+    }
+    if (hubUrl) {
+      lines.push(`🔗 [View \`${newImage.taggedRef}\` in Docker Hub](${hubUrl})`);
       lines.push("");
     }
     if (artifactRegistryUrl) {
