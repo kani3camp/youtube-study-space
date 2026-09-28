@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -21,6 +22,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 )
+
+var compiledRegexCache sync.Map // map[string]*regexp.Regexp
 
 // LoadEnv TODO さらに上の階層に書くべき
 func LoadEnv(relativeEnvPath string) {
@@ -76,9 +79,31 @@ func Contains[T comparable](s []T, e T) bool {
 	return false
 }
 
+func cachedRegex(pattern string) (*regexp.Regexp, error) {
+	if cached, ok := compiledRegexCache.Load(pattern); ok {
+		compiled, ok := cached.(*regexp.Regexp)
+		if !ok {
+			return nil, fmt.Errorf("cached regex has unexpected type %T", cached)
+		}
+		return compiled, nil
+	}
+
+	compiled, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("compile regex %q: %w", pattern, err)
+	}
+
+	actual, _ := compiledRegexCache.LoadOrStore(pattern, compiled)
+	actualRegex, ok := actual.(*regexp.Regexp)
+	if !ok {
+		return nil, fmt.Errorf("cached regex has unexpected type %T", actual)
+	}
+	return actualRegex, nil
+}
+
 func ContainsRegexWithIndex(s []string, e string) (bool, int, error) {
 	for i, a := range s {
-		r, err := regexp.Compile(a)
+		r, err := cachedRegex(a)
 		if err != nil {
 			return false, 0, fmt.Errorf("compile regex at index %d: %w", i, err)
 		}
