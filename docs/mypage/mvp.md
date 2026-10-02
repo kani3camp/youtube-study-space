@@ -216,12 +216,15 @@ MVPの認証フローは次の通りとする。
 
 1. フロントエンドで Firebase Auth の Google provider を使ってログインする
 2. Google provider に `https://www.googleapis.com/auth/youtube.readonly` scope を追加し、YouTube Data API 用のアクセストークンを取得する
-3. フロントエンドは、Firebase ID token と YouTube access token をバックエンドの YouTube連携確定APIへ送る
-4. バックエンドは Firebase ID token を検証し、Firebase UID を確定する
-5. バックエンドは YouTube access token を使って YouTube Data API の `channels.list` を呼び出し、認証済みGoogleアカウント本人の YouTube channel ID を取得する
-6. バックエンドは `firebaseUid` と `youtubeChannelId` の対応関係をサーバー側に保存する
-7. 以降のマイページAPIでは、Firebase ID token から Firebase UID を検証し、サーバー側に保存済みの対応関係から YouTube channel ID を決定する
-8. 決定した YouTube channel ID を既存システム上のユーザーIDとして `UserDoc` や現在席情報を参照する
+3. フロントエンドは Firebase ID token と YouTube access token をバックエンドのチャンネルPreview APIへ送る
+4. バックエンドは Firebase ID token を検証して Firebase UID を確定し、YouTube access token で `channels.list?mine=true` を呼び出す
+5. バックエンドは取得した候補チャンネルを永続化せずフロントエンドへ返す
+6. フロントエンドはアバター + チャンネル名を表示し、1候補しかない場合も「このチャンネルを連携」の明示確認を取る
+7. ユーザー確定後、フロントエンドは Firebase ID token、YouTube access token、選択した channel ID を連携確定APIへ送る
+8. バックエンドは同じ access token で `channels.list?mine=true` を再実行し、選択した channel ID が候補に含まれることを検証する
+9. 検証成功後に `firebaseUid` と `youtubeChannelId` の対応関係をサーバー側へ保存する
+10. 以降のマイページAPIでは Firebase ID token から Firebase UID を検証し、保存済みの対応関係から YouTube channel ID を決定する
+11. 決定した YouTube channel ID を既存システム上のユーザーIDとして `UserDoc` や現在席情報を参照する
 
 ### 方針
 
@@ -251,14 +254,19 @@ YouTube channel ID は Firebase Auth の ID token だけでは取得できない
 
 Firebase ID token だけでは、既存システム上のユーザーIDとして使う YouTube channel ID は決定できない。
 
-そのため、MVPでは次の方式を採用する。
+また、OAuth成功だけをもってチャンネルを自動確定しない。Brand Accountや複数チャンネルを管理するGoogleアカウントでは、第三者アプリのAPI認証で意図したチャンネルと異なる結果になる可能性があるため、ユーザー本人による確認を必須とする。
+
+MVPでは次の方式を採用する。
 
 - フロントエンドは Firebase Auth の Google provider から YouTube access token を取得する
-- フロントエンドは Firebase ID token と YouTube access token をバックエンドへ送る
+- Preview時にバックエンドへ Firebase ID token と YouTube access token を送る
 - バックエンドは Firebase ID token を検証して Firebase UID を確定する
-- バックエンドは YouTube access token を使って YouTube Data API を呼び出す
-- バックエンドは API レスポンスから YouTube channel ID、チャンネル名、チャンネルアイコンを取得する
-- バックエンドは Firebase UID と YouTube channel ID の対応関係をサーバー側に保存する
+- バックエンドは YouTube access token を使って YouTube Data API を呼び出し、候補の channel ID、チャンネル名、チャンネルアイコンを取得する
+- Previewではサーバー側マッピングを保存しない
+- フロントエンドは候補チャンネルを表示し、ユーザーが明示的に確定する
+- 確定時は選択 channel ID をフロントエンド申告値だけで信頼せず、バックエンドが同じ access token で再取得して候補に含まれることを検証する
+- 検証後に Firebase UID と YouTube channel ID の対応関係をサーバー側に保存する
+- `prompt=select_account` を使う場合も、これはGoogleアカウント選択の補助でありYouTubeチャンネル選択の保証とはみなさない
 
 YouTube channel ID の確定時に呼び出す YouTube Data API は次の想定とする。
 
