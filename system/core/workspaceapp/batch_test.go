@@ -56,9 +56,16 @@ func TestSystem_OrganizeDBResumePreservesV2SeatAppearance(t *testing.T) {
 		Return([]repository.SeatDoc{v2Seat}, nil)
 	mockDB.EXPECT().ReadSeat(gomock.Any(), gomock.Any(), v2Seat.SeatID, false).
 		Return(v2Seat, nil)
-	mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	mockDB.EXPECT().CreateWorkSegmentDoc(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *firestore.Transaction, segment repository.WorkSegmentDoc) error {
+			assert.Equal(t, repository.BreakState, segment.SegmentType)
+			assert.Equal(t, v2Seat.WorkName, segment.WorkName)
+			return nil
+		})
 	mockDB.EXPECT().UpdateSeat(gomock.Any(), gomock.Any(), gomock.Any(), false).
 		DoAndReturn(func(_ context.Context, _ *firestore.Transaction, seat repository.SeatDoc, _ bool) error {
+			assert.Equal(t, repository.WorkState, seat.State)
+			assert.Equal(t, v2Seat.WorkName, seat.WorkName)
 			assert.Equal(t, 2, seat.Appearance.SchemaVersion)
 			assert.Equal(t, v2Seat.Appearance, seat.Appearance)
 			return nil

@@ -185,7 +185,7 @@ func (app *WorkspaceApp) ValidateChange(changeOption utils.MinWorkOrderOption, s
 			}
 		}
 	case repository.BreakState:
-		// 休憩内容
+		// 作業名
 		// pass
 
 		// 休憩時間
@@ -211,9 +211,6 @@ func (app *WorkspaceApp) ValidateMore(command utils.CommandDetails) string {
 }
 
 func (app *WorkspaceApp) ValidateBreak(command utils.CommandDetails) string {
-	// 休憩内容
-	// pass
-
 	// 休憩時間
 	if command.BreakOption.IsDurationMinSet {
 		inputDurationMin := command.BreakOption.DurationMin

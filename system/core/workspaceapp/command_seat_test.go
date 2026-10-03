@@ -742,7 +742,7 @@ func TestSystem_Change(t *testing.T) {
 			expectedReplyMessage: "@テストユーザー さん、作業内容を\"\"に更新しました✍️（5番席）",
 		},
 		{
-			name: "休憩作業名を空にクリア（BreakState）",
+			name: "休憩中に通常の作業名を空にクリア（BreakState）",
 			constantsConfig: repository.ConstantsConfigDoc{
 				MaxSeats:       10,
 				MinWorkTimeMin: 5,
@@ -760,7 +760,7 @@ func TestSystem_Change(t *testing.T) {
 			currentSeatDoc: &repository.SeatDoc{
 				SeatID:                  5,
 				UserID:                  "test_user_id",
-				BreakWorkName:           "既存の休憩作業",
+				WorkName:                "既存の作業",
 				State:                   repository.BreakState,
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
@@ -768,7 +768,7 @@ func TestSystem_Change(t *testing.T) {
 				Until:                   fixedNow.Add(90 * time.Minute),
 				CurrentStateUntil:       fixedNow.Add(20 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、休憩内容を\"\"に更新しました✍️（5番席）",
+			expectedReplyMessage: "@テストユーザー さん、作業内容を\"\"に更新しました✍️（5番席）",
 		},
 	}
 
@@ -799,11 +799,7 @@ func TestSystem_Change(t *testing.T) {
 
 				// 作業名が指定されている場合のみ検証
 				if tt.commandDetails.ChangeOption.IsWorkNameSet {
-					if seat.State == repository.WorkState {
-						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
-					} else {
-						assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.BreakWorkName)
-					}
+					assert.Equal(t, tt.commandDetails.ChangeOption.WorkName, seat.WorkName)
 				}
 				return nil
 			}).Times(1)
@@ -1048,7 +1044,7 @@ func TestSystem_Break(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
+			expectedReplyMessage: "@テストユーザー さんが休憩します☕（最大30分、5番席）",
 		},
 		{
 			name: "休憩開始（メンバー席）",
@@ -1070,7 +1066,7 @@ func TestSystem_Break(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、VIP7番席）",
+			expectedReplyMessage: "@テストユーザー さんが休憩します☕（最大30分、VIP7番席）",
 		},
 		{
 			name: "休憩開始（一般席：休憩中）",
@@ -1094,16 +1090,14 @@ func TestSystem_Break(t *testing.T) {
 			expectedReplyMessage: "@テストユーザー さん、作業中のみ使えるコマンドです🙏",
 		},
 		{
-			name: "休憩開始（一般席）（休憩内容・休憩時間指定）",
+			name: "休憩開始（一般席：休憩時間指定）",
 			constantsConfig: repository.ConstantsConfigDoc{
 				MaxSeats:                10,
 				DefaultBreakDurationMin: 30,
 			},
 			commandDetails: utils.CommandDetails{
 				CommandType: utils.Break,
-				BreakOption: utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					WorkName:         "お茶を飲む",
+				BreakOption: utils.BreakOption{
 					IsDurationMinSet: true,
 					DurationMin:      20,
 				},
@@ -1118,35 +1112,7 @@ func TestSystem_Break(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"お茶を飲む\"、最大20分、5番席）",
-		},
-		{
-			name: "休憩開始（休憩作業名を空に設定）",
-			constantsConfig: repository.ConstantsConfigDoc{
-				MaxSeats:                10,
-				DefaultBreakDurationMin: 30,
-				MinBreakIntervalMin:     10,
-			},
-			commandDetails: utils.CommandDetails{
-				CommandType: utils.Break,
-				BreakOption: utils.MinWorkOrderOption{
-					IsWorkNameSet:    true,
-					WorkName:         "", // 空文字列で明示的に設定
-					IsDurationMinSet: false,
-				},
-			},
-			userIsMember: false,
-			currentSeatDoc: &repository.SeatDoc{
-				SeatID:                  5,
-				UserID:                  "test_user_id",
-				BreakWorkName:           "既存の休憩作業",
-				State:                   repository.WorkState,
-				CurrentStateStartedAt:   fixedNow.Add(-15 * time.Minute),
-				CurrentSegmentStartedAt: fixedNow.Add(-15 * time.Minute),
-				EnteredAt:               fixedNow.Add(-15 * time.Minute),
-				Until:                   fixedNow.Add(90 * time.Minute),
-			},
-			expectedReplyMessage: "@テストユーザー さんが休憩します☕（休憩内容：\"\"、最大30分、5番席）",
+			expectedReplyMessage: "@テストユーザー さんが休憩します☕（最大20分、5番席）",
 		},
 	}
 

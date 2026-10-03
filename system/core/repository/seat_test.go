@@ -44,7 +44,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00") // 1時間作業
-		err := seat.StartBreak(now, "休憩中", 15)
+		err := seat.StartBreak(now, 15)
 
 		assert.NoError(t, err)
 		assert.Equal(t, BreakState, seat.State)
@@ -54,7 +54,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:15:00"), seat.CurrentStateUntil)
 		assert.Equal(t, 3600+3600, seat.CumulativeWorkSec) // 1時間+1時間
 		assert.Equal(t, 3600+3600, seat.DailyCumulativeWorkSec)
-		assert.Equal(t, "休憩中", seat.BreakWorkName)
+		assert.Equal(t, "作業", seat.WorkName)
 	})
 
 	t.Run("休憩終了予定時刻がUntilを超える場合はUntilも延長する", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 11:15:00")
-		err := seat.StartBreak(now, "休憩中", 15)
+		err := seat.StartBreak(now, 15)
 
 		assert.NoError(t, err)
 		assert.Equal(t, mustParseTime(testTimeLayout, "2026-02-01 11:30:00"), seat.Until)
@@ -80,7 +80,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 12:00:00") // 3時間作業
-		err := seat.StartBreak(now, "ランチ", 60)
+		err := seat.StartBreak(now, 60)
 
 		assert.NoError(t, err)
 		assert.Equal(t, 3*3600, seat.CumulativeWorkSec)
@@ -97,7 +97,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 
 		// 翌日の午前1時に休憩開始（3時間作業）
 		now := mustParseTime(testTimeLayout, "2026-02-02 01:00:00")
-		err := seat.StartBreak(now, "深夜休憩", 10)
+		err := seat.StartBreak(now, 10)
 
 		assert.NoError(t, err)
 		assert.Equal(t, 3*3600, seat.CumulativeWorkSec)      // CumulativeWorkSecは実際の作業時間
@@ -112,21 +112,11 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		})
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00") // 同じ時刻
-		err := seat.StartBreak(now, "即休憩", 5)
+		err := seat.StartBreak(now, 5)
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1800, seat.CumulativeWorkSec) // 変化なし
 		assert.Equal(t, 1800, seat.DailyCumulativeWorkSec)
-	})
-
-	t.Run("BreakWorkNameの空文字列", func(t *testing.T) {
-		seat := mustSeat(nil)
-
-		now := mustParseTime(testTimeLayout, "2026-02-01 11:00:00")
-		err := seat.StartBreak(now, "", 15)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "", seat.BreakWorkName)
 	})
 
 	t.Run("WorkState以外はエラー", func(t *testing.T) {
@@ -135,7 +125,6 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 			UserID:                  "user-abnormal",
 			State:                   BreakState,
 			WorkName:                "作業",
-			BreakWorkName:           "休憩作業",
 			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
 			CurrentStateUntil:       mustParseTime(testTimeLayout, "2026-02-01 10:30:00"),
 			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 10:00:00"),
@@ -146,7 +135,7 @@ func TestSeatDoc_StartBreak(t *testing.T) {
 		before := seat
 
 		now := mustParseTime(testTimeLayout, "2026-02-01 10:00:00")
-		err := seat.StartBreak(now, "", 15)
+		err := seat.StartBreak(now, 15)
 
 		assert.Error(t, err)
 		assert.Equal(t, before, seat)
@@ -281,7 +270,6 @@ func TestSeatDoc_ResumeWork(t *testing.T) {
 			UserID:                  "user-resume-abnormal",
 			State:                   WorkState,
 			WorkName:                "一覧だけの作業名",
-			BreakWorkName:           "break-label",
 			CurrentStateStartedAt:   mustParseTime(testTimeLayout, "2026-02-01 11:00:00"),
 			CurrentStateUntil:       mustParseTime(testTimeLayout, "2026-02-01 18:00:00"),
 			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 11:00:00"),
@@ -802,14 +790,13 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 		}, workSegment)
 	})
 
-	t.Run("休憩セグメントではBreakWorkNameを返すこと", func(t *testing.T) {
+	t.Run("休憩セグメントでも通常のWorkNameを返すこと", func(t *testing.T) {
 		seat := SeatDoc{
 			UserID:                  "user-2",
 			SeatID:                  2,
 			SessionID:               "session-2",
 			State:                   BreakState,
 			WorkName:                "英語",
-			BreakWorkName:           "昼休み",
 			CurrentSegmentStartedAt: mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 		}
 
@@ -822,7 +809,7 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 			SeatID:       2,
 			IsMemberSeat: false,
 			SessionID:    "session-2",
-			WorkName:     "昼休み",
+			WorkName:     "英語",
 			SegmentType:  BreakState,
 			StartedAt:    mustParseTime(testTimeLayout, "2026-02-01 12:00:00"),
 			EndedAt:      now,

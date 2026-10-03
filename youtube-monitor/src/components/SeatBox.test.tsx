@@ -115,7 +115,6 @@ function createBaseSeat(): Seat {
 		user_id: 'user1',
 		user_display_name: 'ユーザー名',
 		work_name: '作業内容',
-		break_work_name: '',
 		entered_at: timestamp,
 		until: timestamp,
 		appearance: {
@@ -305,6 +304,27 @@ describe('SeatBox general seat font fitting', () => {
 			minEm: 0.63,
 		})
 		await waitFor(() => expect(fontSizePxOf(workName)).toBeCloseTo(expected, 5))
+	})
+})
+
+describe('SeatBox break-state work name', () => {
+	test('shows the break badge and regular work name during a break', async () => {
+		const SeatBox = await loadSeatBox()
+		render(
+			<SeatBox
+				{...createBaseProps({
+					memberOnly: true,
+					processingSeat: {
+						...createBaseSeat(),
+						work_name: '資格勉強',
+						state: 'break',
+					},
+				})}
+			/>,
+		)
+
+		expect(screen.getByText('休み')).toBeInTheDocument()
+		expect(screen.getByText('資格勉強')).toBeInTheDocument()
 	})
 })
 

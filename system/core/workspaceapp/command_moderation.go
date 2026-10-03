@@ -96,7 +96,7 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
 				SeatID)+"番席のユーザーをkickしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
-				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
+				"作業名: "+targetSeat.WorkName+"\n"+
 				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
 				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
 			if err != nil {
@@ -151,7 +151,7 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
 		message := app.ProcessedUserDisplayName + "さん、" + seatIDStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
-			"作業名: " + seat.WorkName + "\n" + "休憩中の作業名: " + seat.BreakWorkName + "\n" +
+			"作業名: " + seat.WorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserID
 		if err := app.LogToModerators(ctx, message); err != nil {
@@ -235,7 +235,7 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
 				SeatID)+"番席のユーザーをblockしました。\n"+
 				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
-				"作業名: "+targetSeat.WorkName+"\n休憩中の作業名: "+targetSeat.BreakWorkName+"\n"+
+				"作業名: "+targetSeat.WorkName+"\n"+
 				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
 				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
 			if err != nil {

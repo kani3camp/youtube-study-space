@@ -13,7 +13,6 @@ export type Seat = {
 	user_id: string
 	user_display_name: string
 	work_name: string
-	break_work_name: string
 	entered_at: Timestamp
 	until: Timestamp
 	appearance: SeatAppearance
