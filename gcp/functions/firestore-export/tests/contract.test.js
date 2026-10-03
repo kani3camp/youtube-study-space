@@ -82,7 +82,11 @@ for (const [label, source, environment, project, bucket] of [
     'firestore-backup-youtube-study-space',
   ],
 ]) {
-  const env = { YSS_EXPORT_ENVIRONMENT: environment, GCLOUD_PROJECT: project };
+  const env = {
+    YSS_EXPORT_ENVIRONMENT: environment,
+    YSS_EXPORT_PROJECT_ID: project,
+    GCLOUD_PROJECT: project,
+  };
   test(`${label}: exact groups/default database/bucket are independent of payload and context`, async () => {
     const h = load(source, env, () =>
       Promise.resolve([{ name: 'operations/started' }]),
@@ -177,6 +181,7 @@ test('canonical entry point refuses mismatched environment at load time', () => 
         canonical,
         {
           YSS_EXPORT_ENVIRONMENT: 'development',
+          YSS_EXPORT_PROJECT_ID: 'youtube-study-space',
           GCLOUD_PROJECT: 'youtube-study-space',
         },
         () => assert.fail('must not start an export'),
