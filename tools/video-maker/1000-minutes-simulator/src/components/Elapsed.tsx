@@ -1,4 +1,4 @@
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import type { FC } from 'react'
 import { HiClock } from 'react-icons/hi'
 import * as styles from '../styles/Elapsed.styles'

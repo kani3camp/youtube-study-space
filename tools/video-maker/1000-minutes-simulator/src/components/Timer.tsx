@@ -1,5 +1,5 @@
 import { css } from '@emotion/react'
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, useEffect, useState } from 'react'
 import {
 	CircularProgressbarWithChildren,

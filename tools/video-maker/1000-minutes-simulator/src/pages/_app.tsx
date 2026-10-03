@@ -1,5 +1,5 @@
 import { Global } from '@emotion/react'
-import { appWithTranslation } from 'next-i18next'
+import { appWithTranslation } from 'next-i18next/pages'
 import type { AppProps } from 'next/app'
 import type { ReactElement } from 'react'
 import { globalStyle } from '../styles/global.styles'
