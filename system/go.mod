@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/bigquery v1.85.0
 	cloud.google.com/go/firestore v1.26.0
 	cloud.google.com/go/storage v1.68.0
+	firebase.google.com/go/v4 v4.20.0
 	github.com/BurntSushi/toml v1.6.0
 	github.com/aws/aws-lambda-go v1.55.1
 	github.com/aws/aws-sdk-go-v2 v1.47.1
