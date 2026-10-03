@@ -4,14 +4,17 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate-lockfiles:
+    if: github.head_ref == 'deps/remaining-major-updates-2026-10'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -29,11 +32,16 @@ jobs:
       - name: Generate YouTube monitor lockfile
         working-directory: youtube-monitor
         run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
-      - name: Upload lockfiles
-        uses: actions/upload-artifact@v7
-        with:
-          name: regenerated-lockfiles
-          path: |
-            tools/menu-image-generator/pnpm-lock.yaml
-            tools/video-maker/1000-minutes-simulator/pnpm-lock.yaml
-            youtube-monitor/pnpm-lock.yaml
+      - name: Commit generated lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/menu-image-generator/pnpm-lock.yaml \
+                  tools/video-maker/1000-minutes-simulator/pnpm-lock.yaml \
+                  youtube-monitor/pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "Lockfiles are already up to date."
+            exit 0
+          fi
+          git commit -m "build(deps): regenerate pnpm lockfiles"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
