@@ -5,6 +5,7 @@ import {
 	LinkRequiredError,
 	UnauthorizedError,
 } from '../features/mypage/api'
+import { MyPageInteractiveMock } from '../features/mypage/components/MyPageInteractiveMock'
 import { MyPageView } from '../features/mypage/components/MyPageView'
 import { env } from '../lib/env'
 
@@ -65,6 +66,10 @@ export const Route = createFileRoute('/')({
 
 function IndexPage() {
 	const data = Route.useLoaderData()
+
+	if (env.useMock) {
+		return <MyPageInteractiveMock />
+	}
 
 	return <MyPageView data={data} />
 }
