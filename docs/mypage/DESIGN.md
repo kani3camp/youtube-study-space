@@ -1,5 +1,11 @@
 # マイページ デザインシステム
 
+> [!WARNING]
+> この文書は旧UI実装指針を含み、2026-10-03にApprovedとなったVisual Referenceと未同期の箇所があります。
+> 視覚・インタラクションの参照は [`design/README.md`](./design/README.md) と同ディレクトリのApproved prototypeを優先し、
+> 画面・機能要件はNotion Current Canon、API wire contractはGitHubのOpenAPIを正とします。
+> この文書の旧pixel値・breakpoint・layout指定をApproved prototypeより優先しないでください。
+
 この文書は、オンライン作業部屋のマイページUIに限定した実装用デザイン指針です。
 
 広報物や配信画面のデザインをそのまま移植するのではなく、Claude Designで検討したマイページ案から、実装で再利用できるデザイン言語を抽出しています。機能追加の有無にかかわらず、今後のマイページ画面は原則としてこの指針に沿って拡張します。
