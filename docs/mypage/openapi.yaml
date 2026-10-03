@@ -1,0 +1,531 @@
+openapi: 3.1.0
+info:
+  title: Online Study Space MyPage API
+  version: 1.0.0-phase1
+  description: |
+    Phase 1 MyPage API wire contract.
+    Product semantics are defined by the current Notion canon.
+    This file is the source of truth for endpoint paths, request/response shapes,
+    HTTP status codes, and error codes.
+servers:
+  - url: /api
+    description: Firebase Hosting same-origin rewrite in production
+tags:
+  - name: MyPage
+  - name: YouTubeLink
+
+paths:
+  /mypage/me:
+    get:
+      tags: [MyPage]
+      summary: Get the authenticated user's MyPage snapshot
+      operationId: getMyPage
+      security:
+        - firebaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/XClientRequestId'
+        - $ref: '#/components/parameters/XClientVersion'
+      responses:
+        '200':
+          description: Registered or Study Space-unregistered state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPageSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: YouTube linking is required before MyPage can be resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                linkRequired:
+                  value:
+                    status: error
+                    error:
+                      code: youtube_link_required
+                      message: YouTube channel link is required.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: Required Phase 1 statistics could not be produced reliably
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                statsUnavailable:
+                  value:
+                    status: error
+                    error:
+                      code: stats_unavailable
+                      message: MyPage statistics are temporarily unavailable.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mypage/auth/youtube/preview:
+    post:
+      tags: [YouTubeLink]
+      summary: Resolve YouTube channel candidates without persisting a link
+      description: |
+        The backend verifies the Firebase ID token, calls the YouTube API with the
+        supplied access token, and returns candidate channels. This endpoint must
+        not create or update the Firebase UID <-> YouTube channel mapping.
+      operationId: previewYouTubeLink
+      security:
+        - firebaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/XClientRequestId'
+        - $ref: '#/components/parameters/XClientVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YouTubePreviewRequest'
+      responses:
+        '200':
+          description: Candidate channels were resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YouTubePreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: No usable YouTube channel was found for the authorized account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                channelNotFound:
+                  value:
+                    status: error
+                    error:
+                      code: youtube_channel_not_found
+                      message: No YouTube channel was found.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mypage/auth/youtube/confirm:
+    post:
+      tags: [YouTubeLink]
+      summary: Confirm and persist the selected YouTube channel
+      description: |
+        The backend re-fetches the channels that are available to the supplied
+        YouTube access token and verifies that the selected channel is present.
+        Only after successful re-validation may the Firebase UID <-> YouTube
+        channel mapping be persisted.
+      operationId: confirmYouTubeLink
+      security:
+        - firebaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/XClientRequestId'
+        - $ref: '#/components/parameters/XClientVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YouTubeConfirmRequest'
+      responses:
+        '200':
+          description: The YouTube channel link was persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YouTubeConfirmResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The selected channel is stale, invalid for the token, or owned by another Firebase UID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                selectionMismatch:
+                  value:
+                    status: error
+                    error:
+                      code: youtube_channel_mismatch
+                      message: The selected YouTube channel could not be confirmed.
+                alreadyLinked:
+                  value:
+                    status: error
+                    error:
+                      code: channel_already_linked
+                      message: The YouTube channel is already linked to another account.
+        '422':
+          description: No usable YouTube channel was found for the authorized account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                channelNotFound:
+                  value:
+                    status: error
+                    error:
+                      code: youtube_channel_not_found
+                      message: No YouTube channel was found.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    firebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token. The backend must verify it before using the Firebase UID.
+
+  parameters:
+    XClientRequestId:
+      name: X-Client-Request-Id
+      in: header
+      required: false
+      description: Client-generated request correlation ID. It must never be used for authorization.
+      schema:
+        type: string
+        maxLength: 128
+    XClientVersion:
+      name: X-Client-Version
+      in: header
+      required: false
+      description: Frontend build identifier for diagnostics only.
+      schema:
+        type: string
+        maxLength: 128
+
+  responses:
+    BadRequest:
+      description: Invalid request body or unusable YouTube access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidRequest:
+              value:
+                status: error
+                error:
+                  code: invalid_request
+                  message: Invalid request.
+            invalidYouTubeToken:
+              value:
+                status: error
+                error:
+                  code: invalid_youtube_access_token
+                  message: The YouTube access token is invalid or lacks the required scope.
+    Unauthorized:
+      description: Firebase authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              value:
+                status: error
+                error:
+                  code: unauthorized
+                  message: Authentication is required.
+    Forbidden:
+      description: The authenticated caller is not allowed to perform the operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                status: error
+                error:
+                  code: forbidden
+                  message: The operation is not allowed.
+    RateLimited:
+      description: Request or upstream rate limit
+      headers:
+        Retry-After:
+          description: Retry delay in seconds when known
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rateLimited:
+              value:
+                status: error
+                error:
+                  code: rate_limited
+                  message: Too many requests.
+    UpstreamError:
+      description: Google or YouTube upstream service failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            upstreamError:
+              value:
+                status: error
+                error:
+                  code: upstream_error
+                  message: An upstream service is temporarily unavailable.
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internalError:
+              value:
+                status: error
+                error:
+                  code: internal_error
+                  message: Internal server error.
+
+  schemas:
+    MyPageSuccessResponse:
+      oneOf:
+        - $ref: '#/components/schemas/MyPageOkResponse'
+        - $ref: '#/components/schemas/MyPageNotRegisteredResponse'
+      discriminator:
+        propertyName: status
+        mapping:
+          ok: '#/components/schemas/MyPageOkResponse'
+          not_registered: '#/components/schemas/MyPageNotRegisteredResponse'
+
+    MyPageOkResponse:
+      type: object
+      additionalProperties: false
+      required: [status, viewer, stats, current]
+      properties:
+        status:
+          type: string
+          const: ok
+        viewer:
+          $ref: '#/components/schemas/Viewer'
+        stats:
+          $ref: '#/components/schemas/WorkStats'
+        current:
+          oneOf:
+            - $ref: '#/components/schemas/CurrentActivity'
+            - type: 'null'
+
+    MyPageNotRegisteredResponse:
+      type: object
+      additionalProperties: false
+      required: [status, viewer]
+      properties:
+        status:
+          type: string
+          const: not_registered
+        viewer:
+          $ref: '#/components/schemas/Viewer'
+
+    Viewer:
+      type: object
+      additionalProperties: false
+      required: [displayName, profileImageUrl]
+      properties:
+        displayName:
+          type: string
+        profileImageUrl:
+          type: string
+          description: Profile image URL stored for the linked YouTube channel.
+
+    WorkStats:
+      type: object
+      additionalProperties: false
+      required: [todayWorkSec, weekWorkSec, totalWorkSec, recentDays, calculatedAt]
+      properties:
+        todayWorkSec:
+          type: integer
+          minimum: 0
+          description: Work-state seconds from 00:00 JST through calculatedAt.
+        weekWorkSec:
+          type: integer
+          minimum: 0
+          description: Work-state seconds from Monday 00:00 JST through calculatedAt.
+        totalWorkSec:
+          type: integer
+          minimum: 0
+          description: Lifetime work-state seconds including the active work interval when currently working.
+        recentDays:
+          type: array
+          minItems: 7
+          maxItems: 7
+          description: Exactly seven JST calendar days, oldest first and ending on calculatedAt's date.
+          items:
+            $ref: '#/components/schemas/DailyWork'
+        calculatedAt:
+          type: string
+          format: date-time
+          description: Server-side snapshot time used for real-time work calculations.
+
+    DailyWork:
+      type: object
+      additionalProperties: false
+      required: [date, workSec]
+      properties:
+        date:
+          type: string
+          format: date
+          description: JST calendar date.
+        workSec:
+          type: integer
+          minimum: 0
+          description: Work-state seconds for the date. Unknown or incomplete history must not be coerced to zero.
+
+    CurrentActivity:
+      type: object
+      additionalProperties: false
+      required: [roomType, seatNumber, state, workName, stateStartedAt, stateEndsAt]
+      properties:
+        roomType:
+          type: string
+          enum: [general, member]
+          description: General room or member room.
+        seatNumber:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          enum: [work, break]
+        workName:
+          type: string
+          description: |
+            Current task name. It is retained while the user is on break; there
+            is no break-specific task-name field.
+        stateStartedAt:
+          type: string
+          format: date-time
+          description: Start time of the current work or break state.
+        stateEndsAt:
+          type: string
+          format: date-time
+          description: |
+            Planned end of the current state. For work this is the planned
+            automatic exit time; for break this is the planned break end.
+            It may be earlier than calculatedAt when background processing is delayed.
+
+    YouTubePreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [youtubeAccessToken]
+      properties:
+        youtubeAccessToken:
+          type: string
+          minLength: 1
+          description: Ephemeral YouTube OAuth access token. It must not be persisted.
+
+    YouTubePreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [status, channels]
+      properties:
+        status:
+          type: string
+          const: ok
+        channels:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/YouTubeChannelCandidate'
+
+    YouTubeConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [youtubeAccessToken, youtubeChannelId]
+      properties:
+        youtubeAccessToken:
+          type: string
+          minLength: 1
+          description: Ephemeral YouTube OAuth access token. It must not be persisted.
+        youtubeChannelId:
+          type: string
+          minLength: 1
+          description: User-selected candidate. The backend must re-validate ownership before persisting.
+
+    YouTubeConfirmResponse:
+      type: object
+      additionalProperties: false
+      required: [status, viewer]
+      properties:
+        status:
+          type: string
+          const: ok
+        viewer:
+          $ref: '#/components/schemas/Viewer'
+
+    YouTubeChannelCandidate:
+      type: object
+      additionalProperties: false
+      required: [youtubeChannelId, displayName, profileImageUrl]
+      properties:
+        youtubeChannelId:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+        profileImageUrl:
+          type: string
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [status, error]
+      properties:
+        status:
+          type: string
+          const: error
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+
+    ErrorCode:
+      type: string
+      enum:
+        - unauthorized
+        - youtube_link_required
+        - invalid_request
+        - invalid_youtube_access_token
+        - youtube_channel_not_found
+        - youtube_channel_mismatch
+        - channel_already_linked
+        - forbidden
+        - rate_limited
+        - upstream_error
+        - stats_unavailable
+        - internal_error
