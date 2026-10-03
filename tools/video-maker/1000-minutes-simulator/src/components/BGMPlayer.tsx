@@ -1,5 +1,5 @@
 import jsmediatags from 'jsmediatags'
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, useEffect, useState } from 'react'
 import { BsFillPersonFill } from 'react-icons/bs'
 import { IoMdMusicalNotes } from 'react-icons/io'
