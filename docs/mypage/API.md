@@ -110,7 +110,7 @@ mapping自体が存在しない場合は `409 youtube_link_required` とする�
 
 入室中は以下を返す。
 
-- `roomType: "general" \| "member"`
+- `roomType: "general" | "member"`
 - `seatNumber`
 - `state: "work" | "break"`
 - `workName`
