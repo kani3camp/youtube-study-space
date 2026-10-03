@@ -1,5 +1,11 @@
 # マイページMVP 仕様・API仕様
 
+> [!WARNING]
+> この文書は旧MVPの混合仕様であり、Phase 1のAPI wire contractではありません。
+> APIのendpoint / request / response / HTTP status / error code / schemaは [`openapi.yaml`](./openapi.yaml)、
+> API設計意図は [`API.md`](./API.md) を正とします。
+> `breakWorkName`、YouTube連携の即時確定、旧AWS Lambda / API Gateway構成など、Current Canonと未同期の記述が残っています。
+
 ## 目的
 
 YouTubeライブチャット上の `!info` 相当の情報を、Web上のマイページから確認できるようにする。
