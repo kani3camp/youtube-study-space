@@ -259,11 +259,10 @@ function SevenDayPanel({ selectedDayIndex, onSelectDay }: SevenDayPanelProps) {
 				</div>
 				<span className="mockChartUnit">作業時間</span>
 			</div>
-			<div
-				className="mockBarChart"
-				role="group"
-				aria-label="直近7日間の日別作業時間"
-			>
+			<fieldset className="mockBarChart">
+				<legend className="mockVisuallyHidden">
+					直近7日間の日別作業時間
+				</legend>
 				{chartDays.map((day, index) => {
 					const height =
 						day.minutes === 0
@@ -294,7 +293,7 @@ function SevenDayPanel({ selectedDayIndex, onSelectDay }: SevenDayPanelProps) {
 						</button>
 					)
 				})}
-			</div>
+			</fieldset>
 		</section>
 	)
 }
