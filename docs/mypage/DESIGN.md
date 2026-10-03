@@ -1,6 +1,8 @@
 # マイページ デザインシステム
 
-この文書は、オンライン作業部屋のマイページUIに限定した実装用デザイン指針です。
+この文書は、オンライン作業部屋のマイページUIに限定した**実装用UI仕様**です。
+
+Notion「01｜画面・機能仕様」の第1〜9節は主に要件・プロダクト方針を定義し、この文書と同ページ第10節は「どう表示・配置・操作させるか」を定義します。Public Standard v1については、本書の「Public Standard v1 実装仕様」に記載した固定値・挙動を実装正本とします。
 
 広報物や配信画面のデザインをそのまま移植するのではなく、Claude Designで検討したマイページ案から、実装で再利用できるデザイン言語を抽出しています。機能追加の有無にかかわらず、今後のマイページ画面は原則としてこの指針に沿って拡張します。
 
@@ -60,7 +62,7 @@ Google Fontsでは `400`, `500`, `700`, `800` を読み込みます。
 
 ### 数値
 
-作業時間や時刻は読み取りやすさを優先し、可能な箇所では `font-variant-numeric: tabular-nums` を使います。
+作業時間・開始時刻・終了予定時刻には必ず `font-variant-numeric: tabular-nums` を使います。
 
 ## カラー
 
@@ -91,13 +93,14 @@ Google Fontsでは `400`, `500`, `700`, `800` を読み込みます。
 
 - Mobile / PCを同格の主要ターゲットとして扱う
 - 情報の優先順位と主要機能は共通にしつつ、レイアウト・余白・情報密度・操作導線は画面幅ごとに最適化する
-- Compact（目安 `< 768px`）は1カラム
-- Medium（目安 `768〜1099px`）も1カラムを維持し、余白とSummary密度を最適化する
-- Wide（目安 `>= 1100px`）は Main + Side rail の2カラムを基本とする
+- Compact: `0〜767px`、1カラム
+- Medium: `768〜1099px`、1カラム
+- Wide: `1100px以上`、Main + Side rail の2カラム
 - Wideでは Main に「現在の作業 → 直近7日」、Side rail に「作業サマリー → YouTubeアカウント」を置く
-- Main : Side rail はおおむね 2 : 1 とし、「現在の作業」を主役として維持する
-- Wideのコンテンツ幅は `1120px` 前後を上限候補とする
-- 主要セクション間の余白は `18px` から `24px`
+- Wideのgridは `grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)`
+- Wideのカラムgapは `24px`
+- コンテンツ全体の `max-width` は `1120px`
+- Compact / Mediumのセクション間gapは `18px`
 - 横幅を埋めること自体を目的にせず、情報のまとまりと主従関係を優先する
 
 MVPでは常設サイドバーを導入しません。機能が増えた場合も、まずヘッダー・セクション・軽量なナビゲーションで解決できないか検討します。
@@ -108,7 +111,7 @@ MVPでは常設サイドバーを導入しません。機能が増えた場合�
 
 - 情報カード: `18px`
 - 主役カード: `22px`
-- ボタン: `12px` または pill
+- ボタン: `12px`
 - バッジ: pill (`999px`)
 - アバター: circle
 
@@ -116,7 +119,7 @@ MVPでは常設サイドバーを導入しません。機能が増えた場合�
 
 ### Shadow
 
-影は原則として弱くします。カードの分離は背景色と薄いborderを主に使い、影は必要な場合だけ補助として使います。
+Public Standard v1のcontent cardには `box-shadow` を付けません。カードの分離は背景色と1px borderで行います。
 
 ## コンポーネント原則
 
@@ -126,7 +129,7 @@ MVPでは常設サイドバーを導入しません。機能が増えた場合�
 
 - 現在状態を最初に認識できる
 - 作業中 / 休憩中 / 未入室を色だけに依存せず、文言でも表す
-- 作業内容を大きめに表示する
+- 作業内容は省略せず全文を表示する
 - 席番号はバッジ等の補助情報として扱う
 - 開始時刻・終了予定などは一段弱い情報として整理する
 - 作業中と休憩中で状態色を変えてよい
@@ -147,16 +150,46 @@ MVPでは常設サイドバーを導入しません。機能が増えた場合�
 
 YouTubeアカウント情報は確認用途であり、ページの主役ではありません。
 
-- アバターと表示名を中心にする
-- チャンネルID等の技術的情報は弱く表示する
-- 将来的に連携状態やメンバー状態を追加する場合は小さなチップで表現する
+- アバターは `48px × 48px`
+- 表示名と「連携済み」statusを表示する
+- channel IDはPublic Standard v1では表示しない
+- 表示名は最大2行とし、2行を超える場合だけellipsisを使用する
 
-### Buttons
+### Buttons / CTA
 
-- Primary: accent背景、白文字
-- Secondary: surface背景、border付き
-- 危険操作以外で赤を使わない
-- ボタン文言は短く、煽らない
+Primary CTAは「そのdecision surfaceで最も推奨する1つの主操作」です。同一surface内にPrimary CTAを2つ置きません。
+
+Primary button:
+- `min-height: 44px`
+- Compactでは `width: 100%`
+- Medium / Wideでは `width: auto`
+- 左右padding `16px`
+- `border-radius: 12px`
+- accent背景 + 白文字
+- font-weight `700`
+
+Secondary button:
+- `min-height: 44px`
+- surface背景 + 1px border
+- 左右padding `16px`
+- `border-radius: 12px`
+- 通常本文色
+
+Text action:
+- 背景なし
+- underlineまたは明確なhover / focus表現
+- interactive areaの最小高さ `44px`
+
+状態別:
+- 未ログイン: 「Googleで続ける」= Primary
+- YouTube未連携: 「YouTubeチャンネルを連携」= Primary
+- チャンネル確認: 「このチャンネルを連携」= Primary、「別のアカウント / チャンネルでやり直す」= Secondary
+- 未入室: 「YouTubeライブを開く」= Primary
+- 作業中 / 休憩中: 「YouTubeライブを開く」= Secondary
+- 初回取得失敗: 「再読み込み」= Primary
+- Account: 「再連携」= Secondary、「ログアウト」= Text action
+
+危険操作以外で赤を使いません。
 
 ## 状態表現
 
@@ -172,8 +205,8 @@ YouTubeアカウント情報は確認用途であり、ページの主役では�
 ### Mobile
 
 - 1カラム
-- 左右padding 16px程度
-- 主要数値は `clamp()` で縮小
+- 左右padding `16px`
+- 主要数値は本書の固定 `clamp()` 指定に従う
 - 情報の並び順を優先し、無理な横並びをしない
 
 ### Desktop / tablet
@@ -195,7 +228,7 @@ YouTubeアカウント情報は確認用途であり、ページの主役では�
 ## Accessibility
 
 - 状態は色だけで伝えず文言を併用する
-- 主要CTAのタップ領域は44px相当以上を目安にする
+- interactive要素のタップ領域は最小 `44 × 44px`
 - キーボードfocus indicatorを消さない
 - グラフの値確認をhoverだけに依存させず、focus / tapでも確認可能にする
 - `prefers-reduced-motion` を尊重する
@@ -220,3 +253,157 @@ YouTubeアカウント情報は確認用途であり、ページの主役では�
 4. ログアウト等の補助操作
 
 将来的に履歴・統計・目標等を追加するときも、この既存の情報階層を崩さず拡張します。
+
+
+## Public Standard v1 実装仕様
+
+### Page shell
+
+- Compact: padding `24px 16px 40px`
+- Medium: padding `32px 24px 48px`
+- Wide: padding `40px 32px 56px`
+- content max-width: `1120px`
+- content: viewport中央寄せ
+- Header / Footerはcontent全幅
+- Side railはstickyにしない
+
+### Card
+
+通常card:
+- `border: 1px solid var(--color-border)`
+- `border-radius: 18px`
+- Compact / Medium padding: `20px`
+- Wide padding: `22px`
+- `box-shadow: none`
+- 固定height / max-heightを指定しない
+
+Current work card:
+- `border-radius: 22px`
+- Compact / Medium padding: `22px`
+- Wide padding: `26px`
+- `box-shadow: none`
+
+### Header
+
+- eyebrow: 「オンライン作業部屋」
+- h1: 「マイページ」
+- avatar / account actionは置かない
+- h1 Compact: `30px`
+- h1 Medium / Wide: `40px`
+- font-weight: `800`
+
+### Current work
+
+表示順:
+1. 「現在の作業」label + 席badge
+2. 状態
+3. 作業名
+4. 開始 / 終了予定
+5. CTA
+
+作業名:
+- 空文字: 「作業内容未設定」
+- ellipsis禁止
+- `line-clamp` 禁止
+- `max-height` 禁止
+- `white-space: normal`
+- `overflow-wrap: anywhere`
+- `word-break: break-word`
+- 全文表示し、必要な行数だけcardを縦に伸ばす
+- Compact: `font-size: 28px; line-height: 1.35; font-weight: 800`
+- Medium: `32px / 1.35 / 800`
+- Wide: `36px / 1.30 / 800`
+
+workNameには既存入力系で文字数上限がないため、マイページ独自の文字数上限や切り詰めを追加しません。
+
+meta:
+- 開始 / 終了予定を `repeat(2, minmax(0, 1fr))`
+- `HH:mm` 形式、JST
+- 「日本時間（JST）」をcard内に1回表示
+- 秒単位のカウントアップなし
+
+### Summary
+
+- 1枚のcardに「今日 / 今週 / 累計」
+- `grid-template-columns: repeat(3, minmax(0, 1fr))`
+- 列間に1px separator
+- label: `12px; font-weight: 700`
+- value: `font-size: clamp(18px, 5vw, 28px); font-weight: 800; line-height: 1.1; white-space: nowrap`
+- 表示形式: `0m`, `25m`, `1h 05m`, `123h 45m`
+- 0は `0m`
+- 前週比 / 達成率 / 目標 / 順位を置かない
+
+### Recent 7 days chart
+
+- 7本固定
+- `grid-template-columns: repeat(7, 1fr)`
+- gap: `8px`
+- plot height: Compact / Medium `140px`、Wide `160px`
+- 期間中の最大値を100%として棒高を算出
+- 全日0なら全棒0
+- 0の日はdata value 0のまま、baseline上に2px neutral markだけ描画
+- 今日: accent
+- 過去6日: neutral
+- x label: `M/D`
+- 今日の列には追加で「今日」
+- 各data pointをkeyboard focus可能にする
+- hover / focus / tapで `M月D日 1h 05m` tooltip
+- 横スクロール禁止
+- Y軸 / 凡例 / 目標線 / 前週比較 / 期間切替なし
+
+### Account
+
+- avatar: `48px × 48px`
+- 表示名 + 「連携済み」
+- channel ID非表示
+- 表示名は2行まで。3行目以降だけellipsis
+- action order: 「再連携」→「ログアウト」
+- 再連携: Secondary
+- ログアウト: Text action
+
+### Footer
+
+表示:
+- Privacy Policy
+- 利用規約
+- Cookie設定
+- 問い合わせ / データ削除依頼
+
+横幅不足時はwrapし、horizontal scrollを発生させません。
+
+### Loading / refresh / error
+
+Initial loading:
+- 最終画面と同じ主要領域のSkeleton
+- 全画面spinnerのみのloading禁止
+- shimmerなし
+- static surface-soft blockを使用
+
+Refresh:
+- request完了60秒後に次request
+- request重複禁止
+- hidden中はtimer停止
+- visible復帰時に即時1回取得
+- そのrequest完了後から60秒timer再開
+
+Initial error:
+- 0値で代替しない
+- 「情報を取得できませんでした」
+- Primary「再読み込み」
+
+Refresh error after success:
+- 最後の成功dataを保持
+- 「最新情報に更新できませんでした。前回取得した情報を表示しています。」
+- Text action「再試行」
+
+### Accessibility / language / theme
+
+- 日本語固定
+- Light theme固定
+- body base font-size: `16px`
+- focus-visible: `3px` outline / `3px` offset
+- interactive target: 最小 `44 × 44px`
+- statusは文字併用必須
+- `prefers-reduced-motion: reduce` ではanimation / transition無効
+- 320px CSS viewportでhorizontal scrollなし
+- browser 200% zoomで主要情報 / CTA欠落なし
