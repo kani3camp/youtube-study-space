@@ -56,7 +56,7 @@ Scheduler / Pub/Sub / IAM / execution SA / bucket policy / retention は変更�
 | current v5 runtime | `nodejs20` | `nodejs20` |
 | next migration runtime | `nodejs22` | `nodejs22` |
 
-新しい source は `YSS_EXPORT_ENVIRONMENT=development|production` の明示を要求する。Gen1 が提供する `GCLOUD_PROJECT`（`GCP_PROJECT` alias があればそれも）が設定と一致しなければ **module load 時に失敗**する。値がない / 不明 / aliases 不一致も失敗。project / bucket を独立に指定して環境を取り違える構造にしない。次 deploy では source と environment variable を同時に更新する必要がある。
+新しい source は `YSS_EXPORT_ENVIRONMENT=development|production` と `YSS_EXPORT_PROJECT_ID=<expected-project>` の**両方を明示設定**する。`YSS_EXPORT_PROJECT_ID` は `environments.json` の project ID と一致しなければ module load 時に失敗する。`GCLOUD_PROJECT` / `GCP_PROJECT` はplatform依存のため必須入力にせず、存在する場合だけ追加の不一致検知に使う。project / bucket を独立に自由入力して環境を取り違える構造にしない。次 deploy では source と2つのYSS environment variableを同時に更新する必要がある。
 
 ## Dependency / Node.js 22 判断（2026-10-03）
 
@@ -71,7 +71,7 @@ Scheduler / Pub/Sub / IAM / execution SA / bucket policy / retention は変更�
 
 Googleの [runtime support](https://docs.cloud.google.com/functions/docs/runtime-support) による Node.js 20 の deprecation は **2026-04-30**、decommission予定は **2026-10-30**。Gen1 Node.js 22 は対応runtimeで、decommission予定は2027-10-31（2026-10-03確認。実deploy前に再確認）。
 
-## 2026-10-03 development deploy incident
+## 2026-10-03 development deploy incidents
 
 最初の Node.js 22 development deploy は Cloud Build の `function.js does not exist` で失敗した。Function 本体は更新されず、Gen1 / Node.js 20 / version 5 / ACTIVE のまま。
 
@@ -83,6 +83,8 @@ Googleの [runtime support](https://docs.cloud.google.com/functions/docs/runtime
 - `tests/source-package.test.js` でこの順序、exact allowlist、package main の存在を固定する。
 
 重要: `gcloud meta list-files-for-upload` は失敗時にも6filesを表示していたため、**実際の deploy ZIP の健全性を証明しない**。実deploy前には、使用する同じ gcloud CLI の packaging path で source ZIP を offline 生成し、root entry が exactly 6 files で空ZIPでないことを確認する。
+
+2回目の development deploy は packaging gate を通過したが、build-time user-code load で `Project mismatch for development` となった。原因は `fromRuntime()` が `GCLOUD_PROJECT` / `GCP_PROJECT` の存在を必須前提にしていたこと。Googleは明示設定していないplatform environment variableへ依存しないことを推奨しており、このguardを `YSS_EXPORT_PROJECT_ID` の明示設定へ変更する。platform project aliasesは存在時だけ追加検証する。
 
 ## Local / CI verification
 
@@ -139,7 +141,7 @@ CIはpackage変更を `gcp_firestore_export` に分類し、Node22でlocked inst
 3. 次PRで承認後、生成された具体的なdevelopment commandをoperatorが実行する。内容は次のとおり（source pathは現在のcheckoutを使う）。
 
    ```bash
-   gcloud functions deploy firestoreCollectionsExport      --project=test-youtube-study-space --no-gen2 --runtime=nodejs22      --entry-point=scheduledFirestoreExport --region=asia-southeast2      --trigger-topic=initiateFirestoreCollectionsExport      --service-account=test-youtube-study-space@appspot.gserviceaccount.com      --memory=256MB --timeout=60s --max-instances=1 --no-retry      --update-env-vars=YSS_EXPORT_ENVIRONMENT=development --source=.
+   gcloud functions deploy firestoreCollectionsExport      --project=test-youtube-study-space --no-gen2 --runtime=nodejs22      --entry-point=scheduledFirestoreExport --region=asia-southeast2      --trigger-topic=initiateFirestoreCollectionsExport      --service-account=test-youtube-study-space@appspot.gserviceaccount.com      --memory=256MB --timeout=60s --max-instances=1 --no-retry      --update-env-vars=YSS_EXPORT_ENVIRONMENT=development,YSS_EXPORT_PROJECT_ID=test-youtube-study-space --source=.
    ```
 
    API enable / IAM追加を要求されたら、このruntime更新と別scopeとして止めて調査する。Scheduler / topic / SA / retentionを変更しない。

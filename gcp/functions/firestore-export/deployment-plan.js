@@ -26,7 +26,7 @@ function deploymentPlan({ environment, projectId, allowProduction, confirm }) {
     `--timeout=${target.timeout}`,
     '--max-instances=1',
     '--no-retry',
-    `--update-env-vars=YSS_EXPORT_ENVIRONMENT=${environment}`,
+    `--update-env-vars=YSS_EXPORT_ENVIRONMENT=${environment},YSS_EXPORT_PROJECT_ID=${target.projectId}`,
     `--source=${__dirname}`,
   ];
   return { environment, ...target, generation: 1, runtime: 'nodejs22', args };
