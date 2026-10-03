@@ -44,10 +44,7 @@ test('.gcloudignore preserves the root directory and exact runtime allowlist', (
 });
 
 test('known-bad root-pruning rule is rejected', () => {
-  const broken = [
-    '*',
-    ...expectedRuntimeFiles.map((file) => `!/${file}`),
-  ];
+  const broken = ['*', ...expectedRuntimeFiles.map((file) => `!/${file}`)];
   assert.throws(
     () => validateDeployIgnore(broken),
     /root directory must be re-included/,
