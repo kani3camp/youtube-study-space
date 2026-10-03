@@ -422,7 +422,6 @@ a:focus-visible {
 	}
 }
 
-
 .appShell--designMock .appHeader,
 .appShell--designMock .appMain {
 	width: min(100%, 1120px);
@@ -855,11 +854,6 @@ a:focus-visible {
 	background: var(--color-accent);
 }
 
-.mockBarItem--today .mockBarLabel {
-	color: var(--color-text);
-	font-weight: 800;
-}
-
 .mockBar--zero {
 	opacity: 0.65;
 }
@@ -870,6 +864,11 @@ a:focus-visible {
 	font-size: clamp(0.58rem, 2.6vw, 0.72rem);
 	text-align: center;
 	white-space: nowrap;
+}
+
+.mockBarItem--today .mockBarLabel {
+	color: var(--color-text);
+	font-weight: 800;
 }
 
 .mockChartSelection {
@@ -904,8 +903,11 @@ a:focus-visible {
 	height: 52px;
 	border: 1px solid var(--color-border);
 	border-radius: 50%;
-	background:
-		linear-gradient(145deg, oklch(91% 0.035 55), oklch(94% 0.025 170));
+	background: linear-gradient(
+		145deg,
+		oklch(91% 0.035 55),
+		oklch(94% 0.025 170)
+	);
 	color: oklch(38% 0.04 55);
 	font-size: 1.15rem;
 	font-weight: 800;
