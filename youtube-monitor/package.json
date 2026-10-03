@@ -37,7 +37,7 @@
 		"buffer": "^6.0.3",
 		"chroma-js": "^3.2.0",
 		"firebase": "^12.19.0",
-		"framer-motion": "^12.43.0",
+		"framer-motion": "^13.4.6",
 		"music-metadata": "^11.16.1",
 		"next": "^16.3.7",
 		"next-i18next": "^16.3.1",
