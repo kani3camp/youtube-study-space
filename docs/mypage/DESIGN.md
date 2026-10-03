@@ -243,7 +243,7 @@ Text action:
 
 ## Release Phaseとの対応
 
-リリース単位はNotion「02｜リリース・YouTube導線」で定義されたPhaseのみを使用します。UI仕様側で独立した `v1` / `v2` 等の製品versionを定義しません。
+リリース単位はNotion「02｜リリース・YouTube導線」で定義されたPhaseのみを使用します。UI仕様側で別系統の製品versionを定義しません。
 
 | Phase | UI surface | 適用 |
 | --- | --- | --- |
