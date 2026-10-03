@@ -1,8 +1,21 @@
 {
-  "name": "sample-pubsub",
+  "name": "yss-firestore-export",
   "version": "0.0.1",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "biome check .",
+    "format": "biome format --write .",
+    "plan": "node deployment-plan.js"
+  },
   "dependencies": {
-    "@google-cloud/pubsub": "^0.18.0",
-    "@google-cloud/firestore": "^1.3.0"
+    "@google-cloud/firestore": "8.7.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15"
   }
 }
