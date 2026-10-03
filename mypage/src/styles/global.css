@@ -808,7 +808,23 @@ a:focus-visible {
 	grid-template-columns: repeat(7, minmax(0, 1fr));
 	gap: clamp(4px, 1.5vw, 12px);
 	height: 210px;
+	min-inline-size: 0;
+	margin: 0;
+	border: 0;
+	padding: 0;
 	align-items: end;
+}
+
+.mockVisuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	border: 0;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
 }
 
 .mockBarItem {
