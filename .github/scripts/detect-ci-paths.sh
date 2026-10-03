@@ -14,6 +14,7 @@ readonly CI_GROUPS=(
 	node_projects
 	firestore_integration
 	formal_spec
+	gcp_firestore_export
 	all
 )
 
@@ -28,6 +29,7 @@ aws_cdk=false
 node_projects=false
 firestore_integration=false
 formal_spec=false
+gcp_firestore_export=false
 all=false
 
 changed_paths=()
@@ -57,6 +59,7 @@ set_all_groups() {
 	node_projects=true
 	firestore_integration=true
 	formal_spec=true
+	gcp_firestore_export=true
 	all=true
 }
 
@@ -92,6 +95,10 @@ classify_path() {
 					formal_spec=true
 					;;
 			esac
+			matched=true
+			;;
+		gcp/functions/firestore-export/*)
+			gcp_firestore_export=true
 			matched=true
 			;;
 		formal-spec/*)
@@ -207,6 +214,7 @@ group_value() {
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
 		formal_spec) printf '%s' "$formal_spec" ;;
+		gcp_firestore_export) printf '%s' "$gcp_firestore_export" ;;
 		all) printf '%s' "$all" ;;
 		*)
 			echo "Unknown CI group: $1" >&2
