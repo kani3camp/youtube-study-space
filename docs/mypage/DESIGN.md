@@ -2,7 +2,7 @@
 
 この文書は、オンライン作業部屋のマイページUIに限定した**実装用UI仕様**です。
 
-Notion「01｜画面・機能仕様」の第1〜9節は主に要件・プロダクト方針を定義し、この文書と同ページ第10節は「どう表示・配置・操作させるか」を定義します。Public Standard v1については、本書の「Public Standard v1 実装仕様」に記載した固定値・挙動を実装正本とします。
+Notion「01｜画面・機能仕様」の第1〜9節は主に要件・プロダクト方針を定義し、この文書と同ページ第10節は「どう表示・配置・操作させるか」を定義します。Phase 1 Public Standardについては、本書の「Phase 1 Public Standard 実装仕様」に記載した固定値・挙動を実装正本とします。
 
 広報物や配信画面のデザインをそのまま移植するのではなく、Claude Designで検討したマイページ案から、実装で再利用できるデザイン言語を抽出しています。機能追加の有無にかかわらず、今後のマイページ画面は原則としてこの指針に沿って拡張します。
 
@@ -103,7 +103,7 @@ Google Fontsでは `400`, `500`, `700`, `800` を読み込みます。
 - Compact / Mediumのセクション間gapは `18px`
 - 横幅を埋めること自体を目的にせず、情報のまとまりと主従関係を優先する
 
-MVPでは常設サイドバーを導入しません。機能が増えた場合も、まずヘッダー・セクション・軽量なナビゲーションで解決できないか検討します。
+Phase 0A〜Phase 1では常設サイドバーを導入しません。機能が増えた場合も、まずヘッダー・セクション・軽量なナビゲーションで解決できないか検討します。
 
 ## Shape / spacing
 
@@ -119,7 +119,7 @@ MVPでは常設サイドバーを導入しません。機能が増えた場合�
 
 ### Shadow
 
-Public Standard v1のcontent cardには `box-shadow` を付けません。カードの分離は背景色と1px borderで行います。
+Phase 1 Public Standardのcontent cardには `box-shadow` を付けません。カードの分離は背景色と1px borderで行います。
 
 ## コンポーネント原則
 
@@ -142,7 +142,7 @@ Public Standard v1のcontent cardには `box-shadow` を付けません。カー
 - ラベルより数値を主役にする
 - 数値は ExtraBold を基本とする
 - Mobileでも原則3列を維持し、320px幅まで横スクロールなしで収める
-- 目標達成率、前週比、順位はPublic Standard v1では表示しない
+- 目標達成率、前週比、順位はPhase 1 Public Standardでは表示しない
 - 0時間は正常値として扱う
 - 現在作業カードより視覚的に弱くする
 
@@ -152,7 +152,7 @@ YouTubeアカウント情報は確認用途であり、ページの主役では�
 
 - アバターは `48px × 48px`
 - 表示名と「連携済み」statusを表示する
-- channel IDはPublic Standard v1では表示しない
+- channel IDはPhase 1 Public Standardでは表示しない
 - 表示名は最大2行とし、2行を超える場合だけellipsisを使用する
 
 ### Buttons / CTA
@@ -241,21 +241,21 @@ Text action:
 - 未利用・未達をネガティブに扱わない
 - 「自分の積み重ねを確認する」体験を壊す競争的表現を避ける
 
-## MVPへの適用
+## Release Phaseとの対応
 
-初期リリースで情報量が少なくても、将来機能の空カードや無効ナビゲーションを置いて画面を埋めません。
+リリース単位はNotion「02｜リリース・YouTube導線」で定義されたPhaseのみを使用します。UI仕様側で独立した `v1` / `v2` 等の製品versionを定義しません。
 
-現時点のデータだけを、以下の優先順位で丁寧に見せます。
+| Phase | UI surface | 適用 |
+| --- | --- | --- |
+| Phase 0A Silent Production | 現在の作業、今日、累計、YouTubeチャンネル、ログアウト | 本書の共通token / typography / responsive / accessibilityを適用する。Phase 1専用セクションは表示しない |
+| Phase 0B Private Canary | 原則Phase 0Aと同じ | 新機能追加より、Mobile / Desktop、複数Googleアカウント、Brand Account、未登録、scope拒否、revoke、再連携等の状態差を検証する |
+| Phase 1 Public Standard | Phase 0B + 今週、直近7日、正式Account / Footer / Consent導線 | 下記「Phase 1 Public Standard 実装仕様」を全面適用する |
+| Phase 2 Premium Launch | Phase 1を基礎に期間・詳細度等を拡張 | 別ホームを作らずPhase 1の情報階層を拡張する |
 
-1. 現在の作業状態
-2. 今日の作業時間 / 累計作業時間
-3. YouTubeチャンネル情報
-4. ログアウト等の補助操作
-
-将来的に履歴・統計・目標等を追加するときも、この既存の情報階層を崩さず拡張します。
+Phase 0A / 0Bで情報量が少なくても、Phase 1以降の空カードや無効ナビゲーションを先置きして画面を埋めません。
 
 
-## Public Standard v1 実装仕様
+## Phase 1 Public Standard 実装仕様
 
 ### Page shell
 
