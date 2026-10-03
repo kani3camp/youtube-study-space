@@ -150,14 +150,21 @@ function CurrentWorkPanel({ state, onLive }: CurrentWorkPanelProps) {
 			<section className="mockPanel mockCurrentWork mockCurrentWork--idle">
 				<p className="mockSectionLabel">現在の作業</p>
 				<div className="mockStatusLine">
-					<span className="mockStatusDot mockStatusDot--idle" aria-hidden="true" />
+					<span
+						className="mockStatusDot mockStatusDot--idle"
+						aria-hidden="true"
+					/>
 					<span>未入室</span>
 				</div>
 				<h2 className="mockCurrentTitle">現在は入室していません</h2>
 				<p className="mockCurrentDescription">
 					作業を始めると、ここに現在の席と作業内容が表示されます。
 				</p>
-				<button className="mockButton mockButton--primary" type="button" onClick={onLive}>
+				<button
+					className="mockButton mockButton--primary"
+					type="button"
+					onClick={onLive}
+				>
 					YouTubeライブを開く
 				</button>
 			</section>
@@ -240,10 +247,7 @@ type SevenDayPanelProps = {
 	onSelectDay: (index: number) => void
 }
 
-function SevenDayPanel({
-	selectedDayIndex,
-	onSelectDay,
-}: SevenDayPanelProps) {
+function SevenDayPanel({ selectedDayIndex, onSelectDay }: SevenDayPanelProps) {
 	const maxMinutes = Math.max(...chartDays.map((day) => day.minutes))
 
 	return (
@@ -255,7 +259,11 @@ function SevenDayPanel({
 				</div>
 				<span className="mockChartUnit">作業時間</span>
 			</div>
-			<div className="mockBarChart" aria-label="直近7日間の日別作業時間">
+			<div
+				className="mockBarChart"
+				role="group"
+				aria-label="直近7日間の日別作業時間"
+			>
 				{chartDays.map((day, index) => {
 					const height =
 						day.minutes === 0
@@ -270,9 +278,7 @@ function SevenDayPanel({
 							type="button"
 							key={day.dateLabel ?? day.label}
 							aria-pressed={selectedDayIndex === index}
-							aria-label={`${day.dateLabel ?? day.label} ${
-								day.minutes
-							}分`}
+							aria-label={`${day.dateLabel ?? day.label} ${day.minutes}分`}
 							onClick={() => onSelectDay(index)}
 							onFocus={() => onSelectDay(index)}
 						>
@@ -365,13 +371,12 @@ function MockDialogOverlay({
 	const content = getDialogContent(type)
 
 	return (
-		<div className="mockDialogBackdrop" role="presentation" onMouseDown={onClose}>
+		<div className="mockDialogBackdrop">
 			<section
 				className="mockDialog"
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="mock-dialog-title"
-				onMouseDown={(event) => event.stopPropagation()}
 			>
 				<p className="mockSectionLabel">操作モック</p>
 				<h2 id="mock-dialog-title">{content.title}</h2>
@@ -487,7 +492,11 @@ function MockNotRegistered({ onLive }: MockNotRegisteredProps) {
 			<p>
 				オンライン作業部屋のライブチャットから入室すると、ここに作業時間が記録されます。
 			</p>
-			<button className="mockButton mockButton--primary" type="button" onClick={onLive}>
+			<button
+				className="mockButton mockButton--primary"
+				type="button"
+				onClick={onLive}
+			>
 				YouTubeライブを開く
 			</button>
 		</section>
@@ -542,7 +551,7 @@ function MockError({ onRetry }: MockErrorProps) {
 
 function MockLoading() {
 	return (
-		<div className="publicStandardMock" aria-label="読み込み中">
+		<div className="publicStandardMock" role="status" aria-label="読み込み中">
 			<div className="mockContentGrid mockSkeletonGrid">
 				<section className="mockPanel mockSkeletonCurrent">
 					<div className="mockSkeletonLine mockSkeletonLine--short" />
