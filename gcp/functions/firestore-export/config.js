@@ -16,13 +16,15 @@ function getEnvironment(environment, projectId) {
 function fromRuntime(env) {
   const target = getEnvironment(
     env.YSS_EXPORT_ENVIRONMENT,
-    env.GCLOUD_PROJECT || env.GCP_PROJECT,
+    env.YSS_EXPORT_PROJECT_ID,
   );
-  // NOTE: Gen1 supplies GCLOUD_PROJECT. Reject conflicting aliases as well.
+
+  // Platform-provided aliases are optional. If present, they must agree with
+  // the explicit YSS project ID, but runtime correctness never depends on them.
   for (const projectId of [env.GCLOUD_PROJECT, env.GCP_PROJECT]) {
     if (projectId !== undefined && projectId !== target.projectId) {
       throw new Error(
-        'Runtime project aliases disagree with export environment',
+        'Runtime project aliases disagree with explicit export project',
       );
     }
   }
