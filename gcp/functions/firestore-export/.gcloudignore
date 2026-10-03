@@ -1,0 +1,8 @@
+# Deploy only the canonical runtime source and its lockfile.
+*
+!/.gcloudignore
+!/index.js
+!/config.js
+!/environments.json
+!/package.json
+!/package-lock.json

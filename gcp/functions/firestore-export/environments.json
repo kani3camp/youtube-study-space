@@ -1,0 +1,22 @@
+{
+  "development": {
+    "projectId": "test-youtube-study-space",
+    "bucket": "firestore-backup-test-youtube-study-space",
+    "functionName": "firestoreCollectionsExport",
+    "region": "asia-southeast2",
+    "topic": "initiateFirestoreCollectionsExport",
+    "serviceAccount": "test-youtube-study-space@appspot.gserviceaccount.com",
+    "memory": "256MB",
+    "timeout": "60s"
+  },
+  "production": {
+    "projectId": "youtube-study-space",
+    "bucket": "firestore-backup-youtube-study-space",
+    "functionName": "firestoreExport",
+    "region": "asia-northeast2",
+    "topic": "initiateFirestoreExport",
+    "serviceAccount": "youtube-study-space@appspot.gserviceaccount.com",
+    "memory": "512MB",
+    "timeout": "120s"
+  }
+}

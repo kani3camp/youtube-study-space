@@ -28,6 +28,7 @@ jobs:
       node_projects: ${{ steps.detect.outputs.node_projects }}
       firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
       formal_spec: ${{ steps.detect.outputs.formal_spec }}
+      gcp_firestore_export: ${{ steps.detect.outputs.gcp_firestore_export }}
       all: ${{ steps.detect.outputs.all }}
     steps:
       - name: Checkout
@@ -548,6 +549,34 @@ jobs:
       - name: Run CDK synth
         run: pnpm cdk:synth
 
+  gcp-firestore-export:
+    name: GCP Firestore Export (Node 22)
+    needs: changes
+    if: ${{ needs.changes.outputs.gcp_firestore_export == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gcp/functions/firestore-export
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: gcp/functions/firestore-export/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Lint and format
+        run: npm run check
+      - name: Offline unit and contract tests
+        run: npm test
+      - name: Verify lockfile reproducibility
+        run: |
+          npm ci --ignore-scripts
+          git diff --exit-code -- package.json package-lock.json
+
   ci-gate:
     name: CI Gate
     if: always()
@@ -572,6 +601,7 @@ jobs:
       - docs-site-check
       - docs-site-build
       - aws-cdk-test
+      - gcp-firestore-export
     runs-on: ubuntu-latest
     steps:
       - name: Fail if a CI job failed or was cancelled

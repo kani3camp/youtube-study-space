@@ -50,6 +50,7 @@ updates:
   - package-ecosystem: npm
     directories:
       - /youtube-monitor
+      - /gcp/functions/firestore-export
       - /aws-cdk
       - /docs-site
       - /tools/menu-image-generator
