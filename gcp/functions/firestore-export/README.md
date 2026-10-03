@@ -71,6 +71,19 @@ Scheduler / Pub/Sub / IAM / execution SA / bucket policy / retention は変更�
 
 Googleの [runtime support](https://docs.cloud.google.com/functions/docs/runtime-support) による Node.js 20 の deprecation は **2026-04-30**、decommission予定は **2026-10-30**。Gen1 Node.js 22 は対応runtimeで、decommission予定は2027-10-31（2026-10-03確認。実deploy前に再確認）。
 
+## 2026-10-03 development deploy incident
+
+最初の Node.js 22 development deploy は Cloud Build の `function.js does not exist` で失敗した。Function 本体は更新されず、Gen1 / Node.js 20 / version 5 / ACTIVE のまま。
+
+原因は runtime / dependency ではなく **source packaging**。当時の `.gcloudignore` は先頭の `*` で root directory 自体を除外し、gcloud 580.0.0 の Gen1 source ZIP 生成では後続の root file allowlist に到達できず **0 entry / 22 byte の空ZIP** を作成した。Buildpack は空の `/workspace` に package.json / index.js がないため fallback candidate の `function.js` を検査して失敗した。
+
+修正:
+- `*` の直後に **`!.`** を置き、root directory を先に再許可する。
+- その後で6つの root fileだけを allowlist する。
+- `tests/source-package.test.js` でこの順序、exact allowlist、package main の存在を固定する。
+
+重要: `gcloud meta list-files-for-upload` は失敗時にも6filesを表示していたため、**実際の deploy ZIP の健全性を証明しない**。実deploy前には、使用する同じ gcloud CLI の packaging path で source ZIP を offline 生成し、root entry が exactly 6 files で空ZIPでないことを確認する。
+
 ## Local / CI verification
 
 このpackage内でNode.js 22を選択して実行する。
@@ -84,7 +97,7 @@ npm ci --ignore-scripts
 git diff --exit-code -- package.json package-lock.json
 ```
 
-テストは credential / GCP API に依存せず、復元v5 fixtureと共通sourceの両方を契約検証する。実SDK testは架空credentialとRPC stubを使う。実GCP export / runtime動作確認は次PRの自然実行で行う。
+テストは credential / GCP API に依存せず、復元v5 fixtureと共通sourceの両方を契約検証する。実SDK testは架空credentialとRPC stubを使う。加えて source packaging test で `.gcloudignore` の root re-include `!.`、6file allowlist、package main の root 存在を検証する。実GCP export / runtime動作確認は次PRの自然実行で行う。
 
 CIはpackage変更を `gcp_firestore_export` に分類し、Node22でlocked install / lint・format / 全unit・contract tests / lock再現性を検証し、CI Gateに含める。CI config変更時は既存方針どおり全groupを検証する。CIからdeployするstepはない。
 
@@ -109,6 +122,19 @@ CIはpackage変更を `gcp_firestore_export` に分類し、Node22でlocked inst
    ```
 
    `.gcloudignore`によりruntimeのindex.js / config.js / environments.json / package.json / package-lock.jsonとignore設定だけをuploadする。tests / baseline fixture / README / plan / node_modulesをuploadしない。
+
+   **注意:** `gcloud meta list-files-for-upload` だけでは acceptance にしない。2026-10-03 の失敗ではこの一覧が正常でも deploy ZIP は空だった。deploy前に、実際に使用する同じ gcloud CLI の source packaging処理を offline で実行し、一時ZIPの root entries が exactly以下6filesであることを確認する。
+
+   ```text
+   .gcloudignore
+   index.js
+   config.js
+   environments.json
+   package.json
+   package-lock.json
+   ```
+
+   ZIP が空、余分なdirectory nesting、missing file、余分なfileのいずれかなら deployを止める。
 
 3. 次PRで承認後、生成された具体的なdevelopment commandをoperatorが実行する。内容は次のとおり（source pathは現在のcheckoutを使う）。
 

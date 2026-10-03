@@ -1,5 +1,6 @@
 # Deploy only the canonical runtime source and its lockfile.
 *
+!.
 !/.gcloudignore
 !/index.js
 !/config.js
