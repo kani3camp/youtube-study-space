@@ -1,4 +1,4 @@
-# マイページMVP 仕様・API仕様
+# マイページ Phase 0 基盤仕様・API仕様
 
 ## 目的
 
@@ -6,22 +6,22 @@ YouTubeライブチャット上の `!info` 相当の情報を、Web上のマイ�
 
 初期版では高機能なダッシュボードではなく、ログインしたユーザー本人が現在状態と作業時間を確認できる最小構成にする。
 
-このドキュメントでは、マイページMVPの**機能要件・API仕様・認証方式・状態要件**を定義する。
+このドキュメントでは、マイページPhase 0基盤の**機能要件・API仕様・認証方式・状態要件**を定義する。
 
 画面の寸法、breakpoint、grid、文字サイズ、折返し、CTA visual hierarchy、loading / errorの具体的な見せ方などの**UI実装仕様は `docs/mypage/DESIGN.md` を正とする**。本書のUI方針は「何を満たすべきか」を示す要件であり、具体表示はDESIGN.mdへ委譲する。
 
 
 ## 基本方針
 
-マイページMVPは、オンライン作業部屋の業務データに対して read-only とする。
+マイページPhase 0基盤は、オンライン作業部屋の業務データに対して read-only とする。
 
 マイページから入室、退室、休憩、作業内容変更、注文、ユーザー設定変更など、オンライン作業部屋の状態を変更する操作は行わない。
 
 ただし、認証・連携に必要な `firebaseUid` と `youtubeChannelId` のサーバー側マッピングは、マイページ利用の前提情報として作成・更新する。
 
-MVPでは、既存のオンライン作業部屋で記録済みのユーザー情報、作業時間、現在の席情報を参照して表示する。
+Phase 0A / 0Bでは、既存のオンライン作業部屋で記録済みのユーザー情報、作業時間、現在の席情報を参照して表示する。
 
-YouTubeメンバーかどうかの判定はMVPには含めない。
+YouTubeメンバーかどうかの判定はPhase 0A / 0Bには含めない。
 
 ただし、現在座っている席が通常席かメンバー席かを表す `isMemberSeat` は、既存の席情報として返してよい。
 
@@ -54,7 +54,7 @@ YouTubeメンバーかどうかの判定はMVPには含めない。
 
 ## 非スコープ
 
-MVPでは次を扱わない。
+Phase 0A / 0Bでは次を扱わない。
 
 - YouTubeメンバー判定
 - メンバー限定表示
@@ -89,7 +89,7 @@ Mobile / PCを同格の主要ターゲットとして扱う。
 
 「現在の作業」を最も強く表示し、アカウント情報は補助情報として扱う。
 
-MVPの情報順序は次の通り。
+Phase 0基盤の情報順序は次の通り。
 
 1. ページヘッダー
 2. 現在の作業
@@ -139,7 +139,7 @@ Firebase Auth を使うため、OAuth callback 専用のサーバールートが
 
 ただし、ログイン後の戻り先や将来の認証フロー拡張を考慮し、フロントエンド上の `/auth/callback` 相当のルートは用意してよい。
 
-ルート名は実装時に調整してよいが、MVPでは上記の責務を満たすことを必須とする。
+ルート名は実装時に調整してよいが、Phase 0A / 0Bでは上記の責務を満たすことを必須とする。
 
 ## 画面仕様
 
@@ -156,7 +156,7 @@ Firebase Auth を使うため、OAuth callback 専用のサーバールートが
 文言方針:
 
 - チャンネル情報と作業時間を表示するためにYouTube連携が必要であることを説明する
-- マイページMVPでは書き込み操作をしないことを明示する
+- マイページPhase 0基盤では書き込み操作をしないことを明示する
 
 ### ログイン済み・登録済み状態
 
@@ -210,13 +210,13 @@ UIでは、今日の作業時間と累計作業時間は表示しつつ、現在
 
 `breakWorkName` が空の場合は、`workName` を表示するか、「休憩中」と表示する。
 
-MVPでは、休憩終了予定時刻の表示は任意とする。
+Phase 0A / 0Bでは、休憩終了予定時刻の表示は任意とする。
 
 ## 認証方式
 
 ### 認証フロー
 
-MVPの認証フローは次の通りとする。
+Phase 0基盤の認証フローは次の通りとする。
 
 1. フロントエンドで Firebase Auth の Google provider を使ってログインする
 2. Google provider に `https://www.googleapis.com/auth/youtube.readonly` scope を追加し、YouTube Data API 用のアクセストークンを取得する
@@ -235,7 +235,7 @@ MVPの認証フローは次の通りとする。
 
 バックエンドAPIは、フロントエンドから送られた Firebase ID token を検証し、認証済みユーザーとして扱う。
 
-MVPでは、Firebase Auth の UID ではなく、YouTube Data API から取得した YouTube channel ID を既存システム上のユーザーIDとして扱う。
+Phase 0A / 0Bでは、Firebase Auth の UID ではなく、YouTube Data API から取得した YouTube channel ID を既存システム上のユーザーIDとして扱う。
 
 ただし、YouTube channel ID はフロントエンドから送られた値を信頼してはならない。
 
@@ -243,7 +243,7 @@ MVPでは、Firebase Auth の UID ではなく、YouTube Data API から取得�
 
 ### OAuth scope
 
-MVPで明示的に追加する OAuth scope は次とする。
+Phase 0A / 0Bで明示的に追加する OAuth scope は次とする。
 
 - `https://www.googleapis.com/auth/youtube.readonly`
 
@@ -255,7 +255,7 @@ YouTube channel ID は Firebase Auth の ID token だけでは取得できない
 
 Firebase ID token だけでは、既存システム上のユーザーIDとして使う YouTube channel ID は決定できない。
 
-そのため、MVPでは次の方式を採用する。
+そのため、Phase 0A / 0Bでは次の方式を採用する。
 
 - フロントエンドは Firebase Auth の Google provider から YouTube access token を取得する
 - フロントエンドは Firebase ID token と YouTube access token をバックエンドへ送る
@@ -301,7 +301,7 @@ interface MyPageAuthLink {
 
 フロントエンドから送られた `youtubeChannelId` は、表示補助やログ用途であっても、認可判断やユーザーID決定には使わない。
 
-MVPでは Custom Claims ではなく、サーバー側の永続マッピングを優先する。
+Phase 0A / 0Bでは Custom Claims ではなく、サーバー側の永続マッピングを優先する。
 
 理由は、YouTube channel ID やチャンネル表示情報の更新、再連携、連携解除を扱いやすくするためである。
 
@@ -332,7 +332,7 @@ MVPでは Custom Claims ではなく、サーバー側の永続マッピング�
 
 ログアウトでは Firebase Auth のサインアウトを行う。
 
-Googleアカウント側の連携解除まではMVPでは扱わない。
+Googleアカウント側の連携解除まではPhase 0A / 0Bでは扱わない。
 
 ### YouTube連携が必要な場合の再認可
 
@@ -385,7 +385,7 @@ APIの認証に必須のヘッダーは `Authorization` のみとする。
 
 `X-Client-Version` は、package version、Git short SHA、またはデプロイ番号のいずれかを使う。
 
-MVPでは、フロント側の実装負荷を抑えるため、`X-Client-Version` に Git short SHA またはビルド時に埋め込んだ任意のビルドIDを入れればよい。
+Phase 0A / 0Bでは、フロント側の実装負荷を抑えるため、`X-Client-Version` に Git short SHA またはビルド時に埋め込んだ任意のビルドIDを入れればよい。
 
 `X-Client-Request-Id` は、ブラウザ上でリクエストごとに生成する。バックエンドのログにも同じ値を出し、フロントのエラー表示や問い合わせログと突合できるようにする。
 
@@ -404,9 +404,9 @@ MVPでは、フロント側の実装負荷を抑えるため、`X-Client-Version
 | 情報 | 理由 |
 | --- | --- |
 | 画面サイズ / viewport | UI不具合調査では有用だが、通常ログには過剰 |
-| 端末の詳細機種名 | 指紋化リスクが高く、MVPでは不要 |
+| 端末の詳細機種名 | 指紋化リスクが高く、Phase 0A / 0Bでは不要 |
 | CPU / メモリ / ネットワーク情報 | 調査価値に対してプライバシー上の情報量が大きい |
-| 緯度経度などの位置情報 | マイページMVPの仕様上不要 |
+| 緯度経度などの位置情報 | マイページPhase 0基盤の仕様上不要 |
 | Firebase ID token / Firebase refresh token / YouTube access token | 認証・連携に必要な場所以外に含めず、ログに混入させないため |
 
 画面サイズ、詳細な端末情報、ネットワーク情報などは、通常APIではなく、将来問い合わせ送信機能や明示的なデバッグレポート機能を作る場合にのみ検討する。
@@ -643,11 +643,11 @@ type MyPageErrorCode =
 
 通常席とメンバー席の両方に同一ユーザーがいる状態は不整合として扱う。
 
-MVPでは、サーバー側でエラーログを出し、APIは `500 internal_error` を返す。
+Phase 0A / 0Bでは、サーバー側でエラーログを出し、APIは `500 internal_error` を返す。
 
 ### リアルタイム作業時間
 
-MVPの作業時間は `!info` 相当を目指す。
+Phase 0基盤の作業時間は `!info` 相当を目指す。
 
 現在入室中の場合は、既存のリアルタイム累計計算ロジックを利用して、現在進行中の作業時間を反映した値を返す。
 
@@ -663,7 +663,7 @@ MVPの作業時間は `!info` 相当を目指す。
 - YouTube access token をブラウザの永続ストレージに保存しない
 - バックエンドは Firebase ID token を検証してから処理する
 - Firebase UID と YouTube channel ID の対応関係はサーバー側で永続化する
-- MVPでは、オンライン作業部屋の状態を変更する書き込み操作は提供しない
+- Phase 0A / 0Bでは、オンライン作業部屋の状態を変更する書き込み操作は提供しない
 
 ## 実装メモ
 
@@ -687,7 +687,7 @@ MVPの作業時間は `!info` 相当を目指す。
 - 入室中の場合はリアルタイム作業時間を反映する
 - 未登録は `status: "not_registered"` で返す
 
-## MVP完了条件
+## Phase 0基盤 完了条件
 
 - Firebase Auth の Googleログインができる
 - YouTube readonly scope を要求できる
