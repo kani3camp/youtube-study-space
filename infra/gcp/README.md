@@ -88,7 +88,7 @@ Issue #1155以降の検討を踏まえ、remote stateは **AWS S3の個人開発
 - backend roleへAWS workload用の広い権限を付与しない
 - 長期AWS access key / secret keyを作らない
 
-Issue #1161のread-only preflightにより、state bucketは **AWS Organizations配下に新設する専用Terraform/state control-plane member account** に置くことを決定しています。regionは `ap-northeast-1`（東京）です。development / production workload accountへ共通stateを置かず、production workload accountがOrganizations management / payerを兼務している構成の見直しは別scopeとします。
+Issue #1161で **AWS Organizations配下の専用Terraform/state control-plane member account** と `ap-northeast-1`（東京）のS3 backendをbootstrap済みです。development / production workload accountへ共通stateを置かず、production workload accountがOrganizations management / payerを兼務している構成の見直しは別scopeとします。実account ID / bucket名 / role ARN等はpublic repositoryへ保存しません。
 
 ### Public repository CI boundary
 
@@ -121,14 +121,14 @@ forkを含む通常PRへAWS / GCP credentialを渡しません。
 
 ### Existing development backend
 
-Issue #1154で作成した `test-youtube-study-space` 内のdevelopment GCS state bucketは、S3へのmigrationが完了するまで一時的なmigration sourceとして維持します。
+Issue #1154で作成した `test-youtube-study-space` 内のdevelopment GCS state bucketは、Issue #1161で確認した時点でTerraform上の**空state**でした。
 
-- 直ちに削除しない
+- Terraform backend migrationを実行したが、Terraform 1.16.4は空source stateをcopyしないため、migration成功とは扱わない
+- S3 destination backendをTerraform自身で初期化済み
+- init / validate / state read / native lock / Versioning / read-only recoveryを実測PASS
+- source GCS bucket/stateは保持する
 - production GCS state bucketは作成しない
-- dev migrationは専用Issueで実施する
-- source / destinationを明示し、dev stateだけを移す
-- migrationと旧GCS bucket削除を同じ作業にしない
-- rollback確認期間を置いてから旧bucketの扱いを別判断する
+- old GCS bucket削除は別判断とする
 
 ### Local backend configuration
 
@@ -183,7 +183,7 @@ bucket / BigQuery / IAM / Scheduler等でdestroyやreplacementが出た場合は
 
 Phase 1のrepository validationはcloud credentialを使いません。
 
-backend bootstrap / state migrationはoperator credentialを使用できますが、長期AWS access key / secret key、Google Service Account JSON keyは新規作成しません。
+Issue #1161のdevelopment backend bootstrapはoperatorの短期SSO credentialで完了済みです。長期AWS access key / secret key、Google Service Account JSON keyは作成していません。
 
 通常運用では認証をCIへ寄せます。
 
@@ -204,3 +204,15 @@ production:
 - import直後の想定外diffをapplyしない
 - destructive planは停止
 - Node.js 22 migrationとTerraform ownership移行を同じ変更にしない
+
+
+## Bootstrap follow-up
+
+Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
+
+残件はbootstrapとは分離して追跡します。
+
+- Issue #1165: alternate contacts / recovery運用
+- Issue #1166: durable CloudTrail / S3 data events監査
+- Issue #1162: public repository向けauthenticated Terraform plan / apply
+- production backend: development安定後の別Issue
