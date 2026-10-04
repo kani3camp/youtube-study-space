@@ -573,16 +573,12 @@ jobs:
         run: |
           set -euo pipefail
           for env in dev prod; do
-            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false
+            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="infra/gcp/environments/$env" validate
           done
 
-      - name: Verify generated provider locks match
-        run: |
-          cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
-          echo "=== TERRAFORM_LOCK_BEGIN ==="
-          cat infra/gcp/environments/dev/.terraform.lock.hcl
-          echo "=== TERRAFORM_LOCK_END ==="
+      - name: Verify provider locks match
+        run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
 
   ci-gate:
     name: CI Gate
