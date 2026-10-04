@@ -25,6 +25,7 @@ jobs:
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
+      gcp_terraform: ${{ steps.detect.outputs.gcp_terraform }}
       node_projects: ${{ steps.detect.outputs.node_projects }}
       firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
       formal_spec: ${{ steps.detect.outputs.formal_spec }}
@@ -548,6 +549,41 @@ jobs:
       - name: Run CDK synth
         run: pnpm cdk:synth
 
+
+  gcp-terraform-validate:
+    name: GCP Terraform Validate
+    needs: changes
+    if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/gcp
+
+      - name: Initialize and validate roots
+        run: |
+          set -euo pipefail
+          for env in dev prod; do
+            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false
+            terraform -chdir="infra/gcp/environments/$env" validate
+          done
+
+      - name: Verify generated provider locks match
+        run: |
+          cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
+          echo "=== TERRAFORM_LOCK_BEGIN ==="
+          cat infra/gcp/environments/dev/.terraform.lock.hcl
+          echo "=== TERRAFORM_LOCK_END ==="
+
   ci-gate:
     name: CI Gate
     if: always()
@@ -572,6 +608,7 @@ jobs:
       - docs-site-check
       - docs-site-build
       - aws-cdk-test
+      - gcp-terraform-validate
     runs-on: ubuntu-latest
     steps:
       - name: Fail if a CI job failed or was cancelled
