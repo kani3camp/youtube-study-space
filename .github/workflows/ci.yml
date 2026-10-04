@@ -586,6 +586,7 @@ jobs:
         run: |
           python3 .github/scripts/test_terraform_plan_summary.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
+          python3 .github/scripts/test_terraform_identity_smoke.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
