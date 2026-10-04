@@ -8,10 +8,10 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 Phase 1は **scaffold / state設計 / CI validationのみ** です。
 
-この段階では以下を行いません。
+この段階では以下を行いません（remote state bootstrap exceptionを除く）。
 
-- 既存GCP resourceのimport
-- resourceのcreate / update / delete
+- 既存workload GCP resourceのimport
+- workload resourceのcreate / update / delete
 - Cloud Functions / Scheduler / Pub/Subの変更
 - IAM / APIの変更
 - GitHub Actionsからのplan / apply
@@ -66,47 +66,62 @@ done
 
 ## Remote state bootstrap
 
-State bucketはTerraform本体の外側にある one-time bootstrap exception とします。
+State infrastructureはTerraform本体の外側にある one-time bootstrap exception とします。
 
-必須条件:
+### Architecture
 
-- dev bucketは `test-youtube-study-space` project内
-- prod bucketは `youtube-study-space` project内
-- dev / prodで別bucket
+Issue #1155のIAM reviewを受け、remote stateはworkload projectから分離した **専用Terraform state project** に置きます。
+
+原則:
+
+- state projectは1つとし、workload resourceを置かない
+- dev / prodは別GCS bucket・別prefix・別backend identityを使う
+- dev backend identityはdev bucketだけ、prod backend identityはprod bucketだけへアクセスさせる
+- backend identityへworkload projectのOwner / Editor / Storage Adminを付与しない
+- bucket accessは原則bucket scopeの `roles/storage.objectAdmin` を基準にし、bucket IAM管理権限は付与しない
+- operator / recovery主体とCI backend identityを分離する
+- GitHub Actions WIF導入時もdev / prodのbackend trustを分離し、既存AWS runtime WIFを流用しない
+
+Google Cloudのproject-level allow policyはproject配下のresourceへ継承されます。stateを専用projectへ分離することで、Firebase / App Engine / Cloud Build等のworkload project IAMがstate bucketへ継承される経路を切ります。
+
+### Bucket requirements
+
+dev / prodの各state bucketは以下を満たします。
+
 - Firestore backup bucketと共用しない
 - Object Versioning有効
 - Uniform bucket-level access有効
 - Public Access Prevention enforced
 - business data / build artifactを置かない
-- public accessを許可しない
-- bootstrap時にbucket固有のIAM grantを追加しない
-- project-level IAMから継承されるeffective accessをread-onlyで棚卸しし、実測を記録する
-- state bucketのためだけに既存project IAMをこのbootstrap作業へ巻き込んで変更しない
-
-Cloud StorageのIAM allow policyはresource hierarchyから継承されるため、同一project内にstate bucketを置く以上、bucket-level policyだけでproject-level grantを打ち消すことはできません。Phase 1 bootstrapでは「operator / 後続WIFだけがeffective accessを持つ」ことを要件にしません。
-
-代わりに、bootstrap時点では次を境界とします。
-
-- bucket固有の追加grantを作らない
 - `allUsers` / `allAuthenticatedUsers` を許可しない
-- Public Access Preventionをenforcedにする
-- Uniform bucket-level accessを有効にする
-- inherited project IAMを棚卸しする
-- production state backendを作る前に、広すぎるproject-level Storage / basic roleを別Issueでleast-privilege reviewする
+- retention lockを初期bootstrapで設定しない
+- lifecycle delete ruleを初期bootstrapで設定しない
+- soft delete等のplatform既定値は実測して記録する
 
-IAM Deny等でstate bucketだけをproject-level allowから除外する設計は、project全体へ影響するためPhase 1 bootstrapのscope外です。
+state project ID、bucket名、billing、recovery principalはbootstrap時に確認して確定します。secretやcredentialはREADME / backend configへ保存しません。
 
-bucket名はglobal uniqueness確認後にoperator作業で決定します。secretやcredentialはREADME / backend configへ保存しません。
+### Existing development bucket
 
-作成後、各rootでexampleをcopyしてgitignoredな `backend.hcl` を作成します。
+Issue #1154で作成した `test-youtube-study-space` 内のdevelopment state bucketは、専用state projectへのmigrationが完了するまで一時的な既存backendとして扱います。
+
+- 直ちに削除しない
+- production stateをworkload project内には作成しない
+- dev migrationは専用Issueで実施する
+- source / destinationを明示し、dev stateだけを移す
+- migrationと旧bucket削除を同じ作業にしない
+- rollback確認期間を置いてから旧bucketの扱いを別判断する
+
+### Local backend configuration
+
+各rootでexampleをcopyしてgitignoredな `backend.hcl` を作成します。
 
 ```bash
 cp infra/gcp/environments/dev/backend.hcl.example infra/gcp/environments/dev/backend.hcl
-# bucketを実値へ変更
+# dedicated state project内のdev bucketへ変更
 terraform -chdir=infra/gcp/environments/dev init -reconfigure -backend-config=backend.hcl
 ```
 
-productionも同様ですが、devで手順とstate recoveryを確認してから実施します。
+backend identityのimpersonationを使う場合はcredential fileを保存せず、GCS backendのservice account impersonation機能または短期credentialを使います。
 
 ## State recovery
 
