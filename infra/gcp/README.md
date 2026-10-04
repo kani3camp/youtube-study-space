@@ -14,7 +14,7 @@ Phase 1は **scaffold / state設計 / CI validationのみ** です。
 - workload resourceのcreate / update / delete
 - Cloud Functions / Scheduler / Pub/Subの変更
 - workload側のIAM / API変更
-- GitHub Actionsからのplan / apply
+- GitHub Actionsからのworkload apply（development認証smokeはIssue #1162）
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
 
@@ -123,9 +123,10 @@ forkを含む通常PRへAWS / GCP credentialを渡しません。
 
 Issue #1162のsource-control側guardrailとして、default branchにも存在する `.github/workflows/ci.yml` の `workflow_dispatch` を入口にし、同一commitの `.github/workflows/gcp-terraform-authenticated.yml` reusable workflowを呼び出します。専用workflowを直接 `workflow_dispatch` にしないのは、移行中はこの新規workflow fileがdefault branch (`dev`) に存在せず、GitHubのmanual dispatch入口として成立しないためです。
 
-現時点では **dev / prodともfail closed** です。
+development planとapplyは独立gateを持ちます。planの有効化はtrust構築後、applyの有効化はplan smoke / negative test PASS後の別変更です。
 
-- `DEV_AUTHENTICATED_TERRAFORM_ENABLED=false`
+- `DEV_AUTHENTICATED_TERRAFORM_ENABLED=true`（development trust構築後のplan smokeのみ）
+- `DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`（plan有効化ではapplyを開かない）
 - `PROD_AUTHENTICATED_TERRAFORM_ENABLED=false`
 - authenticated executionの入口は既存 `ci.yml` の `workflow_dispatch` のみ。`terraform_authenticated=true` を明示したrunだけreusable workflowを呼ぶ
 - 任意commit SHAはinputで受け取らない
@@ -134,6 +135,10 @@ Issue #1162のsource-control側guardrailとして、default branchにも存在�
 - repository nameに加えてimmutable repository / owner IDもpreflightで確認する
 - authenticated jobだけに `id-token: write` を付ける
 - external Actionsはfull commit SHAへpinする
+- AWS assumed-role ID / role名、GCP project number / SA名も認証Actionより前にmaskする。Environmentには既存5 secretに加えて `AWS_TERRAFORM_BACKEND_ROLE_ID` を設定する
+- backendのworkspace discovery prefixは対象environment配下に固定し、`TF_WORKSPACE=default` を使用する
+- development planは空resource graphでもGCP WIF token交換とplan SA impersonationを強制し、project metadataのharmless readで認証を証明する
+- identity smokeはAWS dev state read、stateへの条件付きPut拒否、prod / 他productのread/list拒否、wrong EnvironmentのSTS拒否、GCP mutation permission / prod permission不在と別SA impersonation拒否を確認する。unexpected grant / network error / object不在をDENY成功と混同しない
 - raw init / plan / apply出力はpublic logへ流さない
 - saved planはrunner一時領域だけで扱い、artifact / cacheへ保存しない
 - public outputは `.github/scripts/terraform_plan_summary.py` が生成するresource address / action count中心のsanitized summaryだけ

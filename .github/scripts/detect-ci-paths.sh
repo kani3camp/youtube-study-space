@@ -105,7 +105,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py)
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py)
 			gcp_terraform=true
 			matched=true
 			;;

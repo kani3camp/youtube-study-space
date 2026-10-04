@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import re
+import os
+import subprocess
+import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -33,8 +37,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("inputs.terraform_authenticated == true", self.caller)
         self.assertNotIn("secrets: inherit", self.caller)
 
-    def test_source_control_skeleton_is_fail_closed_until_trust_mutation(self) -> None:
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
+    def test_apply_and_production_remain_fail_closed_during_plan_smoke(self) -> None:
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
         self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
@@ -43,6 +47,53 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             'GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac"',
             self.text,
         )
+
+    def run_preflight(self, **overrides: str) -> subprocess.CompletedProcess[str]:
+        script = self.text.split("      - name: Enforce trusted execution surface", 1)[1].split("        run: |\n", 1)[1].split("\n  plan:\n", 1)[0]
+        env = {
+            "PATH": os.environ["PATH"], "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REPOSITORY": "kani3camp/youtube-study-space", "GITHUB_REPOSITORY_ID": "340900071",
+            "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+            "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
+            "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+        }
+        env.update(overrides)
+        with tempfile.TemporaryDirectory() as directory:
+            env["GITHUB_OUTPUT"] = str(Path(directory) / "outputs")
+            return subprocess.run(["bash", "-c", textwrap.dedent(script)], env=env, capture_output=True, text=True)
+
+    def test_enabled_development_plan_does_not_enable_apply(self) -> None:
+        self.assertEqual(self.run_preflight().returncode, 0)
+        rejected = self.run_preflight(MODE="apply")
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("Development apply is disabled", rejected.stdout)
+
+    def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
+        for key, value in {
+            "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY": "attacker/repo",
+            "GITHUB_REPOSITORY_ID": "0", "GITHUB_REPOSITORY_OWNER_ID": "0",
+            "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
+            "GITHUB_SHA": "not-a-sha", "TARGET": "prod", "MODE": "destroy",
+            "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+        }.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(self.run_preflight(**{key: value}).returncode, 0)
+
+    def test_empty_graph_still_forces_wif_exchange_and_sa_smoke(self) -> None:
+        self.assertIn("token_format: access_token", self.text)
+        self.assertIn("steps.plan_gcp_auth.outputs.access_token", self.text)
+        self.assertIn("python3 .github/scripts/terraform_identity_smoke.py", self.text)
+
+    def test_workspace_discovery_stays_within_target_prefix(self) -> None:
+        self.assertEqual(self.text.count('workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"'), 2)
+        self.assertEqual(self.text.count("TF_WORKSPACE: default"), 2)
+
+    def test_private_identity_fragments_are_masked_before_authentication(self) -> None:
+        for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
+            self.assertLess(job.index("Mask private identity fragments"), job.index("Configure AWS backend credential"))
+            self.assertIn("secrets.AWS_TERRAFORM_BACKEND_ROLE_ID", job)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
         self.assertEqual(self.text.count("id-token: write"), 2)

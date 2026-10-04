@@ -21,7 +21,8 @@ concurrency:
 env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
-  DEV_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
 
 jobs:
@@ -84,9 +85,13 @@ jobs:
           case "${TARGET}" in
             dev)
               [[ "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
-                echo "::error::Development authenticated Terraform is intentionally disabled pending #1162 trust mutation approval."
+                echo "::error::Development authenticated Terraform is disabled until its trust is configured."
                 exit 1
               }
+              if [[ "${MODE}" == "apply" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
+                echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
+                exit 1
+              fi
               echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
               echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
@@ -121,8 +126,25 @@ jobs:
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
+      TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
     steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
       - name: Checkout trusted commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -161,6 +183,7 @@ jobs:
           region              = "${STATE_AWS_REGION}"
           encrypt             = true
           use_lockfile        = true
+          workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
           allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
           EOF
 
@@ -182,6 +205,7 @@ jobs:
           fi
 
       - name: Configure GCP provider credential
+        id: plan_gcp_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
@@ -190,6 +214,20 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify development identity boundaries without public identifiers
+        if: ${{ inputs.target == 'dev' }}
+        shell: bash
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+        run: python3 .github/scripts/terraform_identity_smoke.py
 
       - name: Create saved plan without public output
         id: plan
@@ -282,8 +320,25 @@ jobs:
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
+      TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
     steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
       - name: Checkout the exact planned commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -331,6 +386,7 @@ jobs:
           region              = "${STATE_AWS_REGION}"
           encrypt             = true
           use_lockfile        = true
+          workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
           allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
           EOF
 
