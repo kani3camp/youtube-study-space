@@ -13,7 +13,7 @@ Phase 1は **scaffold / state設計 / CI validationのみ** です。
 - 既存workload GCP resourceのimport
 - workload resourceのcreate / update / delete
 - Cloud Functions / Scheduler / Pub/Subの変更
-- IAM / APIの変更
+- workload側のIAM / API変更
 - GitHub Actionsからのplan / apply
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
@@ -70,45 +70,64 @@ State infrastructureはTerraform本体の外側にある one-time bootstrap exce
 
 ### Architecture
 
-Issue #1155のIAM reviewを受け、remote stateはworkload projectから分離した **専用Terraform state project** に置きます。
+Issue #1155以降の検討を踏まえ、remote stateは **AWS S3の個人開発共通Terraform state control plane** に置きます。管理対象がGCPでもbackendを同じcloudへ置く必要はありません。
 
 原則:
 
-- state projectは1つとし、workload resourceを置かない
-- dev / prodは別GCS bucket・別prefix・別backend identityを使う
-- dev backend identityはdev bucketだけ、prod backend identityはprod bucketだけへアクセスさせる
-- backend identityへworkload projectのOwner / Editor / Storage Adminを付与しない
-- bucket accessは原則bucket scopeの `roles/storage.objectAdmin` を基準にし、bucket IAM管理権限は付与しない
-- operator / recovery主体とCI backend identityを分離する
-- GitHub Actions WIF導入時もdev / prodのbackend trustを分離し、既存AWS runtime WIFを流用しない
+- 個人開発共通のstate bucketは原則1つ
+- product / environmentごとにstate keyを分離する
+- YouTube Study Spaceは `youtube-study-space/dev/terraform.tfstate` と `youtube-study-space/prod/terraform.tfstate`
+- Terraform workspaceでdev / prodを切り替えない
+- S3 backendの `use_lockfile = true` を使い、DynamoDB lockは新規採用しない
+- S3 Bucket Versioningを有効化する
+- S3 Block Public Accessを全面有効化する
+- server-side encryptionを有効化する
+- state bucketへTerraform state / lock以外のbusiness dataやartifactを置かない
+- product / environmentごとにbackend IAM roleを分離し、対象state keyとlock keyだけへ最小権限を付与する
+- state file本体には原則 `GetObject` / `PutObject`、lock fileには `GetObject` / `PutObject` / `DeleteObject` を許可し、bucket listも対象prefixへ制限する
+- backend roleへAWS workload用の広い権限を付与しない
+- 長期AWS access key / secret keyを作らない
 
-Google Cloudのproject-level allow policyはproject配下のresourceへ継承されます。stateを専用projectへ分離することで、Firebase / App Engine / Cloud Build等のworkload project IAMがstate bucketへ継承される経路を切ります。
+state bucketを置くAWS accountはbootstrap前にread-only inventoryして決定します。現在確認できているStudy Space用dev/prod AWS accountのどちらかを無条件に共通control planeとはせず、個人開発全体のtrust boundaryとして妥当なaccountを選定します。
 
-### Bucket requirements
+### Public repository CI boundary
 
-dev / prodの各state bucketは以下を満たします。
+このrepositoryはpublicのため、Terraform CIを次の2段階に分離します。
 
-- Firestore backup bucketと共用しない
-- Object Versioning有効
-- Uniform bucket-level access有効
-- Public Access Prevention enforced
-- business data / build artifactを置かない
-- `allUsers` / `allAuthenticatedUsers` を許可しない
-- retention lockを初期bootstrapで設定しない
-- lifecycle delete ruleを初期bootstrapで設定しない
-- soft delete等のplatform既定値は実測して記録する
+**通常PR CI（credentialなし）**
 
-state project ID、bucket名、billing、recovery principalはbootstrap時に確認して確定します。secretやcredentialはREADME / backend configへ保存しません。
+- `terraform fmt`
+- `terraform init -backend=false -lockfile=readonly`
+- `terraform validate`
+- provider lock completeness
+- static / security checks
 
-### Existing development bucket
+forkを含む通常PRへAWS / GCP credentialを渡しません。
 
-Issue #1154で作成した `test-youtube-study-space` 内のdevelopment state bucketは、専用state projectへのmigrationが完了するまで一時的な既存backendとして扱います。
+**認証付きplan / apply（後続Phase）**
+
+- GitHub OIDC → AWSの短期credentialでS3 backendへアクセスする
+- GitHub OIDC / Workload Identity Federation → GCPの短期credentialでtarget workload projectへアクセスする
+- long-lived AWS key / Google Service Account JSON keyをGitHub Secretsへ保存しない
+- cloud側trustはrepositoryだけでなくtrusted ref / GitHub Environment / workflow等へ可能な限り限定する
+- production applyはGitHub Environmentのmanual approval必須
+- plan用identityとapply用identityの分離を検討し、少なくともproduction applyは専用least-privilege identityにする
+- full saved plan file / raw stateをpublic Actions artifactへuploadしない
+- `terraform show -json` 等のraw sensitive outputをpublic logへ出さない
+- public log / PR commentへ出すのはsanitized summaryを原則とする
+- application secret valueはTerraformへ極力流さず、Secret Manager等のsecret storeとwrite-only / ephemeralな経路を優先する
+
+外部forkのTerraformコードへcredential付きplanを自動実行しません。authenticated planをPR前に行う場合も、trusted same-repository commitを明示的なgate後に実行する設計とします。
+
+### Existing development backend
+
+Issue #1154で作成した `test-youtube-study-space` 内のdevelopment GCS state bucketは、S3へのmigrationが完了するまで一時的なmigration sourceとして維持します。
 
 - 直ちに削除しない
-- production stateをworkload project内には作成しない
+- production GCS state bucketは作成しない
 - dev migrationは専用Issueで実施する
 - source / destinationを明示し、dev stateだけを移す
-- migrationと旧bucket削除を同じ作業にしない
+- migrationと旧GCS bucket削除を同じ作業にしない
 - rollback確認期間を置いてから旧bucketの扱いを別判断する
 
 ### Local backend configuration
@@ -117,11 +136,10 @@ Issue #1154で作成した `test-youtube-study-space` 内のdevelopment state bu
 
 ```bash
 cp infra/gcp/environments/dev/backend.hcl.example infra/gcp/environments/dev/backend.hcl
-# dedicated state project内のdev bucketへ変更
 terraform -chdir=infra/gcp/environments/dev init -reconfigure -backend-config=backend.hcl
 ```
 
-backend identityのimpersonationを使う場合はcredential fileを保存せず、GCS backendのservice account impersonation機能または短期credentialを使います。
+backend credentialはbackend configへ直接書かず、ローカルではAWS SSO等のcredential chain、CIではGitHub OIDCによる短期credentialを使います。
 
 ## State recovery
 
@@ -163,9 +181,19 @@ bucket / BigQuery / IAM / Scheduler等でdestroyやreplacementが出た場合は
 
 ## Authentication boundary
 
-Phase 1のrepository validationはGCP credentialを使いません。
+Phase 1のrepository validationはcloud credentialを使いません。
 
-最初のbackend bootstrap / importはoperator credentialを使用できますが、長期Service Account JSON keyは新規作成しません。GitHub Actionsからのkeyless plan/applyは後続Phaseで専用OIDC / WIF principalを作ります。既存AWS runtime WIFとは分離します。
+backend bootstrap / state migrationはoperator credentialを使用できますが、長期AWS access key / secret key、Google Service Account JSON keyは新規作成しません。
+
+通常運用では認証をCIへ寄せます。
+
+- S3 backend: GitHub OIDC → AWS IAM role
+- GCP provider: GitHub OIDC / Workload Identity Federation → GCP
+- ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
+- public PR CIはcredentiallessを維持する
+- authenticated plan / apply workflowは後続Phaseでtrusted ref / GitHub Environment / least privilegeを実装する
+
+既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。
 
 ## Production boundary
 
