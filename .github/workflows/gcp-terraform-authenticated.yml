@@ -11,6 +11,21 @@ on:
         description: Run plan only or plan followed by protected apply
         required: true
         type: string
+    # Explicit names allow Environment secret resolution in called jobs without
+    # inheriting unrelated repository secrets. Values come from each job's gate.
+    secrets:
+      AWS_TERRAFORM_BACKEND_ROLE_ARN:
+        required: false
+      AWS_TERRAFORM_BACKEND_ROLE_ID:
+        required: false
+      AWS_TERRAFORM_STATE_BUCKET:
+        required: false
+      AWS_TERRAFORM_STATE_ACCOUNT_ID:
+        required: false
+      GCP_TERRAFORM_WIF_PROVIDER:
+        required: false
+      GCP_TERRAFORM_SERVICE_ACCOUNT:
+        required: false
 
 permissions: {}
 
