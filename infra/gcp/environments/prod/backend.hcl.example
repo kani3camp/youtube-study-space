@@ -1,0 +1,4 @@
+# Copy to backend.hcl only after the dedicated production state bucket exists.
+# backend.hcl is gitignored.
+bucket = "REPLACE_WITH_PRODUCTION_TERRAFORM_STATE_BUCKET"
+prefix = "terraform/gcp/production"
