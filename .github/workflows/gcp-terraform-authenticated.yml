@@ -1,22 +1,16 @@
 name: GCP Terraform Authenticated
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       target:
         description: Terraform target environment
         required: true
-        type: choice
-        options:
-          - dev
-          - prod
+        type: string
       mode:
         description: Run plan only or plan followed by protected apply
         required: true
-        type: choice
-        options:
-          - plan
-          - apply
+        type: string
 
 permissions: {}
 
@@ -47,6 +41,7 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
+          MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
 
@@ -66,6 +61,10 @@ jobs:
             echo "::error::Unexpected immutable repository owner ID."
             exit 1
           }
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Authenticated Terraform must be called from ci.yml at the trusted integration ref."
+            exit 1
+          }
           [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
             echo "::error::Authenticated Terraform is restricted to the current integration branch."
             exit 1
@@ -74,6 +73,13 @@ jobs:
             echo "::error::Invalid Git SHA."
             exit 1
           }
+          case "${MODE}" in
+            plan|apply) ;;
+            *)
+              echo "::error::Unsupported mode."
+              exit 1
+              ;;
+          esac
 
           case "${TARGET}" in
             dev)
