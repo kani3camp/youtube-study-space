@@ -6,18 +6,32 @@ import re
 import unittest
 from pathlib import Path
 
-WORKFLOW = Path(__file__).parents[1] / "workflows" / "gcp-terraform-authenticated.yml"
+GITHUB_DIR = Path(__file__).parents[1]
+WORKFLOW = GITHUB_DIR / "workflows" / "gcp-terraform-authenticated.yml"
+CALLER = GITHUB_DIR / "workflows" / "ci.yml"
 
 
 class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
+        cls.caller = CALLER.read_text(encoding="utf-8")
 
-    def test_only_manual_trigger_and_no_pull_request_target(self) -> None:
-        self.assertIn("workflow_dispatch:", self.text)
+    def test_reusable_workflow_is_not_directly_triggerable(self) -> None:
+        self.assertIn("workflow_call:", self.text)
+        self.assertNotIn("workflow_dispatch:", self.text)
         self.assertNotIn("pull_request_target", self.text)
         self.assertNotRegex(self.text, r"(?m)^\s*pull_request\s*:")
+
+    def test_default_branch_ci_is_the_manual_dispatch_entrypoint(self) -> None:
+        self.assertIn("workflow_dispatch:", self.caller)
+        self.assertIn("terraform_authenticated:", self.caller)
+        self.assertIn("terraform_target:", self.caller)
+        self.assertIn("terraform_mode:", self.caller)
+        self.assertIn("uses: ./.github/workflows/gcp-terraform-authenticated.yml", self.caller)
+        self.assertIn("github.event_name == 'workflow_dispatch'", self.caller)
+        self.assertIn("inputs.terraform_authenticated == true", self.caller)
+        self.assertNotIn("secrets: inherit", self.caller)
 
     def test_source_control_skeleton_is_fail_closed_until_trust_mutation(self) -> None:
         self.assertIn('DEV_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
@@ -25,9 +39,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
         self.assertIn('GITHUB_REPOSITORY_OWNER_ID}" == "54093651"', self.text)
+        self.assertIn(
+            'GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac"',
+            self.text,
+        )
 
-    def test_oidc_permission_is_limited_to_plan_and_apply_jobs(self) -> None:
+    def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
         self.assertEqual(self.text.count("id-token: write"), 2)
+        self.assertEqual(self.caller.count("id-token: write"), 1)
         preflight = self.text.split("  plan:\n", 1)[0]
         self.assertNotIn("id-token: write", preflight)
 
@@ -64,7 +83,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("Re-plan does not match the approved sanitized projection", self.text)
         self.assertIn("Post-apply Terraform plan is not no-op", self.text)
 
-    def test_private_identifiers_are_secret_inputs_not_literals(self) -> None:
+    def test_private_identifiers_are_environment_secret_inputs_not_literals(self) -> None:
         required_secret_names = (
             "AWS_TERRAFORM_BACKEND_ROLE_ARN",
             "AWS_TERRAFORM_STATE_BUCKET",
