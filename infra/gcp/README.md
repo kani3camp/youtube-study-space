@@ -78,7 +78,22 @@ State bucketはTerraform本体の外側にある one-time bootstrap exception �
 - Public Access Prevention enforced
 - business data / build artifactを置かない
 - public accessを許可しない
-- access principalをoperator / 後続のGitHub Actions WIFに限定する
+- bootstrap時にbucket固有のIAM grantを追加しない
+- project-level IAMから継承されるeffective accessをread-onlyで棚卸しし、実測を記録する
+- state bucketのためだけに既存project IAMをこのbootstrap作業へ巻き込んで変更しない
+
+Cloud StorageのIAM allow policyはresource hierarchyから継承されるため、同一project内にstate bucketを置く以上、bucket-level policyだけでproject-level grantを打ち消すことはできません。Phase 1 bootstrapでは「operator / 後続WIFだけがeffective accessを持つ」ことを要件にしません。
+
+代わりに、bootstrap時点では次を境界とします。
+
+- bucket固有の追加grantを作らない
+- `allUsers` / `allAuthenticatedUsers` を許可しない
+- Public Access Preventionをenforcedにする
+- Uniform bucket-level accessを有効にする
+- inherited project IAMを棚卸しする
+- production state backendを作る前に、広すぎるproject-level Storage / basic roleを別Issueでleast-privilege reviewする
+
+IAM Deny等でstate bucketだけをproject-level allowから除外する設計は、project全体へ影響するためPhase 1 bootstrapのscope外です。
 
 bucket名はglobal uniqueness確認後にoperator作業で決定します。secretやcredentialはREADME / backend configへ保存しません。
 
