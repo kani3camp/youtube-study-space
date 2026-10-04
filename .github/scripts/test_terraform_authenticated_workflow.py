@@ -95,6 +95,18 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertLess(job.index("Mask private identity fragments"), job.index("Configure AWS backend credential"))
             self.assertIn("secrets.AWS_TERRAFORM_BACKEND_ROLE_ID", job)
 
+    def test_deployed_identity_identifiers_are_not_literal_source_values(self) -> None:
+        sources = [WORKFLOW, Path(__file__), Path(__file__).with_name("terraform_identity_smoke.py"), Path(__file__).with_name("test_terraform_identity_smoke.py")]
+        forbidden = (
+            r"\b[a-z0-9-]+@(?:test-)?youtube-study-space\.iam\.gserviceaccount\.com\b",
+            r"arn:aws:iam::[0-9]{12}:role/",
+            r"projects/[0-9]{10,}/locations/global/workloadIdentityPools/",
+        )
+        for source in sources:
+            for pattern in forbidden:
+                with self.subTest(source=source.name, pattern=pattern):
+                    self.assertNotRegex(source.read_text(), pattern)
+
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
         self.assertEqual(self.text.count("id-token: write"), 2)
         self.assertEqual(self.caller.count("id-token: write"), 1)
