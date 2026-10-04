@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  backend "gcs" {}
+  backend "s3" {}
 }
 
 provider "google" {
