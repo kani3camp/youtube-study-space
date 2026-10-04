@@ -119,6 +119,31 @@ forkを含む通常PRへAWS / GCP credentialを渡しません。
 
 外部forkのTerraformコードへcredential付きplanを自動実行しません。authenticated planをPR前に行う場合も、trusted same-repository commitを明示的なgate後に実行する設計とします。
 
+### Authenticated workflow source guard
+
+Issue #1162のsource-control側guardrailとして `.github/workflows/gcp-terraform-authenticated.yml` を置きます。
+
+現時点では **dev / prodともfail closed** です。
+
+- `DEV_AUTHENTICATED_TERRAFORM_ENABLED=false`
+- `PROD_AUTHENTICATED_TERRAFORM_ENABLED=false`
+- triggerは `workflow_dispatch` のみ
+- 任意commit SHAはinputで受け取らない
+- PR headへcredentialを渡さない
+- integration期間中は `feature/gcp-terraform-iac` 以外のrefを拒否する
+- repository nameに加えてimmutable repository / owner IDもpreflightで確認する
+- authenticated jobだけに `id-token: write` を付ける
+- external Actionsはfull commit SHAへpinする
+- raw init / plan / apply出力はpublic logへ流さない
+- saved planはrunner一時領域だけで扱い、artifact / cacheへ保存しない
+- public outputは `.github/scripts/terraform_plan_summary.py` が生成するresource address / action count中心のsanitized summaryだけ
+- import移行期はcreate / update / delete / replacement / driftをstopする
+- plan jobとapply jobでsaved planを渡さず、apply jobは同じ `github.sha` から再planし、sanitized projectionが一致した場合だけ同一job内のplanをapplyする
+
+このworkflowを有効化する前に、GitHub Environment / branch trust、AWS GitHub OIDC backend role、GCP GitHub WIF / Terraform Service Accountを構築する必要があります。これらは実環境のtrust / identity mutationなので、Issue #1162のmutation gateに従い明示approval後に行います。
+
+production backendは未bootstrapのため、production authenticated plan / applyはbackend準備完了まで有効化しません。
+
 ### Existing development backend
 
 Issue #1154で作成した `test-youtube-study-space` 内のdevelopment GCS state bucketは、Issue #1161で確認した時点でTerraform上の**空state**でした。
