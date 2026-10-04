@@ -628,6 +628,13 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    secrets:
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
