@@ -42,6 +42,7 @@ dev / prodは別root moduleです。Terraform workspaceで環境を切り替え�
 
 - Terraform CLI: `.terraform-version` と各rootの `required_version` を一致させる
 - Google provider: 各rootの `required_providers` と `.terraform.lock.hcl` を正本にする
+- provider lockはTerraform operator / CIで使用する `linux_amd64` / `darwin_arm64` のchecksumを事前生成する
 - version更新は通常のdependency変更としてPRでreviewする
 - Notionにはpatch versionを複製しない
 
@@ -61,7 +62,7 @@ for env in dev prod; do
 done
 ```
 
-`terraform init -lockfile=readonly` を通常validationに使い、provider lockの変更を暗黙に許可しません。dependency更新時だけ通常の `terraform init` / `terraform providers lock` でlockを更新し、差分をreviewします。
+`terraform init -lockfile=readonly` を通常validationに使い、provider lockの変更を暗黙に許可しません。dependency更新時は `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64` でdev / prod両rootのlockを更新し、差分をreviewします。
 
 ## Remote state bootstrap
 

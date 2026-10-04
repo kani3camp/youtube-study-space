@@ -577,6 +577,19 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" validate
           done
 
+      - name: Verify multi-platform provider locks are complete
+        run: |
+          set -euo pipefail
+          for env in dev prod; do
+            terraform -chdir="infra/gcp/environments/$env" providers lock \
+              -platform=linux_amd64 \
+              -platform=darwin_arm64
+          done
+
+          git diff --exit-code -- \
+            infra/gcp/environments/dev/.terraform.lock.hcl \
+            infra/gcp/environments/prod/.terraform.lock.hcl
+
       - name: Verify provider locks match
         run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
 
