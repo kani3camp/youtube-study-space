@@ -126,8 +126,9 @@ Issue #1162のsource-control側guardrailとして、default branchにも存在�
 development planとapplyは独立gateを持ちます。planの有効化はtrust構築後、applyの有効化はplan smoke / negative test PASS後の別変更です。
 
 - `DEV_AUTHENTICATED_TERRAFORM_ENABLED=true`（development trust構築後のplan smokeのみ）
-- `DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`（plan有効化ではapplyを開かない）
+- `DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=true`（development plan smoke / negative test / native lock / public output audit PASS後に有効化）
 - `PROD_AUTHENTICATED_TERRAFORM_ENABLED=false`
+- development applyは別Environmentの承認と同一SHAの再plan / import-only検証を引き続き必須とする。gate有効化だけではapplyを実行せず、workload importは後続waveで扱う
 - authenticated executionの入口は既存 `ci.yml` の `workflow_dispatch` のみ。`terraform_authenticated=true` を明示したrunだけreusable workflowを呼ぶ
 - 任意commit SHAはinputで受け取らない
 - PR headへcredentialを渡さない

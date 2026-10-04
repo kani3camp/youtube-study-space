@@ -37,8 +37,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("inputs.terraform_authenticated == true", self.caller)
         self.assertNotIn("secrets: inherit", self.caller)
 
-    def test_apply_and_production_remain_fail_closed_during_plan_smoke(self) -> None:
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+    def test_production_remains_fail_closed_and_trusted_surface_is_fixed(self) -> None:
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
         self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
@@ -82,6 +81,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         rejected = self.run_preflight(MODE="apply")
         self.assertNotEqual(rejected.returncode, 0)
         self.assertIn("Development apply is disabled", rejected.stdout)
+
+    def test_enabled_development_apply_still_requires_trusted_surface(self) -> None:
+        enabled = re.search(r'DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "(true|false)"', self.text).group(1)
+        self.assertEqual(self.run_preflight(MODE="apply", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=enabled).returncode, 0)
+        for key, value in {
+            "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
+            "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
+            "TARGET": "prod", "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+        }.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(self.run_preflight(MODE="apply", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=enabled, **{key: value}).returncode, 0)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {
