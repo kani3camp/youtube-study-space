@@ -560,6 +560,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Test authenticated Terraform CI guardrails
+        run: |
+          python3 .github/scripts/test_terraform_plan_summary.py
+          python3 .github/scripts/test_terraform_authenticated_workflow.py
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
