@@ -3,6 +3,28 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      terraform_authenticated:
+        description: Run the fail-closed authenticated Terraform flow
+        required: false
+        default: false
+        type: boolean
+      terraform_target:
+        description: Terraform target environment
+        required: false
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+      terraform_mode:
+        description: Authenticated Terraform mode
+        required: false
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
 
 permissions:
   contents: read
@@ -597,6 +619,17 @@ jobs:
 
       - name: Verify provider locks match
         run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
+
+  gcp-terraform-authenticated:
+    name: GCP Terraform Authenticated
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: ${{ inputs.terraform_target }}
+      mode: ${{ inputs.terraform_mode }}
 
   ci-gate:
     name: CI Gate
