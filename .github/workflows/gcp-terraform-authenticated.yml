@@ -1,0 +1,499 @@
+name: GCP Terraform Authenticated
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: Terraform target environment
+        required: true
+        type: string
+      mode:
+        description: Run plan only or plan followed by protected apply
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: gcp-terraform-authenticated-${{ inputs.target }}
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.16.4"
+  STATE_AWS_REGION: ap-northeast-1
+  DEV_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+
+jobs:
+  preflight:
+    name: Trust boundary preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      terraform_root: ${{ steps.guard.outputs.terraform_root }}
+      state_key: ${{ steps.guard.outputs.state_key }}
+      project_id: ${{ steps.guard.outputs.project_id }}
+    steps:
+      - name: Enforce trusted execution surface
+        id: guard
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+
+          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || {
+            echo "::error::Authenticated Terraform only supports workflow_dispatch."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY}" == "kani3camp/youtube-study-space" ]] || {
+            echo "::error::Unexpected repository."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_ID}" == "340900071" ]] || {
+            echo "::error::Unexpected immutable repository ID."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_OWNER_ID}" == "54093651" ]] || {
+            echo "::error::Unexpected immutable repository owner ID."
+            exit 1
+          }
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Authenticated Terraform must be called from ci.yml at the trusted integration ref."
+            exit 1
+          }
+          [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Authenticated Terraform is restricted to the current integration branch."
+            exit 1
+          }
+          [[ "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Invalid Git SHA."
+            exit 1
+          }
+          case "${MODE}" in
+            plan|apply) ;;
+            *)
+              echo "::error::Unsupported mode."
+              exit 1
+              ;;
+          esac
+
+          case "${TARGET}" in
+            dev)
+              [[ "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
+                echo "::error::Development authenticated Terraform is intentionally disabled pending #1162 trust mutation approval."
+                exit 1
+              }
+              echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
+              echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
+              echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
+              ;;
+            prod)
+              [[ "${PROD_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
+                echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
+                exit 1
+              }
+              echo "terraform_root=infra/gcp/environments/prod" >> "${GITHUB_OUTPUT}"
+              echo "state_key=youtube-study-space/prod/terraform.tfstate" >> "${GITHUB_OUTPUT}"
+              echo "project_id=youtube-study-space" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unsupported target."
+              exit 1
+              ;;
+          esac
+
+  plan:
+    name: Authenticated import-only plan
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: terraform-${{ inputs.target }}-plan
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      summary_digest: ${{ steps.sanitize.outputs.summary_digest }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+    steps:
+      - name: Checkout trusted commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS backend credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+
+      - name: Create private backend config
+        shell: bash
+        env:
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+        run: |
+          set -euo pipefail
+          : "${STATE_BUCKET:?missing AWS_TERRAFORM_STATE_BUCKET}"
+          : "${STATE_ACCOUNT_ID:?missing AWS_TERRAFORM_STATE_ACCOUNT_ID}"
+          : "${STATE_KEY:?missing state key}"
+          umask 077
+          cat > "${RUNNER_TEMP}/backend.hcl" <<EOF
+          bucket              = "${STATE_BUCKET}"
+          key                 = "${STATE_KEY}"
+          region              = "${STATE_AWS_REGION}"
+          encrypt             = true
+          use_lockfile        = true
+          allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
+          EOF
+
+      - name: Initialize remote backend without public output
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Configure GCP provider credential
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+
+      - name: Create saved plan without public output
+        id: plan
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            -input=false \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
+          rc=$?
+          set -e
+          case "${rc}" in
+            0|2)
+              echo "plan_exit_code=${rc}" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Terraform plan failed. Raw output is intentionally not printed."
+              exit 1
+              ;;
+          esac
+
+      - name: Sanitize and enforce import-only plan
+        id: sanitize
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-plan.log" \
+            | python3 .github/scripts/terraform_plan_summary.py \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/sanitized-plan.json" \
+                --markdown-output "${RUNNER_TEMP}/sanitized-plan.md" \
+            >"${RUNNER_TEMP}/sanitizer.out" 2>"${RUNNER_TEMP}/sanitizer.err"
+          rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/sanitized-plan.md" ]]; then
+            cat "${RUNNER_TEMP}/sanitized-plan.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -f "${RUNNER_TEMP}/sanitized-plan.json" ]]; then
+            digest="$(sha256sum "${RUNNER_TEMP}/sanitized-plan.json" | awk '{print $1}')"
+            echo "summary_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          fi
+          if [[ "${rc}" -ne 0 ]]; then
+            echo "::error::Terraform plan violated the import-only policy. See the sanitized Job Summary."
+            exit "${rc}"
+          fi
+
+      - name: Cleanup sensitive temporary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            "${RUNNER_TEMP}/backend.hcl" \
+            "${RUNNER_TEMP}/terraform-init.log" \
+            "${RUNNER_TEMP}/terraform-plan.log" \
+            "${RUNNER_TEMP}/tfplan" \
+            "${RUNNER_TEMP}/sanitized-plan.json" \
+            "${RUNNER_TEMP}/sanitized-plan.md" \
+            "${RUNNER_TEMP}/sanitizer.out" \
+            "${RUNNER_TEMP}/sanitizer.err"
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+
+  apply:
+    name: Protected import-only apply
+    if: ${{ inputs.mode == 'apply' }}
+    needs:
+      - preflight
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: terraform-${{ inputs.target }}-apply
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+    steps:
+      - name: Checkout the exact planned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Assert plan/apply commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]] || {
+            echo "::error::Checked out commit does not match github.sha."
+            exit 1
+          }
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS backend credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+
+      - name: Create private backend config
+        shell: bash
+        env:
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+        run: |
+          set -euo pipefail
+          : "${STATE_BUCKET:?missing AWS_TERRAFORM_STATE_BUCKET}"
+          : "${STATE_ACCOUNT_ID:?missing AWS_TERRAFORM_STATE_ACCOUNT_ID}"
+          : "${STATE_KEY:?missing state key}"
+          umask 077
+          cat > "${RUNNER_TEMP}/backend.hcl" <<EOF
+          bucket              = "${STATE_BUCKET}"
+          key                 = "${STATE_KEY}"
+          region              = "${STATE_AWS_REGION}"
+          encrypt             = true
+          use_lockfile        = true
+          allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
+          EOF
+
+      - name: Initialize remote backend without public output
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Configure GCP provider credential
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+
+      - name: Re-plan at the exact approved commit
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            -input=false \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
+          rc=$?
+          set -e
+          case "${rc}" in
+            0|2) ;;
+            *)
+              echo "::error::Terraform re-plan failed. Raw output is intentionally not printed."
+              exit 1
+              ;;
+          esac
+
+      - name: Verify re-plan matches the sanitized approved projection
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          APPROVED_DIGEST: ${{ needs.plan.outputs.summary_digest }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-plan.log" \
+            | python3 .github/scripts/terraform_plan_summary.py \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/sanitized-replan.json" \
+                --markdown-output "${RUNNER_TEMP}/sanitized-replan.md" \
+            >"${RUNNER_TEMP}/sanitizer.out" 2>"${RUNNER_TEMP}/sanitizer.err"
+          rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/sanitized-replan.md" ]]; then
+            cat "${RUNNER_TEMP}/sanitized-replan.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          [[ "${rc}" -eq 0 ]] || {
+            echo "::error::Re-plan violated the import-only policy."
+            exit "${rc}"
+          }
+
+          actual_digest="$(sha256sum "${RUNNER_TEMP}/sanitized-replan.json" | awk '{print $1}')"
+          [[ -n "${APPROVED_DIGEST}" && "${actual_digest}" == "${APPROVED_DIGEST}" ]] || {
+            echo "::error::Re-plan does not match the approved sanitized projection. Run plan again and re-approve."
+            exit 1
+          }
+
+      - name: Apply the locally re-created saved plan
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" apply \
+            -input=false \
+            "${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-apply.log" 2>&1; then
+            echo "::error::Terraform apply failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Require post-apply no-op
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            -input=false \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/post-apply.tfplan" \
+            >"${RUNNER_TEMP}/terraform-post-apply.log" 2>&1
+          plan_rc=$?
+          set -e
+
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/post-apply.tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-post-apply.log" \
+            | python3 .github/scripts/terraform_plan_summary.py \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/post-apply-summary.json" \
+                --markdown-output "${RUNNER_TEMP}/post-apply-summary.md" \
+            >"${RUNNER_TEMP}/post-sanitizer.out" 2>"${RUNNER_TEMP}/post-sanitizer.err"
+          sanitizer_rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/post-apply-summary.md" ]]; then
+            cat "${RUNNER_TEMP}/post-apply-summary.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          [[ "${sanitizer_rc}" -eq 0 ]] || {
+            echo "::error::Post-apply plan violated the import-only policy."
+            exit "${sanitizer_rc}"
+          }
+          [[ "${plan_rc}" -eq 0 ]] || {
+            echo "::error::Post-apply Terraform plan is not no-op."
+            exit 1
+          }
+
+      - name: Cleanup sensitive temporary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            "${RUNNER_TEMP}/backend.hcl" \
+            "${RUNNER_TEMP}/terraform-init.log" \
+            "${RUNNER_TEMP}/terraform-plan.log" \
+            "${RUNNER_TEMP}/terraform-apply.log" \
+            "${RUNNER_TEMP}/terraform-post-apply.log" \
+            "${RUNNER_TEMP}/tfplan" \
+            "${RUNNER_TEMP}/post-apply.tfplan" \
+            "${RUNNER_TEMP}/sanitized-replan.json" \
+            "${RUNNER_TEMP}/sanitized-replan.md" \
+            "${RUNNER_TEMP}/post-apply-summary.json" \
+            "${RUNNER_TEMP}/post-apply-summary.md" \
+            "${RUNNER_TEMP}/sanitizer.out" \
+            "${RUNNER_TEMP}/sanitizer.err" \
+            "${RUNNER_TEMP}/post-sanitizer.out" \
+            "${RUNNER_TEMP}/post-sanitizer.err"
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
