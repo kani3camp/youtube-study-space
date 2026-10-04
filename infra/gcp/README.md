@@ -55,13 +55,13 @@ terraform fmt -check -recursive infra/gcp
 for env in dev prod; do
   (
     cd "infra/gcp/environments/$env"
-    terraform init -backend=false
+    terraform init -backend=false -lockfile=readonly
     terraform validate
   )
 done
 ```
 
-`terraform init` がprovider lock fileを変更した場合は、意図したdependency updateでなければcommitしません。
+`terraform init -lockfile=readonly` を通常validationに使い、provider lockの変更を暗黙に許可しません。dependency更新時だけ通常の `terraform init` / `terraform providers lock` でlockを更新し、差分をreviewします。
 
 ## Remote state bootstrap
 
