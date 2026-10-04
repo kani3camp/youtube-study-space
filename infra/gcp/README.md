@@ -88,7 +88,7 @@ Issue #1155以降の検討を踏まえ、remote stateは **AWS S3の個人開発
 - backend roleへAWS workload用の広い権限を付与しない
 - 長期AWS access key / secret keyを作らない
 
-state bucketを置くAWS accountはbootstrap前にread-only inventoryして決定します。現在確認できているStudy Space用dev/prod AWS accountのどちらかを無条件に共通control planeとはせず、個人開発全体のtrust boundaryとして妥当なaccountを選定します。
+Issue #1161のread-only preflightにより、state bucketは **AWS Organizations配下に新設する専用Terraform/state control-plane member account** に置くことを決定しています。regionは `ap-northeast-1`（東京）です。development / production workload accountへ共通stateを置かず、production workload accountがOrganizations management / payerを兼務している構成の見直しは別scopeとします。
 
 ### Public repository CI boundary
 
