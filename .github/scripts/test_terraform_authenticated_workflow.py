@@ -48,6 +48,15 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.text,
         )
 
+    def test_environment_secret_interface_is_explicit_without_inheritance(self) -> None:
+        interface = self.text.split("    secrets:\n", 1)[1].split("\npermissions:", 1)[0]
+        declared = set(re.findall(r"(?m)^      ([A-Z_]+):$", interface))
+        used = set(re.findall(r"secrets\.([A-Z_]+)", self.text))
+        self.assertEqual(declared, used)
+        self.assertEqual(len(declared), 6)
+        self.assertEqual(interface.count("required: false"), 6)
+        self.assertNotIn("secrets: inherit", self.caller)
+
     def run_preflight(self, **overrides: str) -> subprocess.CompletedProcess[str]:
         script = self.text.split("      - name: Enforce trusted execution surface", 1)[1].split("        run: |\n", 1)[1].split("\n  plan:\n", 1)[0]
         env = {
