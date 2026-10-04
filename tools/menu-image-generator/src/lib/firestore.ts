@@ -1,6 +1,7 @@
 import * as path from 'node:path'
 import * as dotenv from 'dotenv'
-import * as admin from 'firebase-admin'
+import { cert, initializeApp } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
 import type { MenuItemWithNumber } from '../types'
 
 // .envファイルを読み込み
@@ -27,8 +28,8 @@ export function initializeFirebase(): void {
 		? credentialPath
 		: path.resolve(process.cwd(), credentialPath)
 
-	admin.initializeApp({
-		credential: admin.credential.cert(absolutePath),
+	initializeApp({
+		credential: cert(absolutePath),
 	})
 
 	initialized = true
@@ -43,7 +44,7 @@ export function initializeFirebase(): void {
 export async function fetchMenuItems(): Promise<MenuItemWithNumber[]> {
 	initializeFirebase()
 
-	const db = admin.firestore()
+	const db = getFirestore()
 	const menuCollection = db.collection('menu')
 
 	// codeの文字列昇順でソート（Firestoreのクエリで実行）

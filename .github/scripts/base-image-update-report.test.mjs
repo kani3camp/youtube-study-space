@@ -10,6 +10,7 @@ import {
   COMMENT_MARKER,
   canVerifyRegistryUpdate,
   detectDigestUpdates,
+  dockerHubUrl,
   googleArtifactRegistryUrl,
   parseFromImages,
   parsePinnedImage,
@@ -156,6 +157,43 @@ test("publicGalleryUrl returns a stable ECR Public Gallery repository URL", () =
     "https://gallery.ecr.aws/lambda/provided",
   );
   assert.equal(publicGalleryUrl("golang:1.26"), null);
+});
+
+test("dockerHubUrl maps official and namespaced Docker Hub images to filtered tag pages", () => {
+  assert.equal(
+    dockerHubUrl("golang", "1.27"),
+    "https://hub.docker.com/_/golang/tags?name=1.27",
+  );
+  assert.equal(
+    dockerHubUrl("docker.io/library/golang", "1.27"),
+    "https://hub.docker.com/_/golang/tags?name=1.27",
+  );
+  assert.equal(
+    dockerHubUrl("docker.io/example/widget", "v1.2.3"),
+    "https://hub.docker.com/r/example/widget/tags?name=v1.2.3",
+  );
+  assert.equal(dockerHubUrl("gcr.io/distroless/static-debian12", "nonroot"), null);
+});
+
+test("renderReport includes Docker Hub link for Docker Hub images", () => {
+  const update = detectDigestUpdates(
+    `FROM golang:1.26@${OLD}\n`,
+    `FROM golang:1.27@${NEW}\n`,
+  )[0];
+
+  const report = renderReport([
+    {
+      file: "system/Dockerfile.fargate",
+      ...update,
+      resolvedDigest: NEW,
+      verificationError: null,
+    },
+  ]);
+
+  assert.match(
+    report,
+    /https:\/\/hub\.docker\.com\/_\/golang\/tags\?name=1\.27/,
+  );
 });
 
 test("googleArtifactRegistryUrl maps gcr.io images to the Artifact Registry console", () => {

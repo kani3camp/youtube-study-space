@@ -20,6 +20,8 @@ jobs:
       system: ${{ steps.detect.outputs.system }}
       room_image_prompt: ${{ steps.detect.outputs.room_image_prompt }}
       menu_image_generator: ${{ steps.detect.outputs.menu_image_generator }}
+      video_maker_simulator: ${{ steps.detect.outputs.video_maker_simulator }}
+      figma_plugin: ${{ steps.detect.outputs.figma_plugin }}
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
@@ -137,7 +139,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11.3
+          version: v2.13.2
           working-directory: system
           args: --timeout=5m --config=.golangci.yml
 
@@ -314,6 +316,62 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: 1
       - name: Run lint
         run: pnpm lint
+      - name: Run build
+        run: pnpm build
+
+  video-maker-simulator-check:
+    name: Video Maker Simulator Lint, Typecheck & Build
+    needs: changes
+    if: ${{ needs.changes.outputs.video_maker_simulator == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/video-maker/1000-minutes-simulator
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.4.0
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/video-maker/1000-minutes-simulator/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run lint
+        run: pnpm lint
+      - name: Run typecheck
+        run: pnpm typecheck
+      - name: Run build
+        run: pnpm build
+
+  figma-plugin-room-layout-analyzer-build:
+    name: Figma Room Layout Analyzer Build
+    needs: changes
+    if: ${{ needs.changes.outputs.figma_plugin == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/figma-plugin/room-layout-analyzer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools/figma-plugin/room-layout-analyzer/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/figma-plugin/room-layout-analyzer/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Run build
         run: pnpm build
 
@@ -506,6 +564,8 @@ jobs:
       - room-image-prompt-go-lint
       - room-image-prompt-go-test
       - menu-image-generator-lint-build
+      - video-maker-simulator-check
+      - figma-plugin-room-layout-analyzer-build
       - biome-lint
       - youtube-monitor-test
       - youtube-monitor-build

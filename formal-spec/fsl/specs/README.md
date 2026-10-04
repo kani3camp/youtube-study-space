@@ -20,7 +20,7 @@
 
 ### v1 で意図的にモデル化しないもの
 
-- `WorkName` / `BreakWorkName` 等の文字列
+- `WorkName` 等の文字列
 - Firestore のフィールド名や serialization
 - i18n / エラーメッセージ文言
 - JST の日付跨ぎを含む `DailyCumulativeWorkSec`

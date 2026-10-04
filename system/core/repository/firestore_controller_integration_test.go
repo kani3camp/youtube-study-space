@@ -38,7 +38,6 @@ func newSeatDoc(seatID int, userID string, sessionID string) repository.SeatDoc 
 		SessionID:       sessionID,
 		UserDisplayName: "テストユーザー",
 		WorkName:        "初期作業",
-		BreakWorkName:   "初期休憩作業",
 		EnteredAt:       time.Date(2026, 8, 2, 9, 0, 0, 0, jst),
 		Until:           time.Date(2026, 8, 2, 18, 0, 0, 0, jst),
 		Appearance: repository.SeatAppearance{
@@ -75,7 +74,6 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.SessionID, got.SessionID)
 	assert.Equal(t, want.UserDisplayName, got.UserDisplayName)
 	assert.Equal(t, want.WorkName, got.WorkName)
-	assert.Equal(t, want.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, want.Appearance, got.Appearance)
 	assert.Equal(t, want.MenuCode, got.MenuCode)
 	assert.Equal(t, want.State, got.State)
@@ -156,7 +154,7 @@ func TestFirestoreRepository_SeatCollectionsAreSeparated(t *testing.T) {
 	assert.NotEqual(t, gotGeneral.SessionID, gotMember.SessionID)
 }
 
-func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *testing.T) {
+func TestFirestoreRepository_UpdateSeatRemovesLegacyFields(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
 	original := newSeatDoc(7, "seat-update-user", "session-update")
@@ -170,12 +168,12 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 		{Path: "appearance.color-code1", Value: "#111111"},
 		{Path: "appearance.color-code2", Value: "#222222"},
 		{Path: "appearance.color-gradient-enabled", Value: true},
+		{Path: "break-work-name", Value: "旧休憩内容"},
 	})
 	require.NoError(t, err)
 
 	updated := original
 	updated.WorkName = "更新後の作業"
-	updated.BreakWorkName = "更新後の休憩作業"
 	updated.State = repository.BreakState
 	updated.CurrentStateStartedAt = time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	updated.CurrentStateUntil = time.Date(2026, 8, 2, 12, 30, 0, 0, time.UTC)
@@ -191,7 +189,6 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 	got, err := controller.ReadSeat(ctx, nil, updated.SeatID, false)
 	require.NoError(t, err)
 	assert.Equal(t, updated.WorkName, got.WorkName)
-	assert.Equal(t, updated.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, updated.State, got.State)
 	assert.Equal(t, updated.CurrentStateStartedAt, got.CurrentStateStartedAt)
 	assert.Equal(t, updated.CurrentStateUntil, got.CurrentStateUntil)
@@ -211,7 +208,9 @@ func TestFirestoreRepository_UpdateSeatRemovesRelease1LegacyAppearanceFields(t *
 
 	doc, err := controller.FirestoreClient().Collection(repository.SEATS).Doc("7").Get(ctx)
 	require.NoError(t, err)
-	rawAppearance, ok := doc.Data()["appearance"].(map[string]interface{})
+	rawData := doc.Data()
+	assert.NotContains(t, rawData, "break-work-name")
+	rawAppearance, ok := rawData["appearance"].(map[string]interface{})
 	require.True(t, ok)
 	assert.NotContains(t, rawAppearance, "color-code1")
 	assert.NotContains(t, rawAppearance, "color-code2")

@@ -6,6 +6,8 @@ readonly CI_GROUPS=(
 	system
 	room_image_prompt
 	menu_image_generator
+	video_maker_simulator
+	figma_plugin
 	youtube_monitor
 	docs_site
 	aws_cdk
@@ -18,6 +20,8 @@ readonly CI_GROUPS=(
 system=false
 room_image_prompt=false
 menu_image_generator=false
+video_maker_simulator=false
+figma_plugin=false
 youtube_monitor=false
 docs_site=false
 aws_cdk=false
@@ -45,6 +49,8 @@ set_all_groups() {
 	system=true
 	room_image_prompt=true
 	menu_image_generator=true
+	video_maker_simulator=true
+	figma_plugin=true
 	youtube_monitor=true
 	docs_site=true
 	aws_cdk=true
@@ -102,6 +108,14 @@ classify_path() {
 			;;
 		tools/menu-image-generator/*)
 			menu_image_generator=true
+			matched=true
+			;;
+		tools/video-maker/1000-minutes-simulator/*)
+			video_maker_simulator=true
+			matched=true
+			;;
+		tools/figma-plugin/room-layout-analyzer/*)
+			figma_plugin=true
 			matched=true
 			;;
 		youtube-monitor/*|biome.json)
@@ -185,6 +199,8 @@ group_value() {
 		system) printf '%s' "$system" ;;
 		room_image_prompt) printf '%s' "$room_image_prompt" ;;
 		menu_image_generator) printf '%s' "$menu_image_generator" ;;
+		video_maker_simulator) printf '%s' "$video_maker_simulator" ;;
+		figma_plugin) printf '%s' "$figma_plugin" ;;
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
