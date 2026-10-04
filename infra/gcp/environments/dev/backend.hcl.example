@@ -1,0 +1,4 @@
+# Copy to backend.hcl only after the dedicated development state bucket exists.
+# backend.hcl is gitignored.
+bucket = "REPLACE_WITH_DEVELOPMENT_TERRAFORM_STATE_BUCKET"
+prefix = "terraform/gcp/development"
