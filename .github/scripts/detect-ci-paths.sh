@@ -11,6 +11,7 @@ readonly CI_GROUPS=(
 	youtube_monitor
 	docs_site
 	aws_cdk
+	gcp_terraform
 	node_projects
 	firestore_integration
 	formal_spec
@@ -25,6 +26,7 @@ figma_plugin=false
 youtube_monitor=false
 docs_site=false
 aws_cdk=false
+gcp_terraform=false
 node_projects=false
 firestore_integration=false
 formal_spec=false
@@ -54,6 +56,7 @@ set_all_groups() {
 	youtube_monitor=true
 	docs_site=true
 	aws_cdk=true
+	gcp_terraform=true
 	node_projects=true
 	firestore_integration=true
 	formal_spec=true
@@ -134,6 +137,10 @@ classify_path() {
 			aws_cdk=true
 			matched=true
 			;;
+		infra/gcp/*)
+			gcp_terraform=true
+			matched=true
+			;;
 		.node-version|.nvmrc)
 			node_projects=true
 			matched=true
@@ -204,6 +211,7 @@ group_value() {
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
+		gcp_terraform) printf '%s' "$gcp_terraform" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
 		formal_spec) printf '%s' "$formal_spec" ;;
