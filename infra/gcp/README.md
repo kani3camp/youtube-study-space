@@ -6,15 +6,15 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 ## 現在のscope
 
-Phase 1は **scaffold / state設計 / CI validationのみ** です。
+Phase 1のscaffold / S3 state / protected CIは構築済みです。Phase 2では、production自然実行E2E（#1173）と独立したdevelopment resourceを、小さいimport-only waveで取り込みます。
 
 この段階では以下を行いません（remote state bootstrap exceptionを除く）。
 
-- 既存workload GCP resourceのimport
+- production resourceのimport
 - workload resourceのcreate / update / delete
 - Cloud Functions / Scheduler / Pub/Subの変更
-- workload側のIAM / API変更
-- GitHub Actionsからのworkload apply（development認証smokeはIssue #1162）
+- workload resourceのmutation権限追加 / API有効化
+- import-only以外のGitHub Actions workload apply（protected CIはIssue #1162）
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
 
@@ -247,3 +247,17 @@ Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
 - Issue #1166: durable CloudTrail / S3 data events監査
 - Issue #1162: public repository向けauthenticated Terraform plan / apply
 - production backend: development安定後の別Issue
+
+## Development import wave 1: native backup schedule
+
+`environments/dev/native-backup.tf` は、実環境のdaily backup scheduleをconfiguration-driven importします。これはFirestoreのnative backupであり、#1173で保留しているScheduler / Pub/Sub / export Functionとは別resourceです。
+
+- Same: daily recurrence / `(default)` database
+- Intended environment difference: developmentは30日、productionは20日保持。既存値を変更しない
+- provider ownership: developmentのschedule 1件のみ。Firestore database本体、backup data、Rules / Indexesは対象外
+- Google providerのReadはscheduleのGETだけを使う。dev CI custom roleへの追加は `datastore.backupSchedules.get` だけとし、list / create / update / delete、backup本文read、prod権限は追加しない
+- `prevent_destroy` と既存CI import-only guardを維持する。providerのlocal `deletion_policy` defaultはimport時に変更せず、no-opを確認する
+- credentialless PR CI PASS後にintegration branchへmergeし、同じSHAのauthenticated plan → Environment-approved import-only apply → post-apply no-opを確認する
+- production定義 / import、export chain、API ownership / runtime WIFは別wave
+
+2026-10-05 parityでは、backup bucketのPublic Access Preventionがdev `inherited` / prod `enforced`、`user-activity-history` のdevだけに `timestamp` fieldが存在する。意図を確定できないためUnexpected drift / Investigateとしてそれぞれのimportを保留する。retained datasetはlocationの意図的差分、`order-history` はschema field順のみの差分を確認したが、このPRへ異種resourceを追加しない。
