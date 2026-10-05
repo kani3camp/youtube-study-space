@@ -307,3 +307,15 @@ inventory, provider probes and strict full-root acceptance. Generated resources,
 IAM and source rebuild/upload are excluded. No export resource has been imported
 by this definition-only change; existing quota representation drift remains a
 separate STOP.
+## Approved quota state representation correction
+
+Issue #1162 comment5997848683 authorizes the one-time `quota-refresh` route for
+exactly the three newly created development quota policies. The enabled gate
+does not widen the global import-only policy. The dedicated validator requires a
+complete eight-resource full-root refresh-only plan, no workload actions or
+unknowns, only `user_labels: null -> {}` and its matching sensitivity map, and
+unchanged fixed policy values. Independent plan/apply Environments, same-SHA
+re-plan and projection equality remain mandatory. The post-plan is a regular
+full-root plan and must be no-op8/drift0. Close the exceptional gate after success;
+never restore an old S3 version over subsequent state writes. No cloud, IAM, API
+or production mutation is authorized by this state correction.

@@ -125,9 +125,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         apply_condition = self.text.split("  apply:\n", 1)[1].split("    needs:", 1)[0]
         self.assertNotIn("quota-plan", apply_condition)
 
-    def test_state_refresh_is_independently_closed_and_ordinary_ownership_is_kept(self) -> None:
+    def test_state_refresh_is_approved_but_remains_independently_gated(self) -> None:
         self.assertIn('DEV_QUOTA_MANAGED_ENABLED: "true"', self.text)
-        self.assertIn('DEV_QUOTA_STATE_REFRESH_ENABLED: "false"', self.text)
+        self.assertIn('DEV_QUOTA_STATE_REFRESH_ENABLED: "true"', self.text)
         self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true").returncode, 0)
