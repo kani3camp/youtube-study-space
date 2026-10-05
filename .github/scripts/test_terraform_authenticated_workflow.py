@@ -33,6 +33,12 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             root = GITHUB_DIR.parent / "infra/gcp/environments" / env
             self.assertIn("sensitive = true", (root / "notification-channels.tf").read_text())
 
+    def test_job_level_env_does_not_use_unavailable_env_context(self) -> None:
+        for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
+            env_block = job.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]
+            self.assertNotRegex(env_block, r"\$\{\{[^}]*\benv\.")
+        self.assertIn('DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "false"', self.text)
+
     def test_reusable_workflow_is_not_directly_triggerable(self) -> None:
         self.assertIn("workflow_call:", self.text)
         self.assertNotIn("workflow_dispatch:", self.text)
@@ -81,7 +87,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "false",
         }
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
