@@ -64,9 +64,50 @@ class IdentitySmokeTest(unittest.TestCase):
     def test_unexpected_dependency_error_does_not_leak_publicly(self):
         output = io.StringIO()
         with patch.object(smoke, "verify_oidc", side_effect=RuntimeError("PRIVATE_TOKEN_AND_IDENTIFIER")), contextlib.redirect_stderr(output):
-            self.assertEqual(smoke.main(), 1)
+            self.assertEqual(smoke.main([]), 1)
         self.assertNotIn("PRIVATE", output.getvalue())
         self.assertIn("raw error suppressed", output.getvalue())
+
+    def quota_request(self, identity, *, extra=(), missing=(), prod=()):
+        def request(path, token, body=None, **kwargs):
+            self.assertIn("monitoring.alertPolicies.list", body["permissions"])
+            self.assertIn("serviceusage.services.enable", body["permissions"])
+            if "youtube-study-space:" in path:
+                self.assertIn("bigquery.datasets.get", body["permissions"])
+                return 200, {"permissions": list(prod)}
+            allowed = {"monitoring.alertPolicies.get"}
+            if identity == "apply": allowed.add("monitoring.alertPolicies.create")
+            return 200, {"permissions": sorted((allowed - set(missing)) | set(extra))}
+        return request
+
+    def test_quota_plan_get_only_and_apply_get_create_are_required(self):
+        for identity in ("plan", "apply"):
+            result = smoke.verify_quota_google("PRIVATE_TOKEN", f"terraform-dev-{identity}@fixture.iam.gserviceaccount.com",
+                self.quota_request(identity), identity=identity, project="fixture")
+            self.assertEqual(len(result), 3)
+            self.assertNotIn("PRIVATE", " ".join(result))
+            for missing in (("monitoring.alertPolicies.get",), ("monitoring.alertPolicies.create",)) if identity == "apply" else (("monitoring.alertPolicies.get",),):
+                with self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_quota_google("PRIVATE_TOKEN", f"terraform-dev-{identity}@fixture.iam.gserviceaccount.com",
+                        self.quota_request(identity, missing=missing), identity=identity, project="fixture")
+
+    def test_quota_extra_mutation_list_data_iam_api_and_production_grants_stop(self):
+        for identity in ("plan", "apply"):
+            extras = ["monitoring.alertPolicies.update", "monitoring.alertPolicies.delete", "monitoring.alertPolicies.list",
+                      "storage.objects.get", "bigquery.jobs.create", "resourcemanager.projects.setIamPolicy", "serviceusage.services.enable"]
+            if identity == "plan": extras.append("monitoring.alertPolicies.create")
+            for permission in extras:
+                with self.subTest(identity=identity, permission=permission), self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_quota_google("PRIVATE_TOKEN", f"terraform-dev-{identity}@fixture.iam.gserviceaccount.com",
+                        self.quota_request(identity, extra=(permission,)), identity=identity, project="fixture")
+            with self.assertRaises(smoke.SmokeFailure):
+                smoke.verify_quota_google("PRIVATE_TOKEN", f"terraform-dev-{identity}@fixture.iam.gserviceaccount.com",
+                    self.quota_request(identity, prod=("monitoring.alertPolicies.get",)), identity=identity, project="fixture")
+
+    def test_quota_apply_uses_only_the_existing_development_apply_identity(self):
+        for account in ("terraform-dev-plan@fixture.iam.gserviceaccount.com", "other@fixture.iam.gserviceaccount.com"):
+            with self.assertRaises(smoke.SmokeFailure):
+                smoke.verify_quota_google("PRIVATE_TOKEN", account, self.quota_request("apply"), identity="apply", project="fixture")
 
     def test_bigquery_metadata_import_rejects_data_query_mutation_and_prod_read(self):
         def request(path, token, body=None, **kwargs):

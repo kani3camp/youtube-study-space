@@ -107,12 +107,19 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('--phase post', self.text)
         self.assertIn('inputs.mode == \'email-adoption\'', self.text)
 
-    def test_quota_plan_cannot_enable_apply_and_create_gate_stays_closed(self) -> None:
+    def test_quota_create_requires_all_independent_gates_and_quota_plan_never_applies(self) -> None:
         self.assertEqual(self.run_preflight(MODE="quota-plan").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-plan", DEV_PRIMARY_EMAIL_IMPORT_ENABLED="false").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-plan", TARGET="prod").returncode, 0)
-        self.assertIn('DEV_QUOTA_CREATE_ENABLED: "false"', self.text)
+        self.assertIn('DEV_QUOTA_CREATE_ENABLED: "true"', self.text)
+        self.assertEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true", TARGET="prod").returncode, 0)
+        apply_job = self.text.split("  apply:\n", 1)[1]
+        self.assertLess(apply_job.index("Verify quota apply identity least privilege"), apply_job.index("Re-plan at the exact approved commit"))
+        self.assertIn("terraform_identity_smoke.py quota-apply", apply_job)
+        self.assertIn("QUOTA_IDENTITY_REQUIRED", self.text)
         apply_condition = self.text.split("  apply:\n", 1)[1].split("    needs:", 1)[0]
         self.assertNotIn("quota-plan", apply_condition)
 
