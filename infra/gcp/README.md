@@ -294,9 +294,9 @@ Rollback of a partial create uses a private manifest of the exact newly created 
 
 The three-create apply succeeded, but provider read-back represented absent `user_labels` as `{}` while creation saved `null`. All eight normal resource actions were no-op; three representation-only drift records correctly stopped the strict post guard. Explicit `user_labels = {}` prevents recurrence without adding a real label. Post validation also matches the exact observed provider defaults (empty severity/subject/evaluation and zero trigger percent); arbitrary values remain rejected. These defaults are already identical before/after, so they introduce no additional refresh delta. Global import-only policy remains unchanged.
 
-`quota-refresh` is disabled pending separate authorization for the state-only exception. Its dedicated validator requires a full-root saved `-refresh-only` plan, zero workload resource changes, exactly the three newly owned policy addresses with only `user_labels: null -> {}` (including its corresponding sensitivity mask), eight resources in the refreshed graph, exact approved policy/channel semantics, unknown zero, output no-op and other drift zero. Public summaries retain drift=3 rather than concealing it. Independent plan/apply Environment approval, same-SHA re-plan and projection matching remain mandatory. The saved refresh plan can persist state only; the final regular plan must pass no-op8/drift0. No IAM/API/workload or production write is authorized by this mode.
+`quota-refresh` completed under Issue #1162 approval with regular post-plan no-op8/drift0; its one-time gate is closed. Its dedicated validator requires a full-root saved `-refresh-only` plan, zero workload resource changes, exactly the three newly owned policy addresses with only `user_labels: null -> {}` (including its corresponding sensitivity mask), eight resources in the refreshed graph, exact approved policy/channel semantics, unknown zero, output no-op and other drift zero. Public summaries retain drift=3 rather than concealing it. Independent plan/apply Environment approval, same-SHA re-plan and projection matching remain mandatory. The saved refresh plan can persist state only; the final regular plan must pass no-op8/drift0. No IAM/API/workload or production write is authorized by this mode.
 
-State versioning retains the previous version for investigation. Do not overwrite newer state to roll back a representation-only refresh; inspect current state under the native lock and require a new bounded plan for any subsequent reconciliation. Before the state-only exception is approved and run, ordinary import-only plans continue to STOP on the three representation drift records.
+State versioning retains the previous version for investigation. Do not overwrite newer state to roll back a representation-only refresh; inspect current state under the native lock and require a new bounded plan for any subsequent reconciliation. The correction changed only the three empty label maps. Ordinary full-root plans now have no representation drift.
 
 ## Development export chain adoption
 
@@ -310,12 +310,24 @@ separate STOP.
 ## Approved quota state representation correction
 
 Issue #1162 comment5997848683 authorizes the one-time `quota-refresh` route for
-exactly the three newly created development quota policies. The enabled gate
+exactly the three newly created development quota policies. The separately approved route
 does not widen the global import-only policy. The dedicated validator requires a
 complete eight-resource full-root refresh-only plan, no workload actions or
 unknowns, only `user_labels: null -> {}` and its matching sensitivity map, and
 unchanged fixed policy values. Independent plan/apply Environments, same-SHA
 re-plan and projection equality remain mandatory. The post-plan is a regular
-full-root plan and must be no-op8/drift0. Close the exceptional gate after success;
+full-root plan and must be no-op8/drift0. The exceptional gate is closed after success;
 never restore an old S3 version over subsequent state writes. No cloud, IAM, API
 or production mutation is authorized by this state correction.
+
+## Approved development topic wave
+
+PR #1184 defines the existing topic. Issue #1162 comment5998188927 approves
+only `pubsub.topics.get` in the existing development read role and topic import.
+The authenticated workflow keeps topic ownership enabled for both identities;
+the regular root default remains disabled for credentialless validation. An
+additive exact nine-resource validator preserves the global import-only guard:
+accept import1/topic no-op plus existing8 no-op, unknown/drift/other0; after
+adoption accept import0/no-op9. Independent Environments and same-SHA re-plan
+are unchanged. No subscription/IAM/generated/source ownership or cloud config
+mutation. Scheduler/Function permissions remain separate approval boundaries.

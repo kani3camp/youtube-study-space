@@ -50,9 +50,10 @@ env:
   # removal; close the one-time create gate even while state reconciliation waits.
   DEV_QUOTA_MANAGED_ENABLED: "true"
   DEV_QUOTA_CREATE_ENABLED: "false"
-  # Issue #1162 comment5997848683 approves only the exact three empty-map
-  # state corrections; independent Environments and the dedicated gate still apply.
-  DEV_QUOTA_STATE_REFRESH_ENABLED: "true"
+  # State correction completed: keep the exception closed.
+  DEV_QUOTA_STATE_REFRESH_ENABLED: "false"
+  # Issue #1162 comment5998188927: existing development topic import only.
+  DEV_EXPORT_TOPIC_MANAGED_ENABLED: "true"
 
 jobs:
   preflight:
@@ -67,6 +68,7 @@ jobs:
       project_id: ${{ steps.guard.outputs.project_id }}
       manage_primary_email: ${{ steps.guard.outputs.manage_primary_email }}
       manage_quota: ${{ steps.guard.outputs.manage_quota }}
+      manage_export_topic: ${{ steps.guard.outputs.manage_export_topic }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -142,6 +144,7 @@ jobs:
               else
                 echo "manage_primary_email=${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" >> "${GITHUB_OUTPUT}"
               fi
+              echo "manage_export_topic=${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
               echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
@@ -151,6 +154,7 @@ jobs:
                 echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
                 exit 1
               }
+              echo "manage_export_topic=false" >> "${GITHUB_OUTPUT}"
               echo "manage_primary_email=false" >> "${GITHUB_OUTPUT}"
               echo "terraform_root=infra/gcp/environments/prod" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/prod/terraform.tfstate" >> "${GITHUB_OUTPUT}"
@@ -181,6 +185,7 @@ jobs:
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
       TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
       TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
+      TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -285,6 +290,7 @@ jobs:
         if: ${{ inputs.target == 'dev' }}
         shell: bash
         env:
+          EXPORT_TOPIC_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
           QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
@@ -395,6 +401,7 @@ jobs:
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
       TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
       TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
+      TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -510,6 +517,13 @@ jobs:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
         run: python3 .github/scripts/terraform_identity_smoke.py quota-apply
+
+      - name: Verify topic identity exact read permissions
+        if: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py export-topic
 
       - name: Re-plan at the exact approved commit
         shell: bash

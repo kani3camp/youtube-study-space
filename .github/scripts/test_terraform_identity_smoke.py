@@ -132,6 +132,23 @@ class IdentitySmokeTest(unittest.TestCase):
         with self.assertRaises(smoke.SmokeFailure):
             self.run_gcp(prod_permissions=["bigquery.datasets.get"])
 
+    def test_topic_exact_get_only_and_later_wave_production_grants_stop(self):
+        def request_for(grants, prod=()):
+            def request(path, token, body=None, **kwargs):
+                return 200, {"permissions": list(prod if "youtube-study-space:" in path else grants)}
+            return request
+        for kind in ("plan", "apply"):
+            account = f"terraform-dev-{kind}@fixture.iam.gserviceaccount.com"
+            result = smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(["pubsub.topics.get"]), project="fixture")
+            self.assertEqual(len(result), 4)
+            self.assertNotIn("PRIVATE", str(result))
+            for extra in smoke.EXPORT_TOPIC_PERMISSIONS[1:]:
+                with self.subTest(kind=kind, extra=extra), self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(["pubsub.topics.get", extra]), project="fixture")
+            for grants, prod in [([], []), (["pubsub.topics.get"], ["pubsub.topics.get"])]:
+                with self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(grants, prod), project="fixture")
+
 
 if __name__ == "__main__":
     unittest.main()
