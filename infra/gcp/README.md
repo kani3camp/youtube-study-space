@@ -297,3 +297,16 @@ The three-create apply succeeded, but provider read-back represented absent `use
 `quota-refresh` is disabled pending separate authorization for the state-only exception. Its dedicated validator requires a full-root saved `-refresh-only` plan, zero workload resource changes, exactly the three newly owned policy addresses with only `user_labels: null -> {}` (including its corresponding sensitivity mask), eight resources in the refreshed graph, exact approved policy/channel semantics, unknown zero, output no-op and other drift zero. Public summaries retain drift=3 rather than concealing it. Independent plan/apply Environment approval, same-SHA re-plan and projection matching remain mandatory. The saved refresh plan can persist state only; the final regular plan must pass no-op8/drift0. No IAM/API/workload or production write is authorized by this mode.
 
 State versioning retains the previous version for investigation. Do not overwrite newer state to roll back a representation-only refresh; inspect current state under the native lock and require a new bounded plan for any subsequent reconciliation. Before the state-only exception is approved and run, ordinary import-only plans continue to STOP on the three representation drift records.
+
+## Approved quota state representation correction
+
+Issue #1162 comment5997848683 authorizes the one-time `quota-refresh` route for
+exactly the three newly created development quota policies. The enabled gate
+does not widen the global import-only policy. The dedicated validator requires a
+complete eight-resource full-root refresh-only plan, no workload actions or
+unknowns, only `user_labels: null -> {}` and its matching sensitivity map, and
+unchanged fixed policy values. Independent plan/apply Environments, same-SHA
+re-plan and projection equality remain mandatory. The post-plan is a regular
+full-root plan and must be no-op8/drift0. Close the exceptional gate after success;
+never restore an old S3 version over subsequent state writes. No cloud, IAM, API
+or production mutation is authorized by this state correction.
