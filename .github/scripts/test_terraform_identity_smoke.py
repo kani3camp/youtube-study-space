@@ -13,6 +13,16 @@ spec.loader.exec_module(smoke)
 
 
 class IdentitySmokeTest(unittest.TestCase):
+    def test_state_integrity_summary_exposes_only_counts(self):
+        state = {"version": 4, "serial": 9, "lineage": "PRIVATE_LINEAGE", "outputs": {"private": "PRIVATE_VALUE"},
+                 "resources": [{"mode": "managed", "instances": [{"labels": "PRIVATE_EMAIL"}]},
+                               {"mode": "data", "instances": [{}]}]}
+        result = smoke.state_counts(state)
+        self.assertEqual(result, "AWS current state resource count 1, serial 9, output count 1")
+        self.assertNotIn("PRIVATE", result)
+        for malformed in [{}, {"version": 4, "serial": "PRIVATE_VALUE"}]:
+            with self.assertRaises(smoke.SmokeFailure): smoke.state_counts(malformed)
+
     def test_dependency_failures_are_not_treated_as_permission_denial(self):
         for error in ("(NoSuchKey)", "(404)", "(PreconditionFailed)", "timeout PRIVATE_SENTINEL"):
             with self.subTest(error=error), self.assertRaises(smoke.SmokeFailure):
