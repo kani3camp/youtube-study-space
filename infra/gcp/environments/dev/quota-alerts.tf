@@ -4,7 +4,7 @@ module "youtube_quota_alerts" {
   project_id            = var.project_id
   environment           = "development"
   manage_policies       = var.manage_youtube_quota_alerts
-  notification_channels = var.youtube_quota_notification_channels
+  notification_channels = var.manage_primary_email ? [module.notification_channels.primary_email_name] : var.youtube_quota_notification_channels
   policy_settings       = var.youtube_quota_policy_settings
   legacy_display_names  = var.youtube_quota_legacy_display_names
 }
@@ -16,8 +16,9 @@ variable "manage_youtube_quota_alerts" {
 }
 
 variable "youtube_quota_notification_channels" {
-  type    = list(string)
-  default = []
+  sensitive = true
+  type      = list(string)
+  default   = []
 }
 
 variable "youtube_quota_legacy_display_names" {

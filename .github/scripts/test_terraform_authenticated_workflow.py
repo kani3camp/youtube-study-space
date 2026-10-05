@@ -21,6 +21,18 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.caller = CALLER.read_text(encoding="utf-8")
 
+    def test_private_notification_inputs_are_masked_and_do_not_enable_alerts(self) -> None:
+        for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
+            self.assertIn("TF_VAR_primary_email_address", job)
+            self.assertIn("TF_VAR_primary_email_channel_name", job)
+            self.assertIn('"${PRIVATE_EMAIL%%@*}"', job)
+            self.assertIn('"${PRIVATE_CHANNEL##*/}"', job)
+            self.assertLess(job.index("PRIVATE_EMAIL"), job.index("Configure GCP provider credential"))
+            self.assertNotIn("TF_VAR_manage_youtube_quota_alerts", job)
+        for env in ("dev", "prod"):
+            root = GITHUB_DIR.parent / "infra/gcp/environments" / env
+            self.assertIn("sensitive = true", (root / "notification-channels.tf").read_text())
+
     def test_reusable_workflow_is_not_directly_triggerable(self) -> None:
         self.assertIn("workflow_call:", self.text)
         self.assertNotIn("workflow_dispatch:", self.text)
@@ -52,8 +64,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         declared = set(re.findall(r"(?m)^      ([A-Z_]+):$", interface))
         used = set(re.findall(r"secrets\.([A-Z_]+)", self.text))
         self.assertEqual(declared, used)
-        self.assertEqual(len(declared), 6)
-        self.assertEqual(interface.count("required: false"), 6)
+        self.assertEqual(len(declared), 8)
+        self.assertEqual(interface.count("required: false"), 8)
         call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split("\n  ci-gate:\n", 1)[0]
         forwarded = re.findall(r"(?m)^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call)
         self.assertEqual({name for name, value in forwarded}, declared)
