@@ -260,7 +260,13 @@ Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
 - credentialless PR CI PASS後にintegration branchへmergeし、同じSHAのauthenticated plan → Environment-approved import-only apply → post-apply no-opを確認する
 - production定義 / import、export chain、API ownership / runtime WIFは別wave
 
-2026-10-05 parityでは、backup bucketのPublic Access Preventionがdev `inherited` / prod `enforced`、`user-activity-history` のdevだけに `timestamp` fieldが存在する。意図を確定できないためUnexpected drift / Investigateとしてそれぞれのimportを保留する。retained datasetはlocationの意図的差分、`order-history` はschema field順のみの差分を確認したが、このPRへ異種resourceを追加しない。
+2026-10-05の承認済みoperator waveでdevelopment backup bucketのPAPだけを`enforced`へ修正した。両環境のPAPは一致し、他bucket metadata / IAM bindingは不変。`user-activity-history` のdev-only `timestamp` は不要なlegacy driftだが、値・consumer・再流入・復元確認前のDROPとimportは保留する。
+
+## Development backup bucket import
+
+`environments/dev/backup-bucket.tf` imports the existing retained Firestore export bucket through the shared `retained-backup-bucket` module. Objects, backup data, IAM, production resources and export triggers remain outside this wave. `force_destroy=false` / `prevent_destroy` are required. Region, storage class, retention and soft delete preserve inventory values. Review the module README for the dev/prod metadata contract. Accept only import/read/no-op and require post-apply complete no-op through the existing Environment-approved workflow. A missing CI `storage.buckets.get` permission is an approval boundary, not grounds to add Storage admin.
+
+The obsolete empty development GCS state backend was retired in a separate approved operator wave on 2026-10-05. The old operator's executable config/cache was disabled; empty state and noncurrent init lock generations were conditionally deleted, followed by the bucket. Seven-day soft delete remains enabled. Recovery authority is the current versioned S3 state; never reconnect to the retired GCS backend. Detailed verification belongs to #1161 / #1162 and Notion Current Canon.
 
 ## YouTube quota alert symmetry
 
