@@ -100,6 +100,13 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertIn("Development apply is disabled", rejected.stdout)
 
+    def test_email_adoption_uses_same_trust_and_independent_apply_gate(self) -> None:
+        self.assertNotEqual(self.run_preflight(MODE="email-adoption").returncode, 0)
+        self.assertEqual(self.run_preflight(MODE="email-adoption", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="email-adoption", TARGET="prod").returncode, 0)
+        self.assertIn('--phase post', self.text)
+        self.assertIn('inputs.mode == \'email-adoption\'', self.text)
+
     def test_enabled_development_apply_still_requires_trusted_surface(self) -> None:
         enabled = re.search(r'DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "(true|false)"', self.text).group(1)
         self.assertEqual(self.run_preflight(MODE="apply", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=enabled).returncode, 0)
@@ -169,7 +176,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('>"${RUNNER_TEMP}/terraform-apply.log" 2>&1', self.text)
         self.assertNotIn('cat "${RUNNER_TEMP}/terraform-plan.log"', self.text)
         self.assertNotIn('cat "${RUNNER_TEMP}/terraform-apply.log"', self.text)
-        self.assertIn("terraform_plan_summary.py", self.text)
+        self.assertIn("terraform_protected_plan.py", self.text)
 
     def test_external_actions_are_full_sha_pinned(self) -> None:
         action_lines = re.findall(r"(?m)^\s*uses:\s*([^\s#]+)", self.text)

@@ -25,6 +25,7 @@ on:
         options:
           - plan
           - apply
+          - email-adoption
 
 permissions:
   contents: read
@@ -588,6 +589,7 @@ jobs:
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
+          python3 .github/scripts/test_terraform_protected_plan.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4

@@ -105,7 +105,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
 			gcp_terraform=true
 			matched=true
 			;;
