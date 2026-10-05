@@ -261,3 +261,7 @@ Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
 - production定義 / import、export chain、API ownership / runtime WIFは別wave
 
 2026-10-05 parityでは、backup bucketのPublic Access Preventionがdev `inherited` / prod `enforced`、`user-activity-history` のdevだけに `timestamp` fieldが存在する。意図を確定できないためUnexpected drift / Investigateとしてそれぞれのimportを保留する。retained datasetはlocationの意図的差分、`order-history` はschema field順のみの差分を確認したが、このPRへ異種resourceを追加しない。
+
+## YouTube quota alert symmetry
+
+Both dev/prod roots use `modules/youtube-quota-alerts` with environment parameters. Policy ownership is disabled during import-only migration; the existing production policies are untouched. Read-only preflight found no notification channel in either project, while all three production policies reference a missing channel. Actual dev creation is deferred to a separately approved normal-change apply, after channel verification. Mock plans prove three logical types and unchanged import-only rejection of create=3. See the module README for baseline, future import addressing, and remaining gates.

@@ -605,6 +605,9 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" validate
           done
 
+      - name: Test quota alert mock plans and import-only boundary
+        run: python3 .github/scripts/test_youtube_quota_alerts.py
+
       - name: Verify multi-platform provider locks are complete
         run: |
           set -euo pipefail
