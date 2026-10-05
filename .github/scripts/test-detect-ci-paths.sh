@@ -98,3 +98,6 @@ if GITHUB_EVENT_NAME=pull_request BASE_SHA=missing HEAD_SHA=missing "$detector" 
 fi
 
 echo "detect-ci-paths.sh tests passed"
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_quota_refresh_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_gate.py

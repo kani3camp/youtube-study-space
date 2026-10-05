@@ -22,17 +22,17 @@ QUERY_HASHES = {
 }
 
 
-def expected(key: str, channel_name: str) -> dict:
+def expected(key: str, channel_name: str, phase="before") -> dict:
     period, label, ratio, prompts = TYPES[key]
     source = Path(__file__).resolve().parents[2] / "infra/gcp/modules/youtube-quota-alerts/queries"
     template = (source / (period + ".mql.tftpl")).read_bytes()
     if hashlib.sha256(template).hexdigest() != QUERY_HASHES[period]:
         raise ValueError("Approved quota query changed; re-review required.")
     query = template.decode().strip().replace("${project_id}", PROJECT).replace("${threshold}", ratio)
-    return {
+    result = {
         "project": PROJECT, "display_name": "[development] YouTube quota " + label,
         "combiner": "OR", "enabled": True, "severity": None, "notification_channels": [channel_name],
-        "user_labels": None, "timeouts": None,
+        "user_labels": {}, "timeouts": None,
         "alert_strategy": [{"auto_close": "604800s", "notification_channel_strategy": [],
                             "notification_prompts": prompts, "notification_rate_limit": []}],
         "conditions": [{"display_name": "Quota usage reached defined threshold", "condition_absent": [],
@@ -43,6 +43,16 @@ def expected(key: str, channel_name: str) -> dict:
         "documentation": [{"content": "[development] Review YouTube quota usage: https://console.cloud.google.com/iam-admin/quotas?service=${resource.label.service}&metric=${metric.label.quota_metric}&limit=${metric.label.limit_name}&project=" + PROJECT + "&fromNotifications=1",
                            "mime_type": "text/markdown", "links": [], "subject": None}],
     }
+
+    if phase == "post":
+        # Provider 8.5.0 read-back materializes unset scalar defaults. Match the
+        # exact observed defaults, never normalize arbitrary configured values.
+        result["severity"] = ""
+        result["documentation"][0]["subject"] = ""
+        mql = result["conditions"][0]["condition_monitoring_query_language"][0]
+        mql["evaluation_missing_data"] = ""
+        mql["trigger"][0]["percent"] = 0
+    return result
 
 
 def unknown_paths(value, prefix=()):
@@ -87,5 +97,5 @@ def validate(plan, *, channel_name, email, phase="before"):
             require(resource.get("type") == "google_monitoring_alert_policy")
             require(after.get("deletion_policy") in {None, "DELETE"})
             key = next(key for key in TYPES if resource["address"].endswith(f'["{key}"]'))
-            require(canonical(stable(after)) == canonical(expected(key, channel_name)))
+            require(canonical(stable(after)) == canonical(expected(key, channel_name, phase=phase)))
             if phase == "post": require(after.get("name", "").startswith(f"projects/{PROJECT}/alertPolicies/"))

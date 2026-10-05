@@ -9,7 +9,7 @@ from terraform_plan_summary import build_summary
 def fixture(phase="before"):
     plan = post_fixture()
     for key in TYPES:
-        value = expected(key, NAME)
+        value = expected(key, NAME, phase=phase)
         actions, before, unknown = ["create"], None, {"id": True, "name": True, "conditions": [{"name": True}]}
         if phase == "post":
             value["name"] = "projects/test-youtube-study-space/alertPolicies/fixture-" + key
@@ -62,6 +62,17 @@ class QuotaGateTest(unittest.TestCase):
         ]:
             plan = fixture(); mutate(plan)
             with self.assertRaises(ValueError): self.check(plan)
+
+    def test_post_requires_exact_provider_defaults_and_keeps_drift_zero(self):
+        for mutate in [
+            lambda c: c["after"].update(severity="CRITICAL"),
+            lambda c: c["after"]["documentation"][0].update(subject="unexpected"),
+            lambda c: c["after"]["conditions"][0]["condition_monitoring_query_language"][0].update(evaluation_missing_data="EVALUATION_MISSING_DATA_ACTIVE"),
+            lambda c: c["after"]["conditions"][0]["condition_monitoring_query_language"][0]["trigger"][0].update(percent=10),
+        ]:
+            plan = fixture("post"); change = plan["resource_changes"][-1]["change"]
+            mutate(change); change["before"] = copy.deepcopy(change["after"])
+            with self.assertRaises(ValueError): self.check(plan, "post")
 
     def test_post_requires_no_import_or_unknown_or_create(self):
         for mutate in [

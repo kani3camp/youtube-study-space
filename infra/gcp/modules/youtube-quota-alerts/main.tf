@@ -27,6 +27,8 @@ resource "google_monitoring_alert_policy" "quota" {
   enabled               = var.policy_settings[each.key].enabled
   severity              = var.policy_settings[each.key].severity
   notification_channels = var.notification_channels
+  # Provider read-back returns an empty map; persist the same representation.
+  user_labels = {}
 
   conditions {
     display_name = "Quota usage reached defined threshold"
