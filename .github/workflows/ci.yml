@@ -26,6 +26,8 @@ on:
           - plan
           - apply
           - email-adoption
+          - quota-plan
+          - quota-create
 
 permissions:
   contents: read
@@ -590,6 +592,7 @@ jobs:
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
+          python3 .github/scripts/test_terraform_quota_create_gate.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4

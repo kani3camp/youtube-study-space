@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from terraform_plan_summary import build_summary
+from terraform_quota_create_gate import TYPES, expected, stable
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT / "infra/gcp/modules/youtube-quota-alerts"
@@ -42,6 +43,13 @@ def main() -> None:
             summary = build_summary(plans[run], environment="dev", git_sha="0" * 40, policy="import-only")
             assert summary["counts"]["create"] == 3 and not summary["policy_passed"]
             assert len(summary["violations"]) == 3
+        # Independently generated provider mock values must match the fixed gate
+        # after substituting only the intentionally dummy project/channel.
+        for resource in plans["three_types_preserve_quota_semantics"]["resource_changes"]:
+            key = next(key for key in TYPES if resource["address"].endswith(f'["{key}"]'))
+            value = json.loads(json.dumps(resource["change"]["after"]).replace("quota-test-dev", "test-youtube-study-space"))
+            channel = "projects/test-youtube-study-space/notificationChannels/verified-fixture"
+            assert stable(value) == expected(key, channel)
     print("Quota mock contracts PASS; migration resource actions=0; opt-in create=3 rejected by unchanged import-only guard.")
 
 

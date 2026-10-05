@@ -14,6 +14,7 @@ from pathlib import Path
 
 from terraform_email_adoption_gate import CHANNEL, EXISTING, canonical, has_unknown, validate
 from terraform_plan_summary import build_summary, render_markdown, write_private
+from terraform_quota_create_gate import validate as validate_quota
 
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
@@ -48,7 +49,7 @@ def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--operation", required=True, choices=("plan", "apply", "email-adoption"))
+    parser.add_argument("--operation", required=True, choices=("plan", "apply", "email-adoption", "quota-plan", "quota-create"))
     parser.add_argument("--phase", required=True, choices=("before", "post"))
     parser.add_argument("--environment", required=True, choices=("dev", "prod"))
     parser.add_argument("--git-sha", required=True)
@@ -62,6 +63,12 @@ def main():
             summary = adoption_summary(plan, environment=args.environment, git_sha=args.git_sha, phase=args.phase,
                                        email=os.environ.get("TF_VAR_primary_email_address"),
                                        channel_name=os.environ.get("TF_VAR_primary_email_channel_name"))
+        elif args.operation in {"quota-plan", "quota-create"}:
+            if args.environment != "dev": raise ValueError("Development quota only")
+            validate_quota(plan, channel_name=os.environ.get("TF_VAR_primary_email_channel_name", ""),
+                           email=os.environ.get("TF_VAR_primary_email_address", ""), phase=args.phase)
+            summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy="plan-only")
+            summary["policy"] = "development-quota-three-create-" + args.phase
         else:
             summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")

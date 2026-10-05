@@ -28,7 +28,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertIn('"${PRIVATE_EMAIL%%@*}"', job)
             self.assertIn('"${PRIVATE_CHANNEL##*/}"', job)
             self.assertLess(job.index("PRIVATE_EMAIL"), job.index("Configure GCP provider credential"))
-            self.assertNotIn("TF_VAR_manage_youtube_quota_alerts", job)
+            self.assertIn("TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}", job)
         for env in ("dev", "prod"):
             root = GITHUB_DIR.parent / "infra/gcp/environments" / env
             self.assertIn("sensitive = true", (root / "notification-channels.tf").read_text())
@@ -37,7 +37,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
             env_block = job.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]
             self.assertNotRegex(env_block, r"\$\{\{[^}]*\benv\.")
-        self.assertIn('DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "false"', self.text)
+        self.assertIn('DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"', self.text)
 
     def test_reusable_workflow_is_not_directly_triggerable(self) -> None:
         self.assertIn("workflow_call:", self.text)
@@ -87,7 +87,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "false",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false",
         }
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
@@ -106,6 +106,15 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotEqual(self.run_preflight(MODE="email-adoption", TARGET="prod").returncode, 0)
         self.assertIn('--phase post', self.text)
         self.assertIn('inputs.mode == \'email-adoption\'', self.text)
+
+    def test_quota_plan_cannot_enable_apply_and_create_gate_stays_closed(self) -> None:
+        self.assertEqual(self.run_preflight(MODE="quota-plan").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-plan", DEV_PRIMARY_EMAIL_IMPORT_ENABLED="false").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-plan", TARGET="prod").returncode, 0)
+        self.assertIn('DEV_QUOTA_CREATE_ENABLED: "false"', self.text)
+        apply_condition = self.text.split("  apply:\n", 1)[1].split("    needs:", 1)[0]
+        self.assertNotIn("quota-plan", apply_condition)
 
     def test_enabled_development_apply_still_requires_trusted_surface(self) -> None:
         enabled = re.search(r'DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "(true|false)"', self.text).group(1)
