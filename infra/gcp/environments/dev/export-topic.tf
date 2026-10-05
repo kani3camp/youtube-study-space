@@ -9,8 +9,8 @@ variable "manage_export_topic" {
   }
 }
 
-# #1173 natural E2E passed. Keep ownership disabled until the separate existing
-# quota representation drift and least-privilege CI read prerequisites are clear.
+# #1173 natural E2E and the approved quota refresh/topic import completed.
+# Credentialless roots default off; the protected development workflow owns it.
 module "export_topic" {
   count      = var.manage_export_topic ? 1 : 0
   source     = "../../modules/firestore-export-topic"

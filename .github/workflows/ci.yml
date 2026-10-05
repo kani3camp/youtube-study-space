@@ -619,6 +619,7 @@ jobs:
           python3 .github/scripts/test_youtube_quota_alerts.py
           python3 .github/scripts/test_backup_bucket.py
           python3 .github/scripts/test_export_topic.py
+          python3 .github/scripts/test_export_scheduler.py
           python3 .github/scripts/test_notification_channels.py
 
       - name: Verify multi-platform provider locks are complete

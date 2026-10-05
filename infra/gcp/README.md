@@ -300,13 +300,12 @@ State versioning retains the previous version for investigation. Do not overwrit
 
 ## Development export chain adoption
 
-`environments/dev/export-topic.tf` is the disabled first wave after #1173 PASS.
-Use topic → Scheduler → Gen1 Function as separate import-only waves. See
-[the topic module runbook](modules/firestore-export-topic/README.md) for fresh
-inventory, provider probes and strict full-root acceptance. Generated resources,
-IAM and source rebuild/upload are excluded. No export resource has been imported
-by this definition-only change; existing quota representation drift remains a
-separate STOP.
+Development quota refresh completed with regular no-op8/drift0. PR #1184/#1186
+and protected run37342000553 adopted the existing topic; post-plan is
+import0/no-op9/drift0. Only `pubsub.topics.get` was added to the existing read role.
+Use topic → Scheduler → Gen1 Function as separate import-only waves.
+Generated resources, IAM and source rebuild/upload remain excluded.
+
 ## Approved quota state representation correction
 
 Issue #1162 comment5997848683 authorizes the one-time `quota-refresh` route for
@@ -331,3 +330,14 @@ accept import1/topic no-op plus existing8 no-op, unknown/drift/other0; after
 adoption accept import0/no-op9. Independent Environments and same-SHA re-plan
 are unchanged. No subscription/IAM/generated/source ownership or cloud config
 mutation. Scheduler/Function permissions remain separate approval boundaries.
+
+## Development Scheduler definition (not activated)
+
+After topic no-op9, fresh job GET and the pinned provider import plan preserve
+the enabled development Pub/Sub schedule, payload and retry configuration.
+`manage_export_scheduler` defaults false and is not set by authenticated CI.
+The existing role lacks `cloudscheduler.jobs.get`; that one exact permission is
+a candidate requiring new user approval. Do not add IAM or enable this wave yet.
+See [the Scheduler runbook](modules/firestore-export-scheduler/README.md) for
+observed fields, provider read evidence and subsequent full-root acceptance.
+Function ownership waits for Scheduler completion.
