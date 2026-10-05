@@ -16,6 +16,7 @@ from terraform_email_adoption_gate import CHANNEL, EXISTING, canonical, has_unkn
 from terraform_plan_summary import build_summary, render_markdown, write_private
 from terraform_quota_create_gate import validate as validate_quota
 from terraform_quota_refresh_gate import validate as validate_quota_refresh
+from terraform_export_topic_gate import validate as validate_export_topic
 
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
@@ -82,6 +83,9 @@ def main():
             summary["policy"] = "development-quota-three-create-" + args.phase
         else:
             summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
+            if os.environ.get("TF_VAR_manage_export_topic") == "true":
+                if args.environment != "dev": raise ValueError("Development topic only")
+                validate_export_topic(plan, phase=args.phase)
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")
         write_private(args.markdown_output, render_markdown(summary))
         return 0 if summary["policy_passed"] else 3

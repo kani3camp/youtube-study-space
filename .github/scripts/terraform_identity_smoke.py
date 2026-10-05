@@ -148,6 +148,29 @@ def verify_quota_google(token: str, service_account: str, request=google, *, ide
             "GCP quota update/delete/list/data/IAM/API grants absent", "GCP quota production grants absent"]
 
 
+EXPORT_TOPIC_PERMISSIONS = (
+    "pubsub.topics.get", "pubsub.topics.publish", "pubsub.topics.create",
+    "pubsub.topics.update", "pubsub.topics.delete", "pubsub.topics.list",
+    "pubsub.topics.getIamPolicy", "pubsub.topics.setIamPolicy",
+    "pubsub.subscriptions.get", "pubsub.subscriptions.list",
+    "pubsub.subscriptions.create", "pubsub.subscriptions.update",
+    "pubsub.subscriptions.delete", "pubsub.subscriptions.consume",
+    "cloudscheduler.jobs.get", "cloudfunctions.functions.get",
+)
+
+
+def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space"):
+    if service_account not in {f"terraform-dev-{kind}@{project}.iam.gserviceaccount.com" for kind in ("plan", "apply")}:
+        raise SmokeFailure("topic-development-identity-target")
+    status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": list(EXPORT_TOPIC_PERMISSIONS)})
+    if status != 200 or set(data.get("permissions", [])) != {"pubsub.topics.get"}:
+        raise SmokeFailure("topic-exact-get-only-permissions")
+    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": list(EXPORT_TOPIC_PERMISSIONS)})
+    if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
+        raise SmokeFailure("topic-production-permissions-denied")
+    return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted", "GCP topic production grants absent"]
+
+
 def state_counts(state: dict) -> str:
     """Expose numeric integrity metadata only, never state values/identifiers."""
     if state.get("version") != 4 or not isinstance(state.get("serial"), int):
@@ -191,11 +214,15 @@ def main(argv: list[str] | None = None) -> int:
         args = sys.argv[1:] if argv is None else argv
         if args == ["quota-apply"]:
             checks = verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply")
+        elif args == ["export-topic"]:
+            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
         elif not args:
             checks = verify_oidc(env)
             checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
                 checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan")
+            if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
+                checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
             checks += verify_aws(env)
         else:
             raise SmokeFailure("unsupported-identity-smoke-mode")

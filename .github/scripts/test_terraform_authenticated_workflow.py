@@ -87,7 +87,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false", "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true",
         }
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
@@ -95,6 +95,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             result = subprocess.run(["bash", "-c", textwrap.dedent(script)], env=env, capture_output=True, text=True)
             result.outputs = Path(env["GITHUB_OUTPUT"]).read_text() if Path(env["GITHUB_OUTPUT"]).exists() else ""
             return result
+
+    def test_topic_ownership_is_dev_only_and_same_between_jobs(self):
+        self.assertIn('DEV_EXPORT_TOPIC_MANAGED_ENABLED: "true"', self.text)
+        result = self.run_preflight()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("manage_export_topic=true", result.outputs)
+        self.assertEqual(self.text.count("TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}"), 2)
+        self.assertIn('echo "manage_export_topic=false"', self.text)
 
     def test_enabled_development_plan_does_not_enable_apply(self) -> None:
         self.assertEqual(self.run_preflight().returncode, 0)
@@ -125,9 +133,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         apply_condition = self.text.split("  apply:\n", 1)[1].split("    needs:", 1)[0]
         self.assertNotIn("quota-plan", apply_condition)
 
-    def test_state_refresh_is_approved_but_remains_independently_gated(self) -> None:
+    def test_completed_state_refresh_is_closed_and_ownership_is_kept(self) -> None:
         self.assertIn('DEV_QUOTA_MANAGED_ENABLED: "true"', self.text)
-        self.assertIn('DEV_QUOTA_STATE_REFRESH_ENABLED: "true"', self.text)
+        self.assertIn('DEV_QUOTA_STATE_REFRESH_ENABLED: "false"', self.text)
         self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true").returncode, 0)
