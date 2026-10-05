@@ -87,12 +87,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false",
         }
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
             env["GITHUB_OUTPUT"] = str(Path(directory) / "outputs")
-            return subprocess.run(["bash", "-c", textwrap.dedent(script)], env=env, capture_output=True, text=True)
+            result = subprocess.run(["bash", "-c", textwrap.dedent(script)], env=env, capture_output=True, text=True)
+            result.outputs = Path(env["GITHUB_OUTPUT"]).read_text() if Path(env["GITHUB_OUTPUT"]).exists() else ""
+            return result
 
     def test_enabled_development_plan_does_not_enable_apply(self) -> None:
         self.assertEqual(self.run_preflight().returncode, 0)
@@ -112,7 +114,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-plan", DEV_PRIMARY_EMAIL_IMPORT_ENABLED="false").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-plan", TARGET="prod").returncode, 0)
-        self.assertIn('DEV_QUOTA_CREATE_ENABLED: "true"', self.text)
+        self.assertIn('DEV_QUOTA_CREATE_ENABLED: "false"', self.text)
         self.assertEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="quota-create", DEV_QUOTA_CREATE_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true", TARGET="prod").returncode, 0)
@@ -122,6 +124,21 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("QUOTA_IDENTITY_REQUIRED", self.text)
         apply_condition = self.text.split("  apply:\n", 1)[1].split("    needs:", 1)[0]
         self.assertNotIn("quota-plan", apply_condition)
+
+    def test_state_refresh_is_independently_closed_and_ordinary_ownership_is_kept(self) -> None:
+        self.assertIn('DEV_QUOTA_MANAGED_ENABLED: "true"', self.text)
+        self.assertIn('DEV_QUOTA_STATE_REFRESH_ENABLED: "false"', self.text)
+        self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
+        self.assertEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="quota-refresh", DEV_QUOTA_STATE_REFRESH_ENABLED="true", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true", TARGET="prod").returncode, 0)
+        owned = self.run_preflight(DEV_QUOTA_MANAGED_ENABLED="true")
+        self.assertEqual(owned.returncode, 0)
+        self.assertIn('manage_quota=true', owned.outputs)
+        self.assertEqual(self.text.count('plan_args=(-refresh-only)'), 2)
+        post = self.text.split('      - name: Require post-apply no-op', 1)[1]
+        self.assertNotIn('-refresh-only', post)
+        self.assertIn("inputs.mode == 'quota-refresh'", self.text.split('  apply:', 1)[1])
 
     def test_enabled_development_apply_still_requires_trusted_surface(self) -> None:
         enabled = re.search(r'DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "(true|false)"', self.text).group(1)

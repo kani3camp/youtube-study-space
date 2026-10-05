@@ -46,9 +46,12 @@ env:
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
   DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"
-  # #1162 explicitly approves GET1 and apply-only CREATE1. The separate fixed
-  # three-create validator and independent apply Environment remain mandatory.
-  DEV_QUOTA_CREATE_ENABLED: "true"
+  # Three policies were created. Keep ownership so ordinary plans cannot propose
+  # removal; close the one-time create gate even while state reconciliation waits.
+  DEV_QUOTA_MANAGED_ENABLED: "true"
+  DEV_QUOTA_CREATE_ENABLED: "false"
+  # Exact null-to-empty-map state exception requires separate user approval.
+  DEV_QUOTA_STATE_REFRESH_ENABLED: "false"
 
 jobs:
   preflight:
@@ -102,7 +105,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|apply|email-adoption|quota-plan|quota-create) ;;
+            plan|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
@@ -123,7 +126,11 @@ jobs:
                 echo "::error::Development quota create is disabled."
                 exit 1
               fi
-              if [[ "${MODE}" == "quota-plan" || "${MODE}" == "quota-create" ]]; then
+              if [[ "${MODE}" == "quota-refresh" && "${DEV_QUOTA_STATE_REFRESH_ENABLED}" != "true" ]]; then
+                echo "::error::Development quota state refresh is disabled pending approval."
+                exit 1
+              fi
+              if [[ "${MODE}" == "quota-plan" || "${MODE}" == "quota-create" || "${MODE}" == "quota-refresh" || "${DEV_QUOTA_MANAGED_ENABLED}" == "true" ]]; then
                 [[ "${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" == "true" ]] || { echo "::error::Adopt Email first."; exit 1; }
                 echo "manage_quota=true" >> "${GITHUB_OUTPUT}"
               else
@@ -277,7 +284,7 @@ jobs:
         if: ${{ inputs.target == 'dev' }}
         shell: bash
         env:
-          QUOTA_IDENTITY_REQUIRED: ${{ inputs.mode == 'quota-plan' || inputs.mode == 'quota-create' }}
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
           STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
@@ -291,11 +298,15 @@ jobs:
         shell: bash
         env:
           TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
           umask 077
+          plan_args=()
+          if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
+            "${plan_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -365,7 +376,7 @@ jobs:
 
   apply:
     name: Protected validated apply
-    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' }}
+    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
     needs:
       - preflight
       - plan
@@ -493,7 +504,7 @@ jobs:
           access_token_lifetime: 600s
 
       - name: Verify quota apply identity least privilege
-        if: ${{ inputs.mode == 'quota-create' }}
+        if: ${{ inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
         env:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
@@ -503,11 +514,15 @@ jobs:
         shell: bash
         env:
           TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
           umask 077
+          plan_args=()
+          if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
+            "${plan_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
