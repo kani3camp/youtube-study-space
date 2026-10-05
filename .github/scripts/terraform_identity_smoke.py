@@ -21,6 +21,24 @@ class SmokeFailure(Exception):
     pass
 
 
+FORBIDDEN_PERMISSIONS = (
+    "resourcemanager.projects.update", "resourcemanager.projects.delete",
+    "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
+    "iam.serviceAccounts.setIamPolicy", "iam.serviceAccounts.getAccessToken",
+    "secretmanager.versions.access", "storage.buckets.create", "bigquery.datasets.create",
+    "storage.buckets.update", "storage.objects.get", "storage.objects.list",
+    "storage.objects.create", "storage.objects.delete",
+    "monitoring.notificationChannels.create", "monitoring.notificationChannels.update",
+    "monitoring.notificationChannels.delete", "monitoring.alertPolicies.create",
+    "monitoring.alertPolicies.update", "monitoring.alertPolicies.delete",
+    "monitoring.alertPolicies.list", "monitoring.notificationChannels.list",
+    "serviceusage.services.enable", "serviceusage.services.disable",
+    "bigquery.datasets.update", "bigquery.datasets.delete", "bigquery.tables.create",
+    "bigquery.tables.update", "bigquery.tables.delete", "bigquery.tables.getData",
+    "bigquery.jobs.create",
+)
+
+
 def aws(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["aws", *args, "--output", "json"], capture_output=True, text=True, timeout=60)
 
@@ -86,20 +104,7 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
     status, data = request(f"v3/projects/{project}", token)
     if status != 200 or data.get("projectId") != project or data.get("state") != "ACTIVE":
         raise SmokeFailure("gcp-plan-service-account-read")
-    permissions = [
-        "resourcemanager.projects.update", "resourcemanager.projects.delete",
-        "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
-        "iam.serviceAccounts.setIamPolicy", "iam.serviceAccounts.getAccessToken",
-        "secretmanager.versions.access", "storage.buckets.create", "bigquery.datasets.create",
-        "storage.buckets.update", "storage.objects.get", "storage.objects.list",
-        "storage.objects.create", "storage.objects.delete",
-        "monitoring.notificationChannels.create", "monitoring.notificationChannels.update",
-        "monitoring.notificationChannels.delete", "monitoring.alertPolicies.create",
-        "monitoring.alertPolicies.update", "monitoring.alertPolicies.delete",
-        "bigquery.datasets.update", "bigquery.datasets.delete", "bigquery.tables.create",
-        "bigquery.tables.update", "bigquery.tables.delete", "bigquery.tables.getData",
-        "bigquery.jobs.create",
-    ]
+    permissions = list(FORBIDDEN_PERMISSIONS)
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": permissions})
     if status != 200 or data.get("permissions", []):
         raise SmokeFailure("gcp-plan-workload-mutation-denied")
@@ -120,6 +125,27 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
     if status != 403 or data.get("error", {}).get("status") != "PERMISSION_DENIED":
         raise SmokeFailure("gcp-unrelated-service-account-impersonation-denied")
     return ["GCP WIF + plan SA harmless read", "GCP plan mutation permissions absent", "GCP dev to prod permissions absent", "GCP unrelated SA impersonation denied"]
+
+
+def verify_quota_google(token: str, service_account: str, request=google, *, identity: str, project: str = "test-youtube-study-space") -> list[str]:
+    """Only metadata GET and, for the existing apply identity, policy CREATE."""
+    if identity not in {"plan", "apply"} or service_account != f"terraform-dev-{identity}@{project}.iam.gserviceaccount.com":
+        raise SmokeFailure("quota-development-identity-target")
+    requested = ["monitoring.alertPolicies.get", *FORBIDDEN_PERMISSIONS]
+    expected = {"monitoring.alertPolicies.get"}
+    if identity == "apply":
+        expected.add("monitoring.alertPolicies.create")
+    status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": requested})
+    if status != 200 or set(data.get("permissions", [])) != expected:
+        raise SmokeFailure("quota-exact-development-permissions")
+    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": [
+        "resourcemanager.projects.get", "storage.buckets.get", "monitoring.notificationChannels.get",
+        "bigquery.datasets.get", "bigquery.tables.get", "datastore.backupSchedules.get", *requested
+    ]})
+    if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
+        raise SmokeFailure("quota-production-permissions-denied")
+    return [f"GCP quota {identity} exact GET" + (" + CREATE" if identity == "apply" else " only"),
+            "GCP quota update/delete/list/data/IAM/API grants absent", "GCP quota production grants absent"]
 
 
 def state_counts(state: dict) -> str:
@@ -158,13 +184,21 @@ def verify_aws(env: dict[str, str]) -> list[str]:
     return ["AWS OIDC + dedicated STS identity", "AWS development state read", counts, "AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     os.umask(0o077)
     try:
         env = os.environ
-        checks = verify_oidc(env)
-        checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
-        checks += verify_aws(env)
+        args = sys.argv[1:] if argv is None else argv
+        if args == ["quota-apply"]:
+            checks = verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply")
+        elif not args:
+            checks = verify_oidc(env)
+            checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
+            if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
+                checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan")
+            checks += verify_aws(env)
+        else:
+            raise SmokeFailure("unsupported-identity-smoke-mode")
         summary = "### Development identity smoke\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
         with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
             output.write(summary)

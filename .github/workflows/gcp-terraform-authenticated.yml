@@ -46,9 +46,9 @@ env:
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
   DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"
-  # Existing CI principals lack alertPolicies.get/create; separately approve
-  # those exact grants before opening quota-create. quota-plan is read-only.
-  DEV_QUOTA_CREATE_ENABLED: "false"
+  # #1162 explicitly approves GET1 and apply-only CREATE1. The separate fixed
+  # three-create validator and independent apply Environment remain mandatory.
+  DEV_QUOTA_CREATE_ENABLED: "true"
 
 jobs:
   preflight:
@@ -120,7 +120,7 @@ jobs:
                 exit 1
               fi
               if [[ "${MODE}" == "quota-create" && "${DEV_QUOTA_CREATE_ENABLED}" != "true" ]]; then
-                echo "::error::Development quota create is disabled until its exact IAM boundary is approved."
+                echo "::error::Development quota create is disabled."
                 exit 1
               fi
               if [[ "${MODE}" == "quota-plan" || "${MODE}" == "quota-create" ]]; then
@@ -277,6 +277,7 @@ jobs:
         if: ${{ inputs.target == 'dev' }}
         shell: bash
         env:
+          QUOTA_IDENTITY_REQUIRED: ${{ inputs.mode == 'quota-plan' || inputs.mode == 'quota-create' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
           STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
@@ -479,6 +480,7 @@ jobs:
           fi
 
       - name: Configure GCP provider credential
+        id: apply_gcp_auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
@@ -487,6 +489,15 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify quota apply identity least privilege
+        if: ${{ inputs.mode == 'quota-create' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py quota-apply
 
       - name: Re-plan at the exact approved commit
         shell: bash
