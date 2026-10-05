@@ -18,7 +18,7 @@ Phase 1のscaffold / S3 state / protected CIは構築済みです。Phase 2で�
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
 
-Firestore export FunctionのNode.js 22移行は Issue #1148 の別gateです。Scheduler / Pub/Sub / export Functionのimportは、developmentとproductionのNode.js 22自然実行が安定するまで開始しません。
+Firestore export FunctionのNode.js 22移行は Issue #1148 の別gateです。development / productionのNode.js 22自然実行E2Eは2026-10-06にPASSし、#1173をcompletedでcloseしました。development export-chain natural-E2E import gateは解禁済みです。最初のtopic定義はdisabledで準備し、別quota state driftの解消とCIの最小GET prerequisiteを満たすまでprotected importを実行しません。
 
 ## Directory
 
@@ -297,3 +297,13 @@ The three-create apply succeeded, but provider read-back represented absent `use
 `quota-refresh` is disabled pending separate authorization for the state-only exception. Its dedicated validator requires a full-root saved `-refresh-only` plan, zero workload resource changes, exactly the three newly owned policy addresses with only `user_labels: null -> {}` (including its corresponding sensitivity mask), eight resources in the refreshed graph, exact approved policy/channel semantics, unknown zero, output no-op and other drift zero. Public summaries retain drift=3 rather than concealing it. Independent plan/apply Environment approval, same-SHA re-plan and projection matching remain mandatory. The saved refresh plan can persist state only; the final regular plan must pass no-op8/drift0. No IAM/API/workload or production write is authorized by this mode.
 
 State versioning retains the previous version for investigation. Do not overwrite newer state to roll back a representation-only refresh; inspect current state under the native lock and require a new bounded plan for any subsequent reconciliation. Before the state-only exception is approved and run, ordinary import-only plans continue to STOP on the three representation drift records.
+
+## Development export chain adoption
+
+`environments/dev/export-topic.tf` is the disabled first wave after #1173 PASS.
+Use topic → Scheduler → Gen1 Function as separate import-only waves. See
+[the topic module runbook](modules/firestore-export-topic/README.md) for fresh
+inventory, provider probes and strict full-root acceptance. Generated resources,
+IAM and source rebuild/upload are excluded. No export resource has been imported
+by this definition-only change; existing quota representation drift remains a
+separate STOP.
