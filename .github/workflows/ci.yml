@@ -596,6 +596,7 @@ jobs:
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
+          python3 .github/scripts/test_terraform_export_scheduler_gate.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
