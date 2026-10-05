@@ -50,8 +50,9 @@ env:
   # removal; close the one-time create gate even while state reconciliation waits.
   DEV_QUOTA_MANAGED_ENABLED: "true"
   DEV_QUOTA_CREATE_ENABLED: "false"
-  # Exact null-to-empty-map state exception requires separate user approval.
-  DEV_QUOTA_STATE_REFRESH_ENABLED: "false"
+  # Issue #1162 comment5997848683 approves only the exact three empty-map
+  # state corrections; independent Environments and the dedicated gate still apply.
+  DEV_QUOTA_STATE_REFRESH_ENABLED: "true"
 
 jobs:
   preflight:
