@@ -58,6 +58,29 @@ class IdentitySmokeTest(unittest.TestCase):
         self.assertNotIn("PRIVATE", output.getvalue())
         self.assertIn("raw error suppressed", output.getvalue())
 
+    def test_bigquery_metadata_import_rejects_data_query_mutation_and_prod_read(self):
+        def request(path, token, body=None, **kwargs):
+            if path.endswith(":testIamPermissions"):
+                requested = body["permissions"]
+                if "youtube-study-space:" in path:
+                    self.assertIn("bigquery.datasets.get", requested)
+                    self.assertIn("bigquery.tables.get", requested)
+                    return 200, {"permissions": []}
+                self.assertIn("bigquery.tables.getData", requested)
+                self.assertIn("bigquery.jobs.create", requested)
+                self.assertIn("bigquery.tables.update", requested)
+                self.assertIn("bigquery.datasets.delete", requested)
+                return 200, {"permissions": []}
+            if "generateAccessToken" in path:
+                return 403, {"error": {"status": "PERMISSION_DENIED"}}
+            return 200, {"projectId": "development-fixture", "state": "ACTIVE"}
+        smoke.verify_google("PRIVATE_TOKEN", "terraform-dev-plan@development-fixture.iam.gserviceaccount.com", request, project="development-fixture")
+        for permission in ("bigquery.tables.getData", "bigquery.jobs.create", "bigquery.tables.update"):
+            with self.subTest(permission=permission), self.assertRaises(smoke.SmokeFailure):
+                self.run_gcp(permissions=[permission])
+        with self.assertRaises(smoke.SmokeFailure):
+            self.run_gcp(prod_permissions=["bigquery.datasets.get"])
+
 
 if __name__ == "__main__":
     unittest.main()

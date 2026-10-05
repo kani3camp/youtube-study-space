@@ -91,11 +91,16 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
         "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
         "iam.serviceAccounts.setIamPolicy", "iam.serviceAccounts.getAccessToken",
         "secretmanager.versions.access", "storage.buckets.create", "bigquery.datasets.create",
+        "bigquery.datasets.update", "bigquery.datasets.delete", "bigquery.tables.create",
+        "bigquery.tables.update", "bigquery.tables.delete", "bigquery.tables.getData",
+        "bigquery.jobs.create",
     ]
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": permissions})
     if status != 200 or data.get("permissions", []):
         raise SmokeFailure("gcp-plan-workload-mutation-denied")
-    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": ["resourcemanager.projects.get", *permissions]})
+    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": [
+        "resourcemanager.projects.get", "bigquery.datasets.get", "bigquery.tables.get", *permissions
+    ]})
     if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
         raise SmokeFailure("gcp-development-to-production-denied")
     # Plan SA must not mint a token for even the separately provisioned apply SA.
