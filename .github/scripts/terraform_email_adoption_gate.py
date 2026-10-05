@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Review a development Email import that changes sensitivity metadata only.
 
-This validator neither authorizes nor executes apply. The authenticated import
-workflow remains disabled for this resource. A separate reviewed execution path
-and explicit approval are required before adopting its state metadata.
+This validator never executes apply. Explicit email-adoption mode in the
+protected workflow supplies the separately approved execution boundary.
 """
 from __future__ import annotations
 
@@ -44,11 +43,14 @@ def validate(plan: dict[str, Any], *, email: str, channel_name: str) -> None:
     require(channel_name.startswith("projects/test-youtube-study-space/notificationChannels/"))
     for output in plan.get("output_changes", {}).values():
         require(output.get("actions") == ["no-op"])
+        require(not has_unknown(output.get("after_unknown", {})))
     for item in changes:
         require(item.get("mode") == "managed")
         change = item.get("change", {})
         if item["address"] != CHANNEL:
             require(change.get("actions") == ["no-op"] and not change.get("importing"))
+            require(not has_unknown(change.get("after_unknown", {})))
+            require(canonical(change.get("before")) == canonical(change.get("after")))
             continue
         require(item.get("type") == "google_monitoring_notification_channel")
         require(change.get("actions") == ["update"])
@@ -64,4 +66,3 @@ def validate(plan: dict[str, Any], *, email: str, channel_name: str) -> None:
         require(isinstance(bs, dict) and isinstance(ats, dict))
         require({key for key in bs.keys() | ats.keys() if bs.get(key) != ats.get(key)} == {"labels"})
         require(ats.get("labels") == {"email_address": True})
-

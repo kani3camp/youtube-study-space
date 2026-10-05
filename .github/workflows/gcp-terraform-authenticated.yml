@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: Run plan only or plan followed by protected apply
+        description: Import-only plan/apply or separately approved Email adoption
         required: true
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -43,7 +43,8 @@ env:
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
-  # Import gate stays closed: sensitivity-only import update requires its own review.
+  # Default ownership stays off until adoption completes. Explicit email-adoption
+  # mode has separate full-value validation and the existing Environment gates.
   DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "false"
 
 jobs:
@@ -97,7 +98,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|apply) ;;
+            plan|apply|email-adoption) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
@@ -110,11 +111,15 @@ jobs:
                 echo "::error::Development authenticated Terraform is disabled until its trust is configured."
                 exit 1
               }
-              if [[ "${MODE}" == "apply" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
+              if [[ "${MODE}" != "plan" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
                 echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
                 exit 1
               fi
-              echo "manage_primary_email=${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" >> "${GITHUB_OUTPUT}"
+              if [[ "${MODE}" == "email-adoption" ]]; then
+                echo "manage_primary_email=true" >> "${GITHUB_OUTPUT}"
+              else
+                echo "manage_primary_email=${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" >> "${GITHUB_OUTPUT}"
+              fi
               echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
               echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
@@ -136,7 +141,7 @@ jobs:
           esac
 
   plan:
-    name: Authenticated import-only plan
+    name: Authenticated protected plan
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -302,7 +307,9 @@ jobs:
           set +e
           terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
             2>>"${RUNNER_TEMP}/terraform-plan.log" \
-            | python3 .github/scripts/terraform_plan_summary.py \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase before \
                 --environment "${{ inputs.target }}" \
                 --git-sha "${GITHUB_SHA}" \
                 --policy import-only \
@@ -320,7 +327,7 @@ jobs:
             echo "summary_digest=${digest}" >> "${GITHUB_OUTPUT}"
           fi
           if [[ "${rc}" -ne 0 ]]; then
-            echo "::error::Terraform plan violated the import-only policy. See the sanitized Job Summary."
+            echo "::error::Terraform plan violated the protected policy. See the sanitized Job Summary."
             exit "${rc}"
           fi
 
@@ -341,8 +348,8 @@ jobs:
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
 
   apply:
-    name: Protected import-only apply
-    if: ${{ inputs.mode == 'apply' }}
+    name: Protected validated apply
+    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' }}
     needs:
       - preflight
       - plan
@@ -499,7 +506,9 @@ jobs:
           set +e
           terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
             2>>"${RUNNER_TEMP}/terraform-plan.log" \
-            | python3 .github/scripts/terraform_plan_summary.py \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase before \
                 --environment "${{ inputs.target }}" \
                 --git-sha "${GITHUB_SHA}" \
                 --policy import-only \
@@ -513,7 +522,7 @@ jobs:
             cat "${RUNNER_TEMP}/sanitized-replan.md" >> "${GITHUB_STEP_SUMMARY}"
           fi
           [[ "${rc}" -eq 0 ]] || {
-            echo "::error::Re-plan violated the import-only policy."
+            echo "::error::Re-plan violated the protected policy."
             exit "${rc}"
           }
 
@@ -557,7 +566,9 @@ jobs:
           set +e
           terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/post-apply.tfplan" \
             2>>"${RUNNER_TEMP}/terraform-post-apply.log" \
-            | python3 .github/scripts/terraform_plan_summary.py \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase post \
                 --environment "${{ inputs.target }}" \
                 --git-sha "${GITHUB_SHA}" \
                 --policy import-only \
@@ -571,7 +582,7 @@ jobs:
             cat "${RUNNER_TEMP}/post-apply-summary.md" >> "${GITHUB_STEP_SUMMARY}"
           fi
           [[ "${sanitizer_rc}" -eq 0 ]] || {
-            echo "::error::Post-apply plan violated the import-only policy."
+            echo "::error::Post-apply plan violated the protected policy."
             exit "${sanitizer_rc}"
           }
           [[ "${plan_rc}" -eq 0 ]] || {
