@@ -606,7 +606,9 @@ jobs:
           done
 
       - name: Test quota alert mock plans and import-only boundary
-        run: python3 .github/scripts/test_youtube_quota_alerts.py
+        run: |
+          python3 .github/scripts/test_youtube_quota_alerts.py
+          python3 .github/scripts/test_backup_bucket.py
 
       - name: Verify multi-platform provider locks are complete
         run: |
