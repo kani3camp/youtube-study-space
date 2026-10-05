@@ -271,3 +271,9 @@ The obsolete empty development GCS state backend was retired in a separate appro
 ## YouTube quota alert symmetry
 
 Both dev/prod roots use `modules/youtube-quota-alerts` with environment parameters. Policy ownership is disabled during import-only migration; the existing production policies are untouched. Read-only preflight found no notification channel in either project, while all three production policies reference a missing channel. Actual dev creation is deferred to a separately approved normal-change apply, after channel verification. Mock plans prove three logical types and unchanged import-only rejection of create=3. See the module README for baseline, future import addressing, and remaining gates.
+
+## Private primary Email preparation
+
+Both environments share `monitoring-notification-channels`; quota policies consume its sensitive channel-name output when ownership is enabled. Development native Email channel was created in a separate approved operator wave; production channel/policies are unchanged. Actual mailbox and channel ID are private Environment secret inputs only, and may enter protected S3 state.
+
+Email ownership is explicitly disabled by `DEV_PRIMARY_EMAIL_IMPORT_ENABLED=false`. Real import preflight found a sensitivity-only `labels` update despite unchanged resource values. The import-only guard correctly rejects it. Keep the guard and sensitive config intact; resolve this as a separately reviewed narrow adoption route before channel import or quota creation. No alert ownership is enabled by this PR; delivery/receipt remains untested. See the channel module README and #1162.

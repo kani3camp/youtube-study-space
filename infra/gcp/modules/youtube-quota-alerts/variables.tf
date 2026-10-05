@@ -17,6 +17,7 @@ variable "manage_policies" {
 }
 
 variable "notification_channels" {
+  sensitive   = true
   description = "Existing, verified target-project channels. This module never creates channels."
   type        = list(string)
   default     = []

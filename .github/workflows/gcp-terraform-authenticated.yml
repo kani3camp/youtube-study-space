@@ -26,6 +26,10 @@ on:
         required: false
       GCP_TERRAFORM_SERVICE_ACCOUNT:
         required: false
+      GCP_MONITORING_PRIMARY_EMAIL:
+        required: false
+      GCP_MONITORING_PRIMARY_EMAIL_CHANNEL:
+        required: false
 
 permissions: {}
 
@@ -39,6 +43,8 @@ env:
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  # Import gate stays closed: sensitivity-only import update requires its own review.
+  DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "false"
 
 jobs:
   preflight:
@@ -51,6 +57,7 @@ jobs:
       terraform_root: ${{ steps.guard.outputs.terraform_root }}
       state_key: ${{ steps.guard.outputs.state_key }}
       project_id: ${{ steps.guard.outputs.project_id }}
+      manage_primary_email: ${{ steps.guard.outputs.manage_primary_email }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -107,6 +114,7 @@ jobs:
                 echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
                 exit 1
               fi
+              echo "manage_primary_email=${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
               echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
@@ -116,6 +124,7 @@ jobs:
                 echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
                 exit 1
               }
+              echo "manage_primary_email=false" >> "${GITHUB_OUTPUT}"
               echo "terraform_root=infra/gcp/environments/prod" >> "${GITHUB_OUTPUT}"
               echo "state_key=youtube-study-space/prod/terraform.tfstate" >> "${GITHUB_OUTPUT}"
               echo "project_id=youtube-study-space" >> "${GITHUB_OUTPUT}"
@@ -143,6 +152,9 @@ jobs:
       TF_INPUT: "false"
       TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+      TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
       - name: Mask private identity fragments before authentication
         shell: bash
@@ -151,12 +163,21 @@ jobs:
           PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
           PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
           PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          PRIVATE_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+          PRIVATE_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
         run: |
           set -euo pipefail
           : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
           for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
             [[ -n "${value}" ]] && echo "::add-mask::${value}"
           done
+          if [[ -n "${PRIVATE_EMAIL}" || -n "${PRIVATE_CHANNEL}" ]]; then
+            : "${PRIVATE_EMAIL:?missing private primary email}"
+            : "${PRIVATE_CHANNEL:?missing private primary channel}"
+            for value in "${PRIVATE_EMAIL}" "${PRIVATE_EMAIL%%@*}" "${PRIVATE_CHANNEL}" "${PRIVATE_CHANNEL##*/}"; do
+              echo "::add-mask::${value}"
+            done
+          fi
           project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
           [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
 
@@ -337,6 +358,9 @@ jobs:
       TF_INPUT: "false"
       TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+      TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
       - name: Mask private identity fragments before authentication
         shell: bash
@@ -345,12 +369,21 @@ jobs:
           PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
           PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
           PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          PRIVATE_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+          PRIVATE_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
         run: |
           set -euo pipefail
           : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
           for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
             [[ -n "${value}" ]] && echo "::add-mask::${value}"
           done
+          if [[ -n "${PRIVATE_EMAIL}" || -n "${PRIVATE_CHANNEL}" ]]; then
+            : "${PRIVATE_EMAIL:?missing private primary email}"
+            : "${PRIVATE_CHANNEL:?missing private primary channel}"
+            for value in "${PRIVATE_EMAIL}" "${PRIVATE_EMAIL%%@*}" "${PRIVATE_CHANNEL}" "${PRIVATE_CHANNEL##*/}"; do
+              echo "::add-mask::${value}"
+            done
+          fi
           project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
           [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
 

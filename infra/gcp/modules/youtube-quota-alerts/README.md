@@ -2,13 +2,13 @@
 
 Read-only baseline: 2026-10-05 production has three enabled MQL policies: minute 80%, day 80%, day 60%. Each uses `consumer_quota`, `serviceruntime.googleapis.com/quota/rate/net_usage` divided by `quota/limit`, YouTube default quota metric, OR, duration 60s, trigger count 1, and auto-close 7 days. The minute query uses 1-minute delta alignment; daily usage uses the America/Los_Angeles quota day and a 1-day window; both evaluate every 30s. The 60% daily policy explicitly prompts OPENED/CLOSED; other policies have no explicit prompts. Severity and user labels are absent.
 
-Both projects currently have zero notification channels. All production policies reference the same missing channel. Do not copy that dangling reference or silently create an unnotified alert.
+Read-only baseline before the Email wave: both projects had zero notification channels. The approved development Email wave now provides one enabled private primary channel; production still has zero channels and all production policies reference the same missing channel. Do not copy that dangling reference or silently create an unnotified alert.
 
 ## Migration behavior
 
 Both roots call this shared module with `manage_youtube_quota_alerts = false` by default. Therefore importing other resources does not create or acquire alert policies. Existing production policies are untouched. Threshold / duration / enabled / optional severity / channels are environment inputs. Stable keys retain the original policy provenance even if thresholds later change. New names and documentation include the explicit environment.
 
-`manage_policies = true` requires verified existing channels in the same project. The precondition checks channel shape/project; **operator read-back must additionally prove existence and notification suitability** before opt-in. No channel is owned or created by this module. Notification channel provisioning is outside this work's approval.
+`manage_policies = true` requires verified existing channels in the same project. The precondition checks channel shape/project; **operator read-back must additionally prove existence and notification suitability** before opt-in. No channel is owned or created by this module. Channel provisioning is owned by the separate `monitoring-notification-channels` module/operator wave, never by this policy module.
 
 The mock plan exercises all three logical types and both environments, and proves missing/foreign channels are rejected. Opt-in with fixture channels yields **create=3**, rejected by the unchanged import-only sanitizer. This is a credentialless synthetic plan, not an authenticated GCP plan or proof of channel delivery. Current migration roots yield zero alert resource actions. Actual development creation is deferred to a separately approved normal-change apply after a safe channel is available. Do not relax global migration guards to enable these alerts.
 

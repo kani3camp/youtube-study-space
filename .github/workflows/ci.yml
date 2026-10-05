@@ -587,6 +587,7 @@ jobs:
           python3 .github/scripts/test_terraform_plan_summary.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
+          python3 .github/scripts/test_terraform_email_adoption_gate.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -609,6 +610,7 @@ jobs:
         run: |
           python3 .github/scripts/test_youtube_quota_alerts.py
           python3 .github/scripts/test_backup_bucket.py
+          python3 .github/scripts/test_notification_channels.py
 
       - name: Verify multi-platform provider locks are complete
         run: |
@@ -640,6 +642,8 @@ jobs:
       AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
       GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+      GCP_MONITORING_PRIMARY_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+      GCP_MONITORING_PRIMARY_EMAIL_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}

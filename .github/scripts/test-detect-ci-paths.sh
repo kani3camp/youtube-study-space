@@ -54,6 +54,9 @@ assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_youtube_quota_alerts.py
 assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
+assert_exact_groups gcp_terraform .github/scripts/test_notification_channels.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_email_adoption_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_email_adoption_gate.py
 assert_exact_groups docs_site docs-site/docs/intro.md
 assert_exact_groups room_image_prompt tools/room-image-prompt/cmd/room-image-prompt/main.go
 assert_exact_groups room_image_prompt .agents/skills/room-art-direction/references/direction-a-clean-vivid-digital.md
