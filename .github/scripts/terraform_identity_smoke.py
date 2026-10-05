@@ -159,15 +159,22 @@ EXPORT_TOPIC_PERMISSIONS = (
 )
 
 
-def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space"):
+def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False):
     if service_account not in {f"terraform-dev-{kind}@{project}.iam.gserviceaccount.com" for kind in ("plan", "apply")}:
         raise SmokeFailure("topic-development-identity-target")
-    status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": list(EXPORT_TOPIC_PERMISSIONS)})
-    if status != 200 or set(data.get("permissions", [])) != {"pubsub.topics.get"}:
+    requested = list(EXPORT_TOPIC_PERMISSIONS) + ["cloudscheduler.jobs.list", "cloudscheduler.jobs.create",
+        "cloudscheduler.jobs.update", "cloudscheduler.jobs.delete", "cloudscheduler.jobs.run",
+        "cloudscheduler.jobs.pause", "cloudscheduler.jobs.enable", "cloudscheduler.jobs.fullView"]
+    expected = {"pubsub.topics.get"} | ({"cloudscheduler.jobs.get"} if scheduler else set())
+    status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": requested})
+    if status != 200 or set(data.get("permissions", [])) != expected:
         raise SmokeFailure("topic-exact-get-only-permissions")
-    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": list(EXPORT_TOPIC_PERMISSIONS)})
+    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": requested})
     if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
         raise SmokeFailure("topic-production-permissions-denied")
+    if scheduler:
+        return ["GCP topic + Scheduler exact GET only", "GCP Scheduler list/mutation/run/pause/resume/publish grants absent",
+                "GCP Function GET remains ungranted", "GCP export production grants absent"]
     return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted", "GCP topic production grants absent"]
 
 
@@ -214,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         args = sys.argv[1:] if argv is None else argv
         if args == ["quota-apply"]:
             checks = verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply")
+        elif args == ["export-scheduler"]:
+            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True)
         elif args == ["export-topic"]:
             checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
         elif not args:
@@ -222,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
                 checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan")
             if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
-                checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
+                checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
+                    scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true")
             checks += verify_aws(env)
         else:
             raise SmokeFailure("unsupported-identity-smoke-mode")

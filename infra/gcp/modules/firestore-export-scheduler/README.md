@@ -1,8 +1,8 @@
 # Development Firestore export Scheduler
 
-This definition is disabled. It follows the completed topic wave (#1184/#1186,
-protected run37342000553: import0/no-op9/drift0). It does not activate CI ownership,
-grant IAM, import state, change the job or manually run it.
+The root default remains disabled; the approved protected development CI wave enables ownership. It follows the completed topic wave (#1184/#1186,
+protected run37342000553: import0/no-op9/drift0). PR #1187 was definition-only. A separately approved activation adds exact graph
+and CI identity validation; importing state must not change or manually run the job.
 
 ## Fresh inventory and fidelity
 
@@ -23,8 +23,8 @@ contract on 2026-10-06 was:
 | Other targets | no HTTP or App Engine target |
 
 The module references the adopted topic output; a development-only root
-validation rejects Scheduler ownership without topic ownership. Default false
-keeps the protected nine-resource graph unchanged. `prevent_destroy` preserves
+validation rejects Scheduler ownership without topic ownership. The root default keeps Scheduler out of credentialless validation; protected CI
+keeps the approved ten-resource graph persistent. `prevent_destroy` preserves
 the existing job. Generated delivery subscriptions, service agents, Function
 source/artifacts and IAM remain externally owned.
 
@@ -37,25 +37,25 @@ Scheduler import1 plus existing9 no-op (ten no-op action records including the
 imported job), with create/update/delete/replace/drift/other/unknown0.
 No apply or raw plan publication occurred.
 
-Candidate permission: **`cloudscheduler.jobs.get` only**, appended to the existing
-development custom read role while preserving its existing principals/bindings.
-The topic run's actual plan/apply identity `testIamPermissions` smoke confirmed
-this GET remains ungranted; the live role also lacks it. A local attempt to use
-the existing CI identity could not mint its token because the operator lacks
-impersonation permission. No impersonation grant was added. The operator probe
-proves resource fidelity; a subsequent protected CI plan must prove the exact
-identity can read the job after separately approved GET provisioning.
+Issue #1162 [comment6005196430](https://github.com/kani3camp/youtube-study-space/issues/1162#issuecomment-6005196430)
+approves **`cloudscheduler.jobs.get` only**, appended to the existing development
+custom read role with existing principals/bindings preserved. No list/create/
+update/delete/run/pause/resume, Pub/Sub publish, IAM-write, broad role, API or
+production grant is added. The [resume RPC](https://docs.cloud.google.com/scheduler/docs/reference/rest/v1/projects.locations.jobs/resume)
+uses `cloudscheduler.jobs.enable`; the real CI identity smoke rejects that grant,
+not a nonexistent jobs.resume permission. Function GET remains ungranted.
 
-**STOP before IAM provisioning or Scheduler activation.** Current approval does
-not include Scheduler IAM. Do not add list/create/update/delete/run/pause/resume,
-Pub/Sub publish, IAM-write, broad roles, API changes or production grants.
-Rollback of an approved permission addition removes only this permission using
-a freshly read role etag, preserving all other grants and bindings.
+The earlier local operator could not mint the CI identity token. Existing SSO
+was refreshed without changing IAM; the protected WIF flow now proves actual
+plan and apply identities independently. No impersonation permission is added.
+Rollback of the read grant removes only Scheduler GET using a fresh role etag,
+preserving all other permissions and bindings. Do not remove a read grant while
+its persistent ownership still requires it; coordinate any rollback separately.
 
-## Subsequent import wave
+## Protected import wave
 
-After new explicit approval, re-inventory the job, provision only the approved
-GET, and review a separate CI activation plus exact ten-resource validator.
+Re-inventory the job, provision only the approved GET, and review the separate
+CI activation plus exact ten-resource validator.
 Preserve the unchanged global import-only guard. Require a complete full-root
 plan: one exact Scheduler import, existing9 no-op, all other actions/drift/unknown0.
 Never use `-target` or overwrite existing state with a historical S3 version.

@@ -331,13 +331,23 @@ adoption accept import0/no-op9. Independent Environments and same-SHA re-plan
 are unchanged. No subscription/IAM/generated/source ownership or cloud config
 mutation. Scheduler/Function permissions remain separate approval boundaries.
 
-## Development Scheduler definition (not activated)
+## Approved development Scheduler wave
 
-After topic no-op9, fresh job GET and the pinned provider import plan preserve
-the enabled development Pub/Sub schedule, payload and retry configuration.
-`manage_export_scheduler` defaults false and is not set by authenticated CI.
-The existing role lacks `cloudscheduler.jobs.get`; that one exact permission is
-a candidate requiring new user approval. Do not add IAM or enable this wave yet.
+Issue #1162 comment6005196430 separately approves only `cloudscheduler.jobs.get`
+in the existing development CI read role and one Scheduler import. Existing
+principals/bindings, production IAM and APIs are unchanged. The root default
+stays false for credentialless validation; protected CI enables persistent
+Scheduler ownership only for development, with the adopted topic dependency.
+
+An additive exact ten-resource validator preserves the global import-only
+policy: Scheduler import1/no-op plus existing9 no-op, no drift/unknown/mutation
+or generated ownership. Both CI identities must have only the approved topic
+and Scheduler GETs in the export permissions checked; list/create/update/delete/
+run/pause/resume/publish and Function GET remain absent. Resume uses the IAM
+permission `cloudscheduler.jobs.enable`, which is explicitly checked as absent.
+Independent Environments, same-SHA re-plan, projection equality and saved
+import-only apply remain mandatory. Post-plan must be import0/no-op10/drift0.
+
 See [the Scheduler runbook](modules/firestore-export-scheduler/README.md) for
-observed fields, provider read evidence and subsequent full-root acceptance.
-Function ownership waits for Scheduler completion.
+fresh fields, state/metadata audits and rollback boundaries. Function ownership
+waits for Scheduler completion; Function GET remains a separate approval.

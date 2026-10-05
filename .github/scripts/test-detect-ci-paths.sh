@@ -107,3 +107,6 @@ echo "detect-ci-paths.sh tests passed"
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_quota_refresh_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_gate.py
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_export_scheduler_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_scheduler_gate.py

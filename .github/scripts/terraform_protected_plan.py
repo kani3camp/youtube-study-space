@@ -17,6 +17,7 @@ from terraform_plan_summary import build_summary, render_markdown, write_private
 from terraform_quota_create_gate import validate as validate_quota
 from terraform_quota_refresh_gate import validate as validate_quota_refresh
 from terraform_export_topic_gate import validate as validate_export_topic
+from terraform_export_scheduler_gate import validate as validate_export_scheduler
 
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
@@ -83,7 +84,11 @@ def main():
             summary["policy"] = "development-quota-three-create-" + args.phase
         else:
             summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
-            if os.environ.get("TF_VAR_manage_export_topic") == "true":
+            if os.environ.get("TF_VAR_manage_export_scheduler") == "true":
+                if args.environment != "dev" or os.environ.get("TF_VAR_manage_export_topic") != "true":
+                    raise ValueError("Development Scheduler topic dependency required")
+                validate_export_scheduler(plan, phase=args.phase)
+            elif os.environ.get("TF_VAR_manage_export_topic") == "true":
                 if args.environment != "dev": raise ValueError("Development topic only")
                 validate_export_topic(plan, phase=args.phase)
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")

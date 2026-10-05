@@ -149,6 +149,28 @@ class IdentitySmokeTest(unittest.TestCase):
                 with self.assertRaises(smoke.SmokeFailure):
                     smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(grants, prod), project="fixture")
 
+    def test_scheduler_get_only_rejects_execution_mutation_list_publish_and_function(self):
+        def request_for(grants, prod=()):
+            def request(path, token, body=None, **kwargs):
+                self.assertIn("cloudscheduler.jobs.enable", body["permissions"])
+                self.assertIn("cloudscheduler.jobs.run", body["permissions"])
+                return 200, {"permissions": list(prod if "youtube-study-space:" in path else grants)}
+            return request
+        allowed = {"pubsub.topics.get", "cloudscheduler.jobs.get"}
+        for kind in ("plan", "apply"):
+            account = f"terraform-dev-{kind}@fixture.iam.gserviceaccount.com"
+            result = smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed), project="fixture", scheduler=True)
+            self.assertEqual(len(result), 4)
+            self.assertNotIn("PRIVATE", str(result))
+            for extra in ("cloudscheduler.jobs.list", "cloudscheduler.jobs.create", "cloudscheduler.jobs.update",
+                    "cloudscheduler.jobs.delete", "cloudscheduler.jobs.run", "cloudscheduler.jobs.pause", "cloudscheduler.jobs.enable",
+                    "cloudscheduler.jobs.fullView", "pubsub.topics.publish", "cloudfunctions.functions.get"):
+                with self.subTest(kind=kind, extra=extra), self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed | {extra}), project="fixture", scheduler=True)
+            for grants, prod in [(allowed - {"cloudscheduler.jobs.get"}, set()), (allowed, {"cloudscheduler.jobs.get"})]:
+                with self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(grants, prod), project="fixture", scheduler=True)
+
 
 if __name__ == "__main__":
     unittest.main()
