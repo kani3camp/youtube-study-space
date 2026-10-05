@@ -351,3 +351,11 @@ import-only apply remain mandatory. Post-plan must be import0/no-op10/drift0.
 See [the Scheduler runbook](modules/firestore-export-scheduler/README.md) for
 fresh fields, state/metadata audits and rollback boundaries. Function ownership
 waits for Scheduler completion; Function GET remains a separate approval.
+
+### Scheduler completion and default-off Function definition — 2026-10-06
+
+Scheduler activation #1188 completed on integration SHA `eb46cb9603f320dbf2a729cafecf8a88ac598c8a`, protected run [37388902196](https://github.com/kani3camp/youtube-study-space/actions/runs/37388902196). Separate plan/apply approvals, same-SHA re-plan and projection equality passed. Pre-plan: Scheduler import1 + existing9 no-op; post-plan and independent regular full-root: import0 / no-op10 / drift0 / other actions0. Only `cloudscheduler.jobs.get` was added to the existing dev read role, with bindings unchanged. Cloud metadata in both environments, IAM/API and generated resources remain unchanged by import; S3 serial12 / resources10 / lineage unchanged / native lock released. Public logs/artifacts leak audit passed.
+
+`environments/dev/export-function.tf` now defines the next Gen1 wave, disabled by default and absent from production. Existing topic/Scheduler CI flags do not activate it. Fresh inventory and an isolated provider import confirm Node22 / ACTIVE / version8, unchanged deployment/source/lock provenance, import1 / no-op1 / drift0 / unknown0, and the external reserved label/source boundary. See the [Function module contract](modules/firestore-export-function/README.md).
+
+`cloudfunctions.functions.get` is the exact next read candidate, freshly verified from pinned provider Read and the official API. Function IAM/CI activation/import/apply remain stopped for separate user approval. No source build/upload/redeploy or Google-managed ownership is part of this definition.
