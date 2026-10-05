@@ -91,6 +91,11 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
         "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
         "iam.serviceAccounts.setIamPolicy", "iam.serviceAccounts.getAccessToken",
         "secretmanager.versions.access", "storage.buckets.create", "bigquery.datasets.create",
+        "storage.buckets.update", "storage.objects.get", "storage.objects.list",
+        "storage.objects.create", "storage.objects.delete",
+        "monitoring.notificationChannels.create", "monitoring.notificationChannels.update",
+        "monitoring.notificationChannels.delete", "monitoring.alertPolicies.create",
+        "monitoring.alertPolicies.update", "monitoring.alertPolicies.delete",
         "bigquery.datasets.update", "bigquery.datasets.delete", "bigquery.tables.create",
         "bigquery.tables.update", "bigquery.tables.delete", "bigquery.tables.getData",
         "bigquery.jobs.create",
@@ -117,6 +122,17 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
     return ["GCP WIF + plan SA harmless read", "GCP plan mutation permissions absent", "GCP dev to prod permissions absent", "GCP unrelated SA impersonation denied"]
 
 
+def state_counts(state: dict) -> str:
+    """Expose numeric integrity metadata only, never state values/identifiers."""
+    if state.get("version") != 4 or not isinstance(state.get("serial"), int):
+        raise SmokeFailure("aws-state-format")
+    resources = state.get("resources")
+    if not isinstance(resources, list) or not isinstance(state.get("outputs"), dict):
+        raise SmokeFailure("aws-state-structure")
+    count = sum(len(r["instances"]) for r in resources if r.get("mode") == "managed")
+    return f"AWS current state resource count {count}, serial {state['serial']}, output count {len(state['outputs'])}"
+
+
 def verify_aws(env: dict[str, str]) -> list[str]:
     identity = aws("sts", "get-caller-identity")
     if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
@@ -129,6 +145,7 @@ def verify_aws(env: dict[str, str]) -> list[str]:
         result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))
         if result.returncode or not state.is_file():
             raise SmokeFailure("aws-development-state-read")
+        counts = state_counts(json.loads(state.read_text()))
         # Existing-object precondition makes an unexpected grant harmless: even a
         # mistaken PutObject allow cannot overwrite the verified existing state.
         empty = Path(directory) / "empty"
@@ -138,7 +155,7 @@ def verify_aws(env: dict[str, str]) -> list[str]:
     for prefix, label in [("youtube-study-space/prod/", "aws-production-prefix-denied"), ("unrelated-product/dev/", "aws-other-product-prefix-denied")]:
         denied_aws(aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", prefix, "--max-keys", "1"), label)
         denied_aws(aws("s3api", "head-object", "--bucket", bucket, "--key", prefix + "terraform.tfstate"), label)
-    return ["AWS OIDC + dedicated STS identity", "AWS development state read", "AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
+    return ["AWS OIDC + dedicated STS identity", "AWS development state read", counts, "AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
 
 
 def main() -> int:

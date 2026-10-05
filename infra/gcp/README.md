@@ -14,7 +14,7 @@ Phase 1のscaffold / S3 state / protected CIは構築済みです。Phase 2で�
 - workload resourceのcreate / update / delete
 - Cloud Functions / Scheduler / Pub/Subの変更
 - workload resourceのmutation権限追加 / API有効化
-- import-only以外のGitHub Actions workload apply（protected CIはIssue #1162）
+- 未承認のGitHub Actions workload apply（protected CIはIssue #1162）
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
 
@@ -276,8 +276,16 @@ Both dev/prod roots use `modules/youtube-quota-alerts` with environment paramete
 
 Both environments share `monitoring-notification-channels`; quota policies consume its sensitive channel-name output when ownership is enabled. Development native Email channel was created in a separate approved operator wave; production channel/policies are unchanged. Actual mailbox and channel ID are private Environment secret inputs only, and may enter protected S3 state.
 
-Default Email ownership remains disabled by `DEV_PRIMARY_EMAIL_IMPORT_ENABLED=false` until adoption completes. Real import preflight found a sensitivity-only `labels` update despite unchanged resource values. The import-only guard correctly rejects it.
+Development Email adoption completed through the dedicated protected route with post-plan no-op5 and unchanged GCP metadata. `DEV_PRIMARY_EMAIL_IMPORT_ENABLED=true` now keeps its ownership in ordinary import-only runs. Real import preflight found a sensitivity-only `labels` update despite unchanged resource values. The global import-only guard correctly rejects that update.
 
 The separately approved `terraform_mode=email-adoption` dispatch uses the same trusted ref, plan/apply Environments, identities and same-SHA re-plan. Its dedicated validator requires exactly the existing development channel import, equal before/after values, no unknowns/drift, only the label sensitivity mark, and the four previously managed resources as no-op. Post-apply must be a complete five-resource no-op with no import. The global import-only sanitizer is unchanged; ordinary `plan`/`apply` still use it. Re-running adoption after success is rejected rather than authorizing a wider update. Rollback authority is the versioned S3 state; do not restore an old version over later state writes. No alert creation or GCP mutation grant is enabled by this route. Delivery/receipt remains untested.
 
 Private recipient and channel name are supplied through the existing two development Environments. Only `storage.buckets.get` and `monitoring.notificationChannels.get` were added to the existing custom read role under #1162 approval; its principals and bindings are unchanged. See the channel module README and #1162 for the historical preflight.
+
+## Development quota normal-change preparation
+
+`terraform_mode=quota-plan` produces a read-only full-root candidate with existing five resources no-op and exactly three fixed quota creates. `terraform_quota_create_gate.py` validates all configured policy fields, the #1175 query hashes, ratios 0.8/0.8/0.6, duration 60s, target project and the adopted Email only. Unknowns are limited to provider-generated policy/condition identities, creation metadata and local deletion policy; unknown notification/config values are rejected. Import/update/delete/replace/drift/other actions are rejected. Public summaries contain addresses/counts only. Post-create requires all eight resources no-op.
+
+The separately protected `quota-create` mode stays closed (`DEV_QUOTA_CREATE_ENABLED=false`): current CI principals have neither `monitoring.alertPolicies.get` nor `monitoring.alertPolicies.create`. Opening it requires separate approval of one metadata GET added to the existing dev read role and one CREATE in a separate dev apply-only custom role. No predefined role, UPDATE/DELETE/list, data/API/production permission is needed. Those grants are not part of the already approved two GET additions and are not applied here. Ordinary runs keep quota ownership off until successful creation; `quota-plan` never executes apply.
+
+Rollback of a partial create uses a private manifest of the exact newly created policy names and the existing operator's permission: remove only those new policies, preserve the channel/previous five resources, reconcile Terraform ownership under the native lock, then prove no-op5. Do not run broad destroy or overwrite later state with an old S3 version. Terraform `prevent_destroy` and the normal gate intentionally reject deletion; operator rollback is a separate bounded procedure. After successful creation and no-op8, enable persistent quota ownership in a reviewed follow-up before an ordinary import-only run.

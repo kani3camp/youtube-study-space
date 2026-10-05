@@ -43,9 +43,12 @@ env:
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
-  # Default ownership stays off until adoption completes. Explicit email-adoption
-  # mode has separate full-value validation and the existing Environment gates.
-  DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "false"
+  # Email adoption completed with five-resource post-plan no-op. Ordinary modes
+  # keep its ownership; exceptional modes have separate validators and gates.
+  DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"
+  # Existing CI principals lack alertPolicies.get/create; separately approve
+  # those exact grants before opening quota-create. quota-plan is read-only.
+  DEV_QUOTA_CREATE_ENABLED: "false"
 
 jobs:
   preflight:
@@ -59,6 +62,7 @@ jobs:
       state_key: ${{ steps.guard.outputs.state_key }}
       project_id: ${{ steps.guard.outputs.project_id }}
       manage_primary_email: ${{ steps.guard.outputs.manage_primary_email }}
+      manage_quota: ${{ steps.guard.outputs.manage_quota }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -98,7 +102,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|apply|email-adoption) ;;
+            plan|apply|email-adoption|quota-plan|quota-create) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
@@ -111,9 +115,19 @@ jobs:
                 echo "::error::Development authenticated Terraform is disabled until its trust is configured."
                 exit 1
               }
-              if [[ "${MODE}" != "plan" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
+              if [[ "${MODE}" != "plan" && "${MODE}" != "quota-plan" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
                 echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
                 exit 1
+              fi
+              if [[ "${MODE}" == "quota-create" && "${DEV_QUOTA_CREATE_ENABLED}" != "true" ]]; then
+                echo "::error::Development quota create is disabled until its exact IAM boundary is approved."
+                exit 1
+              fi
+              if [[ "${MODE}" == "quota-plan" || "${MODE}" == "quota-create" ]]; then
+                [[ "${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" == "true" ]] || { echo "::error::Adopt Email first."; exit 1; }
+                echo "manage_quota=true" >> "${GITHUB_OUTPUT}"
+              else
+                echo "manage_quota=false" >> "${GITHUB_OUTPUT}"
               fi
               if [[ "${MODE}" == "email-adoption" ]]; then
                 echo "manage_primary_email=true" >> "${GITHUB_OUTPUT}"
@@ -158,6 +172,7 @@ jobs:
       TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
       TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -296,7 +311,7 @@ jobs:
               ;;
           esac
 
-      - name: Sanitize and enforce import-only plan
+      - name: Sanitize and enforce the selected protected contract
         id: sanitize
         shell: bash
         env:
@@ -349,7 +364,7 @@ jobs:
 
   apply:
     name: Protected validated apply
-    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' }}
+    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' }}
     needs:
       - preflight
       - plan
@@ -366,6 +381,7 @@ jobs:
       TF_WORKSPACE: default
       TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
       TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
