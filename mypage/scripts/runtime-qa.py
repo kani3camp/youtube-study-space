@@ -13,10 +13,14 @@ with sync_playwright() as p:
  page.route('**/*',lambda r:r.continue_() if r.request.url.startswith('http://127.0.0.1:18081/') else r.abort())
  def load(path,mode=''):
   page.goto('http://127.0.0.1:18081/runtime-visual.html?'+urlencode({'path':path,'mode':mode}))
- load('/login/channel-confirm');page.get_by_role('button',name='このチャンネルで続ける').click();page.get_by_text('読書',exact=True).wait_for()
+ load('/login/channel-confirm');page.get_by_role('button',name='このチャンネルでログイン').click();page.get_by_text('読書',exact=True).wait_for()
  page.get_by_role('button',name='アカウントを開く').click();page.get_by_role('button',name='ログアウト',exact=True).click()
  page.get_by_role('heading',name='マイページへログイン').wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('confirmation -> session complete -> MyPage -> logout -> login')
+ load('/login/channel-confirm','channel-avatar-failure')
+ page.locator('.channel-avatar svg').wait_for();assert page.locator('.channel-avatar img').count()==0
+ page.get_by_role('button',name='このチャンネルでログイン').click();page.get_by_text('読書',exact=True).wait_for()
+ results.append('failed confirmation avatar falls back to a generic icon and confirmation still works')
  load('/mypage');page.get_by_role('heading',name='マイページへログイン').wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('anonymous private-route guard')
  load('/login','authenticated');page.get_by_text('読書',exact=True).wait_for();assert page.get_by_role('heading',name='マイページへログイン').count()==0

@@ -22,6 +22,17 @@ with sync_playwright() as p:
    overflow=page.evaluate('document.documentElement.scrollWidth > innerWidth')
    assert not overflow,(width,state,'horizontal overflow')
    assert not errors,(width,state,errors)
+   if state in ['work','overdue']:
+    track=page.locator('.timeline').bounding_box();label=page.locator('.timeline-caption').bounding_box()
+    assert label['x']>=track['x']-1 and label['x']+label['width']<=track['x']+track['width']+1,(width,state,'timestamp outside timeline')
+   if state=='zero':
+    assert page.locator('.metric-today .duration-number').first.inner_text()=='0'
+    assert page.locator('.metric-today .sr-only').inner_text()=='0時間 0分'
+   if state=='loading':assert page.locator('.skeleton').count()==3
+   if state=='failure':
+    assert page.get_by_text('情報を取得できませんでした',exact=True).count()==1
+    assert page.locator('.summary-card,.recent-card,.notice').count()==0
+    assert page.get_by_role('button',name='再読み込み',exact=True).count()==1
    if state=='break':
     assert page.get_by_text('休憩中',exact=True).count()==1
     assert page.get_by_text('読書',exact=True).count()==1
@@ -57,7 +68,11 @@ with sync_playwright() as p:
   assert page.get_by_text('ログアウトしました。',exact=True).count()==1
   assert page.get_by_text('読書',exact=True).count()==0
   assert page.get_by_role('dialog').count()==0
+  page.goto('http://127.0.0.1:18081/visual.html?state=avatar-failure')
+  avatar=page.get_by_role('button',name='アカウントを開く')
+  avatar.locator('svg').wait_for();assert avatar.locator('img').count()==0
+  avatar.click();page.get_by_role('button',name='ログアウト',exact=True).wait_for()
  browser.close()
-report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'externalRequestsBlocked':True,'approvedRuntimeMissing':'support.js is absent from the approved Git export; pixel parity unavailable'}
+report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally; exact pixel parity is not a target because Current Canon overrides prototype semantics and font transport is blocked'}
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
-print('PASS: 60 responsive/state cases; native modal focus/Escape/zero-selection/logout at 390 and 1440. Approved runtime gap recorded.')
+print('PASS: 60 responsive/state cases, bounded timestamp, skeleton/first failure/zero metrics, avatar failure fallback, native modal focus/Escape/zero-selection/logout at 390 and 1440.')

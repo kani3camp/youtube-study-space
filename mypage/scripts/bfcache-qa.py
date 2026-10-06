@@ -19,7 +19,7 @@ with sync_playwright() as p:
  for support in [False,True]:
   for pending in [False,True]:
    page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':'/login/channel-confirm','mode':'support-confirm-delete' if support else ''}))
-   label='この依頼の本人確認を完了' if support else 'このチャンネルで続ける'
+   label='この依頼の本人確認を完了' if support else 'このチャンネルでログイン'
    page.get_by_role('button',name=label).wait_for()
    if pending:
     page.locator('#synthetic-hold').click();page.get_by_role('button',name=label).click()

@@ -39,6 +39,61 @@ function time(value: string | null) {
 		: '—'
 }
 
+export function AccountAvatar({ url }: { url: string | null }) {
+	const [imageFailed, setImageFailed] = useState(false)
+	useEffect(() => setImageFailed(!url), [url])
+	if (url?.startsWith('https://') && !imageFailed)
+		return (
+			<img
+				src={url}
+				alt=""
+				referrerPolicy="no-referrer"
+				onError={() => setImageFailed(true)}
+			/>
+		)
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.6"
+			aria-hidden="true"
+		>
+			<circle cx="12" cy="8" r="3.5" />
+			<path d="M5 21v-2a7 7 0 0 1 14 0v2" />
+		</svg>
+	)
+}
+
+function DurationValue({ seconds }: { seconds: number | null }) {
+	const text = formatWorkSeconds(seconds)
+	const parts = /^(\d+)時間 (\d+)分$/.exec(text)
+	if (!parts) return <span className="duration-unavailable">{text}</span>
+	return (
+		<span className="duration-value">
+			<span className="sr-only">{text}</span>
+			<span className="duration-part" aria-hidden="true">
+				<span className="duration-number">{parts[1]}</span>
+				<span className="duration-unit">時間</span>
+			</span>
+			<span className="duration-part" aria-hidden="true">
+				<span className="duration-number">{parts[2]}</span>
+				<span className="duration-unit">分</span>
+			</span>
+		</span>
+	)
+}
+
+function Skeleton({ area }: { area: 'current' | 'summary' | 'recent' }) {
+	return (
+		<div className={`skeleton skeleton-${area}`} aria-hidden="true">
+			<span />
+			<span />
+			<span />
+		</div>
+	)
+}
+
 export function ExternalLink({
 	href,
 	children,
@@ -96,17 +151,23 @@ function CurrentCard({
 				aria-labelledby="current-heading"
 				aria-busy={busy}
 			>
-				<h2 id="current-heading">現在の作業</h2>
+				<h2 id="current-heading">
+					{busy ? '現在の作業' : '情報を取得できませんでした'}
+				</h2>
 				{busy ? (
-					<p role="status">読み込んでいます…</p>
+					<>
+						<p className="sr-only" role="status">
+							読み込んでいます…
+						</p>
+						<Skeleton area="current" />
+					</>
 				) : (
 					<>
-						<p>情報を取得できませんでした</p>
-						<p className="muted">
+						<p className="muted" role="alert">
 							記録が消えたわけではありません。少し待ってからお試しください。
 						</p>
-						<button className="button" type="button" onClick={retry}>
-							再試行
+						<button className="button primary" type="button" onClick={retry}>
+							再読み込み
 						</button>
 					</>
 				)}
@@ -126,6 +187,7 @@ function CurrentCard({
 	const progress = timeline
 		? Math.min(100, Math.max(0, ((asOf - start) / (end - start)) * 100))
 		: 0
+	const timelinePosition = `calc(6px + (100% - 12px) * ${progress / 100})`
 	return (
 		<section
 			className={`card current-card ${active ? (resting ? 'resting' : 'working') : 'empty'}`}
@@ -142,18 +204,28 @@ function CurrentCard({
 							{resting ? '休憩中' : '作業中'}
 						</span>
 						<span className="seat-location">
-							{current.roomType === 'member' ? 'メンバールーム' : '通常ルーム'}{' '}
-							· 席 <strong>{current.seatNumber ?? '—'}</strong>
+							<span>
+								{current.roomType === 'member'
+									? 'メンバールーム'
+									: '通常ルーム'}
+							</span>
+							<span className="seat-divider" aria-hidden="true">
+								{' '}
+								·{' '}
+							</span>
+							<span>
+								席 <strong>{current.seatNumber ?? '—'}</strong>
+							</span>
 						</span>
 					</div>
-					<p className="task-label">{resting ? 'いまの作業' : '作業内容'}</p>
+					<p className="task-label">いまの作業</p>
 					<p className="task-name">
 						{current.workName?.trim() ? current.workName : '作業名は未設定'}
 					</p>
 					<div className="time-panel">
 						<div className="time-row">
 							<div>
-								<p>{resting ? '休憩開始' : '作業開始'}</p>
+								<p>{resting ? '休憩開始' : '開始時刻'}</p>
 								<strong>{time(current.stateStartedAt)}</strong>
 							</div>
 							<div>
@@ -169,17 +241,32 @@ function CurrentCard({
 									<span className="timeline-end" />
 									<span
 										className="timeline-now"
-										style={{ left: `${progress}%` }}
+										style={{ left: timelinePosition }}
 									/>
+									<span
+										className="timeline-caption"
+										style={{
+											left: timelinePosition,
+											transform:
+												progress < 14
+													? 'translateX(-6px)'
+													: progress > 86
+														? 'translateX(calc(-100% + 6px))'
+														: 'translateX(-50%)',
+										}}
+									>
+										{time(value?.asOf ?? null)}時点
+									</span>
 								</div>
-								<p className="timeline-caption">
-									{asOf > end
-										? '終了予定を過ぎています'
-										: `${time(value?.asOf ?? null)}時点`}
-								</p>
+								{asOf > end && (
+									<p className="overdue-note">終了予定を過ぎています</p>
+								)}
 							</>
 						)}
 					</div>
+					<p className="jst-note">
+						日本時間（JST） · {time(value?.asOf ?? null)}時点
+					</p>
 				</>
 			) : (
 				<>
@@ -197,11 +284,11 @@ function CurrentCard({
 				</>
 			)}
 			{value && <StaleNote value={value} />}
-			<div className="hero-links">
+			<div className="hero-links current-links">
+				<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				<ExternalLink href={liveURL} primary={!active}>
 					YouTubeライブを開く
 				</ExternalLink>
-				<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 			</div>
 		</section>
 	)
@@ -216,36 +303,40 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 			aria-busy={busy}
 		>
 			<h2 id="summary-heading">作業サマリー</h2>
-			<dl>
-				{(['today', 'week', 'lifetime'] as const).map((key) => {
-					const value = data?.summary[key]
-					const originalDate = value?.asOf
-						? day.format(new Date(value.asOf))
-						: null
-					const currentDate = data
-						? day.format(new Date(data.generatedAt))
-						: null
-					return (
-						<div className={`metric metric-${key}`} key={key}>
-							<dt>
-								{labels[key]}
-								{key === 'week' && <span>（月曜から）</span>}
-								{key === 'today' &&
-									originalDate &&
-									originalDate !== currentDate && (
-										<span>
-											（{originalDate.slice(5).replace('-', '/')}の記録）
-										</span>
-									)}
-							</dt>
-							<dd>
-								{busy && !data ? '—' : formatWorkSeconds(value?.data ?? null)}
-							</dd>
-							{value && <StaleNote value={value} />}
-						</div>
-					)
-				})}
-			</dl>
+			{busy && !data ? (
+				<Skeleton area="summary" />
+			) : (
+				<dl>
+					{(['today', 'week', 'lifetime'] as const).map((key) => {
+						const value = data?.summary[key]
+						const originalDate = value?.asOf
+							? day.format(new Date(value.asOf))
+							: null
+						const currentDate = data
+							? day.format(new Date(data.generatedAt))
+							: null
+						return (
+							<div className={`metric metric-${key}`} key={key}>
+								<dt>
+									{labels[key]}
+									{key === 'week' && <span>（月曜から）</span>}
+									{key === 'today' &&
+										originalDate &&
+										originalDate !== currentDate && (
+											<span>
+												（{originalDate.slice(5).replace('-', '/')}の記録）
+											</span>
+										)}
+								</dt>
+								<dd>
+									<DurationValue seconds={value?.data ?? null} />
+								</dd>
+								{value && <StaleNote value={value} />}
+							</div>
+						)
+					})}
+				</dl>
+			)}
 			<p className="jst-note">日本時間（JST）で集計 · 作業時間のみ</p>
 		</section>
 	)
@@ -269,6 +360,9 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 			<p className="muted chart-label">作業時間</p>
 			{days.length > 0 ? (
 				<>
+					<p className="selected-day" aria-live="polite">
+						{selected?.date}: {formatWorkSeconds(selected?.data ?? null)}
+					</p>
 					<div className="bar-chart">
 						{days.map((item) => (
 							<button
@@ -287,7 +381,9 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 											height:
 												item.data === null
 													? '2px'
-													: `${(item.data / max) * 100}%`,
+													: item.data === 0
+														? '4px'
+														: `${(item.data / max) * 100}%`,
 										}}
 									/>
 								</span>
@@ -300,15 +396,17 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 							</button>
 						))}
 					</div>
-					<p className="selected-day" aria-live="polite">
-						{selected?.date}: {formatWorkSeconds(selected?.data ?? null)}
-					</p>
 					{selected && <StaleNote value={selected} />}
 				</>
+			) : busy ? (
+				<>
+					<p className="sr-only" role="status">
+						読み込んでいます…
+					</p>
+					<Skeleton area="recent" />
+				</>
 			) : (
-				<p role="status">
-					{busy ? '読み込んでいます…' : '情報を取得できませんでした'}
-				</p>
+				<p role="status">情報を取得できませんでした</p>
 			)}
 		</section>
 	)
@@ -405,6 +503,7 @@ export function MyPageView({
 	const privateVisible = state.phase === 'authenticated'
 	const data = privateVisible ? state.data : null
 	const account = data?.account.data ?? null
+	const initialFailure = !data && !state.busy && !!state.error
 	const closePanel = () => {
 		setPanelOpen(false)
 		avatar.current?.focus()
@@ -443,15 +542,7 @@ export function MyPageView({
 						aria-label="アカウントを開く"
 						aria-haspopup="dialog"
 					>
-						{account?.avatarUrl?.startsWith('https://') ? (
-							<img
-								src={account.avatarUrl}
-								alt=""
-								referrerPolicy="no-referrer"
-							/>
-						) : (
-							<span aria-hidden="true">◯</span>
-						)}
+						<AccountAvatar url={account?.avatarUrl ?? null} />
 					</button>
 				</div>
 			</header>
@@ -461,7 +552,7 @@ export function MyPageView({
 						<p className="greeting">
 							おかえりなさい。今日も、少し進めましょう。
 						</p>
-						{state.error && (
+						{state.error && data && (
 							<div className="notice" role="status">
 								<p>
 									最新の情報に更新できませんでした。
@@ -478,14 +569,20 @@ export function MyPageView({
 								</button>
 							</div>
 						)}
-						<div className="mypage-grid">
+						<div
+							className={`mypage-grid${initialFailure ? ' initial-failure' : ''}`}
+						>
 							<CurrentCard
 								value={data?.current}
 								busy={state.busy}
 								retry={refresh}
 							/>
-							<SummaryCard data={data} busy={state.busy} />
-							<RecentCard data={data} busy={state.busy} />
+							{!initialFailure && (
+								<>
+									<SummaryCard data={data} busy={state.busy} />
+									<RecentCard data={data} busy={state.busy} />
+								</>
+							)}
 						</div>
 					</>
 				) : (

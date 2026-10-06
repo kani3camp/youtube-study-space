@@ -71,7 +71,10 @@ if (import.meta.env.DEV) {
 					: { purpose: 'login' }),
 				displayName: 'Sample Channel',
 				handle: '@sample',
-				avatarUrl: null,
+				avatarUrl:
+					mode === 'channel-avatar-failure'
+						? 'https://invalid.example/synthetic-avatar.png'
+						: null,
 				confirmationRef: 'a'.repeat(64),
 			})
 		if (path === '/api/auth/youtube/confirm') {

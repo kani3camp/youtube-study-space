@@ -18,6 +18,7 @@ import {
 } from 'react'
 import { RequestError } from './features/mypage/memory'
 import {
+	AccountAvatar,
 	ExternalLink,
 	guideURL,
 	liveURL,
@@ -509,8 +510,8 @@ export function createApp(
 			}
 		}
 		return (
-			<main className="main-content public-page">
-				<section className="card login-card">
+			<main className="main-content public-page channel-confirm-page">
+				<section className="channel-confirm">
 					<h1>YouTubeチャンネルを確認</h1>
 					{channel ? (
 						<>
@@ -524,10 +525,15 @@ export function createApp(
 									</p>
 								</>
 							) : (
-								<p>このチャンネルでマイページを利用します。</p>
+								<p>作業部屋で使っているチャンネルか確認してください。</p>
 							)}
-							<p className="account-name">{channel.displayName}</p>
-							{channel.handle && <p className="muted">{channel.handle}</p>}
+							<div className="card channel-identity">
+								<div className="channel-avatar">
+									<AccountAvatar url={channel.avatarUrl} />
+								</div>
+								<p className="account-name">{channel.displayName}</p>
+								{channel.handle && <p className="muted">{channel.handle}</p>}
+							</div>
 							<button
 								className="button primary full-width"
 								type="button"
@@ -538,7 +544,7 @@ export function createApp(
 									? '手続きを完了しています…'
 									: channel.purpose === 'support'
 										? 'この依頼の本人確認を完了'
-										: 'このチャンネルで続ける'}
+										: 'このチャンネルでログイン'}
 							</button>
 						</>
 					) : (
