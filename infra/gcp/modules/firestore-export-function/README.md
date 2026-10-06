@@ -1,6 +1,6 @@
 # Development Gen1 export Function adoption
 
-既存 Gen1 Function の default-off import definition。Scheduler wave 完了後に別 wave として扱う。production root、CI activation、IAM、source deploy はこの定義に含めない。
+既存 Gen1 Function の default-off import definition。Scheduler wave 完了後に別 wave として扱う。production root・source deploy は ownership 外。root は default-off、承認済み development CI は独立 flag で有効化する。
 
 ## Fresh inventory / provider probe — 2026-10-06
 
@@ -24,13 +24,13 @@ Deployment identity/version/build/update metadata match the successful #1148 dep
 
 ## Permission and activation boundary
 
-[Pinned provider Read](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/google/services/cloudfunctions/resource_cloudfunctions_function.go#L678) calls the exact v1 Function GET. The [official API contract](https://docs.cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/get) requires `cloudfunctions.functions.get`. The current CI smoke confirms Function GET is ungranted; this is a separate user approval boundary.
+[Pinned provider Read](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/google/services/cloudfunctions/resource_cloudfunctions_function.go#L678) calls the exact v1 Function GET. The [official API contract](https://docs.cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/get) requires `cloudfunctions.functions.get`. [Issue #1162 approval](https://github.com/kani3camp/youtube-study-space/issues/1162#issuecomment-6005988785) authorizes only this GET in the existing development read role.
 
-Only that GET is a candidate addition to the existing development custom read role. Preserve existing principals/bindings. Do not add list/create/update/delete/call/invoke/sourceCodeGet/sourceCodeSet, IAM-write, API permissions, broad roles or production grants. Source/archive/build GET permissions used by an operator for provenance do not become CI requirements. This PR grants no permissions and keeps `manage_export_function=false` in the workflow/default root.
+Only that GET is an approved addition to the existing development custom read role. Preserve existing principals/bindings. Do not add list/create/update/delete/call/invoke/sourceCodeGet/sourceCodeSet, IAM-write, API permissions, broad roles or production grants. Source/archive/build GET permissions used by an operator for provenance do not become CI requirements. The root remains default-off. Reviewed development CI enables the Function after both topic and Scheduler ownership; production stays disabled. CI checks exact GET-only export permissions, including explicit negative checks for call/invoke/source and production. An exact metadata GET verifies the existing execution identity before masking and supplying it privately through `GITHUB_ENV`; source URLs/API responses are never emitted.
 
 For an operator's read-only full-root candidate, explicitly enable the existing topic/Scheduler and Function flags and supply the fresh execution identity privately. Require exactly Function import1 + existing10 no-op, drift/unknown/unexpected action0. Never use `-target` or apply a definition-only probe.
 
-After separately approved GET and reviewed activation, retain independent Environment approvals, same-SHA re-plan/projection equality, the global import-only guard plus an exact eleven-resource validator, protected saved-plan apply and post no-op11/drift0. These activation/apply changes are future work.
+Approved activation retains independent Environment approvals, same-SHA re-plan/projection equality, the global import-only guard plus an exact eleven-resource validator, protected saved-plan apply and post no-op11/drift0. The additive validator fixes the complete eleven-resource graph and runtime/trigger/environment/limits/reserved-label/source boundary; existing ten resources must satisfy the completed Scheduler contract. The global policy is unchanged.
 
 ## Ownership and rollback
 
