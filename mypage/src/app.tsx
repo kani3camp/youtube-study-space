@@ -29,6 +29,16 @@ type LoginSearch = {
 	error?: string
 	logout?: boolean
 	supportChallenge?: string
+	supportInvalid?: boolean
+}
+const SupportReceipt = createContext<{
+	ref: string | null
+	set: (ref: string | null) => void
+}>({ ref: null, set: () => {} })
+const supportPurposeLabel = {
+	delete: '保存データの削除依頼',
+	revoke: 'すべてのログインの解除依頼',
+	disclosure: '保存データの開示依頼',
 }
 const CookieSettings = createContext<() => void>(() => {})
 
@@ -39,6 +49,10 @@ function message(error: unknown) {
 		code === 'POLICY_VERSION_OUTDATED'
 	)
 		return '最新のプライバシーポリシーと利用規約を確認し、もう一度ログインしてください。'
+	if (code === 'SUPPORT_CHANNEL_MISMATCH')
+		return '依頼の対象チャンネルと一致しません。窓口から案内された本人確認リンクを使って、対象のチャンネルを確認してください。'
+	if (code === 'SUPPORT_CHALLENGE_INVALID')
+		return '本人確認リンクが無効か、有効期限が切れています。受付窓口へ新しいリンクをご依頼ください。'
 	if (code === 'RATE_LIMITED')
 		return 'しばらく待ってから、もう一度お試しください。'
 	if (code.startsWith('OAUTH_TRANSACTION_'))
@@ -55,48 +69,67 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 	}
 	function Root() {
 		const [cookieOpen, setCookieOpen] = useState(false)
+		const [receipt, setReceipt] = useState<string | null>(null)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
 		const pathname = useRouterState({
 			select: (state) => state.location.pathname,
 		})
 		useEffect(() => runtime.mount(), [])
 		useEffect(() => {
+			if (pathname !== '/contact') setReceipt(null)
+		}, [pathname])
+		useEffect(() => {
+			const clear = () => setReceipt(null)
+			let previousUID = runtime.session?.currentUID()
+			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (uid !== previousUID) clear()
+				previousUID = uid
+			})
+			window.addEventListener('pagehide', clear)
+			return () => {
+				unsubscribe?.()
+				window.removeEventListener('pagehide', clear)
+			}
+		}, [])
+		useEffect(() => {
 			if (cookieOpen) cookieDialog.current?.showModal()
 		}, [cookieOpen])
 		return (
-			<CookieSettings.Provider value={() => setCookieOpen(true)}>
-				<Outlet />
-				{pathname !== '/mypage' && (
-					<footer className="site-footer public-footer">
-						<Link to="/privacy">プライバシー</Link>
-						<Link to="/terms">利用規約</Link>
-						<button type="button" onClick={() => setCookieOpen(true)}>
-							Cookie設定
-						</button>
-						<Link to="/contact">お問い合わせ</Link>
-					</footer>
-				)}
-				{cookieOpen && (
-					<dialog
-						className="account-dialog"
-						ref={cookieDialog}
-						onClose={() => setCookieOpen(false)}
-						aria-labelledby="cookie-heading"
-					>
-						<h2 id="cookie-heading">Cookie設定</h2>
-						<p>
-							利用状況の計測は初期設定でオフです。作業内容やチャンネル情報は計測へ送りません。
-						</p>
-						<button
-							type="button"
-							className="button"
-							onClick={() => cookieDialog.current?.close()}
+			<SupportReceipt.Provider value={{ ref: receipt, set: setReceipt }}>
+				<CookieSettings.Provider value={() => setCookieOpen(true)}>
+					<Outlet />
+					{pathname !== '/mypage' && (
+						<footer className="site-footer public-footer">
+							<Link to="/privacy">プライバシー</Link>
+							<Link to="/terms">利用規約</Link>
+							<button type="button" onClick={() => setCookieOpen(true)}>
+								Cookie設定
+							</button>
+							<Link to="/contact">お問い合わせ</Link>
+						</footer>
+					)}
+					{cookieOpen && (
+						<dialog
+							className="account-dialog"
+							ref={cookieDialog}
+							onClose={() => setCookieOpen(false)}
+							aria-labelledby="cookie-heading"
 						>
-							閉じる
-						</button>
-					</dialog>
-				)}
-			</CookieSettings.Provider>
+							<h2 id="cookie-heading">Cookie設定</h2>
+							<p>
+								利用状況の計測は初期設定でオフです。作業内容やチャンネル情報は計測へ送りません。
+							</p>
+							<button
+								type="button"
+								className="button"
+								onClick={() => cookieDialog.current?.close()}
+							>
+								閉じる
+							</button>
+						</dialog>
+					)}
+				</CookieSettings.Provider>
+			</SupportReceipt.Provider>
 		)
 	}
 	function PublicHome() {
@@ -123,6 +156,8 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 	function Login() {
 		const state = useMemory()
 		const search = loginRoute.useSearch()
+		const receipt = useContext(SupportReceipt)
+		const supportMode = !!search.supportChallenge || !!search.supportInvalid
 		const [privacy, setPrivacy] = useState(false)
 		const [terms, setTerms] = useState(false)
 		const [busy, setBusy] = useState(false)
@@ -135,20 +170,20 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 					<p role="status">ログイン状態を確認しています…</p>
 				</main>
 			)
-		if (
-			state.phase === 'authenticated' &&
-			!search.logout &&
-			!search.supportChallenge
-		)
+		if (state.phase === 'authenticated' && !search.logout && !supportMode)
 			return <Navigate to="/mypage" />
 		const start = async () => {
-			if (controller.current || !privacy || !terms || search.supportChallenge)
+			if (controller.current || !privacy || !terms || search.supportInvalid)
 				return
 			controller.current = new AbortController()
 			setBusy(true)
 			setError(null)
+			receipt.set(null)
 			try {
-				const url = await runtime.start(controller.current.signal)
+				const url = await runtime.start(
+					controller.current.signal,
+					search.supportChallenge,
+				)
 				if (!controller.current.signal.aborted) location.assign(url)
 			} catch (e) {
 				setError(message(e))
@@ -161,12 +196,12 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 				<Link to="/">オンライン作業部屋</Link>
 				<section className="card login-card">
 					<h1>
-						{search.supportChallenge
-							? '問い合わせの本人確認'
-							: 'マイページへログイン'}
+						{supportMode ? '問い合わせの本人確認' : 'マイページへログイン'}
 					</h1>
 					<p>
-						YouTubeチャンネルを確認して、自分の作業記録を表示します。Googleアカウントのメールアドレスではなく、確認したYouTubeチャンネルが作業部屋のアカウントになります。
+						{supportMode
+							? '受付窓口から届いた依頼について、新しくYouTubeの許可を得て対象チャンネルを確認します。現在のログイン状態だけでは本人確認を完了しません。'
+							: 'YouTubeチャンネルを確認して、自分の作業記録を表示します。Googleアカウントのメールアドレスではなく、確認したYouTubeチャンネルが作業部屋のアカウントになります。'}
 					</p>
 					{state.error === 'LOGOUT_FAILED' ? (
 						<>
@@ -199,9 +234,14 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 										: '現在ログインをご利用いただけません。しばらくしてからお試しください。'}
 								</p>
 							)}
-							{search.supportChallenge && (
+							{supportMode && (
 								<p role="status">
-									本人確認の受付は準備中です。通常ログインはこの依頼の本人確認にはなりません。
+									この操作は依頼の本人確認です。保存データの削除やログインの解除は、この画面では実行しません。
+								</p>
+							)}
+							{search.supportInvalid && (
+								<p role="alert">
+									本人確認リンクが無効です。受付窓口へ新しいリンクをご依頼ください。
 								</p>
 							)}
 							<label className="consent-label">
@@ -234,10 +274,14 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 									!terms ||
 									busy ||
 									!!runtime.unavailable ||
-									!!search.supportChallenge
+									!!search.supportInvalid
 								}
 							>
-								{busy ? 'ログインを開始しています…' : 'YouTubeでログイン'}
+								{busy
+									? '手続きを開始しています…'
+									: supportMode
+										? 'YouTubeで本人確認を始める'
+										: 'YouTubeでログイン'}
 							</button>
 							{error && <p role="alert">{error}</p>}
 						</>
@@ -247,6 +291,8 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		)
 	}
 	function ChannelConfirm() {
+		const [supportFlow, setSupportFlow] = useState(false)
+		const receipt = useContext(SupportReceipt)
 		const [channel, setChannel] = useState<ChannelConfirmation | null>(null)
 		const [error, setError] = useState<string | null>(null)
 		const [busy, setBusy] = useState(false)
@@ -258,7 +304,10 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 			void runtime
 				.channel(c.signal)
 				.then((data) => {
-					if (!c.signal.aborted) setChannel(data)
+					if (!c.signal.aborted) {
+						setChannel(data)
+						setSupportFlow(data.purpose === 'support')
+					}
 				})
 				.catch((e) => {
 					if (c.signal.aborted) return
@@ -270,7 +319,11 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 							to: '/login',
 							search: { error: 'oauth_state_invalid', logout: true },
 						})
-					} else setError(message(e))
+					} else {
+						if (e instanceof RequestError && e.code.startsWith('SUPPORT_'))
+							setSupportFlow(true)
+						setError(message(e))
+					}
 				})
 			return () => c.abort()
 		}, [])
@@ -280,12 +333,17 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 			setBusy(true)
 			setError(null)
 			try {
-				await runtime.confirm(
+				const result = await runtime.confirm(
 					channel.confirmationRef,
 					controller.current.signal,
+					channel.purpose,
 				)
-				if (!controller.current.signal.aborted)
-					await router.navigate({ to: '/mypage' })
+				if (!controller.current.signal.aborted) {
+					if (result.purpose === 'support') {
+						receipt.set(result.requestRef)
+						await router.navigate({ to: '/contact' })
+					} else await router.navigate({ to: '/mypage' })
+				}
 			} catch (e) {
 				if (!controller.current?.signal.aborted) {
 					setChannel(null)
@@ -301,7 +359,18 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 					<h1>YouTubeチャンネルを確認</h1>
 					{channel ? (
 						<>
-							<p>このチャンネルでマイページを利用します。</p>
+							{channel.purpose === 'support' ? (
+								<>
+									<p>
+										依頼の目的：{supportPurposeLabel[channel.supportPurpose]}
+									</p>
+									<p>
+										このチャンネルの依頼について、本人確認だけを完了します。依頼の実行状況は受付窓口からご案内します。
+									</p>
+								</>
+							) : (
+								<p>このチャンネルでマイページを利用します。</p>
+							)}
 							<p className="account-name">{channel.displayName}</p>
 							{channel.handle && <p className="muted">{channel.handle}</p>}
 							<button
@@ -310,7 +379,11 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 								disabled={busy}
 								onClick={() => void confirm()}
 							>
-								{busy ? 'ログインを完了しています…' : 'このチャンネルで続ける'}
+								{busy
+									? '手続きを完了しています…'
+									: channel.purpose === 'support'
+										? 'この依頼の本人確認を完了'
+										: 'このチャンネルで続ける'}
 							</button>
 						</>
 					) : (
@@ -318,9 +391,15 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 							{error ?? 'チャンネルを確認しています…'}
 						</p>
 					)}
-					<Link className="manage-link" to="/login" search={{ logout: true }}>
-						ログインからやり直す
-					</Link>
+					{supportFlow ? (
+						<Link className="manage-link" to="/contact">
+							受付窓口へ戻る
+						</Link>
+					) : (
+						<Link className="manage-link" to="/login" search={{ logout: true }}>
+							ログインからやり直す
+						</Link>
+					)}
 				</section>
 			</main>
 		)
@@ -421,10 +500,24 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		)
 	}
 	function Contact() {
+		const receipt = useContext(SupportReceipt)
 		return (
 			<main className="main-content public-page">
 				<section className="card policy-page">
 					<h1>お問い合わせ</h1>
+					{receipt.ref && (
+						<section aria-labelledby="support-complete">
+							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
+							<p>
+								受付窓口で依頼内容と照合して対応します。データの削除やログインの解除は、この画面では実行していません。
+							</p>
+							<p>確認結果の参照番号</p>
+							<p className="proof-reference">{receipt.ref}</p>
+							<p>
+								この番号は画面を離れたり、再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
+							</p>
+						</section>
+					)}
 					<p>
 						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
 					</p>
@@ -450,6 +543,14 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		path: '/login',
 		component: Login,
 		validateSearch: (raw: Record<string, unknown>): LoginSearch => ({
+			supportInvalid:
+				(raw.supportInvalid === true || raw.supportChallenge !== undefined) &&
+				!(
+					typeof raw.supportChallenge === 'string' &&
+					/^[a-f0-9]{64}$/.test(raw.supportChallenge)
+				)
+					? true
+					: undefined,
 			error: typeof raw.error === 'string' ? raw.error.slice(0, 64) : undefined,
 			logout: raw.logout === true || raw.logout === 'true' ? true : undefined,
 			supportChallenge:
