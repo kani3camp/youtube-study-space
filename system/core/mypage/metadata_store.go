@@ -57,6 +57,17 @@ func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expec
 // retaining consent and account identity. It is not account deletion or an
 // operator privacy-request execution method.
 func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, now time.Time) (WebAccount, error) {
+	cutoff := now.Add(-30 * 24 * time.Hour)
+	return s.clearAccountMetadata(ctx, uid, expected, policy, &cutoff, now)
+}
+
+// ClearMissingMetadata is called only for a validated successful API response
+// proving the channel absent, not transport/malformed/ambiguous failures.
+func (s *FirestoreAuthStore) ClearMissingMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, now time.Time) (WebAccount, error) {
+	return s.clearAccountMetadata(ctx, uid, expected, policy, nil, now)
+}
+
+func (s *FirestoreAuthStore) clearAccountMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, cutoff *time.Time, now time.Time) (WebAccount, error) {
 	if !youtubeChannelID.MatchString(uid) || expected.Revision.IsZero() {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
@@ -76,10 +87,10 @@ func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, exp
 		if err := checkMetadataAccount(current, policy); err != nil {
 			return err
 		}
-		if !doc.UpdateTime.Equal(expected.Revision) || current.MetadataFetchedAt.IsZero() || now.Sub(current.MetadataFetchedAt) < 30*24*time.Hour {
+		if !doc.UpdateTime.Equal(expected.Revision) || (cutoff != nil && (current.MetadataFetchedAt.IsZero() || current.MetadataFetchedAt.After(*cutoff))) {
 			return apiError("TEMPORARY_UNAVAILABLE")
 		}
-		if err := tx.Update(ref, []firestore.Update{{Path: "displayName", Value: ""}, {Path: "handle", Value: nil}, {Path: "avatarUrl", Value: nil}, {Path: "metadataFetchedAt", Value: firestore.Delete}, {Path: "updatedAt", Value: now}}); err != nil {
+		if err := tx.Update(ref, metadataClearUpdates(now)); err != nil {
 			return fmt.Errorf("expire public metadata: %w", err)
 		}
 		return nil
@@ -95,4 +106,8 @@ func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, exp
 		return WebAccount{}, err
 	}
 	return account, nil
+}
+
+func metadataClearUpdates(now time.Time) []firestore.Update {
+	return []firestore.Update{{Path: "displayName", Value: firestore.Delete}, {Path: "handle", Value: firestore.Delete}, {Path: "avatarUrl", Value: firestore.Delete}, {Path: "metadataFetchedAt", Value: firestore.Delete}, {Path: "updatedAt", Value: now.UTC()}}
 }

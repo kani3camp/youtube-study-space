@@ -2,6 +2,7 @@ package mypage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,8 +11,11 @@ import (
 )
 
 type (
-	cacheKey          struct{ environment, uid string }
-	cachedAggregate   struct{ response Response }
+	cacheKey        struct{ environment, uid string }
+	cachedAggregate struct {
+		response       Response
+		accountVersion string
+	}
 	MetadataRefresher interface {
 		Refresh(context.Context, string, WebAccount) (WebAccount, error)
 	}
@@ -29,7 +33,7 @@ type BFF struct {
 	group       singleflight.Group
 }
 
-func (b *BFF) cacheHit(key cacheKey, now time.Time) (Response, bool) {
+func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Response, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	value, ok := b.cache[key]
@@ -37,7 +41,7 @@ func (b *BFF) cacheHit(key cacheKey, now time.Time) (Response, bool) {
 		return Response{}, false
 	}
 	asOf := value.response.GeneratedAt
-	if now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
+	if value.accountVersion != metadataAccountVersion(account) || (accountSection(account, now).Data == nil && value.response.Account.Data != nil) || now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
 		delete(b.cache, key)
 		return Response{}, false
 	}
@@ -46,10 +50,8 @@ func (b *BFF) cacheHit(key cacheKey, now time.Time) (Response, bool) {
 
 func accountSection(account WebAccount, now time.Time) Section[Account] {
 	if account.DisplayName == "" {
-		if !account.MetadataFetchedAt.IsZero() && now.Sub(account.MetadataFetchedAt) >= 30*24*time.Hour {
-			return missingSection[Account](MetadataTooOld)
-		}
-		return missingSection[Account](SourceUnavailable)
+		// Empty metadata is terminal even after another process cleared fetchedAt.
+		return missingSection[Account](MetadataTooOld)
 	}
 	age := now.Sub(account.MetadataFetchedAt)
 	if account.MetadataFetchedAt.IsZero() || age >= 30*24*time.Hour || age < 0 {
@@ -65,13 +67,13 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response, error) {
 	key := cacheKey{b.Environment, uid}
 	now := b.Now().UTC()
-	if value, ok := b.cacheHit(key, now); ok {
+	if value, ok := b.cacheHit(key, now, account); ok {
 		return value, nil
 	}
 	// The first caller disconnecting must not cancel a request shared with a
 	// second caller; the shared operation still has its own bounded budget.
-	result := b.group.DoChan(b.Environment+"\x00"+uid, func() (any, error) {
-		if value, ok := b.cacheHit(key, b.Now().UTC()); ok {
+	result := b.group.DoChan(b.Environment+"\x00"+uid+"\x00"+metadataAccountVersion(account), func() (any, error) {
+		if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
 			return value, nil
 		}
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -83,6 +85,11 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 			} else if metadataGateError(err) {
 				stop()
 				return Response{}, fmt.Errorf("metadata access gate: %w", err)
+			} else if errors.Is(err, ErrPublicChannelMissing) {
+				// A failed durable clear must still stop displaying proven absent data.
+				account.DisplayName = ""
+				account.Handle, account.AvatarURL = nil, nil
+				account.MetadataFetchedAt = time.Time{}
 			}
 			stop()
 		}
@@ -105,7 +112,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 				break
 			}
 		}
-		b.cache[key] = cachedAggregate{response: response}
+		b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account)}
 		b.mu.Unlock()
 		return response, nil
 	})
@@ -141,4 +148,12 @@ func metadataGateError(err error) bool {
 		return true
 	}
 	return false
+}
+
+func metadataAccountVersion(account WebAccount) string {
+	present := "empty"
+	if account.DisplayName != "" && !account.MetadataFetchedAt.IsZero() {
+		present = "present"
+	}
+	return account.Revision.UTC().Format(time.RFC3339Nano) + ":" + present
 }

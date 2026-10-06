@@ -2,6 +2,7 @@ package mypage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,8 @@ import (
 
 // PublicYouTubeMetadata uses an application API key, never a user's OAuth
 // token. Key/uid request URLs and raw dependency errors must not be logged.
+var ErrPublicChannelMissing = errors.New("public channel unavailable")
+
 type PublicYouTubeMetadata struct {
 	key    string
 	client *http.Client
@@ -49,7 +52,7 @@ func (p *PublicYouTubeMetadata) Read(ctx context.Context, uid string) (Channel, 
 	if response.StatusCode != 200 {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	channel, err := decodePublicChannel(response.Body)
+	channel, err := decodeChannelResponse(response.Body, true)
 	if err != nil {
 		return Channel{}, err
 	}
@@ -89,6 +92,19 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 		account = stripped
 	}
 	channel, err := r.Provider.Read(ctx, uid)
+	if errors.Is(err, ErrPublicChannelMissing) {
+		clearer, ok := r.Store.(interface {
+			ClearMissingMetadata(context.Context, string, WebAccount, Policy, time.Time) (WebAccount, error)
+		})
+		if !ok {
+			return WebAccount{}, ErrPublicChannelMissing
+		}
+		cleared, clearErr := clearer.ClearMissingMetadata(ctx, uid, account, r.Policy, r.Now().UTC())
+		if clearErr != nil {
+			return WebAccount{}, errors.Join(ErrPublicChannelMissing, fmt.Errorf("clear absent metadata: %w", clearErr))
+		}
+		return cleared, nil
+	}
 	if err != nil {
 		return WebAccount{}, fmt.Errorf("refresh public metadata: %w", err)
 	}

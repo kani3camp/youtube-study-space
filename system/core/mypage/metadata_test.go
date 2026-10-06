@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -114,4 +115,75 @@ func TestMetadataRefreshChecksAccountBeforeProviderAndDoesNotWriteFailedLookup(t
 	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(err))
 	require.Equal(t, 1, reads)
 	require.Zero(t, writes)
+}
+
+func TestPublicMetadataOnlySuccessfulExplicitEmptyItemsIsTerminalAbsence(t *testing.T) {
+	for _, test := range []struct {
+		status  int
+		body    string
+		missing bool
+	}{{200, `{"items":[]}`, true}, {503, `{"items":[]}`, false}, {200, `{}`, false}, {200, `{"items":null}`, false}, {200, `invalid`, false}, {200, `{"nextPageToken":"synthetic","items":[]}`, false}, {200, `{"items":[{"id":"UCsynthetic0000000000002","snippet":{"title":"Other"}}]}`, false}} {
+		p, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(test.status, test.body), nil })})
+		require.NoError(t, err)
+		_, err = p.Read(context.Background(), "UCsynthetic0000000000001")
+		require.Error(t, err)
+		require.Equal(t, test.missing, errors.Is(err, ErrPublicChannelMissing))
+	}
+}
+
+func TestBFFConfirmedMissingNeverRetainsAccountEvenWhenDurableClearFails(t *testing.T) {
+	now := time.Now().UTC()
+	account := healthyAccount(now.Add(-25 * time.Hour))
+	for _, err := range []error{ErrPublicChannelMissing, errors.Join(ErrPublicChannelMissing, errors.New("synthetic store failure"))} {
+		b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) { return WebAccount{}, err }), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
+		response, err := b.Get(context.Background(), "synthetic", account)
+		require.NoError(t, err)
+		require.Nil(t, response.Account.Data)
+		require.Equal(t, MetadataTooOld, *response.Account.ReasonCode)
+	}
+	// A transient lookup error retains permitted metadata, not a terminal state.
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
+	}), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
+	response, err := b.Get(context.Background(), "synthetic", account)
+	require.NoError(t, err)
+	require.NotNil(t, response.Account.Data)
+	require.Equal(t, MetadataRefreshFailed, *response.Account.ReasonCode)
+}
+
+func TestBFFNewRevisionDoesNotJoinOldFlightOrReuseLateOldCache(t *testing.T) {
+	now := time.Now().UTC()
+	old := healthyAccount(now)
+	old.Revision = now.Add(-time.Second)
+	cleared := WebAccount{Revision: now}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+		if calls.Add(1) == 1 {
+			close(entered)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return WorkSnapshot{}, ctx.Err()
+			}
+		}
+		s := workFixture()
+		s.AsOf = now
+		return s, nil
+	})}
+	done := make(chan error, 1)
+	go func() { _, err := b.Get(context.Background(), "synthetic", old); done <- err }()
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	next, err := b.Get(ctx, "synthetic", cleared)
+	close(release)
+	require.NoError(t, err)
+	require.Nil(t, next.Account.Data)
+	require.NoError(t, <-done)
+	// The old caller may finish last; its cached revision is still rejected.
+	next, err = b.Get(context.Background(), "synthetic", cleared)
+	require.NoError(t, err)
+	require.Nil(t, next.Account.Data)
+	require.Equal(t, MetadataTooOld, *next.Account.ReasonCode)
 }
