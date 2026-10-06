@@ -95,11 +95,11 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 		}
 		snapshot, err := b.Reader.Read(workCtx, uid)
 		if err != nil {
-			return Response{}, apiError("TEMPORARY_UNAVAILABLE")
+			return b.failedSnapshot(account)
 		}
 		response, err := Aggregate(snapshot, accountSection(account, b.Now().UTC()))
 		if err != nil {
-			return Response{}, apiError("TEMPORARY_UNAVAILABLE")
+			return b.failedSnapshot(account)
 		}
 		b.mu.Lock()
 		if b.cache == nil {
@@ -132,6 +132,28 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 		}
 		return response, nil
 	}
+}
+
+// Preserve a known terminal metadata state even when work cannot be read. No
+// work snapshot is fabricated: every work field is unavailable, never zero or
+// unregistered, and this failure response is not cached. The existing wire
+// contract lets browsers drop the account while retaining prior work as stale.
+func (b *BFF) failedSnapshot(account WebAccount) (Response, error) {
+	now := b.Now().UTC()
+	section := accountSection(account, now)
+	if section.ReasonCode == nil || *section.ReasonCode != MetadataTooOld {
+		return Response{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	windows := StatisticsWindows(now)
+	days := make([]Day, 0, 7)
+	for i := range 7 {
+		days = append(days, Day{Date: windows.Recent.AddDate(0, 0, i).Format("2006-01-02"), Metric: missingMetric(SourceUnavailable)})
+	}
+	return Response{
+		GeneratedAt: now, Timezone: "Asia/Tokyo", Partial: true,
+		Current: missingSection[Current](SourceUnavailable), Summary: missingSection[Summary](SourceUnavailable),
+		Recent7Days: RecentSection{Availability: Unavailable, ReasonCode: ptr(SourceUnavailable), Data: days}, Account: section,
+	}, nil
 }
 
 // Invalidate is available to the server-side account deletion/consent workflow;

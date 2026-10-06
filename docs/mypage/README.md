@@ -280,3 +280,10 @@ JSONMetadataCleanupRecorderは匿名の開始/完了時刻・結果・固定stag
 29日eligibilityと処理時間に余裕を持たせるため、接続時には成功scan開始間隔23時間以内・job10分以内を条件とする。少なくとも日次という仕様を満たす設定候補は1日2回だが、実scheduler/alert設定は作成していない。単に24時間間隔の実行を宣言して完了時間の余裕を無視しない。heartbeatは完了日時でなく、成功runのStartedAtを基準にする。日次以上の起動・失敗/heartbeat/期限違反の通知先・再試行・telemetry到達の運用検証はinfrastructure/公開gateに残る。
 
 このsliceはinjectable job、Firestore adapter、JSON観測とhealth判定まで。mock/emulatorで29日境界、未利用/blocked/旧policy、pagination、同時refresh/削除/同意変更、残件と再実行、scan/clear/monitoring失敗、heartbeatと期限違反を検証する。新API、実scheduler、IAM、credentials、deploy、実データ消去は追加・実行していない。account削除/revoke/開示の実行承認や全writer guardを代替しない。
+
+
+## Review hardening: bounded telemetry and terminal account on work failure
+
+JSON recorderはdeadlineを実際に適用できる専用sinkだけを受け入れ、通常のio.WriterをWrite前に拒否する。2秒のwrite deadlineとcancel時のdeadline短縮でblocked pipeを解除し、期限後のwrite成功も失敗扱いにする。deadline非対応の通常file/stdoutはfail closedとなるため、実監視sinkを選定・接続・検証する運用gateが必要。書き込みを無期限goroutineへ逃がさない。
+
+metadataが既知のterminal状態なら、work snapshot取得/集計の失敗でも既存200 partial contractでaccountのMETADATA_TOO_OLDを伝える。current/summary/7日すべてをSOURCE_UNAVAILABLEとし、workを0や未登録へ変換しない。snapshotがない応答は生成時刻を使いcacheしない。通常のwork障害では従来の503を維持する。共通の合成wire fixtureをHTTP BFFとbrowser loader/memoryで検証し、旧accountだけの除去と旧work/asOfのstale保持を確認する。

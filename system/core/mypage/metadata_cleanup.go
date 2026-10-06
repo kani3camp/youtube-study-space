@@ -165,8 +165,19 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 
 type JSONMetadataCleanupRecorder struct{ Writer io.Writer }
 
+// The sink must exclusively support deadlines (for example a pipe/socket
+// *os.File). Reject an ordinary io.Writer before calling Write: a blocked write
+// cannot be canceled safely by putting it in an unbounded goroutine.
+type cleanupDeadlineWriter interface {
+	io.Writer
+	SetWriteDeadline(time.Time) error
+}
+
 func (r *JSONMetadataCleanupRecorder) Record(ctx context.Context, value MetadataCleanupObservation) error {
-	if r.Writer == nil || ctx.Err() != nil || value.Scanned < 0 || value.Cleared < 0 || value.Changed < 0 || value.Missing < 0 || value.Failed < 0 || value.RetentionViolations < 0 {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("cleanup observation canceled: %w", err)
+	}
+	if r.Writer == nil || value.Scanned < 0 || value.Cleared < 0 || value.Changed < 0 || value.Missing < 0 || value.Failed < 0 || value.RetentionViolations < 0 {
 		return ErrMetadataCleanupIncomplete
 	}
 	switch value.Stage {
@@ -174,8 +185,35 @@ func (r *JSONMetadataCleanupRecorder) Record(ctx context.Context, value Metadata
 	default:
 		return ErrMetadataCleanupIncomplete
 	}
+	sink, ok := r.Writer.(cleanupDeadlineWriter)
+	if !ok {
+		return ErrMetadataCleanupIncomplete
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	deadline, _ := writeCtx.Deadline()
+	if err := sink.SetWriteDeadline(deadline); err != nil {
+		return fmt.Errorf("set cleanup observation deadline: %w", err)
+	}
+	stopped := make(chan struct{})
+	var cancelDeadlineErr error
+	stop := context.AfterFunc(writeCtx, func() {
+		cancelDeadlineErr = sink.SetWriteDeadline(time.Now())
+		close(stopped)
+	})
 	// Only this allowlisted struct is serialized; dependency errors stay private.
-	if err := json.NewEncoder(r.Writer).Encode(value); err != nil {
+	err := json.NewEncoder(sink).Encode(value)
+	if !stop() {
+		<-stopped
+		err = errors.Join(err, cancelDeadlineErr)
+	}
+	if writeCtx.Err() != nil {
+		return fmt.Errorf("cleanup observation canceled: %w", writeCtx.Err())
+	}
+	if !time.Now().Before(deadline) {
+		return fmt.Errorf("cleanup observation deadline: %w", context.DeadlineExceeded)
+	}
+	if err != nil {
 		return fmt.Errorf("write cleanup observation: %w", err)
 	}
 	return nil

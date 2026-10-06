@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -186,4 +187,58 @@ func TestBFFNewRevisionDoesNotJoinOldFlightOrReuseLateOldCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, next.Account.Data)
 	require.Equal(t, MetadataTooOld, *next.Account.ReasonCode)
+}
+
+func TestTerminalMetadataSurvivesSnapshotFailuresThroughHTTPWithoutCachingFailure(t *testing.T) {
+	expected, err := os.ReadFile("../../../docs/mypage/fixtures/terminal-account-source-unavailable.json")
+	require.NoError(t, err)
+	for _, failure := range []string{"read", "aggregate"} {
+		for _, state := range []string{"confirmed-missing", "already-cleared", "ordinary-failure"} {
+			t.Run(failure+"/"+state, func(t *testing.T) {
+				h, store, _, _ := boundaryFixture()
+				now := workFixture().AsOf
+				fail := true
+				reads := 0
+				h.BFF.Reader = readerFunc(func(context.Context, string) (WorkSnapshot, error) {
+					reads++
+					if !fail {
+						return workFixture(), nil
+					}
+					if failure == "read" {
+						return WorkSnapshot{}, errors.New("synthetic private dependency detail")
+					}
+					return WorkSnapshot{}, nil
+				})
+				store.account.MetadataFetchedAt = now.Add(-25 * time.Hour)
+				if state == "already-cleared" {
+					store.account.DisplayName = ""
+					store.account.MetadataFetchedAt = time.Time{}
+				} else {
+					h.BFF.Metadata = metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+						if state == "confirmed-missing" {
+							return WebAccount{}, ErrPublicChannelMissing
+						}
+						return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
+					})
+				}
+				for range 2 {
+					response := boundaryRequest(h, "GET", "/api/mypage", "")
+					if state == "ordinary-failure" {
+						require.Equal(t, 503, response.Code)
+						require.Equal(t, "TEMPORARY_UNAVAILABLE", responseCode(t, response))
+					} else {
+						require.Equal(t, 200, response.Code)
+						require.JSONEq(t, string(expected), response.Body.String())
+					}
+					require.NotContains(t, response.Body.String(), "private")
+				}
+				require.Equal(t, 2, reads, "failed snapshots must not enter aggregate cache")
+				fail = false
+				response := boundaryRequest(h, "GET", "/api/mypage", "")
+				require.Equal(t, 200, response.Code)
+				require.Contains(t, response.Body.String(), `"workSec":6000`)
+				require.Equal(t, 3, reads)
+			})
+		}
+	}
 }

@@ -4,7 +4,6 @@ package mypage
 
 import (
 	"app.modules/internal/integrationtest"
-	"bytes"
 	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
@@ -50,7 +49,7 @@ func TestCleanupPurgesInactiveBlockedAndOldPolicyMetadataAt29Days(t *testing.T) 
 			require.NoError(t, err)
 		}
 	})
-	var output bytes.Buffer
+	var output cleanupBufferWriter
 	store := &FirestoreMetadataCleanupStore{Client: client, ProjectID: "demo-youtube-study-space-ci"}
 	job := MetadataCleanupJob{Store: store, Recorder: &JSONMetadataCleanupRecorder{Writer: &output}, Now: func() time.Time { return now }, BatchSize: 1, MaxPages: 10}
 	o, err := job.Run(ctx)
@@ -125,7 +124,7 @@ func TestCleanupConcurrentRefreshDeletionAndUnrelatedRevisionChange(t *testing.T
 	require.Equal(t, codes.NotFound, status.Code(err))
 	seed()
 	changed := false
-	var output bytes.Buffer
+	var output cleanupBufferWriter
 	raceStore := cleanupStoreFake{scan: store.Scan, clear: func(ctx context.Context, c MetadataCleanupCandidate, cutoff, now time.Time) (string, error) {
 		if !changed {
 			changed = true

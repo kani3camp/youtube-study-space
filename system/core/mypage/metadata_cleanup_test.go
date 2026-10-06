@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +43,7 @@ func TestCleanupPaginatesAt29DaysAndRecordsAnonymousCompleteObservation(t *testi
 	b := cleanupCandidate(now, "UCsynthetic0000000000002")
 	scans := 0
 	clears := 0
-	var output bytes.Buffer
+	var output cleanupBufferWriter
 	store := cleanupStoreFake{scan: func(_ context.Context, cutoff time.Time, cursor *MetadataCleanupCursor, limit int) (MetadataCleanupPage, error) {
 		require.Equal(t, now.Add(-MetadataCleanupAge), cutoff)
 		require.Equal(t, 1, limit)
@@ -146,7 +149,7 @@ func TestCleanupMonitoringFailureAndHeartbeatNeverBecomeHealthy(t *testing.T) {
 	healthy.RetentionViolations = 1
 	require.Equal(t, "retention_deadline", EvaluateMetadataCleanupHealth(&healthy, now, now).Reason)
 	require.Equal(t, "invalid_clock", EvaluateMetadataCleanupHealth(&healthy, now.Add(time.Second), now).Reason)
-	var output bytes.Buffer
+	var output cleanupBufferWriter
 	bad := healthy
 	bad.Stage = "synthetic-private-id"
 	require.Error(t, (&JSONMetadataCleanupRecorder{Writer: &output}).Record(context.Background(), bad))
@@ -168,7 +171,7 @@ func TestCleanupRejectsFutureEligibleDataAndRecordsRetentionViolation(t *testing
 		}, clear: func(context.Context, MetadataCleanupCandidate, time.Time, time.Time) (string, error) {
 			return "cleared", nil
 		}}
-		var output bytes.Buffer
+		var output cleanupBufferWriter
 		job := MetadataCleanupJob{Store: store, Recorder: &JSONMetadataCleanupRecorder{Writer: &output}, Now: func() time.Time { return now }, BatchSize: 1, MaxPages: 1}
 		o, err := job.Run(context.Background())
 		if age < MetadataCleanupAge {
@@ -219,4 +222,108 @@ func TestCleanupTimeBudgetAndInvalidConfigurationNeverRecordSuccess(t *testing.T
 	_, err = job.Run(context.Background())
 	require.Error(t, err)
 	require.Zero(t, scans)
+}
+
+// This nonblocking in-memory sink is only a test fixture. Production sinks
+// must actually honor SetWriteDeadline while Write is in progress.
+type cleanupBufferWriter struct{ bytes.Buffer }
+
+func (*cleanupBufferWriter) SetWriteDeadline(time.Time) error { return nil }
+
+func TestCleanupRecorderRejectsUnboundedWriterAndLateSuccessfulWrite(t *testing.T) {
+	reader, writer := io.Pipe()
+	t.Cleanup(func() { require.NoError(t, reader.Close()); require.NoError(t, writer.Close()) })
+	observation := MetadataCleanupObservation{Stage: "complete", Succeeded: true}
+	require.ErrorIs(t, (&JSONMetadataCleanupRecorder{Writer: writer}).Record(context.Background(), observation), ErrMetadataCleanupIncomplete)
+	late := &cleanupLateWriter{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, (&JSONMetadataCleanupRecorder{Writer: late}).Record(ctx, observation), context.DeadlineExceeded)
+}
+
+type cleanupLateWriter struct{}
+
+func (*cleanupLateWriter) SetWriteDeadline(time.Time) error { return nil }
+func (*cleanupLateWriter) Write(p []byte) (int, error) {
+	time.Sleep(20 * time.Millisecond)
+	return len(p), nil
+}
+
+func TestCleanupRecorderDeadlineAndCancellationInterruptBlockedPipe(t *testing.T) {
+	for _, cancelEarly := range []bool{false, true} {
+		t.Run(fmt.Sprint(cancelEarly), func(t *testing.T) {
+			reader, writer, err := os.Pipe()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, reader.Close()); require.NoError(t, writer.Close()) })
+			require.NoError(t, writer.SetWriteDeadline(time.Now().Add(20*time.Millisecond)))
+			// Fill the pipe without a reader until the kernel write blocks.
+			_, err = writer.Write(make([]byte, 1<<20))
+			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			done := make(chan error, 1)
+			entered := make(chan struct{})
+			sink := &cleanupSignaledPipeWriter{File: writer, entered: entered}
+			go func() {
+				done <- (&JSONMetadataCleanupRecorder{Writer: sink}).Record(ctx, MetadataCleanupObservation{Stage: "complete", Succeeded: true})
+			}()
+			if cancelEarly {
+				<-entered
+				cancel()
+			}
+			select {
+			case err := <-done:
+				require.Error(t, err)
+				if cancelEarly {
+					require.ErrorIs(t, err, context.Canceled)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("blocked telemetry ignored its deadline/cancellation")
+			}
+		})
+	}
+}
+
+type cleanupSignaledPipeWriter struct {
+	*os.File
+	entered chan struct{}
+}
+
+func (w *cleanupSignaledPipeWriter) Write(p []byte) (int, error) {
+	close(w.entered)
+	n, err := w.File.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("write synthetic pipe: %w", err)
+	}
+	return n, nil
+}
+
+func TestCleanupRunReturnsMonitoringFailureWithinBudgetOnBlockedSink(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reader.Close()); require.NoError(t, writer.Close()) })
+	require.NoError(t, writer.SetWriteDeadline(time.Now().Add(20*time.Millisecond)))
+	_, err = writer.Write(make([]byte, 1<<20))
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	store := cleanupStoreFake{scan: func(context.Context, time.Time, *MetadataCleanupCursor, int) (MetadataCleanupPage, error) {
+		return MetadataCleanupPage{}, nil
+	}}
+	job := MetadataCleanupJob{Store: store, Recorder: &JSONMetadataCleanupRecorder{Writer: writer}, Now: time.Now, BatchSize: 1, MaxPages: 1}
+	type result struct {
+		observation MetadataCleanupObservation
+		err         error
+	}
+	done := make(chan result, 1)
+	go func() {
+		observation, err := job.Run(context.Background())
+		done <- result{observation, err}
+	}()
+	select {
+	case outcome := <-done:
+		require.Error(t, outcome.err)
+		require.False(t, outcome.observation.Succeeded)
+		require.Equal(t, "monitoring", outcome.observation.Stage)
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run remained blocked past its telemetry budget")
+	}
 }
