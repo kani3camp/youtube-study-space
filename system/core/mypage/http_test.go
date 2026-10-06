@@ -45,11 +45,14 @@ func boundaryFixture() (*HTTPHandler, *boundaryStore, *boundaryVerifier, *int) {
 	v := &boundaryVerifier{identity: VerifiedIdentity{UID: "synthetic", Provider: "custom"}}
 	reads := new(int)
 	h := &HTTPHandler{Auth: &AuthService{Store: s, Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now }}, Verifier: v, BFF: &BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { *reads++; return workFixture(), nil })}}
+	h.PublicOrigin = "https://mypage.example.test"
 	return h, s, v, reads
 }
 
 func boundaryRequest(h *HTTPHandler, method, path, body string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r.Host = "mypage.example.test"
+	r.Header.Set("Origin", h.PublicOrigin)
 	r.Header.Set("X-Firebase-AppCheck", "synthetic-app-proof")
 	r.Header.Set("Authorization", "Bearer synthetic-id-proof")
 	r.Header.Set("Content-Type", "application/json")
