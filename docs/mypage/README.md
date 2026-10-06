@@ -16,3 +16,11 @@ python .github/scripts/check-mypage-contract.py
 ```
 
 Frontend と backend は独立して検証する。provisioning / production deployment はこの実装 stack に含まない。
+
+## Web authentication storage
+
+`oauth-transactions/{opaque id}` と `web-accounts/{verified channel id}` を server-only に追加する。既存 rules の default deny により browser access は許可しない。10分の期限は application が判定し、TTL 設定・権限・cleanup の実環境設定は provisioning gate 後に別途行う。
+
+Callback は `pending -> processing -> channel_verified`、confirm は `channel_verified -> consumed`。WebAccount upsert と consume は同じ transaction。firstWebLoginAt は authenticated session completion で set-if-absent。users / 作業履歴は web login によって変更しない。transaction record には state hash・同意版・公開 channel metadata・時刻だけを保存し、code / OAuth token / Custom Token は保存しない。
+
+Google provider と Firebase token mint は interface として分離し、demo emulator では合成 provider を使用する。本番への結線・デプロイは未実施。
