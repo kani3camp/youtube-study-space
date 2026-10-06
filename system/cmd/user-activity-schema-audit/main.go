@@ -11,7 +11,6 @@ import (
 	"google.golang.org/api/option"
 
 	"app.modules/core/mybigquery"
-	"app.modules/core/repository"
 	"app.modules/core/utils"
 )
 
@@ -41,12 +40,16 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if len(args) != 3 {
+	if len(args) != 4 {
 		return usageError()
 	}
 
 	environment := strings.TrimSpace(args[1])
 	expectedProjectID := strings.TrimSpace(args[2])
+	workingRegion := strings.TrimSpace(args[3])
+	if workingRegion == "" {
+		return errors.New("BigQuery location is required")
+	}
 
 	utils.LoadEnv(".env")
 	credentialFilePath := strings.TrimSpace(os.Getenv("CREDENTIAL_FILE_LOCATION"))
@@ -65,22 +68,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 
-	repo, err := repository.NewFirestoreController(ctx, clientOption)
-	if err != nil {
-		return fmt.Errorf("initialize Firestore: %w", err)
-	}
-	defer func() {
-		if err := repo.FirestoreClient().Close(); err != nil {
-			fmt.Fprintln(os.Stderr, "user-activity-schema-audit: close Firestore:", err)
-		}
-	}()
-
-	constants, err := repo.ReadSystemConstantsConfig(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("read system constants: %w", err)
-	}
-
-	bqClient, err := mybigquery.NewBigqueryClient(ctx, actualProjectID, clientOption, constants.GcpRegion)
+	bqClient, err := mybigquery.NewBigqueryClient(ctx, actualProjectID, clientOption, workingRegion)
 	if err != nil {
 		return fmt.Errorf("initialize BigQuery: %w", err)
 	}
@@ -140,5 +128,5 @@ func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (a
 }
 
 func usageError() error {
-	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id>")
+	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id> <bigquery-location>")
 }
