@@ -72,8 +72,10 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertEqual(declared, used)
         self.assertEqual(len(declared), 8)
         self.assertEqual(interface.count("required: false"), 8)
-        call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split("\n  ci-gate:\n", 1)[0]
+        call = re.split(r"\n  [a-zA-Z0-9_-]+:\n",
+                        self.caller.split("  gcp-terraform-authenticated:\n", 1)[1], maxsplit=1)[0]
         forwarded = re.findall(r"(?m)^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call)
+        self.assertEqual(len(forwarded), len(declared))
         self.assertEqual({name for name, value in forwarded}, declared)
         self.assertTrue(all(name == value for name, value in forwarded))
         self.assertNotIn("secrets: inherit", self.caller)

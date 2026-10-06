@@ -674,6 +674,9 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/gcp-user-activity-schema-audit.yml
+    secrets:
+      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+      GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
     with:
       target: dev
 
