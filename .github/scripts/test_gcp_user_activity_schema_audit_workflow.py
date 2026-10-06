@@ -6,6 +6,7 @@ import os
 import copy
 import importlib.util
 import json
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -16,6 +17,7 @@ GITHUB_DIR = Path(__file__).parents[1]
 WORKFLOW = GITHUB_DIR / "workflows" / "gcp-user-activity-schema-audit.yml"
 CALLER = GITHUB_DIR / "workflows" / "ci.yml"
 SUMMARY = GITHUB_DIR.parent / "infra" / "gcp" / "scripts" / "schema_audit_summary.py"
+HANDOFF_FIXTURES = GITHUB_DIR.parent / "infra" / "gcp" / "tests" / "fixtures" / "environment-secret-handoff"
 spec = importlib.util.spec_from_file_location("schema_audit_summary", SUMMARY)
 summary_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(summary_module)
@@ -119,6 +121,21 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("private-invalid-identity", result.stdout + result.stderr)
 
+    def test_missing_or_invalid_identity_stops_without_echoing_input(self) -> None:
+        provider = "projects/123456789/locations/global/workloadIdentityPools/synthetic-pool/providers/synthetic-provider"
+        sa = "synthetic-audit@test-youtube-study-space.iam.gserviceaccount.com"
+        for a, b in (("", ""), (provider, ""), ("", sa),
+                     ("synthetic-invalid-provider", sa), (provider, "synthetic-invalid-sa")):
+            with self.subTest(provider_present=bool(a), sa_present=bool(b)):
+                result = subprocess.run(
+                    ["bash", "-c", self.step_script("Mask private identity fragments before authentication")],
+                    capture_output=True, text=True,
+                    env={"PATH": os.environ["PATH"], "PRIVATE_WIF_PROVIDER": a, "PRIVATE_AUDIT_SA": b},
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "::error::Missing or invalid dedicated audit identity configuration.\n")
+                self.assertEqual(result.stderr, "")
+
     def test_failed_audit_never_prints_private_stderr_or_partial_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -147,7 +164,16 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertIn("inputs.gcp_user_activity_schema_audit == true", self.caller)
         self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.caller)
         call = self.caller.split("  gcp-user-activity-schema-audit:\n", 1)[1].split("\n  ci-gate:\n", 1)[0]
-        self.assertNotIn("secrets:", call)
+        expected = {"GCP_TERRAFORM_WIF_PROVIDER", "GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT"}
+        declared = self.text.split("    secrets:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(set(re.findall(r"^      ([A-Z_]+):$", declared, re.MULTILINE)), expected)
+        self.assertEqual(declared.count("required: false"), 2)
+        self.assertNotIn("required: true", declared)
+        passed = re.findall(r"^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call, re.MULTILINE)
+        self.assertEqual(len(passed), 2)
+        self.assertEqual(dict(passed), {name: name for name in expected})
+        self.assertEqual(set(re.findall(r"secrets\.([A-Z_]+)", self.text)), expected)
+        self.assertNotIn("secrets: inherit", call)
         self.assertIn("target: dev", call)
 
     def run_guard(self, **overrides: str) -> subprocess.CompletedProcess[str]:
@@ -202,6 +228,58 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertNotEqual(self.run_guard(DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED="true",
                                                   **{key: value}).returncode, 0)
+
+
+class EnvironmentSecretHandoffFixtureTest(unittest.TestCase):
+    def probe(self, path: Path) -> str:
+        script = path.read_text().split("        run: |\n", 1)[1].split("\n  reusable_", 1)[0]
+        return textwrap.dedent(script)
+
+    def test_fixture_probes_classify_without_disclosing_inputs(self) -> None:
+        fixtures = list(HANDOFF_FIXTURES.glob("*.yml"))
+        self.assertEqual(len(fixtures), 3)
+        cases = (
+            ({}, ("absent", "absent")),
+            ({"SYNTHETIC_A": "synthetic-alpha", "SYNTHETIC_B": "synthetic-beta"}, ("expected", "expected")),
+            ({"SYNTHETIC_A": "synthetic-alpha", "SYNTHETIC_B": ""}, ("expected", "absent")),
+            ({"SYNTHETIC_A": "synthetic-private\n::error::do-not-print", "SYNTHETIC_B": "synthetic-mismatch"},
+             ("unexpected", "unexpected")),
+        )
+        for path in fixtures:
+            for values, states in cases:
+                with self.subTest(fixture=path.name, states=states), tempfile.TemporaryDirectory() as directory:
+                    summary = Path(directory) / "summary"
+                    result = subprocess.run(
+                        ["bash", "-c", self.probe(path)], capture_output=True, text=True,
+                        env={"PATH": os.environ["PATH"], "GITHUB_STEP_SUMMARY": str(summary), **values},
+                    )
+                    self.assertEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout + result.stderr, "")
+                    self.assertEqual(summary.read_text(),
+                                     f"- SYNTHETIC_A: {states[0]}\n- SYNTHETIC_B: {states[1]}\n")
+
+    def test_fixture_probes_stop_inherited_trace_before_handling_values(self) -> None:
+        for path in HANDOFF_FIXTURES.glob("*.yml"):
+            with self.subTest(fixture=path.name), tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run(
+                    ["bash", "-x", "-c", self.probe(path)], capture_output=True, text=True,
+                    env={"PATH": os.environ["PATH"], "GITHUB_STEP_SUMMARY": str(Path(directory) / "summary"),
+                         "SYNTHETIC_A": "synthetic-sensitive-input"},
+                )
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.stderr, "+ set +x\n")
+
+    def test_fixture_is_inactive_and_contains_no_cloud_auth_or_inherit(self) -> None:
+        for path in HANDOFF_FIXTURES.glob("*.yml"):
+            with self.subTest(fixture=path.name):
+                self.assertNotIn(GITHUB_DIR / "workflows", path.parents)
+                text = path.read_text()
+                self.assertIn("permissions: {}", text)
+                self.assertIn("name: synthetic-secret-handoff", text)
+                for forbidden in ("id-token:", "google-github-actions", "checkout@", "upload-artifact",
+                                  "secrets: inherit", "go run", "curl ", "wget "):
+                    self.assertNotIn(forbidden, text)
 
 
 class SchemaAuditSummaryTest(unittest.TestCase):

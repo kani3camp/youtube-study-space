@@ -7,6 +7,12 @@ on:
         description: Read-only schema audit target
         required: true
         type: string
+    # Match the existing Terraform workflow's explicit Environment-secret contract.
+    secrets:
+      GCP_TERRAFORM_WIF_PROVIDER:
+        required: false
+      GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT:
+        required: false
 
 permissions: {}
 
