@@ -22,8 +22,8 @@ import (
 )
 
 type configuration struct {
-	server                               mypage.ServerConfig
-	signer, clientID, clientSecret, port string
+	server                                            mypage.ServerConfig
+	signer, clientID, clientSecret, metadataKey, port string
 }
 
 func configurationFrom(get func(string) string) (configuration, error) {
@@ -36,7 +36,7 @@ func configurationFrom(get func(string) string) (configuration, error) {
 	if (environment != "development" || region != "asia-southeast2") && (environment != "production" || region != "asia-northeast2") {
 		return fail()
 	}
-	config := configuration{server: mypage.ServerConfig{Environment: environment, ProjectID: get("GOOGLE_CLOUD_PROJECT"), ProjectNumber: get("MYPAGE_PROJECT_NUMBER"), WebAppID: get("MYPAGE_WEB_APP_ID"), PublicOrigin: get("MYPAGE_PUBLIC_ORIGIN"), Policy: mypage.Policy{Privacy: get("MYPAGE_PRIVACY_VERSION"), Terms: get("MYPAGE_TERMS_VERSION")}}, signer: get("MYPAGE_SIGNER_EMAIL"), clientID: get("MYPAGE_OAUTH_CLIENT_ID"), clientSecret: get("MYPAGE_OAUTH_CLIENT_SECRET"), port: get("PORT")}
+	config := configuration{server: mypage.ServerConfig{Environment: environment, ProjectID: get("GOOGLE_CLOUD_PROJECT"), ProjectNumber: get("MYPAGE_PROJECT_NUMBER"), WebAppID: get("MYPAGE_WEB_APP_ID"), PublicOrigin: get("MYPAGE_PUBLIC_ORIGIN"), Policy: mypage.Policy{Privacy: get("MYPAGE_PRIVACY_VERSION"), Terms: get("MYPAGE_TERMS_VERSION")}}, signer: get("MYPAGE_SIGNER_EMAIL"), clientID: get("MYPAGE_OAUTH_CLIENT_ID"), clientSecret: get("MYPAGE_OAUTH_CLIENT_SECRET"), metadataKey: get("MYPAGE_YOUTUBE_API_KEY"), port: get("PORT")}
 	if config.port == "" {
 		config.port = "8080"
 	}
@@ -78,7 +78,14 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return errors.New("MyPage provider unavailable")
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider})
+	var metadata mypage.PublicMetadataReader
+	if config.metadataKey != "" {
+		metadata, err = mypage.NewPublicYouTubeMetadata(config.metadataKey, nil)
+		if err != nil {
+			return errors.New("MyPage metadata provider unavailable")
+		}
+	}
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata})
 	if err != nil {
 		return errors.New("MyPage handler unavailable")
 	}

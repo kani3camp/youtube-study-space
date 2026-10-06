@@ -78,12 +78,13 @@ func (config ServerConfig) validate() error {
 }
 
 type ServerDependencies struct {
-	Firestore    *firestore.Client
-	Firebase     FirebaseAuthClient
-	OAuth        YouTubeOAuth
-	Metadata     MetadataRefresher
-	AppCheckHTTP *http.Client
-	Now          func() time.Time
+	Firestore      *firestore.Client
+	Firebase       FirebaseAuthClient
+	OAuth          YouTubeOAuth
+	Metadata       MetadataRefresher
+	PublicMetadata PublicMetadataReader
+	AppCheckHTTP   *http.Client
+	Now            func() time.Time
 }
 
 // NewMyPageServer constructs the six-endpoint handler without bootstrap IO,
@@ -102,9 +103,14 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 	boundary := &FirebaseBoundary{Client: deps.Firebase, AppCheck: appCheck, ProjectID: config.ProjectID, Now: now}
 	store := &FirestoreAuthStore{Client: deps.Firestore}
+	metadata := deps.Metadata
+	if metadata == nil && deps.PublicMetadata != nil {
+		metadata = &AccountMetadataRefresh{Provider: deps.PublicMetadata, Store: store, Policy: config.Policy, Now: now}
+	}
+
 	return &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, Verifier: boundary,
 		Auth: &AuthService{Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
-		BFF:  &BFF{Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: deps.Metadata},
+		BFF:  &BFF{Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}, nil
 }
