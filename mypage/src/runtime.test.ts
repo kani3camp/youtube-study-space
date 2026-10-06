@@ -368,6 +368,80 @@ describe('browser authentication runtime', () => {
 		expect(session.signOut).not.toHaveBeenCalled()
 		expect(session.currentUID()).toBe('existing-synthetic')
 	})
+	it.each([
+		'logout',
+		'uid-change',
+		'same-uid-relogin',
+		'pagehide',
+		'dispose',
+		'replacement',
+	])('discards delayed support success after %s, even when the transport ignores abort', async (change) => {
+		const windowTarget = new EventTarget()
+		vi.stubGlobal('window', windowTarget)
+		vi.stubGlobal(
+			'document',
+			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+		)
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic-a')
+		let release: (response: Response) => void = () => {}
+		let confirmSignal: AbortSignal | null | undefined
+		const request = vi.fn<typeof fetch>(async (path, init) => {
+			if (path === '/api/auth/youtube/confirm') {
+				confirmSignal = init?.signal
+				return new Promise<Response>((resolve) => {
+					release = resolve
+				})
+			}
+			return path === '/api/auth/session/complete'
+				? new Response(null, { status: 204 })
+				: Response.json(fixture)
+		})
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		await settle()
+		const done = runtime.confirm(
+			'a'.repeat(64),
+			new AbortController().signal,
+			'support',
+		)
+		const rejected = expect(done).rejects.toBeInstanceOf(RequestError)
+		await settle()
+		expect(confirmSignal?.aborted).toBe(false)
+		const originalSignal = confirmSignal
+		const originalRelease = release
+		if (change === 'logout') await runtime.memory.logout()
+		if (change === 'uid-change') setUID('synthetic-b')
+		if (change === 'same-uid-relogin') {
+			setUID(null)
+			setUID('synthetic-a')
+		}
+		if (change === 'pagehide') {
+			windowTarget.dispatchEvent(new Event('pagehide'))
+			windowTarget.dispatchEvent(new Event('pageshow'))
+		}
+		if (change === 'dispose') dispose()
+		if (change === 'replacement') {
+			const replacement = new AbortController()
+			const newer = runtime
+				.confirm('c'.repeat(64), replacement.signal, 'support')
+				.catch(() => {})
+			replacement.abort()
+			await newer
+		}
+		expect(originalSignal?.aborted).toBe(true)
+		originalRelease(
+			Response.json({ purpose: 'support', requestRef: 'b'.repeat(64) }),
+		)
+		await rejected
+		await settle()
+		expect(session.signIn).not.toHaveBeenCalled()
+		if (change !== 'dispose') dispose()
+	})
 	it('support start sends only the opaque challenge with consent, never a browser purpose or target', async () => {
 		const { session } = sessionFixture()
 		const request = vi.fn<typeof fetch>(async () =>

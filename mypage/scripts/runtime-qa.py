@@ -36,6 +36,21 @@ with sync_playwright() as p:
   if purpose=='delete':page.screenshot(path=str(out/'support-receipt-390.png'),full_page=True)
   page.evaluate("window.dispatchEvent(new Event('pagehide'))");page.locator('.proof-reference').wait_for(state='detached')
  results.append('all support purposes -> receipt without signIn/session-complete; pagehide clears proof')
+ for change in ['uid-change','logout-relogin','pagehide-pageshow','route-leave']:
+  load('/login/channel-confirm','support-confirm-delete')
+  page.get_by_role('button',name='この依頼の本人確認を完了').wait_for()
+  page.locator('#synthetic-hold').click();page.get_by_role('button',name='この依頼の本人確認を完了').click()
+  page.get_by_role('button',name='手続きを完了しています…',exact=True).wait_for()
+  if change=='uid-change':page.locator('#synthetic-switch').click()
+  if change=='logout-relogin':
+   page.locator('#synthetic-switch').click();page.locator('#synthetic-logout').click();page.locator('#synthetic-switch').click()
+  if change=='pagehide-pageshow':page.evaluate("window.dispatchEvent(new Event('pagehide'));window.dispatchEvent(new Event('pageshow'))")
+  if change=='route-leave':page.get_by_role('link',name='受付窓口へ戻る').click()
+  page.locator('#synthetic-release').click();page.wait_for_timeout(150)
+  assert page.locator('.proof-reference').count()==0
+  assert page.get_by_role('heading',name='依頼の本人確認が完了しました').count()==0
+  if change!='route-leave':assert page.get_by_role('heading',name='お問い合わせ').count()==0
+ results.append('pending support success discarded after uid change/logout-relogin/pagehide-pageshow/route leave; no receipt or late navigation')
  load('/login?supportChallenge=invalid','authenticated');page.get_by_role('heading',name='問い合わせの本人確認').wait_for();assert page.get_by_role('button',name='YouTubeで本人確認を始める').is_disabled()
  results.append('invalid support link never falls back to normal authenticated login')
  load('/login/channel-confirm','support-mismatch');page.get_by_text('依頼の対象チャンネルと一致しません。窓口から案内された本人確認リンクを使って、対象のチャンネルを確認してください。',exact=True).wait_for();page.get_by_role('link',name='受付窓口へ戻る').wait_for()

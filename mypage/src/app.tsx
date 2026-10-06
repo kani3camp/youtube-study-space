@@ -420,15 +420,28 @@ export function createApp(
 		const [error, setError] = useState<string | null>(null)
 		const [busy, setBusy] = useState(false)
 		const confirming = useRef(false)
+		const supportConfirmation = useRef(false)
 		const controller = useRef<AbortController | null>(null)
 		useEffect(() => {
 			const c = new AbortController()
 			controller.current = c
+			let previousUID = runtime.session?.currentUID()
+			const invalidate = () => {
+				c.abort()
+				setChannel(null)
+				setBusy(false)
+			}
+			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (uid !== previousUID && supportConfirmation.current) invalidate()
+				previousUID = uid
+			})
+			window.addEventListener('pagehide', invalidate)
 			void runtime
 				.channel(c.signal)
 				.then((data) => {
 					if (!c.signal.aborted) {
 						setChannel(data)
+						supportConfirmation.current = data.purpose === 'support'
 						setSupportFlow(data.purpose === 'support')
 						if (data.purpose === 'login')
 							privacyServices.analytics.event('channel_confirmation_viewed')
@@ -450,20 +463,28 @@ export function createApp(
 						setError(message(e))
 					}
 				})
-			return () => c.abort()
+			return () => {
+				c.abort()
+				unsubscribe?.()
+				window.removeEventListener('pagehide', invalidate)
+			}
 		}, [])
 		const confirm = async () => {
 			if (!channel || confirming.current || !controller.current) return
 			confirming.current = true
+			const currentController = controller.current
 			setBusy(true)
 			setError(null)
 			try {
 				const result = await runtime.confirm(
 					channel.confirmationRef,
-					controller.current.signal,
+					currentController.signal,
 					channel.purpose,
 				)
-				if (!controller.current.signal.aborted) {
+				if (
+					controller.current === currentController &&
+					!currentController.signal.aborted
+				) {
 					if (result.purpose === 'support') {
 						receipt.set(result.requestRef)
 						await router.navigate({ to: '/contact' })
@@ -473,7 +494,10 @@ export function createApp(
 					}
 				}
 			} catch (e) {
-				if (!controller.current?.signal.aborted) {
+				if (
+					controller.current === currentController &&
+					!currentController.signal.aborted
+				) {
 					setChannel(null)
 					setError(message(e))
 					setBusy(false)

@@ -139,3 +139,10 @@ AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしな�
 public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01/D02/D03と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
 
 `privacy-qa.py`は設定なしlocalhostのpublic pageと同意UIを実Chromiumで確認する。storageには選択flagだけ、外部requestは遮断・0件。Cookie modalのTab/Escape/focus復帰、実same-origin別tab変更、320/390/1440pxのdraft policyを検証する。実Firebase必須通信/GA4 senderの証拠ではない。
+
+
+## Support confirmation lifecycle
+
+support confirmのpending requestはidentity・page lifecycle・確認操作の世代に結び付ける。logout、別uid、logout後の同一uid再login、pagehide、unmount、新しい確認操作は旧requestをabortし、transportがabortを無視して成功を返しても参照番号を受け取らない。React側でもreceipt設定と遷移の直前に当該controllerの有効性を確認する。pageshowは取り消したsupport確認を復活させない。
+
+unit回帰は遅延successと各invalidating eventを確認し、synthetic Chromium QAはpending状態からuid変更・logout/relogin・pagehide/pageshow・route離脱後のreceipt非復活と遅いcontact遷移の抑止を確認する。証明済みのserver recordを取り消す操作ではなく、browserで失効した応答の表示を抑止する。

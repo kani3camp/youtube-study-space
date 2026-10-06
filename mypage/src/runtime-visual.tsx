@@ -74,12 +74,19 @@ if (import.meta.env.DEV) {
 				avatarUrl: null,
 				confirmationRef: 'a'.repeat(64),
 			})
-		if (path === '/api/auth/youtube/confirm')
+		if (path === '/api/auth/youtube/confirm') {
+			if (holdNext) {
+				holdNext = false
+				await new Promise<void>((resolve) => {
+					release = resolve
+				})
+			}
 			return Response.json(
 				mode?.startsWith('support-confirm-')
 					? { purpose: 'support', requestRef: 'b'.repeat(64) }
 					: { purpose: 'login', customToken: 'synthetic-custom' },
 			)
+		}
 		if (path === '/api/auth/session/complete' && mode?.startsWith('support-'))
 			throw new Error('support must never complete a session')
 		if (path === '/api/auth/session/complete')
@@ -141,6 +148,13 @@ if (import.meta.env.DEV) {
 						onClick={() => emit('synthetic-b')}
 					>
 						Change synthetic uid
+					</button>
+					<button
+						id="synthetic-logout"
+						type="button"
+						onClick={() => emit(null)}
+					>
+						Logout synthetic uid
 					</button>
 					<button
 						id="synthetic-release"
