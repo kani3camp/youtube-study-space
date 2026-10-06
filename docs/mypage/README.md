@@ -236,3 +236,25 @@ unitで同意前/ロード中の非送信、撤回/再同意と古いload、失�
 unitで候補/routing/inventory拒否を検証し、synthetic static MyPageを同じCSPのlocal Chromiumでrenderして違反0とtimeline/chart表示を確認した。実SDK/reCAPTCHA/GA4を含むinventory、Hosting経由のHost/headers/callback/query access-log除外、custom-domain HSTSは未検証。CSPはplatform loggingを制御しない。設定候補は公開承認やinfrastructure readinessの代わりではない。
 
 一次資料: [Hosting config/priority/headers](https://firebase.google.com/docs/hosting/full-config)、[Cloud Run rewrite/region](https://firebase.google.com/docs/hosting/cloud-run)。
+
+
+## Operator read-only emulator diagnostic
+
+`cmd/mypage-operator-dryrun`は合成local emulatorだけに接続する診断CLI。development、明示demo project、IP loopback endpoint、目的(delete/revoke/disclosure)を必要とし、credential file・real project・production・実行用引数を拒否する。receipt referenceはbounded stdinだけから受け取り、引数/logへ出さない。ADC・Google API・Auth revoke・通知・書き込み/実行portを持たない。
+
+同じread-only transactionでserver受付record、消費済みsupport OAuth binding、受付indexを照合する。受付から7日という削除期限を本人確認/reissueで延長しない。通常login、未確認record、environment/purpose/project/受付bindingの不一致、proof capture時の期限切れを拒否する。OAuth traceがTTLで除去された場合はproofTrace=unknownとする診断だけを返す。受付のproof field欠如や既存traceの不一致は拒否する。
+
+出力は時刻・状態・目的・件数(scope付き)のみ。channel/receipt ID、challenge/proof、氏名、作業内容、raw record/errorを出さない。channel単位と当該receipt単位のqueryを区別し、queryはdocument IDだけ・最大1001件。1000超はat_least=1001、失敗/未確認storeはunknownで0と扱わない。Auth/cache/backup/export/BigQuery/log/legacy/他receiptとのOAuth relationは未確認。readOnly=true、executionAuthorized=false、inventoryComplete=falseを常に明示する。
+
+Go/race/unitとemulatorで正規のsupport consume後の診断、binding拒否、期限保持、1002件境界、TTL trace不在、CLI成功/失敗の匿名出力を検証する。診断前後の合成document更新時刻は不変。CI emulator scriptへCLI integration対象も明示追加した。実データ/APIへのread-only実行を許可するものではなく、実削除/revoke/開示や運用手順の完成を示さない。
+
+合成fixtureを準備したlocal emulatorに対して、system directoryで使用する例:
+
+```sh
+GOOGLE_CLOUD_PROJECT=demo-youtube-study-space-ci \
+MYPAGE_ENVIRONMENT=development MYPAGE_SUPPORT_PURPOSE=delete \
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
+go run ./cmd/mypage-operator-dryrun < /path/to/private-synthetic-reference
+```
+
+reference fileは手元の制限された場所に保持し、repo/PR/CI artifactへ追加しない。
