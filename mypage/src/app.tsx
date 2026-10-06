@@ -23,6 +23,8 @@ import {
 	liveURL,
 	MyPageView,
 } from './features/mypage/view'
+import { PrivacyPolicy, TermsOfUse } from './policies'
+import { consentKey, createPrivacy } from './privacy'
 import type { BrowserRuntime, ChannelConfirmation } from './runtime'
 
 type LoginSearch = {
@@ -60,7 +62,11 @@ function message(error: unknown) {
 	return '手続きを完了できませんでした。少し待ってから、もう一度お試しください。'
 }
 
-export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
+export function createApp(
+	runtime: BrowserRuntime,
+	history?: RouterHistory,
+	privacyServices = createPrivacy(),
+) {
 	function useMemory() {
 		return useSyncExternalStore(
 			runtime.memory.subscribe,
@@ -71,10 +77,40 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		const [cookieOpen, setCookieOpen] = useState(false)
 		const [receipt, setReceipt] = useState<string | null>(null)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
+		const cookieOpener = useRef<HTMLElement | null>(null)
+		const consent = useSyncExternalStore(
+			privacyServices.consent.subscribe,
+			privacyServices.consent.getSnapshot,
+		)
+		const auth = useMemory()
+		const href = useRouterState({ select: (state) => state.location.href })
+		const openCookie = () => {
+			cookieOpener.current =
+				document.activeElement instanceof HTMLElement
+					? document.activeElement
+					: null
+			setCookieOpen(true)
+		}
 		const pathname = useRouterState({
 			select: (state) => state.location.pathname,
 		})
 		useEffect(() => runtime.mount(), [])
+		useEffect(() => privacyServices.analytics.mount(), [])
+		useEffect(() => {
+			privacyServices.analytics.page(href)
+		}, [href])
+		useEffect(() => {
+			if (pathname === '/mypage' && auth.phase === 'authenticated')
+				privacyServices.analytics.event('mypage_viewed')
+		}, [pathname, auth.phase])
+		useEffect(() => {
+			const changed = (event: StorageEvent) => {
+				if (event.key === consentKey || event.key === null)
+					privacyServices.consent.reload()
+			}
+			window.addEventListener('storage', changed)
+			return () => window.removeEventListener('storage', changed)
+		}, [])
 		useEffect(() => {
 			if (pathname !== '/contact') setReceipt(null)
 		}, [pathname])
@@ -96,13 +132,44 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		}, [cookieOpen])
 		return (
 			<SupportReceipt.Provider value={{ ref: receipt, set: setReceipt }}>
-				<CookieSettings.Provider value={() => setCookieOpen(true)}>
+				<CookieSettings.Provider value={openCookie}>
 					<Outlet />
+					{consent.value === 'unset' && (
+						<aside
+							className="consent-banner"
+							aria-labelledby="analytics-consent-heading"
+						>
+							<h2 id="analytics-consent-heading">利用状況の計測について</h2>
+							<p>
+								計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
+							</p>
+							<p>
+								Google
+								Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
+							</p>
+							<div className="hero-links">
+								<button
+									className="button"
+									type="button"
+									onClick={() => privacyServices.consent.set('granted')}
+								>
+									計測を許可
+								</button>
+								<button
+									className="button"
+									type="button"
+									onClick={() => privacyServices.consent.set('denied')}
+								>
+									許可しない
+								</button>
+							</div>
+						</aside>
+					)}
 					{pathname !== '/mypage' && (
 						<footer className="site-footer public-footer">
 							<Link to="/privacy">プライバシー</Link>
 							<Link to="/terms">利用規約</Link>
-							<button type="button" onClick={() => setCookieOpen(true)}>
+							<button type="button" onClick={openCookie}>
 								Cookie設定
 							</button>
 							<Link to="/contact">お問い合わせ</Link>
@@ -112,12 +179,67 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 						<dialog
 							className="account-dialog"
 							ref={cookieDialog}
-							onClose={() => setCookieOpen(false)}
+							onClose={() => {
+								setCookieOpen(false)
+								queueMicrotask(() => {
+									if (cookieOpener.current?.isConnected)
+										cookieOpener.current.focus()
+									else
+										document
+											.querySelector<HTMLButtonElement>('.site-footer button')
+											?.focus()
+								})
+							}}
+							onKeyDown={(event) => {
+								if (event.key !== 'Tab') return
+								const targets = [
+									...event.currentTarget.querySelectorAll<HTMLElement>(
+										'button:not([disabled]), input:not([disabled]), a[href]',
+									),
+								].filter((item) => item.getClientRects().length > 0)
+								const first = targets[0]
+								const last = targets.at(-1)
+								if (event.shiftKey && document.activeElement === first) {
+									event.preventDefault()
+									last?.focus()
+								} else if (!event.shiftKey && document.activeElement === last) {
+									event.preventDefault()
+									first?.focus()
+								}
+							}}
 							aria-labelledby="cookie-heading"
 						>
 							<h2 id="cookie-heading">Cookie設定</h2>
 							<p>
-								利用状況の計測は初期設定でオフです。作業内容やチャンネル情報は計測へ送りません。
+								Google
+								Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
+							</p>
+							<label className="consent-label">
+								<input
+									type="checkbox"
+									role="switch"
+									aria-checked={consent.value === 'granted'}
+									checked={consent.value === 'granted'}
+									onChange={(event) =>
+										privacyServices.consent.set(
+											event.target.checked ? 'granted' : 'denied',
+										)
+									}
+								/>
+								<span>利用状況の計測を許可</span>
+							</label>
+							<p role="status">
+								{consent.value === 'granted'
+									? '任意の計測：許可'
+									: '任意の計測：オフ'}
+							</p>
+							{!consent.saved && (
+								<p role="alert">
+									設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+								</p>
+							)}
+							<p>
+								必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
 							</p>
 							<button
 								type="button"
@@ -180,6 +302,7 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 			setError(null)
 			receipt.set(null)
 			try {
+				if (!supportMode) privacyServices.analytics.event('login_started')
 				const url = await runtime.start(
 					controller.current.signal,
 					search.supportChallenge,
@@ -307,6 +430,8 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 					if (!c.signal.aborted) {
 						setChannel(data)
 						setSupportFlow(data.purpose === 'support')
+						if (data.purpose === 'login')
+							privacyServices.analytics.event('channel_confirmation_viewed')
 					}
 				})
 				.catch((e) => {
@@ -342,7 +467,10 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 					if (result.purpose === 'support') {
 						receipt.set(result.requestRef)
 						await router.navigate({ to: '/contact' })
-					} else await router.navigate({ to: '/mypage' })
+					} else {
+						privacyServices.analytics.event('login')
+						await router.navigate({ to: '/mypage' })
+					}
 				}
 			} catch (e) {
 				if (!controller.current?.signal.aborted) {
@@ -462,43 +590,6 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 			</main>
 		)
 	}
-	function Privacy() {
-		return (
-			<main className="main-content public-page">
-				<section className="card policy-page">
-					<h1>プライバシーについて</h1>
-					<p>
-						マイページは確認したYouTubeチャンネルと作業部屋の記録を結び付けます。YouTubeのOAuth
-						tokenはログイン後に保存しません。
-					</p>
-					<p>
-						作業名や作業記録はログインした本人のマイページに表示します。チャンネル情報が古すぎる場合は表示を停止します。
-					</p>
-					<p>
-						利用状況の計測は初期設定でオフです。作業内容、チャンネルID、プロフィール、本人別のAPI応答を計測へ送りません。
-					</p>
-					<p>保存データに関する請求は、本人確認ができる窓口で受け付けます。</p>
-					<Link to="/contact">個人情報・Privacyに関する問い合わせ</Link>
-				</section>
-			</main>
-		)
-	}
-	function Terms() {
-		return (
-			<main className="main-content public-page">
-				<section className="card policy-page">
-					<h1>利用について</h1>
-					<p>
-						マイページは作業部屋の記録を本人が確認するための機能です。入室・休憩・退室はYouTubeライブチャットから行います。
-					</p>
-					<p>
-						情報を取得できない場合は、記録がない場合と区別して表示します。継続利用や公開条件は、公開前に確定した利用規約を適用します。
-					</p>
-					<Link to="/contact">お問い合わせ</Link>
-				</section>
-			</main>
-		)
-	}
 	function Contact() {
 		const receipt = useContext(SupportReceipt)
 		return (
@@ -585,12 +676,12 @@ export function createApp(runtime: BrowserRuntime, history?: RouterHistory) {
 		createRoute({
 			getParentRoute: () => root,
 			path: '/privacy',
-			component: Privacy,
+			component: PrivacyPolicy,
 		}),
 		createRoute({
 			getParentRoute: () => root,
 			path: '/terms',
-			component: Terms,
+			component: TermsOfUse,
 		}),
 		createRoute({
 			getParentRoute: () => root,

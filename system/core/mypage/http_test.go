@@ -194,3 +194,23 @@ func TestOpaqueCookieAndErrorAllowlist(t *testing.T) {
 		t.Fatal("default remote IP extraction")
 	}
 }
+
+type refusingCallbackStore struct{ AuthStore }
+
+func (*refusingCallbackStore) Claim(context.Context, string, string, time.Time) error {
+	return apiError("OAUTH_TRANSACTION_REQUIRED")
+}
+
+func TestHTTPSecurityHeadersApplyToErrorsAndOAuthRedirects(t *testing.T) {
+	h, _, verifier, _ := boundaryFixture()
+	verifier.appErr = errors.New("synthetic refusal")
+	h.Auth.Store = &refusingCallbackStore{}
+	for _, path := range []string{"/api/mypage", "/api/auth/youtube/callback?state=synthetic&error=access_denied", "/unknown"} {
+		w := boundaryRequest(h, "GET", path, "")
+		for key, want := range map[string]string{"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'", "Permissions-Policy": "camera=(), microphone=(), geolocation=()"} {
+			if w.Header().Get(key) != want {
+				t.Fatalf("missing security header %s", key)
+			}
+		}
+	}
+}
