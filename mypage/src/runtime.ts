@@ -27,6 +27,11 @@ export class BrowserRuntime {
 	private request: typeof fetch
 	private completingSession = false
 	private active = false
+	private authGeneration = 0
+	private confirmationGeneration = 0
+	private observedUID: string | null | undefined
+	private reconciledGeneration = -1
+	private restoringController: AbortController | null = null
 
 	constructor(
 		session: BrowserSession | null,
@@ -50,6 +55,84 @@ export class BrowserRuntime {
 		)
 	}
 
+	private observeIdentity(uid: string | null) {
+		if (uid !== this.observedUID) {
+			this.observedUID = uid
+			this.authGeneration++
+		}
+	}
+
+	private async completeSession(
+		uid: string,
+		signal: AbortSignal,
+		ownsSession: () => boolean,
+	) {
+		for (let attempt = 0; attempt < 3; attempt++) {
+			if (signal.aborted || !ownsSession())
+				throw new RequestError(401, 'AUTH_REQUIRED')
+			try {
+				const response = await this.call(
+					'/api/auth/session/complete',
+					'POST',
+					undefined,
+					signal,
+					uid,
+				)
+				if (response !== null)
+					throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+				if (signal.aborted || !ownsSession())
+					throw new RequestError(401, 'AUTH_REQUIRED')
+				return
+			} catch (error) {
+				if (
+					!(error instanceof RequestError) ||
+					error.status < 500 ||
+					attempt === 2 ||
+					signal.aborted ||
+					!ownsSession()
+				)
+					throw error
+				await new Promise<void>((resolve) =>
+					setTimeout(resolve, 500 * (attempt + 1)),
+				)
+			}
+		}
+	}
+
+	private restoreIdentity(uid: string | null) {
+		this.restoringController?.abort()
+		this.restoringController = null
+		if (!this.active || this.completingSession) return
+		if (!uid) {
+			this.memory.setIdentity(null)
+			return
+		}
+		if (this.reconciledGeneration === this.authGeneration) {
+			this.memory.setIdentity(uid)
+			return
+		}
+		this.memory.suspend()
+		const controller = new AbortController()
+		this.restoringController = controller
+		const identityGeneration = this.authGeneration
+		const operation = this.confirmationGeneration
+		const ownsSession = () =>
+			this.restoringController === controller &&
+			identityGeneration === this.authGeneration &&
+			operation === this.confirmationGeneration &&
+			this.session?.currentUID() === uid
+		void this.completeSession(uid, controller.signal, ownsSession)
+			.then(() => {
+				if (!this.active || controller.signal.aborted || !ownsSession()) return
+				this.reconciledGeneration = identityGeneration
+				this.memory.setIdentity(uid)
+			})
+			.catch(async () => {
+				if (!controller.signal.aborted && ownsSession())
+					await this.memory.logout()
+			})
+	}
+
 	mount() {
 		if (!this.session) {
 			this.memory.setIdentity(null)
@@ -63,11 +146,14 @@ export class BrowserRuntime {
 			this.memory.setVisible(document.visibilityState === 'visible')
 		visible()
 		const unsubscribe = session.subscribe((uid) => {
-			if (active && !this.completingSession) this.memory.setIdentity(uid)
+			// Track identity transitions even while display/fetch is suspended.
+			this.observeIdentity(uid)
+			if (active && !this.completingSession) this.restoreIdentity(uid)
 		})
 		const hide = () => {
 			active = false
 			this.active = false
+			this.restoringController?.abort()
 			generation++
 			this.memory.suspend()
 		}
@@ -85,7 +171,7 @@ export class BrowserRuntime {
 						current === generation &&
 						session.currentUID() === uid
 					)
-						this.memory.setIdentity(uid)
+						this.restoreIdentity(uid)
 				})
 				.catch(() => {
 					if (active && current === generation) this.memory.setIdentity(null)
@@ -98,6 +184,7 @@ export class BrowserRuntime {
 		return () => {
 			active = false
 			this.active = false
+			this.restoringController?.abort()
 			generation++
 			unsubscribe()
 			document.removeEventListener('visibilitychange', visible)
@@ -116,28 +203,40 @@ export class BrowserRuntime {
 	) {
 		const session = this.session
 		if (!session) throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		try {
+		const budget = AbortSignal.any([signal, AbortSignal.timeout(8000)])
+		let onAbort: () => void = () => {}
+		const aborted = new Promise<never>((_, reject) => {
+			onAbort = () => reject(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
+			budget.addEventListener('abort', onAbort, { once: true })
+			if (budget.aborted) onAbort()
+		})
+		const work = async () => {
 			const headers: Record<string, string> = {
 				'X-Firebase-AppCheck': await session.appCheck(false),
 			}
 			if (uid)
 				headers.Authorization = `Bearer ${await session.idToken(uid, false)}`
 			if (body !== undefined) headers['Content-Type'] = 'application/json'
-			if (signal.aborted || (uid && session.currentUID() !== uid))
+			if (budget.aborted || (uid && session.currentUID() !== uid))
 				throw new RequestError(401, 'AUTH_REQUIRED')
-			return await checkedJSON(
+			return checkedJSON(
 				await this.request(path, {
 					method,
 					headers,
 					body: body === undefined ? undefined : JSON.stringify(body),
-					signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+					signal: budget,
 					credentials: 'same-origin',
 					cache: 'no-store',
 				}),
 			)
+		}
+		try {
+			return await Promise.race([work(), aborted])
 		} catch (error) {
 			if (error instanceof RequestError) throw error
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+		} finally {
+			budget.removeEventListener('abort', onAbort)
 		}
 	}
 
@@ -203,6 +302,8 @@ export class BrowserRuntime {
 	}
 
 	async confirm(confirmationRef: string, signal: AbortSignal) {
+		const operation = ++this.confirmationGeneration
+		this.restoringController?.abort()
 		if (!/^[a-f0-9]{64}$/.test(confirmationRef))
 			throw new RequestError(400, 'INVALID_REQUEST')
 		const result = await this.call(
@@ -222,53 +323,38 @@ export class BrowserRuntime {
 			!this.session
 		)
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		if (signal.aborted) throw new RequestError(400, 'INVALID_REQUEST')
+		if (signal.aborted || operation !== this.confirmationGeneration)
+			throw new RequestError(400, 'INVALID_REQUEST')
 		let uid: string
 		this.completingSession = true
 		this.memory.suspend()
 		try {
 			uid = await this.session.signIn(result.customToken)
 		} catch {
-			this.completingSession = false
-			if (this.active) this.memory.setIdentity(this.session.currentUID())
+			if (operation === this.confirmationGeneration) {
+				this.completingSession = false
+				this.restoreIdentity(this.session.currentUID())
+			}
 			throw new RequestError(401, 'AUTH_REQUIRED')
 		}
+		this.observeIdentity(uid)
+		const identityGeneration = this.authGeneration
+		const ownsSession = () =>
+			operation === this.confirmationGeneration &&
+			identityGeneration === this.authGeneration &&
+			this.session?.currentUID() === uid
 		try {
-			if (signal.aborted || this.session.currentUID() !== uid)
-				throw new RequestError(401, 'AUTH_REQUIRED')
-			for (let attempt = 0; attempt < 3; attempt++) {
-				try {
-					await this.call(
-						'/api/auth/session/complete',
-						'POST',
-						undefined,
-						signal,
-						uid,
-					)
-					if (signal.aborted || this.session.currentUID() !== uid)
-						throw new RequestError(401, 'AUTH_REQUIRED')
-					this.completingSession = false
-					if (this.active) this.memory.setIdentity(uid)
-					return
-				} catch (error) {
-					if (
-						!(error instanceof RequestError) ||
-						error.status < 500 ||
-						attempt === 2 ||
-						signal.aborted ||
-						this.session.currentUID() !== uid
-					)
-						throw error
-					await new Promise<void>((resolve) =>
-						setTimeout(resolve, 500 * (attempt + 1)),
-					)
-				}
-			}
-		} catch (error) {
+			await this.completeSession(uid, signal, ownsSession)
 			this.completingSession = false
-			// A late completion must never sign out a newer identity.
-			if (this.session.currentUID() === uid) await this.memory.logout()
-			else if (this.active) this.memory.setIdentity(this.session.currentUID())
+			this.reconciledGeneration = identityGeneration
+			if (this.active) this.memory.setIdentity(uid)
+		} catch (error) {
+			if (operation === this.confirmationGeneration)
+				this.completingSession = false
+			// UID equality alone cannot identify a logout/relogin to the same uid.
+			if (ownsSession()) await this.memory.logout()
+			else if (operation === this.confirmationGeneration)
+				this.restoreIdentity(this.session.currentUID())
 			if (error instanceof RequestError) throw error
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		}

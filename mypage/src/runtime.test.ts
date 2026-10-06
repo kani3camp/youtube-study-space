@@ -166,6 +166,155 @@ describe('browser authentication runtime', () => {
 		expect(session.signOut).not.toHaveBeenCalled()
 		expect(session.currentUID()).toBe('newer-synthetic')
 	})
+	it.each([
+		401, 204,
+	])('same-uid logout/relogin makes a delayed completion %i obsolete', async (status) => {
+		vi.stubGlobal('window', new EventTarget())
+		vi.stubGlobal(
+			'document',
+			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+		)
+		const { session, setUID } = sessionFixture()
+		let resolve: (value: Response) => void = () => {}
+		const pending = new Promise<Response>((yes) => {
+			resolve = yes
+		})
+		let completions = 0
+		const request = vi.fn<typeof fetch>(async (path) => {
+			if (path === '/api/auth/youtube/confirm')
+				return Response.json({
+					purpose: 'login',
+					customToken: 'synthetic-custom',
+				})
+			if (path === '/api/auth/session/complete')
+				return ++completions === 1
+					? pending
+					: new Response(null, { status: 204 })
+			return Response.json(fixture)
+		})
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
+		await settle()
+		expect(completions).toBe(1)
+		setUID(null)
+		setUID('synthetic')
+		resolve(
+			status === 204
+				? new Response(null, { status: 204 })
+				: Response.json({ error: { code: 'AUTH_REQUIRED' } }, { status }),
+		)
+		await expect(done).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+		await settle()
+		expect(session.signOut).not.toHaveBeenCalled()
+		expect(session.currentUID()).toBe('synthetic')
+		expect(completions).toBe(2)
+		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
+		dispose()
+	})
+	it('reconciles an interrupted sign-in before reading MyPage on restored auth', async () => {
+		vi.stubGlobal('window', new EventTarget())
+		vi.stubGlobal(
+			'document',
+			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+		)
+		const { session, setUID } = sessionFixture()
+		setUID('interrupted-synthetic')
+		let resolve: (value: Response) => void = () => {}
+		const pending = new Promise<Response>((yes) => {
+			resolve = yes
+		})
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/session/complete' ? pending : Response.json(fixture),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		await settle()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+		])
+		expect(runtime.memory.getSnapshot().phase).toBe('bootstrapping')
+		expect(runtime.memory.getSnapshot().data).toBeNull()
+		resolve(new Response(null, { status: 204 }))
+		await settle()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+			'/api/mypage',
+		])
+		await vi.waitFor(() =>
+			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
+		)
+		expect(session.signIn).not.toHaveBeenCalled()
+		dispose()
+	})
+	it('restored auth retries transient completion at most three times then signs out without fetching data', async () => {
+		vi.useFakeTimers()
+		vi.stubGlobal('window', new EventTarget())
+		vi.stubGlobal(
+			'document',
+			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+		)
+		const { session, setUID } = sessionFixture()
+		setUID('interrupted-synthetic')
+		const request = vi.fn<typeof fetch>(async () =>
+			Response.json(
+				{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
+				{ status: 503 },
+			),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		await vi.runAllTimersAsync()
+		expect(request.mock.calls.map(([path]) => path)).toEqual(
+			Array(3).fill('/api/auth/session/complete'),
+		)
+		expect(session.signOut).toHaveBeenCalledTimes(1)
+		expect(runtime.memory.getSnapshot().data).toBeNull()
+		expect(runtime.memory.getSnapshot().phase).toBe('anonymous')
+		dispose()
+	})
+	it('pagehide aborts restored proof acquisition and a late proof never dispatches an API call', async () => {
+		const windowTarget = new EventTarget()
+		vi.stubGlobal('window', windowTarget)
+		vi.stubGlobal(
+			'document',
+			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+		)
+		const { session, setUID } = sessionFixture()
+		setUID('interrupted-synthetic')
+		let resolve: (token: string) => void = () => {}
+		session.appCheck = () =>
+			new Promise((yes) => {
+				resolve = yes
+			})
+		const request = vi.fn<typeof fetch>()
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		await settle()
+		windowTarget.dispatchEvent(new Event('pagehide'))
+		resolve('synthetic-late-proof')
+		await settle()
+		expect(request).not.toHaveBeenCalled()
+		expect(session.signOut).not.toHaveBeenCalled()
+		expect(runtime.memory.getSnapshot().data).toBeNull()
+		dispose()
+	})
 	it('never treats support proof as a normal login token or channel confirmation', async () => {
 		const { session } = sessionFixture()
 		const runtime = new BrowserRuntime(
@@ -223,12 +372,18 @@ describe('browser authentication runtime', () => {
 		const runtime = new BrowserRuntime(
 			session,
 			{ privacy: 'p1', terms: 't1' },
-			vi.fn<typeof fetch>(async () => Response.json(fixture)),
+			vi.fn<typeof fetch>(async (path) =>
+				path === '/api/auth/session/complete'
+					? new Response(null, { status: 204 })
+					: Response.json(fixture),
+			),
 		)
 		const dispose = runtime.mount()
 		setUID('synthetic')
 		await settle()
-		expect(runtime.memory.getSnapshot().data).not.toBeNull()
+		await vi.waitFor(() =>
+			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
+		)
 		windowTarget.dispatchEvent(new Event('pagehide'))
 		expect(runtime.memory.getSnapshot().data).toBeNull()
 		setUID('another')
