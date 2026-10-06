@@ -46,6 +46,14 @@ if (import.meta.env.DEV) {
 		error: null,
 		receivedAt: Date.parse(sample.generatedAt),
 	}
+	if (mode === 'metadata-expired') {
+		sample.account = {
+			availability: 'unavailable',
+			reasonCode: 'METADATA_TOO_OLD',
+			data: null,
+		}
+		state.data = mergeResponse(state.data, sample)
+	}
 	if (mode === 'loading') {
 		state.busy = true
 		state.data = null

@@ -67,6 +67,76 @@ describe('private MyPage memory', () => {
 	beforeEach(() => vi.useFakeTimers())
 	afterEach(() => vi.useRealTimers())
 
+	it('drops previously displayed account metadata when the server reports expiration', () => {
+		const first = mergeResponse(null, sample())
+		const expired = sample()
+		expired.account = {
+			availability: 'unavailable',
+			reasonCode: 'METADATA_TOO_OLD',
+			data: null,
+		}
+		const result = mergeResponse(first, expired)
+		expect(result.account).toEqual({
+			data: null,
+			asOf: null,
+			stale: true,
+			reason: 'METADATA_TOO_OLD',
+		})
+		expect(result.current.data?.workName).toBe('合成作業')
+	})
+
+	it('honors Retry-After across manual refresh and hide/show, then resumes at the deadline', async () => {
+		const load = vi
+			.fn()
+			.mockRejectedValueOnce(new RequestError(429, 'RATE_LIMITED', 120))
+			.mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('sample')
+		await settle()
+		await memory.refresh(true)
+		memory.setVisible(false)
+		memory.setVisible(true)
+		await settle()
+		await vi.advanceTimersByTimeAsync(119_999)
+		await memory.refresh(true)
+		expect(load).toHaveBeenCalledTimes(1)
+		memory.setVisible(false)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(1)
+		memory.setVisible(true)
+		await settle()
+		expect(load).toHaveBeenCalledTimes(2)
+		memory.dispose()
+	})
+
+	it('preserves signout failure after auth rejection and can retry to recover', async () => {
+		const load = vi
+			.fn()
+			.mockRejectedValue(new RequestError(401, 'AUTH_REQUIRED'))
+		const signOut = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('synthetic signout failure'))
+			.mockResolvedValueOnce(undefined)
+		const memory = new MyPageMemory(load, signOut)
+		memory.setIdentity('sample')
+		await settle()
+		expect(memory.getSnapshot().phase).toBe('anonymous')
+		expect(memory.getSnapshot().error).toBe('LOGOUT_FAILED')
+		expect(memory.getSnapshot().data).toBeNull()
+		memory.setIdentity('sample')
+		await settle()
+		expect(load).toHaveBeenCalledTimes(2)
+		await memory.logout()
+		expect(memory.getSnapshot().error).toBeNull()
+		expect(signOut).toHaveBeenCalledTimes(2)
+		load.mockResolvedValue(sample())
+		memory.setIdentity('sample')
+		await settle()
+		expect(memory.getSnapshot().phase).toBe('authenticated')
+		expect(memory.getSnapshot().data).not.toBeNull()
+		memory.dispose()
+	})
+
 	it('discards an old uid response even if abort is ignored', async () => {
 		const old = deferred<MyPage>()
 		const next = deferred<MyPage>()

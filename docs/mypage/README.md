@@ -81,4 +81,6 @@ python -m pip install -r visual-requirements.txt
 python scripts/visual-qa.py --output /tmp/mypage-visual-qa
 ```
 
-320/390/768/1024/1440px × 11状態、modal keyboard/logoutを合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。Approved exportのruntime/provenance gapは `design/README.md` に記録し、元runtimeとのpixel parity確認は未完了。外部fontは取得しておらずlocal fallbackでのQA。
+320/390/768/1024/1440px × 12状態、modal keyboard/logoutを合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。Approved exportのruntime/provenance gapは `design/README.md` に記録し、元runtimeとのpixel parity確認は未完了。外部fontは取得しておらずlocal fallbackでのQA。
+
+`METADATA_TOO_OLD`は直前成功accountもclearして期限切れmetadataを表示しない。account panelで表示停止の理由を伝える。429 cooldownは共通deadlineに保持し、manual refresh/visibility復帰でも期限前にrequestしない。auth拒否後のsignOut失敗は`LOGOUT_FAILED`を維持し、retryを可能にする。cookie-nameの前後空白を正規化してGo cookie parserと同じ同名cookieを重複拒否する。

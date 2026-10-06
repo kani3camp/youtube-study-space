@@ -359,7 +359,7 @@ func sessionCookieCount(r *http.Request) int {
 	for _, header := range r.Header.Values("Cookie") {
 		for _, part := range strings.Split(header, ";") {
 			name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
-			if name == "__session" {
+			if strings.TrimSpace(name) == "__session" {
 				count++
 			}
 		}

@@ -88,7 +88,13 @@ export function mergeResponse(
 ): ViewData {
 	return {
 		current: retain(previous?.current, next.current, next.generatedAt),
-		account: retain(previous?.account, next.account, next.generatedAt),
+		account: retain(
+			next.account.reasonCode === 'METADATA_TOO_OLD'
+				? undefined
+				: previous?.account,
+			next.account,
+			next.generatedAt,
+		),
 		summary: {
 			today: retainMetric(
 				previous?.summary.today,
@@ -137,6 +143,7 @@ export class MyPageMemory {
 	private failures = 0
 	private ignoreAuthUntilSignedOut = false
 	private lastManual = Number.NEGATIVE_INFINITY
+	private retryAt = 0
 
 	private load: Loader
 	private signOut: () => Promise<void>
@@ -222,14 +229,23 @@ export class MyPageMemory {
 
 	private schedule(delay: number) {
 		if (!this.visible || this.uid === null) return
-		this.timer = setTimeout(() => {
-			this.timer = null
-			void this.refresh()
-		}, delay)
+		if (this.timer !== null) clearTimeout(this.timer)
+		this.timer = setTimeout(
+			() => {
+				this.timer = null
+				void this.refresh()
+			},
+			Math.max(delay, this.retryAt - this.now()),
+		)
 	}
 
 	async refresh(manual = false) {
 		if (!this.visible || this.uid === null || this.state.busy) return
+		const remaining = this.retryAt - this.now()
+		if (remaining > 0) {
+			this.schedule(remaining)
+			return
+		}
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
 		if (this.timer !== null) clearTimeout(this.timer)
@@ -293,7 +309,10 @@ export class MyPageMemory {
 			) {
 				const code = error.code
 				await this.logout()
-				if (this.state.phase === 'anonymous')
+				if (
+					this.state.phase === 'anonymous' &&
+					this.state.error !== 'LOGOUT_FAILED'
+				)
 					this.publish({ ...this.state, error: code })
 				return
 			}
@@ -303,11 +322,11 @@ export class MyPageMemory {
 				error instanceof RequestError &&
 				error.status === 429 &&
 				Number.isFinite(error.retryAfter)
-			)
-				delay = Math.max(
-					delay,
-					Math.min(3600, Math.max(0, error.retryAfter)) * 1000,
-				)
+			) {
+				const cooldown = Math.min(3600, Math.max(0, error.retryAfter)) * 1000
+				this.retryAt = Math.max(this.retryAt, this.now() + cooldown)
+				delay = Math.max(delay, cooldown)
+			}
 			this.publish({
 				...this.state,
 				error:
