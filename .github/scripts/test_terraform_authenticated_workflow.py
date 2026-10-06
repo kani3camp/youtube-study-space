@@ -87,7 +87,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false", "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED": "true",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false", "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED": "true", "DEV_EXPORT_FUNCTION_MANAGED_ENABLED": "true",
         }
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
@@ -114,6 +114,21 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotEqual(self.run_preflight(DEV_EXPORT_TOPIC_MANAGED_ENABLED="false").returncode, 0)
         self.assertIn("EXPORT_SCHEDULER_IDENTITY_REQUIRED", self.text)
         self.assertIn("terraform_identity_smoke.py export-scheduler", self.text)
+
+    def test_function_requires_both_adopted_dependencies_and_same_private_input(self):
+        self.assertIn('DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"', self.text)
+        result = self.run_preflight()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("manage_export_function=true", result.outputs)
+        self.assertEqual(self.text.count("TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}"), 2)
+        self.assertIn('echo "manage_export_function=false"', self.text)
+        for flag in ("DEV_EXPORT_TOPIC_MANAGED_ENABLED", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED"):
+            self.assertNotEqual(self.run_preflight(**{flag: "false"}).returncode, 0)
+        self.assertIn("EXPORT_FUNCTION_IDENTITY_REQUIRED", self.text)
+        apply = self.text.split("  apply:\n", 1)[1]
+        self.assertLess(apply.index("terraform_identity_smoke.py export-function"), apply.index("Re-plan at the exact approved commit"))
+        self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
+        self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
 
     def test_enabled_development_plan_does_not_enable_apply(self) -> None:
         self.assertEqual(self.run_preflight().returncode, 0)

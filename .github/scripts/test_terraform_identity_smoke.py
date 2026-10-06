@@ -172,5 +172,50 @@ class IdentitySmokeTest(unittest.TestCase):
                     smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(grants, prod), project="fixture", scheduler=True)
 
 
+    def test_function_get_only_rejects_source_execution_mutation_and_production(self):
+        allowed = {"pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"}
+        def request_for(grants, prod=()):
+            def request(path, token, body=None, **kwargs):
+                self.assertTrue(set(smoke.FUNCTION_FORBIDDEN_PERMISSIONS) <= set(body["permissions"]))
+                return 200, {"permissions": list(prod if "youtube-study-space:" in path else grants)}
+            return request
+        for kind in ("plan", "apply"):
+            account = f"terraform-dev-{kind}@fixture.iam.gserviceaccount.com"
+            result = smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed), project="fixture", scheduler=True, function=True)
+            self.assertNotIn("PRIVATE", str(result))
+            for extra in (*smoke.FUNCTION_FORBIDDEN_PERMISSIONS, "pubsub.topics.publish", "cloudscheduler.jobs.run"):
+                with self.subTest(kind=kind, extra=extra), self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed | {extra}), project="fixture", scheduler=True, function=True)
+            for grants, prod in [(allowed - {"cloudfunctions.functions.get"}, set()), (allowed, {"cloudfunctions.functions.get"})]:
+                with self.assertRaises(smoke.SmokeFailure):
+                    smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(grants, prod), project="fixture", scheduler=True, function=True)
+            with self.assertRaises(smoke.SmokeFailure):
+                smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed), project="fixture", function=True)
+
+    def test_function_execution_input_comes_from_exact_metadata_get_after_mask(self):
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path
+        metadata = {"name": "projects/test-youtube-study-space/locations/asia-southeast2/functions/firestoreCollectionsExport",
+            "runtime": "nodejs22", "status": "ACTIVE", "versionId": "8", "serviceAccountEmail": "test-youtube-study-space@appspot.gserviceaccount.com",
+            "sourceUploadUrl": "PRIVATE_SOURCE_URL"}
+        def request(path, token, body=None, **kwargs):
+            self.assertEqual(path, "v1/" + metadata["name"])
+            self.assertEqual(kwargs["host"], "cloudfunctions.googleapis.com")
+            self.assertIsNone(body)
+            return 200, metadata
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()) as output:
+            env = {"GITHUB_ENV": directory + "/env"}
+            result = smoke.configure_function_execution_identity("PRIVATE_TOKEN", env, request)
+            self.assertIn("::add-mask::" + metadata["serviceAccountEmail"], output.getvalue())
+            self.assertEqual(Path(env["GITHUB_ENV"]).read_text(), "TF_VAR_export_function_execution_service_account_email=" + metadata["serviceAccountEmail"] + "\n")
+            self.assertNotIn("PRIVATE", output.getvalue() + str(result))
+            for field, value in [("serviceAccountEmail", "foreign"), ("versionId", "9"), ("runtime", "nodejs20")]:
+                old = metadata[field]; metadata[field] = value
+                with self.assertRaises(smoke.SmokeFailure): smoke.configure_function_execution_identity("PRIVATE_TOKEN", env, request)
+                metadata[field] = old
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,8 @@ env:
   # Issue #1162 comment5998188927: existing development topic import only.
   DEV_EXPORT_TOPIC_MANAGED_ENABLED: "true"
   DEV_EXPORT_SCHEDULER_MANAGED_ENABLED: "true"
+  # Issue #1162 comment6005988785: Function GET1, exact import1 + existing10 no-op only.
+  DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
 
 jobs:
   preflight:
@@ -71,6 +73,7 @@ jobs:
       manage_quota: ${{ steps.guard.outputs.manage_quota }}
       manage_export_topic: ${{ steps.guard.outputs.manage_export_topic }}
       manage_export_scheduler: ${{ steps.guard.outputs.manage_export_scheduler }}
+      manage_export_function: ${{ steps.guard.outputs.manage_export_function }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -150,6 +153,11 @@ jobs:
                 echo "::error::Scheduler requires adopted topic ownership."
                 exit 1
               fi
+              if [[ "${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" == "true" && ( "${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" != "true" || "${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" != "true" ) ]]; then
+                echo "::error::Function requires adopted topic and Scheduler ownership."
+                exit 1
+              fi
+              echo "manage_export_function=${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "manage_export_scheduler=${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "manage_export_topic=${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
@@ -161,6 +169,7 @@ jobs:
                 echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
                 exit 1
               }
+              echo "manage_export_function=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_scheduler=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_topic=false" >> "${GITHUB_OUTPUT}"
               echo "manage_primary_email=false" >> "${GITHUB_OUTPUT}"
@@ -195,6 +204,7 @@ jobs:
       TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
       TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
+      TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -301,6 +311,7 @@ jobs:
         env:
           EXPORT_TOPIC_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
           EXPORT_SCHEDULER_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' }}
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
           QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
@@ -413,6 +424,7 @@ jobs:
       TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
       TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
+      TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -529,8 +541,15 @@ jobs:
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
         run: python3 .github/scripts/terraform_identity_smoke.py quota-apply
 
+      - name: Verify Function identity exact read permissions
+        if: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py export-function
+
       - name: Verify Scheduler identity exact read permissions
-        if: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' }}
+        if: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' && needs.preflight.outputs.manage_export_function != 'true' }}
         env:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}

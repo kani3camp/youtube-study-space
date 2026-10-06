@@ -148,6 +148,10 @@ def verify_quota_google(token: str, service_account: str, request=google, *, ide
             "GCP quota update/delete/list/data/IAM/API grants absent", "GCP quota production grants absent"]
 
 
+FUNCTION_FORBIDDEN_PERMISSIONS = tuple("cloudfunctions.functions." + suffix for suffix in (
+    "list", "create", "update", "delete", "call", "invoke", "sourceCodeGet", "sourceCodeSet", "getIamPolicy", "setIamPolicy"))
+
+
 EXPORT_TOPIC_PERMISSIONS = (
     "pubsub.topics.get", "pubsub.topics.publish", "pubsub.topics.create",
     "pubsub.topics.update", "pubsub.topics.delete", "pubsub.topics.list",
@@ -159,23 +163,46 @@ EXPORT_TOPIC_PERMISSIONS = (
 )
 
 
-def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False):
+def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False, function=False):
     if service_account not in {f"terraform-dev-{kind}@{project}.iam.gserviceaccount.com" for kind in ("plan", "apply")}:
         raise SmokeFailure("topic-development-identity-target")
+    if function and not scheduler:
+        raise SmokeFailure("function-scheduler-dependency")
     requested = list(EXPORT_TOPIC_PERMISSIONS) + ["cloudscheduler.jobs.list", "cloudscheduler.jobs.create",
         "cloudscheduler.jobs.update", "cloudscheduler.jobs.delete", "cloudscheduler.jobs.run",
-        "cloudscheduler.jobs.pause", "cloudscheduler.jobs.enable", "cloudscheduler.jobs.fullView"]
-    expected = {"pubsub.topics.get"} | ({"cloudscheduler.jobs.get"} if scheduler else set())
+        "cloudscheduler.jobs.pause", "cloudscheduler.jobs.enable", "cloudscheduler.jobs.fullView",
+        *FUNCTION_FORBIDDEN_PERMISSIONS]
+    expected = {"pubsub.topics.get"} | ({"cloudscheduler.jobs.get"} if scheduler else set()) | ({"cloudfunctions.functions.get"} if function else set())
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": requested})
     if status != 200 or set(data.get("permissions", [])) != expected:
         raise SmokeFailure("topic-exact-get-only-permissions")
     status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": requested})
     if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
         raise SmokeFailure("topic-production-permissions-denied")
+    if function:
+        return ["GCP topic + Scheduler + Function exact GET only", "GCP Function list/mutation/call/invoke/sourceCode/IAM grants absent",
+                "GCP export trigger/publish/subscription grants absent", "GCP export production grants absent"]
     if scheduler:
         return ["GCP topic + Scheduler exact GET only", "GCP Scheduler list/mutation/run/pause/resume/publish grants absent",
                 "GCP Function GET remains ungranted", "GCP export production grants absent"]
     return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted", "GCP topic production grants absent"]
+
+
+def configure_function_execution_identity(token, env, request=google):
+    # Exact metadata GET only; never source download, build lookup or invocation.
+    project = "test-youtube-study-space"
+    path = f"v1/projects/{project}/locations/asia-southeast2/functions/firestoreCollectionsExport"
+    status, data = request(path, token, host="cloudfunctions.googleapis.com")
+    email = data.get("serviceAccountEmail", "")
+    if status != 200 or email != f"{project}@appspot.gserviceaccount.com" or any(data.get(k) != v for k, v in {
+            "name": path[3:], "runtime": "nodejs22", "status": "ACTIVE", "versionId": "8"}.items()):
+        raise SmokeFailure("function-fresh-execution-identity")
+    # Register masks before introducing the private Terraform input to later steps.
+    for value in (email, email.split("@")[0]):
+        print(f"::add-mask::{value}")
+    with open(env["GITHUB_ENV"], "a", encoding="utf-8") as output:
+        output.write(f"TF_VAR_export_function_execution_service_account_email={email}\n")
+    return ["GCP exact Function metadata GET and preserved execution identity"]
 
 
 def state_counts(state: dict) -> str:
@@ -221,6 +248,9 @@ def main(argv: list[str] | None = None) -> int:
         args = sys.argv[1:] if argv is None else argv
         if args == ["quota-apply"]:
             checks = verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply")
+        elif args == ["export-function"]:
+            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True, function=True)
+            checks += configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env)
         elif args == ["export-scheduler"]:
             checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True)
         elif args == ["export-topic"]:
@@ -232,7 +262,10 @@ def main(argv: list[str] | None = None) -> int:
                 checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan")
             if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
                 checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
-                    scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true")
+                    scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true",
+                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true")
+                if env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true":
+                    checks += configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env)
             checks += verify_aws(env)
         else:
             raise SmokeFailure("unsupported-identity-smoke-mode")
