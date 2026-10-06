@@ -103,3 +103,12 @@ python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
 確認→session complete→MyPage→logout、anonymous route guard、既存session、fresh login、support誤用途防止、期限切れtransaction、uid変更/遅延response、pagehide/pageshow、logout再試行、初期折り畳み、404、設定なしpublic pageを確認する。外部requestは遮断し、合成dataだけを使う。
 
 support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01/D02/D03判断、infrastructure Ready Gate、実provider/verifier/server結線は別の未完了条件。production deploymentはしていない。
+
+
+## Support record boundary
+
+`FirestoreSupportStore`はoperator/server用libraryで、public管理APIではない。environment / request ID / 対象channel / purpose(delete・revoke・disclosure)を記録し、challengeはhashと24時間期限だけを保存する。同じenvironment+request IDの重複作成はtransactionで拒否する。challenge再発行は元の受付時刻と削除期限(受付から7暦日)を維持し、旧challenge indexを消す。期限超過後の再発行でSLAを延長しない。
+
+SupportBindingはrecord reference / request ID / environment / purpose / challenge hashを保持するserver-only値。reissue前のbinding・目的違い・environment違い・対象channel違い・期限境界・proof replayは拒否する。proof成功はchallengeをconsumeするが、削除実行の承認ではない。完了recordへのpure transitionはchannel/challenge/proof/OAuth referenceを取り除き、最小の匿名監査用時刻を残す。
+
+このsliceはrecord storageとpure state transitionまで。OAuth transactionとのatomic consume、confirm responseのpurpose union、support browser flow、operator CLI、完了時のOAuth record消去/retentionと実削除・revoke・開示実行は後続。D01削除guardを代替せず、既存users/seat/history/Auth userを変更しない。実環境でrecordを作成していない。callerのproject/credential/production確認はReady Gate後のoperator boundaryで実装する。
