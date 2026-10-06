@@ -6,19 +6,19 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 ## 現在のscope
 
-Phase 1のscaffold / S3 state / protected CIは構築済みです。Phase 2では、production自然実行E2E（#1173）と独立したdevelopment resourceを、小さいimport-only waveで取り込みます。
+Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceのownership移行は完了しています。2026-10-06時点の通常full-rootは `import0 / no-op11 / drift0 / unknown0` です。後続はIssue #1191を入口に、development残件を片付けてからproduction migration準備へ進みます。
 
-この段階では以下を行いません（remote state bootstrap exceptionを除く）。
+通常のmigration pathでは以下を行いません。bounded normal-change / state-only例外は、別validator・別approvalで明示的に隔離します。
 
-- production resourceのimport
-- workload resourceのcreate / update / delete
-- Cloud Functions / Scheduler / Pub/Subの変更
-- workload resourceのmutation権限追加 / API有効化
-- 未承認のGitHub Actions workload apply（protected CIはIssue #1162）
+- 未承認のproduction resource import / apply
+- 想定外のworkload create / update / delete / replacement
+- manual Scheduler / Pub/Sub / Firestore export trigger
+- importと同時のAPI enable / disable
+- broad IAM role追加
 - Service Account JSON keyの作成
 - MyPage resourceのprovisioning
 
-Firestore export FunctionのNode.js 22移行は Issue #1148 の別gateです。development / productionのNode.js 22自然実行E2Eは2026-10-06にPASSし、#1173をcompletedでcloseしました。development export-chain natural-E2E import gateは解禁済みです。最初のtopic定義はdisabledで準備し、別quota state driftの解消とCIの最小GET prerequisiteを満たすまでprotected importを実行しません。
+Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / productionともPASSし、#1173はcompletedでclose済みです。developmentのPub/Sub topic / Cloud Scheduler / Gen1 Functionもそれぞれprotected import-only waveでownership移行済みで、post-planはno-op11 / drift0です。generated subscription / build artifact / source deploymentはownership外を維持します。
 
 ## Directory
 
@@ -146,20 +146,21 @@ development planとapplyは独立gateを持ちます。planの有効化はtrust�
 - import移行期はcreate / update / delete / replacement / driftをstopする
 - plan jobとapply jobでsaved planを渡さず、apply jobは同じ `github.sha` から再planし、sanitized projectionが一致した場合だけ同一job内のplanをapplyする
 
-このauthenticated reusable workflowを有効化する前に、GitHub Environment / branch trust、AWS GitHub OIDC backend role、GCP GitHub WIF / Terraform Service Accountを構築する必要があります。これらは実環境のtrust / identity mutationなので、Issue #1162のmutation gateに従い明示approval後に行います。
+developmentのGitHub Environment / branch trust、AWS GitHub OIDC backend role、GCP GitHub WIF / Terraform Service Accountは#1162で構築・実測済みです。通常PRはcredentiallessのまま、authenticated executionはtrusted integration refと独立Environment approvalへ限定します。production側のbackend / trust / identityは未開始で、#1191の別approval境界です。
 
 production backendは未bootstrapのため、production authenticated plan / applyはbackend準備完了まで有効化しません。
 
 ### Existing development backend
 
-Issue #1154で作成した `test-youtube-study-space` 内のdevelopment GCS state bucketは、Issue #1161で確認した時点でTerraform上の**空state**でした。
+Issue #1154で作成したdevelopment GCS state backendは、empty state / inactive lockであることを再確認した後、2026-10-05の承認済みcleanupで退役しました。
 
-- Terraform backend migrationを実行したが、Terraform 1.16.4は空source stateをcopyしないため、migration成功とは扱わない
-- S3 destination backendをTerraform自身で初期化済み
-- init / validate / state read / native lock / Versioning / read-only recoveryを実測PASS
-- source GCS bucket/stateは保持する
+- 旧operatorのGCS backend設定 / `.terraform` cacheを無効化
+- empty stateと旧lock generationをprecondition付きで削除
+- bucketを条件付き削除
+- 7日soft deleteを維持
+- recovery authorityはVersioning済みAWS S3 stateへ一本化
+- 旧GCS backendへ再接続しない
 - production GCS state bucketは作成しない
-- old GCS bucket削除は別判断とする
 
 ### Local backend configuration
 
@@ -222,7 +223,8 @@ Issue #1161のdevelopment backend bootstrapはoperatorの短期SSO credentialで
 - GCP provider: GitHub OIDC / Workload Identity Federation → GCP
 - ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
 - public PR CIはcredentiallessを維持する
-- authenticated plan / apply workflowは後続Phaseでtrusted ref / GitHub Environment / least privilegeを実装する
+- development authenticated plan / applyはtrusted ref / GitHub Environment / least privilegeで実装・実測済み
+- production authenticated plan / applyはbackend / trust準備前のためfail-closedを維持する
 
 既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。
 
@@ -245,8 +247,8 @@ Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
 
 - Issue #1165: alternate contacts / recovery運用
 - Issue #1166: durable CloudTrail / S3 data events監査
-- Issue #1162: public repository向けauthenticated Terraform plan / apply
-- production backend: development安定後の別Issue
+- Issue #1162: public repository向けauthenticated Terraform plan / apply（completed）
+- Issue #1191: Phase 2 development残件 / production migration準備
 
 ## Development import wave 1: native backup schedule
 
@@ -300,11 +302,7 @@ State versioning retains the previous version for investigation. Do not overwrit
 
 ## Development export chain adoption
 
-Development quota refresh completed with regular no-op8/drift0. PR #1184/#1186
-and protected run37342000553 adopted the existing topic; post-plan is
-import0/no-op9/drift0. Only `pubsub.topics.get` was added to the existing read role.
-Use topic → Scheduler → Gen1 Function as separate import-only waves.
-Generated resources, IAM and source rebuild/upload remain excluded.
+Development quota refresh completed with regular no-op8/drift0. PR #1184/#1186 and protected run37342000553 adopted the existing topic; post-plan was import0/no-op9/drift0. Scheduler and Gen1 Function were then adopted in separate protected import-only waves, reaching regular full-root import0/no-op11/drift0. Generated resources, unrelated IAM and source rebuild/upload remain excluded.
 
 ## Approved quota state representation correction
 
@@ -356,9 +354,7 @@ waits for Scheduler completion; Function GET remains a separate approval.
 
 Scheduler activation #1188 completed on integration SHA `eb46cb9603f320dbf2a729cafecf8a88ac598c8a`, protected run [37388902196](https://github.com/kani3camp/youtube-study-space/actions/runs/37388902196). Separate plan/apply approvals, same-SHA re-plan and projection equality passed. Pre-plan: Scheduler import1 + existing9 no-op; post-plan and independent regular full-root: import0 / no-op10 / drift0 / other actions0. Only `cloudscheduler.jobs.get` was added to the existing dev read role, with bindings unchanged. Cloud metadata in both environments, IAM/API and generated resources remain unchanged by import; S3 serial12 / resources10 / lineage unchanged / native lock released. Public logs/artifacts leak audit passed.
 
-`environments/dev/export-function.tf` now defines the next Gen1 wave, disabled by default and absent from production. Existing topic/Scheduler CI flags do not activate it. Fresh inventory and an isolated provider import confirm Node22 / ACTIVE / version8, unchanged deployment/source/lock provenance, import1 / no-op1 / drift0 / unknown0, and the external reserved label/source boundary. See the [Function module contract](modules/firestore-export-function/README.md).
-
-`cloudfunctions.functions.get` is the exact next read candidate, freshly verified from pinned provider Read and the official API. Function IAM/CI activation/import/apply remain stopped for separate user approval. No source build/upload/redeploy or Google-managed ownership is part of this definition.
+`environments/dev/export-function.tf` defines the adopted Gen1 Function and remains absent from production. Fresh inventory and protected import confirmed Node22 / ACTIVE / version8, unchanged deployment/source/lock provenance, and the external reserved label/source boundary. The only added Function read permission is `cloudfunctions.functions.get`; source build/upload/redeploy and Google-managed ownership remain outside Terraform. See the [Function module contract](modules/firestore-export-function/README.md).
 
 ### Approved development Function activation — 2026-10-06
 
