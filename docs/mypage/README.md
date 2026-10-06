@@ -66,3 +66,19 @@ HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし�
 visible時だけ完了後60秒でpollし、hidden停止・復帰即refresh・request overlap防止・manual debounce・失敗backoff・Retry-Afterを実装する。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
 
 これはsession/API adapterを注入するcontroller slice。実Firebase/browser listener、router、画面とbfcache eventへの結線は後続。MyPage responseやmetadataをstorageへ保存する経路は持たない。
+
+## Display and visual verification
+
+React表示componentはcurrent / summary / recent7Days / account panelを持ち、snapshotの時刻だけでtimelineを描く。未取得値はunavailable、旧成功値は元asOf付き、休憩でもworkNameを維持。0時間の日もkeyboardで選択できる。native dialogのinertに加えてTab循環・Escape・avatarへのfocus復帰を検証する。最新仕様に合わせflat cream背景と通常cardのshadowなしを使う。
+
+`mypage/visual.html` はdev専用の合成fixture入口で、production buildの入口に含めない。実Firebase/API/router結線はこのcomponent sliceの後続。画面コードを独立して実browserで確認する:
+
+```sh
+cd mypage
+pnpm dev --host 127.0.0.1
+# 別shell、system Chromiumが使える環境
+python -m pip install -r visual-requirements.txt
+python scripts/visual-qa.py --output /tmp/mypage-visual-qa
+```
+
+320/390/768/1024/1440px × 11状態、modal keyboard/logoutを合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。Approved exportのruntime/provenance gapは `design/README.md` に記録し、元runtimeとのpixel parity確認は未完了。外部fontは取得しておらずlocal fallbackでのQA。

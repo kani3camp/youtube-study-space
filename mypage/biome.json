@@ -43,5 +43,8 @@
 			"quoteStyle": "single",
 			"semicolons": "asNeeded"
 		}
+	},
+	"css": {
+		"parser": { "tailwindDirectives": true }
 	}
 }
