@@ -1,0 +1,164 @@
+name: GCP User Activity Schema Audit
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: Read-only schema audit target
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"
+
+jobs:
+  audit:
+    name: Development user-activity schema audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: gcp-dev-user-activity-schema-audit
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Enforce trusted read-only audit surface
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+
+          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || {
+            echo "::error::Schema audit only supports workflow_dispatch."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY}" == "kani3camp/youtube-study-space" ]] || {
+            echo "::error::Unexpected repository."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_ID}" == "340900071" ]] || {
+            echo "::error::Unexpected immutable repository ID."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_OWNER_ID}" == "54093651" ]] || {
+            echo "::error::Unexpected immutable repository owner ID."
+            exit 1
+          }
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Schema audit must be called from ci.yml at the trusted integration ref."
+            exit 1
+          }
+          [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Schema audit is restricted to the integration branch."
+            exit 1
+          }
+          [[ "${TARGET}" == "dev" ]] || {
+            echo "::error::Production schema audit is not enabled by this workflow."
+            exit 1
+          }
+          [[ "${DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED}" == "true" ]] || {
+            echo "::error::Development schema audit remains disabled pending dedicated IAM and user approval."
+            exit 1
+          }
+
+      - name: Checkout trusted commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Configure dedicated GCP audit credential
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
+          project_id: test-youtube-study-space
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Run aggregate-only audit without public data output
+        shell: bash
+        working-directory: system
+        run: |
+          set -euo pipefail
+          : "${GOOGLE_APPLICATION_CREDENTIALS:?missing GCP audit credential file}"
+          umask 077
+          CREDENTIAL_FILE_LOCATION="${GOOGLE_APPLICATION_CREDENTIALS}" \
+            go run ./cmd/user-activity-schema-audit \
+              development \
+              test-youtube-study-space \
+              asia-southeast2 \
+              >"${RUNNER_TEMP}/user-activity-schema-audit.json"
+
+      - name: Publish sanitized audit decision only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "user-activity-schema-audit.json"
+          payload = json.loads(path.read_text(encoding="utf-8"))
+
+          if payload.get("mode") != "read-only-aggregate":
+              raise SystemExit("unexpected audit mode")
+          target = payload.get("target", {})
+          if target.get("environment") != "development":
+              raise SystemExit("unexpected audit environment")
+          if target.get("project_id") != "test-youtube-study-space":
+              raise SystemExit("unexpected audit project")
+          if target.get("dataset") != "firestore_export":
+              raise SystemExit("unexpected audit dataset")
+          if target.get("table") != "user-activity-history":
+              raise SystemExit("unexpected audit table")
+
+          audit = payload.get("audit", {})
+          keys = ("legacy_non_null", "legacy_only", "both_equal", "both_different")
+          counts = {}
+          for key in keys:
+              value = audit.get(key)
+              if not isinstance(value, int) or value < 0:
+                  raise SystemExit(f"invalid aggregate field: {key}")
+              counts[key] = value
+
+          if audit.get("canonical") and audit.get("has_legacy_timestamp"):
+              raise SystemExit("inconsistent canonical/legacy flags")
+          if not audit.get("has_taken_at"):
+              raise SystemExit("canonical taken_at field is absent")
+
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as handle:
+              handle.write("## Development user-activity schema audit\n\n")
+              handle.write("- Scope: aggregate-only / read-only\n")
+              handle.write(f"- Legacy timestamp present: {'yes' if audit.get('has_legacy_timestamp') else 'no'}\n")
+              handle.write(f"- legacy_non_null is zero: {'yes' if counts['legacy_non_null'] == 0 else 'no'}\n")
+              handle.write(f"- legacy_only is zero: {'yes' if counts['legacy_only'] == 0 else 'no'}\n")
+              handle.write(f"- both_equal is zero: {'yes' if counts['both_equal'] == 0 else 'no'}\n")
+              handle.write(f"- both_different is zero: {'yes' if counts['both_different'] == 0 else 'no'}\n")
+              handle.write("- Exact aggregate counts are intentionally not published.\n")
+          PY
+
+      - name: Cleanup private audit output
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${RUNNER_TEMP}/user-activity-schema-audit.json"
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json

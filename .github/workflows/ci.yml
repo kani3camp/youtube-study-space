@@ -29,6 +29,11 @@ on:
           - quota-plan
           - quota-create
           - quota-refresh
+      gcp_user_activity_schema_audit:
+        description: Run the fail-closed development user-activity schema audit
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -598,6 +603,7 @@ jobs:
           python3 .github/scripts/test_terraform_export_topic_gate.py
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
+          python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -661,6 +667,16 @@ jobs:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
 
+  gcp-user-activity-schema-audit:
+    name: GCP User Activity Schema Audit
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-user-activity-schema-audit.yml
+    with:
+      target: dev
+
   ci-gate:
     name: CI Gate
     if: always()
@@ -686,6 +702,7 @@ jobs:
       - docs-site-build
       - aws-cdk-test
       - gcp-terraform-validate
+      - gcp-user-activity-schema-audit
     runs-on: ubuntu-latest
     steps:
       - name: Fail if a CI job failed or was cancelled

@@ -224,7 +224,15 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
         self.assertEqual(self.text.count("id-token: write"), 2)
-        self.assertEqual(self.caller.count("id-token: write"), 1)
+        self.assertEqual(self.caller.count("id-token: write"), 2)
+        terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
+            "\n  gcp-user-activity-schema-audit:\n", 1
+        )[0]
+        audit_call = self.caller.split("  gcp-user-activity-schema-audit:\n", 1)[1].split(
+            "\n  ci-gate:\n", 1
+        )[0]
+        self.assertEqual(terraform_call.count("id-token: write"), 1)
+        self.assertEqual(audit_call.count("id-token: write"), 1)
         preflight = self.text.split("  plan:\n", 1)[0]
         self.assertNotIn("id-token: write", preflight)
 
