@@ -19,7 +19,10 @@ func apiError(code string) error  { return &APIError{Code: code} }
 func errorCode(err error) string {
 	var e *APIError
 	if errors.As(err, &e) {
-		return e.Code
+		switch e.Code {
+		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
+			return e.Code
+		}
 	}
 	return "INTERNAL_ERROR"
 }
@@ -51,6 +54,7 @@ type OAuthTransaction struct {
 }
 
 type WebAccount struct {
+	AccessBlocked        bool       `firestore:"accessBlocked"`
 	PrivacyPolicyVersion string     `firestore:"privacyPolicyVersion"`
 	TermsVersion         string     `firestore:"termsVersion"`
 	PrivacyConsentedAt   time.Time  `firestore:"privacyConsentedAt"`
@@ -231,6 +235,9 @@ func checkTransaction(tx OAuthTransaction, now time.Time, expected string) error
 }
 
 func checkPolicy(account WebAccount, policy Policy) error {
+	if account.AccessBlocked {
+		return apiError("AUTH_REQUIRED")
+	}
 	if account.PrivacyPolicyVersion != policy.Privacy || account.TermsVersion != policy.Terms {
 		return apiError("PRIVACY_RECONSENT_REQUIRED")
 	}

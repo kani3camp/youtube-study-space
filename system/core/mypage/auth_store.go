@@ -197,6 +197,9 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation strin
 		} else if status.Code(err) != codes.NotFound {
 			return fmt.Errorf("read WebAccount: %w", err)
 		}
+		if account.AccessBlocked {
+			return apiError("AUTH_REQUIRED")
+		}
 		account.PrivacyPolicyVersion = value.PrivacyPolicyVersion
 		account.TermsVersion = value.TermsVersion
 		account.PrivacyConsentedAt = value.PrivacyConsentedAt
