@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import availableWire from '../../../../docs/mypage/fixtures/available.json'
+import terminalUnavailable from '../../../../docs/mypage/fixtures/terminal-account-source-unavailable.json'
+import { createLoader } from './client'
 import type { MyPage } from './contract'
 import { MyPageMemory, mergeResponse, RequestError } from './memory'
 
@@ -128,6 +131,38 @@ describe('private MyPage memory', () => {
 			expect(memory.getSnapshot().data?.current.data?.workName).toBe('合成作業')
 			memory.dispose()
 		}
+	})
+
+	it('clears terminal account through the wire parser during work outage while preserving stale work and original times', async () => {
+		let response: unknown = availableWire
+		const memory = new MyPageMemory(
+			createLoader(
+				{
+					currentUID: () => 'synthetic',
+					idToken: async () => 'synthetic-id',
+					appCheck: async () => 'synthetic-app',
+				},
+				async () => Response.json(response),
+			),
+			async () => {},
+		)
+		memory.setIdentity('synthetic')
+		await vi.advanceTimersByTimeAsync(0)
+		const previous = memory.getSnapshot().data
+		expect(previous?.account.data?.displayName).toBe('Sample Channel')
+		response = terminalUnavailable
+		await memory.refresh(true)
+		const cleared = memory.getSnapshot().data
+		expect(cleared?.account.data).toBeNull()
+		expect(cleared?.account.asOf).toBeNull()
+		expect(cleared?.account.reason).toBe('METADATA_TOO_OLD')
+		expect(cleared?.current.data?.workName).toBe('読書')
+		expect(cleared?.current.stale).toBe(true)
+		expect(cleared?.current.asOf).toBe(previous?.current.asOf)
+		expect(cleared?.summary.lifetime.data).toBe(360000)
+		expect(cleared?.summary.lifetime.stale).toBe(true)
+		expect(cleared?.summary.lifetime.asOf).toBe(previous?.summary.lifetime.asOf)
+		memory.dispose()
 	})
 
 	it('honors Retry-After across manual refresh and hide/show, then resumes at the deadline', async () => {
