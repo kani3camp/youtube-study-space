@@ -91,7 +91,9 @@ func validSeat(s WorkSnapshot) bool {
 	}
 	return !s.SeatInconsistent && seat.UserID == s.UID && seat.SeatID > 0 && seat.CumulativeWorkSec >= 0 &&
 		(seat.State == repository.WorkState || seat.State == repository.BreakState) && !seat.EnteredAt.IsZero() &&
-		!seat.CurrentStateStartedAt.Before(seat.EnteredAt) && !seat.CurrentSegmentStartedAt.Before(seat.CurrentStateStartedAt) &&
+		!seat.CurrentStateStartedAt.IsZero() &&
+		(seat.State == repository.BreakState || !seat.CurrentStateStartedAt.Before(seat.EnteredAt)) &&
+		!seat.CurrentSegmentStartedAt.Before(seat.EnteredAt) && !seat.CurrentSegmentStartedAt.Before(seat.CurrentStateStartedAt) &&
 		!seat.CurrentSegmentStartedAt.After(s.AsOf) && !seat.CurrentStateStartedAt.After(s.AsOf)
 }
 

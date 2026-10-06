@@ -32,3 +32,7 @@ Google provider と Firebase token mint は interface として分離し、demo 
 現行 writer は退室時に `users.TotalStudySec` へ入室セッション分を転記する。そのため入室中の lifetime は `TotalStudySec + SeatDoc.CumulativeWorkSec + work 状態の経過秒`。履歴の ongoing 区間は `CurrentSegmentStartedAt` を使い、作業名変更による closed segment と重ねない。break 中もすでに完了した session work は lifetime に残す。
 
 1001件・取得失敗・重複/未来/負の区間・coverage 欠損を正常な0へ変換しない。独立して正しい current / lifetime / account は保持する。この slice は pure calculation の検証であり、実 DB の read-only snapshot adapter と既存 writer の競合整合性検証は次の slice。
+
+## Contract completeness
+
+現時点の6 endpointは通常login用の最初の契約slice。問い合わせ本人確認の `supportChallenge` / purpose binding と Custom Tokenを発行しないsupport confirmは後続契約であり、login-only schemaを最終対応版とは扱わない。
