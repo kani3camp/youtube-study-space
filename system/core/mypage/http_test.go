@@ -129,6 +129,9 @@ func TestHTTPRejectsAmbiguousInput(t *testing.T) {
 		status             int
 	}{
 		{"POST", "/api/auth/youtube/start", "null", 400},
+		{"POST", "/api/auth/youtube/start", `{"supportChallenge":null}`, 400},
+		{"POST", "/api/auth/youtube/start", `{"supportChallenge":"","supportChallenge":"a"}`, 400},
+		{"POST", "/api/auth/youtube/start", `{"targetChannel":"UCsynthetic","purpose":"delete"}`, 400},
 		{"POST", "/api/auth/youtube/start", `{"PrivacyAccepted":true}`, 400},
 		{"POST", "/api/auth/youtube/start", `{"privacyAccepted":false,"privacyAccepted":true}`, 400},
 		{"POST", "/api/auth/youtube/start", `{"returnUrl":"https://example.invalid"}`, 400},

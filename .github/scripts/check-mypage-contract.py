@@ -55,3 +55,29 @@ rejects(lambda x: x["summary"]["data"]["today"].update(availability="unavailable
 rejects(lambda x: x["current"].update(availability="unavailable", reasonCode="SOURCE_UNAVAILABLE"))
 rejects(lambda x: x["current"]["data"].update(breakWorkName="obsolete"))
 print(f"MyPage six-endpoint schema and {len(fixtures)} synthetic fixtures passed")
+
+
+# Purpose is authoritative server-side. A support response cannot carry a login
+# token, and the normal response cannot masquerade as a support proof.
+def contract_validator(name):
+    return jsonschema.Draft202012Validator({"$ref": f"#/components/schemas/{name}", "components": api["components"]}, format_checker=jsonschema.FormatChecker())
+confirm = contract_validator("ConfirmResponse")
+confirm.validate({"purpose": "login", "customToken": "synthetic-custom"})
+confirm.validate({"purpose": "support", "requestRef": "a" * 64})
+for invalid in [{"customToken": "synthetic-custom"}, {"purpose": "support", "customToken": "synthetic-custom", "requestRef": "a" * 64}, {"purpose": "login", "requestRef": "a" * 64}, {"purpose": "support", "requestRef": "not-opaque"}]:
+    assert not confirm.is_valid(invalid)
+channel = contract_validator("ChannelResponse")
+common = {"displayName": "Synthetic channel", "handle": None, "avatarUrl": None, "confirmationRef": "b" * 64}
+channel.validate({**common, "purpose": "login"})
+channel.validate({**common, "purpose": "support", "supportPurpose": "delete"})
+assert not channel.is_valid({**common, "purpose": "support"})
+assert not channel.is_valid({**common, "purpose": "support", "supportPurpose": "login"})
+assert not channel.is_valid({**common, "purpose": "login", "supportPurpose": "delete"})
+start = contract_validator("StartRequest")
+normal = {"privacyPolicyVersion": "synthetic-p1", "privacyAccepted": True, "termsVersion": "synthetic-t1", "termsAccepted": True}
+start.validate(normal)
+start.validate({**normal, "supportChallenge": "c" * 64})
+for invalid in [None, "", "client-channel"]:
+    assert not start.is_valid({**normal, "supportChallenge": invalid})
+assert not start.is_valid({**normal, "targetChannel": "UCsynthetic"})
+print("Login/support discriminated contract and purpose isolation passed")
