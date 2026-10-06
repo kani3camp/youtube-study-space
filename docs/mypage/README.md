@@ -81,7 +81,7 @@ python -m pip install -r visual-requirements.txt
 python scripts/visual-qa.py --output /tmp/mypage-visual-qa
 ```
 
-320/390/768/1024/1440px × 12状態、modal keyboard/logout、avatar画像失敗、時間軸ラベルの端での収まり、初回取得失敗・Skeleton・正常な0を合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。提供されたApproved HTML/runtimeのhash確認と実browser比較は `design/README.md` に記録する。完全pixel parityは未検証で、外部fontは取得しておらずlocal fallbackでのQA。
+320/390/768/1024/1440px × 12状態、modal keyboard/logout、avatar画像失敗、時間軸ラベルの端での収まり、初回取得失敗・Skeleton・正常な0を合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。提供されたApproved HTML/runtimeのhash確認と実browser比較は `design/README.md` に記録する。原本と同じM PLUS Rounded 1cをlocal配信し、撮影前にfont loadを待つ。`python scripts/font-qa.py` は英字・日本語の実custom font / 4weightとload失敗時のfallback、320/390/1440px、account keyboardを確認する。完全pixel parityは確認対象外。
 
 `METADATA_TOO_OLD`は直前成功accountもclearして期限切れmetadataを表示しない。account panelで表示停止の理由を伝える。429 cooldownは共通deadlineに保持し、manual refresh/visibility復帰でも期限前にrequestしない。auth拒否後のsignOut失敗は`LOGOUT_FAILED`を維持し、retryを可能にする。cookie-nameの前後空白を正規化してGo cookie parserと同じ同名cookieを重複拒否する。
 
