@@ -645,3 +645,29 @@ summary {
 	overflow-wrap: anywhere;
 	font-family: monospace;
 }
+
+.consent-banner {
+	max-width: 880px;
+	margin: 24px auto;
+	padding: 24px;
+	border: 1px solid var(--color-line);
+	border-radius: 16px;
+	background: #fffdfa;
+}
+.consent-banner h2 {
+	font-size: 18px;
+}
+.consent-banner p {
+	font-size: 14px;
+	margin-block: 12px;
+}
+@media (max-width: 768px) {
+	.consent-banner {
+		margin-inline: 16px;
+	}
+}
+
+.policy-page h2 {
+	margin-top: 32px;
+	font-size: 20px;
+}

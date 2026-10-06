@@ -128,3 +128,14 @@ support confirmは同じtransactionでOAuth status/ref/同意版、record status
 support入口は既存Firebase sessionでも通常MyPageへredirectせず、fresh OAuthを開始する。不正なchallengeは専用の無効表示を維持し、通常loginへ切り替えない。serverから受け取ったpurposeと公開channel名を確認画面で示し、支援用buttonから確認する。successはopaque参照番号だけを受付画面のmemoryへ渡し、signIn/session-completeや削除実行を呼ばない。参照番号はroute離脱・pagehide・uid変更でclearし、URL/storageへ保存しない。client申告の目的・対象channelをAPIへ送らない。
 
 product HTMLにno-referrerを指定し、support challenge等のqueryを外部遷移のRefererへ載せない。platform access log/CDN/Hosting設定の実確認はsecurity release gateに残す。支援用CLIと受付窓口の実値は未完了で、公開deployはしていない。
+
+
+## Consent and security draft boundary
+
+任意Analyticsはunset / granted / denied。unsetでnonblockingな選択を出し、拒否・未選択でも主要操作を使える。選択したgranted/denied文字列だけをfirst-party storageへ保存し、uid/channel/profileを結び付けない。Cookie設定から変更でき、storage eventによる別tabの拒否でも将来送信を停止する。保存に失敗してもcurrent-pageの選択を適用し、保存失敗を表示する。
+
+AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしない。固定route/titleと完全一致した公開UTM組合せだけを渡し、callback、code/state/error/supportChallenge、任意query/fragment、referrer/title入力や本人dataを渡すAPIを持たない。通常loginの4 eventだけをparameterなしで扱う。GA4実sender/script/identifierは未接続であり、公開済みGA4 Network/console設定を検証したとは扱わない。mandatory Firebase/App Check/reCAPTCHA通信とは別の同意である。
+
+public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01/D02/D03と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
+
+`privacy-qa.py`は設定なしlocalhostのpublic pageと同意UIを実Chromiumで確認する。storageには選択flagだけ、外部requestは遮断・0件。Cookie modalのTab/Escape/focus復帰、実same-origin別tab変更、320/390/1440pxのdraft policyを検証する。実Firebase必須通信/GA4 senderの証拠ではない。

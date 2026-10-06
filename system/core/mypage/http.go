@@ -51,6 +51,9 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Request-Id", requestID)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 	method, known := routeMethods[r.URL.Path]
 	if !known {
 		writeAPIError(w, http.StatusNotFound, "INVALID_REQUEST", requestID)
