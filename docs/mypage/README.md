@@ -36,3 +36,13 @@ Google provider と Firebase token mint は interface として分離し、demo 
 ## Contract completeness
 
 現時点の6 endpointは通常login用の最初の契約slice。問い合わせ本人確認の `supportChallenge` / purpose binding と Custom Tokenを発行しないsupport confirmは後続契約であり、login-only schemaを最終対応版とは扱わない。
+
+## Snapshot adapter and writer ordering
+
+User lookup の `DocumentSnapshot.ReadTime` を取得してから JST query window を決め、User / seats / member-seats / work-segments を同じ read-only transaction で読む。不存在Userでも readTime を維持し、seat/history queryは省略する。seatは各区分2件まで、historyは1001件までで打ち切る。
+
+work-segmentsは user-id equality、ended-at > window start、started-at < asOf を用いる。必要な composite index の候補は `query-index.json`。これは未適用のquery要件であり、既存 firebase config / infrastructureを変更・provisionしたものではない。Ready Gate後のownership確認が必要。
+
+既存 writer の identity/history query は `WorkspaceApp.RunTransaction` が渡すcontext内で同じtransactionへ参加する。外側のquery利用は従来どおり。これにより seat更新と並行する read→write が競合判定される。
+
+移動では old segment close と new seat entry に同じtransition instantを使う。休憩のoriginal startは新seatのentryより前でも正当だが、current segmentはnew seat entry以降でなければならない。過去に記録された重複区間は推測修復・許容せず、影響するhistory metricを `DATA_INCONSISTENT`、独立したcurrent/lifetimeは利用可能な限り維持する。
