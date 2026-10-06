@@ -38,6 +38,13 @@ export class BrowserRuntime {
 	private observedUID: string | null | undefined
 	private reconciledGeneration = -1
 	private restoringController: AbortController | null = null
+	private supportController: AbortController | null = null
+	private lifecycleGeneration = 0
+
+	private invalidateSupport() {
+		this.supportController?.abort()
+		this.supportController = null
+	}
 
 	constructor(
 		session: BrowserSession | null,
@@ -63,6 +70,7 @@ export class BrowserRuntime {
 
 	private observeIdentity(uid: string | null) {
 		if (uid !== this.observedUID) {
+			this.invalidateSupport()
 			this.observedUID = uid
 			this.authGeneration++
 		}
@@ -157,6 +165,8 @@ export class BrowserRuntime {
 			if (active && !this.completingSession) this.restoreIdentity(uid)
 		})
 		const hide = () => {
+			this.lifecycleGeneration++
+			this.invalidateSupport()
 			active = false
 			this.active = false
 			this.restoringController?.abort()
@@ -188,6 +198,8 @@ export class BrowserRuntime {
 		window.addEventListener('pagehide', hide)
 		window.addEventListener('pageshow', show)
 		return () => {
+			this.lifecycleGeneration++
+			this.invalidateSupport()
 			active = false
 			this.active = false
 			this.restoringController?.abort()
@@ -338,6 +350,22 @@ export class BrowserRuntime {
 		signal: AbortSignal,
 		purpose: 'login' | 'support' = 'login',
 	): Promise<ConfirmationResult> {
+		this.invalidateSupport()
+		const supportController =
+			purpose === 'support' ? new AbortController() : null
+		this.supportController = supportController
+		const identityGenerationAtStart = this.authGeneration
+		const lifecycleGeneration = this.lifecycleGeneration
+		const uidAtStart = this.session?.currentUID()
+		const supportSignal = supportController
+			? AbortSignal.any([signal, supportController.signal])
+			: signal
+		const ownsSupport = () =>
+			!supportSignal.aborted &&
+			this.supportController === supportController &&
+			identityGenerationAtStart === this.authGeneration &&
+			lifecycleGeneration === this.lifecycleGeneration &&
+			this.session?.currentUID() === uidAtStart
 		const operation =
 			purpose === 'login'
 				? ++this.confirmationGeneration
@@ -349,10 +377,11 @@ export class BrowserRuntime {
 			'/api/auth/youtube/confirm',
 			'POST',
 			{ confirmationRef },
-			signal,
+			supportSignal,
 		)
 		if (signal.aborted) throw new RequestError(400, 'INVALID_REQUEST')
 		if (purpose === 'support') {
+			if (!ownsSupport()) throw new RequestError(400, 'INVALID_REQUEST')
 			if (
 				!result ||
 				typeof result !== 'object' ||
