@@ -36,8 +36,9 @@ runtimeのtemporary trust/bindings/inputs撤回とSA disableはoperatorのreadba
 具体方針は、schema修復を別approved waveで終えてからcanonical8列をimportする順序です。
 一般の「import first」原則を理由に、Unexpected Driftの9列を新しい正本にしません。
 
-現状9列の取り込みは技術的に別案ですが、環境別timestamp許容、schema ignore、module変更、
-残存driftのownership方針変更が必要で、現在の合意とは異なります。このPRでは実装しません。
+現状9列を正確に定義してno-op importする案は技術的に別案ですが、環境別timestamp許容と
+module/ownership方針の変更が必要で、現在の合意とは異なります。schema ignoreが必須な案では
+ありませんが、ignoreでdriftを隠す案も採用しません。このPRでは9列案を実装しません。
 [module](../modules/retained-user-activity-history/main.tf)とdevelopment adoption gateは変更しません。
 
 ## Offline preparation
