@@ -9,6 +9,7 @@ readonly CI_GROUPS=(
 	video_maker_simulator
 	figma_plugin
 	youtube_monitor
+	mypage
 	docs_site
 	aws_cdk
 	node_projects
@@ -23,6 +24,7 @@ menu_image_generator=false
 video_maker_simulator=false
 figma_plugin=false
 youtube_monitor=false
+mypage=false
 docs_site=false
 aws_cdk=false
 node_projects=false
@@ -52,6 +54,7 @@ set_all_groups() {
 	video_maker_simulator=true
 	figma_plugin=true
 	youtube_monitor=true
+	mypage=true
 	docs_site=true
 	aws_cdk=true
 	node_projects=true
@@ -118,8 +121,12 @@ classify_path() {
 			figma_plugin=true
 			matched=true
 			;;
-		youtube-monitor/*|biome.json)
+		youtube-monitor/*)
 			youtube_monitor=true
+			matched=true
+			;;
+		mypage/*|docs/mypage/*)
+			mypage=true
 			matched=true
 			;;
 		docs-site/*)
@@ -132,6 +139,11 @@ classify_path() {
 			;;
 		aws-cdk/*)
 			aws_cdk=true
+			matched=true
+			;;
+		biome.json)
+			youtube_monitor=true
+			mypage=true
 			matched=true
 			;;
 		.node-version|.nvmrc)
@@ -202,6 +214,7 @@ group_value() {
 		video_maker_simulator) printf '%s' "$video_maker_simulator" ;;
 		figma_plugin) printf '%s' "$figma_plugin" ;;
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
+		mypage) printf '%s' "$mypage" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		node_projects) printf '%s' "$node_projects" ;;
