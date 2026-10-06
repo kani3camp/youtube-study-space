@@ -27,6 +27,9 @@ type HTTPHandler struct {
 	Auth     *AuthService
 	BFF      *BFF
 	Verifier RequestVerifier
+	// One fixed HTTPS origin per environment. Never derive it from request
+	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
+	PublicOrigin string
 	// A deployment may inject an extractor only after verifying its actual
 	// trusted proxy chain. Default ignores all client forwarding headers.
 	RequestIP func(*http.Request) (string, error)
@@ -70,6 +73,15 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
 		return
 	}
+	if err := h.checkRequestOrigin(r); err != nil {
+		code := errorCode(err)
+		writeAPIError(w, statusFor(code), code, requestID)
+		return
+	}
+	if sessionCookieCount(r) > 1 {
+		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
+		return
+	}
 	budget := 5 * time.Second
 	switch r.URL.Path {
 	case "/api/auth/youtube/callback":
@@ -99,6 +111,24 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	now := h.Auth.Now().UTC()
+	ip, err := h.clientIP(r)
+	if err != nil {
+		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
+		return
+	}
+	// Bound rejected-token traffic before either verification dependency. A
+	// process-local uid bucket alone cannot protect unauthenticated failures.
+	if ok, retry := h.limiter.allow("coarse-ip:"+ip, 60, 20, now); !ok {
+		rateError(w, retry, requestID)
+		return
+	}
+	if r.URL.Path == "/api/auth/youtube/start" {
+		if ok, retry := h.limiter.allowStart(ip, now); !ok {
+			rateError(w, retry, requestID)
+			return
+		}
+	}
 	if callback {
 		h.callback(w, r, requestID)
 		return
@@ -108,7 +138,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 403, "APP_CHECK_REQUIRED", requestID)
 		return
 	}
-	now := h.Auth.Now().UTC()
 	authenticated := r.URL.Path == "/api/mypage" || r.URL.Path == "/api/auth/session/complete"
 	var identity VerifiedIdentity
 	var account WebAccount
@@ -150,21 +179,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.BFF.Invalidate(identity.UID)
 			}
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-			return
-		}
-	} else {
-		ip, err := h.clientIP(r)
-		if err != nil {
-			writeAPIError(w, 400, "INVALID_REQUEST", requestID)
-			return
-		}
-		if r.URL.Path == "/api/auth/youtube/start" {
-			if ok, retry := h.limiter.allowStart(ip, now); !ok {
-				rateError(w, retry, requestID)
-				return
-			}
-		} else if ok, retry := h.limiter.allow("auth-ip:"+ip, 60, 20, now); !ok {
-			rateError(w, retry, requestID)
 			return
 		}
 	}
@@ -220,6 +234,24 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, response)
 	}
+}
+
+func (h *HTTPHandler) checkRequestOrigin(r *http.Request) error {
+	configured, err := url.Parse(h.PublicOrigin)
+	if err != nil || configured.Scheme != "https" || configured.Host == "" || configured.User != nil || configured.Path != "" || configured.RawQuery != "" || configured.Fragment != "" {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if !strings.EqualFold(r.Host, configured.Host) || (r.URL.Host != "" && !strings.EqualFold(r.URL.Host, configured.Host)) {
+		return apiError("INVALID_REQUEST")
+	}
+	origins := r.Header.Values("Origin")
+	if len(origins) == 0 && r.Method == http.MethodGet {
+		return nil
+	}
+	if len(origins) != 1 || origins[0] != h.PublicOrigin {
+		return apiError("INVALID_REQUEST")
+	}
+	return nil
 }
 
 func (h *HTTPHandler) clientIP(r *http.Request) (string, error) {
@@ -316,10 +348,23 @@ func transactionID(r *http.Request) string {
 			count++
 		}
 	}
-	if count != 1 || !validOpaque(value) {
+	if count != 1 || sessionCookieCount(r) != 1 || !validOpaque(value) {
 		return ""
 	}
 	return value
+}
+
+func sessionCookieCount(r *http.Request) int {
+	count := 0
+	for _, header := range r.Header.Values("Cookie") {
+		for _, part := range strings.Split(header, ";") {
+			name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+			if name == "__session" {
+				count++
+			}
+		}
+	}
+	return count
 }
 
 func setTransactionCookie(w http.ResponseWriter, id string, age int) {
@@ -345,15 +390,6 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 	code, state, providerError := query.Get("code"), query.Get("state"), query.Get("error")
 	if state == "" || (code == "" && providerError == "") || (code != "" && providerError != "") {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
-		return
-	}
-	ip, err := h.clientIP(r)
-	if err != nil {
-		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
-		return
-	}
-	if ok, retry := h.limiter.allow("callback-ip:"+ip, 60, 20, h.Auth.Now().UTC()); !ok {
-		rateError(w, retry, requestID)
 		return
 	}
 	err = h.Auth.Callback(r.Context(), transactionID(r), state, code, providerError != "")

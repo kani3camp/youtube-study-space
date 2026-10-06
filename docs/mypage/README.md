@@ -54,3 +54,7 @@ work-segmentsは user-id equality、ended-at > window start、started-at < asOf 
 aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は独自10秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
 
 rate limitはprocess単位のbounded memory。deploymentの全体limit、trusted proxy IP抽出、実provider/verifier/minter、server起動とHosting rewriteの結線は未実装。`accessBlocked`のread guardだけで全writer/cache/in-flight deletionのD01要件を満たしたとは扱わない。support purposeとprivacy運用も引き続き独立した完了条件。
+
+HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし、対象外Host、別origin/OriginなしのPOST、重複Originと重複`__session`をdependency検証・OAuth mutation前に拒否する。callback GETはOriginなしを許すが固定Hostの検証を省略しない。clientのX-Forwarded-Host / Proto / Forで許可先やdefault IPを変更しない。Hostingから届く実Hostの確認はdeployment gateに残す。
+
+すべてのrouteにcoarse IP bucket（60/min、burst20）をverification前に置き、invalid App Check / ID tokenの連投も制限する。startの5/10min・20/hour制限もこの位置で行う。verified uid制限とatomic transaction consumeは別に維持する。
