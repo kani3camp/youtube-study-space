@@ -211,7 +211,7 @@ Firestore emulatorでは構築したserverからsigned App Check＋fake Auth SDK
 
 公開metadataはserver-only API keyの固定YouTube endpointから取得し、OAuth tokenを使わない。lookupは1秒に制限し、redirectを追わず、request URL/raw errorを公開しない。Firestoreの実document revisionとpolicy/access状態をtransactionで確認し、既存accountの公開metadataだけを更新する。外部callはtransactionの外で行い、accountを新規作成しない。
 
-30日経過したmetadataはlookupの前に同じrevision guardで除去し、同意・account identity・元の取得日時を維持する。認証/同意が失効した場合はsnapshot取得前に停止する。上流失敗はpartial/unavailableとし0へ変換しない。mock wireとemulatorで同時login、削除、block、policy変更、期限境界、古い応答の拒否を検証する。
+30日経過したmetadataはlookupの前に同じrevision guardで除去し、同意・account identityを維持し、metadataFetchedAtもclearする。認証/同意が失効した場合はsnapshot取得前に停止する。上流失敗はpartial/unavailableとし0へ変換しない。mock wireとemulatorで同時login、削除、block、policy変更、期限境界、古い応答の拒否を検証する。
 
 server entrypointは任意のserver-only MYPAGE_YOUTUBE_API_KEYが設定された場合だけadapterを接続する。実keyの設定・Google接続は行っていない。戻らないaccountのmetadata保持期限を守るbackground jobは別の運用準備が必要。
 

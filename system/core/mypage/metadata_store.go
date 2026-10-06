@@ -53,9 +53,9 @@ func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expec
 	return refreshed, nil
 }
 
-// ExpireMetadata strips only expired public YouTube metadata, retaining the
-// original fetched timestamp, consent and account identity. It is not account
-// deletion or an operator privacy-request execution method.
+// ExpireMetadata clears expired public metadata and its fetched timestamp,
+// retaining consent and account identity. It is not account deletion or an
+// operator privacy-request execution method.
 func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, now time.Time) (WebAccount, error) {
 	if !youtubeChannelID.MatchString(uid) || expected.Revision.IsZero() {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
@@ -79,10 +79,7 @@ func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, exp
 		if !doc.UpdateTime.Equal(expected.Revision) || current.MetadataFetchedAt.IsZero() || now.Sub(current.MetadataFetchedAt) < 30*24*time.Hour {
 			return apiError("TEMPORARY_UNAVAILABLE")
 		}
-		if current.DisplayName == "" && current.Handle == nil && current.AvatarURL == nil {
-			return nil
-		}
-		if err := tx.Update(ref, []firestore.Update{{Path: "displayName", Value: ""}, {Path: "handle", Value: nil}, {Path: "avatarUrl", Value: nil}, {Path: "updatedAt", Value: now}}); err != nil {
+		if err := tx.Update(ref, []firestore.Update{{Path: "displayName", Value: ""}, {Path: "handle", Value: nil}, {Path: "avatarUrl", Value: nil}, {Path: "metadataFetchedAt", Value: firestore.Delete}, {Path: "updatedAt", Value: now}}); err != nil {
 			return fmt.Errorf("expire public metadata: %w", err)
 		}
 		return nil
