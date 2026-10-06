@@ -182,14 +182,16 @@ export class AnalyticsGate {
 	}
 }
 
-export function createPrivacy() {
+export function createPrivacy(
+	existingConsent?: ConsentStore,
+	port: AnalyticsPort | null = null,
+) {
 	let storage: PreferenceStorage | null = null
 	try {
 		storage = window.localStorage
 	} catch {
 		/* Consent UI works in memory when unavailable. */
 	}
-	const consent = new ConsentStore(storage)
-	// No GA4 script/ping/identifier exists until an approved transport is wired.
-	return { consent, analytics: new AnalyticsGate(consent) }
+	const consent = existingConsent ?? new ConsentStore(storage)
+	return { consent, analytics: new AnalyticsGate(consent, port) }
 }

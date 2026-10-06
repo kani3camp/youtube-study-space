@@ -214,3 +214,14 @@ Firestore emulatorでは構築したserverからsigned App Check＋fake Auth SDK
 30日経過したmetadataはlookupの前に同じrevision guardで除去し、同意・account identity・元の取得日時を維持する。認証/同意が失効した場合はsnapshot取得前に停止する。上流失敗はpartial/unavailableとし0へ変換しない。mock wireとemulatorで同時login、削除、block、policy変更、期限境界、古い応答の拒否を検証する。
 
 server entrypointは任意のserver-only MYPAGE_YOUTUBE_API_KEYが設定された場合だけadapterを接続する。実keyの設定・Google接続は行っていない。戻らないaccountのmetadata保持期限を守るbackground jobは別の運用準備が必要。
+
+
+## Consent-bound GA4 loader
+
+ConsentTagはgrantedのときだけbrowser loaderを開始し、ロード前/途中のeventを保存・再送しない。撤回/unmountでsenderを停止しpending commandを消し、古いloadの成功/失敗が新しい同意世代を変更しない。browserTagLoaderは専用の単一data layerを使い、safe consent/configをscript挿入前に用意し、固定gtag.js URLとno-referrer、5秒期限を使う。shared tag/globalの既存所有を拒否する。撤回後の再同意は既にロードしたscriptを再取得しない。
+
+productへの結線はVITE_MYPAGE_ANALYTICS_READY=true、公開measurement IDのVITE_MYPAGE_GA4_ID、現在originと一致するVITE_MYPAGE_PUBLIC_ORIGINが明示されたときだけ有効。これらはsecretではない。未設定ではtransportなしを維持し、同意の選択自体は使える。flagはConsole/通信inventory承認を代替しない。
+
+unitで同意前/ロード中の非送信、撤回/再同意と古いload、失敗/期限/unmount、queue消去を検証する。local Chromiumではgtag.jsをローカルfake responseへ差し替え、script前のsafe引数、no-referrer、将来eventだけの送信、撤回/再同意を検証した。実vendorの通信・自動event・保持設定は検証していない。script除去は既に実行したvendor codeを取り消せないため、Enhanced Measurement等のConsole設定と実Network検証は公開前のgate。
+
+一次資料: [Google tagの設置](https://developers.google.com/tag-platform/gtagjs)、[単一data layerと名称変更](https://developers.google.com/tag-platform/devguides/datalayer)、[pageview制御](https://developers.google.com/analytics/devguides/collection/ga4/views)。
