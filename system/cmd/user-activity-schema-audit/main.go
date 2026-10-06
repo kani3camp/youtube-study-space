@@ -77,7 +77,7 @@ func run(ctx context.Context, args []string) error {
 }
 
 func prepareAudit(ctx context.Context, args []string) (auditConfig, error) {
-	if len(args) != 5 {
+	if len(args) != 4 {
 		return auditConfig{}, usageError()
 	}
 
@@ -87,7 +87,7 @@ func prepareAudit(ctx context.Context, args []string) (auditConfig, error) {
 	if workingRegion == "" {
 		return auditConfig{}, errors.New("BigQuery location is required")
 	}
-	budget := strings.TrimSpace(args[4])
+	budget := strings.TrimSpace(os.Getenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED"))
 	if budget == "" || strings.IndexFunc(budget, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
 		return auditConfig{}, errors.New("audit maximum bytes billed must be an explicit positive decimal integer")
 	}
@@ -162,5 +162,5 @@ func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (a
 }
 
 func usageError() error {
-	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id> <bigquery-location> <maximum-bytes-billed>")
+	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id> <bigquery-location>; USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED is required")
 }

@@ -33,7 +33,6 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
 
     def test_query_budget_is_explicit_and_bounded(self) -> None:
         self.assertIn('USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED: "1073741824"', self.text)
-        self.assertIn('"${USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED}"', self.text)
         self.assertNotIn("--dry_run", self.text)
         self.assertNotIn("DryRun", self.text)
 

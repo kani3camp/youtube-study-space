@@ -4,9 +4,10 @@
 row sample、user ID、timestamp sampleを出力しません。実行には別途data-access/query承認が必要です。
 
 ```sh
+USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED=1073741824 \
 CREDENTIAL_FILE_LOCATION="$GOOGLE_APPLICATION_CREDENTIALS" \
   go run ./cmd/user-activity-schema-audit \
-    development test-youtube-study-space asia-southeast2 1073741824
+    development test-youtube-study-space asia-southeast2
 ```
 
 `.env`は読みません。credential fileの場所とBigQuery locationを明示します。
@@ -32,7 +33,7 @@ BigQuery queryを行わずに、projectless credentialの読み取りと起動�
 
 ## Query budget and dry-run boundary
 
-`maximum-bytes-billed`は必須のpositive decimal integerで、hard ceilingは1 GiB
+`USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED`は必須のpositive decimal integerで、hard ceilingは1 GiB
 (`1073741824` bytes)です。未指定・zero・negative・overflow・上限超過はcredential読取前に
 拒否します。workflowもこの上限を明示し、query requestの`maximumBytesBilled`へ設定します。
 これは次のcost承認候補であり、実queryの承認ではありません。低い明示budgetも指定できます。
