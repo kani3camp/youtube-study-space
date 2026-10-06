@@ -80,6 +80,26 @@ jobs:
             system/go.sum
             system/go.mod
 
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_AUDIT_SA: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          [[ "${PRIVATE_WIF_PROVIDER}" =~ ^projects/[0-9]+/locations/global/workloadIdentityPools/[a-z0-9-]+/providers/[a-z0-9-]+$ ]] && \
+            [[ "${PRIVATE_AUDIT_SA}" =~ ^[a-z0-9-]+@test-youtube-study-space\.iam\.gserviceaccount\.com$ ]] || {
+              echo "::error::Missing or invalid dedicated audit identity configuration."
+              exit 1
+            }
+          for value in "${PRIVATE_WIF_PROVIDER}" "${PRIVATE_AUDIT_SA}" "${PRIVATE_AUDIT_SA%%@*}"; do
+            echo "::add-mask::${value}"
+          done
+          IFS=/ read -r _ project_number _ _ _ pool_id _ provider_id <<< "${PRIVATE_WIF_PROVIDER}"
+          for value in "${project_number}" "${pool_id}" "${provider_id}"; do
+            echo "::add-mask::${value}"
+          done
+
       - name: Configure dedicated GCP audit credential
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
@@ -99,67 +119,29 @@ jobs:
           set -euo pipefail
           : "${GOOGLE_APPLICATION_CREDENTIALS:?missing GCP audit credential file}"
           umask 077
-          CREDENTIAL_FILE_LOCATION="${GOOGLE_APPLICATION_CREDENTIALS}" \
+          if ! CREDENTIAL_FILE_LOCATION="${GOOGLE_APPLICATION_CREDENTIALS}" \
             go run ./cmd/user-activity-schema-audit \
               development \
               test-youtube-study-space \
               asia-southeast2 \
-              >"${RUNNER_TEMP}/user-activity-schema-audit.json"
+              >"${RUNNER_TEMP}/user-activity-schema-audit.json" \
+              2>"${RUNNER_TEMP}/user-activity-schema-audit.stderr"; then
+            echo "::error::Schema audit failed. Private output is intentionally not printed."
+            exit 1
+          fi
 
       - name: Publish sanitized audit decision only
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["RUNNER_TEMP"]) / "user-activity-schema-audit.json"
-          payload = json.loads(path.read_text(encoding="utf-8"))
-
-          if payload.get("mode") != "read-only-aggregate":
-              raise SystemExit("unexpected audit mode")
-          target = payload.get("target", {})
-          if target.get("environment") != "development":
-              raise SystemExit("unexpected audit environment")
-          if target.get("project_id") != "test-youtube-study-space":
-              raise SystemExit("unexpected audit project")
-          if target.get("dataset") != "firestore_export":
-              raise SystemExit("unexpected audit dataset")
-          if target.get("table") != "user-activity-history":
-              raise SystemExit("unexpected audit table")
-
-          audit = payload.get("audit", {})
-          keys = ("legacy_non_null", "legacy_only", "both_equal", "both_different")
-          counts = {}
-          for key in keys:
-              value = audit.get(key)
-              if not isinstance(value, int) or value < 0:
-                  raise SystemExit(f"invalid aggregate field: {key}")
-              counts[key] = value
-
-          if audit.get("canonical") and audit.get("has_legacy_timestamp"):
-              raise SystemExit("inconsistent canonical/legacy flags")
-          if not audit.get("has_taken_at"):
-              raise SystemExit("canonical taken_at field is absent")
-
-          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
-          with summary.open("a", encoding="utf-8") as handle:
-              handle.write("## Development user-activity schema audit\n\n")
-              handle.write("- Scope: aggregate-only / read-only\n")
-              handle.write(f"- Legacy timestamp present: {'yes' if audit.get('has_legacy_timestamp') else 'no'}\n")
-              handle.write(f"- legacy_non_null is zero: {'yes' if counts['legacy_non_null'] == 0 else 'no'}\n")
-              handle.write(f"- legacy_only is zero: {'yes' if counts['legacy_only'] == 0 else 'no'}\n")
-              handle.write(f"- both_equal is zero: {'yes' if counts['both_equal'] == 0 else 'no'}\n")
-              handle.write(f"- both_different is zero: {'yes' if counts['both_different'] == 0 else 'no'}\n")
-              handle.write("- Exact aggregate counts are intentionally not published.\n")
-          PY
+          python3 infra/gcp/scripts/schema_audit_summary.py \
+            "${RUNNER_TEMP}/user-activity-schema-audit.json" \
+            "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup private audit output
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          rm -f "${RUNNER_TEMP}/user-activity-schema-audit.json"
+          rm -f "${RUNNER_TEMP}/user-activity-schema-audit.json" "${RUNNER_TEMP}/user-activity-schema-audit.stderr"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
