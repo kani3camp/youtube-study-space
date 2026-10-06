@@ -73,3 +73,21 @@ type Response struct {
 	Recent7Days RecentSection    `json:"recent7Days"`
 	Account     Section[Account] `json:"account"`
 }
+
+func ptr[T any](v T) *T { return &v }
+
+func valueMetric(seconds int64) Metric {
+	return Metric{Availability: Available, WorkSec: ptr(seconds)}
+}
+
+func missingMetric(reason string) Metric {
+	return Metric{Availability: Unavailable, ReasonCode: ptr(reason)}
+}
+
+func availableSection[T any](v T) Section[T] {
+	return Section[T]{Availability: Available, Data: &v}
+}
+
+func missingSection[T any](reason string) Section[T] {
+	return Section[T]{Availability: Unavailable, ReasonCode: &reason}
+}
