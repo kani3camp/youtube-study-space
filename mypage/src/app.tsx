@@ -430,6 +430,9 @@ export function createApp(
 				c.abort()
 				setChannel(null)
 				setBusy(false)
+				setError(
+					'確認が中断されました。下のリンクから手続きをやり直してください。',
+				)
 			}
 			const unsubscribe = runtime.session?.subscribe((uid) => {
 				if (uid !== previousUID && supportConfirmation.current) invalidate()

@@ -166,3 +166,18 @@ wire request、scope不足、期限切れtoken、channel曖昧さ、metadata形�
 このadapterはproductへ未接続で、gtag.js loader/dataLayer/vendor通信を含まない。mockはcommand引数とdisable順序を検証するだけで、実GA4の非送信を証明しない。実loaderでは同意の世代変更後に遅延load callbackを破棄し、queueを再送しないことが必要。ConsoleでEnhanced Measurementのhistory pageview等の自動collectionを無効化し、他tag/pluginを含めたinventoryを確認する必要がある。send_page_view=falseだけではhistory pageviewを防げない。14か月保持・保持reset OFFと、同意前/拒否後のNetwork検証はrelease gateに残る。
 
 一次資料: [GA4 configuration](https://developers.google.com/analytics/devguides/collection/ga4/reference/config)、[manual pageviewsとhistory measurement](https://developers.google.com/analytics/devguides/collection/ga4/views)、[Consent mode](https://developers.google.com/tag-platform/security/guides/consent)。実GA4 Network/Console/自動event/再同意は未検証であり、公開deployはしていない。
+
+
+## Confirmation return after bfcache
+
+channel確認画面でpagehide/identity変更が起きたらpending確認をabortし、旧channelをclearして中断理由と既存の再開始導線を表示する。bfcacheでmounted画面へ戻っても待機表示を続けず、旧成功応答のreceipt復活・遷移を抑止する。通常loginはloginからやり直し、supportは受付窓口へ戻る。
+
+`bfcache-qa.py`は実cross-document離脱→戻るでpageshow.persisted=trueを必須とし、通常/support × pending有無の4ケースで中断表示、再開始操作、旧応答の非復活を確認する。HMRを含むdev serverではなく、専用の合成静的buildで検証する。通常production buildの入口とは独立しdeployしない。
+
+```sh
+cd mypage
+pnpm exec vite build --config scripts/bfcache.vite.config.ts
+python -m http.server 18082 --bind 127.0.0.1 --directory /tmp/mypage-bfcache-qa
+# 別shell
+python scripts/bfcache-qa.py
+```
