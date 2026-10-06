@@ -64,6 +64,12 @@ export function ExternalLink({
 
 function StaleNote({ value }: { value: Retained<unknown> }) {
 	if (!value.stale) return null
+	if (value.reason === 'METADATA_TOO_OLD')
+		return (
+			<p className="stale-note" role="status">
+				チャンネル情報の有効期限が切れました。再取得まで表示できません。
+			</p>
+		)
 	return (
 		<p className="stale-note">
 			{value.data === null
@@ -309,14 +315,15 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 }
 
 function AccountPanel({
-	account,
+	value,
 	close,
 	logout,
 }: {
-	account: Account | null
+	value: Retained<Account> | undefined
 	close: () => void
 	logout: () => void
 }) {
+	const account = value?.data ?? null
 	const dialog = useRef<HTMLDialogElement>(null)
 	useEffect(() => {
 		dialog.current?.showModal()
@@ -364,6 +371,7 @@ function AccountPanel({
 				{account?.displayName ?? 'チャンネル情報を取得できませんでした'}
 			</p>
 			{account?.handle && <p className="muted">{account.handle}</p>}
+			{value && <StaleNote value={value} />}
 			<button
 				className="button primary full-width"
 				type="button"
@@ -512,7 +520,11 @@ export function MyPageView({
 				<a href="/contact">お問い合わせ</a>
 			</footer>
 			{panelOpen && privateVisible && (
-				<AccountPanel account={account} close={closePanel} logout={logout} />
+				<AccountPanel
+					value={data?.account}
+					close={closePanel}
+					logout={logout}
+				/>
 			)}
 		</div>
 	)

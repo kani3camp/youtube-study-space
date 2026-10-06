@@ -7,7 +7,7 @@ parser.add_argument('--output',default='/tmp/mypage-visual-qa')
 parser.add_argument('--chromium',default='/usr/bin/chromium')
 args=parser.parse_args()
 out=Path(args.output);out.mkdir(parents=True,exist_ok=True)
-states=['work','break','not-seated','unregistered','long','overdue','zero','loading','failure','refresh-failure','metadata-failure']
+states=['work','break','not-seated','unregistered','long','overdue','zero','loading','failure','refresh-failure','metadata-failure','metadata-expired']
 results=[]
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path=args.chromium,headless=True,args=['--no-sandbox'])
@@ -31,6 +31,13 @@ with sync_playwright() as p:
    if state in ['work','break','long','failure'] and width in [320,390,1440]:
     page.screenshot(path=str(out/f'{state}-{width}.png'),full_page=True)
    results.append({'width':width,'state':state,'horizontalOverflow':False,'pageErrors':0})
+ # Expired metadata must clear a previous successful value and explain why.
+ page.goto('http://127.0.0.1:18081/visual.html?state=metadata-expired')
+ page.get_by_role('button',name='アカウントを開く').click()
+ assert page.get_by_text('Sample Channel',exact=True).count()==0
+ assert page.get_by_text('@sample',exact=True).count()==0
+ assert page.get_by_text('チャンネル情報の有効期限が切れました。再取得まで表示できません。',exact=True).count()==1
+ page.keyboard.press('Escape')
  # native modal, focus containment, Escape restoration, keyboard-selected zero.
  for width in [390,1440]:
   page.set_viewport_size({'width':width,'height':960})
@@ -53,4 +60,4 @@ with sync_playwright() as p:
  browser.close()
 report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'externalRequestsBlocked':True,'approvedRuntimeMissing':'support.js is absent from the approved Git export; pixel parity unavailable'}
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
-print('PASS: 55 responsive/state cases; native modal focus/Escape/zero-selection/logout at 390 and 1440. Approved runtime gap recorded.')
+print('PASS: 60 responsive/state cases; native modal focus/Escape/zero-selection/logout at 390 and 1440. Approved runtime gap recorded.')

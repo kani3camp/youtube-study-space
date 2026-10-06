@@ -19,6 +19,7 @@ func TestHTTPRejectsForeignOriginHostAndAmbiguousCookieBeforeVerification(t *tes
 		{"off-host-callback", "GET", "/api/auth/youtube/callback?state=s&code=c", "other.example.test", nil, nil},
 		{"duplicate-cookie", "POST", "/api/auth/youtube/start", "mypage.example.test", []string{"https://mypage.example.test"}, []string{"__session=" + strings.Repeat("a", 64), "__session=" + strings.Repeat("b", 64)}},
 		{"malformed-duplicate-cookie", "POST", "/api/auth/youtube/start", "mypage.example.test", []string{"https://mypage.example.test"}, []string{"__session=" + strings.Repeat("a", 64) + "; __session"}},
+		{"whitespace-duplicate-cookie", "POST", "/api/auth/youtube/start", "mypage.example.test", []string{"https://mypage.example.test"}, []string{"__session=" + strings.Repeat("a", 64) + "; __session =" + strings.Repeat("b", 64)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h, s, v, reads := boundaryFixture()
