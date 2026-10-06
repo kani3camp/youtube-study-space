@@ -49,7 +49,10 @@ describe('browser authentication runtime', () => {
 		let complete = 0
 		const request = vi.fn<typeof fetch>(async (path) => {
 			if (path === '/api/auth/youtube/confirm')
-				return Response.json({ customToken: 'synthetic-custom' })
+				return Response.json({
+					purpose: 'login',
+					customToken: 'synthetic-custom',
+				})
 			if (path === '/api/auth/session/complete') {
 				complete++
 				return complete < 3
@@ -91,7 +94,7 @@ describe('browser authentication runtime', () => {
 		session.signOut = signOut
 		const request = vi.fn<typeof fetch>(async (path) =>
 			path === '/api/auth/youtube/confirm'
-				? Response.json({ customToken: 'synthetic-custom' })
+				? Response.json({ purpose: 'login', customToken: 'synthetic-custom' })
 				: Response.json(
 						{ error: { code: 'WEB_ACCOUNT_REQUIRED' } },
 						{ status: 409 },
@@ -131,7 +134,9 @@ describe('browser authentication runtime', () => {
 		const done = runtime.confirm('a'.repeat(64), controller.signal)
 		await settle()
 		controller.abort()
-		resolve(Response.json({ customToken: 'synthetic-custom' }))
+		resolve(
+			Response.json({ purpose: 'login', customToken: 'synthetic-custom' }),
+		)
 		await expect(done).rejects.toBeInstanceOf(RequestError)
 		expect(session.signIn).not.toHaveBeenCalled()
 	})
@@ -143,7 +148,7 @@ describe('browser authentication runtime', () => {
 		})
 		const request = vi.fn<typeof fetch>(async (path) =>
 			path === '/api/auth/youtube/confirm'
-				? Response.json({ customToken: 'synthetic-custom' })
+				? Response.json({ purpose: 'login', customToken: 'synthetic-custom' })
 				: pending,
 		)
 		const runtime = new BrowserRuntime(
@@ -160,6 +165,36 @@ describe('browser authentication runtime', () => {
 		await expect(done).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
 		expect(session.signOut).not.toHaveBeenCalled()
 		expect(session.currentUID()).toBe('newer-synthetic')
+	})
+	it('never treats support proof as a normal login token or channel confirmation', async () => {
+		const { session } = sessionFixture()
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			vi.fn<typeof fetch>(async (path) =>
+				path === '/api/auth/youtube/channel'
+					? Response.json({
+							purpose: 'support',
+							supportPurpose: 'delete',
+							displayName: 'Synthetic channel',
+							handle: null,
+							avatarUrl: null,
+							confirmationRef: 'a'.repeat(64),
+						})
+					: Response.json({
+							purpose: 'support',
+							requestRef: 'b'.repeat(64),
+							customToken: 'synthetic-invalid',
+						}),
+			),
+		)
+		await expect(
+			runtime.channel(new AbortController().signal),
+		).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
+		await expect(
+			runtime.confirm('a'.repeat(64), new AbortController().signal),
+		).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
+		expect(session.signIn).not.toHaveBeenCalled()
 	})
 	it('never redirects an authorization URL to an arbitrary host', async () => {
 		const { session } = sessionFixture()

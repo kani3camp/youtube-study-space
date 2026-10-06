@@ -160,3 +160,34 @@ func (s *FirestoreSupportStore) Reissue(ctx context.Context, requestRef string, 
 	}
 	return challenge, nil
 }
+
+func checkSupportBinding(value SupportRequest, binding SupportBinding, environment string, now time.Time) error {
+	if binding.Environment != environment || binding.RequestID != value.RequestID || binding.Purpose != value.Purpose {
+		return apiError("SUPPORT_CHALLENGE_INVALID")
+	}
+	return checkSupport(value, environment, binding.ChallengeHash, now)
+}
+
+func (s *FirestoreSupportStore) CheckBinding(ctx context.Context, binding SupportBinding, channel string, now time.Time) error {
+	ref, err := s.recordRef(binding.RequestRef)
+	if err != nil {
+		return err
+	}
+	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		value, err := readSupportRecord(tx, ref)
+		if err != nil {
+			return err
+		}
+		if err := checkSupportBinding(value, binding, s.Environment, now); err != nil {
+			return err
+		}
+		if value.TargetChannel != channel {
+			return apiError("SUPPORT_CHANNEL_MISMATCH")
+		}
+		return nil
+	}, firestore.ReadOnly)
+	if err != nil {
+		return fmt.Errorf("check bound support request: %w", err)
+	}
+	return nil
+}

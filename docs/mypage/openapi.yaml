@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MyPage internal API
-  version: 0.1.0
+  version: 0.2.0
 servers:
 - url: /
 paths:
@@ -96,8 +96,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StartRequest'
-      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
-        parameters; authenticated identity is verified custom-provider uid only.
+      description: Optional supportChallenge resolves a server-owned request; browser
+        cannot choose target or purpose. Fresh OAuth transaction expires after 10
+        minutes.
   /api/auth/youtube/callback:
     get:
       operationId: completeYouTubeOAuth
@@ -166,8 +167,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelResponse'
-      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
-        parameters; authenticated identity is verified custom-provider uid only.
+      description: Purpose and public channel metadata bind to confirmationRef. Support
+        purpose comes only from the server record; no internal target channel ID is
+        exposed.
   /api/auth/youtube/confirm:
     post:
       operationId: confirmChannel
@@ -205,8 +207,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ConfirmRequest'
-      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
-        parameters; authenticated identity is verified custom-provider uid only.
+      description: Atomically consumes the transaction. Login mints once outside the
+        transaction. Support verifies the fresh channel and server purpose once, returns
+        an opaque requestRef, never mints a Firebase token or changes WebAccount.
   /api/auth/session/complete:
     post:
       operationId: completeFirebaseSession
@@ -628,6 +631,9 @@ components:
           minLength: 1
         termsAccepted:
           const: true
+        supportChallenge:
+          type: string
+          pattern: ^[a-f0-9]{64}$
       required:
       - privacyPolicyVersion
       - privacyAccepted
@@ -648,20 +654,48 @@ components:
       - authorizationUrl
       - expiresAt
     ChannelResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        displayName: *id016
-        handle: *id017
-        avatarUrl: *id018
-        confirmationRef:
-          type: string
-          minLength: 1
-      required:
-      - displayName
-      - handle
-      - avatarUrl
-      - confirmationRef
+      oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: &id019
+            type: string
+            minLength: 1
+          purpose:
+            const: login
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: *id019
+          purpose:
+            const: support
+          supportPurpose:
+            type: string
+            enum:
+            - delete
+            - revoke
+            - disclosure
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+        - supportPurpose
+      discriminator:
+        propertyName: purpose
     ConfirmRequest:
       type: object
       additionalProperties: false
@@ -672,14 +706,31 @@ components:
       required:
       - confirmationRef
     ConfirmResponse:
-      type: object
-      additionalProperties: false
-      properties:
-        customToken:
-          type: string
-          minLength: 1
-      required:
-      - customToken
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - customToken
+        properties:
+          purpose:
+            const: login
+          customToken:
+            type: string
+            minLength: 1
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - requestRef
+        properties:
+          purpose:
+            const: support
+          requestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+      discriminator:
+        propertyName: purpose
     Error:
       type: object
       additionalProperties: false

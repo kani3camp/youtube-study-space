@@ -35,7 +35,7 @@ Google provider と Firebase token mint は interface として分離し、demo 
 
 ## Contract completeness
 
-現時点の6 endpointは通常login用の最初の契約slice。問い合わせ本人確認の `supportChallenge` / purpose binding と Custom Tokenを発行しないsupport confirmは後続契約であり、login-only schemaを最終対応版とは扱わない。
+6 endpointはlogin/supportをpurposeで区別する契約。任意supportChallengeはserver recordへ照合し、support confirmはCustom Tokenを返さない。Frontend support flowとoperator lifecycleは独立した未完了条件。
 
 ## Snapshot adapter and writer ordering
 
@@ -112,3 +112,12 @@ support本人確認は準備中と明示し通常loginへ流さない。privacy 
 SupportBindingはrecord reference / request ID / environment / purpose / challenge hashを保持するserver-only値。reissue前のbinding・目的違い・environment違い・対象channel違い・期限境界・proof replayは拒否する。proof成功はchallengeをconsumeするが、削除実行の承認ではない。完了recordへのpure transitionはchannel/challenge/proof/OAuth referenceを取り除き、最小の匿名監査用時刻を残す。
 
 このsliceはrecord storageとpure state transitionまで。OAuth transactionとのatomic consume、confirm responseのpurpose union、support browser flow、operator CLI、完了時のOAuth record消去/retentionと実削除・revoke・開示実行は後続。D01削除guardを代替せず、既存users/seat/history/Auth userを変更しない。実環境でrecordを作成していない。callerのproject/credential/production確認はReady Gate後のoperator boundaryで実装する。
+
+
+## Support OAuth atomic boundary
+
+startの任意supportChallengeをserver recordへ解決し、同じFirestore transactionで有効bindingを確認してOAuth recordを作る。request ID/environment/purpose/challenge hashをOAuthへ固定する。channelは固定purposeとfresh OAuthで得たpublic metadataだけを返す。clientからtarget channel/purposeを受け取らない。
+
+support confirmは同じtransactionでOAuth status/ref/同意版、record status/environment/request ID/purpose/旧challenge無効化/対象channel/期限を検証し、SupportRequestへproofを一度記録してOAuthとchallengeをconsumeする。独立した二つのfresh OAuth transactionからも同一依頼のproofは一回のみ。成功responseは`purpose=support`とopaque requestRefであり、Custom Token mint、WebAccount作成、Firebase session completion、ユーザーデータ削除は実行しない。normal consumeへの迂回もstoreで拒否する。OAuth内のchannel metadata/state/refはconsume時にclearする。
+
+通常responseもpurpose=loginを明示する。OpenAPIはchannel/confirmのdiscriminated unionを検証する。frontendの通常login adapterはsupport responseを受け付けず、support目的を通常login画面で確認してしまう経路を閉じる。支援用UIは次slice、完了後のrecord/関連OAuth cleanupとoperator CLIは後続。D01/D02/D03/Ready Gateは継続して未完了。

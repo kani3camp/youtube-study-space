@@ -57,13 +57,17 @@ if (import.meta.env.DEV) {
 			)
 		if (path === '/api/auth/youtube/channel')
 			return Response.json({
+				purpose: 'login',
 				displayName: 'Sample Channel',
 				handle: '@sample',
 				avatarUrl: null,
 				confirmationRef: 'a'.repeat(64),
 			})
 		if (path === '/api/auth/youtube/confirm')
-			return Response.json({ customToken: 'synthetic-custom' })
+			return Response.json({
+				purpose: 'login',
+				customToken: 'synthetic-custom',
+			})
 		if (path === '/api/auth/session/complete')
 			return new Response(null, { status: 204 })
 		if (path === '/api/auth/youtube/start')

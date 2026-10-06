@@ -46,6 +46,9 @@ func (s *FirestoreAuthStore) readTransaction(tx *firestore.Transaction, ref *fir
 }
 
 func (s *FirestoreAuthStore) Create(ctx context.Context, id, previous string, value OAuthTransaction, now time.Time) error {
+	if transactionPurpose(value) != "login" || value.Support != nil {
+		return apiError("SUPPORT_CHALLENGE_INVALID")
+	}
 	ref, err := s.transactionRef(id)
 	if err != nil {
 		return err
@@ -177,6 +180,9 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation strin
 		}
 		if err := checkTransaction(value, now, "channel_verified"); err != nil {
 			return err
+		}
+		if transactionPurpose(value) != "login" || value.Support != nil {
+			return apiError("SUPPORT_CHALLENGE_INVALID")
 		}
 		if subtle.ConstantTimeCompare([]byte(value.ConfirmationRef), []byte(confirmation)) != 1 {
 			return apiError("OAUTH_TRANSACTION_CHANGED")

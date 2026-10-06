@@ -12,6 +12,7 @@ export type BrowserSession = TokenSource & {
 	signOut: () => Promise<void>
 }
 export type ChannelConfirmation = {
+	purpose: 'login'
 	displayName: string
 	handle: string | null
 	avatarUrl: string | null
@@ -180,6 +181,8 @@ export class BrowserRuntime {
 		if (
 			!result ||
 			typeof result !== 'object' ||
+			!('purpose' in result) ||
+			result.purpose !== 'login' ||
 			!('confirmationRef' in result) ||
 			typeof result.confirmationRef !== 'string' ||
 			!/^[a-f0-9]{64}$/.test(result.confirmationRef) ||
@@ -211,6 +214,8 @@ export class BrowserRuntime {
 		if (
 			!result ||
 			typeof result !== 'object' ||
+			!('purpose' in result) ||
+			result.purpose !== 'login' ||
 			!('customToken' in result) ||
 			typeof result.customToken !== 'string' ||
 			result.customToken === '' ||

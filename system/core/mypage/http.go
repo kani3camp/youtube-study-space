@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -199,7 +200,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, response)
 	case "/api/auth/youtube/confirm":
-		token, err := h.Auth.Confirm(ctx, transactionID(r), confirmation.ConfirmationRef)
+		response, err := h.Auth.ConfirmResult(ctx, transactionID(r), confirmation.ConfirmationRef)
 		if err != nil {
 			code := errorCode(err)
 			if code == "TEMPORARY_UNAVAILABLE" || code == "OAUTH_TRANSACTION_CONSUMED" {
@@ -209,9 +210,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		setTransactionCookie(w, "", -1)
-		writeJSON(w, 200, struct {
-			CustomToken string `json:"customToken"`
-		}{token})
+		writeJSON(w, 200, response)
 	case "/api/auth/session/complete":
 		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
@@ -302,13 +301,17 @@ func strictBody(w http.ResponseWriter, r *http.Request, target any) error {
 // encoding/json matches field names without case sensitivity and accepts
 // duplicate keys. The public schema requires exact, unambiguous field names.
 func validObjectKeys(body []byte, target any) bool {
-	shape, err := json.Marshal(target)
-	if err != nil {
+	shape := reflect.TypeOf(target)
+	if shape == nil || shape.Kind() != reflect.Pointer || shape.Elem().Kind() != reflect.Struct {
 		return false
 	}
-	var allowed map[string]json.RawMessage
-	if json.Unmarshal(shape, &allowed) != nil {
-		return false
+	shape = shape.Elem()
+	allowed := make(map[string]bool)
+	for i := 0; i < shape.NumField(); i++ {
+		name, _, _ := strings.Cut(shape.Field(i).Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			allowed[name] = true
+		}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	first, err := decoder.Token()
@@ -322,12 +325,12 @@ func validObjectKeys(body []byte, target any) bool {
 		if err != nil || !ok || seen[key] {
 			return false
 		}
-		if _, ok := allowed[key]; !ok {
+		if !allowed[key] {
 			return false
 		}
 		seen[key] = true
 		var value json.RawMessage
-		if decoder.Decode(&value) != nil {
+		if decoder.Decode(&value) != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return false
 		}
 	}
