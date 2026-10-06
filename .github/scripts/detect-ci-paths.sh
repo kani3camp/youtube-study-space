@@ -125,7 +125,7 @@ classify_path() {
 			youtube_monitor=true
 			matched=true
 			;;
-		mypage/*|docs/mypage/*)
+		mypage/*|docs/mypage/*|.github/scripts/check-mypage-contract.py)
 			mypage=true
 			matched=true
 			;;
