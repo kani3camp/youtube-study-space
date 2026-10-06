@@ -51,8 +51,8 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertNotIn("pull_request_target", self.text)
         self.assertNotIn("secrets: inherit", self.text)
 
-    def test_audit_is_default_off_and_development_only(self) -> None:
-        self.assertIn('DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"', self.text)
+    def test_audit_requires_reviewed_activation_and_development_only(self) -> None:
+        self.assertIn('DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "true"', self.text)
         self.assertIn('[[ "${TARGET}" == "dev" ]]', self.text)
         self.assertIn("Production schema audit is not enabled", self.text)
         self.assertIn("pending dedicated IAM and user approval", self.text)
