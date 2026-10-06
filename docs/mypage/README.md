@@ -157,3 +157,12 @@ provider instance/store/responseにYouTube tokenを保存せず、refresh token�
 wire request、scope不足、期限切れtoken、channel曖昧さ、metadata形式、応答size、redirect/cancelは合成HTTP transportで検証する。これは実Google接続の証拠ではない。実providerを使うserver、Firebase Auth/App Check verifier・keyless minter、公開metadataのAPI-key refresh、Hosting rewriteとsecurity設定の結線・Ready Gateは後続。
 
 一次資料: [Google OAuth server flow](https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps)、[channels.list](https://developers.google.com/youtube/v3/docs/channels/list)。
+
+
+## Mockable GA4 command adapter
+
+`GA4Sender`はAnalyticsGateからのみstartする同期command/disable portのadapter。constructorは識別子やbrowser globalを作らず、startで自動config pageviewと広告signalsを無効化し、固定originのroot URL・空referrer・空titleを指定する。event時にもsafe route/固定title/許可UTMを再検証し、任意title/追加parameter/User-IDを転送しない。stopは送信を止め、contextをclearし、runtimeのmeasurement disable flagを設定する。deniedへの変更で送信を誘発し得るgtag commandは呼ばない。同意前eventを再送しない。
+
+このadapterはproductへ未接続で、gtag.js loader/dataLayer/vendor通信を含まない。mockはcommand引数とdisable順序を検証するだけで、実GA4の非送信を証明しない。実loaderでは同意の世代変更後に遅延load callbackを破棄し、queueを再送しないことが必要。ConsoleでEnhanced Measurementのhistory pageview等の自動collectionを無効化し、他tag/pluginを含めたinventoryを確認する必要がある。send_page_view=falseだけではhistory pageviewを防げない。14か月保持・保持reset OFFと、同意前/拒否後のNetwork検証はrelease gateに残る。
+
+一次資料: [GA4 configuration](https://developers.google.com/analytics/devguides/collection/ga4/reference/config)、[manual pageviewsとhistory measurement](https://developers.google.com/analytics/devguides/collection/ga4/views)、[Consent mode](https://developers.google.com/tag-platform/security/guides/consent)。実GA4 Network/Console/自動event/再同意は未検証であり、公開deployはしていない。
