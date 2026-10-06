@@ -40,3 +40,12 @@ func TestBuildAuditTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestUsageErrorMentionsBigQueryLocation(t *testing.T) {
+	t.Parallel()
+
+	err := usageError()
+	if err == nil || !strings.Contains(err.Error(), "<bigquery-location>") {
+		t.Fatalf("usageError() = %v, want bigquery location argument", err)
+	}
+}
