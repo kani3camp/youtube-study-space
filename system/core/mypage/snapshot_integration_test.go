@@ -41,15 +41,11 @@ func TestSnapshotMissingUserSkipsCorruptSeatAndHistory(t *testing.T) {
 
 func TestSnapshotQueriesOnlyIdentityAndIntersectingWindow(t *testing.T) {
 	r, uid := snapshotFixture(t)
-	now := time.Now().UTC().Add(-time.Minute)
+	capturedAt := time.Now().UTC()
 	if _, err := r.Client.Collection("users").Doc(uid).Set(context.Background(), repository.UserDoc{TotalStudySec: 600}); err != nil {
 		t.Fatal(err)
 	}
-	segments := []repository.WorkSegmentDoc{
-		{UserID: uid, StartedAt: now.Add(-time.Minute), EndedAt: now, DurationSec: 60, SegmentType: repository.WorkState},
-		{UserID: "other-synthetic-user", StartedAt: now.Add(-time.Minute), EndedAt: now, DurationSec: 60, SegmentType: repository.WorkState},
-		{UserID: uid, StartedAt: now.AddDate(0, 0, -30), EndedAt: now.AddDate(0, 0, -29), DurationSec: 86400, SegmentType: repository.WorkState},
-	}
+	segments := snapshotQuerySegments(uid, capturedAt)
 	for i, segment := range segments {
 		if _, err := r.Client.Collection("work-segments").Doc(uid+strconv.Itoa(i)).Set(context.Background(), segment); err != nil {
 			t.Fatal(err)
@@ -66,7 +62,11 @@ func TestSnapshotQueriesOnlyIdentityAndIntersectingWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectSeconds(t, response.Summary.Data.Today, 60)
+	// A snapshot taken near JST midnight may correctly count this minute as
+	// yesterday. The query contract preserves its total across recent days;
+	// fixed-clock cases cover the exact day allocation separately.
+	expectRecentSeconds(t, response.Recent7Days, 60)
+	expectSeconds(t, response.Summary.Data.Lifetime, 600)
 	if !response.GeneratedAt.Equal(s.AsOf) {
 		t.Fatal("snapshot timestamp changed")
 	}
