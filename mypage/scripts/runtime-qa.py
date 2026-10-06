@@ -25,6 +25,22 @@ with sync_playwright() as p:
  results.append('explicit fresh-login route')
  load('/login?supportChallenge='+'a'*64,'authenticated');page.get_by_role('heading',name='問い合わせの本人確認').wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('support route never reuses a Firebase session as proof')
+ for purpose,label in [('delete','保存データの削除依頼'),('revoke','すべてのログインの解除依頼'),('disclosure','保存データの開示依頼')]:
+  load('/login/channel-confirm','support-confirm-'+purpose)
+  page.get_by_text('依頼の目的：'+label,exact=True).wait_for()
+  if purpose=='delete':page.screenshot(path=str(out/'support-confirm-390.png'),full_page=True)
+  page.get_by_role('button',name='この依頼の本人確認を完了').click()
+  page.get_by_role('heading',name='依頼の本人確認が完了しました').wait_for();assert page.locator('.proof-reference').inner_text()=='b'*64
+  assert page.get_by_text('読書',exact=True).count()==0
+  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+  if purpose=='delete':page.screenshot(path=str(out/'support-receipt-390.png'),full_page=True)
+  page.evaluate("window.dispatchEvent(new Event('pagehide'))");page.locator('.proof-reference').wait_for(state='detached')
+ results.append('all support purposes -> receipt without signIn/session-complete; pagehide clears proof')
+ load('/login?supportChallenge=invalid','authenticated');page.get_by_role('heading',name='問い合わせの本人確認').wait_for();assert page.get_by_role('button',name='YouTubeで本人確認を始める').is_disabled()
+ results.append('invalid support link never falls back to normal authenticated login')
+ load('/login/channel-confirm','support-mismatch');page.get_by_text('依頼の対象チャンネルと一致しません。窓口から案内された本人確認リンクを使って、対象のチャンネルを確認してください。',exact=True).wait_for();page.get_by_role('link',name='受付窓口へ戻る').wait_for()
+ results.append('support channel mismatch returns to the support desk')
+
  load('/login/channel-confirm','missing-channel');page.get_by_role('heading',name='マイページへログイン').wait_for()
  results.append('missing transaction returns to login')
  load('/mypage','late-response');page.get_by_text('読書',exact=True).wait_for();page.locator('#synthetic-hold').click();page.get_by_role('button',name='最新の情報に更新').click()

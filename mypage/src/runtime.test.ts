@@ -315,7 +315,7 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().data).toBeNull()
 		dispose()
 	})
-	it('never treats support proof as a normal login token or channel confirmation', async () => {
+	it('rejects unsupported channel purposes and never treats support proof as a login token', async () => {
 		const { session } = sessionFixture()
 		const runtime = new BrowserRuntime(
 			session,
@@ -324,7 +324,7 @@ describe('browser authentication runtime', () => {
 				path === '/api/auth/youtube/channel'
 					? Response.json({
 							purpose: 'support',
-							supportPurpose: 'delete',
+							supportPurpose: 'login',
 							displayName: 'Synthetic channel',
 							handle: null,
 							avatarUrl: null,
@@ -344,6 +344,55 @@ describe('browser authentication runtime', () => {
 			runtime.confirm('a'.repeat(64), new AbortController().signal),
 		).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
 		expect(session.signIn).not.toHaveBeenCalled()
+	})
+	it('support proof returns only a reference and never signs in or completes a Firebase session', async () => {
+		const { session, setUID } = sessionFixture()
+		setUID('existing-synthetic')
+		const request = vi.fn<typeof fetch>(async () =>
+			Response.json({ purpose: 'support', requestRef: 'b'.repeat(64) }),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		await expect(
+			runtime.confirm('a'.repeat(64), new AbortController().signal, 'support'),
+		).resolves.toEqual({ purpose: 'support', requestRef: 'b'.repeat(64) })
+		expect(request).toHaveBeenCalledTimes(1)
+		expect(request.mock.calls[0]?.[0]).toBe('/api/auth/youtube/confirm')
+		expect(
+			new Headers(request.mock.calls[0]?.[1]?.headers).has('Authorization'),
+		).toBe(false)
+		expect(session.signIn).not.toHaveBeenCalled()
+		expect(session.signOut).not.toHaveBeenCalled()
+		expect(session.currentUID()).toBe('existing-synthetic')
+	})
+	it('support start sends only the opaque challenge with consent, never a browser purpose or target', async () => {
+		const { session } = sessionFixture()
+		const request = vi.fn<typeof fetch>(async () =>
+			Response.json({
+				authorizationUrl:
+					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+			}),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		await runtime.start(new AbortController().signal, 'a'.repeat(64))
+		expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({
+			supportChallenge: 'a'.repeat(64),
+			privacyPolicyVersion: 'p1',
+			privacyAccepted: true,
+			termsVersion: 't1',
+			termsAccepted: true,
+		})
+		await expect(
+			runtime.start(new AbortController().signal, ''),
+		).rejects.toMatchObject({ code: 'SUPPORT_CHALLENGE_INVALID' })
+		expect(request).toHaveBeenCalledTimes(1)
 	})
 	it('never redirects an authorization URL to an arbitrary host', async () => {
 		const { session } = sessionFixture()

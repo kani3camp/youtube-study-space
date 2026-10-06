@@ -12,7 +12,9 @@ if (import.meta.env.DEV) {
 	const search = new URLSearchParams(location.search)
 	const mode = search.get('mode')
 	let uid: string | null =
-		mode === 'authenticated' || mode === 'late-response' ? 'synthetic-a' : null
+		mode?.includes('authenticated') || mode === 'late-response'
+			? 'synthetic-a'
+			: null
 	let logoutFails = mode === 'logout-failure'
 	let holdNext = false
 	let release: (() => void) | null = null
@@ -38,6 +40,8 @@ if (import.meta.env.DEV) {
 		},
 		recheck: async () => uid,
 		signIn: async () => {
+			if (mode?.startsWith('support-'))
+				throw new Error('support must never call signIn')
 			emit('synthetic-a')
 			return 'synthetic-a'
 		},
@@ -50,6 +54,11 @@ if (import.meta.env.DEV) {
 		},
 	}
 	const request: typeof fetch = async (path, init) => {
+		if (path === '/api/auth/youtube/channel' && mode === 'support-mismatch')
+			return Response.json(
+				{ error: { code: 'SUPPORT_CHANNEL_MISMATCH' } },
+				{ status: 400 },
+			)
 		if (path === '/api/auth/youtube/channel' && mode === 'missing-channel')
 			return Response.json(
 				{ error: { code: 'OAUTH_TRANSACTION_REQUIRED' } },
@@ -57,17 +66,22 @@ if (import.meta.env.DEV) {
 			)
 		if (path === '/api/auth/youtube/channel')
 			return Response.json({
-				purpose: 'login',
+				...(mode?.startsWith('support-confirm-')
+					? { purpose: 'support', supportPurpose: mode.split('-')[2] }
+					: { purpose: 'login' }),
 				displayName: 'Sample Channel',
 				handle: '@sample',
 				avatarUrl: null,
 				confirmationRef: 'a'.repeat(64),
 			})
 		if (path === '/api/auth/youtube/confirm')
-			return Response.json({
-				purpose: 'login',
-				customToken: 'synthetic-custom',
-			})
+			return Response.json(
+				mode?.startsWith('support-confirm-')
+					? { purpose: 'support', requestRef: 'b'.repeat(64) }
+					: { purpose: 'login', customToken: 'synthetic-custom' },
+			)
+		if (path === '/api/auth/session/complete' && mode?.startsWith('support-'))
+			throw new Error('support must never complete a session')
 		if (path === '/api/auth/session/complete')
 			return new Response(null, { status: 204 })
 		if (path === '/api/auth/youtube/start')

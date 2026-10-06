@@ -11,8 +11,14 @@ export type BrowserSession = TokenSource & {
 	signIn: (customToken: string) => Promise<string>
 	signOut: () => Promise<void>
 }
-export type ChannelConfirmation = {
-	purpose: 'login'
+export type SupportPurpose = 'delete' | 'revoke' | 'disclosure'
+export type ConfirmationResult =
+	| { purpose: 'login' }
+	| { purpose: 'support'; requestRef: string }
+export type ChannelConfirmation = (
+	| { purpose: 'login' }
+	| { purpose: 'support'; supportPurpose: SupportPurpose }
+) & {
 	displayName: string
 	handle: string | null
 	avatarUrl: string | null
@@ -240,11 +246,17 @@ export class BrowserRuntime {
 		}
 	}
 
-	async start(signal: AbortSignal) {
+	async start(signal: AbortSignal, supportChallenge?: string) {
+		if (
+			supportChallenge !== undefined &&
+			!/^[a-f0-9]{64}$/.test(supportChallenge)
+		)
+			throw new RequestError(400, 'SUPPORT_CHALLENGE_INVALID')
 		const result = await this.call(
 			'/api/auth/youtube/start',
 			'POST',
 			{
+				...(supportChallenge === undefined ? {} : { supportChallenge }),
 				privacyPolicyVersion: this.policy.privacy,
 				privacyAccepted: true,
 				termsVersion: this.policy.terms,
@@ -281,7 +293,14 @@ export class BrowserRuntime {
 			!result ||
 			typeof result !== 'object' ||
 			!('purpose' in result) ||
-			result.purpose !== 'login' ||
+			!(
+				result.purpose === 'login' ||
+				(result.purpose === 'support' &&
+					'supportPurpose' in result &&
+					['delete', 'revoke', 'disclosure'].includes(
+						String(result.supportPurpose),
+					))
+			) ||
 			!('confirmationRef' in result) ||
 			typeof result.confirmationRef !== 'string' ||
 			!/^[a-f0-9]{64}$/.test(result.confirmationRef) ||
@@ -298,12 +317,32 @@ export class BrowserRuntime {
 			)
 		)
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		return result as ChannelConfirmation
+		const metadata = {
+			displayName: result.displayName,
+			handle: result.handle,
+			avatarUrl: result.avatarUrl,
+			confirmationRef: result.confirmationRef,
+		}
+		if (result.purpose === 'support' && 'supportPurpose' in result) {
+			return {
+				...metadata,
+				purpose: 'support',
+				supportPurpose: result.supportPurpose as SupportPurpose,
+			}
+		}
+		return { ...metadata, purpose: 'login' }
 	}
 
-	async confirm(confirmationRef: string, signal: AbortSignal) {
-		const operation = ++this.confirmationGeneration
-		this.restoringController?.abort()
+	async confirm(
+		confirmationRef: string,
+		signal: AbortSignal,
+		purpose: 'login' | 'support' = 'login',
+	): Promise<ConfirmationResult> {
+		const operation =
+			purpose === 'login'
+				? ++this.confirmationGeneration
+				: this.confirmationGeneration
+		if (purpose === 'login') this.restoringController?.abort()
 		if (!/^[a-f0-9]{64}$/.test(confirmationRef))
 			throw new RequestError(400, 'INVALID_REQUEST')
 		const result = await this.call(
@@ -312,11 +351,27 @@ export class BrowserRuntime {
 			{ confirmationRef },
 			signal,
 		)
+		if (signal.aborted) throw new RequestError(400, 'INVALID_REQUEST')
+		if (purpose === 'support') {
+			if (
+				!result ||
+				typeof result !== 'object' ||
+				!('purpose' in result) ||
+				result.purpose !== 'support' ||
+				!('requestRef' in result) ||
+				typeof result.requestRef !== 'string' ||
+				!/^[a-f0-9]{64}$/.test(result.requestRef) ||
+				'customToken' in result
+			)
+				throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+			return { purpose: 'support', requestRef: result.requestRef }
+		}
 		if (
 			!result ||
 			typeof result !== 'object' ||
 			!('purpose' in result) ||
 			result.purpose !== 'login' ||
+			'requestRef' in result ||
 			!('customToken' in result) ||
 			typeof result.customToken !== 'string' ||
 			result.customToken === '' ||
@@ -348,6 +403,7 @@ export class BrowserRuntime {
 			this.completingSession = false
 			this.reconciledGeneration = identityGeneration
 			if (this.active) this.memory.setIdentity(uid)
+			return { purpose: 'login' }
 		} catch (error) {
 			if (operation === this.confirmationGeneration)
 				this.completingSession = false
