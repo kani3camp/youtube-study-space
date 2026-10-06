@@ -70,13 +70,33 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 	if value, ok := b.cacheHit(key, now, account); ok {
 		return value, nil
 	}
+	// The HTTP budget starts before authorization and the browser also has a
+	// deadline. Reserve time for both flight delivery and response serialization;
+	// detaching cancellation must not reset an already partly spent budget.
+	workDeadline := time.Now().Add(8 * time.Second)
+	waitCtx := ctx
+	if outerDeadline, ok := ctx.Deadline(); ok {
+		remaining := time.Until(outerDeadline)
+		if remaining <= 0 {
+			return Response{}, apiError("TEMPORARY_UNAVAILABLE")
+		}
+		reserve := min(time.Second, remaining/4)
+		waitDeadline := outerDeadline.Add(-reserve)
+		workDeadline = minDeadline(workDeadline, waitDeadline.Add(-reserve))
+		var stop context.CancelFunc
+		waitCtx, stop = context.WithDeadline(ctx, waitDeadline)
+		defer stop()
+	}
 	// The first caller disconnecting must not cancel a request shared with a
 	// second caller; the shared operation still has its own bounded budget.
 	result := b.group.DoChan(b.Environment+"\x00"+uid+"\x00"+metadataAccountVersion(account), func() (any, error) {
+		// Refresh only the flight's copy; a caller's early fallback must not race
+		// with metadata updates in the detached operation.
+		account := account
 		if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
 			return value, nil
 		}
-		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 		defer cancel()
 		if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
 			metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
@@ -117,7 +137,13 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 		return response, nil
 	})
 	select {
-	case <-ctx.Done():
+	case <-waitCtx.Done():
+		// A later caller can have less budget than the shared flight's first
+		// caller. Deliver its already known terminal account before its deadline,
+		// while the bounded shared operation continues for other callers.
+		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			return b.failedSnapshot(account)
+		}
 		return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 	case value := <-result:
 		if value.Err != nil {
@@ -132,6 +158,13 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 		}
 		return response, nil
 	}
+}
+
+func minDeadline(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
 }
 
 // Preserve a known terminal metadata state even when work cannot be read. No

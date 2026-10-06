@@ -2,8 +2,10 @@ package mypage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -241,4 +243,87 @@ func TestTerminalMetadataSurvivesSnapshotFailuresThroughHTTPWithoutCachingFailur
 			})
 		}
 	}
+}
+
+func TestTerminalAccountSnapshotDeadlineLeavesTimeForHTTPResponse(t *testing.T) {
+	for _, state := range []string{"already-cleared", "confirmed-missing", "ordinary-failure"} {
+		t.Run(state, func(t *testing.T) {
+			h, store, _, _ := boundaryFixture()
+			now := workFixture().AsOf
+			store.account.MetadataFetchedAt = now.Add(-25 * time.Hour)
+			if state == "already-cleared" {
+				store.account.DisplayName = ""
+				store.account.MetadataFetchedAt = time.Time{}
+			}
+			if state == "confirmed-missing" {
+				h.BFF.Metadata = metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+					return WebAccount{}, ErrPublicChannelMissing
+				})
+			}
+			var innerDeadline time.Time
+			h.BFF.Reader = readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+				innerDeadline, _ = ctx.Deadline()
+				<-ctx.Done()
+				return WorkSnapshot{}, ctx.Err()
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+			defer cancel()
+			outerDeadline, _ := ctx.Deadline()
+			request := httptest.NewRequest("GET", "/api/mypage", nil).WithContext(ctx)
+			request.Host = "mypage.example.test"
+			request.Header.Set("Authorization", "Bearer synthetic-id-proof")
+			request.Header.Set("X-Firebase-AppCheck", "synthetic-app-proof")
+			response := httptest.NewRecorder()
+			h.ServeHTTP(response, request)
+			require.NoError(t, ctx.Err(), "fallback must arrive before the outer/client deadline")
+			require.True(t, innerDeadline.Before(outerDeadline))
+			if state == "ordinary-failure" {
+				require.Equal(t, 503, response.Code)
+			} else {
+				require.Equal(t, 200, response.Code)
+				var result Response
+				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+				require.Equal(t, MetadataTooOld, *result.Account.ReasonCode)
+				require.Nil(t, result.Account.Data)
+				require.Nil(t, result.Summary.Data)
+				require.Nil(t, result.Current.Data)
+				require.Len(t, result.Recent7Days.Data, 7)
+			}
+		})
+	}
+}
+
+func TestTerminalLaterCallerDoesNotWaitForLongerSharedFlightDeadline(t *testing.T) {
+	now := workFixture().AsOf
+	account := WebAccount{Revision: now}
+	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+		calls.Add(1)
+		close(entered)
+		defer close(finished)
+		select {
+		case <-release:
+			return workFixture(), nil
+		case <-ctx.Done():
+			return WorkSnapshot{}, ctx.Err()
+		}
+	})}
+	firstCtx, stopFirst := context.WithCancel(context.Background())
+	firstDone := make(chan error, 1)
+	go func() { _, err := b.Get(firstCtx, "synthetic", account); firstDone <- err }()
+	<-entered
+	stopFirst()
+	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(<-firstDone))
+	laterCtx, stopLater := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer stopLater()
+	result, err := b.Get(laterCtx, "synthetic", account)
+	close(release)
+	<-finished
+	require.NoError(t, err)
+	require.NoError(t, laterCtx.Err())
+	require.Equal(t, MetadataTooOld, *result.Account.ReasonCode)
+	require.Nil(t, result.Account.Data)
+	require.Nil(t, result.Current.Data)
+	require.EqualValues(t, 1, calls.Load(), "shorter caller must not cancel or duplicate the shared read")
 }
