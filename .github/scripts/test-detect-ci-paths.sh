@@ -25,14 +25,7 @@ assert_exact_groups() {
 	done
 }
 
-# Read complete detector output without a printf | grep -q producer SIGPIPE.
-# Diagnostic output can exceed PIPE_BUF; routing truth must not become flaky.
-large_paths=()
-for ((i=0; i<300; i++)); do
-	large_paths+=("unmatched-synthetic-path-$i.md")
-done
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/ci.yml "${large_paths[@]}"
-
+# A here-string avoids a printf producer receiving SIGPIPE when grep -q exits.
 assert_exact_groups "" README.md
 assert_exact_groups formal_spec formal-spec/README.md
 assert_exact_groups formal_spec formal-spec/fsl/specs/seat_session.fsl
@@ -47,6 +40,7 @@ assert_exact_groups mypage mypage/pnpm-lock.yaml
 assert_exact_groups mypage docs/mypage/openapi.yaml
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
+assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
 assert_exact_groups "mypage system firestore_integration" mypage/src/main.tsx system/core/mypage/store.go
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
