@@ -146,3 +146,14 @@ public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を�
 support confirmのpending requestはidentity・page lifecycle・確認操作の世代に結び付ける。logout、別uid、logout後の同一uid再login、pagehide、unmount、新しい確認操作は旧requestをabortし、transportがabortを無視して成功を返しても参照番号を受け取らない。React側でもreceipt設定と遷移の直前に当該controllerの有効性を確認する。pageshowは取り消したsupport確認を復活させない。
 
 unit回帰は遅延successと各invalidating eventを確認し、synthetic Chromium QAはpending状態からuid変更・logout/relogin・pagehide/pageshow・route離脱後のreceipt非復活と遅いcontact遷移の抑止を確認する。証明済みのserver recordを取り消す操作ではなく、browserで失効した応答の表示を抑止する。
+
+
+## YouTube OAuth provider adapter
+
+`GoogleYouTubeOAuth`はserver-onlyのclient ID/secretと固定HTTPS originを受け取り、既存のatomic callback serviceへ接続できるadapter。authorizationはyoutube.readonlyだけ・online・select_accountとし、Google Account選択をYouTube channel pickerとは扱わない。code exchangeは1回で、grant scopeを検証してから同じ短命access tokenでmine=trueのchannelを取得する。channelなし・複数・次pageありは拒否し、唯一の公開metadataだけを返す。legacy custom URLを@handleと推測しない。
+
+provider instance/store/responseにYouTube tokenを保存せず、refresh tokenを要求せず、token source/refresh/retryを使わない。callback originはrequestから作らず、外部redirectを追わず、処理全体を8秒に制限する。provider body/URL errorをallowlist errorへ変換しsecret/code/tokenを公開errorへ出さない。
+
+wire request、scope不足、期限切れtoken、channel曖昧さ、metadata形式、応答size、redirect/cancelは合成HTTP transportで検証する。これは実Google接続の証拠ではない。実providerを使うserver、Firebase Auth/App Check verifier・keyless minter、公開metadataのAPI-key refresh、Hosting rewriteとsecurity設定の結線・Ready Gateは後続。
+
+一次資料: [Google OAuth server flow](https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps)、[channels.list](https://developers.google.com/youtube/v3/docs/channels/list)。
