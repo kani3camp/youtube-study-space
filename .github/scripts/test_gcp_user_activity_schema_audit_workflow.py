@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import os
+import copy
+import importlib.util
+import json
 import subprocess
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -11,6 +15,26 @@ from pathlib import Path
 GITHUB_DIR = Path(__file__).parents[1]
 WORKFLOW = GITHUB_DIR / "workflows" / "gcp-user-activity-schema-audit.yml"
 CALLER = GITHUB_DIR / "workflows" / "ci.yml"
+SUMMARY = GITHUB_DIR.parent / "infra" / "gcp" / "scripts" / "schema_audit_summary.py"
+spec = importlib.util.spec_from_file_location("schema_audit_summary", SUMMARY)
+summary_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(summary_module)
+
+
+def audit_fixture() -> dict:
+    return {
+        "mode": "read-only-aggregate",
+        "target": dict(summary_module.TARGET),
+        "audit": {
+            "canonical": False,
+            "has_taken_at": True,
+            "has_legacy_timestamp": True,
+            "legacy_non_null": 900001,
+            "legacy_only": 400001,
+            "both_equal": 300000,
+            "both_different": 200000,
+        },
+    }
 
 
 class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
@@ -55,18 +79,63 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
 
     def test_business_data_output_stays_private(self) -> None:
         self.assertIn(' >"${RUNNER_TEMP}/user-activity-schema-audit.json"'.strip(), self.text)
-        self.assertIn("Exact aggregate counts are intentionally not published.", self.text)
+        self.assertIn("schema_audit_summary.py", self.text)
         self.assertNotIn("upload-artifact", self.text)
         self.assertNotIn('cat "${RUNNER_TEMP}/user-activity-schema-audit.json"', self.text)
         for key in ("legacy_non_null", "legacy_only", "both_equal", "both_different"):
-            self.assertIn(f"{key} is zero", self.text)
+            self.assertIn(f"- {key} is zero:", summary_module.summarize(audit_fixture()))
 
     def test_cli_scope_is_exact(self) -> None:
         self.assertIn("go run ./cmd/user-activity-schema-audit", self.text)
         self.assertIn("test-youtube-study-space", self.text)
         self.assertIn("asia-southeast2", self.text)
-        self.assertIn('target.get("dataset") != "firestore_export"', self.text)
-        self.assertIn('target.get("table") != "user-activity-history"', self.text)
+        self.assertEqual(summary_module.TARGET["dataset"], "firestore_export")
+        self.assertEqual(summary_module.TARGET["table"], "user-activity-history")
+
+    def step_script(self, name: str) -> str:
+        step = self.text.split(f"      - name: {name}\n", 1)[1]
+        return textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
+
+    def test_private_identifiers_are_masked_before_auth(self) -> None:
+        name = "Mask private identity fragments before authentication"
+        self.assertLess(self.text.index(name), self.text.index("uses: google-github-actions/auth@"))
+        provider = "projects/123456789/locations/global/workloadIdentityPools/synthetic-pool/providers/synthetic-provider"
+        sa = "synthetic-audit@test-youtube-study-space.iam.gserviceaccount.com"
+        result = subprocess.run(["bash", "-c", self.step_script(name)], capture_output=True, text=True,
+                                env={"PATH": os.environ["PATH"], "PRIVATE_WIF_PROVIDER": provider, "PRIVATE_AUDIT_SA": sa})
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(set(result.stdout.splitlines()), {
+            f"::add-mask::{provider}", f"::add-mask::{sa}", "::add-mask::synthetic-audit",
+            "::add-mask::123456789", "::add-mask::synthetic-pool", "::add-mask::synthetic-provider",
+        })
+        result = subprocess.run(["bash", "-c", self.step_script(name)], capture_output=True, text=True,
+                                env={"PATH": os.environ["PATH"], "PRIVATE_WIF_PROVIDER": provider,
+                                     "PRIVATE_AUDIT_SA": "private-invalid-identity"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("private-invalid-identity", result.stdout + result.stderr)
+
+    def test_failed_audit_never_prints_private_stderr_or_partial_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_go = root / "go"
+            fake_go.write_text("#!/bin/bash\necho synthetic-private-output\necho synthetic-private-error >&2\nexit 1\n")
+            fake_go.chmod(0o700)
+            result = subprocess.run(
+                ["bash", "-c", self.step_script("Run aggregate-only audit without public data output")],
+                capture_output=True, text=True,
+                env={"PATH": directory + os.pathsep + os.environ["PATH"], "RUNNER_TEMP": directory,
+                     "GOOGLE_APPLICATION_CREDENTIALS": str(root / "synthetic-credential")},
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("synthetic-private", result.stdout + result.stderr)
+            self.assertIn("synthetic-private-error", (root / "user-activity-schema-audit.stderr").read_text())
+            self.assertEqual((root / "user-activity-schema-audit.stderr").stat().st_mode & 0o777, 0o600)
+            (root / "gha-creds-synthetic.json").touch()
+            subprocess.run(["bash", "-c", self.step_script("Cleanup private audit output")], check=True,
+                           env={"PATH": os.environ["PATH"], "RUNNER_TEMP": directory, "GITHUB_WORKSPACE": directory})
+            self.assertFalse((root / "user-activity-schema-audit.stderr").exists())
+            self.assertFalse((root / "user-activity-schema-audit.json").exists())
+            self.assertFalse((root / "gha-creds-synthetic.json").exists())
 
     def test_caller_exposes_only_explicit_manual_toggle(self) -> None:
         self.assertIn("gcp_user_activity_schema_audit:", self.caller)
@@ -107,6 +176,7 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             self.run_guard(DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED="true").returncode,
             0,
         )
+
         self.assertNotEqual(
             self.run_guard(
                 DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED="true",
@@ -114,6 +184,88 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             ).returncode,
             0,
         )
+
+    def test_enabled_guard_still_rejects_untrusted_callers(self) -> None:
+        for key, value in {
+            "GITHUB_EVENT_NAME": "pull_request",
+            "GITHUB_REPOSITORY": "synthetic/fork",
+            "GITHUB_REPOSITORY_ID": "0",
+            "GITHUB_REPOSITORY_OWNER_ID": "0",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+            "GITHUB_REF": "refs/heads/dev",
+        }.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(self.run_guard(DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED="true",
+                                                  **{key: value}).returncode, 0)
+
+
+class SchemaAuditSummaryTest(unittest.TestCase):
+    def test_valid_output_contains_decisions_without_counts(self) -> None:
+        payload = audit_fixture()
+        result = summary_module.summarize(payload)
+        for key in summary_module.COUNTS:
+            self.assertIn(f"{key} is zero: no", result)
+            self.assertNotIn(str(payload["audit"][key]), result)
+        self.assertIn("Legacy timestamp present: yes", result)
+
+    def test_canonical_schema_reports_all_zero(self) -> None:
+        payload = audit_fixture()
+        payload["audit"].update(canonical=True, has_legacy_timestamp=False)
+        for key in summary_module.COUNTS:
+            payload["audit"][key] = 0
+        result = summary_module.summarize(payload)
+        self.assertIn("Legacy timestamp present: no", result)
+        self.assertEqual(result.count("is zero: yes"), 4)
+
+    def test_invalid_types_and_inconsistent_counts_fail_closed(self) -> None:
+        for key, values in {
+            "legacy_non_null": [True, -1, "900001", 900001.0, 2**63, 0],
+            "canonical": [1, "false", None, True],
+            "has_taken_at": [False, "true"],
+            "has_legacy_timestamp": [False, "true"],
+        }.items():
+            for value in values:
+                with self.subTest(key=key, value=value):
+                    payload = audit_fixture()
+                    payload["audit"][key] = value
+                    with self.assertRaises(ValueError):
+                        summary_module.summarize(payload)
+
+    def test_unknown_or_missing_fields_and_wrong_target_are_rejected(self) -> None:
+        for section in (None, "target", "audit"):
+            payload = audit_fixture()
+            scope = payload if section is None else payload[section]
+            scope["synthetic-private-row-sample"] = "synthetic-private-value"
+            with self.assertRaises(ValueError):
+                summary_module.summarize(payload)
+        for key in ("environment", "project_id", "dataset", "table"):
+            payload = audit_fixture()
+            payload["target"][key] = "synthetic-wrong-target"
+            with self.assertRaises(ValueError):
+                summary_module.summarize(payload)
+        payload = audit_fixture()
+        del payload["audit"]["canonical"]
+        with self.assertRaises(ValueError):
+            summary_module.summarize(payload)
+
+    def test_invalid_private_json_cannot_reach_public_summary_or_errors(self) -> None:
+        payload = audit_fixture()
+        extra = copy.deepcopy(payload)
+        extra["audit"]["raw_row"] = "synthetic-private-value"
+        for raw in (json.dumps(extra), '{"synthetic-private-value":', "x" * 65537,
+                    json.dumps(payload).replace('"canonical": false', '"canonical": false, "canonical": true')):
+            with self.subTest(raw_length=len(raw)), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                private = root / "private.json"
+                public = root / "summary.md"
+                private.write_text(raw)
+                public.write_text("existing summary\n")
+                result = subprocess.run(["python3", str(SUMMARY), str(private), str(public)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(public.read_text(), "existing summary\n")
+                self.assertNotIn("synthetic-private-value", result.stdout + result.stderr)
+                self.assertNotIn(str(private), result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
