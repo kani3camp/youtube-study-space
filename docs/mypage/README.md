@@ -181,3 +181,14 @@ python -m http.server 18082 --bind 127.0.0.1 --directory /tmp/mypage-bfcache-qa
 # 別shell
 python scripts/bfcache-qa.py
 ```
+
+
+## Firebase verification boundary
+
+FirebaseBoundaryは公式Admin SDKのVerifyIDToken/CustomToken portを使い、署名検証済みtokenについて固定projectのissuer/audience、custom provider、tenantなし、channel形式のUID/subject一致、期限/発行/認証時刻を追加検証する。SDK/token errorを公開messageやlogへ転記しない。mintはserverが確認したchannel UIDだけを渡す。
+
+AppCheckVerifierは公式のJWT検証手順に沿ってRS256署名・JWT type・固定project numberのissuer/audience・当該Web App ID・期限/発行時刻を検証する。JWKSは固定v1 endpointから遅延取得し、最大6時間cache、処理2秒・size/key数制限、未知kid/取得失敗のrefresh間隔制限とsingleflightを持つ。constructorは通信/background loopを作らない。SDKのeager AppCheck clientを使わず、request contextと合成HTTP transportで検証できる境界を採用した。
+
+合成RSA署名でwrong issuer/audience/app、期限ちょうど、future issue、不正claim type、署名不一致、algorithm/type/kid、並行cache/rotation、上流失敗/cancelを検証する。Firebase Auth側はSDK portをfakeで検証しており、実Firebase公開鍵/ID tokenを検証した証拠ではない。SDK keyless constructor/server結線、IAM Ready Gate、実App Check・Auth E2Eは後続で、credential/IAMを変更していない。
+
+一次資料: [App Check custom backend verification](https://firebase.google.com/docs/app-check/custom-resource-backend)、[Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[custom token signing](https://firebase.google.com/docs/auth/admin/create-custom-tokens)。
