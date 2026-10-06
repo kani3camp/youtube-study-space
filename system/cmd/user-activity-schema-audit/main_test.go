@@ -1,20 +1,102 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"app.modules/core/mybigquery"
+
+	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 )
+
+func syntheticWIFFile(t *testing.T, project string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "synthetic-wif.json")
+	fixture := map[string]any{
+		"type":                              "external_account",
+		"audience":                          "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/synthetic-pool/providers/synthetic-provider",
+		"subject_token_type":                "urn:ietf:params:oauth:token-type:jwt",
+		"token_url":                         "https://sts.googleapis.com/v1/token",
+		"credential_source":                 map[string]any{"file": filepath.Join(t.TempDir(), "absent-synthetic-token")},
+		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/synthetic-audit@test-youtube-study-space.iam.gserviceaccount.com:generateAccessToken",
+	}
+	if project != "" {
+		fixture["project_id"] = project
+	}
+	raw, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestProjectlessWIFFixture(t *testing.T) {
+	path := syntheticWIFFile(t, "")
+	// auth's project_id input is exported to environment variables, not embedded
+	// in the external_account JSON. The legacy SDK parser does not use this env.
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-youtube-study-space")
+	//nolint:staticcheck // Synthetic fixture reproduces the CLI's legacy credential option.
+	credentials, err := transport.Creds(context.Background(), option.WithCredentialsFile(path))
+	if err != nil {
+		t.Fatalf("read synthetic WIF metadata: %v", err)
+	}
+	if credentials.ProjectID != "" {
+		t.Fatalf("WIF credential ProjectID = %q, want empty", credentials.ProjectID)
+	}
+	if _, err := buildAuditTarget("development", "test-youtube-study-space", credentials.ProjectID); err != nil {
+		t.Fatalf("explicit development target must support projectless WIF: %v", err)
+	}
+
+	// A trusted workflow has no .env. Ambient project variables must not choose
+	// either the job project or the retained table's resource project.
+	t.Chdir(t.TempDir())
+	t.Setenv("CREDENTIAL_FILE_LOCATION", path)
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "youtube-study-space")
+	config, err := prepareAudit(context.Background(), []string{
+		"user-activity-schema-audit", "development", "test-youtube-study-space", "asia-southeast2",
+	})
+	if err != nil {
+		t.Fatalf("prepare audit without .env or a token file: %v", err)
+	}
+	if config.Target.ProjectID != "test-youtube-study-space" || config.WorkingRegion != "asia-southeast2" {
+		t.Fatalf("prepared wrong explicit target: %#v", config.Target)
+	}
+	client, err := mybigquery.NewBigqueryClient(context.Background(), config.Target.ProjectID, config.CredentialOption, config.WorkingRegion)
+	if err != nil {
+		t.Fatalf("initialize explicit BigQuery client without token exchange: %v", err)
+	}
+	defer client.CloseClient()
+	if client.Client.Project() != config.Target.ProjectID {
+		t.Fatalf("BigQuery project = %q, want explicit target", client.Client.Project())
+	}
+}
+
+func TestPrepareAuditRejectsPresentCredentialProjectMismatch(t *testing.T) {
+	t.Setenv("CREDENTIAL_FILE_LOCATION", syntheticWIFFile(t, "youtube-study-space"))
+	_, err := prepareAudit(context.Background(), []string{
+		"user-activity-schema-audit", "development", "test-youtube-study-space", "asia-southeast2",
+	})
+	if err == nil || !strings.Contains(err.Error(), "GCP project mismatch") {
+		t.Fatalf("prepareAudit() error = %v, want credential mismatch", err)
+	}
+}
 
 func TestBuildAuditTarget(t *testing.T) {
 	t.Parallel()
 
-	target, err := buildAuditTarget("development", "test-project", "test-project")
+	target, err := buildAuditTarget("development", "test-youtube-study-space", "test-youtube-study-space")
 	if err != nil {
 		t.Fatalf("buildAuditTarget() error = %v", err)
 	}
-	if target.Environment != "development" || target.ProjectID != "test-project" ||
+	if target.Environment != "development" || target.ProjectID != "test-youtube-study-space" ||
 		target.Dataset != mybigquery.DatasetName || target.Table != mybigquery.UserActivityHistoryMainTableName {
 		t.Fatalf("buildAuditTarget() = %#v", target)
 	}
@@ -28,7 +110,9 @@ func TestBuildAuditTarget(t *testing.T) {
 	}{
 		{name: "unknown environment", environment: "staging", expected: "p", actual: "p", want: "environment must be"},
 		{name: "missing expected project", environment: "development", expected: "", actual: "p", want: "expected GCP project ID is required"},
-		{name: "project mismatch", environment: "production", expected: "prod", actual: "dev", want: "GCP project mismatch"},
+		{name: "credential project mismatch", environment: "production", expected: "youtube-study-space", actual: "test-youtube-study-space", want: "GCP project mismatch"},
+		{name: "cross environment explicit target", environment: "development", expected: "youtube-study-space", actual: "", want: "does not match"},
+		{name: "arbitrary explicit target", environment: "development", expected: "synthetic-project", actual: "", want: "does not match"},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -38,6 +122,29 @@ func TestBuildAuditTarget(t *testing.T) {
 				t.Fatalf("buildAuditTarget() error = %v, want substring %q", err, tc.want)
 			}
 		})
+	}
+	for _, environment := range []string{"development", "production"} {
+		project := "test-youtube-study-space"
+		if environment == "production" {
+			project = "youtube-study-space"
+		}
+		if target, err := buildAuditTarget(environment, project, ""); err != nil || target.ProjectID != project {
+			t.Fatalf("projectless explicit %s target = %#v, error = %v", environment, target, err)
+		}
+	}
+}
+
+func TestPrepareAuditRejectsInvalidArgumentsBeforeCredentials(t *testing.T) {
+	t.Setenv("CREDENTIAL_FILE_LOCATION", "")
+	for _, args := range [][]string{
+		{"audit"},
+		{"audit", "development", "test-youtube-study-space", ""},
+		{"audit", "development", "youtube-study-space", "asia-southeast2"},
+		{"audit", "unknown", "test-youtube-study-space", "asia-southeast2"},
+	} {
+		if _, err := prepareAudit(context.Background(), args); err == nil || strings.Contains(err.Error(), "CREDENTIAL_FILE_LOCATION") {
+			t.Fatalf("invalid arguments must fail before credentials: %v, error = %v", args, err)
+		}
 	}
 }
 
