@@ -225,3 +225,14 @@ productへの結線はVITE_MYPAGE_ANALYTICS_READY=true、公開measurement IDの
 unitで同意前/ロード中の非送信、撤回/再同意と古いload、失敗/期限/unmount、queue消去を検証する。local Chromiumではgtag.jsをローカルfake responseへ差し替え、script前のsafe引数、no-referrer、将来eventだけの送信、撤回/再同意を検証した。実vendorの通信・自動event・保持設定は検証していない。script除去は既に実行したvendor codeを取り消せないため、Enhanced Measurement等のConsole設定と実Network検証は公開前のgate。
 
 一次資料: [Google tagの設置](https://developers.google.com/tag-platform/gtagjs)、[単一data layerと名称変更](https://developers.google.com/tag-platform/devguides/datalayer)、[pageview制御](https://developers.google.com/analytics/devguides/collection/ga4/views)。
+
+
+## Hosting security candidate
+
+`mypage/src/hosting.ts`のhostingCandidateは明示したenvironment/project/target/Cloud Run service/regionとreview済みSDK接続先から設定候補だけを生成するpure function。developmentはasia-southeast2、productionはasia-northeast2。既存firebase/firebase.jsonを変更せず、CLI init/deployを実行しない。projectIDは別の明示deployment selectorでありfirebase.json本体へ混入しない。候補のpublic=distはmypage directoryを基準とする。
+
+/apiと/api/**をCloud Runへ先にrewriteし、最後にSPAへrewriteする。全static pathへno-store/no-referrer/CSPとsecurity headersを設定する。CSPは明示したHTTPS sourceだけを許し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実sourceを推測しない。Analytics sourceは別approvalを必要とする。validateHostingAssetsはstatic API衝突・source map・秘密file向けpathを拒否する。Cloud Run APIは自身のresponse headersも保持する。
+
+unitで候補/routing/inventory拒否を検証し、synthetic static MyPageを同じCSPのlocal Chromiumでrenderして違反0とtimeline/chart表示を確認した。実SDK/reCAPTCHA/GA4を含むinventory、Hosting経由のHost/headers/callback/query access-log除外、custom-domain HSTSは未検証。CSPはplatform loggingを制御しない。設定候補は公開承認やinfrastructure readinessの代わりではない。
+
+一次資料: [Hosting config/priority/headers](https://firebase.google.com/docs/hosting/full-config)、[Cloud Run rewrite/region](https://firebase.google.com/docs/hosting/cloud-run)。
