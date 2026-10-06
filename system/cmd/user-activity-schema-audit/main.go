@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"google.golang.org/api/option"
+	"google.golang.org/api/transport"
 
 	"app.modules/core/mybigquery"
-	"app.modules/core/utils"
 )
 
 const (
@@ -32,6 +32,12 @@ type auditOutput struct {
 	Audit  mybigquery.UserActivitySchemaAudit `json:"audit"`
 }
 
+type auditConfig struct {
+	Target           auditTarget
+	WorkingRegion    string
+	CredentialOption option.ClientOption
+}
+
 func main() {
 	if err := run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "user-activity-schema-audit:", err)
@@ -40,35 +46,11 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if len(args) != 4 {
-		return usageError()
-	}
-
-	environment := strings.TrimSpace(args[1])
-	expectedProjectID := strings.TrimSpace(args[2])
-	workingRegion := strings.TrimSpace(args[3])
-	if workingRegion == "" {
-		return errors.New("BigQuery location is required")
-	}
-
-	utils.LoadEnv(".env")
-	credentialFilePath := strings.TrimSpace(os.Getenv("CREDENTIAL_FILE_LOCATION"))
-	if credentialFilePath == "" {
-		return errors.New("CREDENTIAL_FILE_LOCATION is required")
-	}
-	//nolint:staticcheck // Operator-controlled credential file for this read-only audit.
-	clientOption := option.WithCredentialsFile(credentialFilePath)
-
-	actualProjectID, err := utils.GetGcpProjectID(ctx, clientOption)
-	if err != nil {
-		return fmt.Errorf("resolve GCP project ID: %w", err)
-	}
-	target, err := buildAuditTarget(environment, expectedProjectID, actualProjectID)
+	config, err := prepareAudit(ctx, args)
 	if err != nil {
 		return err
 	}
-
-	bqClient, err := mybigquery.NewBigqueryClient(ctx, actualProjectID, clientOption, workingRegion)
+	bqClient, err := mybigquery.NewBigqueryClient(ctx, config.Target.ProjectID, config.CredentialOption, config.WorkingRegion)
 	if err != nil {
 		return fmt.Errorf("initialize BigQuery: %w", err)
 	}
@@ -81,7 +63,7 @@ func run(ctx context.Context, args []string) error {
 
 	output := auditOutput{
 		Mode:   "read-only-aggregate",
-		Target: target,
+		Target: config.Target,
 		Audit:  audit,
 	}
 	encoder := json.NewEncoder(os.Stdout)
@@ -90,6 +72,41 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("encode audit output: %w", err)
 	}
 	return nil
+}
+
+func prepareAudit(ctx context.Context, args []string) (auditConfig, error) {
+	if len(args) != 4 {
+		return auditConfig{}, usageError()
+	}
+
+	environment := strings.TrimSpace(args[1])
+	expectedProjectID := strings.TrimSpace(args[2])
+	workingRegion := strings.TrimSpace(args[3])
+	if workingRegion == "" {
+		return auditConfig{}, errors.New("BigQuery location is required")
+	}
+	// Validate the explicit resource target before loading a credential. WIF
+	// credentials identify a principal and need not contain a resource project.
+	if _, err := buildAuditTarget(environment, expectedProjectID, ""); err != nil {
+		return auditConfig{}, err
+	}
+
+	credentialFilePath := strings.TrimSpace(os.Getenv("CREDENTIAL_FILE_LOCATION"))
+	if credentialFilePath == "" {
+		return auditConfig{}, errors.New("CREDENTIAL_FILE_LOCATION is required")
+	}
+	//nolint:staticcheck // Operator-controlled credential file for this read-only audit.
+	clientOption := option.WithCredentialsFile(credentialFilePath)
+
+	credentials, err := transport.Creds(ctx, clientOption)
+	if err != nil {
+		return auditConfig{}, fmt.Errorf("load audit credential metadata: %w", err)
+	}
+	target, err := buildAuditTarget(environment, expectedProjectID, credentials.ProjectID)
+	if err != nil {
+		return auditConfig{}, err
+	}
+	return auditConfig{Target: target, WorkingRegion: workingRegion, CredentialOption: clientOption}, nil
 }
 
 func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (auditTarget, error) {
@@ -108,10 +125,14 @@ func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (a
 	if expectedProjectID == "" {
 		return auditTarget{}, errors.New("expected GCP project ID is required")
 	}
-	if actualProjectID == "" {
-		return auditTarget{}, errors.New("credential GCP project ID is empty")
+	canonicalProjectID := "test-youtube-study-space"
+	if environment == productionEnvironment {
+		canonicalProjectID = "youtube-study-space"
 	}
-	if expectedProjectID != actualProjectID {
+	if expectedProjectID != canonicalProjectID {
+		return auditTarget{}, errors.New("GCP project does not match the selected audit environment")
+	}
+	if actualProjectID != "" && expectedProjectID != actualProjectID {
 		return auditTarget{}, fmt.Errorf(
 			"GCP project mismatch: expected=%q credential=%q; refusing read-only audit",
 			expectedProjectID,
@@ -121,7 +142,7 @@ func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (a
 
 	return auditTarget{
 		Environment: environment,
-		ProjectID:   actualProjectID,
+		ProjectID:   expectedProjectID,
 		Dataset:     mybigquery.DatasetName,
 		Table:       mybigquery.UserActivityHistoryMainTableName,
 	}, nil
