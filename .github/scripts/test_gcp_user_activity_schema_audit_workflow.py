@@ -55,6 +55,11 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertIn("Production schema audit is not enabled", self.text)
         self.assertIn("pending dedicated IAM and user approval", self.text)
 
+    def test_query_budget_is_explicit_and_bounded(self) -> None:
+        self.assertIn('USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED: "1073741824"', self.text)
+        self.assertNotIn("--dry_run", self.text)
+        self.assertNotIn("DryRun", self.text)
+
     def test_trusted_surface_is_fixed_before_auth(self) -> None:
         guard = self.text.split("      - name: Enforce trusted read-only audit surface", 1)[1]
         auth = guard.index("      - name: Configure dedicated GCP audit credential")

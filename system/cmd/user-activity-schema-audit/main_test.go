@@ -39,6 +39,7 @@ func syntheticWIFFile(t *testing.T, project string) string {
 }
 
 func TestProjectlessWIFFixture(t *testing.T) {
+	t.Setenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED", "1073741824")
 	path := syntheticWIFFile(t, "")
 	// auth's project_id input is exported to environment variables, not embedded
 	// in the external_account JSON. The legacy SDK parser does not use this env.
@@ -66,7 +67,7 @@ func TestProjectlessWIFFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare audit without .env or a token file: %v", err)
 	}
-	if config.Target.ProjectID != "test-youtube-study-space" || config.WorkingRegion != "asia-southeast2" {
+	if config.Target.ProjectID != "test-youtube-study-space" || config.WorkingRegion != "asia-southeast2" || config.MaxBytesBilled != mybigquery.MaxUserActivityAuditBytes {
 		t.Fatalf("prepared wrong explicit target: %#v", config.Target)
 	}
 	client, err := mybigquery.NewBigqueryClient(context.Background(), config.Target.ProjectID, config.CredentialOption, config.WorkingRegion)
@@ -80,6 +81,7 @@ func TestProjectlessWIFFixture(t *testing.T) {
 }
 
 func TestPrepareAuditRejectsPresentCredentialProjectMismatch(t *testing.T) {
+	t.Setenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED", "1073741824")
 	t.Setenv("CREDENTIAL_FILE_LOCATION", syntheticWIFFile(t, "youtube-study-space"))
 	_, err := prepareAudit(context.Background(), []string{
 		"user-activity-schema-audit", "development", "test-youtube-study-space", "asia-southeast2",
@@ -135,6 +137,7 @@ func TestBuildAuditTarget(t *testing.T) {
 }
 
 func TestPrepareAuditRejectsInvalidArgumentsBeforeCredentials(t *testing.T) {
+	t.Setenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED", "1073741824")
 	t.Setenv("CREDENTIAL_FILE_LOCATION", "")
 	for _, args := range [][]string{
 		{"audit"},
@@ -154,5 +157,21 @@ func TestUsageErrorMentionsBigQueryLocation(t *testing.T) {
 	err := usageError()
 	if err == nil || !strings.Contains(err.Error(), "<bigquery-location>") {
 		t.Fatalf("usageError() = %v, want bigquery location argument", err)
+	}
+}
+
+func TestPrepareAuditRejectsUnboundedBudgetBeforeCredentials(t *testing.T) {
+	t.Setenv("CREDENTIAL_FILE_LOCATION", "")
+	for _, value := range []string{"", "0", "-1", "+1", "1.5", "1073741825", "9223372036854775808"} {
+		t.Setenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED", value)
+		_, err := prepareAudit(context.Background(), []string{"audit", "development", "test-youtube-study-space", "asia-southeast2"})
+		if err == nil || strings.Contains(err.Error(), "CREDENTIAL_FILE_LOCATION") {
+			t.Fatalf("budget %q must fail before credential loading: %v", value, err)
+		}
+	}
+	t.Setenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED", "")
+	_, err := prepareAudit(context.Background(), []string{"audit", "development", "test-youtube-study-space", "asia-southeast2"})
+	if err == nil || strings.Contains(err.Error(), "CREDENTIAL_FILE_LOCATION") {
+		t.Fatalf("missing budget must fail: %v", err)
 	}
 }

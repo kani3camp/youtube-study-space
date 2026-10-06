@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"google.golang.org/api/option"
@@ -35,6 +36,7 @@ type auditOutput struct {
 type auditConfig struct {
 	Target           auditTarget
 	WorkingRegion    string
+	MaxBytesBilled   int64
 	CredentialOption option.ClientOption
 }
 
@@ -56,7 +58,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer bqClient.CloseClient()
 
-	audit, err := bqClient.InspectUserActivityLegacyTimestamp(ctx)
+	audit, err := bqClient.InspectUserActivityLegacyTimestamp(ctx, config.MaxBytesBilled)
 	if err != nil {
 		return fmt.Errorf("inspect user-activity schema: %w", err)
 	}
@@ -85,6 +87,17 @@ func prepareAudit(ctx context.Context, args []string) (auditConfig, error) {
 	if workingRegion == "" {
 		return auditConfig{}, errors.New("BigQuery location is required")
 	}
+	budget := strings.TrimSpace(os.Getenv("USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED"))
+	if budget == "" || strings.IndexFunc(budget, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return auditConfig{}, errors.New("audit maximum bytes billed must be an explicit positive decimal integer")
+	}
+	maxBytesBilled, err := strconv.ParseInt(budget, 10, 64)
+	if err != nil {
+		return auditConfig{}, errors.New("invalid audit maximum bytes billed")
+	}
+	if err := mybigquery.ValidateUserActivityAuditBudget(maxBytesBilled); err != nil {
+		return auditConfig{}, fmt.Errorf("validate audit query budget: %w", err)
+	}
 	// Validate the explicit resource target before loading a credential. WIF
 	// credentials identify a principal and need not contain a resource project.
 	if _, err := buildAuditTarget(environment, expectedProjectID, ""); err != nil {
@@ -106,7 +119,7 @@ func prepareAudit(ctx context.Context, args []string) (auditConfig, error) {
 	if err != nil {
 		return auditConfig{}, err
 	}
-	return auditConfig{Target: target, WorkingRegion: workingRegion, CredentialOption: clientOption}, nil
+	return auditConfig{Target: target, WorkingRegion: workingRegion, MaxBytesBilled: maxBytesBilled, CredentialOption: clientOption}, nil
 }
 
 func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (auditTarget, error) {
@@ -149,5 +162,5 @@ func buildAuditTarget(environment, expectedProjectID, actualProjectID string) (a
 }
 
 func usageError() error {
-	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id> <bigquery-location>")
+	return errors.New("usage: user-activity-schema-audit <development|production> <expected-project-id> <bigquery-location>; USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED is required")
 }

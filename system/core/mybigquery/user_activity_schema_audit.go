@@ -18,6 +18,17 @@ type UserActivitySchemaAudit struct {
 	BothDifferent      int64 `json:"both_different"`
 }
 
+// MaxUserActivityAuditBytes is the fail-closed ceiling for this one-table audit.
+// Raising it requires a separate reviewed source and cost approval.
+const MaxUserActivityAuditBytes int64 = 1 << 30
+
+func ValidateUserActivityAuditBudget(maxBytesBilled int64) error {
+	if maxBytesBilled <= 0 || maxBytesBilled > MaxUserActivityAuditBytes {
+		return fmt.Errorf("audit maximum bytes billed must be positive and at most 1 GiB")
+	}
+	return nil
+}
+
 func validateUserActivitySchema(schema bigquery.Schema) (hasTakenAt bool, hasLegacyTimestamp bool, err error) {
 	var takenAt *bigquery.FieldSchema
 	var legacyTimestamp *bigquery.FieldSchema
@@ -54,7 +65,10 @@ func validateUserActivitySchema(schema bigquery.Schema) (hasTakenAt bool, hasLeg
 	return true, legacyTimestamp != nil, nil
 }
 
-func (c *BigqueryController) InspectUserActivityLegacyTimestamp(ctx context.Context) (UserActivitySchemaAudit, error) {
+func (c *BigqueryController) InspectUserActivityLegacyTimestamp(ctx context.Context, maxBytesBilled int64) (UserActivitySchemaAudit, error) {
+	if err := ValidateUserActivityAuditBudget(maxBytesBilled); err != nil {
+		return UserActivitySchemaAudit{}, err
+	}
 	table := c.Client.Dataset(DatasetName).Table(UserActivityHistoryMainTableName)
 	metadata, err := table.Metadata(ctx)
 	if err != nil {
@@ -87,6 +101,7 @@ func (c *BigqueryController) InspectUserActivityLegacyTimestamp(ctx context.Cont
 		UserActivityHistoryMainTableName,
 	))
 	query.Location = c.WorkingRegion
+	query.MaxBytesBilled = maxBytesBilled
 
 	rows, err := query.Read(ctx)
 	if err != nil {
