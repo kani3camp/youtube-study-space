@@ -1,11 +1,20 @@
 # Phase 2: next approval and infrastructure readiness
 
 実行入口は [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。
-これは公開可能な最小specであり、private inventory、承認そのもの、実環境検証結果ではありません。
+これは公開可能な最小specとsanitized実行記録です。private inventoryや承認そのものを保存しません。
 account number、WIF principal全文、既存policy、実集計値、state/planをこの文書へ追加しません。
 
-## Next approval: development aggregate audit once
+## Recorded audit and next boundary
 
+実run `37475212059` はsuccess。ユーザー貼付のsanitized Summaryはlegacy列present yes、
+4集計すべてis-zero yesでした。監査時点のlegacy値backfillは不要ですが、列は未削除です。
+runtime temporary access撤回はoperator readback報告、source gate=falseは#1238で完了。
+判定のSQL上の意味、offline canonical preparation、未承認のschema修復→別wave importは
+[`user-activity-history-canonicalization.md`](user-activity-history-canonicalization.md) を参照してください。
+
+## Historical approval scope: development aggregate audit once
+
+以下は完了済みaudit waveの当初設計です。resource作成やaudit再実行の指示ではありません。
 このpacketの作成やsource PRの承認は、新規accessの実行承認を兼ねません。
 以下の候補名をprivate read-only inventoryでcollision確認し、exact diffとprincipalを
 親スレッドへ提示してから、実行直前の明示承認を待ちます。既存同名resourceは流用しません。
@@ -95,11 +104,12 @@ project/table/SAのpolicy全体を古いsnapshotへ上書きしません。専�
 
 2026-10-06の#1191最新記録はdev full-root `no-op11 / drift0`、resources11、serial13です。
 これは記録の引用であり、このcheckoutでのauthenticated revalidationではありません。
-#1192–#1197はintegrationへ統合済みですが、runtime deploy、監査実行、schema修復を意味しません。
+#1192–#1197のsource統合だけではruntime deployやschema修復を意味しません。
+専用auditは上記runで成功・cleanup済み。schema修復/importとguardのactual runtime deploymentは別gateです。
 
 | Gate | Required fresh evidence before advancing | Separate approval boundary |
 | --- | --- | --- |
-| Dev audit | 上記dedicated identityと1回audit、外部consumer不確定項目を列挙 | 新SA/IAM/WIF/Environment + query1回 |
+| Dev audit | 1回audit成功、sanitized判定はユーザー貼付、runtime/source cleanup完了。外部consumerは未確定 | この実行waveは完了。再実行は未承認 |
 | Dev schema repair | schema guardの対象runtimeへの反映、external BI/cross-project/manual SQL/wildcard/view確認、tmp canonical、recovery期限とrollback、audit意味の判定 | runtime deploy、DROP/backfillは各exact diffで別承認 |
 | Dev history adoption | repair完了後のfresh canonical8 field/order。exact table import1 + existing11 no-op、drift/unknown/other0 → post no-op12 | import-only別wave。schema mutationと混ぜない |
 | Dev runtime WIF/IAM | pool/provider mapping/condition/AWS account/SA IAM exact memberのprivate fresh GET、provider実Read権限、ownership分類 | CI permission追加/importは別承認。project IAM/SA本体をownershipしない |
