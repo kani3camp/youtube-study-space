@@ -27,6 +27,7 @@ type fakeOAuth struct {
 func (f *fakeOAuth) AuthorizationURL(state string) string {
 	return "https://accounts.google.com/o/oauth2/v2/auth?state=" + state
 }
+
 func (f *fakeOAuth) Resolve(context.Context, string) ([]Channel, error) {
 	f.calls.Add(1)
 	return f.channels, f.err
