@@ -85,6 +85,51 @@ describe('private MyPage memory', () => {
 		expect(result.current.data?.workName).toBe('合成作業')
 	})
 
+	it('clears two independent browser memories on a terminal response while preserving transient stale data', async () => {
+		let response = sample()
+		const browsers = [
+			new MyPageMemory(
+				async () => response,
+				async () => {},
+			),
+			new MyPageMemory(
+				async () => response,
+				async () => {},
+			),
+		]
+		for (const memory of browsers) memory.setIdentity('synthetic-same-channel')
+		await settle()
+		for (const memory of browsers)
+			expect(memory.getSnapshot().data?.account.data?.displayName).toBe(
+				'Sample',
+			)
+		response = sample()
+		response.account = {
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			data: null,
+		}
+		for (const memory of browsers) await memory.refresh(true)
+		for (const memory of browsers)
+			expect(memory.getSnapshot().data?.account.data?.displayName).toBe(
+				'Sample',
+			)
+		response = sample()
+		response.account = {
+			availability: 'unavailable',
+			reasonCode: 'METADATA_TOO_OLD',
+			data: null,
+		}
+		await vi.advanceTimersByTimeAsync(2000)
+		for (const memory of browsers) await memory.refresh(true)
+		for (const memory of browsers) {
+			expect(memory.getSnapshot().data?.account.data).toBeNull()
+			expect(memory.getSnapshot().data?.account.asOf).toBeNull()
+			expect(memory.getSnapshot().data?.current.data?.workName).toBe('合成作業')
+			memory.dispose()
+		}
+	})
+
 	it('honors Retry-After across manual refresh and hide/show, then resumes at the deadline', async () => {
 		const load = vi
 			.fn()

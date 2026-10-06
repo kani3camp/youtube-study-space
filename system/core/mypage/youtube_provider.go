@@ -102,13 +102,17 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 }
 
 func decodePublicChannel(body io.Reader) (Channel, error) {
+	return decodeChannelResponse(body, false)
+}
+
+func decodeChannelResponse(body io.Reader, terminalAbsence bool) (Channel, error) {
 	data, err := io.ReadAll(io.LimitReader(body, 65537))
 	if err != nil || len(data) > 65536 {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	var result struct {
 		NextPageToken string `json:"nextPageToken"`
-		Items         []struct {
+		Items         *[]struct {
 			ID      string `json:"id"`
 			Snippet struct {
 				Title      string `json:"title"`
@@ -124,13 +128,19 @@ func decodePublicChannel(body io.Reader) (Channel, error) {
 	if json.Unmarshal(data, &result) != nil {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	if len(result.Items) > 1 || result.NextPageToken != "" {
+	if result.Items == nil {
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if len(*result.Items) > 1 || result.NextPageToken != "" {
 		return Channel{}, apiError("CHANNEL_AMBIGUOUS")
 	}
-	if len(result.Items) != 1 {
+	if len(*result.Items) == 0 && terminalAbsence {
+		return Channel{}, ErrPublicChannelMissing
+	}
+	if len(*result.Items) != 1 {
 		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
 	}
-	item := result.Items[0]
+	item := (*result.Items)[0]
 	if !youtubeChannelID.MatchString(item.ID) || strings.TrimSpace(item.Snippet.Title) == "" {
 		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
 	}

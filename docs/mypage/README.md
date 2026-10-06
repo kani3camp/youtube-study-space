@@ -258,3 +258,12 @@ go run ./cmd/mypage-operator-dryrun < /path/to/private-synthetic-reference
 ```
 
 reference fileは手元の制限された場所に保持し、repo/PR/CI artifactへ追加しない。
+
+
+## Terminal metadata state across processes
+
+公開APIのHTTP200・明示items=[]だけをchannel不在として扱い、通信失敗/不正body/曖昧な結果と区別する。不在の場合は期限前でもrevision/policy/access guard付きで公開metadataと取得日時をclearする。消去失敗時にも既知の不在metadataをresponseで表示しない。通常の一時取得失敗は許可された期限内のpartial metadataを維持する。
+
+metadataが空のaccountは、timestampも消去済みの場合を含めMETADATA_TOO_OLDという既存terminal reasonで返す。browserは当該reasonで旧account表示を除去する。BFF cacheとsingleflightはWebAccount document revision/metadata有無に結び付け、他processによる消去後のGETが旧cacheや旧revisionのflightを再利用しない。snapshotの30秒/JST境界制約は維持する。
+
+mock/emulatorで正常不在と失敗の区別、25日metadataの即時clear、2processのTTL前cache破棄、旧flightへの非合流と遅い旧cacheの拒否、2browser memoryの消去を検証する。すべての既存browserへ瞬時に通知する仕組みやaccount削除の全writer guardを意味するものではない。
