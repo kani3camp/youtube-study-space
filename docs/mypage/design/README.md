@@ -131,4 +131,6 @@ Codex / 実装者は、
 
 原本に合わせてカード・時間軸の余白、数字と単位の階層、補助指標の配置、セージ色、チャンネル確認のidentity中心の配置を調整した。Notion Current Canonで固定されたheader / greeting / 見出し・flat背景・shadowなし・snapshot時刻・本人確認の文言とflowは原本より優先する。全体初回取得失敗は単一のerror card、partial取得失敗は利用可能sectionを維持する。loadingは同じ3領域のSkeletonを表示する。
 
-外部font通信は遮断し、両画面はlocal fallback fontで比較している。原本と製品fixtureのsample値・時刻は異なるため、データ差をpixel不一致の根拠にはしない。完全pixel parityや実OAuth・Hosting E2E・公開readyの確認は含めない。
+初回比較では外部font通信を遮断したため、原本の英字はLiberation Sans、実装の英字はNoto Sans CJK JPへfallbackしていた。実装はfamily名だけを指定しfontを配信していなかった。現在は原本が指定するM PLUS Rounded 1cの400/500/700/800を公式Google Fonts配布からWOFF2化してlocal配信し、原本にも同一byte列をlocalで解決して再比較する。Chromium CDPで英字・日本語の実rendered fontとRegular/Medium/Bold/ExtraBoldを確認し、font load失敗時のfallbackも検証する。配布元・hash・OFLは `mypage/src/assets/fonts/` と `mypage/public/fonts/mplus-rounded-1c/OFL.txt` に保持する。
+
+原本と製品fixtureのsample値・時刻は異なるため、データ差をpixel不一致の根拠にはしない。完全pixel parityや実OAuth・Hosting E2E・公開readyの確認は含めない。

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./assets/fonts/fonts.css";
 
 @theme static {
 	--color-page: oklch(97% 0.008 75);

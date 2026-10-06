@@ -19,6 +19,7 @@ with sync_playwright() as p:
   for state in states:
    page.goto('http://127.0.0.1:18081/visual.html?state='+state)
    page.get_by_role('heading',name='マイページ',exact=True).wait_for()
+   page.evaluate('document.fonts.ready')
    overflow=page.evaluate('document.documentElement.scrollWidth > innerWidth')
    assert not overflow,(width,state,'horizontal overflow')
    assert not errors,(width,state,errors)
@@ -73,6 +74,6 @@ with sync_playwright() as p:
   avatar.locator('svg').wait_for();assert avatar.locator('img').count()==0
   avatar.click();page.get_by_role('button',name='ログアウト',exact=True).wait_for()
  browser.close()
-report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally; exact pixel parity is not a target because Current Canon overrides prototype semantics and font transport is blocked'}
+report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally with the same self-hosted M PLUS Rounded 1c faces; exact pixel parity is not a target because Current Canon overrides prototype semantics'}
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print('PASS: 60 responsive/state cases, bounded timestamp, skeleton/first failure/zero metrics, avatar failure fallback, native modal focus/Escape/zero-selection/logout at 390 and 1440.')
