@@ -94,9 +94,17 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	if response.StatusCode != http.StatusOK {
 		return nil, apiError("CHANNEL_UNAVAILABLE")
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
+	channel, err := decodePublicChannel(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	return []Channel{channel}, nil
+}
+
+func decodePublicChannel(body io.Reader) (Channel, error) {
+	data, err := io.ReadAll(io.LimitReader(body, 65537))
 	if err != nil || len(data) > 65536 {
-		return nil, apiError("TEMPORARY_UNAVAILABLE")
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	var result struct {
 		NextPageToken string `json:"nextPageToken"`
@@ -114,17 +122,17 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 		} `json:"items"`
 	}
 	if json.Unmarshal(data, &result) != nil {
-		return nil, apiError("TEMPORARY_UNAVAILABLE")
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if len(result.Items) > 1 || result.NextPageToken != "" {
-		return nil, apiError("CHANNEL_AMBIGUOUS")
+		return Channel{}, apiError("CHANNEL_AMBIGUOUS")
 	}
 	if len(result.Items) != 1 {
-		return nil, apiError("CHANNEL_UNAVAILABLE")
+		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
 	}
 	item := result.Items[0]
 	if !youtubeChannelID.MatchString(item.ID) || strings.TrimSpace(item.Snippet.Title) == "" {
-		return nil, apiError("CHANNEL_UNAVAILABLE")
+		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
 	}
 	channel := Channel{ID: item.ID, DisplayName: item.Snippet.Title}
 	// customUrl may be a legacy custom URL instead of a current @handle.
@@ -134,5 +142,5 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	if avatar, err := url.Parse(item.Snippet.Thumbnails.Default.URL); err == nil && avatar.Scheme == "https" && avatar.Host != "" && avatar.User == nil && avatar.Opaque == "" {
 		channel.AvatarURL = &item.Snippet.Thumbnails.Default.URL
 	}
-	return []Channel{channel}, nil
+	return channel, nil
 }

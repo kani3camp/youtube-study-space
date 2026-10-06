@@ -246,6 +246,7 @@ func (s *FirestoreAuthStore) ReadAccount(ctx context.Context, uid string) (WebAc
 	if err := doc.DataTo(&value); err != nil {
 		return WebAccount{}, fmt.Errorf("decode WebAccount: %w", err)
 	}
+	value.Revision = doc.UpdateTime
 	return value, nil
 }
 

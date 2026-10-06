@@ -56,6 +56,7 @@ type OAuthTransaction struct {
 }
 
 type WebAccount struct {
+	Revision             time.Time  `firestore:"-"`
 	AccessBlocked        bool       `firestore:"accessBlocked"`
 	PrivacyPolicyVersion string     `firestore:"privacyPolicyVersion"`
 	TermsVersion         string     `firestore:"termsVersion"`

@@ -2,6 +2,7 @@ package mypage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -45,6 +46,9 @@ func (b *BFF) cacheHit(key cacheKey, now time.Time) (Response, bool) {
 
 func accountSection(account WebAccount, now time.Time) Section[Account] {
 	if account.DisplayName == "" {
+		if !account.MetadataFetchedAt.IsZero() && now.Sub(account.MetadataFetchedAt) >= 30*24*time.Hour {
+			return missingSection[Account](MetadataTooOld)
+		}
 		return missingSection[Account](SourceUnavailable)
 	}
 	age := now.Sub(account.MetadataFetchedAt)
@@ -76,6 +80,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 			metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
 			if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
 				account = refreshed
+			} else if metadataGateError(err) {
+				stop()
+				return Response{}, fmt.Errorf("metadata access gate: %w", err)
 			}
 			stop()
 		}
@@ -107,6 +114,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 		return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 	case value := <-result:
 		if value.Err != nil {
+			if metadataGateError(value.Err) {
+				return Response{}, value.Err
+			}
 			return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 		}
 		response, ok := value.Val.(Response)
@@ -123,4 +133,12 @@ func (b *BFF) Invalidate(uid string) {
 	b.mu.Lock()
 	delete(b.cache, cacheKey{b.Environment, uid})
 	b.mu.Unlock()
+}
+
+func metadataGateError(err error) bool {
+	switch errorCode(err) {
+	case "AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED":
+		return true
+	}
+	return false
 }
