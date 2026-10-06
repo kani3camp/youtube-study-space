@@ -18,13 +18,14 @@ assert_exact_groups() {
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
 		esac
-		if ! printf '%s\n' "$output" | grep -Fxq "$group=$expected"; then
+		if ! grep -Fxq "$group=$expected" <<< "$output"; then
 			echo "Expected $group=$expected for paths: $*" >&2
 			exit 1
 		fi
 	done
 }
 
+# A here-string avoids a printf producer receiving SIGPIPE when grep -q exits.
 assert_exact_groups "" README.md
 assert_exact_groups formal_spec formal-spec/README.md
 assert_exact_groups formal_spec formal-spec/fsl/specs/seat_session.fsl
@@ -39,6 +40,7 @@ assert_exact_groups mypage mypage/pnpm-lock.yaml
 assert_exact_groups mypage docs/mypage/openapi.yaml
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
+assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
 assert_exact_groups "mypage system firestore_integration" mypage/src/main.tsx system/core/mypage/store.go
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
@@ -70,14 +72,14 @@ assert_exact_groups "system firestore_integration youtube_monitor" system/core/a
 
 manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
 for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all; do
-	if ! printf '%s\n' "$manual_output" | grep -Fxq "$group=true"; then
+	if ! grep -Fxq "$group=true" <<< "$manual_output"; then
 		echo "Expected workflow_dispatch to select $group" >&2
 		exit 1
 	fi
 done
 
 fallback_output="$(GITHUB_EVENT_NAME=pull_request "$detector")"
-if ! printf '%s\n' "$fallback_output" | grep -Fxq 'all=true'; then
+if ! grep -Fxq 'all=true' <<< "$fallback_output"; then
 	echo "Expected missing pull_request SHAs to select all groups" >&2
 	exit 1
 fi
