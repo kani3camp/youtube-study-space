@@ -55,7 +55,10 @@ func TestSeatMoveSharesOneInstantWithAdvancingClock(t *testing.T) {
 				}
 				var err error
 				closedSec, _, _, err = app.moveSeat(ctx, tx, 2, "", false, false, utils.MinWorkOrderOption{}, seat, &user, previous)
-				return fmt.Errorf("emulator fixture transaction: %w", err)
+				if err != nil {
+					return fmt.Errorf("move fixture seat: %w", err)
+				}
+				return nil
 			}); err != nil {
 				t.Fatal(err)
 			}
