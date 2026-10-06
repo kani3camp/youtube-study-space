@@ -18,13 +18,18 @@ account number、WIF principal全文、既存policy、実集計値、state/plan�
 | Same project | custom role ID `devUserActivityAuditTableRead` | `bigquery.tables.get`, `bigquery.tables.getData` だけ |
 | `test-youtube-study-space.firestore_export.user-activity-history` IAM | 上記table-read roleのmember 1件 | exact tableだけ。dataset/projectには付与しない |
 | Dedicated audit SA IAM | `roles/iam.workloadIdentityUser` member 1件 | 既存GitHub WIFからこのaudit workflowの承認済みrunだけ |
-| GitHub Environment `gcp-dev-user-activity-schema-audit` | protected Environmentとprivate input | manual reviewer、self-approval/bypass禁止、trusted integration branchだけ |
+| GitHub Environment `gcp-dev-user-activity-schema-audit` | protected Environmentとprivate input | manual approval、reviewer/self-review/bypass設定をfresh確認して承認済み設定を適用、trusted integration branchだけ |
 | Same Environment | secret names | `GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT`, `GCP_TERRAFORM_WIF_PROVIDER` |
 | Source gate | reviewed activation PR、終了後closure PR | `DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED` false→true→false。common CI routing変更なし |
 
 実SA email、project number、provider resource name、federated member、reviewer IDs、
 branch protectionの実diffはprivate packetで確定します。Environment既存時はfresh設定を確認し、
 欠けたprotectionだけを明示diffにします。Terraform plan/apply identitiesとそのbindingは変更しません。
+
+既存Environmentのreviewer、`prevent_self_review`、admin bypass設定はsourceだけでは確定できません。
+別reviewerが必要とは仮定しません。self-review禁止を選ぶ場合、dispatch actorとreviewerの分離が
+必要なので、既存運用と実設定を確認してからその変更を承認packetに含めます。
+会話内のaction-time承認と、GitHub Environmentの手動承認は別です。
 
 ### IAM capability and stop conditions
 
