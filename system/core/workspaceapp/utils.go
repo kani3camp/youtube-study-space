@@ -835,8 +835,21 @@ func (app *WorkspaceApp) exitRoom(
 	previousUserDoc *repository.UserDoc,
 	previousWorkSegments []repository.WorkSegmentDoc,
 ) (int, int, error) {
+	return app.exitRoomAt(ctx, tx, isMemberSeat, previousSeat, previousUserDoc, previousWorkSegments, app.currentTime())
+}
+
+// exitRoomAt lets a seat move share one half-open transition boundary between
+// the old segment's close and the new seat's entry, including JST midnight.
+func (app *WorkspaceApp) exitRoomAt(
+	ctx context.Context,
+	tx *firestore.Transaction,
+	isMemberSeat bool,
+	previousSeat repository.SeatDoc,
+	previousUserDoc *repository.UserDoc,
+	previousWorkSegments []repository.WorkSegmentDoc,
+	exitDate time.Time,
+) (int, int, error) {
 	// 作業時間を計算
-	exitDate := app.currentTime()
 	var addedWorkedTimeSec int
 	var addedDailyWorkedTimeSec int
 	switch previousSeat.State {
@@ -1002,7 +1015,7 @@ func (app *WorkspaceApp) moveSeat(
 	}
 
 	// 退室
-	workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc, previousWorkSegments)
+	workedTimeSec, addedRP, err := app.exitRoomAt(ctx, tx, beforeIsMemberSeat, previousSeat, previousUserDoc, previousWorkSegments, jstNow)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("in exitRoom for %s: %w", app.ProcessedUserID, err)
 	}
