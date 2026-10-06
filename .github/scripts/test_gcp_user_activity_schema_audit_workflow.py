@@ -21,6 +21,10 @@ HANDOFF_FIXTURES = GITHUB_DIR.parent / "infra" / "gcp" / "tests" / "fixtures" / 
 spec = importlib.util.spec_from_file_location("schema_audit_summary", SUMMARY)
 summary_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(summary_module)
+ADOPTION = GITHUB_DIR.parent / "infra/gcp/scripts/prepare_user_activity_history_adoption.py"
+adoption_spec = importlib.util.spec_from_file_location("user_activity_adoption", ADOPTION)
+adoption_module = importlib.util.module_from_spec(adoption_spec)
+adoption_spec.loader.exec_module(adoption_module)
 
 
 def audit_fixture() -> dict:
@@ -349,6 +353,131 @@ class SchemaAuditSummaryTest(unittest.TestCase):
                 self.assertEqual(public.read_text(), "existing summary\n")
                 self.assertNotIn("synthetic-private-value", result.stdout + result.stderr)
                 self.assertNotIn(str(private), result.stdout + result.stderr)
+
+
+class UserActivityAdoptionPreparationTest(unittest.TestCase):
+    def metadata(self) -> dict:
+        return {
+            "tableReference": dict(adoption_module.REFERENCE),
+            "type": "TABLE", "location": adoption_module.LOCATION,
+            "schema": {"fields": json.loads(adoption_module.SCHEMA.read_text())},
+        }
+
+    def test_observed_order_is_preserved_without_enabling_adoption(self) -> None:
+        metadata = self.metadata()
+        metadata["schema"]["fields"].reverse()
+        result = adoption_module.prepare(metadata)
+        self.assertIs(result["manage_user_activity_history"], False)
+        self.assertEqual(result["user_activity_history_field_order"],
+                         [field["name"] for field in metadata["schema"]["fields"]])
+
+    def test_empty_legacy_values_do_not_make_existing_column_canonical(self) -> None:
+        audit = audit_fixture()
+        for key in summary_module.COUNTS:
+            audit["audit"][key] = 0
+        summary = summary_module.summarize(audit)
+        self.assertIn("Legacy timestamp present: yes", summary)
+        self.assertEqual(summary.count("is zero: yes"), 4)
+        metadata = self.metadata()
+        metadata["schema"]["fields"].insert(3, {"name": "timestamp", "type": "TIMESTAMP", "mode": "NULLABLE"})
+        with self.assertRaises(ValueError):
+            adoption_module.prepare(metadata)
+
+    def test_missing_duplicate_or_unknown_fields_fail_closed(self) -> None:
+        for change in (lambda fields: fields.pop(), lambda fields: fields.append(copy.deepcopy(fields[0])),
+                       lambda fields: fields[0].update(name="synthetic-unexpected")):
+            metadata = self.metadata()
+            change(metadata["schema"]["fields"])
+            with self.assertRaises(ValueError):
+                adoption_module.prepare(metadata)
+
+    def test_nested_modes_types_order_and_annotations_are_not_discarded(self) -> None:
+        for change in (
+            lambda fields: fields[1].update(type="STRING"),
+            lambda fields: fields[0].update(mode="REQUIRED"),
+            lambda fields: fields[5]["fields"].reverse(),
+            lambda fields: fields[5]["fields"][0].update(mode="REQUIRED"),
+            lambda fields: fields[0].update(description="synthetic-private-description"),
+            lambda fields: fields[0].update(policyTags={"names": ["synthetic-private-policy"]}),
+        ):
+            metadata = self.metadata()
+            change(metadata["schema"]["fields"])
+            with self.assertRaises(ValueError):
+                adoption_module.prepare(metadata)
+
+    def test_equivalent_api_aliases_and_nullable_defaults_are_accepted(self) -> None:
+        metadata = self.metadata()
+        metadata["schema"]["fields"][0].update(type="INT64", description="")
+        del metadata["schema"]["fields"][0]["mode"]
+        metadata["schema"]["fields"][4]["type"] = "BOOL"
+        metadata["schema"]["fields"][5]["type"] = "STRUCT"
+        self.assertIs(adoption_module.prepare(metadata)["manage_user_activity_history"], False)
+
+    def test_wrong_scope_and_unmodeled_table_configuration_are_rejected(self) -> None:
+        for key, value in ("location", "synthetic-other-region"), ("type", "VIEW"):
+            metadata = self.metadata()
+            metadata[key] = value
+            with self.assertRaises(ValueError):
+                adoption_module.prepare(metadata)
+        for key in adoption_module.REFERENCE:
+            metadata = self.metadata()
+            metadata["tableReference"][key] = "synthetic-wrong-target"
+            with self.assertRaises(ValueError):
+                adoption_module.prepare(metadata)
+        for key, value in {
+            "clustering": {"fields": ["user_id"]}, "timePartitioning": {"type": "DAY"},
+            "expirationTime": "12345", "encryptionConfiguration": {"kmsKeyName": "synthetic-key"},
+            "labels": {"synthetic": "value"}, "description": "synthetic-private-description",
+            "tableConstraints": {}, "requirePartitionFilter": True,
+        }.items():
+            metadata = self.metadata()
+            metadata[key] = value
+            with self.assertRaises(ValueError):
+                adoption_module.prepare(metadata)
+
+    def run_cli(self, path: Path, output: Path):
+        return subprocess.run(["python3", str(ADOPTION), str(path), str(output)],
+                              capture_output=True, text=True)
+
+    def test_cli_writes_private_default_off_input_and_never_overwrites(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, output = root / "private.json", root / "candidate.tfvars.json"
+            source.write_text(json.dumps(self.metadata()))
+            source.chmod(0o600)
+            result = self.run_cli(source, output)
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(output.stat().st_mode & 0o777, 0o600)
+            self.assertIs(json.loads(output.read_text())["manage_user_activity_history"], False)
+            before = output.read_bytes()
+            self.assertNotEqual(self.run_cli(source, output).returncode, 0)
+            self.assertEqual(output.read_bytes(), before)
+
+    def test_invalid_or_exposed_private_inputs_never_echo_or_create_candidate(self) -> None:
+        for case in ("legacy", "duplicate-json", "malformed", "exposed", "symlink"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source, output = root / "synthetic-private-input.json", root / "candidate.json"
+                metadata = self.metadata()
+                metadata["id"] = "synthetic-private-value"
+                if case == "legacy":
+                    metadata["schema"]["fields"].append({"name": "timestamp", "type": "TIMESTAMP"})
+                raw = json.dumps(metadata)
+                if case == "duplicate-json":
+                    raw = raw.replace('"type": "TABLE"', '"type": "TABLE", "type": "TABLE"')
+                elif case == "malformed":
+                    raw = '{"synthetic-private-value":'
+                source.write_text(raw)
+                source.chmod(0o600 if case != "exposed" else 0o644)
+                if case == "symlink":
+                    link = root / "link.json"
+                    link.symlink_to(source)
+                    source = link
+                result = self.run_cli(source, output)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(output.exists())
+                self.assertNotIn("synthetic-private-value", result.stdout + result.stderr)
+                self.assertNotIn(str(source), result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

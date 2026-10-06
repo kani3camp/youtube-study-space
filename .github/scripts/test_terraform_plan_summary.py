@@ -117,6 +117,29 @@ class TerraformPlanSummaryTest(unittest.TestCase):
             self.assertNotIn(secret, proc.stdout)
             self.assertNotIn(secret, proc.stderr)
 
+    def test_history_import_cannot_include_legacy_column_removal(self) -> None:
+        canonical = [{"name": "taken_at", "type": "TIMESTAMP"}]
+        plan = {
+            "terraform_version": "1.16.4",
+            "resource_changes": [{
+                "address": "module.user_activity_history[0].google_bigquery_table.retained",
+                "mode": "managed",
+                "change": {
+                    "actions": ["update"], "importing": {"id": SECRETS[3]},
+                    "before": {"schema": canonical + [{"name": "timestamp", "type": "TIMESTAMP"}]},
+                    "after": {"schema": canonical, "synthetic_private_value": SECRETS[0]},
+                },
+            }],
+        }
+        proc, safe_json, safe_md, parsed = run_sanitizer(plan, "import-only")
+        self.assertEqual(proc.returncode, 3)
+        self.assertFalse(parsed["policy_passed"])
+        self.assertEqual(parsed["counts"]["import"], 1)
+        self.assertEqual(parsed["counts"]["update"], 1)
+        self.assertNotIn("schema", parsed["resources"][0])
+        for secret in SECRETS:
+            self.assertNotIn(secret, safe_json + safe_md + proc.stdout + proc.stderr)
+
     def test_no_destroy_allows_create_update_but_stops_delete_or_replace(self) -> None:
         allowed = {
             "terraform_version": "1.16.4",

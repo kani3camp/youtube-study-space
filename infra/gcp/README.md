@@ -8,9 +8,12 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceのownership移行は完了しています。2026-10-06時点の通常full-rootは `import0 / no-op11 / drift0 / unknown0` です。後続はIssue #1191を入口に、development残件を片付けてからproduction migration準備へ進みます。
 
-次のdedicated development aggregate auditの承認候補・revoke手順と、development→production→MyPage releaseの証拠条件は
+dedicated development aggregate auditの実行記録・revoke手順と、development→production→MyPage releaseの証拠条件は
 [`docs/phase2-approval-and-readiness.md`](docs/phase2-approval-and-readiness.md) を参照してください。
 source準備や過去のno-op記録を、fresh実環境検証・実行承認・Infrastructure Readyと扱いません。
+監査時点でlegacy値のbackfillは不要でしたが、legacy列は残っています。次のschema修復と
+別waveでのcanonical import準備は[`docs/user-activity-history-canonicalization.md`](docs/user-activity-history-canonicalization.md)
+を参照してください。adoptionはdefault-offのままで、live DROP/import/applyは未承認です。
 
 通常のmigration pathでは以下を行いません。bounded normal-change / state-only例外は、別validator・別approvalで明示的に隔離します。
 
