@@ -46,3 +46,11 @@ work-segmentsは user-id equality、ended-at > window start、started-at < asOf 
 既存 writer の identity/history query は `WorkspaceApp.RunTransaction` が渡すcontext内で同じtransactionへ参加する。外側のquery利用は従来どおり。これにより seat更新と並行する read→write が競合判定される。
 
 移動では old segment close と new seat entry に同じtransition instantを使う。休憩のoriginal startは新seatのentryより前でも正当だが、current segmentはnew seat entry以降でなければならない。過去に記録された重複区間は推測修復・許容せず、影響するhistory metricを `DATA_INCONSISTENT`、独立したcurrent/lifetimeは利用可能な限り維持する。
+
+## HTTP and memory cache
+
+`HTTPHandler` は6つの通常login endpointのlibrary boundary。App Check、Firebase custom provider、WebAccount存在・accessBlocked・同意版を統計アクセス前に検証する。cache hitでもこのgateを毎回通す。opaque cookieはHttpOnly / Secure / Lax / Path=/、Domainなし。callbackは固定pathへredirectし、raw provider errorやdependency detailを公開しない。JSONは未知・重複・大小文字違いのfield、余分なquery/body、4096 byte超を拒否する。
+
+aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は独自10秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
+
+rate limitはprocess単位のbounded memory。deploymentの全体limit、trusted proxy IP抽出、実provider/verifier/minter、server起動とHosting rewriteの結線は未実装。`accessBlocked`のread guardだけで全writer/cache/in-flight deletionのD01要件を満たしたとは扱わない。support purposeとprivacy運用も引き続き独立した完了条件。
