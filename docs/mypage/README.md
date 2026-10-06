@@ -65,13 +65,13 @@ HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし�
 
 visible時だけ完了後60秒でpollし、hidden停止・復帰即refresh・request overlap防止・manual debounce・失敗backoff・Retry-Afterを実装する。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
 
-これはsession/API adapterを注入するcontroller slice。実Firebase/browser listener、router、画面とbfcache eventへの結線は後続。MyPage responseやmetadataをstorageへ保存する経路は持たない。
+controllerはsession/API adapterを注入する。browser runtime sliceでFirebase listener、router、画面、bfcache eventへの結線を追加した。MyPage responseやmetadataをstorageへ保存する経路は持たない。
 
 ## Display and visual verification
 
 React表示componentはcurrent / summary / recent7Days / account panelを持ち、snapshotの時刻だけでtimelineを描く。未取得値はunavailable、旧成功値は元asOf付き、休憩でもworkNameを維持。0時間の日もkeyboardで選択できる。native dialogのinertに加えてTab循環・Escape・avatarへのfocus復帰を検証する。最新仕様に合わせflat cream背景と通常cardのshadowなしを使う。
 
-`mypage/visual.html` はdev専用の合成fixture入口で、production buildの入口に含めない。実Firebase/API/router結線はこのcomponent sliceの後続。画面コードを独立して実browserで確認する:
+`mypage/visual.html` はdev専用の合成fixture入口で、production buildの入口に含めない。product runtimeの結線とは別に、画面コードを独立して実browserで確認する:
 
 ```sh
 cd mypage
@@ -84,3 +84,22 @@ python scripts/visual-qa.py --output /tmp/mypage-visual-qa
 320/390/768/1024/1440px × 12状態、modal keyboard/logoutを合成fixtureで確認する。external requestは遮断し、利用者dataをartifactへ出さない。Approved exportのruntime/provenance gapは `design/README.md` に記録し、元runtimeとのpixel parity確認は未完了。外部fontは取得しておらずlocal fallbackでのQA。
 
 `METADATA_TOO_OLD`は直前成功accountもclearして期限切れmetadataを表示しない。account panelで表示停止の理由を伝える。429 cooldownは共通deadlineに保持し、manual refresh/visibility復帰でも期限前にrequestしない。auth拒否後のsignOut失敗は`LOGOUT_FAILED`を維持し、retryを可能にする。cookie-nameの前後空白を正規化してGo cookie parserと同じ同名cookieを重複拒否する。
+
+
+## Browser runtime and synthetic integration
+
+通常loginのstart / channel / confirm / session-complete、Firebase custom sign-in、App CheckとID token付きsame-origin API、TanStack Routerを接続する。対象uidはFirebaseから読み、clientから対象channel IDを送らない。confirmは自動再送せず、Custom Tokenをmemory controllerやstorageへ保存しない。session-completeのtransient failureだけを最大3回試し、失敗時は当該uidをsignOutする。遅い旧session処理は新uidをsignOutしない。completion前は個人画面へのfetchを抑止する。
+
+public Firebase設定とpolicy versionが揃わない場合はlogin unavailableとしてpublic pageだけを表示する。ViteへOAuth secret / admin credential / App Check debug tokenを設定しない。Firebase SDKの認証session persistence以外の個人metadata / 作業dataはmemory-only。Routerのscroll restorationを無効化しURLをkeyにしない。現在のRouter dependencyはpagehideで空のscroll cache `{}`をsessionStorageへ書くが、URL・challenge・metadataは入らない。
+
+`runtime-visual.html`はdev専用の合成session/API/router入口。production buildには含めない。local Chromiumで以下を検証する:
+
+```sh
+cd mypage
+pnpm dev --host 127.0.0.1 --port 18081
+python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
+```
+
+確認→session complete→MyPage→logout、anonymous route guard、既存session、fresh login、support誤用途防止、期限切れtransaction、uid変更/遅延response、pagehide/pageshow、logout再試行、初期折り畳み、404、設定なしpublic pageを確認する。外部requestは遮断し、合成dataだけを使う。
+
+support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01/D02/D03判断、infrastructure Ready Gate、実provider/verifier/server結線は別の未完了条件。production deploymentはしていない。

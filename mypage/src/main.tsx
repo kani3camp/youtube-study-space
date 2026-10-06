@@ -1,9 +1,11 @@
+import { RouterProvider } from '@tanstack/react-router'
 import { createRoot } from 'react-dom/client'
+import { createApp } from './app'
+import { initializeRuntime } from './firebase'
+import './style.css'
 
 const root = document.getElementById('root')
 if (root)
 	createRoot(root).render(
-		<main>
-			<h1>オンライン作業部屋</h1>
-		</main>,
+		<RouterProvider router={createApp(initializeRuntime())} />,
 	)

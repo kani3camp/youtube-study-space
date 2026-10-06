@@ -602,3 +602,41 @@ h2 {
 		scroll-behavior: auto;
 	}
 }
+
+.public-page {
+	max-width: 880px;
+	padding-top: 48px;
+}
+.public-page h1 {
+	margin-bottom: 20px;
+	font-size: 30px;
+}
+.public-page p {
+	margin-block: 14px;
+}
+.login-card {
+	max-width: 580px;
+	margin: 24px auto;
+}
+.consent-label {
+	display: flex;
+	gap: 12px;
+	align-items: start;
+	padding-block: 14px;
+	font-size: 14px;
+}
+.consent-label input {
+	margin-top: 5px;
+	width: 18px;
+	height: 18px;
+}
+details {
+	border-top: 1px solid var(--color-line);
+	padding-block: 18px;
+	margin-top: 18px;
+}
+summary {
+	cursor: pointer;
+	min-height: 44px;
+	font-weight: 700;
+}
