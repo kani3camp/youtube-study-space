@@ -192,3 +192,16 @@ AppCheckVerifierは公式のJWT検証手順に沿ってRS256署名・JWT type・
 合成RSA署名でwrong issuer/audience/app、期限ちょうど、future issue、不正claim type、署名不一致、algorithm/type/kid、並行cache/rotation、上流失敗/cancelを検証する。Firebase Auth側はSDK portをfakeで検証しており、実Firebase公開鍵/ID tokenを検証した証拠ではない。SDK keyless constructor/server結線、IAM Ready Gate、実App Check・Auth E2Eは後続で、credential/IAMを変更していない。
 
 一次資料: [App Check custom backend verification](https://firebase.google.com/docs/app-check/custom-resource-backend)、[Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[custom token signing](https://firebase.google.com/docs/auth/admin/create-custom-tokens)。
+
+
+## Server and keyless SDK assembly
+
+`NewMyPageServer`で固定environment/project/app/origin、FirebaseBoundary、OAuth provider、Firestore Auth/Support store、read-only snapshot/BFFを6 endpointへ接続する。constructorはsecret/credential取得・外部通信・listen・通知を実行しない。coverageは検証済み範囲だけを注入し、未設定のhistoryを0へ変換しない。
+
+`NewKeylessFirebaseClient`は既存ADCのtoken sourceと明示した同一projectのsigner emailを受け取り、credential JSON/key file、Auth emulator、project不一致を拒否する。公式SDKへServiceAccountIDを指定し、IAM remote signingを選ぶ。合成IAM transportでsignBlob requestをRSA署名し、SDKのCustom Tokenを公開fixture keyで検証する。実IAM呼び出し/permission grantの証拠ではない。必要なiam.serviceAccounts.signBlobは承認済みsigner resourceに対する別のinfrastructure確認事項で、権限付与コードを含めない。
+
+`cmd/mypage-server`はCloud Run用entrypoint。固定設定の検証と明示したinfrastructure readinessを満たすまでADCを取得せず、real-server bootstrapはemulator/credential-fileを拒否する。設定値・secret・SDK error detailをlogへ出さず、HTTP timeout/header制限とgraceful shutdownを持つ。readiness flagは基盤・securityレビューの代わりではなく、実起動/deployは別の承認済み作業。
+
+Cloud Runへ設定するserver-only項目はenvironment/region/project number/Web App ID/public origin/policy versions/signer email/OAuth client ID/secret。OAuth共通secretは承認済みSecret Manager/Cloud Runのsecret供給境界を使い、Viteへ渡さない。このsliceはsecret作成/設定を行わない。metadata refresherは未接続、history coverageも実inventory未確認。
+
+Firestore emulatorでは構築したserverからsigned App Check＋fake Auth SDKでstart/callback/channel/confirm/session-complete/MyPageを通し、mint replay拒否、users非作成、旧Google provider拒否を検証する。実Firebase ID token/App Check、Google consent/channel選択、Hosting rewrite、platform access-log redaction、runtime IAMは未検証でdeployしていない。
