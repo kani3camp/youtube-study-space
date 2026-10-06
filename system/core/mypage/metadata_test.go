@@ -327,3 +327,41 @@ func TestTerminalLaterCallerDoesNotWaitForLongerSharedFlightDeadline(t *testing.
 	require.Nil(t, result.Current.Data)
 	require.EqualValues(t, 1, calls.Load(), "shorter caller must not cancel or duplicate the shared read")
 }
+
+func TestConfirmedMissingFlightVerdictReachesShorterPresentCaller(t *testing.T) {
+	now := workFixture().AsOf
+	account := healthyAccount(now.Add(-25 * time.Hour))
+	account.Revision = now.Add(-time.Second)
+	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+		return WebAccount{}, errors.Join(ErrPublicChannelMissing, errors.New("synthetic failed clear"))
+	}), Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+		calls.Add(1)
+		close(entered)
+		defer close(finished)
+		select {
+		case <-release:
+			return workFixture(), nil
+		case <-ctx.Done():
+			return WorkSnapshot{}, ctx.Err()
+		}
+	})}
+	firstCtx, stopFirst := context.WithCancel(context.Background())
+	firstDone := make(chan error, 1)
+	go func() { _, err := b.Get(firstCtx, "synthetic", account); firstDone <- err }()
+	<-entered
+	stopFirst()
+	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(<-firstDone))
+	laterCtx, stopLater := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer stopLater()
+	result, err := b.Get(laterCtx, "synthetic", account)
+	close(release)
+	<-finished
+	require.NoError(t, err)
+	require.NoError(t, laterCtx.Err())
+	require.Equal(t, MetadataTooOld, *result.Account.ReasonCode)
+	require.Nil(t, result.Account.Data)
+	require.Nil(t, result.Current.Data)
+	require.EqualValues(t, 1, calls.Load())
+}

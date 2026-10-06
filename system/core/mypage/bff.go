@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"golang.org/x/sync/singleflight"
 )
 
 type (
+	metadataFlight struct {
+		done     chan struct{}
+		response Response
+		err      error
+		terminal bool
+	}
 	cacheKey        struct{ environment, uid string }
 	cachedAggregate struct {
 		response       Response
@@ -30,7 +34,7 @@ type BFF struct {
 	Metadata    MetadataRefresher
 	mu          sync.Mutex
 	cache       map[cacheKey]cachedAggregate
-	group       singleflight.Group
+	flights     map[string]*metadataFlight
 }
 
 func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Response, bool) {
@@ -89,75 +93,127 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 	}
 	// The first caller disconnecting must not cancel a request shared with a
 	// second caller; the shared operation still has its own bounded budget.
-	result := b.group.DoChan(b.Environment+"\x00"+uid+"\x00"+metadataAccountVersion(account), func() (any, error) {
-		// Refresh only the flight's copy; a caller's early fallback must not race
-		// with metadata updates in the detached operation.
-		account := account
-		if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
-			return value, nil
-		}
-		workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
-		defer cancel()
-		if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
-			metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
-			if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
-				account = refreshed
-			} else if metadataGateError(err) {
-				stop()
-				return Response{}, fmt.Errorf("metadata access gate: %w", err)
-			} else if errors.Is(err, ErrPublicChannelMissing) {
-				// A failed durable clear must still stop displaying proven absent data.
-				account.DisplayName = ""
-				account.Handle, account.AvatarURL = nil, nil
-				account.MetadataFetchedAt = time.Time{}
-			}
-			stop()
-		}
-		snapshot, err := b.Reader.Read(workCtx, uid)
-		if err != nil {
-			return b.failedSnapshot(account)
-		}
-		response, err := Aggregate(snapshot, accountSection(account, b.Now().UTC()))
-		if err != nil {
-			return b.failedSnapshot(account)
-		}
-		b.mu.Lock()
-		if b.cache == nil {
-			b.cache = make(map[cacheKey]cachedAggregate)
-		}
-		// Cap attacker-controlled uid cardinality; evict one value at capacity.
-		if len(b.cache) >= 1024 {
-			for victim := range b.cache {
-				delete(b.cache, victim)
-				break
-			}
-		}
-		b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account)}
-		b.mu.Unlock()
-		return response, nil
-	})
+	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
+	flight, leader := b.acquireFlight(flightKey)
+	if flight == nil {
+		return b.failedSnapshot(account)
+	}
+	if leader {
+		go func() {
+			response := Response{}
+			flightErr := apiError("TEMPORARY_UNAVAILABLE")
+			defer func() {
+				b.mu.Lock()
+				flight.response, flight.err = response, flightErr
+				delete(b.flights, flightKey)
+				close(flight.done)
+				b.mu.Unlock()
+			}()
+			response, flightErr = func() (Response, error) {
+				// Refresh only the flight's copy; a caller's early fallback must not race
+				// with metadata updates in the detached operation.
+				account := account
+				if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
+					return value, nil
+				}
+				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
+				defer cancel()
+				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
+					metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
+					if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
+						account = refreshed
+					} else if metadataGateError(err) {
+						stop()
+						gateErr := fmt.Errorf("metadata access gate: %w", err)
+						b.mu.Lock()
+						flight.err = gateErr
+						b.mu.Unlock()
+						return Response{}, gateErr
+					} else if errors.Is(err, ErrPublicChannelMissing) {
+						// A failed durable clear must still stop displaying proven absent data.
+						account.DisplayName = ""
+						account.Handle, account.AvatarURL = nil, nil
+						account.MetadataFetchedAt = time.Time{}
+					}
+					stop()
+				}
+				section := accountSection(account, b.Now().UTC())
+				b.mu.Lock()
+				flight.terminal = section.ReasonCode != nil && *section.ReasonCode == MetadataTooOld
+				b.mu.Unlock()
+
+				snapshot, err := b.Reader.Read(workCtx, uid)
+				if err != nil {
+					return b.failedSnapshot(account)
+				}
+				response, err := Aggregate(snapshot, accountSection(account, b.Now().UTC()))
+				if err != nil {
+					return b.failedSnapshot(account)
+				}
+				b.mu.Lock()
+				if b.cache == nil {
+					b.cache = make(map[cacheKey]cachedAggregate)
+				}
+				// Cap attacker-controlled uid cardinality; evict one value at capacity.
+				if len(b.cache) >= 1024 {
+					for victim := range b.cache {
+						delete(b.cache, victim)
+						break
+					}
+				}
+				b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account)}
+				b.mu.Unlock()
+				return response, nil
+			}()
+		}()
+	}
 	select {
 	case <-waitCtx.Done():
 		// A later caller can have less budget than the shared flight's first
 		// caller. Deliver its already known terminal account before its deadline,
 		// while the bounded shared operation continues for other callers.
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			b.mu.Lock()
+			gateErr, terminal := flight.err, flight.terminal
+			b.mu.Unlock()
+			if metadataGateError(gateErr) {
+				return Response{}, gateErr
+			}
+			if terminal {
+				return b.failedSnapshot(WebAccount{})
+			}
 			return b.failedSnapshot(account)
 		}
 		return Response{}, apiError("TEMPORARY_UNAVAILABLE")
-	case value := <-result:
-		if value.Err != nil {
-			if metadataGateError(value.Err) {
-				return Response{}, value.Err
+	case <-flight.done:
+		if flight.err != nil {
+			if metadataGateError(flight.err) {
+				return Response{}, flight.err
 			}
 			return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 		}
-		response, ok := value.Val.(Response)
-		if !ok {
-			return Response{}, apiError("INTERNAL_ERROR")
-		}
-		return response, nil
+		return flight.response, nil
 	}
+}
+
+// Registration and completion share one lock so every joiner sees the same
+// authenticated metadata verdict. This is a bounded singleflight registry;
+// callback completion publishes the result and removes the slot atomically.
+func (b *BFF) acquireFlight(key string) (*metadataFlight, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if flight := b.flights[key]; flight != nil {
+		return flight, false
+	}
+	if len(b.flights) >= 1024 {
+		return nil, false
+	}
+	if b.flights == nil {
+		b.flights = make(map[string]*metadataFlight)
+	}
+	flight := &metadataFlight{done: make(chan struct{})}
+	b.flights[key] = flight
+	return flight, true
 }
 
 func minDeadline(a, b time.Time) time.Time {
