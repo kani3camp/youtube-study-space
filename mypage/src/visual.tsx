@@ -23,6 +23,9 @@ function VisualApp({ initial }: { initial: MemoryState }) {
 if (import.meta.env.DEV) {
 	const sample = structuredClone(fixture) as MyPage
 	const mode = new URLSearchParams(location.search).get('state')
+	if (mode === 'avatar-failure' && sample.account.data)
+		sample.account.data.avatarUrl =
+			'https://invalid.example/synthetic-avatar.png'
 	if (sample.current.data) {
 		if (mode === 'break') sample.current.data.state = 'break'
 		if (mode === 'not-seated') sample.current.data.state = 'not_seated'

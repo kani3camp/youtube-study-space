@@ -67,5 +67,24 @@ describe('MyPage observable display', () => {
 		const html = markup(s)
 		expect(html).toContain('情報を取得できませんでした')
 		expect(html).not.toContain('0時間 0分')
+		expect(html).not.toContain('作業サマリー')
+		expect(html).not.toContain('最新の情報に更新できませんでした')
+	})
+	it('preserves available statistics when current work alone is unavailable', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.current = {
+			data: null,
+			asOf: null,
+			stale: true,
+			reason: 'SOURCE_UNAVAILABLE',
+		}
+		s.error = 'TEMPORARY_UNAVAILABLE'
+		const html = markup(s)
+		expect(html).toContain('情報を取得できませんでした')
+		expect(html).toContain('作業サマリー')
+		expect(html).toContain('1時間 0分')
+		expect(html).toContain('最近の積み重ね')
+		expect(html).not.toContain('現在は入室していません')
 	})
 })
