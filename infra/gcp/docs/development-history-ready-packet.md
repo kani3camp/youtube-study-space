@@ -55,7 +55,8 @@ candidate DDLは[canonicalization文書](user-activity-history-canonicalization.
 既存dev `AwsCdkStack`のtemplateとCDK artifactからcandidate/rollbackのcloud assemblyを作る。
 必要なprivate inputはdeployed `GetTemplate` Original、同stackの`DescribeStacks`からStackId/
 StackStatus/RoleARN/EnableTerminationProtection、既存CDK synthまたはdeploy receiptのstack artifact、
-元task logical ID、同一既存ECR repositoryのcandidate/previous **digest URI**。
+`DailyBatchTaskDefinitionArn` output、元task logical ID、既存operator記録のcurrent task ARN、
+同一既存ECR repositoryのcandidate/previous **digest URI**。
 source synthだけを実deployed templateの代用にしない。old task/imageとtemplateの対応、receiptの
 鮮度、candidate source/build→ECR digest、他のfamily呼出し元のcoverageはoperator側で照合する。
 
@@ -65,8 +66,13 @@ pnpm batch:prepare-candidate --input /private/batch-candidate-input.json --out /
 ```
 
 inputのJSON keysは`baselineTemplate`、`stackArtifact`、`stackReceipt`、`taskLogicalId`、
-`candidateImage`、`previousImage`。`stackArtifact`はmanifestの`artifacts.AwsCdkStack`、
-`stackReceipt`は上の4fieldsのみ。inputはowner-only regular file、outputは新規directory限定。
+`currentTaskDefinitionArn`、`candidateImage`、`previousImage`。`stackArtifact`はmanifestの
+`artifacts.AwsCdkStack`、`stackReceipt`は上の5fieldsのみ（outputは同名keyへprojection）。
+current ARNとCDK outputのrevision不一致を拒否する。task ARN依存はsymbolic revisionと
+`Join/Split/Select`で検証し、revision依存の残る値と証明できないintrinsicを拒否する。
+現行4 IAM policyの`family:*`はrevision非依存で有効権限が変わらない。CloudFormationが再評価/
+再適用する可能性は承認scopeに含め、実change set確認は別承認後とする。task outputは更新後に
+新revision ARNへ変わる。inputはowner-only regular file、outputは新規directory限定。
 consoleは値やpathを出さない。raw input、template、review、assembly、image artifactを公開CI/
 PR/Issueへ添付しない。公開testsのdigest/receiptは合成fixturesでlive proofではない。
 

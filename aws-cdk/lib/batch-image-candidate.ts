@@ -20,8 +20,10 @@ export interface BatchImageCandidateInput {
 		StackStatus: string
 		RoleARN: string
 		EnableTerminationProtection: boolean
+		DailyBatchTaskDefinitionArn: string
 	}
 	taskLogicalId: string
+	currentTaskDefinitionArn: string
 	candidateImage: string
 	previousImage: string
 }
@@ -119,7 +121,64 @@ export function prepareBatchImageCandidate(input: BatchImageCandidateInput) {
 	const task = baseline.Resources[input.taskLogicalId]
 	requireValue(task?.Type === 'AWS::ECS::TaskDefinition' && !task.Condition, 'existing task logical ID required')
 	const props = task.Properties
-	requireValue(typeof props?.Family === 'string' && props.Family.length > 0, 'explicit existing family required')
+	requireValue(typeof props?.Family === 'string' && /^[A-Za-z0-9_-]{1,255}$/.test(props.Family), 'explicit existing family required')
+	const taskArnPrefix = `arn:aws:ecs:${REGION}:${ACCOUNT}:task-definition/${props.Family}:`
+	requireValue(typeof input.currentTaskDefinitionArn === 'string' &&
+		input.currentTaskDefinitionArn.startsWith(taskArnPrefix) &&
+		/^[1-9][0-9]*$/.test(input.currentTaskDefinitionArn.slice(taskArnPrefix.length)) &&
+		receipt.DailyBatchTaskDefinitionArn === input.currentTaskDefinitionArn,
+		'current task must match CDK-owned revision')
+	requireValue(baseline.Outputs?.DailyBatchTaskDefinitionArn?.Value?.Ref === input.taskLogicalId,
+		'existing task ownership output required')
+	const referencesTask = (value: any): boolean => {
+		if (!value || typeof value !== 'object') return false
+		if (value.Ref === input.taskLogicalId) return true
+		const getAtt = value['Fn::GetAtt']
+		if ((Array.isArray(getAtt) && getAtt[0] === input.taskLogicalId) ||
+			(typeof getAtt === 'string' && getAtt.startsWith(input.taskLogicalId + '.'))) return true
+		const sub = value['Fn::Sub']
+		const text = typeof sub === 'string' ? sub : Array.isArray(sub) ? sub[0] : undefined
+		if (typeof text === 'string' && new RegExp(`\\$\\{${input.taskLogicalId}(?:\\.[^}]+)?\\}`).test(text)) return true
+		return Object.values(value).some(referencesTask)
+	}
+	// CDK's four RunTask policies derive family:* by splitting the task ARN.
+	// Substitute a symbolic revision and evaluate only supported intrinsics:
+	// a surviving symbol means the resolved resource would change. Unknown
+	// intrinsics involving this task are rejected rather than guessed stable.
+	const revisionSymbol = '__CHANGED_TASK_REVISION__'
+	const evaluate = (value: any): any => {
+		if (!referencesTask(value)) return value
+		if (Array.isArray(value)) return value.map(evaluate)
+		if (value.Ref === input.taskLogicalId) return taskArnPrefix + revisionSymbol
+		if (value['Fn::Join']) {
+			const [separator, parts] = value['Fn::Join']
+			const result = evaluate(parts)
+			requireValue(typeof separator === 'string' && Array.isArray(result) &&
+				result.every((v) => typeof v === 'string'), 'unprovable task dependency')
+			return result.join(separator)
+		}
+		if (value['Fn::Split']) {
+			const [separator, text] = value['Fn::Split']
+			const result = evaluate(text)
+			requireValue((separator === ':' || separator === '/') && typeof result === 'string', 'unprovable task dependency')
+			return result.split(separator)
+		}
+		if (value['Fn::Select']) {
+			const [index, values] = value['Fn::Select']
+			const result = evaluate(values)
+			requireValue(Number.isInteger(Number(index)) && Array.isArray(result) &&
+				Number(index) >= 0 && Number(index) < result.length, 'unprovable task dependency')
+			return result[Number(index)]
+		}
+		requireValue(!Object.keys(value).some((key) => key.startsWith('Fn::')), 'unprovable task dependency')
+		return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, evaluate(child)]))
+	}
+	const invariantReferences: string[] = []
+	for (const [id, resource] of Object.entries(baseline.Resources)) {
+		if (id === input.taskLogicalId || !referencesTask(resource)) continue
+		requireValue(!JSON.stringify(evaluate(resource)).includes(revisionSymbol), 'dependent resource would change')
+		invariantReferences.push(id)
+	}
 	requireValue(props.RuntimePlatform?.CpuArchitecture === 'ARM64' &&
 		props.RuntimePlatform?.OperatingSystemFamily === 'LINUX' && props.NetworkMode === 'awsvpc' &&
 		props.Cpu === '256' && props.Memory === '512', 'unexpected batch runtime')
@@ -163,6 +222,9 @@ export function prepareBatchImageCandidate(input: BatchImageCandidateInput) {
 		review: {
 			status: 'OFFLINE_CANDIDATE_LIVE_PROVENANCE_AND_APPROVAL_REQUIRED',
 			stackId: receipt.StackId,
+			previousManagedTaskDefinitionArn: input.currentTaskDefinitionArn,
+			revisionSensitiveResourceReferenceCount: 0,
+			revisionInvariantResourceReferences: invariantReferences,
 			changedPath: `/Resources/${input.taskLogicalId}/Properties/ContainerDefinitions/0/Image`,
 			before: originalImage, after: input.candidateImage,
 			rollbackImage: input.previousImage,

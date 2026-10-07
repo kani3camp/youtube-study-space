@@ -11,6 +11,7 @@ const stack = new AwsCdkStack(app, 'AwsCdkStack')
 const assembly = app.synth()
 const baseline = assembly.getStackArtifact(stack.artifactId).template
 const taskLogicalId = Object.keys(baseline.Resources).find((id) => baseline.Resources[id].Type === 'AWS::ECS::TaskDefinition')!
+const managedTaskArn = `arn:aws:ecs:ap-northeast-1:657533259235:task-definition/${baseline.Resources[taskLogicalId].Properties.Family}:7`
 const image = baseline.Resources[taskLogicalId].Properties.ContainerDefinitions[0].Image['Fn::Sub'] as string
 const repository = image.replace(/\$\{AWS::AccountId\}/g, '657533259235')
 	.replace(/\$\{AWS::Region\}/g, 'ap-northeast-1').replace(/\$\{AWS::URLSuffix\}/g, 'amazonaws.com').split(':')[0]
@@ -23,8 +24,10 @@ const input = (): BatchImageCandidateInput => ({
 		StackStatus: 'UPDATE_COMPLETE',
 		RoleARN: 'arn:aws:iam::657533259235:role/cdk-hnb659fds-cfn-exec-role-657533259235-ap-northeast-1',
 		EnableTerminationProtection: true,
+		DailyBatchTaskDefinitionArn: managedTaskArn,
 	},
 	taskLogicalId,
+	currentTaskDefinitionArn: managedTaskArn,
 	candidateImage: `${repository}@sha256:${'a'.repeat(64)}`,
 	previousImage: `${repository}@sha256:${'b'.repeat(64)}`,
 })
@@ -42,6 +45,8 @@ describe('offline dev batch image candidate', () => {
 			expect(template).toEqual(source.baselineTemplate)
 		}
 		expect(prepared.original).toEqual(source.baselineTemplate)
+		expect(prepared.review.revisionInvariantResourceReferences).toHaveLength(4)
+		expect(prepared.review.revisionSensitiveResourceReferenceCount).toBe(0)
 		expect(source).toEqual(original)
 	})
 
@@ -96,6 +101,22 @@ describe('offline dev batch image candidate', () => {
 		source.candidateImage = `${repository}@sha256:${'c'.repeat(64)}`
 		taskContainer(source.baselineTemplate).Image = `${repository}@sha256:${'d'.repeat(64)}`
 		expect(() => prepareBatchImageCandidate(source)).toThrow('baseline digest mismatch')
+	})
+
+	test('rejects a current latest revision outside CDK ownership and indirect resource changes', () => {
+		const source = input()
+		source.currentTaskDefinitionArn = managedTaskArn.replace(/:7$/, ':8')
+		expect(() => prepareBatchImageCandidate(source)).toThrow('current task must match CDK-owned revision')
+		for (const ref of [{ Ref: taskLogicalId }, { 'Fn::GetAtt': [taskLogicalId, 'Arn'] },
+			{ 'Fn::Sub': `arn-prefix-${'${' + taskLogicalId + '}'}-suffix` },
+			{ 'Fn::Select': [6, { 'Fn::Split': [':', { Ref: taskLogicalId }] }] },
+			{ 'Fn::Select': [0, { 'Fn::Split': ['_', { Ref: taskLogicalId }] }] }]) {
+			const candidate = input()
+			candidate.baselineTemplate.Resources.IndirectPolicy = {
+				Type: 'AWS::IAM::Policy', Properties: { PolicyDocument: { Statement: [{ Resource: ref }] } },
+			}
+			expect(() => prepareBatchImageCandidate(candidate)).toThrow(/dependent resource would change|unprovable task dependency/)
+		}
 	})
 
 	test('rejects production, unstable stacks, changed execution role and parameter overrides', () => {
