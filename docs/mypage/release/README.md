@@ -9,6 +9,7 @@
 | 領域 | 既存実装・localで検証できること | 公開前に残ること |
 | --- | --- | --- |
 | OAuth / identity | [AuthService](../../../system/core/mypage/auth.go)、atomic claim/consume、channel確認、短命token、purpose分離 | 実Google account/Brand Account/channel選択・審査 |
+| OAuth transaction TTL | [MyPage専用Terraform](../../../infra/mypage-oauth-ttl/README.md)、dev/prod定義、credential不要mock/限定plan contract | owner-approved target/state、別途承認したplan/apply、両環境のTTL ACTIVE・自然削除観測。applicationの10分失効は維持 |
 | API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints | 実App Check/Auth、runtime signer/IAM、Hosting経路/Host |
 | metadata | refresh、正常なchannel不在のclear、29日cleanup、23時間heartbeat判定 | scheduled runner/期限対応sink/alertの実結線、実inventory、自然実行 |
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |

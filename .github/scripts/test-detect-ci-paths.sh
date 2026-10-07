@@ -38,6 +38,9 @@ assert_exact_groups mypage mypage/src/main.tsx
 assert_exact_groups mypage mypage/package.json
 assert_exact_groups mypage mypage/pnpm-lock.yaml
 assert_exact_groups mypage docs/mypage/openapi.yaml
+assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
+assert_exact_groups mypage infra/mypage-oauth-ttl/environments/prod/tests/ttl.tftest.hcl
+assert_exact_groups mypage infra/mypage-oauth-ttl/scripts/plan_contract.py
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
 assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
@@ -63,6 +66,7 @@ assert_exact_groups figma_plugin tools/figma-plugin/room-layout-analyzer/code.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/mypage-oauth-ttl.yml
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh

@@ -25,6 +25,7 @@ TARGETS = (
     "docs/mypage/release/README.md",
     "docs/mypage/release/owner-packet.md",
     "docs/mypage/release/e2e.md",
+    "infra/mypage-oauth-ttl/README.md",
 )
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
