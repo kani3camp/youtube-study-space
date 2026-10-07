@@ -57,6 +57,8 @@ env:
   DEV_EXPORT_SCHEDULER_MANAGED_ENABLED: "true"
   # Issue #1162 comment6005988785: Function GET1, exact import1 + existing10 no-op only.
   DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
+  # Source preparation only. Canonical repair and explicit import approval precede activation.
+  DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "false"
 
 jobs:
   preflight:
@@ -74,6 +76,7 @@ jobs:
       manage_export_topic: ${{ steps.guard.outputs.manage_export_topic }}
       manage_export_scheduler: ${{ steps.guard.outputs.manage_export_scheduler }}
       manage_export_function: ${{ steps.guard.outputs.manage_export_function }}
+      manage_user_activity_history: ${{ steps.guard.outputs.manage_user_activity_history }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -157,6 +160,22 @@ jobs:
                 echo "::error::Function requires adopted topic and Scheduler ownership."
                 exit 1
               fi
+              history_enabled="${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}"
+              [[ "${history_enabled}" == "true" || "${history_enabled}" == "false" ]] || {
+                echo "::error::Invalid history ownership gate."
+                exit 1
+              }
+              if [[ "${history_enabled}" == "true" ]]; then
+                [[ "${MODE}" == "plan" || "${MODE}" == "apply" ]] || {
+                  echo "::error::History adoption cannot share an exceptional wave."
+                  exit 1
+                }
+                [[ "${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" == "true" && "${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" == "true" && "${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" == "true" && "${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" == "true" && "${DEV_QUOTA_MANAGED_ENABLED}" == "true" ]] || {
+                  echo "::error::History adoption requires the unchanged eleven-resource baseline."
+                  exit 1
+                }
+              fi
+              echo "manage_user_activity_history=${history_enabled}" >> "${GITHUB_OUTPUT}"
               echo "manage_export_function=${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "manage_export_scheduler=${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
               echo "manage_export_topic=${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
@@ -169,6 +188,7 @@ jobs:
                 echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
                 exit 1
               }
+              echo "manage_user_activity_history=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_function=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_scheduler=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_topic=false" >> "${GITHUB_OUTPUT}"
@@ -195,6 +215,7 @@ jobs:
       id-token: write
     outputs:
       summary_digest: ${{ steps.sanitize.outputs.summary_digest }}
+      history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
@@ -205,6 +226,7 @@ jobs:
       TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
       TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
+      TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -321,6 +343,15 @@ jobs:
           STATE_KEY: ${{ needs.preflight.outputs.state_key }}
         run: python3 .github/scripts/terraform_identity_smoke.py
 
+      - name: Read canonical history metadata privately
+        id: history_metadata
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: plan
+        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+
       - name: Create saved plan without public output
         id: plan
         shell: bash
@@ -331,10 +362,15 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+          fi
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             "${plan_args[@]}" \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -392,6 +428,10 @@ jobs:
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/user-history-before.json" \
+            "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
             "${RUNNER_TEMP}/backend.hcl" \
             "${RUNNER_TEMP}/terraform-init.log" \
             "${RUNNER_TEMP}/terraform-plan.log" \
@@ -425,6 +465,7 @@ jobs:
       TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
       TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
       TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
+      TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
     steps:
@@ -562,6 +603,15 @@ jobs:
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
         run: python3 .github/scripts/terraform_identity_smoke.py export-topic
 
+      - name: Re-read canonical history metadata privately
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: apply
+          HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}
+        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+
       - name: Re-plan at the exact approved commit
         shell: bash
         env:
@@ -571,10 +621,15 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+          fi
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             "${plan_args[@]}" \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -641,6 +696,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify post-import canonical metadata privately
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: apply
+          HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}
+        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase post
+
       - name: Require post-apply no-op
         shell: bash
         env:
@@ -648,8 +712,13 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-post.tfvars.json")
+          fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/post-apply.tfplan" \
@@ -690,6 +759,10 @@ jobs:
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/user-history-before.json" \
+            "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
             "${RUNNER_TEMP}/backend.hcl" \
             "${RUNNER_TEMP}/terraform-init.log" \
             "${RUNNER_TEMP}/terraform-plan.log" \

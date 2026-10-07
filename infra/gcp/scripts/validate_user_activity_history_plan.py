@@ -31,8 +31,9 @@ def require(condition: bool) -> None:
         raise ValueError("History plan contract STOP; private diagnostic suppressed.")
 
 
-def validate(plan: object, *, metadata: object, phase: str, execution_email: str) -> None:
-    require(phase in {"before", "post"} and type(plan) is dict)
+def validate(plan: object, *, metadata: object, phase: str, execution_email: str,
+             allow_adopted: bool = False) -> None:
+    require(phase in {"before", "post"} and type(plan) is dict and type(allow_adopted) is bool)
     # Terraform 1.16.4 serializes provider actions outside resource_changes.
     # Import/no-op resources cannot authorize a side-effecting action or one
     # deferred until apply. Omitted or empty arrays are the only accepted forms.
@@ -50,14 +51,15 @@ def validate(plan: object, *, metadata: object, phase: str, execution_email: str
     validate_baseline(dict(plan, resource_changes=[resource for resource in changes if resource.get("address") != TABLE]),
                       phase="post", execution_email=execution_email)
     summary = build_summary(plan, environment="dev", git_sha="offline", policy="import-only")
-    require(summary["policy_passed"] and summary["counts"]["import"] == (1 if phase == "before" else 0))
+    allowed_imports = {0, 1} if phase == "before" and allow_adopted else {1 if phase == "before" else 0}
+    require(summary["policy_passed"] and summary["counts"]["import"] in allowed_imports)
     resource = selected[0]
     require(resource.get("mode") == "managed" and resource.get("type") == "google_bigquery_table")
     require(resource.get("provider_name") == "registry.terraform.io/hashicorp/google")
     change = resource.get("change", {})
     require(change.get("actions") == ["no-op"] and not has_unknown(change.get("after_unknown", {})))
     require(canonical(change.get("before")) == canonical(change.get("after")))
-    require(change.get("importing") == {"id": TABLE_ID} if phase == "before" else "importing" not in change)
+    require(change.get("importing") == {"id": TABLE_ID} if summary["counts"]["import"] else "importing" not in change)
     value = change.get("after")
     require(type(value) is dict)
     for key, expected in {"id": TABLE_ID, "project": "test-youtube-study-space", "dataset_id": "firestore_export",
