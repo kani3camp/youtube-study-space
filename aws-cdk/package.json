@@ -13,7 +13,8 @@
     "cdk:bootstrap": "cdk bootstrap",
     "cdk:deploy": "cdk deploy",
     "cdk:diff": "cdk diff",
-    "cdk:synth": "cdk synth"
+    "cdk:synth": "cdk synth",
+    "batch:prepare-candidate": "ts-node --prefer-ts-exts bin/prepare-batch-image-candidate.ts"
   },
   "engines": {
     "node": ">=24.0.0 <25"
