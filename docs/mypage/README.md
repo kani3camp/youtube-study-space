@@ -2,6 +2,8 @@
 
 公開準備は[release runbook](release/README.md)、[owner準備packet](release/owner-packet.md)、[実E2E/rollback手順](release/e2e.md)を参照する。既存実装と外部/本人判断待ちを区別し、設定検査やlocal合成QAを公開承認・live E2Eの証拠へ読み替えない。
 
+横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
+
 現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は six-endpoint API の契約、`fixtures/` は実ユーザーに依存しない合成例。
 
 - 本人識別は YouTube channel ID と同じ Firebase custom-provider uid。client から対象 ID を受け取らない。
