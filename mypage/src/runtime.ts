@@ -3,7 +3,11 @@ import {
 	createLoader,
 	type TokenSource,
 } from './features/mypage/client'
-import { MyPageMemory, RequestError } from './features/mypage/memory'
+import {
+	MyPageMemory,
+	RequestError,
+	restrictionFrom,
+} from './features/mypage/memory'
 
 export type BrowserSession = TokenSource & {
 	subscribe: (listener: (uid: string | null) => void) => () => void
@@ -117,6 +121,7 @@ export class BrowserRuntime {
 		this.restoringController?.abort()
 		this.restoringController = null
 		if (!this.active || this.completingSession) return
+		if (this.memory.isRestricted(uid)) return
 		if (!uid) {
 			this.memory.setIdentity(null)
 			return
@@ -141,9 +146,12 @@ export class BrowserRuntime {
 				this.reconciledGeneration = identityGeneration
 				this.memory.setIdentity(uid)
 			})
-			.catch(async () => {
-				if (!controller.signal.aborted && ownsSession())
-					await this.memory.logout()
+			.catch(async (error) => {
+				if (!controller.signal.aborted && ownsSession()) {
+					const restriction = restrictionFrom(error)
+					if (restriction) this.memory.restrict(restriction, uid)
+					else await this.memory.logout()
+				}
 			})
 	}
 
@@ -295,12 +303,35 @@ export class BrowserRuntime {
 	}
 
 	async channel(signal: AbortSignal): Promise<ChannelConfirmation> {
-		const result = await this.call(
-			'/api/auth/youtube/channel',
-			'GET',
-			undefined,
-			signal,
+		const identityGeneration = this.authGeneration
+		const lifecycleGeneration = this.lifecycleGeneration
+		const memoryGeneration = this.memory.generation
+		let result: unknown
+		try {
+			result = await this.call(
+				'/api/auth/youtube/channel',
+				'GET',
+				undefined,
+				signal,
+			)
+		} catch (error) {
+			if (
+				signal.aborted ||
+				identityGeneration !== this.authGeneration ||
+				lifecycleGeneration !== this.lifecycleGeneration
+			)
+				throw new RequestError(401, 'AUTH_REQUIRED')
+			const restriction = restrictionFrom(error)
+			if (restriction)
+				this.memory.restrict(restriction, this.session?.currentUID() ?? null)
+			throw error
+		}
+		if (
+			signal.aborted ||
+			identityGeneration !== this.authGeneration ||
+			lifecycleGeneration !== this.lifecycleGeneration
 		)
+			throw new RequestError(401, 'AUTH_REQUIRED')
 		if (
 			!result ||
 			typeof result !== 'object' ||
@@ -329,6 +360,15 @@ export class BrowserRuntime {
 			)
 		)
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+		if (
+			result.purpose === 'login' &&
+			this.memory.getSnapshot().phase === 'restricted' &&
+			memoryGeneration !== this.memory.generation
+		)
+			throw new RequestError(
+				403,
+				this.memory.getSnapshot().error ?? 'SERVICE_ACCESS_RESTRICTED',
+			)
 		const metadata = {
 			displayName: result.displayName,
 			handle: result.handle,
@@ -356,6 +396,7 @@ export class BrowserRuntime {
 		this.supportController = supportController
 		const identityGenerationAtStart = this.authGeneration
 		const lifecycleGeneration = this.lifecycleGeneration
+		const memoryGeneration = this.memory.generation
 		const uidAtStart = this.session?.currentUID()
 		const supportSignal = supportController
 			? AbortSignal.any([signal, supportController.signal])
@@ -373,12 +414,29 @@ export class BrowserRuntime {
 		if (purpose === 'login') this.restoringController?.abort()
 		if (!/^[a-f0-9]{64}$/.test(confirmationRef))
 			throw new RequestError(400, 'INVALID_REQUEST')
-		const result = await this.call(
-			'/api/auth/youtube/confirm',
-			'POST',
-			{ confirmationRef },
-			supportSignal,
-		)
+		const ownsConfirmation = () =>
+			!signal.aborted &&
+			operation === this.confirmationGeneration &&
+			identityGenerationAtStart === this.authGeneration &&
+			lifecycleGeneration === this.lifecycleGeneration &&
+			memoryGeneration === this.memory.generation &&
+			this.session?.currentUID() === uidAtStart
+		let result: unknown
+		try {
+			result = await this.call(
+				'/api/auth/youtube/confirm',
+				'POST',
+				{ confirmationRef },
+				supportSignal,
+			)
+		} catch (error) {
+			if (purpose === 'login' && !ownsConfirmation())
+				throw new RequestError(401, 'AUTH_REQUIRED')
+			const restriction = restrictionFrom(error)
+			if (purpose === 'login' && restriction && ownsConfirmation())
+				this.memory.restrict(restriction, uidAtStart ?? null)
+			throw error
+		}
 		if (signal.aborted) throw new RequestError(400, 'INVALID_REQUEST')
 		if (purpose === 'support') {
 			if (!ownsSupport()) throw new RequestError(400, 'INVALID_REQUEST')
@@ -407,11 +465,10 @@ export class BrowserRuntime {
 			!this.session
 		)
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		if (signal.aborted || operation !== this.confirmationGeneration)
-			throw new RequestError(400, 'INVALID_REQUEST')
+		if (!ownsConfirmation()) throw new RequestError(400, 'INVALID_REQUEST')
 		let uid: string
 		this.completingSession = true
-		this.memory.suspend()
+		this.memory.suspend(true)
 		try {
 			uid = await this.session.signIn(result.customToken)
 		} catch {
@@ -426,20 +483,26 @@ export class BrowserRuntime {
 		const ownsSession = () =>
 			operation === this.confirmationGeneration &&
 			identityGeneration === this.authGeneration &&
+			lifecycleGeneration === this.lifecycleGeneration &&
 			this.session?.currentUID() === uid
 		try {
 			await this.completeSession(uid, signal, ownsSession)
 			this.completingSession = false
 			this.reconciledGeneration = identityGeneration
-			if (this.active) this.memory.setIdentity(uid)
+			if (this.active) this.memory.setIdentity(uid, true)
 			return { purpose: 'login' }
 		} catch (error) {
+			const ownedAtFailure = ownsSession()
 			if (operation === this.confirmationGeneration)
 				this.completingSession = false
 			// UID equality alone cannot identify a logout/relogin to the same uid.
-			if (ownsSession()) await this.memory.logout()
-			else if (operation === this.confirmationGeneration)
+			if (ownedAtFailure) {
+				const restriction = restrictionFrom(error)
+				if (restriction) this.memory.restrict(restriction, uid)
+				else await this.memory.logout()
+			} else if (operation === this.confirmationGeneration)
 				this.restoreIdentity(this.session.currentUID())
+			if (!ownedAtFailure) throw new RequestError(401, 'AUTH_REQUIRED')
 			if (error instanceof RequestError) throw error
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		}

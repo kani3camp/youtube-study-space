@@ -81,3 +81,8 @@ for invalid in [None, "", "client-channel"]:
     assert not start.is_valid({**normal, "supportChallenge": invalid})
 assert not start.is_valid({**normal, "targetChannel": "UCsynthetic"})
 print("Login/support discriminated contract and purpose isolation passed")
+
+# Restriction wire codes are stable and cannot carry internal reason/target data.
+error = contract_validator("Error")
+for code in ["SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "TEMPORARY_UNAVAILABLE"]:
+    error.validate({"error": {"code": code, "message": code, "requestId": "synthetic-request"}})

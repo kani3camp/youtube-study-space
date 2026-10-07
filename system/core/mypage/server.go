@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"app.modules/core/serviceaccess"
+
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -103,14 +105,15 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 	boundary := &FirebaseBoundary{Client: deps.Firebase, AppCheck: appCheck, ProjectID: config.ProjectID, Now: now}
 	store := &FirestoreAuthStore{Client: deps.Firestore}
+	access := &serviceaccess.FirestoreStore{Client: deps.Firestore}
 	metadata := deps.Metadata
 	if metadata == nil && deps.PublicMetadata != nil {
-		metadata = &AccountMetadataRefresh{Provider: deps.PublicMetadata, Store: store, Policy: config.Policy, Now: now}
+		metadata = &AccountMetadataRefresh{Access: access, Provider: deps.PublicMetadata, Store: store, Policy: config.Policy, Now: now}
 	}
 
 	return &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, Verifier: boundary,
-		Auth: &AuthService{Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
-		BFF:  &BFF{Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
+		Auth: &AuthService{Access: access, Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
+		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}, nil
 }

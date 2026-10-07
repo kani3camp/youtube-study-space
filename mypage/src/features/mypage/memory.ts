@@ -21,7 +21,12 @@ export type ViewData = {
 	generatedAt: string
 }
 export type MemoryState = {
-	phase: 'bootstrapping' | 'anonymous' | 'authenticated' | 'signing-out'
+	phase:
+		| 'bootstrapping'
+		| 'anonymous'
+		| 'authenticated'
+		| 'signing-out'
+		| 'restricted'
 	data: ViewData | null
 	busy: boolean
 	error: string | null
@@ -38,6 +43,19 @@ export class RequestError extends Error {
 		this.code = code
 		this.retryAfter = retryAfter
 	}
+}
+
+export type RestrictionCode =
+	| 'SERVICE_ACCESS_RESTRICTED'
+	| 'DATA_DELETION_IN_PROGRESS'
+
+export function restrictionFrom(error: unknown): RestrictionCode | null {
+	return error instanceof RequestError &&
+		error.status === 403 &&
+		(error.code === 'SERVICE_ACCESS_RESTRICTED' ||
+			error.code === 'DATA_DELETION_IN_PROGRESS')
+		? error.code
+		: null
 }
 
 export type Loader = (
@@ -155,6 +173,9 @@ export class MyPageMemory {
 	}
 
 	getSnapshot = () => this.state
+	get generation() {
+		return this.epoch
+	}
 	subscribe = (listener: () => void) => {
 		this.listeners.add(listener)
 		return () => this.listeners.delete(listener)
@@ -170,7 +191,7 @@ export class MyPageMemory {
 		this.controller?.abort()
 		this.controller = null
 	}
-	private clear(phase: MemoryState['phase']) {
+	private clear(phase: MemoryState['phase'], error: string | null = null) {
 		this.epoch++
 		this.stop()
 		this.failures = 0
@@ -178,18 +199,34 @@ export class MyPageMemory {
 			phase,
 			data: null,
 			busy: false,
-			error: null,
+			error,
 			receivedAt: null,
 		})
 	}
 
-	setIdentity(uid: string | null) {
+	setIdentity(uid: string | null, freshLogin = false) {
 		if (this.ignoreAuthUntilSignedOut && uid !== null) return
 		if (uid === null) this.ignoreAuthUntilSignedOut = false
-		if (uid === this.uid && this.state.phase !== 'bootstrapping') return
+		if (
+			uid === this.uid &&
+			this.state.phase !== 'bootstrapping' &&
+			!(freshLogin && this.state.phase === 'restricted')
+		)
+			return
 		this.uid = uid
 		this.clear(uid === null ? 'anonymous' : 'authenticated')
 		if (uid !== null) void this.refresh()
+	}
+
+	isRestricted(uid: string | null) {
+		return this.state.phase === 'restricted' && uid === this.uid
+	}
+
+	// A definitive denial is terminal for this identity until a fresh login.
+	// Clearing increments the epoch before publishing, rejecting late responses.
+	restrict(code: RestrictionCode, uid = this.uid) {
+		this.uid = uid
+		this.clear('restricted', code)
 	}
 
 	setVisible(visible: boolean) {
@@ -202,7 +239,11 @@ export class MyPageMemory {
 	}
 
 	// pagehide clears pixels and cached private values before a bfcache snapshot.
-	suspend() {
+	suspend(freshLogin = false) {
+		if (this.state.phase === 'restricted' && !freshLogin) {
+			this.clear('restricted', this.state.error)
+			return
+		}
 		this.uid = null
 		this.clear('bootstrapping')
 	}
@@ -228,7 +269,8 @@ export class MyPageMemory {
 	}
 
 	private schedule(delay: number) {
-		if (!this.visible || this.uid === null) return
+		if (!this.visible || this.uid === null || this.state.phase === 'restricted')
+			return
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = setTimeout(
 			() => {
@@ -240,7 +282,13 @@ export class MyPageMemory {
 	}
 
 	async refresh(manual = false) {
-		if (!this.visible || this.uid === null || this.state.busy) return
+		if (
+			!this.visible ||
+			this.uid === null ||
+			this.state.busy ||
+			this.state.phase === 'restricted'
+		)
+			return
 		const remaining = this.retryAt - this.now()
 		if (remaining > 0) {
 			this.schedule(remaining)
@@ -301,6 +349,11 @@ export class MyPageMemory {
 			})
 		} catch (error) {
 			if (epoch !== this.epoch) return
+			const restriction = restrictionFrom(error)
+			if (restriction) {
+				this.restrict(restriction, uid)
+				return
+			}
 			if (
 				error instanceof RequestError &&
 				(error.status === 401 ||

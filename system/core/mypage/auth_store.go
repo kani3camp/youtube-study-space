@@ -167,7 +167,7 @@ func (s *FirestoreAuthStore) ReadVerified(ctx context.Context, id string, now ti
 	return result, nil
 }
 
-func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation string, policy Policy, now time.Time) (Channel, error) {
+func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation, checkpoint string, policy Policy, now time.Time) (Channel, error) {
 	ref, err := s.transactionRef(id)
 	if err != nil {
 		return Channel{}, err
@@ -193,6 +193,12 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation strin
 		if value.Channel.ID == "" || strings.Contains(value.Channel.ID, "/") {
 			return apiError("CHANNEL_UNAVAILABLE")
 		}
+		if checkpoint == "" {
+			return &accessGateError{cause: apiError("TEMPORARY_UNAVAILABLE")}
+		}
+		if err := s.transactionAccess(tx, value.Channel.ID, checkpoint); err != nil {
+			return err
+		}
 		accountRef := s.Client.Collection("web-accounts").Doc(value.Channel.ID)
 		doc, err := tx.Get(accountRef)
 		account := WebAccount{CreatedAt: now}
@@ -202,9 +208,6 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation strin
 			}
 		} else if status.Code(err) != codes.NotFound {
 			return fmt.Errorf("read WebAccount: %w", err)
-		}
-		if account.AccessBlocked {
-			return apiError("AUTH_REQUIRED")
 		}
 		account.PrivacyPolicyVersion = value.PrivacyPolicyVersion
 		account.TermsVersion = value.TermsVersion
@@ -250,12 +253,18 @@ func (s *FirestoreAuthStore) ReadAccount(ctx context.Context, uid string) (WebAc
 	return value, nil
 }
 
-func (s *FirestoreAuthStore) CompleteSession(ctx context.Context, uid string, policy Policy, now time.Time) error {
+func (s *FirestoreAuthStore) CompleteSession(ctx context.Context, uid, checkpoint string, policy Policy, now time.Time) error {
 	if uid == "" || strings.Contains(uid, "/") {
 		return apiError("AUTH_REQUIRED")
 	}
+	if checkpoint == "" {
+		return &accessGateError{cause: apiError("TEMPORARY_UNAVAILABLE")}
+	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := s.transactionAccess(tx, uid, checkpoint); err != nil {
+			return err
+		}
 		doc, err := tx.Get(ref)
 		if status.Code(err) == codes.NotFound {
 			return apiError("WEB_ACCOUNT_REQUIRED")

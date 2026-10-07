@@ -232,6 +232,8 @@ paths:
           description: Idempotent session completion
       description: Strict JSON, maximum 4096-byte POST body; no undocumented query
         parameters; authenticated identity is verified custom-provider uid only.
+        Fresh ServiceAccessControl is checked before account/cache reads; active
+        reasons return stable 403 codes, read/decode failures return 503.
   /api/mypage:
     get:
       operationId: getMyPage
@@ -265,6 +267,8 @@ paths:
                 $ref: '#/components/schemas/MyPage'
       description: Strict JSON, maximum 4096-byte POST body; no undocumented query
         parameters; authenticated identity is verified custom-provider uid only.
+        Fresh ServiceAccessControl is checked before account/cache reads; active
+        reasons return stable 403 codes, read/decode failures return 503.
 components:
   securitySchemes:
     FirebaseAuth:
@@ -754,6 +758,8 @@ components:
               - OAUTH_TRANSACTION_CONSUMED
               - OAUTH_TRANSACTION_CHANGED
               - PRIVACY_RECONSENT_REQUIRED
+              - SERVICE_ACCESS_RESTRICTED
+              - DATA_DELETION_IN_PROGRESS
               - SUPPORT_CHALLENGE_INVALID
               - SUPPORT_CHANNEL_MISMATCH
               - OAUTH_FAILED

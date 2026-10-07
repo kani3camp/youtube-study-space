@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"app.modules/core/serviceaccess"
 )
 
 // APIError carries only a stable allowlisted code. Dependency errors are never
@@ -20,7 +22,7 @@ func errorCode(err error) string {
 	var e *APIError
 	if errors.As(err, &e) {
 		switch e.Code {
-		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
+		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
 			return e.Code
 		}
 	}
@@ -56,7 +58,9 @@ type OAuthTransaction struct {
 }
 
 type WebAccount struct {
-	Revision             time.Time  `firestore:"-"`
+	Revision         time.Time `firestore:"-"`
+	AccessCheckpoint string    `firestore:"-"`
+	// AccessBlocked is decoded for compatibility only; ServiceAccessControl is authoritative.
 	AccessBlocked        bool       `firestore:"accessBlocked"`
 	PrivacyPolicyVersion string     `firestore:"privacyPolicyVersion"`
 	TermsVersion         string     `firestore:"termsVersion"`
@@ -78,9 +82,9 @@ type AuthStore interface {
 	Verify(context.Context, string, Channel, string, time.Time) error
 	Fail(context.Context, string) error
 	ReadVerified(context.Context, string, time.Time) (OAuthTransaction, error)
-	Consume(context.Context, string, string, Policy, time.Time) (Channel, error)
+	Consume(context.Context, string, string, string, Policy, time.Time) (Channel, error)
 	ReadAccount(context.Context, string) (WebAccount, error)
-	CompleteSession(context.Context, string, Policy, time.Time) error
+	CompleteSession(context.Context, string, string, Policy, time.Time) error
 }
 
 // Provider implementations discard the exchanged OAuth token before returning
@@ -95,6 +99,7 @@ type CustomTokenMinter interface {
 }
 
 type AuthService struct {
+	Access   serviceaccess.Reader
 	Store    AuthStore
 	Provider YouTubeOAuth
 	Minter   CustomTokenMinter
@@ -240,6 +245,9 @@ func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, 
 	if purpose != "login" {
 		return ChannelResponse{}, apiError("INVALID_REQUEST")
 	}
+	if _, err := readAccess(ctx, s.Access, tx.Channel.ID, ""); err != nil {
+		return ChannelResponse{}, err
+	}
 	return ChannelResponse{Purpose: purpose, DisplayName: tx.Channel.DisplayName, Handle: tx.Channel.Handle, AvatarURL: tx.Channel.AvatarURL, ConfirmationRef: tx.ConfirmationRef}, nil
 }
 
@@ -247,15 +255,29 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if confirmation == "" {
 		return "", apiError("INVALID_REQUEST")
 	}
-	channel, err := s.Store.Consume(ctx, id, confirmation, s.Policy, s.Now().UTC())
+	value, err := s.Store.ReadVerified(ctx, id, s.Now().UTC())
+	if err != nil {
+		return "", fmt.Errorf("read confirmed channel: %w", err)
+	}
+	checkpoint, err := readAccess(ctx, s.Access, value.Channel.ID, "")
+	if err != nil {
+		return "", err
+	}
+	channel, err := s.Store.Consume(ctx, id, confirmation, checkpoint, s.Policy, s.Now().UTC())
 	if err != nil {
 		return "", fmt.Errorf("consume confirmed channel: %w", err)
 	}
 	// Consume is committed before mint. A timeout or failed mint cannot be retried
 	// from this transaction, even when the provider may have issued a token.
+	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
+		return "", err
+	}
 	token, err := s.Minter.Mint(ctx, channel.ID)
 	if err != nil {
 		return "", apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
+		return "", err
 	}
 	return token, nil
 }
@@ -274,9 +296,6 @@ func checkTransaction(tx OAuthTransaction, now time.Time, expected string) error
 }
 
 func checkPolicy(account WebAccount, policy Policy) error {
-	if account.AccessBlocked {
-		return apiError("AUTH_REQUIRED")
-	}
 	if account.PrivacyPolicyVersion != policy.Privacy || account.TermsVersion != policy.Terms {
 		return apiError("PRIVACY_RECONSENT_REQUIRED")
 	}

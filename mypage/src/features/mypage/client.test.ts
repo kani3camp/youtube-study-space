@@ -107,4 +107,21 @@ describe('same-origin MyPage client boundary', () => {
 			),
 		).rejects.toMatchObject({ retryAfter: 3600 })
 	})
+	it.each([
+		'SERVICE_ACCESS_RESTRICTED',
+		'DATA_DELETION_IN_PROGRESS',
+	])('preserves the stable restriction code %s without exposing server details', async (code) => {
+		await expect(
+			checkedJSON(
+				Response.json(
+					{ error: { code, message: 'synthetic-private-channel' } },
+					{ status: 403 },
+				),
+			),
+		).rejects.toMatchObject({
+			status: 403,
+			code,
+			message: 'MyPage request failed',
+		})
+	})
 })

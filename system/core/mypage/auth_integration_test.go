@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"app.modules/core/serviceaccess"
 	"app.modules/internal/integrationtest"
 
 	"cloud.google.com/go/firestore"
@@ -56,10 +57,19 @@ func authTestService(t *testing.T) (*AuthService, *FirestoreAuthStore, *fakeOAut
 		}
 	})
 	store := &FirestoreAuthStore{Client: client}
-	provider := &fakeOAuth{channels: []Channel{{ID: "UCsynthetic00000000000001", DisplayName: "Sample Channel"}}}
+	controlRef := client.Collection(serviceaccess.Collection).Doc("UCsynthetic0000000000001")
+	if _, err := controlRef.Delete(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := controlRef.Delete(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	provider := &fakeOAuth{channels: []Channel{{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"}}}
 	minter := &fakeMinter{}
 	now := time.Now().UTC().Truncate(time.Second)
-	service := &AuthService{Store: store, Provider: provider, Minter: minter, Policy: Policy{Privacy: "test-policy", Terms: "test-terms"}, Now: func() time.Time { return now }}
+	service := &AuthService{Access: &serviceaccess.FirestoreStore{Client: client}, Store: store, Provider: provider, Minter: minter, Policy: Policy{Privacy: "test-policy", Terms: "test-terms"}, Now: func() time.Time { return now }}
 	return service, store, provider, minter, now
 }
 
@@ -73,7 +83,7 @@ func seedTransaction(t *testing.T, s *AuthService, status string, now time.Time)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value := OAuthTransaction{StateHash: digest("synthetic-state"), Status: status, PrivacyPolicyVersion: s.Policy.Privacy, TermsVersion: s.Policy.Terms, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), ConfirmationRef: confirmation, Channel: Channel{ID: "UCsynthetic00000000000001", DisplayName: "Sample Channel"}, VerifiedAt: now}
+	value := OAuthTransaction{StateHash: digest("synthetic-state"), Status: status, PrivacyPolicyVersion: s.Policy.Privacy, TermsVersion: s.Policy.Terms, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), ConfirmationRef: confirmation, Channel: Channel{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"}, VerifiedAt: now}
 	if err := s.Store.Create(context.Background(), id, "", value, now); err != nil {
 		t.Fatal(err)
 	}
@@ -117,14 +127,14 @@ func TestAuthAtomicCallbackAndConfirm(t *testing.T) {
 	if minter.calls.Load() != 1 {
 		t.Fatal("token minted more than once")
 	}
-	account, err := store.ReadAccount(context.Background(), "UCsynthetic00000000000001")
+	account, err := store.ReadAccount(context.Background(), "UCsynthetic0000000000001")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if account.PrivacyPolicyVersion != s.Policy.Privacy || account.TermsVersion != s.Policy.Terms {
 		t.Fatal("consent was not transferred")
 	}
-	if _, err := store.Client.Collection("users").Doc("UCsynthetic00000000000001").Get(context.Background()); status.Code(err) != codes.NotFound {
+	if _, err := store.Client.Collection("users").Doc("UCsynthetic0000000000001").Get(context.Background()); status.Code(err) != codes.NotFound {
 		t.Fatal("web login created a Study Space user")
 	}
 }
@@ -162,7 +172,7 @@ func TestAuthMintFailureCannotRetry(t *testing.T) {
 func TestAuthConsumeRollsBackWhenAccountDecodeFails(t *testing.T) {
 	s, store, _, minter, now := authTestService(t)
 	id, confirmation := seedTransaction(t, s, "channel_verified", now)
-	ref := store.Client.Collection("web-accounts").Doc("UCsynthetic00000000000001")
+	ref := store.Client.Collection("web-accounts").Doc("UCsynthetic0000000000001")
 	if _, err := ref.Set(context.Background(), map[string]any{"firstWebLoginAt": "invalid-timestamp"}); err != nil {
 		t.Fatal(err)
 	}
@@ -186,16 +196,16 @@ func TestAuthSessionCompletionPreservesFirstLogin(t *testing.T) {
 	if _, err := s.Confirm(context.Background(), id, confirmation); err != nil {
 		t.Fatal(err)
 	}
-	uid := "UCsynthetic00000000000001"
+	uid := "UCsynthetic0000000000001"
 	// Independent tests may share this synthetic uid; clear only the first-login
 	// field to assert a deterministic first completion in this test.
 	if _, err := store.Client.Collection("web-accounts").Doc(uid).Update(context.Background(), []firestore.Update{{Path: "firstWebLoginAt", Value: firestore.Delete}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CompleteSession(context.Background(), uid, s.Policy, now); err != nil {
+	if err := store.CompleteSession(context.Background(), uid, "absent", s.Policy, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CompleteSession(context.Background(), uid, s.Policy, now.Add(time.Minute)); err != nil {
+	if err := store.CompleteSession(context.Background(), uid, "absent", s.Policy, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	account, err := store.ReadAccount(context.Background(), uid)
@@ -205,14 +215,14 @@ func TestAuthSessionCompletionPreservesFirstLogin(t *testing.T) {
 	if account.FirstWebLoginAt == nil || !account.FirstWebLoginAt.Equal(now) {
 		t.Fatal("first login overwritten")
 	}
-	if err := store.CompleteSession(context.Background(), uid, Policy{Privacy: "changed", Terms: s.Policy.Terms}, now); errorCode(err) != "PRIVACY_RECONSENT_REQUIRED" {
+	if err := store.CompleteSession(context.Background(), uid, "absent", Policy{Privacy: "changed", Terms: s.Policy.Terms}, now); errorCode(err) != "PRIVACY_RECONSENT_REQUIRED" {
 		t.Fatal("outdated consent bypassed")
 	}
 }
 
 func TestAuthChannelAmbiguityAndSuperseding(t *testing.T) {
 	s, _, provider, minter, now := authTestService(t)
-	provider.channels = append(provider.channels, Channel{ID: "UCsynthetic00000000000002", DisplayName: "Other Sample"})
+	provider.channels = append(provider.channels, Channel{ID: "UCsynthetic0000000000002", DisplayName: "Other Sample"})
 	id, _ := seedTransaction(t, s, "pending", now)
 	if err := s.Callback(context.Background(), id, "synthetic-state", "synthetic-code", false); errorCode(err) != "CHANNEL_AMBIGUOUS" {
 		t.Fatal("ambiguous channel selected")

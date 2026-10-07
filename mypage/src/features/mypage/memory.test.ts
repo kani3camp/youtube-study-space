@@ -87,6 +87,92 @@ describe('private MyPage memory', () => {
 		})
 		expect(result.current.data?.workName).toBe('合成作業')
 	})
+	it.each([
+		'SERVICE_ACCESS_RESTRICTED',
+		'DATA_DELETION_IN_PROGRESS',
+	])('clears all private values and stops retry, polling and restored same-uid access after %s', async (code) => {
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(sample())
+			.mockRejectedValue(new RequestError(403, code))
+		const signOut = vi.fn(async () => {})
+		const memory = new MyPageMemory(load, signOut)
+		memory.setIdentity('synthetic')
+		await settle()
+		expect(memory.getSnapshot().data?.current.data?.workName).toBe('合成作業')
+		await memory.refresh()
+		expect(memory.getSnapshot()).toEqual({
+			phase: 'restricted',
+			data: null,
+			busy: false,
+			error: code,
+			receivedAt: null,
+		})
+		expect(load.mock.calls[1]?.[1].aborted).toBe(true)
+		await memory.refresh(true)
+		memory.setVisible(false)
+		memory.setVisible(true)
+		memory.suspend()
+		memory.setIdentity('synthetic')
+		await vi.advanceTimersByTimeAsync(600_000)
+		expect(load).toHaveBeenCalledTimes(2)
+		expect(signOut).not.toHaveBeenCalled()
+		expect(memory.getSnapshot().phase).toBe('restricted')
+		await memory.logout()
+		expect(signOut).toHaveBeenCalledTimes(1)
+		expect(memory.getSnapshot().phase).toBe('anonymous')
+		memory.dispose()
+	})
+	it.each([
+		'same-uid',
+		'other-uid',
+	])('discards delayed success after restriction and %s reauthentication', async (identity) => {
+		const old = deferred<MyPage>()
+		const load = vi
+			.fn()
+			.mockReturnValueOnce(old.promise)
+			.mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		memory.restrict('SERVICE_ACCESS_RESTRICTED')
+		expect(load.mock.calls[0]?.[1].aborted).toBe(true)
+		const uid = identity === 'same-uid' ? 'synthetic' : 'synthetic-next'
+		memory.setIdentity(uid, true)
+		await settle()
+		const current = memory.getSnapshot().data
+		const stale = sample()
+		stale.account.data = {
+			displayName: 'Old private channel',
+			handle: null,
+			avatarUrl: null,
+		}
+		old.resolve(stale)
+		await settle()
+		expect(memory.getSnapshot().data).toBe(current)
+		expect(JSON.stringify(memory.getSnapshot())).not.toContain(
+			'Old private channel',
+		)
+		memory.dispose()
+	})
+	it('keeps ordinary 503 previous success and backoff separate from restrictions', async () => {
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(sample())
+			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		await settle()
+		const data = memory.getSnapshot().data
+		await memory.refresh()
+		expect(memory.getSnapshot().phase).toBe('authenticated')
+		expect(memory.getSnapshot().data).toBe(data)
+		expect(memory.getSnapshot().error).toBe('TEMPORARY_UNAVAILABLE')
+		await vi.advanceTimersByTimeAsync(59_999)
+		expect(load).toHaveBeenCalledTimes(2)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(3)
+		memory.dispose()
+	})
 
 	it('clears two independent browser memories on a terminal response while preserving transient stale data', async () => {
 		let response = sample()

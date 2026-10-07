@@ -21,6 +21,9 @@ with sync_playwright() as p:
    page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':'/login/channel-confirm','mode':'support-confirm-delete' if support else ''}))
    label='この依頼の本人確認を完了' if support else 'このチャンネルでログイン'
    page.get_by_role('button',name=label).wait_for()
+   # Finish local font loading before leaving; an in-progress load can make
+   # Chromium reload the document instead of returning through bfcache.
+   page.evaluate('document.fonts.ready')
    if pending:
     page.locator('#synthetic-hold').click();page.get_by_role('button',name=label).click()
     page.get_by_role('button',name='手続きを完了しています…').wait_for()

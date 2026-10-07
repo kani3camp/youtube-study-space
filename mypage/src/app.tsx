@@ -16,7 +16,11 @@ import {
 	useState,
 	useSyncExternalStore,
 } from 'react'
-import { RequestError } from './features/mypage/memory'
+import {
+	RequestError,
+	type RestrictionCode,
+	restrictionFrom,
+} from './features/mypage/memory'
 import {
 	AccountAvatar,
 	ExternalLink,
@@ -72,6 +76,48 @@ export function createApp(
 		return useSyncExternalStore(
 			runtime.memory.subscribe,
 			runtime.memory.getSnapshot,
+		)
+	}
+	function RestrictionNotice({ code }: { code: RestrictionCode }) {
+		const state = useMemory()
+		return (
+			<section
+				className="card login-card"
+				aria-labelledby="restriction-heading"
+			>
+				<h1 id="restriction-heading">
+					{code === 'DATA_DELETION_IN_PROGRESS'
+						? '保存データの削除手続き中です'
+						: 'サービスの利用を制限しています'}
+				</h1>
+				<p role="alert">
+					{code === 'DATA_DELETION_IN_PROGRESS'
+						? '削除手続きが進行しているため、マイページを利用できません。手続きについては受付窓口へお問い合わせください。'
+						: 'このチャンネルではマイページを利用できません。利用制限については受付窓口へお問い合わせください。'}
+				</p>
+				<div className="hero-links">
+					<Link className="button" to="/">
+						トップへ戻る
+					</Link>
+					<Link className="button" to="/contact">
+						お問い合わせ
+					</Link>
+					<Link className="button" to="/login" search={{ logout: true }}>
+						新しくログインする
+					</Link>
+					{runtime.session?.currentUID() && (
+						<button
+							className="button"
+							type="button"
+							onClick={() => void runtime.memory.logout()}
+						>
+							{state.error === 'LOGOUT_FAILED'
+								? 'ログアウトを再試行'
+								: 'ログアウト'}
+						</button>
+					)}
+				</div>
+			</section>
 		)
 	}
 	function Root() {
@@ -166,7 +212,7 @@ export function createApp(
 							</div>
 						</aside>
 					)}
-					{pathname !== '/mypage' && (
+					{(pathname !== '/mypage' || auth.phase === 'restricted') && (
 						<footer className="site-footer public-footer">
 							<Link to="/privacy">プライバシー</Link>
 							<Link to="/terms">利用規約</Link>
@@ -327,6 +373,11 @@ export function createApp(
 							? '受付窓口から届いた依頼について、新しくYouTubeの許可を得て対象チャンネルを確認します。現在のログイン状態だけでは本人確認を完了しません。'
 							: 'YouTubeチャンネルを確認して、自分の作業記録を表示します。Googleアカウントのメールアドレスではなく、確認したYouTubeチャンネルが作業部屋のアカウントになります。'}
 					</p>
+					{state.phase === 'restricted' && !supportMode && (
+						<p className="notice" role="status">
+							現在のチャンネルではマイページを利用できません。新しくYouTubeチャンネルを確認してログインできます。
+						</p>
+					)}
 					{state.error === 'LOGOUT_FAILED' ? (
 						<>
 							<p role="alert">
@@ -415,14 +466,30 @@ export function createApp(
 		)
 	}
 	function ChannelConfirm() {
+		const state = useMemory()
 		const [supportFlow, setSupportFlow] = useState(false)
 		const receipt = useContext(SupportReceipt)
 		const [channel, setChannel] = useState<ChannelConfirmation | null>(null)
 		const [error, setError] = useState<string | null>(null)
+		const [restriction, setRestriction] = useState<RestrictionCode | null>(null)
 		const [busy, setBusy] = useState(false)
 		const confirming = useRef(false)
 		const supportConfirmation = useRef(false)
 		const controller = useRef<AbortController | null>(null)
+		const channelGeneration = useRef(runtime.memory.generation)
+		const activeRestriction =
+			restriction ??
+			(state.phase === 'restricted' &&
+			channel?.purpose === 'login' &&
+			channelGeneration.current !== runtime.memory.generation
+				? (state.error as RestrictionCode)
+				: null)
+		useEffect(() => {
+			if (!activeRestriction) return
+			setChannel(null)
+			setBusy(false)
+			setRestriction(activeRestriction)
+		}, [activeRestriction])
 		useEffect(() => {
 			const c = new AbortController()
 			controller.current = c
@@ -444,6 +511,7 @@ export function createApp(
 				.channel(c.signal)
 				.then((data) => {
 					if (!c.signal.aborted) {
+						channelGeneration.current = runtime.memory.generation
 						setChannel(data)
 						supportConfirmation.current = data.purpose === 'support'
 						setSupportFlow(data.purpose === 'support')
@@ -453,6 +521,12 @@ export function createApp(
 				})
 				.catch((e) => {
 					if (c.signal.aborted) return
+					const restriction = restrictionFrom(e)
+					if (restriction) {
+						setChannel(null)
+						setRestriction(restriction)
+						return
+					}
 					if (
 						e instanceof RequestError &&
 						e.code.startsWith('OAUTH_TRANSACTION_')
@@ -503,7 +577,9 @@ export function createApp(
 					!currentController.signal.aborted
 				) {
 					setChannel(null)
-					setError(message(e))
+					const restriction = restrictionFrom(e)
+					if (restriction) setRestriction(restriction)
+					else setError(message(e))
 					setBusy(false)
 					confirming.current = false
 				}
@@ -511,57 +587,65 @@ export function createApp(
 		}
 		return (
 			<main className="main-content public-page channel-confirm-page">
-				<section className="channel-confirm">
-					<h1>YouTubeチャンネルを確認</h1>
-					{channel ? (
-						<>
-							{channel.purpose === 'support' ? (
-								<>
-									<p>
-										依頼の目的：{supportPurposeLabel[channel.supportPurpose]}
-									</p>
-									<p>
-										このチャンネルの依頼について、本人確認だけを完了します。依頼の実行状況は受付窓口からご案内します。
-									</p>
-								</>
-							) : (
-								<p>作業部屋で使っているチャンネルか確認してください。</p>
-							)}
-							<div className="card channel-identity">
-								<div className="channel-avatar">
-									<AccountAvatar url={channel.avatarUrl} />
+				{activeRestriction ? (
+					<RestrictionNotice code={activeRestriction} />
+				) : (
+					<section className="channel-confirm">
+						<h1>YouTubeチャンネルを確認</h1>
+						{channel ? (
+							<>
+								{channel.purpose === 'support' ? (
+									<>
+										<p>
+											依頼の目的：{supportPurposeLabel[channel.supportPurpose]}
+										</p>
+										<p>
+											このチャンネルの依頼について、本人確認だけを完了します。依頼の実行状況は受付窓口からご案内します。
+										</p>
+									</>
+								) : (
+									<p>作業部屋で使っているチャンネルか確認してください。</p>
+								)}
+								<div className="card channel-identity">
+									<div className="channel-avatar">
+										<AccountAvatar url={channel.avatarUrl} />
+									</div>
+									<p className="account-name">{channel.displayName}</p>
+									{channel.handle && <p className="muted">{channel.handle}</p>}
 								</div>
-								<p className="account-name">{channel.displayName}</p>
-								{channel.handle && <p className="muted">{channel.handle}</p>}
-							</div>
-							<button
-								className="button primary full-width"
-								type="button"
-								disabled={busy}
-								onClick={() => void confirm()}
+								<button
+									className="button primary full-width"
+									type="button"
+									disabled={busy}
+									onClick={() => void confirm()}
+								>
+									{busy
+										? '手続きを完了しています…'
+										: channel.purpose === 'support'
+											? 'この依頼の本人確認を完了'
+											: 'このチャンネルでログイン'}
+								</button>
+							</>
+						) : (
+							<p role={error ? 'alert' : 'status'}>
+								{error ?? 'チャンネルを確認しています…'}
+							</p>
+						)}
+						{supportFlow ? (
+							<Link className="manage-link" to="/contact">
+								受付窓口へ戻る
+							</Link>
+						) : (
+							<Link
+								className="manage-link"
+								to="/login"
+								search={{ logout: true }}
 							>
-								{busy
-									? '手続きを完了しています…'
-									: channel.purpose === 'support'
-										? 'この依頼の本人確認を完了'
-										: 'このチャンネルでログイン'}
-							</button>
-						</>
-					) : (
-						<p role={error ? 'alert' : 'status'}>
-							{error ?? 'チャンネルを確認しています…'}
-						</p>
-					)}
-					{supportFlow ? (
-						<Link className="manage-link" to="/contact">
-							受付窓口へ戻る
-						</Link>
-					) : (
-						<Link className="manage-link" to="/login" search={{ logout: true }}>
-							ログインからやり直す
-						</Link>
-					)}
-				</section>
+								ログインからやり直す
+							</Link>
+						)}
+					</section>
+				)}
 			</main>
 		)
 	}
@@ -570,6 +654,12 @@ export function createApp(
 		const openCookieSettings = useContext(CookieSettings)
 		if (state.phase === 'anonymous')
 			return <Navigate to="/login" search={{ logout: true }} />
+		if (state.phase === 'restricted')
+			return (
+				<main className="main-content public-page">
+					<RestrictionNotice code={state.error as RestrictionCode} />
+				</main>
+			)
 		return (
 			<MyPageView
 				state={state}
@@ -582,6 +672,12 @@ export function createApp(
 	function AccountManage() {
 		const state = useMemory()
 		if (state.phase === 'anonymous') return <Navigate to="/login" />
+		if (state.phase === 'restricted')
+			return (
+				<main className="main-content public-page">
+					<RestrictionNotice code={state.error as RestrictionCode} />
+				</main>
+			)
 		if (state.phase !== 'authenticated')
 			return (
 				<main className="main-content public-page">

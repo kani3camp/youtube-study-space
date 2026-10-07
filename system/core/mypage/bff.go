@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"app.modules/core/serviceaccess"
 )
 
 type (
@@ -25,9 +27,10 @@ type (
 	}
 )
 
-// BFF is process-memory only. Authorization and the current WebAccount gate are
-// checked by the HTTP boundary on every request before consulting this cache.
+// BFF is process-memory only. Fresh access reads fence every cache lookup,
+// detached flight, publication and response; inactive results are never cached.
 type BFF struct {
+	Access      serviceaccess.Reader
 	Reader      SnapshotReader
 	Environment string
 	Now         func() time.Time
@@ -68,7 +71,21 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 	return availableSection(data)
 }
 
-func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response, error) {
+func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result Response, resultErr error) {
+	checkpoint, err := readAccess(ctx, b.Access, uid, account.AccessCheckpoint)
+	if err != nil {
+		b.Invalidate(uid)
+		return Response{}, err
+	}
+	account.AccessCheckpoint = checkpoint
+	defer func() {
+		if resultErr == nil {
+			if _, err := readAccess(ctx, b.Access, uid, checkpoint); err != nil {
+				b.Invalidate(uid)
+				result, resultErr = Response{}, err
+			}
+		}
+	}()
 	key := cacheKey{b.Environment, uid}
 	now := b.Now().UTC()
 	if value, ok := b.cacheHit(key, now, account); ok {
@@ -109,15 +126,25 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 				close(flight.done)
 				b.mu.Unlock()
 			}()
-			response, flightErr = func() (Response, error) {
+			response, flightErr = func() (result Response, resultErr error) {
 				// Refresh only the flight's copy; a caller's early fallback must not race
 				// with metadata updates in the detached operation.
 				account := account
+				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
+				defer cancel()
+				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
+					return Response{}, err
+				}
+				defer func() {
+					if resultErr == nil {
+						if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
+							result, resultErr = Response{}, err
+						}
+					}
+				}()
 				if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
 					return value, nil
 				}
-				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
-				defer cancel()
 				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
 					metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
 					if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
@@ -149,6 +176,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (Response
 				response, err := Aggregate(snapshot, accountSection(account, b.Now().UTC()))
 				if err != nil {
 					return b.failedSnapshot(account)
+				}
+				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
+					return Response{}, err
 				}
 				b.mu.Lock()
 				if b.cache == nil {
@@ -254,8 +284,12 @@ func (b *BFF) Invalidate(uid string) {
 }
 
 func metadataGateError(err error) bool {
+	var gate *accessGateError
+	if errors.As(err, &gate) {
+		return true
+	}
 	switch errorCode(err) {
-	case "AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED":
+	case "AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS":
 		return true
 	}
 	return false
@@ -266,5 +300,5 @@ func metadataAccountVersion(account WebAccount) string {
 	if account.DisplayName != "" && !account.MetadataFetchedAt.IsZero() {
 		present = "present"
 	}
-	return account.Revision.UTC().Format(time.RFC3339Nano) + ":" + present
+	return account.AccessCheckpoint + ":" + account.Revision.UTC().Format(time.RFC3339Nano) + ":" + present
 }

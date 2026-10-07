@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"app.modules/core/serviceaccess"
 )
 
 // PublicYouTubeMetadata uses an application API key, never a user's OAuth
@@ -69,6 +71,7 @@ type MetadataWriter interface {
 	SaveMetadata(context.Context, string, WebAccount, Channel, Policy, time.Time) (WebAccount, error)
 }
 type AccountMetadataRefresh struct {
+	Access   serviceaccess.Reader
 	Provider PublicMetadataReader
 	Store    MetadataWriter
 	Policy   Policy
@@ -79,6 +82,11 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 	if r.Provider == nil || r.Store == nil || r.Now == nil || account.Revision.IsZero() {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
+	checkpoint, err := readAccess(ctx, r.Access, uid, account.AccessCheckpoint)
+	if err != nil {
+		return WebAccount{}, err
+	}
+	account.AccessCheckpoint = checkpoint
 	if err := checkMetadataAccount(account, r.Policy); err != nil {
 		return WebAccount{}, err
 	}
@@ -119,9 +127,6 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 }
 
 func checkMetadataAccount(account WebAccount, policy Policy) error {
-	if account.AccessBlocked {
-		return apiError("AUTH_REQUIRED")
-	}
 	if policy.Privacy == "" || policy.Terms == "" || account.PrivacyPolicyVersion != policy.Privacy || account.TermsVersion != policy.Terms {
 		return apiError("PRIVACY_RECONSENT_REQUIRED")
 	}

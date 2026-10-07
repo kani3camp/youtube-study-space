@@ -23,7 +23,7 @@ func supportAuthFixture(t *testing.T) (*AuthService, *FirestoreAuthStore, *fakeM
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider.channels[0].ID = "UCsynthetic-" + requestID
+	provider.channels[0].ID = "UC" + requestID[:22]
 	s.Support = &FirestoreSupportStore{Client: store.Client, Environment: "development"}
 	ref, challenge, err := s.Support.Create(context.Background(), requestID, provider.channels[0].ID, SupportDelete, now, now)
 	if err != nil {
@@ -46,6 +46,11 @@ func supportAuthFixture(t *testing.T) (*AuthService, *FirestoreAuthStore, *fakeM
 func TestSupportConfirmThroughHTTPNeverMintsOrCreatesWebAccount(t *testing.T) {
 	s, store, minter, requestRef, challenge, id, now := supportAuthFixture(t)
 	ctx := context.Background()
+	value, err := store.ReadVerified(ctx, id, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activateRestriction(t, store, value.Channel.ID, true, now)
 	channel, err := s.Channel(ctx, id)
 	if err != nil || channel.Purpose != "support" || channel.SupportPurpose != SupportDelete {
 		t.Fatal("support purpose not bound to confirmation UI")
