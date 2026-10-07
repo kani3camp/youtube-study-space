@@ -7,6 +7,17 @@ import {
 
 afterEach(() => vi.unstubAllEnvs())
 
+const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
+
+// Negative URL cases are constructed at runtime from obviously synthetic parts.
+// This preserves userinfo rejection without publishing literal Basic Auth URLs.
+function credentialTestURL(hostname: string, withPassword: boolean) {
+	const url = new URL(`https://${hostname}`)
+	url.username = 'synthetic-test-user'
+	if (withPassword) url.password = credentialPasswordSentinel
+	return url.href
+}
+
 const input = {
 	VITE_PUBLIC_OPERATOR_NAME: 'Synthetic Service & Friends',
 	VITE_PUBLIC_CONTACT_URL: 'https://contact.example.invalid/general',
@@ -60,7 +71,7 @@ describe('public policy configuration', () => {
 		'data:text/html,<script>synthetic</script>',
 		'http://contact.example.invalid',
 		'//contact.example.invalid',
-		'https://secret@contact.example.invalid',
+		credentialTestURL('contact.example.invalid', false),
 		'https://contact.example.invalid:8443',
 		'https://contact.example.invalid?prefill=synthetic',
 		'https://contact.example.invalid?',

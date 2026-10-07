@@ -12,6 +12,17 @@ import {
 	releaseConfigMaxBytes,
 } from './release-config'
 
+const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
+
+// Negative URL cases are constructed at runtime from obviously synthetic parts.
+// This preserves userinfo rejection without publishing literal Basic Auth URLs.
+function credentialTestURL(hostname: string, withPassword: boolean) {
+	const url = new URL(`https://${hostname}`)
+	url.username = 'synthetic-test-user'
+	if (withPassword) url.password = credentialPasswordSentinel
+	return url.href
+}
+
 function fixture(): ReleaseConfig {
 	const deployment = {
 		environment: 'development' as const,
@@ -168,8 +179,10 @@ describe('offline public release configuration', () => {
 		const input = fixture()
 		delete input.frontend.VITE_FIREBASE_API_KEY
 		input.frontend.VITE_APP_CHECK_SITE_KEY = ''
-		input.frontend.VITE_FIREBASE_AUTH_DOMAIN =
-			'https://private:secret@example.invalid'
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = credentialTestURL(
+			'example.invalid',
+			true,
+		)
 		input.deployment.projectNumber = '0123456789'
 		input.deployment.privacyVersion = 'contains whitespace'
 		const result = checkReleaseConfig(input)
@@ -232,7 +245,7 @@ describe('offline public release configuration', () => {
 	})
 	it.each([
 		'http://example.invalid',
-		'https://user:private@example.invalid',
+		credentialTestURL('example.invalid', true),
 		'https://example.invalid/',
 		'https://example.invalid/login',
 		'https://example.invalid?code=private',
@@ -306,11 +319,11 @@ describe('offline public release configuration', () => {
 		input.hosting.inventory.analyticsApproved = true
 		expect(checkReleaseConfig(input).configurationValid).toBe(true)
 		input.hosting.inventory.connect = [
-			'https://private:SECRET_SENTINEL@api.example.invalid',
+			credentialTestURL('api.example.invalid', true),
 		]
 		const result = checkReleaseConfig(input)
 		diagnostic(result, 'hosting', 'INVALID_FIELD')
-		expect(JSON.stringify(result)).not.toContain('SECRET_SENTINEL')
+		expect(JSON.stringify(result)).not.toContain(credentialPasswordSentinel)
 		expect(result).not.toHaveProperty('firebase')
 	})
 	it.each([

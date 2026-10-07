@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,9 @@ func TestCheckConfigurationIsOfflineAndNeverClaimsInfrastructureOrLiveReadiness(
 }
 
 func TestCheckConfigurationRejectsRuntimeMistakesWithoutDisclosureOrBootstrap(t *testing.T) {
+	// Construct a synthetic invalid authority without a literal Basic Auth URL.
+	passwordSentinel := "SYNTHETIC_PASSWORD_SENTINEL"
+	credentialOrigin := (&url.URL{Scheme: "https", Host: "example.invalid", User: url.UserPassword("synthetic-test-user", passwordSentinel), RawQuery: "synthetic-query"}).String()
 	for _, tc := range []struct{ name, key, value string }{
 		{"Firestore emulator", "FIRESTORE_EMULATOR_HOST", "private-host:8080"},
 		{"Auth emulator", "FIREBASE_AUTH_EMULATOR_HOST", "private-host:9099"},
@@ -63,7 +67,7 @@ func TestCheckConfigurationRejectsRuntimeMistakesWithoutDisclosureOrBootstrap(t 
 		{"project", "GOOGLE_CLOUD_PROJECT", "private invalid project"},
 		{"project number", "MYPAGE_PROJECT_NUMBER", "private-invalid-number"},
 		{"app binding", "MYPAGE_WEB_APP_ID", "1:987654321:web:private"},
-		{"origin", "MYPAGE_PUBLIC_ORIGIN", "https://private:secret@example.invalid/?private-secret"},
+		{"origin", "MYPAGE_PUBLIC_ORIGIN", credentialOrigin},
 		{"signer", "MYPAGE_SIGNER_EMAIL", "private@demo-other.iam.gserviceaccount.com"},
 		{"OAuth ID", "MYPAGE_OAUTH_CLIENT_ID", ""},
 		{"OAuth secret", "MYPAGE_OAUTH_CLIENT_SECRET", ""},
@@ -88,6 +92,7 @@ func TestCheckConfigurationRejectsRuntimeMistakesWithoutDisclosureOrBootstrap(t 
 			require.JSONEq(t, expectedReport("invalid", "pending"), stdout.String())
 			require.NotContains(t, stdout.String(), "private")
 			require.NotContains(t, stdout.String(), "synthetic-secret")
+			require.NotContains(t, stdout.String(), passwordSentinel)
 		})
 	}
 }
