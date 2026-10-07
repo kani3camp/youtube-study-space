@@ -20,6 +20,10 @@ variable "project_id" {
   description = "GCP project managed by this Terraform root."
   type        = string
   default     = "youtube-study-space"
+  validation {
+    condition     = var.project_id == "youtube-study-space"
+    error_message = "The production root only manages its existing production project."
+  }
 }
 
 variable "region" {
