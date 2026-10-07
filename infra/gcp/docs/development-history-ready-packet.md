@@ -121,8 +121,56 @@ python3 infra/gcp/scripts/validate_user_activity_history_plan.py \
 `TF_VAR_export_function_execution_service_account_email` は既存Function identityの照合用。
 inputはowner-only regular file、symlink/duplicate JSON key/oversizeを拒否。結果はvalue/pathを
 含まないPASS/STOPのみ。実provider plan、metadata provenance、live prerequisitesや承認の
-証明ではない。current CI apply workflowへの配線・activationは未実施で、source adoption=false。
+証明ではない。protected workflowへのdefault-off配線は下記に準備済みで、source adoption=false。
 既存11のownership/configが変わったら候補を再reviewする。12という数だけでPASSにしない。
+
+## Default-off protected history adoption
+
+既存[protected workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)の
+`DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=false`を維持したsource準備です。通常PRは
+credentiallessで、mergeやテスト成功からmetadata GET・schema mutation・importを自動実行しません。
+共通`ci.yml`、OIDC/trust/Environment/permission、production rootは変更しません。
+
+[workflow metadata helper](../scripts/prepare_user_activity_history_workflow.py)は、別途承認されて
+activationしたprotected runでのみ、既発行tokenによるexact dev tableの
+[tables.get](https://docs.cloud.google.com/bigquery/docs/reference/rest/v2/tables/get)を各stageで1回実行します。
+このAPIはtable metadataと`bigquery.tables.get`を使用し、row本文を返しません。
+initial plan、apply jobのsame-SHA re-plan前、saved apply後の計3回です。query、getData、token minting、
+追加grant、retryは行いません。GETが403ならSTOPし、permissionを自動拡張しません。
+公開へはcanonical metadata digestのみ渡し、metadataはrunner tempの0600 fileだけに保存してalways cleanupします。
+列順とprivate file pathは[runnerのGITHUB_ENV](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable)
+で後続stepへ渡します。raw metadata・user counts・field valuesをSummary/artifactへ渡しません。
+
+helperはlegacy列を除外せず、元のcanonical preparationを再利用してexact8/nested/modes/configを検査します。
+plan stageのdigestをapply jobのfresh metadataと照合し、列順の変更・欠損digestでSTOPします。
+postではbefore metadataとの同一列順も要求します。metadataやdigestはcurrent legacy値の安全性、
+consumer、complete row-policy list、recovery、実行承認の証明ではありません。
+
+[protected plan入口](../../../.github/scripts/terraform_protected_plan.py)はhistory flag=trueの場合だけ
+既存strict validatorを追加適用します。devの通常plan/apply、採用済みexport chain、exact12resource、
+existing11 no-op、exact history import0/1、canonical8とfresh列順、unknown/drift/move/action0を要求します。
+initial importはimport1、既存stateに採用後の通常planはimport0を許可し、postは必ずimport0/no-op12です。
+standalone offline CLIはbefore import1のstrict契約を維持します。Email/quota等の例外modeと混ぜません。
+global import-only guard、独立Environment approval、同SHA再plan・sanitized projection照合は維持します。
+
+一貫したlive手順は次の順です。今回のsource準備は各actionの承認を兼ねません。
+
+1. Guard自然実行の各task成功、legacy値の安全性、consumer・complete metadata・recoveryをprivate packetで確定。
+   計画上の自然実行成功を、実測済み成功と記録しない。schema gateが保留ならここで待つ。
+2. 既存packetのexact DROP 1 statementを別承認して実行。unknown/non-zero/新writerがあればSTOP。
+   fresh metadataでtimestampだけ消失、他8列・nested・相対列順・config不変を確認する。
+3. pinned providerの実isolated import/no-opを確認し、private field-order候補をreview。
+   source gate false→trueと対応source testの期待値変更を一つのactivation差分として別承認する。
+4. Reviewed SHAのfull-root protected planでexact history import1 + existing11 no-op、その他0。
+   別apply Environmentの承認後、同SHA再plan・metadata digest・projection一致からsaved import-only apply。
+5. Fresh post metadata、import0/no-op12、state lineage/exact ownership、version/lock/live lock0、公開漏えい/artifact0を照合。
+   同SHAの独立通常full-root完全no-opを確認してadoption完了とする。
+
+apply後のpost-check失敗は追加apply・DDL・state restoreをせずSTOPしてprivate調査します。
+import済みならownership gateをfalseへ閉じてresourceをrootから落としません。state account全体の
+旧snapshot restoreやschema rollbackは別承認です。fresh no-op成立後はhistory ownership=trueを維持します。
+新しいWIF/API ownershipでbaseline graphが増える場合、activation/import前にこのexact12契約を
+reviewし直します。resource数だけ緩めたり、rootの一部planで迂回したりしません。
 
 ## Owner information that can be prepared first
 

@@ -20,6 +20,10 @@ from terraform_export_topic_gate import validate as validate_export_topic
 from terraform_export_scheduler_gate import validate as validate_export_scheduler
 from terraform_export_function_gate import validate as validate_export_function
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
+from prepare_user_activity_history_adoption import prepare, private_json, unique_object
+from validate_user_activity_history_plan import validate as validate_history
+
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
     if environment != "dev" or not email or not channel_name:
@@ -62,8 +66,23 @@ def main():
     parser.add_argument("--markdown-output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        plan = json.load(sys.stdin)
-        if args.operation == "email-adoption":
+        plan = json.load(sys.stdin, object_pairs_hook=unique_object)
+        history = os.environ.get("TF_VAR_manage_user_activity_history", "false")
+        if history not in {"false", "true"}:
+            raise ValueError("History ownership flag required")
+        if history == "true":
+            if args.environment != "dev" or args.operation not in {"plan", "apply"}:
+                raise ValueError("History adoption cannot share an exceptional or production wave")
+            if any(os.environ.get("TF_VAR_manage_export_" + kind) != "true" for kind in ("function", "scheduler", "topic")):
+                raise ValueError("Adopted history dependencies required")
+            metadata = private_json(os.environ["YSS_USER_ACTIVITY_HISTORY_METADATA_FILE"])
+            order = json.loads(os.environ["TF_VAR_user_activity_history_field_order"], object_pairs_hook=unique_object)
+            if order != prepare(metadata)["user_activity_history_field_order"]:
+                raise ValueError("Fresh history field order required")
+            validate_history(plan, metadata=metadata, phase=args.phase, allow_adopted=True,
+                             execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
+            summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
+        elif args.operation == "email-adoption":
             summary = adoption_summary(plan, environment=args.environment, git_sha=args.git_sha, phase=args.phase,
                                        email=os.environ.get("TF_VAR_primary_email_address"),
                                        channel_name=os.environ.get("TF_VAR_primary_email_channel_name"))

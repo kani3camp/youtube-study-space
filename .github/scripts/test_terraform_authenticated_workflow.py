@@ -129,6 +129,39 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("EXPORT_FUNCTION_IDENTITY_REQUIRED", self.text)
         apply = self.text.split("  apply:\n", 1)[1]
         self.assertLess(apply.index("terraform_identity_smoke.py export-function"), apply.index("Re-plan at the exact approved commit"))
+
+    def test_history_preparation_is_default_off_and_requires_complete_dev_baseline(self):
+        self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "false"', self.text)
+        self.assertIn("manage_user_activity_history=false", self.run_preflight().outputs)
+        gates = {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true", "DEV_QUOTA_MANAGED_ENABLED": "true"}
+        enabled = self.run_preflight(**gates)
+        self.assertEqual(enabled.returncode, 0)
+        self.assertIn("manage_user_activity_history=true", enabled.outputs)
+        for flag in ("DEV_EXPORT_FUNCTION_MANAGED_ENABLED", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED",
+                     "DEV_EXPORT_TOPIC_MANAGED_ENABLED", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED", "DEV_QUOTA_MANAGED_ENABLED"):
+            self.assertNotEqual(self.run_preflight(**dict(gates, **{flag: "false"})).returncode, 0)
+        for mode in ("email-adoption", "quota-plan", "quota-create", "quota-refresh"):
+            self.assertNotEqual(self.run_preflight(**gates, MODE=mode,
+                DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true", DEV_QUOTA_CREATE_ENABLED="true",
+                DEV_QUOTA_STATE_REFRESH_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED="invalid").returncode, 0)
+        self.assertNotEqual(self.run_preflight(**gates, TARGET="prod").returncode, 0)
+
+    def test_history_metadata_is_fresh_in_both_jobs_and_after_saved_apply(self):
+        plan, apply = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)
+        for job in (plan, apply):
+            self.assertIn("TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}", job)
+            self.assertIn("needs.preflight.outputs.manage_user_activity_history == 'true'", job)
+            self.assertIn('"${RUNNER_TEMP}/user-history-before.json"', job)
+            self.assertIn('"${RUNNER_TEMP}/user-history-post.json"', job)
+        self.assertLess(plan.index("Verify development identity"), plan.index("prepare_user_activity_history_workflow.py --phase before"))
+        self.assertLess(plan.index("prepare_user_activity_history_workflow.py --phase before"), plan.index("Create saved plan"))
+        self.assertLess(apply.index("prepare_user_activity_history_workflow.py --phase before"), apply.index("Re-plan at the exact"))
+        self.assertLess(apply.index("Apply the locally"), apply.index("prepare_user_activity_history_workflow.py --phase post"))
+        self.assertLess(apply.index("prepare_user_activity_history_workflow.py --phase post"), apply.index("Require post-apply no-op"))
+        self.assertIn("history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}", plan)
+        self.assertEqual(apply.count("HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}"), 2)
+        self.assertNotIn("terraform import", self.text)
         self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
         self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
 

@@ -642,5 +642,170 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
                     self.assertIn("Execution remains unapproved", result.stdout)
 
 
+class UserActivityProtectedPreparationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        path = ADOPTION.with_name("prepare_user_activity_history_workflow.py")
+        spec = importlib.util.spec_from_file_location("history_workflow", path)
+        self.preparation = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.preparation)
+        self.fixture_source = UserActivityHistoryPlanTest()
+        self.fixture_source.setUp()
+
+    def env(self, directory: str) -> dict:
+        env_file = Path(directory) / "runner-env"
+        env_file.touch(mode=0o600)
+        output_file = Path(directory) / "runner-output"
+        output_file.touch(mode=0o600)
+        return {"TF_VAR_project_id": "test-youtube-study-space", "TF_VAR_manage_user_activity_history": "true",
+                "TF_VAR_manage_export_function": "true", "TF_VAR_manage_export_scheduler": "true",
+                "TF_VAR_manage_export_topic": "true", "HISTORY_OPERATION": "apply", "HISTORY_STAGE": "plan",
+                "RUNNER_TEMP": directory, "GITHUB_ENV": str(env_file),
+                "GITHUB_OUTPUT": str(output_file),
+                "GCP_SMOKE_ACCESS_TOKEN": "synthetic-private-token"}
+
+    def test_exact_metadata_get_once_private_storage_and_post_order_preservation(self):
+        plan, metadata = self.fixture_source.fixture()
+        calls = []
+        def request(path, token, *, host):
+            calls.append((path, token, host))
+            return 200, metadata
+        with tempfile.TemporaryDirectory() as directory:
+            env = self.env(directory)
+            old_umask = os.umask(0o022)
+            try:
+                for phase in ("before", "post"):
+                    if phase == "post":
+                        env["HISTORY_STAGE"] = "apply"
+                        env["HISTORY_APPROVED_METADATA_DIGEST"] = Path(env["GITHUB_OUTPUT"]).read_text().strip().split("=", 1)[1]
+                    self.preparation.prepare_workflow(env, phase=phase, request=request)
+                    target = Path(directory) / f"user-history-{phase}.json"
+                    self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+                    self.assertEqual(adoption_module.private_json(str(target)), metadata)
+            finally:
+                os.umask(old_umask)
+            self.assertEqual(calls, [(self.preparation.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], "bigquery.googleapis.com")] * 2)
+            handoff = Path(env["GITHUB_ENV"]).read_text()
+            self.assertNotIn(env["GCP_SMOKE_ACCESS_TOKEN"], handoff)
+            order = [field["name"] for field in metadata["schema"]["fields"]]
+            self.assertIn("TF_VAR_user_activity_history_field_order=" + json.dumps(order, separators=(",", ":")), handoff)
+            self.assertNotIn("manage_user_activity_history=true", handoff)
+
+    def test_no_read_for_disabled_foreign_or_exceptional_targets(self):
+        from unittest.mock import Mock
+        for override in ({"TF_VAR_manage_user_activity_history": "false"}, {"TF_VAR_project_id": "youtube-study-space"},
+                         {"HISTORY_OPERATION": "quota-create"}, {"TF_VAR_manage_export_function": "false"},
+                         {"GCP_SMOKE_ACCESS_TOKEN": ""}):
+            with self.subTest(override=override), tempfile.TemporaryDirectory() as directory:
+                request = Mock()
+                with self.assertRaises(ValueError):
+                    self.preparation.prepare_workflow(dict(self.env(directory), **override), phase="before", request=request)
+                request.assert_not_called()
+                self.assertFalse((Path(directory) / "user-history-before.json").exists())
+
+    def test_apply_replan_requires_the_same_approved_metadata_digest(self):
+        from unittest.mock import Mock
+        _, metadata = self.fixture_source.fixture()
+        request = Mock(return_value=(200, metadata))
+        with tempfile.TemporaryDirectory() as plan_directory, tempfile.TemporaryDirectory() as apply_directory:
+            plan_env = self.env(plan_directory)
+            self.preparation.prepare_workflow(plan_env, phase="before", request=request)
+            digest = Path(plan_env["GITHUB_OUTPUT"]).read_text().strip().split("=", 1)[1]
+            apply_env = dict(self.env(apply_directory), HISTORY_STAGE="apply", HISTORY_APPROVED_METADATA_DIGEST=digest)
+            self.preparation.prepare_workflow(apply_env, phase="before", request=request)
+            self.assertEqual(Path(apply_env["GITHUB_OUTPUT"]).read_text(), f"history_metadata_digest={digest}\n")
+            self.assertEqual(request.call_count, 2)
+
+    def test_noncanonical_denied_changed_order_or_existing_output_stop_without_retry(self):
+        from unittest.mock import Mock
+        for failure in ("legacy", "denied", "post-order", "collision", "env-symlink", "approved-digest", "missing-digest"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                env = self.env(directory)
+                _, metadata = self.fixture_source.fixture()
+                if failure == "legacy": metadata["schema"]["fields"].append({"name": "timestamp", "type": "TIMESTAMP"})
+                if failure == "post-order":
+                    import hashlib
+                    before = Path(directory) / "user-history-before.json"
+                    before.write_text(json.dumps(metadata)); before.chmod(0o600)
+                    env["HISTORY_STAGE"] = "apply"
+                    env["HISTORY_APPROVED_METADATA_DIGEST"] = hashlib.sha256(json.dumps(
+                        adoption_module.prepare(metadata), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                    metadata["schema"]["fields"].reverse()
+                if failure in {"approved-digest", "missing-digest"}:
+                    env["HISTORY_STAGE"] = "apply"
+                    if failure == "approved-digest": env["HISTORY_APPROVED_METADATA_DIGEST"] = "0" * 64
+                if failure == "collision":
+                    existing = Path(directory) / "user-history-before.json"
+                    existing.write_text("preserve-existing"); existing.chmod(0o600)
+                if failure == "env-symlink":
+                    original = Path(env["GITHUB_ENV"])
+                    link = Path(directory) / "runner-env-link"
+                    link.symlink_to(original); env["GITHUB_ENV"] = str(link)
+                request = Mock(return_value=(403 if failure == "denied" else 200, metadata))
+                with self.assertRaises((ValueError, OSError)):
+                    self.preparation.prepare_workflow(env, phase="post" if failure == "post-order" else "before", request=request)
+                self.assertEqual(request.call_count, 1)
+                if failure == "collision": self.assertEqual(existing.read_text(), "preserve-existing")
+                elif failure != "post-order": self.assertFalse((Path(directory) / "user-history-before.json").exists())
+                self.assertEqual(Path(env["GITHUB_ENV"]).read_text(), "")
+
+    def protected(self, plan, metadata, *, phase="before", importing=True, **overrides):
+        import io
+        from unittest.mock import patch
+        from terraform_protected_plan import main
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic-private-metadata.json"
+            path.write_text(json.dumps(metadata)); path.chmod(0o600)
+            env = {"TF_VAR_manage_user_activity_history": "true", "TF_VAR_manage_export_function": "true",
+                   "TF_VAR_manage_export_scheduler": "true", "TF_VAR_manage_export_topic": "true",
+                   "TF_VAR_export_function_execution_service_account_email": self.fixture_source.email,
+                   "YSS_USER_ACTIVITY_HISTORY_METADATA_FILE": str(path),
+                   "TF_VAR_user_activity_history_field_order": json.dumps([f["name"] for f in metadata["schema"]["fields"]])}
+            environment = overrides.pop("environment", "dev")
+            operation = overrides.pop("operation", "apply")
+            exposed = overrides.pop("exposed_metadata", False)
+            if exposed: path.chmod(0o644)
+            env.update(overrides)
+            outputs = [Path(directory) / name for name in ("summary.json", "summary.md")]
+            argv = ["gate", "--operation", operation, "--phase", phase, "--environment", environment,
+                    "--git-sha", "a" * 40, "--policy", "import-only", "--json-output", str(outputs[0]),
+                    "--markdown-output", str(outputs[1])]
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with patch("sys.argv", argv), patch("sys.stdin", io.StringIO(json.dumps(plan))), \
+                 patch("sys.stdout", stdout), patch("sys.stderr", stderr), patch.dict("os.environ", env, clear=True):
+                rc = main()
+            public = stdout.getvalue() + stderr.getvalue()
+            for output in outputs:
+                if output.exists(): public += output.read_text()
+            for private in (str(path), "synthetic-private-token", self.fixture_source.email, self.fixture_source.gate.TABLE_ID):
+                self.assertNotIn(private, public)
+            return rc, json.loads(outputs[0].read_text()) if outputs[0].exists() else None
+
+    def test_protected_entrypoint_import_replan_persistent_noop_and_post_use_same_strict_contract(self):
+        for phase, importing in (("before", True), ("before", False), ("post", False)):
+            plan, metadata = self.fixture_source.fixture(importing)
+            rc, summary = self.protected(plan, metadata, phase=phase)
+            self.assertEqual(rc, 0)
+            self.assertEqual(summary["counts"]["import"], int(importing))
+            self.assertEqual(summary["counts"]["no-op"], 12)
+            self.assertEqual(summary["policy"], "import-only")
+        plan, metadata = self.fixture_source.fixture(True)
+        self.assertEqual(self.protected(plan, metadata, phase="post")[0], 3)
+
+    def test_protected_entrypoint_requires_activation_private_metadata_order_and_normal_dev_wave(self):
+        for override in ({"TF_VAR_manage_user_activity_history": "false"}, {"TF_VAR_manage_user_activity_history": "invalid"},
+                         {"TF_VAR_manage_export_function": "false"}, {"TF_VAR_manage_export_topic": "false"},
+                         {"TF_VAR_export_function_execution_service_account_email": ""}, {"exposed_metadata": True},
+                         {"TF_VAR_user_activity_history_field_order": "[]"}, {"environment": "prod"},
+                         *[{"operation": operation} for operation in ("email-adoption", "quota-create", "quota-refresh", "quota-plan")]):
+            with self.subTest(override=override):
+                plan, metadata = self.fixture_source.fixture()
+                self.assertEqual(self.protected(plan, metadata, **override)[0], 3)
+        for mutate in (lambda p: p["resource_changes"][-1]["change"].update(actions=["update"]),
+                       lambda p: p["resource_changes"][0]["change"].update(importing={"id": "second"}),
+                       lambda p: p.update(action_invocations=[{}]), lambda p: p.update(resource_drift=[{}])):
+            plan, metadata = self.fixture_source.fixture(); mutate(plan)
+            self.assertEqual(self.protected(plan, metadata)[0], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
