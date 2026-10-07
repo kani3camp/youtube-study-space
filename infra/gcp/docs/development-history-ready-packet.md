@@ -56,6 +56,11 @@ cloud clientを持たず、private canonical metadataとcomplete full-root plan 
 既存11resourceは既存Function post契約を再利用し、new tableだけを加えた12resourceを要求する。
 import1/other0とpost import0/no-op12、exact table/provider、canonical8/nested/実列順、
 deletion protection、unknown/drift/追加import/output変化を検査する。
+Terraform 1.16.4の[JSON plan定義](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/command/jsonplan/plan.go#L67)
+はresource変更と別にaction_invocations/deferred_action_invocationsを持つため、両方とも
+省略または空配列だけを許可する。resource no-opでもactionを含むplanは拒否する。
+同様に[previous_address](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/command/jsonplan/plan.go#L275)
+を持つmove-only resourceもno-op表示になり得る。全12resourceのstate addressを保持するため拒否する。
 
 ```sh
 # 既存private operator環境のexecution SA email変数だけを参照。credentialは入力しない。
@@ -98,8 +103,12 @@ Issue記録だけのEmail channel/dangling policyは付随して修復しない�
 
 ## CodeQL and mandatory OIDC claims
 
-CodeQLの失敗run/job、正確なerror、現行default/advanced setup設定は未確認。
-「custom subjectとdefault setupが原因」は仮説として保持し、設定403を迂回しない。
+確認済みの[CodeQL run 37494025459](https://github.com/kani3camp/youtube-study-space/actions/runs/37494025459)
+は全3jobが開始前fail。errorは `OIDC error: the claim 'environment' cannot be null or empty`。
+既存devでも同じerrorが確認されている。要求claimsはrepository_id、repository_owner_id、
+environment、ref、workflow_ref、job_workflow_ref、event_name。この実行でenvironmentを供給できず
+失敗したことと、現行default/advanced setupの設定内部は403で未確認という点を分ける。
+設定403を迂回しない。setup構成と実producerを確認する前に、設定変更で直るとは断定しない。
 現行[identity smoke](../../../.github/scripts/terraform_identity_smoke.py)はimmutable repository/owner、
 Environment、ref、caller/reusable workflow、eventとsame-SHAを照合する。この境界を弱めない。
 
@@ -111,8 +120,8 @@ repo OIDC template/cloud trust/auth/permission変更0を維持する。
 診断が裏付けた場合の最小source候補は、明示的なOIDC request/cloud action/secret mappingを追加しない
 [公式advanced CodeQL workflow](https://github.com/actions/starter-workflows/blob/main/code-scanning/codeql.yml)。
 公式templateはid-token writeを要求しないが、内部OIDC requestゼロの保証ではない。
-実際にpinするAction/依存とGitHub実行時の挙動は別検証で、今回の失敗修復も未証明。
-producerが実際にOIDCを必要とする場合だけ、
-専用reusable callee + cloud許可対象外のsecretless Environmentを検討する。Terraform Environmentを
+template単独で必須environment/job_workflow_refを満たせるとも扱わない。要求claimsに対応する
+候補として専用reusable callee + cloud許可対象外のsecretless Environmentを検討する。
+実際にpinするAction/依存と実producerの挙動は別検証で、今回の失敗修復も未証明。Terraform Environmentを
 流用しない。[default→advanced切替](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)
 は別settings actionなので、source PRだけで修復済みとは報告しない。

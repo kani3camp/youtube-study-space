@@ -554,6 +554,19 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.review(plan, metadata)
 
+    def test_separate_action_invocations_are_rejected_before_and_after_import(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            plan, metadata = self.fixture(importing)
+            plan.update(action_invocations=[], deferred_action_invocations=[])
+            self.review(plan, metadata, phase)
+            for key in ("action_invocations", "deferred_action_invocations"):
+                for value in ([{"address": "action.synthetic", "config_values": {"token": "synthetic-private-value"}}],
+                              {"unexpected": "synthetic-private-value"}, None, False):
+                    plan, metadata = self.fixture(importing)
+                    plan[key] = value
+                    with self.subTest(phase=phase, key=key, value=value), self.assertRaises(ValueError):
+                        self.review(plan, metadata, phase)
+
     def test_legacy_nested_and_order_differences_are_rejected_even_if_noop(self) -> None:
         for mutate in (
             lambda f: f.append({"name": "timestamp", "type": "TIMESTAMP"}),
@@ -574,6 +587,14 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.review(plan, metadata)
 
+    def test_move_only_state_changes_are_rejected_for_every_resource(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            for index in range(12):
+                plan, metadata = self.fixture(importing)
+                plan["resource_changes"][index]["previous_address"] = "module.synthetic-private-value.old"
+                with self.subTest(phase=phase, index=index), self.assertRaises(ValueError):
+                    self.review(plan, metadata, phase)
+
     def test_foreign_table_configuration_and_disabled_protection_are_rejected(self) -> None:
         for key, value in {"project": "synthetic-prod", "location": "synthetic-other-region", "deletion_protection": False,
                            "expiration_time": 12345, "table_constraints": [{"primary_key": ["user_id"]}],
@@ -586,7 +607,8 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
 
     def test_cli_is_private_offline_and_never_echoes_input_or_path(self) -> None:
         script = ADOPTION.with_name("validate_user_activity_history_plan.py")
-        for failure in (None, "metadata-exposed", "plan-symlink", "plan-duplicate", "plan-malformed", "wrong-target", "no-identity", "bad-argument"):
+        for failure in (None, "metadata-exposed", "plan-symlink", "plan-duplicate", "plan-malformed", "plan-move", "plan-action",
+                        "plan-deferred-action", "wrong-target", "no-identity", "bad-argument"):
             plan, metadata = self.fixture()
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory) / "synthetic-private-path"
@@ -599,6 +621,13 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
                     actual = root / "actual.json"; paths[1].rename(actual); paths[1].symlink_to(actual)
                 if failure == "plan-duplicate": paths[1].write_text('{"complete":true,"complete":true}')
                 if failure == "plan-malformed": paths[1].write_text('{"synthetic-private-value":')
+                if failure == "plan-move":
+                    plan["resource_changes"][0]["previous_address"] = "module.synthetic-private-value.old"
+                    paths[1].write_text(json.dumps(plan))
+                if failure in ("plan-action", "plan-deferred-action"):
+                    key = "action_invocations" if failure == "plan-action" else "deferred_action_invocations"
+                    plan[key] = [{"address": "action.synthetic", "config_values": {"token": "synthetic-private-value"}}]
+                    paths[1].write_text(json.dumps(plan))
                 if failure == "wrong-target":
                     metadata["tableReference"]["projectId"] = "synthetic-private-value"
                     paths[0].write_text(json.dumps(metadata))

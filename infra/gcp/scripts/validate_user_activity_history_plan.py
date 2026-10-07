@@ -33,10 +33,18 @@ def require(condition: bool) -> None:
 
 def validate(plan: object, *, metadata: object, phase: str, execution_email: str) -> None:
     require(phase in {"before", "post"} and type(plan) is dict)
+    # Terraform 1.16.4 serializes provider actions outside resource_changes.
+    # Import/no-op resources cannot authorize a side-effecting action or one
+    # deferred until apply. Omitted or empty arrays are the only accepted forms.
+    for key in ("action_invocations", "deferred_action_invocations"):
+        require(type(plan.get(key, [])) is list and not plan.get(key, []))
     order = prepare(metadata)["user_activity_history_field_order"]
     expected_schema = [normalize_field(field) for field in metadata["schema"]["fields"]]
     changes = plan.get("resource_changes")
     require(type(changes) is list and len(changes) == 12 and all(type(resource) is dict for resource in changes))
+    # A moved address can be reported with no-op actions; this adoption must
+    # preserve every existing state address as well as its remote values.
+    require(all("previous_address" not in resource for resource in changes))
     selected = [resource for resource in changes if resource.get("address") == TABLE]
     require(len(selected) == 1)
     validate_baseline(dict(plan, resource_changes=[resource for resource in changes if resource.get("address") != TABLE]),
