@@ -34,7 +34,7 @@ action-time承認を得る。途中で範囲を広げたり、不足permission�
 
 | Stage | Exact candidate and execution condition | Failure boundary |
 | --- | --- | --- |
-| Writer proof / bounded deployment if required | 既存receiptでguardを証明できればdeploy不要。証明できなければdev両writerだけのimage/task/reference差分、既存roles/network/config維持、previous digest/referencesへのrollbackを具体化 | whole-stack CDK deployが他Lambda image等を変えるなら追加scopeとしてSTOP。元runtime/config不明のままdeployしない |
+| Writer proof / bounded deployment if required | 既存receiptでguardを証明できればdeploy不要。証明できなければ既存CDK管理でbatch Imageの最小差分を具体化。共有familyの日次reset/update/transferと手動3処理を影響範囲に含め、roles/network/configを保持。rollbackはprevious digestの新revision | unqualified familyはACTIVE revision登録だけでも切り替わり得る。登録を準備扱いしない。Lambda image等を変えるwhole-stack synthや元runtime不明のままdeployしない |
 | Schema-only repair | dev `test-youtube-study-space.firestore_export.user-activity-history`、location `asia-southeast2`、timestamp DROP 1 statement。全preflightと値安全性・consumer・recoveryがPASS、既存operator権限内で実行 | unknown、新writer、column/config変化、非zero等ならSTOP。backfill/再作成/順序統一/retryを追加しない |
 | Post-repair metadata | fresh GETでtimestampだけ消失、他8列・nested・相対順序・config不変。既存helperでprivate default-off inputsを準備 | 修復失敗やcanonical以外ならimportしない |
 | Import-only adoption | pinned providerの実isolated planとapproved full-root plan、exact table import1 + existing11 no-op、その他0。reviewed source activation/validator配線とsame-SHA再plan、独立protected approval後saved plan適用 | import+updateは必ず拒否。state/lock/caller/SHA差異ならSTOP |
@@ -48,6 +48,54 @@ candidate DDLは[canonicalization文書](user-activity-history-canonicalization.
 にある1 statementだけ。[BigQuery DROP制限](https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#alter_table_drop_column_statement)
 をconsumer/recovery方式に照合する。新backup/snapshotや復元試験が必要なら、target/期限/
 権限/cost/新write保全の具体案を先にreviewし、作成・query・restoreを別承認する。
+
+## Offline managed batch deployment candidate
+
+[batch:prepare-candidate](../../../aws-cdk/lib/batch-image-candidate.ts)はcloud clientを持たず、
+既存dev `AwsCdkStack`のtemplateとCDK artifactからcandidate/rollbackのcloud assemblyを作る。
+必要なprivate inputはdeployed `GetTemplate` Original、同stackの`DescribeStacks`からStackId/
+StackStatus/RoleARN/EnableTerminationProtection、既存CDK synthまたはdeploy receiptのstack artifact、
+`DailyBatchTaskDefinitionArn` output、元task logical ID、既存operator記録のcurrent task ARN、
+同一既存ECR repositoryのcandidate/previous **digest URI**。
+source synthだけを実deployed templateの代用にしない。old task/imageとtemplateの対応、receiptの
+鮮度、candidate source/build→ECR digest、他のfamily呼出し元のcoverageはoperator側で照合する。
+
+```sh
+cd aws-cdk
+pnpm batch:prepare-candidate --input /private/batch-candidate-input.json --out /private/fresh-candidate
+```
+
+inputのJSON keysは`baselineTemplate`、`stackArtifact`、`stackReceipt`、`taskLogicalId`、
+`currentTaskDefinitionArn`、`candidateImage`、`previousImage`。`stackArtifact`はmanifestの
+`artifacts.AwsCdkStack`、`stackReceipt`は上の5fieldsのみ（outputは同名keyへprojection）。
+current ARNとCDK outputのrevision不一致を拒否する。task ARN依存はsymbolic revisionと
+`Join/Split/Select`で検証し、revision依存の残る値と証明できないintrinsicを拒否する。
+現行4 IAM policyの`family:*`はrevision非依存で有効権限が変わらない。CloudFormationが再評価/
+再適用する可能性は承認scopeに含め、実change set確認は別承認後とする。task outputは更新後に
+新revision ARNへ変わる。inputはowner-only regular file、outputは新規directory限定。
+consoleは値やpathを出さない。raw input、template、review、assembly、image artifactを公開CI/
+PR/Issueへ添付しない。公開testsのdigest/receiptは合成fixturesでlive proofではない。
+
+生成物は`original.template.json`、`candidate/`、`rollback/`、`review.json`。candidateは
+既存taskの`ContainerDefinitions[0].Image`だけ変更し、IAM/roles、network、JOB、SFN、Lambda、
+parameters、outputs、全logical IDを保持する。rollbackも同じfieldだけをprevious digestへ変更する。
+元templateのtag再利用ではold image復元を保証できないため、previous digestを明示的にpinする。
+CloudFormationの[ContainerDefinitions更新はreplacement](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ecs-taskdefinition.html#cfn-ecs-taskdefinition-containerdefinitions)。
+rollbackは元revision番号への復帰ではなくold digestを使う新revisionの登録になる。
+[RunTaskのfamily参照](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RunTask.html)は
+revision省略時latest ACTIVEを解決する。SFN定義が無差分でもreset/updateを含む全呼出し元が影響する。
+
+assemblyは既存CDK deploy/execution roleとbootstrap条件、現行termination protectionを保持する。
+old template S3 URLとasset dependenciesを除き、asset publicationを0にする。
+candidate imageは別途承認された既存ECRへのpublishとdigest照合が必要。生成器はbuild/push/
+registration/change set/deployを実行しない。sourceの通常full synthは共有`system/`の変更で
+Lambda assetにも波及するため、この最小候補の代わりに適用しない。次回通常CDK更新では
+このpinned imageとの整合と全asset差分を明示的にreviewする。
+
+private reviewには1fieldのbefore/after/rollback、template内全family taskとJOB、hashが入る。
+入力templateを越えるlive inventoryやtask稼働状況の証明ではない。familyを特定できないASL、
+他repository/tag、production、role不一致、runtime変化はSTOP。最終approvalはexact baseline/hash、
+build/image、全family window、既存権限、cost、old digest保持とrollback条件を含める。
 
 ## Offline plan review already prepared
 
