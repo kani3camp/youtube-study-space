@@ -138,8 +138,10 @@ activationしたprotected runでのみ、既発行tokenによるexact dev table�
 initial plan、apply jobのsame-SHA re-plan前、saved apply後の計3回です。query、getData、token minting、
 追加grant、retryは行いません。GETが403ならSTOPし、permissionを自動拡張しません。
 公開へはcanonical metadata digestのみ渡し、metadataはrunner tempの0600 fileだけに保存してalways cleanupします。
-列順とprivate file pathは[runnerのGITHUB_ENV](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable)
-で後続stepへ渡します。raw metadata・user counts・field valuesをSummary/artifactへ渡しません。
+列順とprivate file pathはGITHUB_ENVへ書きません。runnerの公開step env headerを考慮し、
+固定名の0600 metadata/tfvarsを後続stepが直接読みます。Terraformは
+[private var-file](https://developer.hashicorp.com/terraform/language/values/variables#variable-definition-files)を使い、
+raw metadata・実列順・user counts・field valuesをenv header/Summary/artifactへ渡しません。
 
 helperはlegacy列を除外せず、元のcanonical preparationを再利用してexact8/nested/modes/configを検査します。
 plan stageのdigestをapply jobのfresh metadataと照合し、列順の変更・欠損digestでSTOPします。

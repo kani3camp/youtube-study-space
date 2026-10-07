@@ -129,6 +129,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("EXPORT_FUNCTION_IDENTITY_REQUIRED", self.text)
         apply = self.text.split("  apply:\n", 1)[1]
         self.assertLess(apply.index("terraform_identity_smoke.py export-function"), apply.index("Re-plan at the exact approved commit"))
+        self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
+        self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
 
     def test_history_preparation_is_default_off_and_requires_complete_dev_baseline(self):
         self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "false"', self.text)
@@ -154,6 +156,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertIn("needs.preflight.outputs.manage_user_activity_history == 'true'", job)
             self.assertIn('"${RUNNER_TEMP}/user-history-before.json"', job)
             self.assertIn('"${RUNNER_TEMP}/user-history-post.json"', job)
+            self.assertIn('"${RUNNER_TEMP}/user-history-before.tfvars.json"', job)
+            self.assertIn('"${RUNNER_TEMP}/user-history-post.tfvars.json"', job)
         self.assertLess(plan.index("Verify development identity"), plan.index("prepare_user_activity_history_workflow.py --phase before"))
         self.assertLess(plan.index("prepare_user_activity_history_workflow.py --phase before"), plan.index("Create saved plan"))
         self.assertLess(apply.index("prepare_user_activity_history_workflow.py --phase before"), apply.index("Re-plan at the exact"))
@@ -162,9 +166,35 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}", plan)
         self.assertEqual(apply.count("HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}"), 2)
         self.assertNotIn("terraform import", self.text)
-        self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
-        self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
+        self.assertNotIn("TF_VAR_user_activity_history_field_order", self.text)
+        self.assertNotIn("YSS_USER_ACTIVITY_HISTORY_METADATA_FILE", self.text)
 
+    def test_history_private_varfile_is_passed_to_each_plan_only_when_enabled(self):
+        cases = []
+        for step in self.text.split("      - name: ")[1:]:
+            name = step.split("\n", 1)[0]
+            if name in {"Create saved plan without public output", "Re-plan at the exact approved commit", "Require post-apply no-op"}:
+                cases.append((name, textwrap.dedent(step.split("        run: |\n", 1)[1])))
+        self.assertEqual(len(cases), 3)
+        for name, script in cases:
+            if name == "Require post-apply no-op":
+                script = script.split("\nplan_rc=$?", 1)[0] + "\nexit 0\n"
+            for enabled in ("true", "false"):
+                with self.subTest(step=name, enabled=enabled), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    fake = root / "terraform"
+                    fake.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$ARGUMENT_RECORD"\nexit 0\n')
+                    fake.chmod(0o700)
+                    env = {"PATH": directory + ":" + os.environ["PATH"], "RUNNER_TEMP": directory,
+                           "TF_ROOT": "synthetic-root", "MODE": "apply", "TF_VAR_manage_user_activity_history": enabled,
+                           "GITHUB_OUTPUT": str(root / "runner-output"), "ARGUMENT_RECORD": str(root / "arguments")}
+                    result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    arguments = (root / "arguments").read_text().splitlines()
+                    phase = "post" if name == "Require post-apply no-op" else "before"
+                    expected = f"-var-file={directory}/user-history-{phase}.tfvars.json"
+                    self.assertEqual(expected in arguments, enabled == "true")
+                    self.assertNotIn(directory, result.stdout + result.stderr)
     def test_enabled_development_plan_does_not_enable_apply(self) -> None:
         self.assertEqual(self.run_preflight().returncode, 0)
         rejected = self.run_preflight(MODE="apply")

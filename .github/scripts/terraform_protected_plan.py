@@ -75,9 +75,13 @@ def main():
                 raise ValueError("History adoption cannot share an exceptional or production wave")
             if any(os.environ.get("TF_VAR_manage_export_" + kind) != "true" for kind in ("function", "scheduler", "topic")):
                 raise ValueError("Adopted history dependencies required")
-            metadata = private_json(os.environ["YSS_USER_ACTIVITY_HISTORY_METADATA_FILE"])
-            order = json.loads(os.environ["TF_VAR_user_activity_history_field_order"], object_pairs_hook=unique_object)
-            if order != prepare(metadata)["user_activity_history_field_order"]:
+            directory = Path(os.environ["RUNNER_TEMP"])
+            if not directory.is_absolute():
+                raise ValueError("Private runner directory required")
+            metadata = private_json(str(directory / f"user-history-{args.phase}.json"))
+            inputs = private_json(str(directory / f"user-history-{args.phase}.tfvars.json"))
+            if (type(inputs) is not dict or set(inputs) != {"user_activity_history_field_order"}
+                    or inputs["user_activity_history_field_order"] != prepare(metadata)["user_activity_history_field_order"]):
                 raise ValueError("Fresh history field order required")
             validate_history(plan, metadata=metadata, phase=args.phase, allow_adopted=True,
                              execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))

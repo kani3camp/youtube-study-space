@@ -44,29 +44,28 @@ def prepare_workflow(env: dict[str, str], *, phase: str, request=google) -> None
         # State-only adoption must not silently accept a concurrent field-order
         # change by feeding a different new order to the post-plan.
         require(candidate == prepare(private_json(str(directory / "user-history-before.json"))))
-    target = directory / f"user-history-{phase}.json"
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    created = []
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(metadata, handle, separators=(",", ":"))
-            handle.write("\n")
-        order = json.dumps(candidate["user_activity_history_field_order"], separators=(",", ":"))
-        # GITHUB_ENV is a runner-owned regular file, never a public Summary or
-        # output. Serialize only fixed names, canonical field order and a path.
-        require("\n" not in str(target) and "\r" not in str(target))
-        env_fd = os.open(env["GITHUB_ENV"], os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
-        with os.fdopen(env_fd, "w", encoding="utf-8") as handle:
-            info = os.fstat(handle.fileno())
-            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid())
-            handle.write(f"TF_VAR_user_activity_history_field_order={order}\n")
-            handle.write(f"YSS_USER_ACTIVITY_HISTORY_METADATA_FILE={target}\n")
+        # Runner step env headers are public. Keep the real order and paths out
+        # of GITHUB_ENV entirely; later consumers use these fixed private files.
+        payloads = ((f"user-history-{phase}.json", metadata),
+                    (f"user-history-{phase}.tfvars.json", {
+                        "user_activity_history_field_order": candidate["user_activity_history_field_order"]}))
+        for name, payload in payloads:
+            target = directory / name
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            created.append(target)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, separators=(",", ":"))
+                handle.write("\n")
         output_fd = os.open(env["GITHUB_OUTPUT"], os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
         with os.fdopen(output_fd, "w", encoding="utf-8") as handle:
             info = os.fstat(handle.fileno())
             require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid())
             handle.write(f"history_metadata_digest={digest}\n")
     except Exception:
-        target.unlink(missing_ok=True)
+        for target in created:
+            target.unlink(missing_ok=True)
         raise
 
 

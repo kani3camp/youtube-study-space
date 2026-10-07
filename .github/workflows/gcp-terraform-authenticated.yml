@@ -362,10 +362,15 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+          fi
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             "${plan_args[@]}" \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -425,6 +430,8 @@ jobs:
           rm -f \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
             "${RUNNER_TEMP}/backend.hcl" \
             "${RUNNER_TEMP}/terraform-init.log" \
             "${RUNNER_TEMP}/terraform-plan.log" \
@@ -614,10 +621,15 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+          fi
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             "${plan_args[@]}" \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -700,8 +712,13 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-post.tfvars.json")
+          fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
+            "${history_args[@]}" \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/post-apply.tfplan" \
@@ -744,6 +761,8 @@ jobs:
           rm -f \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
             "${RUNNER_TEMP}/backend.hcl" \
             "${RUNNER_TEMP}/terraform-init.log" \
             "${RUNNER_TEMP}/terraform-plan.log" \
