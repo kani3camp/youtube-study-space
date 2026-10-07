@@ -187,7 +187,9 @@ export function writeBatchImageCandidate(input: BatchImageCandidateInput, outdir
 		const builder = new cx_api.CloudAssemblyBuilder(dir)
 		builder.addArtifact(STACK, prepared.artifact)
 		builder.buildAssembly()
-		fs.chmodSync(path.join(dir, 'manifest.json'), 0o600)
+		// CDK also writes the cdk.out marker using the process umask.
+		// Protect every generated file even with a permissive operator umask.
+		for (const name of fs.readdirSync(dir)) fs.chmodSync(path.join(dir, name), 0o600)
 	}
 	fs.writeFileSync(path.join(outdir, 'review.json'), jsonText(prepared.review), { mode: 0o600, flag: 'wx' })
 	return prepared.review

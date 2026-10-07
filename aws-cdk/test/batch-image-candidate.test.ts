@@ -130,6 +130,7 @@ describe('offline dev batch image candidate', () => {
 
 	test('emits readable CDK assemblies with existing roles, termination protection, and zero publishable assets', () => {
 		const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'batch-candidate-'))
+		const previousUmask = process.umask(0o022)
 		try {
 			const out = path.join(parent, 'private')
 			const source = input()
@@ -151,7 +152,10 @@ describe('offline dev batch image candidate', () => {
 				for (const name of fs.readdirSync(dir)) expect(fs.statSync(path.join(dir, name)).mode & 0o077).toBe(0)
 			}
 			expect(() => writeBatchImageCandidate(source, out)).toThrow()
-		} finally { fs.rmSync(parent, { recursive: true, force: true }) }
+		} finally {
+			process.umask(previousUmask)
+			fs.rmSync(parent, { recursive: true, force: true })
+		}
 	})
 
 	test('CLI fails with redacted output for public or symlink input', () => {
