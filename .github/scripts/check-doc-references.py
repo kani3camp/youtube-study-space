@@ -20,6 +20,11 @@ TARGETS = (
     "docs-site/README.md",
     "docs/development/architecture.md",
     "docs/design/DESIGN.md",
+    "mypage/README.md",
+    "docs/mypage/README.md",
+    "docs/mypage/release/README.md",
+    "docs/mypage/release/owner-packet.md",
+    "docs/mypage/release/e2e.md",
 )
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")

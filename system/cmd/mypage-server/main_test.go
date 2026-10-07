@@ -7,7 +7,7 @@ import (
 )
 
 func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutADC(t *testing.T) {
-	values := map[string]string{"MYPAGE_INFRASTRUCTURE_READY": "true", "MYPAGE_ENVIRONMENT": "development", "MYPAGE_REGION": "asia-southeast2", "GOOGLE_CLOUD_PROJECT": "demo-mypage", "MYPAGE_PROJECT_NUMBER": "123456789", "MYPAGE_WEB_APP_ID": "1:123456789:web:synthetic", "MYPAGE_PUBLIC_ORIGIN": "https://example.invalid", "MYPAGE_SIGNER_EMAIL": "mypage-signer@demo-mypage.iam.gserviceaccount.com", "MYPAGE_OAUTH_CLIENT_ID": "synthetic-client", "MYPAGE_OAUTH_CLIENT_SECRET": "synthetic-secret", "MYPAGE_PRIVACY_VERSION": "synthetic-p", "MYPAGE_TERMS_VERSION": "synthetic-t"}
+	values := syntheticConfiguration()
 	get := func(key string) string { return values[key] }
 	config, err := configurationFrom(get)
 	require.NoError(t, err)
@@ -21,4 +21,8 @@ func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutA
 			require.Equal(t, "MyPage configuration unavailable", err.Error())
 		})
 	}
+}
+
+func syntheticConfiguration() map[string]string {
+	return map[string]string{"MYPAGE_INFRASTRUCTURE_READY": "true", "MYPAGE_ENVIRONMENT": "development", "MYPAGE_REGION": "asia-southeast2", "GOOGLE_CLOUD_PROJECT": "demo-mypage", "MYPAGE_PROJECT_NUMBER": "123456789", "MYPAGE_WEB_APP_ID": "1:123456789:web:synthetic", "MYPAGE_PUBLIC_ORIGIN": "https://example.invalid", "MYPAGE_SIGNER_EMAIL": "mypage-signer@demo-mypage.iam.gserviceaccount.com", "MYPAGE_OAUTH_CLIENT_ID": "synthetic-client", "MYPAGE_OAUTH_CLIENT_SECRET": "synthetic-secret", "MYPAGE_PRIVACY_VERSION": "synthetic-p", "MYPAGE_TERMS_VERSION": "synthetic-t"}
 }

@@ -1,10 +1,10 @@
-// MyPage's Cloud Run entrypoint. Tests never call run or discover real ADC.
+// MyPage's Cloud Run entrypoint. --check-config validates offline; tests never
+// call run or discover real ADC.
 package main
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -27,8 +27,18 @@ type configuration struct {
 }
 
 func configurationFrom(get func(string) string) (configuration, error) {
+	if get("MYPAGE_INFRASTRUCTURE_READY") != "true" {
+		return configuration{}, errors.New("MyPage configuration unavailable")
+	}
+	return configurationValuesFrom(get)
+}
+
+// configurationValuesFrom is shared by startup and offline preparation. The
+// infrastructure declaration gates startup separately; it is never verified by
+// this pure validation or promoted into evidence of readiness.
+func configurationValuesFrom(get func(string) string) (configuration, error) {
 	fail := func() (configuration, error) { return configuration{}, errors.New("MyPage configuration unavailable") }
-	if get("MYPAGE_INFRASTRUCTURE_READY") != "true" || get("FIRESTORE_EMULATOR_HOST") != "" || get("FIREBASE_AUTH_EMULATOR_HOST") != "" || get("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+	if get("FIRESTORE_EMULATOR_HOST") != "" || get("FIREBASE_AUTH_EMULATOR_HOST") != "" || get("GOOGLE_APPLICATION_CREDENTIALS") != "" {
 		return fail()
 	}
 	environment := get("MYPAGE_ENVIRONMENT")
@@ -50,6 +60,11 @@ func configurationFrom(get func(string) string) (configuration, error) {
 	}
 	if _, err := mypage.NewAppCheckVerifier(config.server.ProjectNumber, config.server.WebAppID, nil, time.Now); err != nil {
 		return fail()
+	}
+	if config.metadataKey != "" {
+		if _, err := mypage.NewPublicYouTubeMetadata(config.metadataKey, nil); err != nil {
+			return fail()
+		}
 	}
 	return config, nil
 }
@@ -114,10 +129,9 @@ func run(ctx context.Context) error {
 }
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	if err := run(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
+	os.Exit(command(os.Args[1:], os.Getenv, os.Stdout, os.Stderr, func() error {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		return run(ctx)
+	}))
 }

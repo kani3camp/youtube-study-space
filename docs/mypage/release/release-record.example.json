@@ -1,0 +1,18 @@
+{
+  "templateOnly": true,
+  "environment": "development",
+  "projectReference": "pending-private-inventory",
+  "publicOriginReference": "pending-owner-selection",
+  "frontend": {"commit": "pending", "hostingRelease": "pending"},
+  "backend": {"imageDigest": "pending", "cloudRunRevision": "pending"},
+  "rewriteReference": "pending",
+  "pinTag": false,
+  "schemaReference": "docs/mypage/openapi.yaml",
+  "privacyVersion": "pending",
+  "termsVersion": "pending",
+  "ownerExecutionApprovalReference": "pending",
+  "gates": {"infrastructure": "pending", "D01": "pending", "D02": "pending", "D03": "pending", "liveE2E": "pending", "oauthVerification": "pending"},
+  "checks": [],
+  "rollbackPairReference": "pending",
+  "releaseReady": false
+}
