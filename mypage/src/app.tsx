@@ -24,7 +24,7 @@ import {
 	liveURL,
 	MyPageView,
 } from './features/mypage/view'
-import { PrivacyPolicy, TermsOfUse } from './policies'
+import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import type { BrowserRuntime, ChannelConfirmation } from './runtime'
 
@@ -645,8 +645,12 @@ export function createApp(
 					<p>
 						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
 					</p>
+					<PublicPolicyContact />
 					<p role="status">
 						本人確認付きの請求窓口は準備中です。公開前に受付方法をご案内します。
+					</p>
+					<p>
+						依頼受付後、同じチャンネルを新しいYouTubeの許可で確認し、確認結果を依頼目的に結び付ける案です。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせいただけるよう準備します。
 					</p>
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				</section>
