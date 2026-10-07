@@ -480,5 +480,167 @@ class UserActivityAdoptionPreparationTest(unittest.TestCase):
                 self.assertNotIn(str(source), result.stdout + result.stderr)
 
 
+class UserActivityHistoryPlanTest(unittest.TestCase):
+    def setUp(self) -> None:
+        path = ADOPTION.with_name("validate_user_activity_history_plan.py")
+        spec = importlib.util.spec_from_file_location("history_plan", path)
+        self.gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gate)
+
+    def fixture(self, importing: bool = True) -> tuple[dict, dict]:
+        from test_terraform_export_function_gate import fixture, EMAIL
+        self.email = EMAIL
+        metadata = UserActivityAdoptionPreparationTest().metadata()
+        fields = metadata["schema"]["fields"]
+        # A valid alternate live top-level order must be preserved, not sorted.
+        fields[0], fields[1] = fields[1], fields[0]
+        value = {"id": self.gate.TABLE_ID, "project": "test-youtube-study-space", "dataset_id": "firestore_export",
+                 "table_id": "user-activity-history", "location": "asia-southeast2", "deletion_protection": True,
+                 "schema": json.dumps(fields), "labels": {}}
+        change = {"actions": ["no-op"], "before": value, "after": copy.deepcopy(value), "after_unknown": {}}
+        if importing:
+            change["importing"] = {"id": self.gate.TABLE_ID}
+        plan = fixture(False)
+        plan["resource_changes"].append({"address": self.gate.TABLE, "mode": "managed", "type": "google_bigquery_table",
+                                         "provider_name": "registry.terraform.io/hashicorp/google", "change": change})
+        return plan, metadata
+
+    def review(self, plan: dict, metadata: dict, phase: str = "before") -> None:
+        self.gate.validate(plan, metadata=metadata, phase=phase, execution_email=self.email)
+
+    def test_exact_import_and_post_plan_preserve_existing_eleven_and_field_order(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            plan, metadata = self.fixture(importing)
+            self.review(plan, metadata, phase)
+        plan, metadata = self.fixture(False)
+        with self.assertRaises(ValueError):
+            self.review(plan, metadata)
+        plan, metadata = self.fixture()
+        with self.assertRaises(ValueError):
+            self.review(plan, metadata, "post")
+
+    def test_graph_import_identity_and_planning_uncertainty_fail_closed(self) -> None:
+        mutations = (
+            lambda p: p["resource_changes"].pop(0),
+            lambda p: p["resource_changes"].append(copy.deepcopy(p["resource_changes"][-1])),
+            lambda p: p["resource_changes"][-1].update(address="google_bigquery_table.unapproved"),
+            lambda p: p["resource_changes"][-1].update(provider_name="registry.terraform.io/example/other"),
+            lambda p: p["resource_changes"][-1]["change"]["importing"].update(id="synthetic-private-wrong-target"),
+            lambda p: p["resource_changes"][0]["change"].update(importing={"id": "synthetic-second-import"}),
+            lambda p: p["resource_changes"][-1]["change"].update(after_unknown={"schema": True}),
+            lambda p: p.update(resource_drift=[{}]), lambda p: p.update(deferred_changes=[{}]),
+            lambda p: p.update(complete=False), lambda p: p.update(errored=True),
+            lambda p: p.update(checks=[{"status": "unknown"}]),
+            lambda p: p["output_changes"]["project_id"].update(actions=["update"]),
+        )
+        for mutate in mutations:
+            plan, metadata = self.fixture()
+            mutate(plan)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                self.review(plan, metadata)
+
+    def test_schema_repair_and_other_resource_changes_cannot_be_hidden_in_import(self) -> None:
+        for index in (0, -1):
+            for actions in (["update"], ["create"], ["delete"], ["delete", "create"]):
+                plan, metadata = self.fixture()
+                plan["resource_changes"][index]["change"]["actions"] = actions
+                with self.subTest(index=index, actions=actions), self.assertRaises(ValueError):
+                    self.review(plan, metadata)
+        plan, metadata = self.fixture()
+        before = plan["resource_changes"][-1]["change"]["before"]
+        fields = json.loads(before["schema"])
+        fields.append({"name": "timestamp", "type": "TIMESTAMP"})
+        before["schema"] = json.dumps(fields)
+        with self.assertRaises(ValueError):
+            self.review(plan, metadata)
+
+    def test_separate_action_invocations_are_rejected_before_and_after_import(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            plan, metadata = self.fixture(importing)
+            plan.update(action_invocations=[], deferred_action_invocations=[])
+            self.review(plan, metadata, phase)
+            for key in ("action_invocations", "deferred_action_invocations"):
+                for value in ([{"address": "action.synthetic", "config_values": {"token": "synthetic-private-value"}}],
+                              {"unexpected": "synthetic-private-value"}, None, False):
+                    plan, metadata = self.fixture(importing)
+                    plan[key] = value
+                    with self.subTest(phase=phase, key=key, value=value), self.assertRaises(ValueError):
+                        self.review(plan, metadata, phase)
+
+    def test_legacy_nested_and_order_differences_are_rejected_even_if_noop(self) -> None:
+        for mutate in (
+            lambda f: f.append({"name": "timestamp", "type": "TIMESTAMP"}),
+            lambda f: f.reverse(),
+            lambda f: f[5]["fields"][0].update(mode="REQUIRED"),
+            lambda f: f[0].update(description="synthetic-private-description"),
+        ):
+            plan, metadata = self.fixture()
+            for side in ("before", "after"):
+                value = plan["resource_changes"][-1]["change"][side]
+                fields = json.loads(value["schema"])
+                mutate(fields)
+                value["schema"] = json.dumps(fields)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                self.review(plan, metadata)
+        plan, metadata = self.fixture()
+        metadata["schema"]["fields"].append({"name": "timestamp", "type": "TIMESTAMP"})
+        with self.assertRaises(ValueError):
+            self.review(plan, metadata)
+
+    def test_move_only_state_changes_are_rejected_for_every_resource(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            for index in range(12):
+                plan, metadata = self.fixture(importing)
+                plan["resource_changes"][index]["previous_address"] = "module.synthetic-private-value.old"
+                with self.subTest(phase=phase, index=index), self.assertRaises(ValueError):
+                    self.review(plan, metadata, phase)
+
+    def test_foreign_table_configuration_and_disabled_protection_are_rejected(self) -> None:
+        for key, value in {"project": "synthetic-prod", "location": "synthetic-other-region", "deletion_protection": False,
+                           "expiration_time": 12345, "table_constraints": [{"primary_key": ["user_id"]}],
+                           "time_partitioning": [{"type": "DAY"}], "labels": {"private": "synthetic-private-value"}}.items():
+            plan, metadata = self.fixture()
+            for side in ("before", "after"):
+                plan["resource_changes"][-1]["change"][side][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.review(plan, metadata)
+
+    def test_cli_is_private_offline_and_never_echoes_input_or_path(self) -> None:
+        script = ADOPTION.with_name("validate_user_activity_history_plan.py")
+        for failure in (None, "metadata-exposed", "plan-symlink", "plan-duplicate", "plan-malformed", "plan-move", "plan-action",
+                        "plan-deferred-action", "wrong-target", "no-identity", "bad-argument"):
+            plan, metadata = self.fixture()
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "synthetic-private-path"
+                root.mkdir(mode=0o700)
+                paths = root / "metadata.json", root / "plan.json"
+                for path, payload in zip(paths, (metadata, plan)):
+                    path.write_text(json.dumps(payload)); path.chmod(0o600)
+                if failure == "metadata-exposed": paths[0].chmod(0o644)
+                if failure == "plan-symlink":
+                    actual = root / "actual.json"; paths[1].rename(actual); paths[1].symlink_to(actual)
+                if failure == "plan-duplicate": paths[1].write_text('{"complete":true,"complete":true}')
+                if failure == "plan-malformed": paths[1].write_text('{"synthetic-private-value":')
+                if failure == "plan-move":
+                    plan["resource_changes"][0]["previous_address"] = "module.synthetic-private-value.old"
+                    paths[1].write_text(json.dumps(plan))
+                if failure in ("plan-action", "plan-deferred-action"):
+                    key = "action_invocations" if failure == "plan-action" else "deferred_action_invocations"
+                    plan[key] = [{"address": "action.synthetic", "config_values": {"token": "synthetic-private-value"}}]
+                    paths[1].write_text(json.dumps(plan))
+                if failure == "wrong-target":
+                    metadata["tableReference"]["projectId"] = "synthetic-private-value"
+                    paths[0].write_text(json.dumps(metadata))
+                args = ["python3", str(script), "--phase", "before", "--metadata", str(paths[0]), "--plan", str(paths[1])]
+                if failure == "bad-argument": args.extend(["--unknown", "synthetic-private-value"])
+                env = dict(os.environ, TF_VAR_export_function_execution_service_account_email="" if failure == "no-identity" else self.email)
+                result = subprocess.run(args, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0 if failure is None else 3)
+                for secret in (self.email, str(root), "synthetic-private-value", self.gate.TABLE_ID):
+                    self.assertNotIn(secret, result.stdout + result.stderr)
+                if failure is None:
+                    self.assertIn("Execution remains unapproved", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
