@@ -149,6 +149,25 @@ func (s *FirestoreDeletionStore) CheckAuthOwnership(ctx context.Context, expecte
 func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, snapshot AuthOwnershipSnapshot, allowMissing bool) error {
 	e := snapshot.Execution
 	channel := e.Selector.Target.ChannelID
+	// Acquire already verified the OAuth proof and atomically bound its claim
+	// to this execution. TTL may remove that trace even before this snapshot;
+	// the durable binding, not renewed OAuth presence, authorizes continuation.
+	claim, err := tx.Get(s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef))
+	if err != nil || len(claim.Data()) != 2 || claim.Data()["executionRef"] != e.Selector.ExecutionRef || claim.Data()["requestRef"] != e.Selector.RequestRef {
+		return supportdelete.ErrEvidence
+	}
+	currentDoc, err := tx.Get(s.Client.Collection("support-requests").Doc(e.Selector.RequestRef))
+	var current SupportRequest
+	dry := DryRunSelector{Environment: e.Selector.Target.Environment, Purpose: SupportDelete, Now: e.UpdatedAt}
+	if err != nil || currentDoc.DataTo(&current) != nil || validateDryRunReceipt(current, dry) != nil || current.ProofRef != e.Selector.ProofRef || current.TargetChannel != channel || !current.AcceptedAt.Equal(e.AcceptedAt) || !current.DeleteBy.Equal(e.DeleteBy) {
+		return supportdelete.ErrEvidence
+	}
+	currentOAuthKey := "oauth-transactions/" + current.OAuthTransactionID
+	_, err = tx.Get(s.Client.Collection("oauth-transactions").Doc(current.OAuthTransactionID))
+	currentOAuthMissing := status.Code(err) == codes.NotFound
+	if err != nil && !currentOAuthMissing {
+		return supportdelete.ErrUnavailable
+	}
 	allowed := map[string]AuthOwnedDocument{}
 	for _, group := range [][]AuthOwnedDocument{snapshot.Mappings, snapshot.Related} {
 		for _, d := range group {
@@ -197,6 +216,9 @@ func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, sn
 	}
 	for _, d := range allowed {
 		doc, err := tx.Get(s.Client.Collection(d.Collection).Doc(d.ID))
+		if status.Code(err) == codes.NotFound && d.Collection+"/"+d.ID == currentOAuthKey && currentOAuthMissing {
+			continue
+		}
 		if status.Code(err) == codes.NotFound && allowMissing && d.Collection != "mypage-users" && d.Collection != "mypage-youtube-channel-owners" {
 			continue
 		}
@@ -285,7 +307,8 @@ func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, sn
 			}
 			oauthOwners[receipt.OAuthTransactionID] = request
 			key := "oauth-transactions/" + receipt.OAuthTransactionID
-			if _, ok := allowed[key]; !ok || (request == e.Selector.RequestRef && !seen[key]) {
+			boundTraceMissing := request == e.Selector.RequestRef && currentOAuthMissing
+			if _, ok := allowed[key]; (!ok || (request == e.Selector.RequestRef && !seen[key])) && !boundTraceMissing {
 				return supportdelete.ErrEvidence
 			}
 			if err := query("support-requests", "oauthTransactionId", receipt.OAuthTransactionID, func(other *firestore.DocumentSnapshot) error {

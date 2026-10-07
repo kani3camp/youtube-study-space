@@ -70,6 +70,120 @@ func inventoryAppendDocument(t *testing.T, inventory *fakeAuthInventory, ref *fi
 	inventory.snapshot.Related = append(inventory.snapshot.Related, AuthOwnedDocument{Collection: ref.Parent.ID, ID: ref.ID, Fingerprint: fingerprint, OwnerChannels: []string{inventory.snapshot.Execution.Selector.Target.ChannelID}})
 }
 
+func TestFirebaseDeletionEmulatorCurrentOAuthTTLAllowsBoundExecution(t *testing.T) {
+	for _, phase := range []string{"before-snapshot", "before-snapshot-absent-from-inventory", "after-snapshot"} {
+		t.Run(phase, func(t *testing.T) {
+			s, start, oauthRef := deletionFixture(t)
+			ctx := context.Background()
+			e, err := s.Acquire(ctx, start)
+			require.NoError(t, err)
+			now := start.Now.Add(2 * time.Second)
+			a, inventory, sdk, refs := authEmulatorFixture(t, s, e, oauthRef, now)
+			if phase == "after-snapshot" {
+				v, err := a.Apply(ctx, supportdelete.NewOperation(e, now))
+				require.NoError(t, err)
+				e, err = s.Commit(ctx, e, v, now)
+				require.NoError(t, err)
+			}
+			_, err = s.Client.Collection("oauth-transactions").Doc(oauthRef).Delete(ctx)
+			require.NoError(t, err)
+			if phase == "before-snapshot-absent-from-inventory" {
+				var related []AuthOwnedDocument
+				for _, d := range inventory.snapshot.Related {
+					if d.Collection != "oauth-transactions" || d.ID != oauthRef {
+						related = append(related, d)
+					}
+				}
+				inventory.snapshot.Related = related
+			}
+			if phase != "after-snapshot" {
+				v, err := a.Apply(ctx, supportdelete.NewOperation(e, now))
+				require.NoError(t, err, "Acquire's durable proof remains valid when TTL wins before inventory capture")
+				e, err = s.Commit(ctx, e, v, now)
+				require.NoError(t, err)
+			}
+			a.Inventory = nil
+			start.Now = now.Add(24 * time.Hour)
+			resumed, err := s.Acquire(ctx, start)
+			require.NoError(t, err)
+			require.Equal(t, e, resumed, "TTL cannot reset the execution or its original SLA")
+			for _, cursor := range []int{8, 9, 10, 15, 22} {
+				e = advanceDeletion(t, s, e, cursor, now)
+				v, err := a.Apply(ctx, supportdelete.NewOperation(e, now))
+				require.NoError(t, err, "the same execution must continue each Auth/related-record scope after TTL")
+				e, err = s.Commit(ctx, e, v, now)
+				require.NoError(t, err)
+			}
+			require.Equal(t, 1, inventory.calls)
+			require.Equal(t, 1, sdk.revokes)
+			require.Equal(t, 1, sdk.deletes)
+			for _, ref := range refs[:2] {
+				_, err := ref.Get(ctx)
+				require.Equal(t, codes.NotFound, status.Code(err))
+			}
+			for _, ref := range []*firestore.DocumentRef{refs[2], refs[4], s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef)} {
+				_, err := ref.Get(ctx)
+				require.NoError(t, err, "current receipt/index/claim survive until Finalize")
+			}
+		})
+	}
+}
+
+func TestFirebaseDeletionEmulatorCurrentOAuthTTLRejectsReplacementSharedAndUnboundProof(t *testing.T) {
+	for _, phase := range []string{"before-snapshot", "after-snapshot"} {
+		for _, change := range []string{"replacement-oauth", "replacement-after-ttl", "shared-oauth-after-ttl", "missing-claim-after-ttl", "wrong-execution-claim-after-ttl", "wrong-request-claim-after-ttl"} {
+			t.Run(phase+"/"+change, func(t *testing.T) {
+				s, start, oauthRef := deletionFixture(t)
+				ctx := context.Background()
+				e, err := s.Acquire(ctx, start)
+				require.NoError(t, err)
+				now := start.Now.Add(2 * time.Second)
+				a, _, sdk, refs := authEmulatorFixture(t, s, e, oauthRef, now)
+				if phase == "after-snapshot" {
+					v, err := a.Apply(ctx, supportdelete.NewOperation(e, now))
+					require.NoError(t, err)
+					e, err = s.Commit(ctx, e, v, now)
+					require.NoError(t, err)
+					a.Inventory = nil
+					e = advanceDeletion(t, s, e, 10, now)
+				}
+				if change != "replacement-oauth" {
+					_, err = refs[3].Delete(ctx)
+					require.NoError(t, err)
+				}
+				switch change {
+				case "replacement-oauth", "replacement-after-ttl":
+					_, err = refs[3].Set(ctx, map[string]interface{}{"support": map[string]interface{}{"requestRef": e.Selector.RequestRef}, "synthetic-replacement": true})
+				case "shared-oauth-after-ttl":
+					other := s.Client.Collection("support-requests").Doc(digest(e.Selector.ExecutionRef + ":shared-oauth"))
+					_, err = other.Set(ctx, map[string]interface{}{"targetChannel": "UCsynthetic0000000000002", "oauthTransactionId": oauthRef})
+					t.Cleanup(func() { _, err := other.Delete(ctx); require.NoError(t, err) })
+				case "missing-claim-after-ttl":
+					_, err = s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef).Delete(ctx)
+				case "wrong-execution-claim-after-ttl":
+					_, err = s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef).Update(ctx, []firestore.Update{{Path: "executionRef", Value: digest("another-execution")}})
+				case "wrong-request-claim-after-ttl":
+					_, err = s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef).Update(ctx, []firestore.Update{{Path: "requestRef", Value: digest("another-request")}})
+				}
+				require.NoError(t, err)
+				revokes, deletes := sdk.revokes, sdk.deletes
+				_, err = a.Apply(ctx, supportdelete.NewOperation(e, now))
+				require.Error(t, err, "TTL absence cannot authorize a replacement/shared OAuth or an unbound execution")
+				require.Equal(t, revokes, sdk.revokes)
+				require.Equal(t, deletes, sdk.deletes)
+				for _, ref := range []*firestore.DocumentRef{refs[0], refs[1], refs[2], refs[4]} {
+					_, err := ref.Get(ctx)
+					require.NoError(t, err, "ambiguous proof/ownership must leave all candidate records intact")
+				}
+				if phase == "before-snapshot" {
+					_, err = s.LoadAuthOwnership(ctx, e)
+					require.ErrorIs(t, err, ErrAuthOwnershipMissing, "failed capture leaves no partial snapshot")
+				}
+			})
+		}
+	}
+}
+
 func TestFirebaseDeletionEmulatorDurableSnapshotMappingRemovalAndLostAckResume(t *testing.T) {
 	s, start, oauthRef := deletionFixture(t)
 	ctx := context.Background()
