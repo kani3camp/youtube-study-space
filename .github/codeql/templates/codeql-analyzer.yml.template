@@ -1,0 +1,59 @@
+# Called only by the separately approved advanced caller; no direct triggers.
+name: CodeQL Analyzer
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: none
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Fixed, dedicated, secretless Environment. No caller input can select another.
+    environment: codeql-analysis
+    permissions:
+      contents: read
+      security-events: write
+      id-token: none
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        if: ${{ matrix.language == 'go' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: system/go.mod
+          cache: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          dependency-caching: false
+          debug: false
+      - name: Compile tracked Go modules
+        if: ${{ matrix.language == 'go' }}
+        run: bash .github/codeql/build-go.sh
+      - name: Analyze
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          category: /language:${{ matrix.language }}
+          upload-database: false
+          wait-for-processing: true
