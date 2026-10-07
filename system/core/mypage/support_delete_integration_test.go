@@ -291,7 +291,7 @@ func TestDeletionCheckpointClientRulesDenyReadAndWrite(t *testing.T) {
 	encode := base64.RawURLEncoding.EncodeToString
 	token := encode([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + encode([]byte(`{"iss":"https://securetoken.google.com/demo-youtube-study-space-ci","aud":"demo-youtube-study-space-ci","sub":"synthetic-rules-user","user_id":"synthetic-rules-user","iat":1780000000,"exp":2090000000,"firebase":{"sign_in_provider":"custom"}}`)) + "."
 	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims} {
+	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership} {
 		ref := start.Selector.ExecutionRef
 		if collection == supportDeleteClaims {
 			ref = start.Selector.ProofRef

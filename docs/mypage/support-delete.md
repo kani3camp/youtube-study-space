@@ -45,6 +45,8 @@ fresh verification は既存の challenge 24h / OAuth 10m 契約による reques
 
 Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複 UID と古い proof/receipt 関係、Auth tenant の全 identity と in-flight mint、BQ の main/tmp/job、mixed/soft-deleted backup・PITR、channel index のない trend/vendor/log は、API の保証と帰属が確定するまで live adapter を作らない。ソースの `GetAll` や query 0件を全store不存在へ拡張しない。既存 runbook の対象外である混合 backup の一括削除をこの CLI で代行しない。
 
+[synthetic Auth / related-record adapter](support-delete-auth-adapter.md) は独立 complete inventory、durable ownership snapshot、incarnation mutation guard と fake SDK readback を追加する。Emulator 内の関連閉路・mapping 削除後の再開・終端 snapshot 消去を検証するが、Registry / CLI の live 接続と上記 gate は変更しない。
+
 ## offline CLI
 
 `MYPAGE_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` を明示する。alias project env に不一致がある場合や live credential/endpoint env がある場合は拒否する。対象を stdin または exact 0600 regular file の `--manifest` で渡す。最終 symlink/FIFO、16 KiB 超過、duplicate / case-variant / unknown / missing JSON field、確認の不一致を拒否する。report に target、ref、path、raw error は出力しない。
