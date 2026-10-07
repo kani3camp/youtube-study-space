@@ -1,0 +1,24 @@
+name: GCP Runtime Ownership Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'infra/gcp/**'
+      - '.github/scripts/terraform_plan_summary.py'
+      - '.github/workflows/gcp-runtime-ownership-contracts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.16.4'
+          terraform_wrapper: false
+      - name: Verify dummy inventory and mock ownership plans
+        run: python3 infra/gcp/tests/test_runtime_ownership.py
