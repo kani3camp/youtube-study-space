@@ -1,8 +1,11 @@
-# Copy to backend.hcl only after the shared personal Terraform state S3 bucket exists.
-# backend.hcl is gitignored. Do not put credentials here.
-bucket              = "REPLACE_WITH_PERSONAL_TERRAFORM_STATE_BUCKET"
-key                 = "youtube-study-space/prod/terraform.tfstate"
-region              = "REPLACE_WITH_STATE_BUCKET_AWS_REGION"
-encrypt             = true
-use_lockfile        = true
-allowed_account_ids = ["REPLACE_WITH_STATE_AWS_ACCOUNT_ID"]
+# The shared state bucket already exists; do not bootstrap another bucket.
+# Fill private values only after fresh inventory and separate production approval.
+# backend.hcl is gitignored. Do not put credentials here. Use TF_WORKSPACE=default.
+# See ../../docs/production-readiness.md before any remote init/state operation.
+bucket               = "REPLACE_WITH_PERSONAL_TERRAFORM_STATE_BUCKET"
+key                  = "youtube-study-space/prod/terraform.tfstate"
+region               = "REPLACE_WITH_STATE_BUCKET_AWS_REGION"
+encrypt              = true
+use_lockfile         = true
+workspace_key_prefix = "youtube-study-space/prod/workspaces"
+allowed_account_ids  = ["REPLACE_WITH_STATE_AWS_ACCOUNT_ID"]
