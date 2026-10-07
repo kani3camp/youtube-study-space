@@ -4,7 +4,7 @@
 
 ## 指定済みのOAuthサポートメール
 
-OAuth同意画面の user support email は、本人指定の **kani3camp@gmail.com** を使用する設定案とする。この用途での公開表示は指定済み。Privacy窓口、一般問い合わせ、developer contactへの兼用や他目的の公開は決定していない。Google Auth Platformへの実設定変更・権限変更は別承認とし、このpacketでは実行しない。
+OAuth同意画面の user support email は、**指定済みのOAuthユーザーサポート用メール**を使用する設定案とする。指定はOAuth同意画面での表示用途に限る。実値は私的contextと安全なoperator設定入力で保持し、この公開repoには記載しない。Privacy窓口、一般問い合わせ、developer contactへの兼用や他目的の公開は決定していない。Google Auth Platformへの実設定変更・権限変更は別承認とし、このpacketでは実行しない。
 
 運営者の本名・自宅住所をPrivacy本文へ常時掲載しない既定を維持し、必要な請求へ遅滞なく回答する運用を用意する。公開サービス名/名称を表示する場合も、実名を勝手に推測・要求しない。公開draftの氏名placeholderは、常時実名掲載が必須という決定ではない。
 
@@ -45,7 +45,7 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 
 今、本人が先に用意できるものは、選ぶ公開domain/予定URL、本人テスト用Google accountと対象channel、Privacy返信窓口の媒体と担当/期限管理、施行日/管轄の公開条件、D01/D02の方針判断。既存一般フォームは継続、実名/自宅住所の常時掲載とOAuthサポートメールは再質問しない。インフラの設定値やIAMは担当の証跡で閉じ、新しい本人質問へ置換しない。
 
-- App Name/サービス説明、Homepage/Privacy/Terms予定path、user support email（kani3camp@gmail.com）、未指定のdeveloper contact、所有domainとGoogle Auth PlatformのTesting accounts候補を整理する。指定メールの用途を拡張しない。
+- App Name/サービス説明、Homepage/Privacy/Terms予定path、user support email（指定済み、実値は安全なoperator設定入力で受け渡す）、未指定のdeveloper contact、所有domainとGoogle Auth PlatformのTesting accounts候補を整理する。指定メールの用途を拡張しない。
 - scopeは既決の `youtube.readonly` のみ。offline access/refresh tokenを追加しない。既存scope justificationと[demo storyboard](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)を実装と照合する。
 - callbackは固定 `/api/auth/youtube/callback`。Google account/Brand Account/複数channelの本人テスト対象を用意する。誤channelを自動confirmしない。
 - public Firebase Web App・App Check/reCAPTCHAの登録値、keyless signer、Hosting target/Cloud Run rewrite、CSP通信inventoryはowner/infra担当の証跡から受け取る。デフォルト値や既存project名から推測しない。
@@ -56,7 +56,7 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 
 ## 本人へ一度で依頼する文案（review用）
 
-> 公開前の準備として、次の3点をまとめて確認してください。OAuth同意画面のサポートメールは指定済みの kani3camp@gmail.com、本名/自宅住所は常時非公開、一般問い合わせは既存フォーム継続として準備しています。
+> 公開前の準備として、次の3点をまとめて確認してください。OAuth同意画面のサポートメールは指定済み、本名/自宅住所は常時非公開、一般問い合わせは既存フォーム継続として準備しています。指定メールの実値は安全なoperator設定入力で扱い、公開資料には掲載しません。
 >
 > 1. 削除中の停止方式は、対象チャンネルだけを一時停止し、Bot/batch/API/cacheと遅延処理に共通のguardを適用する案を推奨します。関係サービス全体を停止する代案との運営上の選択をお願いします。選択後に実装・実inventory・削除検証を行います。
 > 2. Google側の許可取消の扱いは、実際の認証/session/metadata flowをverification/complianceへ提示して確認する案を推奨します。回答前に0Bを選ぶ場合は、追加残余リスクと再設計条件の明示が別途必要です。
