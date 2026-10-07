@@ -28,6 +28,17 @@ def text(value: object, *, empty: bool = False) -> str:
     return value
 
 
+def require_empty_attestation_response(response: object) -> None:
+    # IAM v1 ListAttestationRulesResponse has only these two optional fields.
+    # A successful {} response may omit empty repeated/default fields; an error
+    # envelope, unknown field or malformed value must never mean "no rules".
+    require(type(response) is dict and set(response) <= {"attestationRules", "nextPageToken"})
+    rules = response.get("attestationRules", [])
+    token = response.get("nextPageToken", "")
+    require(type(rules) is list and len(rules) == 0)
+    require(type(token) is str and token == "")
+
+
 def prepare(data: object) -> dict:
     require(type(data) is dict)
     project = data["project"]
@@ -43,8 +54,7 @@ def prepare(data: object) -> dict:
         require("expireTime" not in item)
     mode = pool.get("mode")
     require(mode in (None, "", "FEDERATION_ONLY"))
-    attestation = data["pool_attestation_rules"]
-    require(type(attestation) is dict and attestation.get("attestationRules", []) == [] and not attestation.get("nextPageToken"))
+    require_empty_attestation_response(data["pool_attestation_rules"])
     require(not any(key in pool for key in ("inlineCertificateIssuanceConfig", "inlineTrustConfig")))
     require(type(provider["aws"]) is dict and set(provider["aws"]) == {"accountId"})
     account = text(provider["aws"]["accountId"])

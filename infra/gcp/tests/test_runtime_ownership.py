@@ -76,6 +76,57 @@ class InventoryContracts(unittest.TestCase):
         data["pool"]["mode"] = ""
         self.assertEqual(prepare_module.prepare(data)["runtime_wif_inventory"]["pool"]["mode"], "")
 
+    def test_successful_empty_attestation_response_forms_keep_gates_closed(self):
+        for response in ({}, {"attestationRules": []}, {"nextPageToken": ""}, {"attestationRules": [], "nextPageToken": ""}):
+            with self.subTest(response=response):
+                data = inventory()
+                data["pool_attestation_rules"] = response
+                before = copy.deepcopy(data)
+                result = prepare_module.prepare(data)
+                self.assertEqual(data, before)
+                self.assertFalse(result["own_runtime_wif_pool"] or result["own_runtime_wif_provider"])
+                self.assertEqual(result["runtime_wif_grant_keys"], [])
+                self.assertEqual(result["owned_api_keys"], [])
+
+    def test_attestation_error_unknown_malformed_or_incomplete_is_not_empty(self):
+        responses = [
+            {"error": {"code": 403, "message": "dummy denied"}},
+            {"unknown": {}},
+            {"attestationRules": [], "error": {"code": 403}},
+            {"attestationRules": [], "unknown": False},
+            {"attestationRules": None}, {"attestationRules": False},
+            {"attestationRules": 0}, {"attestationRules": {}},
+            {"attestationRules": [{"dummy": "existing rule"}]},
+            {"nextPageToken": None}, {"nextPageToken": False},
+            {"nextPageToken": 0}, {"nextPageToken": {}},
+            {"nextPageToken": []}, {"nextPageToken": "remaining"},
+            None, [], "", False, 0,
+        ]
+        for response in responses:
+            with self.subTest(response=response):
+                data = inventory()
+                data["pool_attestation_rules"] = response
+                with self.assertRaises(ValueError):
+                    prepare_module.prepare(data)
+        data = inventory()
+        data.pop("pool_attestation_rules")
+        with self.assertRaises(KeyError):
+            prepare_module.prepare(data)
+
+    def test_cli_attestation_error_and_unknown_response_emit_no_candidate_or_payload(self):
+        for response in ({"error": {"code": 403, "message": "dummy private sentinel"}}, {"unknown": "dummy private sentinel"}):
+            with self.subTest(response=response), tempfile.TemporaryDirectory() as directory:
+                source, output = Path(directory) / "input.json", Path(directory) / "candidate.json"
+                data = inventory()
+                data["pool_attestation_rules"] = response
+                source.write_text(json.dumps(data))
+                source.chmod(0o600)
+                result = subprocess.run(cli_command(source, output), capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertFalse(output.exists())
+                self.assertNotIn("dummy private sentinel", result.stdout + result.stderr)
+                self.assertIn("STOP:", result.stderr)
+
     def test_rejects_incomplete_wrong_or_broad_inventory(self):
         mutations = [
             lambda d: d["project"].update(projectId="youtube-study-space"),

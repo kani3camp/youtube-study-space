@@ -70,7 +70,7 @@ stdout/stderr に identity 値は出さない。入力の capture 時刻・完�
 | --- | --- |
 | `project` | fresh `projectId` / string `projectNumber` |
 | `pool`, `provider` | 上記 exact GET の REST metadata（CEL は byte-for-byte） |
-| `pool_attestation_rules` | 同 pool の attestation read response。rules が非空・未取得なら採用しない |
+| `pool_attestation_rules` | 成功した同 exact pool の attestation GET の JSON body。下記の空 response 契約のみ採用 |
 | `iam_policy_resource` | policy を read した exact SA resource name。新 identity を生成しない |
 | `runtime_config` | `audience` / `service_account_email`、source・現行 runtime と一致確認済み |
 | `iam_policy` | version 3 を要求した policy response。無条件 policy の response version 1 は可 |
@@ -84,6 +84,13 @@ API 名だけで判断せず、Firebase/Google-managed platform の暗黙 depend
 候補の一覧が出ても `owned_api_keys` は空のまま。grant 候補も `runtime_wif_grant_keys` は空のまま。
 テスト内の invented number / role / condition は実 environment input として使わない。
 pool `mode` が remote で省略されている場合は `null` のまま provider-computed とし、`FEDERATION_ONLY` を補完しない。
+
+attestation の [公式 IAM v1 Discovery schema](https://iam.googleapis.com/$discovery/rest?version=v1)
+`ListAttestationRulesResponse` は `attestationRules`（array）/ `nextPageToken`（string）の2 optional fields のみ。
+成功 response の `{}`、`{"attestationRules": []}`、省略または空 string の `nextPageToken` は空・完了を表せる。
+HTTP成功・exact request scope・fresh provenance は capture 時に確認する。未取得 response を `{}` に置き換えない。
+helper は `error` envelope / 未知 key / null / 型違い / 非空 rules / 継続 token を fail-closed で拒否し、
+candidate を出力しない。未知 response を「rulesなし」として補完しない。
 
 ```bash
 python3 infra/gcp/scripts/prepare_runtime_ownership.py \
