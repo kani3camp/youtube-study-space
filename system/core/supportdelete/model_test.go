@@ -59,10 +59,14 @@ func TestStepPlanRequiresEveryScopeAndPostconditionBeforeResume(t *testing.T) {
 			want = append(want, Step{Action: action, Scope: scope})
 		}
 	}
-	for _, action := range []string{"delete", "inspect"} {
-		for _, scope := range deleted {
-			want = append(want, Step{Action: action, Scope: scope})
+	for _, scope := range deleted {
+		if scope != "firebase-auth" {
+			want = append(want, Step{Action: "delete", Scope: scope})
 		}
+	}
+	want = append(want, Step{Action: "delete", Scope: "firebase-auth"})
+	for _, scope := range deleted {
+		want = append(want, Step{Action: "inspect", Scope: scope})
 	}
 	for _, scope := range runtime {
 		want = append(want, Step{Action: "resume", Scope: scope})

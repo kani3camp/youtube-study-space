@@ -16,7 +16,7 @@ fresh verification は既存の challenge 24h / OAuth 10m 契約による reques
 
 1. 全 mapped Auth identity の revoke。
 2. MyPage と legacy fleet の pause、両 fleet の drain。
-3. 専用 seat removal、primary、web、OAuth、support relations、legacy mapping、Auth、BQ、backup/export、derived/vendor、platform log の消去。
+3. 専用 seat removal、primary、web、OAuth、support relations、legacy mapping、BQ、backup/export、derived/vendor、platform log の消去。Canon 05に従い、Auth userはこれらの消去後に削除する。
 4. 全 11 scope の不存在と旧データ再生成禁止を、pause 中に再確認。
 5. manifest に記録された開始前の有効状態へ両 fleet を戻す。古い queue、callback、mint result、snapshot、import、restore の再生を許さない。
 6. current requestRef と最新 control generation の CAS で privacy だけを解除し、receipt / execution を最小の終端 audit にする。
@@ -29,7 +29,7 @@ fresh verification は既存の challenge 24h / OAuth 10m 契約による reques
 
 ## adapter の実装境界
 
-[inventory](support-delete-inventory.md) と [machine-readable catalog](support-delete-inventory.json) は source の事実と live unknown を分ける。Manifest.Ref は trusted registry が target environment/project/database、全 writer/launch 経路、開始前状態、旧 queue/import/restore の除外方針、schema 帰属を確認して発行する digest。operator JSON の文字列だけで発行してはいけない。
+[inventory](support-delete-inventory.md) と [machine-readable catalog](support-delete-inventory.json) は source の事実と live unknown を分ける。Manifest.Ref は trusted registry が target environment/project/database、全 writer/launch 経路、開始前状態、旧 queue/import/restore の除外方針、schema 帰属、workflow plan revisionを確認して発行する digest。operator JSON の文字列だけで発行してはいけない。稼働中のcheckpoint cursorを別planへ読み替えない。plan変更時は新manifestの照合で停止し、既存executionの明示的migrationを別途検証する。
 
 `FirestoreDeletionStore` は injected client の project/default database path を検証する。`FirestoreDeletionEffects` は以下の source allowlist を実装し、trusted RestoreGuard が同じ operation に pause/drain・catalog completeness・restore 除外を証明するまで書き込まない。
 

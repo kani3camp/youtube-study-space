@@ -120,8 +120,13 @@ func Steps() []Step {
 		steps = append(steps, Step{"drain", s})
 	}
 	for _, s := range DeletionScopes() {
-		steps = append(steps, Step{"delete", s})
+		if s != "firebase-auth" {
+			steps = append(steps, Step{"delete", s})
+		}
 	}
+	// Canon 05 deletes Auth only after primary, web, derived and analytics
+	// cleanup. The catalog order is not the execution order.
+	steps = append(steps, Step{"delete", "firebase-auth"})
 	for _, s := range DeletionScopes() {
 		steps = append(steps, Step{"inspect", s})
 	}
