@@ -51,11 +51,11 @@ work-segmentsは user-id equality、ended-at > window start、started-at < asOf 
 
 ## HTTP and memory cache
 
-`HTTPHandler` は6つの通常login endpointのlibrary boundary。App Check、Firebase custom provider、WebAccount存在・accessBlocked・同意版を統計アクセス前に検証する。cache hitでもこのgateを毎回通す。opaque cookieはHttpOnly / Secure / Lax / Path=/、Domainなし。callbackは固定pathへredirectし、raw provider errorやdependency detailを公開しない。JSONは未知・重複・大小文字違いのfield、余分なquery/body、4096 byte超を拒否する。
+`HTTPHandler` は6つの通常login endpointのlibrary boundary。App Check、Firebase custom provider、fresh ServiceAccessControl、WebAccount存在・同意版を統計アクセス前に検証する。cache hitでもこのgateを毎回通す。旧`accessBlocked`はdecode互換のみで認可に使用しない。opaque cookieはHttpOnly / Secure / Lax / Path=/、Domainなし。callbackは固定pathへredirectし、raw provider errorやdependency detailを公開しない。JSONは未知・重複・大小文字違いのfield、余分なquery/body、4096 byte超を拒否する。
 
-aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は独自10秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
+aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は最大8秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
 
-rate limitはprocess単位のbounded memory。deploymentの全体limit、trusted proxy IP抽出、実provider/verifier/minter、server起動とHosting rewriteの結線は未実装。`accessBlocked`のread guardだけで全writer/cache/in-flight deletionのD01要件を満たしたとは扱わない。support purposeとprivacy運用も引き続き独立した完了条件。
+rate limitはprocess単位のbounded memory。deploymentの全体limit、trusted proxy IP抽出、実provider/verifier/minter、server起動とHosting rewriteの結線は未実装。[ServiceAccessControl A](service-access-control.md)はMyPageのread/token/write境界を保護する。横断削除と全runtime drain、support受付完了の実行はBの独立した完了条件。
 
 HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし、対象外Host、別origin/OriginなしのPOST、重複Originと重複`__session`をdependency検証・OAuth mutation前に拒否する。callback GETはOriginなしを許すが固定Hostの検証を省略しない。clientのX-Forwarded-Host / Proto / Forで許可先やdefault IPを変更しない。Hostingから届く実Hostの確認はdeployment gateに残す。
 
@@ -66,6 +66,8 @@ HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし�
 `MyPageMemory` はuid変更/logout開始/pagehideで個人データを同期clearしてrequestをabortする。epoch照合によりabortを無視する遅延responseも破棄する。logout失敗でもデータは復活せず再試行可能。bootstrap中にlogin画面を出さない。
 
 visible時だけ完了後60秒でpollし、hidden停止・復帰即refresh・request overlap防止・manual debounce・失敗backoff・Retry-Afterを実装する。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
+
+制限403は個人データを同期clearし、専用表示へ移る。poll/manual/visibility retryを停止し、logout・public法的文面・support・fresh loginを利用できる。通常503のbackoff/stale表示は維持する。
 
 controllerはsession/API adapterを注入する。browser runtime sliceでFirebase listener、router、画面、bfcache eventへの結線を追加した。MyPage responseやmetadataをstorageへ保存する経路は持たない。
 

@@ -166,6 +166,14 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
+		if accessErr != nil {
+			if h.BFF != nil {
+				h.BFF.Invalidate(identity.UID)
+			}
+			writeAPIError(w, statusFor(errorCode(accessErr)), errorCode(accessErr), requestID)
+			return
+		}
 		account, err = h.Auth.Store.ReadAccount(ctx, identity.UID)
 		if err != nil {
 			if h.BFF != nil {
@@ -178,6 +186,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
 		}
+		account.AccessCheckpoint = checkpoint
 		if err := checkPolicy(account, h.Auth.Policy); err != nil {
 			if h.BFF != nil {
 				h.BFF.Invalidate(identity.UID)
@@ -215,7 +224,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		setTransactionCookie(w, "", -1)
 		writeJSON(w, 200, response)
 	case "/api/auth/session/complete":
-		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, h.Auth.Policy, now); err != nil {
+		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
 			if code == "INTERNAL_ERROR" {
 				code = "TEMPORARY_UNAVAILABLE"
@@ -426,7 +435,7 @@ func statusFor(code string) int {
 	switch code {
 	case "AUTH_REQUIRED":
 		return 401
-	case "APP_CHECK_REQUIRED", "PRIVACY_RECONSENT_REQUIRED":
+	case "APP_CHECK_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS":
 		return 403
 	case "POLICY_VERSION_OUTDATED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "WEB_ACCOUNT_REQUIRED":
 		return 409

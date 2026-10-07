@@ -20,7 +20,7 @@ func TestBFFCacheExpiryBoundaryAndFailure(t *testing.T) {
 	now := instant("2026-10-05T14:59:50Z")
 	calls := 0
 	fail := false
-	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(_ context.Context, uid string) (WorkSnapshot, error) {
+	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(_ context.Context, uid string) (WorkSnapshot, error) {
 		calls++
 		if fail {
 			return WorkSnapshot{}, errors.New("private dependency detail")
@@ -76,7 +76,7 @@ func TestBFFSingleflightCallerCancellation(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
 		calls.Add(1)
 		close(entered)
 		select {

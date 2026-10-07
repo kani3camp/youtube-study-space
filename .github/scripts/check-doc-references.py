@@ -22,6 +22,7 @@ TARGETS = (
     "docs/design/DESIGN.md",
     "mypage/README.md",
     "docs/mypage/README.md",
+    "docs/mypage/service-access-control.md",
     "docs/mypage/release/README.md",
     "docs/mypage/release/owner-packet.md",
     "docs/mypage/release/e2e.md",

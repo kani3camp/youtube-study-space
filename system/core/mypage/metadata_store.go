@@ -13,11 +13,14 @@ import (
 // SaveMetadata only updates an existing exact document revision. No external
 // API call occurs inside the retryable transaction and no account is recreated.
 func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expected WebAccount, channel Channel, policy Policy, now time.Time) (WebAccount, error) {
-	if !youtubeChannelID.MatchString(uid) || channel.ID != uid || channel.DisplayName == "" || expected.Revision.IsZero() {
+	if !youtubeChannelID.MatchString(uid) || channel.ID != uid || channel.DisplayName == "" || expected.Revision.IsZero() || expected.AccessCheckpoint == "" {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := s.transactionAccess(tx, uid, expected.AccessCheckpoint); err != nil {
+			return err
+		}
 		doc, err := tx.Get(ref)
 		if status.Code(err) == codes.NotFound {
 			return apiError("WEB_ACCOUNT_REQUIRED")
@@ -50,6 +53,9 @@ func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expec
 	if err := checkMetadataAccount(refreshed, policy); err != nil {
 		return WebAccount{}, err
 	}
+	if err := s.recheckMetadataAccess(ctx, uid, &refreshed, expected.AccessCheckpoint); err != nil {
+		return WebAccount{}, err
+	}
 	return refreshed, nil
 }
 
@@ -68,11 +74,14 @@ func (s *FirestoreAuthStore) ClearMissingMetadata(ctx context.Context, uid strin
 }
 
 func (s *FirestoreAuthStore) clearAccountMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, cutoff *time.Time, now time.Time) (WebAccount, error) {
-	if !youtubeChannelID.MatchString(uid) || expected.Revision.IsZero() {
+	if !youtubeChannelID.MatchString(uid) || expected.Revision.IsZero() || expected.AccessCheckpoint == "" {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := s.transactionAccess(tx, uid, expected.AccessCheckpoint); err != nil {
+			return err
+		}
 		doc, err := tx.Get(ref)
 		if status.Code(err) == codes.NotFound {
 			return apiError("WEB_ACCOUNT_REQUIRED")
@@ -103,6 +112,9 @@ func (s *FirestoreAuthStore) clearAccountMetadata(ctx context.Context, uid strin
 		return WebAccount{}, err
 	}
 	if err := checkMetadataAccount(account, policy); err != nil {
+		return WebAccount{}, err
+	}
+	if err := s.recheckMetadataAccess(ctx, uid, &account, expected.AccessCheckpoint); err != nil {
 		return WebAccount{}, err
 	}
 	return account, nil

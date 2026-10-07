@@ -2,7 +2,7 @@
 
 このrunbookはインフラ待ち・本人判断待ちを残したまま、コード・設定・試験の準備を進める入口。設定検査の成功は公開承認やlive E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
 
-プロダクト方針の正本は[Current Canon](https://app.notion.com/p/3873eac14a174f14881a18eb389f786c)、[判断待ちD01〜03](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を正とする。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
+プロダクト方針の正本は[Current Canon](https://app.notion.com/p/3873eac14a174f14881a18eb389f786c)、[判断記録D01〜03](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を正とする。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
 
 ## 1. 現在ある実装と、残る完了条件
 
@@ -13,7 +13,8 @@
 | API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints | 実App Check/Auth、runtime signer/IAM、Hosting経路/Host |
 | metadata | refresh、正常なchannel不在のclear、29日cleanup、23時間heartbeat判定 | scheduled runner/期限対応sink/alertの実結線、実inventory、自然実行 |
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
-| support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go) | 実受付と返信運用、実environmentのCLI結線、D01、横断削除/revoke/開示の実行・検証 |
+| ServiceAccessControl | [MyPage guardとtrusted moderation CLI](../service-access-control.md)、独立reasonとtransaction/checkpoint、合成QA | 実environmentの権限・runtime・運用結線、全runtime drainと横断削除B |
+| support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go) | 実受付と返信運用、実environmentのCLI結線、横断削除/revoke/開示の実行・検証 |
 | public policy | anonymous routes、明示同意、公開情報差込とdraft文面 | 運営値・実送信/保持との照合、本文承認、D02 |
 | GA4 | consent世代、同意前非送信、撤回/cross-tab、safe固定UTM、loader | Console/全tag inventory・実Network・保持設定 |
 | Hosting | [pure候補](../../../mypage/src/hosting.ts)、明示CSP inventory、API優先rewrite、asset検査 | 所有target、実SDKのinventory、callback/access-log、実security headers |
@@ -100,7 +101,7 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 | 0B受入 | 0A実経路PASS、D01/D02/D03、返信窓口、7日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は未決、D02の新しい残余リスク受容も代理で決めない。
+正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は2026-10-07 Canonの独立ServiceAccessControlに決定済み。AのguardとBの横断削除/drain完了を区別し、D02の新しい残余リスク受容は本人判断に残す。
 
 ## 5. 証跡と停止条件
 

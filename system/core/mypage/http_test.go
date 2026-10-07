@@ -44,7 +44,7 @@ func boundaryFixture() (*HTTPHandler, *boundaryStore, *boundaryVerifier, *int) {
 	s := &boundaryStore{account: healthyAccount(now)}
 	v := &boundaryVerifier{identity: VerifiedIdentity{UID: "synthetic", Provider: "custom"}}
 	reads := new(int)
-	h := &HTTPHandler{Auth: &AuthService{Store: s, Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now }}, Verifier: v, BFF: &BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { *reads++; return workFixture(), nil })}}
+	h := &HTTPHandler{Auth: &AuthService{Access: allowedAccess(), Store: s, Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now }}, Verifier: v, BFF: &BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { *reads++; return workFixture(), nil })}}
 	h.PublicOrigin = "https://mypage.example.test"
 	return h, s, v, reads
 }
@@ -84,7 +84,6 @@ func TestHTTPAuthorizationBeforeDataAndCache(t *testing.T) {
 		{"provider", "AUTH_REQUIRED", func(_ *boundaryStore, v *boundaryVerifier) { v.identity.Provider = "google.com" }},
 		{"uid", "AUTH_REQUIRED", func(_ *boundaryStore, v *boundaryVerifier) { v.identity.UID = "" }},
 		{"missing-account", "WEB_ACCOUNT_REQUIRED", func(s *boundaryStore, _ *boundaryVerifier) { s.err = apiError("WEB_ACCOUNT_REQUIRED") }},
-		{"blocked", "AUTH_REQUIRED", func(s *boundaryStore, _ *boundaryVerifier) { s.account.AccessBlocked = true }},
 		{"consent", "PRIVACY_RECONSENT_REQUIRED", func(s *boundaryStore, _ *boundaryVerifier) { s.account.TermsVersion = "old" }},
 		{"dependency", "TEMPORARY_UNAVAILABLE", func(s *boundaryStore, _ *boundaryVerifier) { s.err = errors.New("private firestore detail") }},
 	} {
@@ -112,11 +111,11 @@ func TestHTTPAuthorizationBeforeDataAndCache(t *testing.T) {
 	if *reads != 1 || s.reads != 2 {
 		t.Fatal("cached response bypassed fresh account gate")
 	}
-	s.account.AccessBlocked = true
-	if w := boundaryRequest(h, "GET", "/api/mypage", ""); w.Code != 401 {
+	h.Auth.Access = restrictedAccess(nowForAccessTest(), false)
+	if w := boundaryRequest(h, "GET", "/api/mypage", ""); w.Code != 403 {
 		t.Fatal("blocked account read cache")
 	}
-	s.account.AccessBlocked = false
+	h.Auth.Access = allowedAccess()
 	boundaryRequest(h, "GET", "/api/mypage", "")
 	if *reads != 2 {
 		t.Fatal("blocked identity left cached data behind")
