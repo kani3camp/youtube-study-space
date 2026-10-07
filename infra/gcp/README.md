@@ -1,5 +1,8 @@
 # GCP Terraform
 
+development履歴tableのまとまった判断packet・本人の先行準備・本番への依存は
+[`docs/development-history-ready-packet.md`](docs/development-history-ready-packet.md)を参照してください。
+
 YouTube Study Space の既存GCP resourceを、安全に段階移行するためのTerraform rootです。
 
 設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。

@@ -6,6 +6,10 @@ account number、WIF principal全文、既存policy、実集計値、state/plan�
 
 ## Recorded audit and next boundary
 
+dev historyの判断材料、本人の先行準備、offline import検査、production依存とCodeQL/OIDC制約は
+[`development-history-ready-packet.md`](development-history-ready-packet.md)へ集約します。
+code/tests/specは一つのbundleでreviewし、実行はdeployment/schema/state/securityの影響境界で分けます。
+
 実run `37475212059` はsuccess。ユーザー貼付のsanitized Summaryはlegacy列present yes、
 4集計すべてis-zero yesでした。監査時点のlegacy値backfillは不要ですが、列は未削除です。
 runtime temporary access撤回はoperator readback報告、source gate=falseは#1238で完了。

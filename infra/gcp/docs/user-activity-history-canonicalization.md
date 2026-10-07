@@ -43,6 +43,9 @@ module/ownership方針の変更が必要で、現在の合意とは異なりま�
 
 ## Offline preparation
 
+判断packetとexact import/post-planのoffline検査は
+[development history readiness](development-history-ready-packet.md)へ集約します。
+
 [prepare_user_activity_history_adoption.py](../scripts/prepare_user_activity_history_adoption.py) は
 cloud clientを持たず、privateなcomplete `tables.get` metadataから既存canonical列順だけを
 準備します。legacy/unknown/missing/duplicate field、nested mode/type/orderの差、未表現の
