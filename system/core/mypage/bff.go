@@ -21,6 +21,7 @@ type (
 	cachedAggregate struct {
 		response       Response
 		accountVersion string
+		admitted       uint64
 	}
 	MetadataRefresher interface {
 		Refresh(context.Context, string, WebAccount) (WebAccount, error)
@@ -30,6 +31,7 @@ type (
 // BFF is process-memory only. Fresh access reads fence every cache lookup,
 // detached flight, publication and response; inactive results are never cached.
 type BFF struct {
+	Runtime     *RuntimeRegistry
 	Access      serviceaccess.Reader
 	Reader      SnapshotReader
 	Environment string
@@ -42,14 +44,16 @@ type BFF struct {
 
 func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Response, bool) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	value, ok := b.cache[key]
+	b.mu.Unlock()
 	if !ok {
 		return Response{}, false
 	}
 	asOf := value.response.GeneratedAt
-	if value.accountVersion != metadataAccountVersion(account) || (accountSection(account, now).Data == nil && value.response.Account.Data != nil) || now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
+	if !b.Runtime.cacheAllowed(key.uid, value.admitted) || value.accountVersion != metadataAccountVersion(account) || (accountSection(account, now).Data == nil && value.response.Account.Data != nil) || now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
+		b.mu.Lock()
 		delete(b.cache, key)
+		b.mu.Unlock()
 		return Response{}, false
 	}
 	return value.response, true
@@ -72,6 +76,18 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 }
 
 func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result Response, resultErr error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, b.Runtime, uid)
+	if runtimeErr != nil {
+		return Response{}, runtimeErr
+	}
+	defer work.done()
+	defer func() {
+		if resultErr == nil {
+			if err := work.check(); err != nil {
+				result, resultErr = Response{}, err
+			}
+		}
+	}()
 	checkpoint, err := readAccess(ctx, b.Access, uid, account.AccessCheckpoint)
 	if err != nil {
 		b.Invalidate(uid)
@@ -110,13 +126,22 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	}
 	// The first caller disconnecting must not cancel a request shared with a
 	// second caller; the shared operation still has its own bounded budget.
-	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
+	flightKey := fmt.Sprintf("%s\x00%s\x00%s\x00%d", b.Environment, uid, metadataAccountVersion(account), runtimeVersion(work))
+	flightCtx, flightWork, err := beginRuntime(ctx, b.Runtime, uid)
+	if err != nil {
+		return Response{}, err
+	}
 	flight, leader := b.acquireFlight(flightKey)
 	if flight == nil {
+		flightWork.done()
 		return b.failedSnapshot(account)
+	}
+	if !leader {
+		flightWork.done()
 	}
 	if leader {
 		go func() {
+			defer flightWork.done()
 			response := Response{}
 			flightErr := apiError("TEMPORARY_UNAVAILABLE")
 			defer func() {
@@ -130,13 +155,20 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				// Refresh only the flight's copy; a caller's early fallback must not race
 				// with metadata updates in the detached operation.
 				account := account
-				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
+				workCtx, cancel := context.WithDeadline(context.WithoutCancel(flightCtx), workDeadline)
 				defer cancel()
+				if err := flightWork.check(); err != nil {
+					return Response{}, err
+				}
 				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
 					return Response{}, err
 				}
 				defer func() {
 					if resultErr == nil {
+						if err := flightWork.check(); err != nil {
+							result, resultErr = Response{}, err
+							return
+						}
 						if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
 							result, resultErr = Response{}, err
 						}
@@ -150,6 +182,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 					if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
 						account = refreshed
 					} else if metadataGateError(err) {
+						runtimeUnknownOutcome(metadataCtx, flightWork, err)
 						stop()
 						gateErr := fmt.Errorf("metadata access gate: %w", err)
 						b.mu.Lock()
@@ -161,6 +194,8 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 						account.DisplayName = ""
 						account.Handle, account.AvatarURL = nil, nil
 						account.MetadataFetchedAt = time.Time{}
+					} else {
+						runtimeUnknownOutcome(metadataCtx, flightWork, err)
 					}
 					stop()
 				}
@@ -170,6 +205,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				b.mu.Unlock()
 
 				snapshot, err := b.Reader.Read(workCtx, uid)
+				runtimeUnknownOutcome(workCtx, flightWork, err)
 				if err != nil {
 					return b.failedSnapshot(account)
 				}
@@ -180,19 +216,28 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
 					return Response{}, err
 				}
-				b.mu.Lock()
-				if b.cache == nil {
-					b.cache = make(map[cacheKey]cachedAggregate)
-				}
-				// Cap attacker-controlled uid cardinality; evict one value at capacity.
-				if len(b.cache) >= 1024 {
-					for victim := range b.cache {
-						delete(b.cache, victim)
-						break
+				if err := flightWork.fence(workCtx, func() error {
+					b.mu.Lock()
+					if b.cache == nil {
+						b.cache = make(map[cacheKey]cachedAggregate)
 					}
+					// Cap attacker-controlled uid cardinality; evict one value at capacity.
+					if len(b.cache) >= 1024 {
+						for victim := range b.cache {
+							delete(b.cache, victim)
+							break
+						}
+					}
+					admitted := uint64(0)
+					if flightWork != nil {
+						admitted = flightWork.admitted
+					}
+					b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account), admitted: admitted}
+					b.mu.Unlock()
+					return nil
+				}); err != nil {
+					return Response{}, err
 				}
-				b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account)}
-				b.mu.Unlock()
 				return response, nil
 			}()
 		}()
@@ -284,6 +329,9 @@ func (b *BFF) Invalidate(uid string) {
 }
 
 func metadataGateError(err error) bool {
+	if errors.Is(err, ErrRuntimeFenced) || errors.Is(err, ErrRuntimeOutcomeUnknown) {
+		return true
+	}
 	var gate *accessGateError
 	if errors.As(err, &gate) {
 		return true

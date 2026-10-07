@@ -65,7 +65,7 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	token, err := p.config.Exchange(ctx, code)
 	if err != nil {
 		// oauth2.RetrieveError and URL errors can contain credentials/provider text.
-		return nil, apiError("OAUTH_FAILED")
+		return nil, exchangeProviderError(err)
 	}
 	scope, ok := token.Extra("scope").(string)
 	if !ok || !slices.Contains(strings.Fields(scope), youtubeReadOnly) {
@@ -88,14 +88,18 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	// Clear our local credential reference before processing the public metadata.
 	token.AccessToken = ""
 	if err != nil {
-		return nil, apiError("TEMPORARY_UNAVAILABLE")
+		return nil, unknownProviderError("TEMPORARY_UNAVAILABLE")
 	}
 	defer response.Body.Close() //nolint:errcheck // Closing a read-only response cannot change the proof; never log credential-bearing transport errors.
 	if response.StatusCode != http.StatusOK {
 		return nil, apiError("CHANNEL_UNAVAILABLE")
 	}
-	channel, err := decodePublicChannel(response.Body)
+	body := &runtimeProviderBody{reader: response.Body}
+	channel, err := decodePublicChannel(body)
 	if err != nil {
+		if body.failed || ctx.Err() != nil {
+			return nil, unknownProviderError("TEMPORARY_UNAVAILABLE")
+		}
 		return nil, err
 	}
 	return []Channel{channel}, nil

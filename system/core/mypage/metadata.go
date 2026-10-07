@@ -48,14 +48,18 @@ func (p *PublicYouTubeMetadata) Read(ctx context.Context, uid string) (Channel, 
 	}
 	response, err := p.client.Do(request)
 	if err != nil {
-		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+		return Channel{}, unknownProviderError("TEMPORARY_UNAVAILABLE")
 	}
 	defer response.Body.Close() //nolint:errcheck // Read-only response close cannot change metadata and must not log credential URLs.
 	if response.StatusCode != 200 {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	channel, err := decodeChannelResponse(response.Body, true)
+	body := &runtimeProviderBody{reader: response.Body}
+	channel, err := decodeChannelResponse(body, true)
 	if err != nil {
+		if body.failed || ctx.Err() != nil {
+			return Channel{}, unknownProviderError("TEMPORARY_UNAVAILABLE")
+		}
 		return Channel{}, err
 	}
 	if channel.ID != uid {
@@ -71,6 +75,7 @@ type MetadataWriter interface {
 	SaveMetadata(context.Context, string, WebAccount, Channel, Policy, time.Time) (WebAccount, error)
 }
 type AccountMetadataRefresh struct {
+	Runtime  *RuntimeRegistry
 	Access   serviceaccess.Reader
 	Provider PublicMetadataReader
 	Store    MetadataWriter
@@ -79,6 +84,11 @@ type AccountMetadataRefresh struct {
 }
 
 func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, account WebAccount) (WebAccount, error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, r.Runtime, uid)
+	if runtimeErr != nil {
+		return WebAccount{}, runtimeErr
+	}
+	defer work.done()
 	if r.Provider == nil || r.Store == nil || r.Now == nil || account.Revision.IsZero() {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
@@ -93,13 +103,22 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 	if expiry, ok := r.Store.(interface {
 		ExpireMetadata(context.Context, string, WebAccount, Policy, time.Time) (WebAccount, error)
 	}); ok && !account.MetadataFetchedAt.IsZero() && r.Now().Sub(account.MetadataFetchedAt) >= 30*24*time.Hour {
-		stripped, err := expiry.ExpireMetadata(ctx, uid, account, r.Policy, r.Now().UTC())
+		var stripped WebAccount
+		err := runtimeMutation(ctx, work, func() error {
+			var writeErr error
+			stripped, writeErr = expiry.ExpireMetadata(ctx, uid, account, r.Policy, r.Now().UTC())
+			if writeErr != nil {
+				return fmt.Errorf("metadata store write: %w", writeErr)
+			}
+			return nil
+		})
 		if err != nil {
 			return WebAccount{}, fmt.Errorf("expire channel metadata: %w", err)
 		}
 		account = stripped
 	}
 	channel, err := r.Provider.Read(ctx, uid)
+	runtimeUnknownOutcome(ctx, work, err)
 	if errors.Is(err, ErrPublicChannelMissing) {
 		clearer, ok := r.Store.(interface {
 			ClearMissingMetadata(context.Context, string, WebAccount, Policy, time.Time) (WebAccount, error)
@@ -107,7 +126,15 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 		if !ok {
 			return WebAccount{}, ErrPublicChannelMissing
 		}
-		cleared, clearErr := clearer.ClearMissingMetadata(ctx, uid, account, r.Policy, r.Now().UTC())
+		var cleared WebAccount
+		clearErr := runtimeMutation(ctx, work, func() error {
+			var writeErr error
+			cleared, writeErr = clearer.ClearMissingMetadata(ctx, uid, account, r.Policy, r.Now().UTC())
+			if writeErr != nil {
+				return fmt.Errorf("metadata store write: %w", writeErr)
+			}
+			return nil
+		})
 		if clearErr != nil {
 			return WebAccount{}, errors.Join(ErrPublicChannelMissing, fmt.Errorf("clear absent metadata: %w", clearErr))
 		}
@@ -119,7 +146,15 @@ func (r *AccountMetadataRefresh) Refresh(ctx context.Context, uid string, accoun
 	if channel.ID != uid || channel.DisplayName == "" || ctx.Err() != nil {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	updated, err := r.Store.SaveMetadata(ctx, uid, account, channel, r.Policy, r.Now().UTC())
+	var updated WebAccount
+	err = runtimeMutation(ctx, work, func() error {
+		var writeErr error
+		updated, writeErr = r.Store.SaveMetadata(ctx, uid, account, channel, r.Policy, r.Now().UTC())
+		if writeErr != nil {
+			return fmt.Errorf("metadata store write: %w", writeErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return WebAccount{}, fmt.Errorf("commit refreshed metadata: %w", err)
 	}

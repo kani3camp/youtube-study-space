@@ -19,6 +19,9 @@ type APIError struct{ Code string }
 func (e *APIError) Error() string { return e.Code }
 func apiError(code string) error  { return &APIError{Code: code} }
 func errorCode(err error) string {
+	if errors.Is(err, ErrRuntimeFenced) || errors.Is(err, ErrRuntimeOutcomeUnknown) {
+		return "TEMPORARY_UNAVAILABLE"
+	}
 	var e *APIError
 	if errors.As(err, &e) {
 		switch e.Code {
@@ -99,6 +102,7 @@ type CustomTokenMinter interface {
 }
 
 type AuthService struct {
+	Runtime  *RuntimeRegistry
 	Access   serviceaccess.Reader
 	Store    AuthStore
 	Provider YouTubeOAuth
@@ -144,6 +148,11 @@ func digest(value string) string {
 }
 
 func (s *AuthService) Start(ctx context.Context, previousID string, request StartRequest) (StartResponse, string, error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, s.Runtime, "")
+	if runtimeErr != nil {
+		return StartResponse{}, "", runtimeErr
+	}
+	defer work.done()
 	if !request.PrivacyAccepted || !request.TermsAccepted {
 		return StartResponse{}, "", apiError("PRIVACY_CONSENT_REQUIRED")
 	}
@@ -178,9 +187,9 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 		}
 		tx.Purpose = "support"
 		tx.Support = &binding
-		storeErr = store.CreateSupport(ctx, id, previousID, tx, s.Support.Environment, now)
+		storeErr = runtimeMutation(ctx, work, func() error { return store.CreateSupport(ctx, id, previousID, tx, s.Support.Environment, now) })
 	} else {
-		storeErr = s.Store.Create(ctx, id, previousID, tx, now)
+		storeErr = runtimeMutation(ctx, work, func() error { return s.Store.Create(ctx, id, previousID, tx, now) })
 	}
 	if err := storeErr; err != nil {
 		return StartResponse{}, "", fmt.Errorf("start OAuth transaction: %w", err)
@@ -189,27 +198,52 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 }
 
 func (s *AuthService) Callback(ctx context.Context, id, state, code string, denied bool) error {
+	ctx, work, runtimeErr := beginRuntime(ctx, s.Runtime, "")
+	if runtimeErr != nil {
+		return runtimeErr
+	}
+	defer work.done()
 	if id == "" || state == "" {
 		return apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
-	if err := s.Store.Claim(ctx, id, digest(state), s.Now().UTC()); err != nil {
+	var createdAt time.Time
+	if s.Runtime != nil {
+		reader, ok := s.Store.(interface {
+			ReadRuntimeTransaction(context.Context, string) (OAuthTransaction, error)
+		})
+		if !ok {
+			return ErrRuntimeFenced
+		}
+		tx, err := reader.ReadRuntimeTransaction(ctx, id)
+		if err != nil {
+			return fmt.Errorf("read callback provenance: %w", err)
+		}
+		if tx.CreatedAt.IsZero() || tx.CreatedAt.After(s.Now().UTC()) {
+			return ErrRuntimeFenced
+		}
+		createdAt = tx.CreatedAt
+	}
+	if err := runtimeMutation(ctx, work, func() error { return s.Store.Claim(ctx, id, digest(state), s.Now().UTC()) }); err != nil {
 		return fmt.Errorf("claim OAuth callback: %w", err)
 	}
 	if denied {
-		if err := s.Store.Fail(ctx, id); err != nil {
+		if err := runtimeMutation(ctx, work, func() error { return s.Store.Fail(ctx, id) }); err != nil {
 			return fmt.Errorf("fail denied OAuth transaction: %w", err)
 		}
 		return apiError("OAUTH_FAILED")
 	}
 	channels, err := s.Provider.Resolve(ctx, code)
 	if err != nil {
-		if failErr := s.Store.Fail(ctx, id); failErr != nil {
+		if errors.Is(err, ErrRuntimeOutcomeUnknown) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+			defer work.markUnknown()
+		}
+		if failErr := runtimeMutation(ctx, work, func() error { return s.Store.Fail(ctx, id) }); failErr != nil {
 			return fmt.Errorf("fail OAuth transaction: %w", failErr)
 		}
 		return fmt.Errorf("resolve OAuth channel: %w", err)
 	}
 	if len(channels) != 1 || channels[0].ID == "" || channels[0].DisplayName == "" {
-		if err := s.Store.Fail(ctx, id); err != nil {
+		if err := runtimeMutation(ctx, work, func() error { return s.Store.Fail(ctx, id) }); err != nil {
 			return fmt.Errorf("fail unavailable channel: %w", err)
 		}
 		if len(channels) > 1 {
@@ -217,20 +251,37 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 		}
 		return apiError("CHANNEL_UNAVAILABLE")
 	}
+	if err := work.bind(channels[0].ID); err != nil {
+		return err
+	}
+	if err := work.provenance(createdAt, s.Now().UTC()); err != nil {
+		return err
+	}
 	confirmation, err := opaque()
 	if err != nil {
 		return err
 	}
-	if err := s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()); err != nil {
+	if err := runtimeMutation(ctx, work, func() error { return s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()) }); err != nil {
 		return fmt.Errorf("verify OAuth transaction: %w", err)
 	}
 	return nil
 }
 
 func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, s.Runtime, "")
+	if runtimeErr != nil {
+		return ChannelResponse{}, runtimeErr
+	}
+	defer work.done()
 	tx, err := s.Store.ReadVerified(ctx, id, s.Now().UTC())
 	if err != nil {
 		return ChannelResponse{}, fmt.Errorf("read verified channel: %w", err)
+	}
+	if err := work.bind(tx.Channel.ID); err != nil {
+		return ChannelResponse{}, err
+	}
+	if err := work.provenance(tx.CreatedAt, s.Now().UTC()); err != nil {
+		return ChannelResponse{}, err
 	}
 	purpose := transactionPurpose(tx)
 	if purpose == "support" {
@@ -252,6 +303,11 @@ func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, 
 }
 
 func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (string, error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, s.Runtime, "")
+	if runtimeErr != nil {
+		return "", runtimeErr
+	}
+	defer work.done()
 	if confirmation == "" {
 		return "", apiError("INVALID_REQUEST")
 	}
@@ -259,22 +315,46 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if err != nil {
 		return "", fmt.Errorf("read confirmed channel: %w", err)
 	}
+	if err := work.bind(value.Channel.ID); err != nil {
+		return "", err
+	}
+	if err := work.provenance(value.CreatedAt, s.Now().UTC()); err != nil {
+		return "", err
+	}
 	checkpoint, err := readAccess(ctx, s.Access, value.Channel.ID, "")
 	if err != nil {
 		return "", err
 	}
-	channel, err := s.Store.Consume(ctx, id, confirmation, checkpoint, s.Policy, s.Now().UTC())
+	var channel Channel
+	err = runtimeMutation(ctx, work, func() error {
+		var consumeErr error
+		channel, consumeErr = s.Store.Consume(ctx, id, confirmation, checkpoint, s.Policy, s.Now().UTC())
+		if consumeErr != nil {
+			return fmt.Errorf("consume channel store: %w", consumeErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return "", fmt.Errorf("consume confirmed channel: %w", err)
+	}
+	if err := work.bind(channel.ID); err != nil {
+		return "", err
 	}
 	// Consume is committed before mint. A timeout or failed mint cannot be retried
 	// from this transaction, even when the provider may have issued a token.
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
 	}
+	if err := work.check(); err != nil {
+		return "", err
+	}
 	token, err := s.Minter.Mint(ctx, channel.ID)
 	if err != nil {
+		work.markUnknown()
 		return "", apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if err := work.check(); err != nil {
+		return "", err
 	}
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
@@ -321,9 +401,20 @@ func transactionPurpose(tx OAuthTransaction) string {
 }
 
 func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string) (ConfirmResponse, error) {
+	ctx, work, runtimeErr := beginRuntime(ctx, s.Runtime, "")
+	if runtimeErr != nil {
+		return ConfirmResponse{}, runtimeErr
+	}
+	defer work.done()
 	tx, err := s.Store.ReadVerified(ctx, id, s.Now().UTC())
 	if err != nil {
 		return ConfirmResponse{}, fmt.Errorf("read confirmation purpose: %w", err)
+	}
+	if err := work.bind(tx.Channel.ID); err != nil {
+		return ConfirmResponse{}, err
+	}
+	if err := work.provenance(tx.CreatedAt, s.Now().UTC()); err != nil {
+		return ConfirmResponse{}, err
 	}
 	if transactionPurpose(tx) == "login" {
 		token, err := s.Confirm(ctx, id, confirmation)
@@ -340,7 +431,9 @@ func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string
 	if err != nil {
 		return ConfirmResponse{}, err
 	}
-	if err := store.ConsumeSupport(ctx, id, confirmation, s.Policy, s.Support.Environment, proofRef, s.Now().UTC()); err != nil {
+	if err := runtimeMutation(ctx, work, func() error {
+		return store.ConsumeSupport(ctx, id, confirmation, s.Policy, s.Support.Environment, proofRef, s.Now().UTC())
+	}); err != nil {
 		return ConfirmResponse{}, fmt.Errorf("confirm support purpose: %w", err)
 	}
 	return ConfirmResponse{Purpose: "support", RequestRef: proofRef}, nil

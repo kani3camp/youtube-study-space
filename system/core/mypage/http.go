@@ -25,6 +25,7 @@ type (
 )
 
 type HTTPHandler struct {
+	Runtime  *RuntimeRegistry
 	Auth     *AuthService
 	BFF      *BFF
 	Verifier RequestVerifier
@@ -133,6 +134,17 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	runtime := h.Runtime
+	if runtime == nil {
+		runtime = h.Auth.Runtime
+	}
+	ctx, requestWork, runtimeErr := beginRuntime(ctx, runtime, "")
+	if runtimeErr != nil {
+		writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
+		return
+	}
+	defer requestWork.done()
+	r = r.WithContext(ctx)
 	if callback {
 		h.callback(w, r, requestID)
 		return
@@ -165,6 +177,10 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rateError(w, retry, requestID)
 				return
 			}
+		}
+		if err := requestWork.bind(identity.UID); err != nil {
+			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
+			return
 		}
 		checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
 		if accessErr != nil {
@@ -202,15 +218,14 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		setTransactionCookie(w, id, 600)
-		writeJSON(w, 200, response)
+		writeRuntimeResponse(ctx, w, requestID, func() error { setTransactionCookie(w, id, 600); return encodeRuntimeJSON(w, 200, response) })
 	case "/api/auth/youtube/channel":
 		response, err := h.Auth.Channel(ctx, transactionID(r))
 		if err != nil {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		writeJSON(w, 200, response)
+		writeRuntimeResponse(ctx, w, requestID, func() error { return encodeRuntimeJSON(w, 200, response) })
 	case "/api/auth/youtube/confirm":
 		response, err := h.Auth.ConfirmResult(ctx, transactionID(r), confirmation.ConfirmationRef)
 		if err != nil {
@@ -221,10 +236,11 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
 		}
-		setTransactionCookie(w, "", -1)
-		writeJSON(w, 200, response)
+		writeRuntimeResponse(ctx, w, requestID, func() error { setTransactionCookie(w, "", -1); return encodeRuntimeJSON(w, 200, response) })
 	case "/api/auth/session/complete":
-		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
+		if err := runtimeMutation(ctx, requestWork, func() error {
+			return h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now)
+		}); err != nil {
 			code := errorCode(err)
 			if code == "INTERNAL_ERROR" {
 				code = "TEMPORARY_UNAVAILABLE"
@@ -232,7 +248,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
 		}
-		w.WriteHeader(204)
+		writeRuntimeResponse(ctx, w, requestID, func() error { w.WriteHeader(204); return nil })
 	case "/api/mypage":
 		if h.BFF == nil {
 			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
@@ -243,7 +259,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		writeJSON(w, 200, response)
+		writeRuntimeResponse(ctx, w, requestID, func() error { return encodeRuntimeJSON(w, 200, response) })
 	}
 }
 
@@ -409,7 +425,7 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 	}
 	err = h.Auth.Callback(r.Context(), transactionID(r), state, code, providerError != "")
 	if err == nil {
-		http.Redirect(w, r, "/login/channel-confirm", http.StatusFound)
+		writeRuntimeResponse(r.Context(), w, requestID, func() error { http.Redirect(w, r, "/login/channel-confirm", http.StatusFound); return nil })
 		return
 	}
 	redirectCode := "oauth_failed"

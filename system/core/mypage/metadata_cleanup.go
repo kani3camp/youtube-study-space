@@ -54,6 +54,7 @@ type MetadataCleanupRecorder interface {
 	Record(context.Context, MetadataCleanupObservation) error
 }
 type MetadataCleanupJob struct {
+	Runtime             *RuntimeRegistry
 	Store               MetadataCleanupStore
 	Recorder            MetadataCleanupRecorder
 	Now                 func() time.Time
@@ -69,6 +70,11 @@ func cursorAfter(next, previous MetadataCleanupCursor) bool {
 // a partially processed store is complete. It never refreshes inactive users.
 func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservation, error) {
 	observation := MetadataCleanupObservation{Stage: "configuration"}
+	ctx, jobWork, runtimeErr := beginRuntime(ctx, j.Runtime, "")
+	if runtimeErr != nil {
+		return observation, errors.Join(ErrMetadataCleanupIncomplete, runtimeErr)
+	}
+	defer jobWork.done()
 	if j.Now == nil || j.Recorder == nil {
 		return observation, ErrMetadataCleanupIncomplete
 	}
@@ -86,6 +92,7 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 		for range j.MaxPages {
 			observation.Stage = "scan"
 			page, err := j.Store.Scan(work, cutoff, cursor, j.BatchSize)
+			runtimeUnknownOutcome(work, jobWork, err)
 			if err != nil {
 				return fmt.Errorf("scan cleanup candidates: %w", err)
 			}
@@ -100,7 +107,19 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 				cursor = &next
 				observation.Scanned++
 				observation.Stage = "clear"
-				outcome, err := j.Store.Clear(work, candidate, cutoff, j.Now().UTC())
+				clearCtx, clearWork, err := beginRuntime(work, j.Runtime, candidate.UID)
+				var outcome string
+				if err == nil {
+					err = runtimeMutation(clearCtx, clearWork, func() error {
+						var clearErr error
+						outcome, clearErr = j.Store.Clear(clearCtx, candidate, cutoff, j.Now().UTC())
+						if clearErr != nil {
+							return fmt.Errorf("cleanup store clear: %w", clearErr)
+						}
+						return nil
+					})
+					clearWork.done()
+				}
 				if err != nil {
 					observation.Failed++
 					failures = errors.Join(failures, err)
@@ -135,6 +154,7 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 		}
 		observation.Stage = "backlog"
 		remaining, err := j.Store.Scan(work, cutoff, nil, 1)
+		runtimeUnknownOutcome(work, jobWork, err)
 		if err != nil {
 			return fmt.Errorf("verify cleanup backlog: %w", err)
 		}

@@ -100,7 +100,7 @@ func run(ctx context.Context) error {
 			return errors.New("MyPage metadata provider unavailable")
 		}
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata})
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Runtime: mypage.NewRuntimeRegistry(config.server.Environment, config.server.ProjectID), Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata})
 	if err != nil {
 		return errors.New("MyPage handler unavailable")
 	}
