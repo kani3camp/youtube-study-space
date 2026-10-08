@@ -136,7 +136,7 @@ Issue #1162のsource-control側guardrailとして、default branchにも存在�
 development planとapplyは独立gateを持ちます。planの有効化はtrust構築後、applyの有効化はplan smoke / negative test PASS後の別変更です。
 
 - `DEV_AUTHENTICATED_TERRAFORM_ENABLED=true`（development trust構築後のplan smokeのみ）
-- `DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=true`（development plan smoke / negative test / native lock / public output audit PASS後に有効化）
+- `DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`（historyのplan-only waveとclosureで維持。再有効化は未実施security検証も含めた別review / approvalが必要）
 - `PROD_AUTHENTICATED_TERRAFORM_ENABLED=false`
 - development applyは別Environmentの承認と同一SHAの再plan / import-only検証を引き続き必須とする。gate有効化だけではapplyを実行せず、workload importは後続waveで扱う
 - authenticated executionの入口は既存 `ci.yml` の `workflow_dispatch` のみ。`terraform_authenticated=true` を明示したrunだけreusable workflowを呼ぶ
@@ -149,7 +149,8 @@ development planとapplyは独立gateを持ちます。planの有効化はtrust�
 - AWS assumed-role ID / role名、GCP project number / SA名も認証Actionより前にmaskする。Environmentには既存5 secretに加えて `AWS_TERRAFORM_BACKEND_ROLE_ID` を設定する
 - backendのworkspace discovery prefixは対象environment配下に固定し、`TF_WORKSPACE=default` を使用する
 - development planは空resource graphでもGCP WIF token交換とplan SA impersonationを強制し、project metadataのharmless readで認証を証明する
-- identity smokeはAWS dev state read、stateへの条件付きPut拒否、prod / 他productのread/list拒否、wrong EnvironmentのSTS拒否、GCP mutation permission / prod permission不在と別SA impersonation拒否を確認する。unexpected grant / network error / object不在をDENY成功と混同しない
+- `mode=plan`のidentity smokeは`plan-read-only`を使用し、同一SHA OIDC claim、plan identity、exact dev state read、dev project/Function metadata GETとdevの必要GET・mutation permission不在だけを確認する。state本体PUT、apply role/SA credential発行試験、prod / 他productのread/listとprod permission検査は実行せず、Summaryに`SKIPPED`と`Full security gate: NOT VERIFIED`を記録する。Terraform native dev `.tflock`の通常PUT/GET/DELETEはplanに必要な一時操作として別に扱う
+- 非plan承認経路の既存security smokeはstateへの条件付きPut拒否、prod / 他productのread/list拒否、wrong EnvironmentのSTS拒否、prod permission不在と別SA impersonation拒否を保持する。unexpected grant / network error / object不在をDENY成功と混同しない。条件付きPutはcurrent stateが存在する間は上書きしないが、GET後の削除と誤許可が重なると空versionを作り得るため、read-only planでは呼ばない。plan成功だけで未実施のsecurity検証やapply有効化を承認しない
 - raw init / plan / apply出力はpublic logへ流さない
 - saved planはrunner一時領域だけで扱い、artifact / cacheへ保存しない
 - public outputは `.github/scripts/terraform_plan_summary.py` が生成するresource address / action count中心のsanitized summaryだけ

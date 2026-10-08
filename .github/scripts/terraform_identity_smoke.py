@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Development-only identity smoke. Emit fixed labels, never API responses.
 
-All probes are reads, testIamPermissions, or safely conditional denied requests.
+plan-read-only performs only dev reads and dev testIamPermissions. Legacy modes
+retain negative credential/write probes; omitted checks are not DENY evidence.
 No credentials, raw state, identifiers, or dependency errors go to public output.
 """
 from __future__ import annotations
@@ -49,7 +50,7 @@ def denied_aws(result: subprocess.CompletedProcess[str], label: str) -> None:
         raise SmokeFailure(label)
 
 
-def verify_oidc(env: dict[str, str]) -> list[str]:
+def verify_oidc(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
     request = urllib.request.Request(
         env["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
         headers={"Authorization": "Bearer " + env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
@@ -73,6 +74,9 @@ def verify_oidc(env: dict[str, str]) -> list[str]:
     plan_role = env["BACKEND_ROLE_ARN"]
     if not plan_role.endswith("-plan"):
         raise SmokeFailure("aws-plan-role-target")
+    checks = ["GitHub exact immutable/ref/workflow OIDC claims", "GitHub caller/reusable workflow same SHA"]
+    if plan_read_only:
+        return checks
     with tempfile.TemporaryDirectory(dir=env["RUNNER_TEMP"]) as directory:
         token_file = Path(directory) / "token"
         token_file.write_text(token)
@@ -81,7 +85,7 @@ def verify_oidc(env: dict[str, str]) -> list[str]:
             "--role-session-name", "terraform-wrong-environment-smoke",
             "--web-identity-token", f"file://{token_file}", "--duration-seconds", "900",
         ), "aws-wrong-environment-assume-role-denied")
-    return ["GitHub exact immutable/ref/workflow OIDC claims", "GitHub caller/reusable workflow same SHA", "AWS wrong Environment AssumeRole denied"]
+    return checks + ["AWS wrong Environment AssumeRole denied"]
 
 
 def google(path: str, token: str, body: dict | None = None, *, host: str = "cloudresourcemanager.googleapis.com") -> tuple[int, dict]:
@@ -98,9 +102,11 @@ def google(path: str, token: str, body: dict | None = None, *, host: str = "clou
         return error.code, json.loads(error.read())
 
 
-def verify_google(token: str, service_account: str, request=google, *, project: str = "test-youtube-study-space") -> list[str]:
+def verify_google(token: str, service_account: str, request=google, *, project: str = "test-youtube-study-space", plan_read_only: bool = False) -> list[str]:
     if not service_account.endswith(f"@{project}.iam.gserviceaccount.com"):
         raise SmokeFailure("development-service-account-target")
+    if plan_read_only and service_account != f"terraform-dev-plan@{project}.iam.gserviceaccount.com":
+        raise SmokeFailure("gcp-read-only-plan-identity")
     status, data = request(f"v3/projects/{project}", token)
     if status != 200 or data.get("projectId") != project or data.get("state") != "ACTIVE":
         raise SmokeFailure("gcp-plan-service-account-read")
@@ -108,6 +114,9 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": permissions})
     if status != 200 or data.get("permissions", []):
         raise SmokeFailure("gcp-plan-workload-mutation-denied")
+    checks = ["GCP WIF + plan SA harmless read", "GCP plan mutation permissions absent"]
+    if plan_read_only:
+        return checks
     status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": [
         "resourcemanager.projects.get", "bigquery.datasets.get", "bigquery.tables.get", *permissions
     ]})
@@ -124,13 +133,15 @@ def verify_google(token: str, service_account: str, request=google, *, project: 
     )
     if status != 403 or data.get("error", {}).get("status") != "PERMISSION_DENIED":
         raise SmokeFailure("gcp-unrelated-service-account-impersonation-denied")
-    return ["GCP WIF + plan SA harmless read", "GCP plan mutation permissions absent", "GCP dev to prod permissions absent", "GCP unrelated SA impersonation denied"]
+    return checks + ["GCP dev to prod permissions absent", "GCP unrelated SA impersonation denied"]
 
 
-def verify_quota_google(token: str, service_account: str, request=google, *, identity: str, project: str = "test-youtube-study-space") -> list[str]:
+def verify_quota_google(token: str, service_account: str, request=google, *, identity: str, project: str = "test-youtube-study-space", plan_read_only: bool = False) -> list[str]:
     """Only metadata GET and, for the existing apply identity, policy CREATE."""
     if identity not in {"plan", "apply"} or service_account != f"terraform-dev-{identity}@{project}.iam.gserviceaccount.com":
         raise SmokeFailure("quota-development-identity-target")
+    if plan_read_only and identity != "plan":
+        raise SmokeFailure("quota-read-only-plan-identity")
     requested = ["monitoring.alertPolicies.get", *FORBIDDEN_PERMISSIONS]
     expected = {"monitoring.alertPolicies.get"}
     if identity == "apply":
@@ -138,14 +149,17 @@ def verify_quota_google(token: str, service_account: str, request=google, *, ide
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": requested})
     if status != 200 or set(data.get("permissions", [])) != expected:
         raise SmokeFailure("quota-exact-development-permissions")
+    checks = [f"GCP quota {identity} exact GET" + (" + CREATE" if identity == "apply" else " only"),
+              "GCP quota update/delete/list/data/IAM/API grants absent"]
+    if plan_read_only:
+        return checks
     status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": [
         "resourcemanager.projects.get", "storage.buckets.get", "monitoring.notificationChannels.get",
         "bigquery.datasets.get", "bigquery.tables.get", "datastore.backupSchedules.get", *requested
     ]})
     if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
         raise SmokeFailure("quota-production-permissions-denied")
-    return [f"GCP quota {identity} exact GET" + (" + CREATE" if identity == "apply" else " only"),
-            "GCP quota update/delete/list/data/IAM/API grants absent", "GCP quota production grants absent"]
+    return checks + ["GCP quota production grants absent"]
 
 
 FUNCTION_FORBIDDEN_PERMISSIONS = tuple("cloudfunctions.functions." + suffix for suffix in (
@@ -163,9 +177,11 @@ EXPORT_TOPIC_PERMISSIONS = (
 )
 
 
-def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False, function=False):
+def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False, function=False, plan_read_only=False):
     if service_account not in {f"terraform-dev-{kind}@{project}.iam.gserviceaccount.com" for kind in ("plan", "apply")}:
         raise SmokeFailure("topic-development-identity-target")
+    if plan_read_only and service_account != f"terraform-dev-plan@{project}.iam.gserviceaccount.com":
+        raise SmokeFailure("topic-read-only-plan-identity")
     if function and not scheduler:
         raise SmokeFailure("function-scheduler-dependency")
     requested = list(EXPORT_TOPIC_PERMISSIONS) + ["cloudscheduler.jobs.list", "cloudscheduler.jobs.create",
@@ -176,16 +192,19 @@ def verify_export_topic_google(token, service_account, request=google, *, projec
     status, data = request(f"v3/projects/{project}:testIamPermissions", token, {"permissions": requested})
     if status != 200 or set(data.get("permissions", [])) != expected:
         raise SmokeFailure("topic-exact-get-only-permissions")
-    status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": requested})
-    if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
-        raise SmokeFailure("topic-production-permissions-denied")
+    production = []
+    if not plan_read_only:
+        status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": requested})
+        if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
+            raise SmokeFailure("topic-production-permissions-denied")
+        production = ["GCP export production grants absent"]
     if function:
         return ["GCP topic + Scheduler + Function exact GET only", "GCP Function list/mutation/call/invoke/sourceCode/IAM grants absent",
-                "GCP export trigger/publish/subscription grants absent", "GCP export production grants absent"]
+                "GCP export trigger/publish/subscription grants absent"] + production
     if scheduler:
         return ["GCP topic + Scheduler exact GET only", "GCP Scheduler list/mutation/run/pause/resume/publish grants absent",
-                "GCP Function GET remains ungranted", "GCP export production grants absent"]
-    return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted", "GCP topic production grants absent"]
+                "GCP Function GET remains ungranted"] + production
+    return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted"] + (["GCP topic production grants absent"] if not plan_read_only else [])
 
 
 def configure_function_execution_identity(token, env, request=google):
@@ -216,7 +235,7 @@ def state_counts(state: dict) -> str:
     return f"AWS current state resource count {count}, serial {state['serial']}, output count {len(state['outputs'])}"
 
 
-def verify_aws(env: dict[str, str]) -> list[str]:
+def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
     identity = aws("sts", "get-caller-identity")
     if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
         raise SmokeFailure("aws-dedicated-state-account")
@@ -229,8 +248,12 @@ def verify_aws(env: dict[str, str]) -> list[str]:
         if result.returncode or not state.is_file():
             raise SmokeFailure("aws-development-state-read")
         counts = state_counts(json.loads(state.read_text()))
-        # Existing-object precondition makes an unexpected grant harmless: even a
-        # mistaken PutObject allow cannot overwrite the verified existing state.
+        checks = ["AWS OIDC + dedicated STS identity", "AWS development state read", counts]
+        if plan_read_only:
+            return checks
+        # Legacy probe: an existing current object prevents overwrite, but a
+        # concurrent deletion plus a mistaken grant could create an empty version.
+        # plan-read-only never performs this write request.
         empty = Path(directory) / "empty"
         empty.write_bytes(b"")
         result = aws("s3api", "put-object", "--bucket", bucket, "--key", key, "--body", str(empty), "--if-none-match", "*")
@@ -238,7 +261,7 @@ def verify_aws(env: dict[str, str]) -> list[str]:
     for prefix, label in [("youtube-study-space/prod/", "aws-production-prefix-denied"), ("unrelated-product/dev/", "aws-other-product-prefix-denied")]:
         denied_aws(aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", prefix, "--max-keys", "1"), label)
         denied_aws(aws("s3api", "head-object", "--bucket", bucket, "--key", prefix + "terraform.tfstate"), label)
-    return ["AWS OIDC + dedicated STS identity", "AWS development state read", counts, "AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
+    return checks + ["AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -255,24 +278,36 @@ def main(argv: list[str] | None = None) -> int:
             checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True)
         elif args == ["export-topic"]:
             checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
-        elif not args:
-            checks = verify_oidc(env)
-            checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
+        elif not args or args == ["plan-read-only"]:
+            plan_read_only = args == ["plan-read-only"]
+            checks = verify_oidc(env, plan_read_only=plan_read_only)
+            checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=plan_read_only)
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
-                checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan")
+                checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan", plan_read_only=plan_read_only)
             if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
                 checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
                     scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true",
-                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true")
+                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true", plan_read_only=plan_read_only)
                 if env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true":
                     checks += configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env)
-            checks += verify_aws(env)
+            checks += verify_aws(env, plan_read_only=plan_read_only)
         else:
             raise SmokeFailure("unsupported-identity-smoke-mode")
-        summary = "### Development identity smoke\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
+        title = "Development plan read-only checks" if args == ["plan-read-only"] else "Development identity smoke"
+        summary = f"### {title}\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
+        if args == ["plan-read-only"]:
+            summary += "".join(f"- SKIPPED (plan-read-only): {label}\n" for label in (
+                "AWS apply-role AssumeRole DENY probe",
+                "GCP apply-SA generateAccessToken DENY probe",
+                "AWS state-body PutObject DENY probe",
+                "AWS production/other-product prefix read/list DENY probes",
+                "GCP production permission checks",
+            ))
+            summary += "\nFull security gate: NOT VERIFIED by this read-only plan.\n"
         with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
             output.write(summary)
-        print("Development identity smoke: PASS")
+        print("Development plan read-only checks: PASS; full security gate: NOT VERIFIED"
+              if args == ["plan-read-only"] else "Development identity smoke: PASS")
         return 0
     except SmokeFailure as error:
         print(f"::error::Development identity smoke failed: {error}", file=sys.stderr)

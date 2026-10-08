@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import contextlib
+import base64
 import importlib.util
 import io
+import json
+import os
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -215,6 +219,169 @@ class IdentitySmokeTest(unittest.TestCase):
                 old = metadata[field]; metadata[field] = value
                 with self.assertRaises(smoke.SmokeFailure): smoke.configure_function_execution_identity("PRIVATE_TOKEN", env, request)
                 metadata[field] = old
+
+
+class PlanReadOnlySmokeTest(unittest.TestCase):
+    """Exercise the CLI entrypoint with synthetic HTTP/CLI dependencies only."""
+
+    def run_smoke(self, args=("plan-read-only",), *, legacy_denials=False, claims_override=None,
+                  extra_permissions=(), missing_permission=None, account="PRIVATE_ACCOUNT",
+                  state_key="youtube-study-space/dev/terraform.tfstate", service_account=None,
+                  fail_read=None):
+        project = "test-youtube-study-space"
+        claims = {
+            "repository_id": "340900071", "repository_owner_id": "54093651",
+            "environment": "terraform-dev-plan", "ref": "refs/heads/feature/gcp-terraform-iac",
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+            "event_name": "workflow_dispatch",
+        }
+        claims["sub"] = ":".join(f"{k}:{v.replace(':', '%3A')}" for k, v in claims.items())
+        claims.update(workflow_sha="a" * 40, job_workflow_sha="a" * 40)
+        claims.update(claims_override or {})
+        token = "header." + base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=") + ".PRIVATE_SIGNATURE"
+        http_calls, aws_calls = [], []
+
+        def urlopen(request, **kwargs):
+            url = request.full_url
+            body = json.loads(request.data) if request.data else None
+            http_calls.append((request.get_method(), url, body))
+            if "fixture.invalid/oidc" in url:
+                data = {"value": token}
+            elif url.endswith(f"/v3/projects/{project}"):
+                if fail_read == "project": raise RuntimeError("PRIVATE_READ_ERROR")
+                data = {"projectId": project, "state": "ACTIVE"}
+            elif url.endswith(f"/v3/projects/{project}:testIamPermissions"):
+                requested = body["permissions"]
+                allowed = {"monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"}
+                data = {"permissions": sorted((set(requested) & allowed) | set(extra_permissions))}
+                if missing_permission in data["permissions"]: data["permissions"].remove(missing_permission)
+            elif url.endswith("/functions/firestoreCollectionsExport"):
+                if fail_read == "function": raise RuntimeError("PRIVATE_READ_ERROR")
+                data = {"name": f"projects/{project}/locations/asia-southeast2/functions/firestoreCollectionsExport",
+                        "runtime": "nodejs22", "status": "ACTIVE", "versionId": "8",
+                        "serviceAccountEmail": f"{project}@appspot.gserviceaccount.com", "sourceUploadUrl": "PRIVATE_SOURCE_URL"}
+            else:
+                # These operations would be ALLOWED. A read-only CLI must never call them.
+                if legacy_denials:
+                    if "generateAccessToken" in url:
+                        raise smoke.urllib.error.HTTPError(url, 403, "Forbidden", {}, io.BytesIO(b'{"error":{"status":"PERMISSION_DENIED"}}'))
+                    data = {"permissions": []}
+                else:
+                    data = {"accessToken": "PRIVATE_APPLY_TOKEN", "permissions": ["resourcemanager.projects.get"]}
+            response = io.BytesIO(json.dumps(data).encode())
+            response.status = 200
+            return response
+
+        def aws(*args):
+            aws_calls.append(args)
+            if args[:2] == ("sts", "get-caller-identity"):
+                return subprocess.CompletedProcess([], 0, json.dumps({"Account": account}), "")
+            if args[:2] == ("s3api", "get-object"):
+                if fail_read == "state": return subprocess.CompletedProcess([], 1, "", "PRIVATE_READ_ERROR")
+                Path(args[-1]).write_text(json.dumps({"version": 4, "serial": 9, "lineage": "PRIVATE_LINEAGE", "outputs": {},
+                    "resources": [{"mode": "managed", "instances": [{"value": "PRIVATE_STATE"}] * 11}]}))
+                return subprocess.CompletedProcess([], 0, "{}", "")
+            return subprocess.CompletedProcess([], 1 if legacy_denials else 0, "PRIVATE_APPLY_CREDENTIAL",
+                                               "(AccessDenied) PRIVATE_SENTINEL" if legacy_denials else "")
+
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"RUNNER_TEMP": directory, "GITHUB_STEP_SUMMARY": directory + "/summary", "GITHUB_ENV": directory + "/env",
+                   "GITHUB_SHA": "a" * 40, "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
+                   "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "PRIVATE_GITHUB_TOKEN", "BACKEND_ROLE_ARN": "arn:aws:iam::PRIVATE_ACCOUNT:role/fixture-plan",
+                   "STATE_ACCOUNT_ID": "PRIVATE_ACCOUNT", "STATE_BUCKET": "PRIVATE_BUCKET", "STATE_KEY": state_key,
+                   "GCP_SMOKE_ACCESS_TOKEN": "PRIVATE_PLAN_TOKEN", "GCP_SMOKE_SERVICE_ACCOUNT": service_account or f"terraform-dev-plan@{project}.iam.gserviceaccount.com",
+                   "QUOTA_IDENTITY_REQUIRED": "true", "EXPORT_TOPIC_IDENTITY_REQUIRED": "true",
+                   "EXPORT_SCHEDULER_IDENTITY_REQUIRED": "true", "EXPORT_FUNCTION_IDENTITY_REQUIRED": "true"}
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with patch.dict(os.environ, env, clear=True), patch.object(smoke.urllib.request, "urlopen", side_effect=urlopen), \
+                    patch.object(smoke, "aws", side_effect=aws), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                rc = smoke.main(list(args))
+            summary_file = Path(env["GITHUB_STEP_SUMMARY"])
+            summary = summary_file.read_text() if summary_file.exists() else ""
+            return rc, http_calls, aws_calls, summary, stdout.getvalue() + stderr.getvalue()
+
+    def test_plan_cli_exact_dev_read_allowlist_even_if_omitted_probes_would_succeed(self):
+        rc, http, aws, summary, output = self.run_smoke()
+        self.assertEqual(rc, 0, output)
+        self.assertEqual([call[:2] for call in aws], [("sts", "get-caller-identity"), ("s3api", "get-object")])
+        self.assertEqual(aws[1][aws[1].index("--key") + 1], "youtube-study-space/dev/terraform.tfstate")
+        self.assertEqual([(method, url.split("googleapis.com/")[-1]) for method, url, _ in http[1:]], [
+            ("GET", "v3/projects/test-youtube-study-space"),
+            ("POST", "v3/projects/test-youtube-study-space:testIamPermissions"),
+            ("POST", "v3/projects/test-youtube-study-space:testIamPermissions"),
+            ("POST", "v3/projects/test-youtube-study-space:testIamPermissions"),
+            ("GET", "v1/projects/test-youtube-study-space/locations/asia-southeast2/functions/firestoreCollectionsExport"),
+        ])
+        self.assertEqual(http[0][0], "GET")
+        self.assertNotIn("PRIVATE", summary + output)
+
+    def test_omissions_are_skipped_and_never_reported_as_deny_pass(self):
+        rc, _, _, summary, output = self.run_smoke()
+        self.assertEqual(rc, 0)
+        skipped = [line for line in summary.splitlines() if line.startswith("- SKIPPED")]
+        self.assertEqual(len(skipped), 5)
+        self.assertIn("Full security gate: NOT VERIFIED", summary)
+        self.assertIn("full security gate: NOT VERIFIED", output)
+        for line in summary.splitlines():
+            if line.startswith("- PASS"):
+                for omitted in ("AssumeRole", "generateAccessToken", "PutObject", "production", "other-product", "impersonation"):
+                    self.assertNotIn(omitted, line)
+
+    def test_read_only_plan_still_rejects_dev_mutation_grants_and_missing_reads(self):
+        for permission in ("bigquery.jobs.create", "bigquery.tables.getData", "bigquery.tables.update", "iam.serviceAccounts.getAccessToken"):
+            with self.subTest(extra=permission):
+                rc, _, _, _, output = self.run_smoke(extra_permissions=(permission,))
+                self.assertEqual(rc, 1)
+                self.assertNotIn("PRIVATE", output)
+        for permission in ("monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"):
+            with self.subTest(missing=permission):
+                self.assertEqual(self.run_smoke(missing_permission=permission)[0], 1)
+
+    def test_wrong_sha_identity_state_or_dependency_error_fails_closed(self):
+        project = "test-youtube-study-space"
+        cases = [{"claims_override": {"workflow_sha": "b" * 40}}, {"claims_override": {"environment": "terraform-dev-apply"}},
+                 {"account": "WRONG_ACCOUNT"}, {"state_key": "youtube-study-space/prod/terraform.tfstate"},
+                 {"service_account": f"terraform-dev-apply@{project}.iam.gserviceaccount.com"},
+                 *[{"fail_read": name} for name in ("project", "function", "state")]]
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                rc, http, aws, _, output = self.run_smoke(**overrides)
+                self.assertEqual(rc, 1)
+                self.assertNotIn("PRIVATE", output)
+                self.assertTrue(all(call[:2] in (("sts", "get-caller-identity"), ("s3api", "get-object")) for call in aws))
+                self.assertFalse(any("generateAccessToken" in url or "/projects/youtube-study-space" in url for _, url, _ in http))
+
+    def test_legacy_default_keeps_all_existing_security_probes_and_reports_actual_denials(self):
+        rc, http, aws, summary, output = self.run_smoke(args=(), legacy_denials=True)
+        self.assertEqual(rc, 0, output)
+        operations = [call[:2] for call in aws]
+        self.assertEqual(operations.count(("sts", "assume-role-with-web-identity")), 1)
+        self.assertEqual(operations.count(("s3api", "put-object")), 1)
+        self.assertEqual(operations.count(("s3api", "list-objects-v2")), 2)
+        self.assertEqual(operations.count(("s3api", "head-object")), 2)
+        self.assertEqual(sum("generateAccessToken" in url for _, url, _ in http), 1)
+        self.assertEqual(sum("/projects/youtube-study-space:" in url for _, url, _ in http), 3)
+        self.assertIn("PASS: AWS plan state PutObject denied", summary)
+        self.assertNotIn("SKIPPED", summary)
+        self.assertNotIn("PRIVATE", summary + output)
+        self.assertEqual(self.run_smoke(args=())[0], 1)
+
+    def test_invalid_read_only_cli_does_not_fall_back_to_legacy(self):
+        rc, http, aws, summary, _ = self.run_smoke(args=("plan-read-only", "apply"))
+        self.assertEqual((rc, http, aws, summary), (1, [], [], ""))
+
+    def test_read_only_helpers_reject_apply_identity_before_any_request(self):
+        from unittest.mock import Mock
+        account = "terraform-dev-apply@fixture.iam.gserviceaccount.com"
+        request = Mock()
+        for operation in (
+            lambda: smoke.verify_google("PRIVATE_TOKEN", account, request, project="fixture", plan_read_only=True),
+            lambda: smoke.verify_quota_google("PRIVATE_TOKEN", account, request, project="fixture", identity="apply", plan_read_only=True),
+            lambda: smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request, project="fixture", plan_read_only=True),
+        ):
+            with self.assertRaises(smoke.SmokeFailure): operation()
+        request.assert_not_called()
 
 
 if __name__ == "__main__":
