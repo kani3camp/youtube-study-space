@@ -15,12 +15,21 @@ variable "user_activity_history_field_order" {
   default     = []
 }
 
+variable "user_activity_history_field_descriptions" {
+  description = "Existing column descriptions keyed by canonical field path, supplied only through private metadata inputs."
+  type        = map(string)
+  sensitive   = true
+  nullable    = false
+  default     = {}
+}
+
 module "user_activity_history" {
-  count       = var.manage_user_activity_history ? 1 : 0
-  source      = "../../modules/retained-user-activity-history"
-  project_id  = var.project_id
-  dataset_id  = module.firestore_export_dataset.dataset_id
-  field_order = var.user_activity_history_field_order
+  count              = var.manage_user_activity_history ? 1 : 0
+  source             = "../../modules/retained-user-activity-history"
+  project_id         = var.project_id
+  dataset_id         = module.firestore_export_dataset.dataset_id
+  field_order        = var.user_activity_history_field_order
+  field_descriptions = var.user_activity_history_field_descriptions
 }
 
 import {

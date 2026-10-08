@@ -80,9 +80,10 @@ def main():
                 raise ValueError("Private runner directory required")
             metadata = private_json(str(directory / f"user-history-{args.phase}.json"))
             inputs = private_json(str(directory / f"user-history-{args.phase}.tfvars.json"))
-            if (type(inputs) is not dict or set(inputs) != {"user_activity_history_field_order"}
-                    or inputs["user_activity_history_field_order"] != prepare(metadata)["user_activity_history_field_order"]):
-                raise ValueError("Fresh history field order required")
+            expected_inputs = {key: value for key, value in prepare(metadata).items()
+                               if key != "manage_user_activity_history"}
+            if type(inputs) is not dict or inputs != expected_inputs:
+                raise ValueError("Fresh history field order and descriptions required")
             validate_history(plan, metadata=metadata, phase=args.phase, allow_adopted=True,
                              execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
             summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)

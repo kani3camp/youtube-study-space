@@ -39,7 +39,8 @@ runtimeのtemporary trust/bindings/inputs撤回とSA disableはoperatorのreadba
 現状9列を正確に定義してno-op importする案は技術的に別案ですが、環境別timestamp許容と
 module/ownership方針の変更が必要で、現在の合意とは異なります。schema ignoreが必須な案では
 ありませんが、ignoreでdriftを隠す案も採用しません。このPRでは9列案を実装しません。
-[module](../modules/retained-user-activity-history/main.tf)とdevelopment adoption gateは変更しません。
+[module](../modules/retained-user-activity-history/main.tf)のcanonical8列構造とdevelopment adoption gateを
+維持し、既存列descriptionはprivate metadataから保持します。
 
 ## Offline preparation
 
@@ -47,9 +48,11 @@ module/ownership方針の変更が必要で、現在の合意とは異なりま�
 [development history readiness](development-history-ready-packet.md)へ集約します。
 
 [prepare_user_activity_history_adoption.py](../scripts/prepare_user_activity_history_adoption.py) は
-cloud clientを持たず、privateなcomplete `tables.get` metadataから既存canonical列順だけを
-準備します。legacy/unknown/missing/duplicate field、nested mode/type/orderの差、未表現の
-description/policy tagやtable設定を拒否します。canonical8列でも出力の
+cloud clientを持たず、privateなcomplete `tables.get` metadataから既存canonical列順と
+列descriptionを準備します。非空descriptionはtop-levelと`__key__`のnested field pathを
+keyとするprivate mapへ文字列をそのまま保持します。空descriptionと省略は同じ扱いです。
+legacy/unknown/missing/duplicate field、nested mode/type/orderの差、未知のfield属性、
+policy tagや未表現のtable設定を拒否します。canonical8列でも出力の
 `manage_user_activity_history`はfalseです。metadataの取得元・freshness・caller/trust・
 consumer・runtime deployment・完全なprovider no-opはoffline helperでは証明できません。
 

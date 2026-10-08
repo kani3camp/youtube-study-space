@@ -630,6 +630,7 @@ jobs:
           python3 .github/scripts/test_export_scheduler.py
           python3 .github/scripts/test_export_function.py
           python3 .github/scripts/test_notification_channels.py
+          python3 .github/scripts/test_user_activity_history.py
 
       - name: Verify multi-platform provider locks are complete
         run: |

@@ -41,16 +41,16 @@ def prepare_workflow(env: dict[str, str], *, phase: str, request=google) -> None
     directory = Path(env["RUNNER_TEMP"])
     require(directory.is_absolute())
     if phase == "post":
-        # State-only adoption must not silently accept a concurrent field-order
-        # change by feeding a different new order to the post-plan.
+        # State-only adoption must not silently accept concurrent field-order
+        # or description changes by feeding different inputs to the post-plan.
         require(candidate == prepare(private_json(str(directory / "user-history-before.json"))))
     created = []
     try:
-        # Runner step env headers are public. Keep the real order and paths out
-        # of GITHUB_ENV entirely; later consumers use these fixed private files.
+        # Runner step env headers are public. Keep order, descriptions and paths
+        # out of GITHUB_ENV entirely; consumers use these fixed private files.
         payloads = ((f"user-history-{phase}.json", metadata),
                     (f"user-history-{phase}.tfvars.json", {
-                        "user_activity_history_field_order": candidate["user_activity_history_field_order"]}))
+                        key: value for key, value in candidate.items() if key != "manage_user_activity_history"}))
         for name, payload in payloads:
             target = directory / name
             fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

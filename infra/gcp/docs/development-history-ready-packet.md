@@ -102,7 +102,7 @@ build/image、全family window、既存権限、cost、old digest保持とrollba
 [validate_user_activity_history_plan.py](../scripts/validate_user_activity_history_plan.py) は
 cloud clientを持たず、private canonical metadataとcomplete full-root plan JSONを検査する。
 既存11resourceは既存Function post契約を再利用し、new tableだけを加えた12resourceを要求する。
-import1/other0とpost import0/no-op12、exact table/provider、canonical8/nested/実列順、
+import1/other0とpost import0/no-op12、exact table/provider、canonical8/nested/実列順/列description一致、
 deletion protection、unknown/drift/追加import/output変化を検査する。
 Terraform 1.16.4の[JSON plan定義](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/command/jsonplan/plan.go#L67)
 はresource変更と別にaction_invocations/deferred_action_invocationsを持つため、両方とも
@@ -138,14 +138,21 @@ activationしたprotected runでのみ、既発行tokenによるexact dev table�
 initial plan、apply jobのsame-SHA re-plan前、saved apply後の計3回です。query、getData、token minting、
 追加grant、retryは行いません。GETが403ならSTOPし、permissionを自動拡張しません。
 公開へはcanonical metadata digestのみ渡し、metadataはrunner tempの0600 fileだけに保存してalways cleanupします。
-列順とprivate file pathはGITHUB_ENVへ書きません。runnerの公開step env headerを考慮し、
+列順・列descriptionとprivate file pathはGITHUB_ENVへ書きません。runnerの公開step env headerを考慮し、
 固定名の0600 metadata/tfvarsを後続stepが直接読みます。Terraformは
 [private var-file](https://developer.hashicorp.com/terraform/language/values/variables#variable-definition-files)を使い、
-raw metadata・実列順・user counts・field valuesをenv header/Summary/artifactへ渡しません。
+raw metadata・実列順・列description・user counts・field valuesをenv header/Summary/artifactへ渡しません。
 
 helperはlegacy列を除外せず、元のcanonical preparationを再利用してexact8/nested/modes/configを検査します。
-plan stageのdigestをapply jobのfresh metadataと照合し、列順の変更・欠損digestでSTOPします。
-postではbefore metadataとの同一列順も要求します。metadataやdigestはcurrent legacy値の安全性、
+既存列descriptionはtop-level/nestedのcanonical field pathからsensitive module入力へ保持します。
+plan stageのdigestは列順とdescription mapを含み、apply jobのfresh metadataと照合して
+変更・欠損digestでSTOPします。postでもbefore metadataとの同一列順・descriptionを要求し、
+protected validatorはprivate tfvarsのkey/value全体をfresh metadataの候補と完全一致で検査します。
+planのbefore/after schemaもdescriptionを含めてfresh metadataと比較します。
+入力はsensitiveですが、resource schemaは既存provider importと同じ非sensitive markを
+保持してsensitivityだけのupdateを防ぎます。raw plan/state/logは従来のprivate経路にのみ保存し、
+public CIは合成dummy descriptionのみで検証します。
+metadataやdigestはcurrent legacy値の安全性、
 consumer、complete row-policy list、recovery、実行承認の証明ではありません。
 
 [protected plan入口](../../../.github/scripts/terraform_protected_plan.py)はhistory flag=trueの場合だけ
