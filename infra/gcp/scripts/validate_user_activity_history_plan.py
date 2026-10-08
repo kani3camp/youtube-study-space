@@ -69,6 +69,7 @@ def validate(plan: object, *, metadata: object, phase: str, execution_email: str
     fields = json.loads(value["schema"], object_pairs_hook=unique_object)
     require(type(fields) is list)
     actual = [normalize_field(field) for field in fields]
+    # Keep column descriptions in this comparison, including nested fields.
     require([field["name"] for field in actual] == order and actual == expected_schema)
     for key in ("description", "friendly_name", "labels", "effective_labels", "terraform_labels", "resource_tags",
                 "time_partitioning", "range_partitioning", "clustering", "expiration_time", "encryption_configuration",

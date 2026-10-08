@@ -26,6 +26,16 @@ adoption_spec = importlib.util.spec_from_file_location("user_activity_adoption",
 adoption_module = importlib.util.module_from_spec(adoption_spec)
 adoption_spec.loader.exec_module(adoption_module)
 
+DUMMY_DESCRIPTIONS = {
+    "is_member_seat": 'Synthetic membership description: "dummy"\n  公開用説明  ',
+    "__key__": "Synthetic record description",
+    "__key__.path": "Synthetic nested path description",
+}
+DUMMY_DESCRIPTION_PUBLIC_PATTERNS = tuple(
+    pattern for description in DUMMY_DESCRIPTIONS.values()
+    for pattern in (description, json.dumps(description)[1:-1], json.dumps(description, ensure_ascii=False)[1:-1])
+)
+
 
 def audit_fixture() -> dict:
     return {
@@ -356,12 +366,27 @@ class SchemaAuditSummaryTest(unittest.TestCase):
 
 
 class UserActivityAdoptionPreparationTest(unittest.TestCase):
-    def metadata(self) -> dict:
-        return {
+    def metadata(self, descriptions: bool = False) -> dict:
+        result = {
             "tableReference": dict(adoption_module.REFERENCE),
             "type": "TABLE", "location": adoption_module.LOCATION,
             "schema": {"fields": json.loads(adoption_module.SCHEMA.read_text())},
         }
+        if descriptions:
+            fields = result["schema"]["fields"]
+            fields[4]["description"] = DUMMY_DESCRIPTIONS["is_member_seat"]
+            fields[5]["description"] = DUMMY_DESCRIPTIONS["__key__"]
+            fields[5]["fields"][2]["description"] = DUMMY_DESCRIPTIONS["__key__.path"]
+        return result
+
+    def test_top_level_record_and_nested_descriptions_are_preserved_verbatim(self) -> None:
+        metadata = self.metadata(descriptions=True)
+        original = copy.deepcopy(metadata)
+        result = adoption_module.prepare(metadata)
+        self.assertEqual(result["user_activity_history_field_descriptions"], DUMMY_DESCRIPTIONS)
+        self.assertIs(result["manage_user_activity_history"], False)
+        self.assertEqual(metadata, original)
+        self.assertEqual(adoption_module.prepare(self.metadata())["user_activity_history_field_descriptions"], {})
 
     def test_observed_order_is_preserved_without_enabling_adoption(self) -> None:
         metadata = self.metadata()
@@ -397,13 +422,26 @@ class UserActivityAdoptionPreparationTest(unittest.TestCase):
             lambda fields: fields[0].update(mode="REQUIRED"),
             lambda fields: fields[5]["fields"].reverse(),
             lambda fields: fields[5]["fields"][0].update(mode="REQUIRED"),
-            lambda fields: fields[0].update(description="synthetic-private-description"),
+            lambda fields: fields[0].update(description=None),
             lambda fields: fields[0].update(policyTags={"names": ["synthetic-private-policy"]}),
         ):
             metadata = self.metadata()
             change(metadata["schema"]["fields"])
             with self.assertRaises(ValueError):
                 adoption_module.prepare(metadata)
+
+    def test_descriptions_do_not_relax_field_structure_or_unknown_attributes(self) -> None:
+        for nested in (False, True):
+            for key, value in (("description", None), ("description", False), ("description", 42),
+                               ("description", []), ("description", {}), ("mode", "REQUIRED"),
+                               ("type", "BYTES"), ("name", "unknown"), ("unknown", "dummy"),
+                               ("policyTags", {"names": ["synthetic-policy"]}),
+                               ("defaultValueExpression", "dummy"), ("maxLength", "123")):
+                metadata = self.metadata(descriptions=True)
+                field = metadata["schema"]["fields"][5]["fields"][0] if nested else metadata["schema"]["fields"][0]
+                field[key] = value
+                with self.subTest(nested=nested, key=key, value=value), self.assertRaises(ValueError):
+                    adoption_module.prepare(metadata)
 
     def test_equivalent_api_aliases_and_nullable_defaults_are_accepted(self) -> None:
         metadata = self.metadata()
@@ -443,12 +481,15 @@ class UserActivityAdoptionPreparationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, output = root / "private.json", root / "candidate.tfvars.json"
-            source.write_text(json.dumps(self.metadata()))
+            source.write_text(json.dumps(self.metadata(descriptions=True)))
             source.chmod(0o600)
             result = self.run_cli(source, output)
             self.assertEqual(result.returncode, 0)
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
             self.assertIs(json.loads(output.read_text())["manage_user_activity_history"], False)
+            self.assertEqual(json.loads(output.read_text())["user_activity_history_field_descriptions"], DUMMY_DESCRIPTIONS)
+            for description in DUMMY_DESCRIPTION_PUBLIC_PATTERNS:
+                self.assertNotIn(description, result.stdout + result.stderr)
             before = output.read_bytes()
             self.assertNotEqual(self.run_cli(source, output).returncode, 0)
             self.assertEqual(output.read_bytes(), before)
@@ -490,7 +531,7 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
     def fixture(self, importing: bool = True) -> tuple[dict, dict]:
         from test_terraform_export_function_gate import fixture, EMAIL
         self.email = EMAIL
-        metadata = UserActivityAdoptionPreparationTest().metadata()
+        metadata = UserActivityAdoptionPreparationTest().metadata(descriptions=True)
         fields = metadata["schema"]["fields"]
         # A valid alternate live top-level order must be preserved, not sorted.
         fields[0], fields[1] = fields[1], fields[0]
@@ -518,6 +559,33 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
         plan, metadata = self.fixture()
         with self.assertRaises(ValueError):
             self.review(plan, metadata, "post")
+
+    def test_description_changes_are_rejected_even_with_matching_before_after_noop(self) -> None:
+        for phase, importing in (("before", True), ("post", False)):
+            for index, nested in ((4, False), (5, False), (5, True)):
+                for replacement in (None, "", "Synthetic changed description", 123):
+                    plan, metadata = self.fixture(importing)
+                    for side in ("before", "after"):
+                        value = plan["resource_changes"][-1]["change"][side]
+                        fields = json.loads(value["schema"])
+                        field = fields[index]["fields"][2] if nested else fields[index]
+                        if replacement is None:
+                            del field["description"]
+                        else:
+                            field["description"] = replacement
+                        value["schema"] = json.dumps(fields)
+                    with self.subTest(phase=phase, index=index, nested=nested, replacement=replacement), self.assertRaises(ValueError):
+                        self.review(plan, metadata, phase)
+
+    def test_observed_import_plus_description_removal_update_is_rejected(self) -> None:
+        plan, metadata = self.fixture()
+        value = plan["resource_changes"][-1]["change"]["after"]
+        fields = json.loads(value["schema"])
+        del fields[4]["description"]
+        value["schema"] = json.dumps(fields)
+        plan["resource_changes"][-1]["change"]["actions"] = ["update"]
+        with self.assertRaises(ValueError):
+            self.review(plan, metadata)
 
     def test_graph_import_identity_and_planning_uncertainty_fail_closed(self) -> None:
         mutations = (
@@ -636,7 +704,7 @@ class UserActivityHistoryPlanTest(unittest.TestCase):
                 env = dict(os.environ, TF_VAR_export_function_execution_service_account_email="" if failure == "no-identity" else self.email)
                 result = subprocess.run(args, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0 if failure is None else 3)
-                for secret in (self.email, str(root), "synthetic-private-value", self.gate.TABLE_ID):
+                for secret in (self.email, str(root), "synthetic-private-value", self.gate.TABLE_ID, *DUMMY_DESCRIPTION_PUBLIC_PATTERNS):
                     self.assertNotIn(secret, result.stdout + result.stderr)
                 if failure is None:
                     self.assertIn("Execution remains unapproved", result.stdout)
@@ -684,7 +752,8 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
                     inputs = Path(directory) / f"user-history-{phase}.tfvars.json"
                     self.assertEqual(inputs.stat().st_mode & 0o777, 0o600)
                     self.assertEqual(adoption_module.private_json(str(inputs)), {
-                        "user_activity_history_field_order": [field["name"] for field in metadata["schema"]["fields"]]})
+                        "user_activity_history_field_order": [field["name"] for field in metadata["schema"]["fields"]],
+                        "user_activity_history_field_descriptions": DUMMY_DESCRIPTIONS})
             finally:
                 os.umask(old_umask)
             self.assertEqual(calls, [(self.preparation.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], "bigquery.googleapis.com")] * 2)
@@ -710,7 +779,8 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             self.assertRegex(Path(env["GITHUB_OUTPUT"]).read_text(), r"^history_metadata_digest=[a-f0-9]{64}\n$")
             order = [field["name"] for field in metadata["schema"]["fields"]]
             for private in (directory, "user-history-before.json", "user-history-before.tfvars.json",
-                            json.dumps(order), json.dumps(order, separators=(",", ":")), env["GCP_SMOKE_ACCESS_TOKEN"]):
+                            json.dumps(order), json.dumps(order, separators=(",", ":")), env["GCP_SMOKE_ACCESS_TOKEN"],
+                            *DUMMY_DESCRIPTION_PUBLIC_PATTERNS):
                 self.assertNotIn(private, public)
             # Metadata preparation does not depend on a GITHUB_ENV channel.
             env.pop("GITHUB_ENV")
@@ -742,6 +812,32 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             self.preparation.prepare_workflow(apply_env, phase="before", request=request)
             self.assertEqual(Path(apply_env["GITHUB_OUTPUT"]).read_text(), f"history_metadata_digest={digest}\n")
             self.assertEqual(request.call_count, 2)
+
+    def test_description_changes_stop_apply_replan_and_post_before_writing_candidates(self):
+        import hashlib
+        from unittest.mock import Mock
+        for phase in ("before", "post"):
+            for nested in (False, True):
+                _, metadata = self.fixture_source.fixture()
+                with self.subTest(phase=phase, nested=nested), tempfile.TemporaryDirectory() as directory:
+                    env = self.env(directory)
+                    env["HISTORY_STAGE"] = "apply"
+                    before = Path(directory) / "user-history-before.json"
+                    before.write_text(json.dumps(metadata)); before.chmod(0o600)
+                    env["HISTORY_APPROVED_METADATA_DIGEST"] = hashlib.sha256(json.dumps(
+                        adoption_module.prepare(metadata), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                    field = metadata["schema"]["fields"][5]["fields"][2] if nested else metadata["schema"]["fields"][4]
+                    field["description"] = "Synthetic changed description"
+                    if phase == "post":
+                        # Even a matching fresh digest cannot hide a change since before.
+                        env["HISTORY_APPROVED_METADATA_DIGEST"] = hashlib.sha256(json.dumps(
+                            adoption_module.prepare(metadata), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                    request = Mock(return_value=(200, metadata))
+                    with self.assertRaises(ValueError):
+                        self.preparation.prepare_workflow(env, phase=phase, request=request)
+                    self.assertEqual(request.call_count, 1)
+                    self.assertFalse((Path(directory) / f"user-history-{phase}.tfvars.json").exists())
+                    self.assertEqual(Path(env["GITHUB_OUTPUT"]).read_text(), "")
 
     def test_noncanonical_denied_changed_order_or_existing_output_stop_without_retry(self):
         from unittest.mock import Mock
@@ -787,8 +883,14 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             path = Path(directory) / f"user-history-{phase}.json"
             path.write_text(json.dumps(metadata)); path.chmod(0o600)
             inputs_path = Path(directory) / f"user-history-{phase}.tfvars.json"
-            inputs_path.write_text(json.dumps({"user_activity_history_field_order": overrides.pop(
-                "field_order_override", [f["name"] for f in metadata["schema"]["fields"]])})); inputs_path.chmod(0o600)
+            inputs = {key: value for key, value in adoption_module.prepare(metadata).items()
+                      if key != "manage_user_activity_history"}
+            inputs["user_activity_history_field_order"] = overrides.pop("field_order_override", inputs["user_activity_history_field_order"])
+            if overrides.pop("missing_descriptions", False):
+                del inputs["user_activity_history_field_descriptions"]
+            if "descriptions_override" in overrides:
+                inputs["user_activity_history_field_descriptions"] = overrides.pop("descriptions_override")
+            inputs_path.write_text(json.dumps(inputs)); inputs_path.chmod(0o600)
             env = {"TF_VAR_manage_user_activity_history": "true", "TF_VAR_manage_export_function": "true",
                    "TF_VAR_manage_export_scheduler": "true", "TF_VAR_manage_export_topic": "true",
                    "TF_VAR_export_function_execution_service_account_email": self.fixture_source.email,
@@ -811,7 +913,8 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             public = stdout.getvalue() + stderr.getvalue()
             for output in outputs:
                 if output.exists(): public += output.read_text()
-            for private in (str(path), "synthetic-private-token", self.fixture_source.email, self.fixture_source.gate.TABLE_ID):
+            for private in (str(path), "synthetic-private-token", self.fixture_source.email, self.fixture_source.gate.TABLE_ID,
+                            *DUMMY_DESCRIPTION_PUBLIC_PATTERNS):
                 self.assertNotIn(private, public)
             return rc, json.loads(outputs[0].read_text()) if outputs[0].exists() else None
 
@@ -831,6 +934,10 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
                          {"TF_VAR_manage_export_function": "false"}, {"TF_VAR_manage_export_topic": "false"},
                          {"TF_VAR_export_function_execution_service_account_email": ""}, {"exposed_metadata": True},
                          {"field_order_override": []}, {"exposed_tfvars": True}, {"unexpected_tfvars": True}, {"environment": "prod"},
+                         {"missing_descriptions": True}, {"descriptions_override": {}},
+                         {"descriptions_override": {"unknown": "Synthetic changed description"}},
+                         {"descriptions_override": {**DUMMY_DESCRIPTIONS, "is_member_seat": "Synthetic changed description"}},
+                         {"descriptions_override": {**DUMMY_DESCRIPTIONS, "__key__.path": "Synthetic changed description"}},
                          *[{"operation": operation} for operation in ("email-adoption", "quota-create", "quota-refresh", "quota-plan")]):
             with self.subTest(override=override):
                 plan, metadata = self.fixture_source.fixture()

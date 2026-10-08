@@ -40,14 +40,35 @@ def normalize_field(field: object) -> dict:
     require(type(field) is dict)
     require({"name", "type"} <= set(field) <= {"name", "type", "mode", "fields", "description"})
     require(type(field["name"]) is str and type(field["type"]) is str)
-    require(field.get("description", "") == "")
+    description = field.get("description", "")
+    require(type(description) is str)
     mode = field.get("mode", "NULLABLE")
     require(type(mode) is str)
     result = {"name": field["name"], "type": ALIASES.get(field["type"], field["type"]), "mode": mode}
+    if description:
+        result["description"] = description
     if "fields" in field:
         require(type(field["fields"]) is list)
         if field["fields"]:
             result["fields"] = [normalize_field(child) for child in field["fields"]]
+    return result
+
+
+def field_structure(field: dict) -> dict:
+    """Exclude only the explicitly represented annotation for canonical checks."""
+    result = {key: value for key, value in field.items() if key not in {"description", "fields"}}
+    if "fields" in field:
+        result["fields"] = [field_structure(child) for child in field["fields"]]
+    return result
+
+
+def field_descriptions(fields: list[dict], prefix: str = "") -> dict[str, str]:
+    result = {}
+    for field in fields:
+        path = prefix + field["name"]
+        if "description" in field:
+            result[path] = field["description"]
+        result.update(field_descriptions(field.get("fields", []), path + "."))
     return result
 
 
@@ -66,7 +87,7 @@ def prepare(metadata: object) -> dict:
     names = [field["name"] for field in actual]
     # Never silently strip timestamp, guess a field order, or relax nested modes.
     require(len(names) == len(expected) and set(names) == set(expected_by_name))
-    require(all(field == expected_by_name[field["name"]] for field in actual))
+    require(all(field_structure(field) == expected_by_name[field["name"]] for field in actual))
     for key in ("description", "friendlyName", "maxStaleness"):
         require(metadata.get(key, "") == "")
     for key in ("labels", "resourceTags"):
@@ -78,7 +99,8 @@ def prepare(metadata: object) -> dict:
     ):
         require(metadata.get(key) is None)
     require(metadata.get("requirePartitionFilter", False) is False)
-    return {"manage_user_activity_history": False, "user_activity_history_field_order": names}
+    return {"manage_user_activity_history": False, "user_activity_history_field_order": names,
+            "user_activity_history_field_descriptions": field_descriptions(actual)}
 
 
 def private_json(path: str) -> object:
