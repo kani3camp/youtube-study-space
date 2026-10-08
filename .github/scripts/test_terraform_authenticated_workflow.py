@@ -132,9 +132,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
         self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
 
-    def test_history_preparation_is_default_off_and_requires_complete_dev_baseline(self):
-        self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "false"', self.text)
-        self.assertIn("manage_user_activity_history=false", self.run_preflight().outputs)
+    def test_history_plan_only_activation_requires_complete_dev_baseline(self):
+        self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"', self.text)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
         gates = {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true", "DEV_QUOTA_MANAGED_ENABLED": "true"}
         enabled = self.run_preflight(**gates)
         self.assertEqual(enabled.returncode, 0)
@@ -239,16 +239,44 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn('-refresh-only', post)
         self.assertIn("inputs.mode == 'quota-refresh'", self.text.split('  apply:', 1)[1])
 
-    def test_enabled_development_apply_still_requires_trusted_surface(self) -> None:
-        enabled = re.search(r'DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "(true|false)"', self.text).group(1)
-        self.assertEqual(self.run_preflight(MODE="apply", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=enabled).returncode, 0)
+    def test_source_history_activation_permits_only_protected_plan(self) -> None:
+        gates = dict(re.findall(r'(?m)^  ([A-Z_]+): "(true|false)"$', self.text))
+        self.assertEqual(gates["DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED"], "true")
+        self.assertEqual(gates["DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED"], "false")
+        result = self.run_preflight(**gates)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("manage_user_activity_history=true", result.outputs)
+        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan"):
+            with self.subTest(mode=mode):
+                rejected = self.run_preflight(MODE=mode, **gates)
+                self.assertNotEqual(rejected.returncode, 0)
+                if mode != "quota-plan":
+                    self.assertIn("Development apply is disabled", rejected.stdout)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
             "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
             "TARGET": "prod", "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
         }.items():
             with self.subTest(key=key):
-                self.assertNotEqual(self.run_preflight(MODE="apply", DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=enabled, **{key: value}).returncode, 0)
+                self.assertNotEqual(self.run_preflight(**(gates | {key: value})).returncode, 0)
+
+    def test_only_plan_dispatch_uses_read_only_smoke_and_other_modes_keep_legacy_checks(self):
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        step = plan.split("      - name: Verify development identity boundaries without public identifiers\n", 1)[1].split("      - name: ", 1)[0]
+        self.assertIn("MODE: ${{ inputs.mode }}", step)
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = Path(directory) / "python3"
+            recorder.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+            recorder.chmod(0o700)
+            for mode in ("plan", "apply", "email-adoption", "quota-plan", "quota-create", "quota-refresh"):
+                with self.subTest(mode=mode):
+                    result = subprocess.run(["bash", "-c", script], env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode},
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py"] + (["plan-read-only"] if mode == "plan" else []))
+        apply = self.text.split("  apply:\n", 1)[1]
+        self.assertNotIn("plan-read-only", apply)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {

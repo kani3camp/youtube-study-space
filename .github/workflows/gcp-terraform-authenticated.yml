@@ -41,7 +41,7 @@ env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
-  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
@@ -57,8 +57,8 @@ env:
   DEV_EXPORT_SCHEDULER_MANAGED_ENABLED: "true"
   # Issue #1162 comment6005988785: Function GET1, exact import1 + existing10 no-op only.
   DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
-  # Source preparation only. Canonical repair and explicit import approval precede activation.
-  DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "false"
+  # Protected plan only after canonical repair; actual import/apply needs separate approval.
+  DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
 
 jobs:
   preflight:
@@ -341,7 +341,14 @@ jobs:
           STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
           BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
           STATE_KEY: ${{ needs.preflight.outputs.state_key }}
-        run: python3 .github/scripts/terraform_identity_smoke.py
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "${MODE}" == "plan" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py plan-read-only
+          else
+            python3 .github/scripts/terraform_identity_smoke.py
+          fi
 
       - name: Read canonical history metadata privately
         id: history_metadata
