@@ -33,6 +33,38 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             root = GITHUB_DIR.parent / "infra/gcp/environments" / env
             self.assertIn("sensitive = true", (root / "notification-channels.tf").read_text())
 
+    def test_single_history_plan_cost_and_baseline_precede_all_native_lock_operations(self):
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        ordered = ["Bound the single history plan cost", "Configure AWS backend credential", "Configure GCP provider credential",
+                   "Verify development identity", "Read canonical history metadata privately", "Bind the private history plan baseline",
+                   "Initialize remote backend", "Create saved plan", "Sanitize and enforce", "Verify private history plan invariants", "Cleanup sensitive"]
+        positions = [plan.index(name) for name in ordered]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn('AWS_MAX_ATTEMPTS: "1"', plan)
+        self.assertIn('AWS_RETRY_MODE: standard', plan)
+        self.assertIn('retry-max-attempts: 1', plan)
+        self.assertIn('max_retries         = 1', plan)
+        self.assertIn('-lock-timeout=0s', plan)
+        self.assertIn("PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}", plan)
+        self.assertIn("plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}", self.caller)
+        self.assertIn("!(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true)", self.caller)
+        self.assertNotIn("continue-on-error", plan)
+        self.assertNotIn("force-unlock", plan)
+
+    def test_history_post_receipt_runs_on_failed_init_plan_or_validation_before_private_cleanup(self):
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        post = plan.split("      - name: Verify private history plan invariants", 1)[1].split("      - name: Cleanup sensitive", 1)[0]
+        self.assertIn("if: ${{ always() && steps.history_plan_before.outcome == 'success' }}", post)
+        self.assertIn("steps.plan_gcp_auth.outputs.access_token", post)
+        self.assertIn("--phase after", post)
+        for phase in ("plan", "sanitize", "backend_init"):
+            self.assertNotIn(f"steps.{phase}.outcome == 'success'", post)
+        cleanup = plan.split("      - name: Cleanup sensitive temporary files", 1)[1]
+        self.assertIn("if: always()", cleanup)
+        for name in ("cost", "state-before", "state-after", "state-before-receipt", "before", "table-after", "after"):
+            self.assertIn(f'"${{RUNNER_TEMP}}/history-plan-{name}.json"', cleanup)
+        self.assertIn("test_terraform_history_plan_receipt.py", self.caller)
+
     def test_job_level_env_does_not_use_unavailable_env_context(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
             env_block = job.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]

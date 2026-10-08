@@ -34,13 +34,18 @@ on:
         required: false
         default: false
         type: boolean
+      terraform_plan_cost_evidence:
+        description: Nonsecret owner-reviewed cost bounds for the single development history plan
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true) }}
 
 jobs:
   changes:
@@ -596,6 +601,7 @@ jobs:
           python3 .github/scripts/test_terraform_plan_summary.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
+          python3 .github/scripts/test_terraform_history_plan_receipt.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
@@ -667,6 +673,7 @@ jobs:
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
+      plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit

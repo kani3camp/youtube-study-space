@@ -11,6 +11,11 @@ on:
         description: Import-only plan/apply or separately approved Email adoption
         required: true
         type: string
+      plan_cost_evidence:
+        description: Nonsecret owner-reviewed bounds for one development history plan
+        required: false
+        default: ""
+        type: string
     # Explicit names allow Environment secret resolution in called jobs without
     # inheriting unrelated repository secrets. Values come from each job's gate.
     secrets:
@@ -217,6 +222,12 @@ jobs:
       summary_digest: ${{ steps.sanitize.outputs.summary_digest }}
       history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}
     env:
+      MODE: ${{ inputs.mode }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_WORKSPACE: default
@@ -267,6 +278,12 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
+      - name: Bound the single history plan cost before authentication or locks
+        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase policy
+
       - name: Configure AWS backend credential
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -274,6 +291,7 @@ jobs:
           aws-region: ${{ env.STATE_AWS_REGION }}
           mask-aws-account-id: true
           unset-current-credentials: true
+          retry-max-attempts: 1
 
       - name: Create private backend config
         shell: bash
@@ -293,26 +311,10 @@ jobs:
           region              = "${STATE_AWS_REGION}"
           encrypt             = true
           use_lockfile        = true
+          max_retries         = 1
           workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
           allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
           EOF
-
-      - name: Initialize remote backend without public output
-        shell: bash
-        env:
-          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
-        run: |
-          set -euo pipefail
-          umask 077
-          if ! terraform -chdir="${TF_ROOT}" init \
-            -reconfigure \
-            -backend-config="${RUNNER_TEMP}/backend.hcl" \
-            -input=false \
-            -lockfile=readonly \
-            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
-            echo "::error::Terraform init failed. Raw output is intentionally not printed."
-            exit 1
-          fi
 
       - name: Configure GCP provider credential
         id: plan_gcp_auth
@@ -328,6 +330,7 @@ jobs:
           access_token_lifetime: 600s
 
       - name: Verify development identity boundaries without public identifiers
+        id: identity_smoke
         if: ${{ inputs.target == 'dev' }}
         shell: bash
         env:
@@ -359,6 +362,29 @@ jobs:
           HISTORY_STAGE: plan
         run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
 
+      - name: Bind the private history plan baseline
+        id: history_plan_before
+        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase before
+
+      - name: Initialize remote backend without public output
+        id: backend_init
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
       - name: Create saved plan without public output
         id: plan
         shell: bash
@@ -379,6 +405,7 @@ jobs:
             "${plan_args[@]}" \
             "${history_args[@]}" \
             -input=false \
+            -lock-timeout=0s \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
             >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
@@ -429,12 +456,29 @@ jobs:
             exit "${rc}"
           fi
 
+      - name: Verify private history plan invariants and released native lock
+        if: ${{ always() && steps.history_plan_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase after
+
       - name: Cleanup sensitive temporary files
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/history-plan-cost.json" \
+            "${RUNNER_TEMP}/history-plan-state-before.json" \
+            "${RUNNER_TEMP}/history-plan-state-after.json" \
+            "${RUNNER_TEMP}/history-plan-state-before-receipt.json" \
+            "${RUNNER_TEMP}/history-plan-before.json" \
+            "${RUNNER_TEMP}/history-plan-table-after.json" \
+            "${RUNNER_TEMP}/history-plan-after.json" \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
             "${RUNNER_TEMP}/user-history-before.tfvars.json" \

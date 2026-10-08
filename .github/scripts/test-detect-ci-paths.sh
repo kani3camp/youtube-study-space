@@ -18,7 +18,7 @@ assert_exact_groups() {
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
 		esac
-		if ! printf '%s\n' "$output" | grep -Fxq "$group=$expected"; then
+		if ! grep -Fxq "$group=$expected" <<< "$output"; then
 			echo "Expected $group=$expected for paths: $*" >&2
 			exit 1
 		fi
@@ -52,6 +52,8 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_authenticated_workflow.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_plan_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_plan_receipt.py
 assert_exact_groups gcp_terraform .github/scripts/test_youtube_quota_alerts.py
 assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py

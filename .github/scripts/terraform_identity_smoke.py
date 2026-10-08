@@ -242,6 +242,13 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str
     bucket, key = env["STATE_BUCKET"], env["STATE_KEY"]
     if key != "youtube-study-space/dev/terraform.tfstate":
         raise SmokeFailure("aws-development-state-key")
+    if plan_read_only and env.get("TF_VAR_manage_user_activity_history") == "true":
+        # Reuse this initial read for the complete private receipt. The cost
+        # policy is validated before authentication and before any native lock.
+        from terraform_history_plan_receipt import snapshot_before
+        snapshot_before(env, request=aws)
+        return ["AWS OIDC + dedicated STS identity", "AWS exact persistent eleven-resource state verified privately",
+                "Owner-evidenced cost bound and native lock/workspace absence prechecks"]
     with tempfile.TemporaryDirectory(dir=env["RUNNER_TEMP"]) as directory:
         state = Path(directory) / "state.json"
         result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))

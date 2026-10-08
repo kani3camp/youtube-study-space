@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+"""Synthetic receipts only: no credential or real metadata/state access."""
+import contextlib
+import copy
+from datetime import datetime, timezone
+from decimal import Decimal, ROUND_CEILING
+import io
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import terraform_history_plan_receipt as receipt
+import terraform_identity_smoke as smoke
+from terraform_plan_summary import build_summary
+import test_gcp_user_activity_schema_audit_workflow as fixtures
+
+NOW = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
+SHA = "a" * 40
+ACTUAL_COST_POLICY = receipt.cost_policy
+
+
+def profile(**changes):
+    return {"model": receipt.MODEL, "git_sha": SHA, "issued_utc": "2026-10-08T11:00:00Z",
+            "expires_utc": "2026-10-08T13:00:00Z", "max_state_bytes": 16384,
+            "lock_retention_days": 31, "cloud_side_cost_usd": "0.003",
+            "cloud_side_evidence_reviewed": True, "rates_verified": True,
+            "state_writers_quiescent": True} | changes
+
+
+def state_fixture():
+    grouped = {}
+    for address in sorted(receipt.BASELINE):
+        match = re.fullmatch(r"(?:(module\..+)\.)?(google_[^.]+)\.([^\[]+)(?:\[(.+)\])?", address)
+        module, kind, name, index = match.groups()
+        instance = {"schema_version": 0, "identity_schema_version": 0,
+                    "attributes": {"project": "test-youtube-study-space", "dummy": "DUMMY_STATE_PAYLOAD"}}
+        if index is not None:
+            instance["index_key"] = json.loads(index)
+        resource = {"mode": "managed", "type": kind, "name": name,
+                    "provider": 'provider["registry.terraform.io/hashicorp/google"]', "instances": [instance]}
+        if module:
+            resource["module"] = module
+        key = (module, kind, name)
+        if key in grouped:
+            grouped[key]["instances"].append(instance)
+        else:
+            grouped[key] = resource
+    return {"version": 4, "terraform_version": "1.16.4", "serial": 27,
+            "lineage": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "resources": list(grouped.values()),
+            "check_results": [{"object_kind": "var", "config_addr": "var.project_id", "status": "pass",
+                               "objects": [{"object_addr": "var.project_id", "status": "pass"}]}],
+            "outputs": {key: {"sensitive": False, "type": "string", "value": value}
+                        for key, value in [("environment", "development"), ("project_id", "test-youtube-study-space")]}}
+
+
+class FakeS3:
+    def __init__(self):
+        self.body = json.dumps(state_fixture()).encode()
+        self.version = "DUMMY_VERSION_ID"
+        self.calls = []
+        self.overrides = {}
+        self.denied = None
+        self.lock = False
+        self.workspaces = False
+        self.network = False
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        service, operation = args[:2]
+        if self.network:
+            raise RuntimeError("DUMMY_NETWORK_PRIVATE_ERROR")
+        if operation == self.denied:
+            return subprocess.CompletedProcess([], 1, "", "(403) DUMMY_PRIVATE_ACCOUNT_ERROR")
+        if service == "sts":
+            value = {"Account": "111111111111"}
+        elif operation == "head-object":
+            value = {"ContentLength": len(self.body), "VersionId": self.version, "ETag": '"dummy-etag"',
+                     "ServerSideEncryption": "AES256", "Metadata": {}}
+        elif operation == "get-object":
+            Path(args[-1]).write_bytes(self.body)
+            value = {"ContentLength": len(self.body), "VersionId": self.version, "ETag": '"dummy-etag"'}
+        elif operation == "list-objects-v2":
+            prefix = args[args.index("--prefix") + 1]
+            present = self.lock if prefix.endswith(".tflock") else self.workspaces
+            value = {"Name": "dummy-state-bucket", "Prefix": prefix, "MaxKeys": 1, "KeyCount": int(present), "IsTruncated": False}
+            if present:
+                value["Contents"] = [{"Key": prefix, "Size": 123}]
+        else:
+            # Even if mutation APIs would succeed, the implementation must not
+            # invoke them. Unexpected calls remain visible to allowlist asserts.
+            value = {"DUMMY_MUTATION_SUCCESS": True}
+        value.update(self.overrides.get(operation, {}))
+        return subprocess.CompletedProcess([], 0, json.dumps(value), "")
+
+
+class ReceiptTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.env = {"RUNNER_TEMP": str(self.root), "GITHUB_SHA": SHA, "MODE": "plan", "TF_WORKSPACE": "default",
+                    "TF_VAR_manage_user_activity_history": "true", "TF_VAR_project_id": "test-youtube-study-space",
+                    "STATE_KEY": receipt.STATE_KEY, "STATE_AWS_REGION": "ap-northeast-1", "STATE_ACCOUNT_ID": "111111111111",
+                    "STATE_BUCKET": "dummy-state-bucket", "AWS_MAX_ATTEMPTS": "1", "AWS_RETRY_MODE": "standard",
+                    "GCP_SMOKE_ACCESS_TOKEN": "DUMMY_TOKEN", "GITHUB_STEP_SUMMARY": str(self.root / "summary"),
+                    "BACKEND_INIT_OUTCOME": "success", "TERRAFORM_PLAN_OUTCOME": "success", "PLAN_VALIDATION_OUTCOME": "success", "PLAN_EXIT_CODE": "2",
+                    "PLAN_COST_EVIDENCE": json.dumps(profile())}
+        self.aws = FakeS3()
+        source = fixtures.UserActivityHistoryPlanTest()
+        source.setUp()
+        self.plan, self.metadata = source.fixture()
+        self.plan["terraform_version"] = "1.16.4"
+        self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789")
+        self.google_calls = []
+        self.policy_patch = patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None: self.actual_policy(raw, sha, now=now or NOW))
+        self.actual_policy = ACTUAL_COST_POLICY
+        self.policy_patch.start()
+        self.addCleanup(self.policy_patch.stop)
+
+    def google(self, path, token, **kwargs):
+        self.google_calls.append((path, token, kwargs))
+        return 200, copy.deepcopy(self.metadata)
+
+    def baseline(self):
+        receipt.policy(self.env)
+        # This is the actual history branch of the existing identity smoke.
+        with patch.object(smoke, "aws", side_effect=self.aws):
+            labels = smoke.verify_aws(self.env, plan_read_only=True)
+        self.assertNotIn("DUMMY", str(labels))
+        receipt.write_private(self.root / "user-history-before.json", self.metadata)
+        receipt.before(self.env)
+        receipt.write_private(self.root / "sanitized-plan.json", build_summary(self.plan, environment="dev", git_sha=SHA, policy="import-only"))
+
+    def test_complete_snapshot_smoke_and_final_receipt_use_only_existing_reads(self):
+        self.baseline()
+        receipt.after(self.env, request=self.aws, metadata_request=self.google)
+        result = receipt.private_json(str(self.root / "history-plan-after.json"))
+        self.assertEqual(result["import"], 1)
+        self.assertEqual(result["existing_no_op"], 11)
+        self.assertTrue(result["complete_table_metadata_unchanged"] and result["native_lock_absent"])
+        self.assertEqual([a[:2] for a in self.aws.calls], [
+            ("sts", "get-caller-identity"), ("s3api", "head-object"), ("s3api", "get-object"), ("s3api", "head-object"),
+            ("s3api", "list-objects-v2"), ("s3api", "list-objects-v2"),
+            ("s3api", "head-object"), ("s3api", "get-object"), ("s3api", "head-object"), ("s3api", "list-objects-v2")])
+        for args in self.aws.calls[1:]:
+            self.assertEqual(args[args.index("--expected-bucket-owner") + 1], "111111111111")
+            if "--key" in args:
+                self.assertEqual(args[args.index("--key") + 1], receipt.STATE_KEY)
+        self.assertEqual(self.google_calls, [(receipt.TABLE_PATH, "DUMMY_TOKEN", {"host": "bigquery.googleapis.com"})])
+        for path in self.root.glob("*.json"):
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_cost_missing_or_malformed_stops_without_aws_or_metadata_reads(self):
+        bad = ["", "{}", '{"model":1,"model":2}', "NaN", "[]", json.dumps(profile(unapproved=True)),
+               *[json.dumps(profile(**{key: value})) for key, value in [
+                   ("git_sha", "b" * 40), ("model", "unknown"), ("max_state_bytes", True), ("max_state_bytes", receipt.MAX_BYTES + 1),
+                   ("max_state_bytes", 0), ("lock_retention_days", 0), ("cloud_side_cost_usd", "NaN"),
+                   ("cloud_side_cost_usd", "0"), ("cloud_side_cost_usd", "0.009"), ("cloud_side_cost_usd", "-0.01"),
+                   ("cloud_side_cost_usd", 0.001), ("expires_utc", "2026-10-08T11:59:59Z"),
+                   ("issued_utc", "2026-10-08T12:00:01Z"), ("expires_utc", "2026-10-10T12:00:00Z"),
+                   ("rates_verified", False), ("cloud_side_evidence_reviewed", "true"), ("state_writers_quiescent", False)]]]
+        for raw in bad:
+            with self.subTest(raw=raw), self.assertRaises((ValueError, TypeError)):
+                receipt.policy(dict(self.env, PLAN_COST_EVIDENCE=raw))
+            self.assertFalse((self.root / "history-plan-cost.json").exists())
+        self.assertEqual((self.aws.calls, self.google_calls), ([], []))
+
+    def test_cost_bound_accounts_for_size_retention_and_all_ceiling_components(self):
+        value = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
+        expected = (Decimal(256) * Decimal("0.00001") + Decimal(128) * Decimal("0.00001")
+                    + Decimal(64 * 16384 + 256 * 16384) / Decimal(1024 ** 3) * Decimal("0.25")
+                    + Decimal(2 * 32768 * 31) / Decimal(1024 ** 3) / Decimal(30) * Decimal("0.10") + Decimal("0.003"))
+        self.assertEqual(Decimal(value["upper_bound_usd"]), expected.quantize(Decimal("0.000000001"), rounding=ROUND_CEILING))
+        for changes in ({"max_state_bytes": receipt.MAX_BYTES}, {"cloud_side_cost_usd": "0.009"}):
+            with self.assertRaises(ValueError):
+                self.actual_policy(json.dumps(profile(**changes)), SHA, now=NOW)
+        with self.assertRaises(ValueError):
+            self.actual_policy(json.dumps(profile(issued_utc="2026-10-15T00:00:00Z", expires_utc="2026-10-15T01:00:00Z")), SHA,
+                               now=datetime(2026, 10, 15, tzinfo=timezone.utc))
+
+    def test_initial_head_rejects_unknown_storage_version_size_before_download(self):
+        receipt.policy(self.env)
+        for changes in ({"StorageClass": "STANDARD_IA"}, {"VersionId": "null"}, {"VersionId": None},
+                        {"ContentLength": True}, {"ContentLength": 16385}, {"ContentLength": 0},
+                        {"DeleteMarker": True}, {"ServerSideEncryption": "unknown"}, {"ContentEncoding": "gzip"}):
+            self.aws.overrides = {"head-object": changes}; self.aws.calls.clear()
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                receipt.snapshot_before(self.env, request=self.aws)
+            self.assertEqual([a[1] for a in self.aws.calls], ["head-object"])
+
+    def test_exact_state_eleven_rejects_history_missing_extra_duplicate_tainted_and_unknown(self):
+        base = state_fixture()
+        changes = [lambda s: s["resources"].pop(), lambda s: s["resources"].append(copy.deepcopy(s["resources"][0])),
+                   lambda s: s["resources"][0].update(name="wrong"), lambda s: s["resources"][0].update(mode="data"),
+                   lambda s: s["resources"][0]["instances"][0].update(status="tainted"),
+                   lambda s: s["resources"][0]["instances"][0].update(deposed="dummy"),
+                   lambda s: s.update(serial=True), lambda s: s.update(lineage="bad"), lambda s: s.update(unapproved=True),
+                   lambda s: s["check_results"][0].update(status="unknown"),
+                   lambda s: s["check_results"][0].update(config_addr="var.foreign"),
+                   lambda s: s["resources"][0]["instances"][0].update(identity_schema_version=True),
+                   lambda s: s["resources"][0]["instances"][0].update(create_before_destroy=True),
+                   lambda s: s["outputs"]["project_id"].update(value="foreign"),
+                   lambda s: s["resources"][0]["instances"][0]["attributes"].update(project="foreign")]
+        for mutate in changes:
+            value = copy.deepcopy(base); mutate(value)
+            with self.assertRaises(ValueError):
+                receipt.state_shape(json.dumps(value).encode())
+        history = {"module": "module.user_activity_history[0]", "mode": "managed", "type": "google_bigquery_table", "name": "retained",
+                   "provider": 'provider["registry.terraform.io/hashicorp/google"]', "instances": [{"schema_version": 0, "attributes": {"project": "test-youtube-study-space"}}]}
+        base["resources"][0] = history
+        with self.assertRaises(ValueError):
+            receipt.state_shape(json.dumps(base).encode())
+        for raw in (b'{"version":4,"version":4}', b'NaN'):
+            with self.assertRaises(ValueError): receipt.state_shape(raw)
+
+    def test_current_version_body_serial_lineage_and_metadata_changes_cannot_pass(self):
+        cases = ["version", "bytes", "serial", "lineage", "etag", "numRows", "numBytes", "lastModifiedTime", "newMetadata", "description"]
+        # Each case needs a fresh immutable baseline, not overwritten evidence.
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                child = ReceiptTests("runTest"); child.setUp(); self.addCleanup(child.doCleanups)
+                child.baseline()
+                if case == "version": child.aws.version = "DUMMY_NEW_VERSION"
+                elif case in {"bytes", "serial", "lineage"}:
+                    state = json.loads(child.aws.body)
+                    if case == "bytes": child.aws.body += b"\n"
+                    else:
+                        state[case] = 28 if case == "serial" else "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+                        child.aws.body = json.dumps(state).encode()
+                elif case == "description": child.metadata["schema"]["fields"][0]["description"] = "Public dummy changed description"
+                else: child.metadata[case] = "DUMMY_CHANGED_VALUE"
+                with self.assertRaises(ValueError): child.after_check()
+                self.assertFalse((child.root / "history-plan-after.json").exists())
+
+    def after_check(self):
+        receipt.after(self.env, request=self.aws, metadata_request=self.google)
+
+    def test_lock_presence_403_network_truncation_missing_fields_are_never_absence(self):
+        receipt.policy(self.env)
+        for override in ({"KeyCount": 1, "Contents": [{"Key": receipt.STATE_KEY + ".tflock"}]}, {"IsTruncated": True},
+                         {"KeyCount": None}, {"MaxKeys": True}, {"Prefix": "other"}, {"Name": "foreign"},
+                         {"NextContinuationToken": "more"}, {"error": {"code": 403}}, {"unapproved": False}):
+            self.aws.overrides = {"list-objects-v2": override}
+            with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        self.aws.overrides = {}; self.aws.denied = "list-objects-v2"
+        with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        self.aws.denied = None; self.aws.network = True
+        with self.assertRaises(RuntimeError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+
+    def test_released_lock_is_required_and_failed_plan_or_import_zero_cannot_pass(self):
+        self.baseline(); self.aws.lock = True
+        with self.assertRaises(ValueError): self.after_check()
+        self.assertFalse((self.root / "history-plan-after.json").exists())
+
+    def test_import_zero_and_missing_summary_fail_after_post_reads(self):
+        self.baseline()
+        path = self.root / "sanitized-plan.json"
+        value = receipt.private_json(str(path)); value["counts"]["import"] = 0
+        path.write_text(json.dumps(value))
+        with self.assertRaises(ValueError): self.after_check()
+        self.assertTrue((self.root / "history-plan-state-after.json").exists())
+        self.assertTrue((self.root / "history-plan-table-after.json").exists())
+        self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
+
+    def test_missing_summary_still_checks_remote_invariants_before_stopping(self):
+        self.baseline(); (self.root / "sanitized-plan.json").unlink()
+        with self.assertRaises(OSError): self.after_check()
+        self.assertTrue((self.root / "history-plan-table-after.json").exists())
+        self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
+
+    def test_failed_init_plan_or_validation_still_check_post_state_metadata_lock_without_pass(self):
+        for key in ("BACKEND_INIT_OUTCOME", "TERRAFORM_PLAN_OUTCOME", "PLAN_VALIDATION_OUTCOME", "PLAN_EXIT_CODE"):
+            with self.subTest(key=key):
+                child = ReceiptTests("runTest"); child.setUp(); self.addCleanup(child.doCleanups)
+                child.baseline(); child.env[key] = "failure"
+                with self.assertRaises(ValueError): child.after_check()
+                self.assertTrue((child.root / "history-plan-state-after.json").exists())
+                self.assertTrue((child.root / "history-plan-table-after.json").exists())
+                self.assertEqual(child.aws.calls[-1][1], "list-objects-v2")
+                self.assertFalse((child.root / "history-plan-after.json").exists())
+
+    def test_expired_cost_evidence_still_gets_bounded_post_safety_reads_but_cannot_pass(self):
+        self.baseline()
+        expired = datetime(2026, 10, 8, 14, tzinfo=timezone.utc)
+        with patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None: ACTUAL_COST_POLICY(raw, sha, now=now or expired)):
+            with self.assertRaises(ValueError): self.after_check()
+        self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
+        self.assertEqual(len(self.google_calls), 1)
+        self.assertTrue((self.root / "history-plan-table-after.json").exists())
+        self.assertFalse((self.root / "history-plan-after.json").exists())
+
+    def test_cli_dependency_error_is_suppressed_and_does_not_retry_or_emit_pass(self):
+        self.baseline(); self.aws.denied = "head-object"
+        stdout, stderr = io.StringIO(), io.StringIO(); count = len(self.aws.calls)
+        with patch.dict(os.environ, self.env, clear=True), patch.object(receipt, "aws", side_effect=self.aws), \
+             patch.object(receipt, "google", side_effect=self.google), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            self.assertEqual(receipt.main(["--phase", "after"]), 3)
+        self.assertEqual([a[1] for a in self.aws.calls[count:]], ["head-object", "list-objects-v2"])
+        self.assertEqual(len(self.google_calls), 1)
+        exposed = stdout.getvalue() + stderr.getvalue()
+        self.assertIn("STOP", exposed); self.assertNotIn("PASS", exposed); self.assertNotIn("DUMMY", exposed)
+        safety = (self.root / "summary").read_text()
+        self.assertIn("Persistent state invariant: STOP", safety)
+        self.assertIn("Exact native lock absence: PASS", safety)
+        self.assertNotIn("receipt: PASS", safety)
+        self.assertNotIn("DUMMY", safety)
+
+    def test_403_metadata_and_boolean_import_summary_cannot_pass(self):
+        for case in ("metadata403", "importbool"):
+            child = ReceiptTests("runTest"); child.setUp(); self.addCleanup(child.doCleanups); child.baseline()
+            if case == "metadata403":
+                with self.assertRaises(ValueError):
+                    receipt.after(child.env, request=child.aws, metadata_request=lambda *a, **k: (403, {"error": "DUMMY_ERROR"}))
+            else:
+                path = child.root / "sanitized-plan.json"; value = receipt.private_json(str(path)); value["counts"]["import"] = True
+                path.write_text(json.dumps(value))
+                with self.assertRaises(ValueError): child.after_check()
+            self.assertFalse((child.root / "history-plan-after.json").exists())
+
+    def test_cli_private_success_and_dependency_failure_never_expose_payloads(self):
+        self.baseline()
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.dict(os.environ, self.env, clear=True), patch.object(receipt, "aws", side_effect=self.aws), \
+             patch.object(receipt, "google", side_effect=self.google), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            self.assertEqual(receipt.main(["--phase", "after"]), 0)
+        exposed = stdout.getvalue() + stderr.getvalue() + (self.root / "summary").read_text()
+        self.assertIn("receipt: PASS", exposed)
+        for secret in ("DUMMY", self.env["STATE_BUCKET"], str(self.root), "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"):
+            self.assertNotIn(secret, exposed)
+
+    def test_private_symlink_public_permissions_collision_and_bad_context_stop(self):
+        path = self.root / "history-plan-cost.json"
+        target = self.root / "unrelated"; target.write_text("DUMMY_KEEP")
+        path.symlink_to(target)
+        with self.assertRaises(OSError): receipt.policy(self.env)
+        self.assertEqual(target.read_text(), "DUMMY_KEEP")
+        path.unlink(); receipt.policy(self.env); path.chmod(0o644)
+        with self.assertRaises(ValueError): receipt.snapshot_before(self.env, request=self.aws)
+        self.assertEqual(self.aws.calls, [])
+        for changes in ({"MODE": "apply"}, {"TF_WORKSPACE": "foreign"}, {"TF_VAR_project_id": "youtube-study-space"}):
+            with self.assertRaises(ValueError): receipt.policy(dict(self.env, **changes))
+
+
+if __name__ == "__main__":
+    unittest.main()
