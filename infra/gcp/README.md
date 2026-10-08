@@ -161,6 +161,34 @@ developmentのGitHub Environment / branch trust、AWS GitHub OIDC backend role�
 
 production backendは未bootstrapのため、production authenticated plan / applyはbackend準備完了まで有効化しません。
 
+### Single development history plan receipt
+
+history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。Environment承認者は入力に対応する費用証拠を事前にreviewする。既存の条件付き見積りやbooleanの自己申告だけを、未知の課金項目が解決した証拠として扱わない。
+
+JSON input は次のキーだけを許可する。実state・table metadata・bucket/account/role/SA名・privateな証拠本文を入力に貼らない。
+
+| Key | Required evidence |
+| --- | --- |
+| `model` | `dev-history-plan-2026-10-08-v1`。この価格モデルは2026-10-15 UTCに失効する |
+| `git_sha` | review・公開された実行対象の完全なSHA |
+| `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、期限は発行後24時間以内かつモデル失効前 |
+| `max_state_bytes` | 非秘密の保守的サイズ上限（正整数、4 MiB以下）。実サイズはCIのexact current object HEADでprivateに確認する |
+| `lock_retention_days` | 既存lifecycleで証明されたnative lock version/delete markerの保持上限日数（正整数、3650以下） |
+| `cloud_side_cost_usd` | 小数の文字列。下記AWS費用に加算する、証拠に基づく正の付随費用上限 |
+| `cloud_side_evidence_reviewed` | 全GCP/provider retry・OIDC/STS・CloudTrail/Cloud Logging・既存sink/replication等の追加課金を含むprivateな数量・単価・保持条件が確認できた場合だけtrue |
+| `rates_verified` | 実行時の公開単価が下記ceiling以下であることを確認した場合だけtrue |
+| `state_writers_quiescent` | 指定オペレーターだけが実行し、state/workspace prefixの並行writerがないことを確認した場合だけtrue |
+
+費用計算はDecimalで上方丸めし、合計USD0.01以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、2個の32 KiB lock/version payloadをUSD0.10/GiB/月で保持日数分、さらに`cloud_side_cost_usd`を加算する。HEADが上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければ、state downloadやremote initへ進まない。未知の付随費用があればinputを作成せず停止する。
+
+価格根拠は[AWS S3 pricing](https://aws.amazon.com/s3/pricing/)、[KMS pricing](https://aws.amazon.com/kms/pricing/)、[CloudTrail pricing](https://aws.amazon.com/cloudtrail/pricing/)、[Cloud Logging pricing](https://cloud.google.com/products/observability/pricing)。許可されたAPI envelopeとprice ceilingを広げる場合は再reviewが必要。Terraform1.16.4の[backend](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/backend/remote-state/s3/client.go)と固定依存[aws-sdk-go-base beta.72](https://github.com/hashicorp/aws-sdk-go-base/blob/v2.0.0-beta.72/aws_config.go)、[S3 downloader1.17.22](https://github.com/aws/aws-sdk-go-v2/blob/feature/s3/manager/v1.17.22/feature/s3/manager/download.go)を根拠に、小さい単一part state・空のworkspace discovery prefix・native lock一回分に余裕を含む。backendの`max_retries=1`はこの固定AWS v2依存で`WithRetryMaxAttempts(1)`となる。CLIは[AWS_MAX_ATTEMPTS=1](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-retries.html)、認証Actionも1 attempt、planのlock timeoutは0s。native downloader自身のbody attemptを費用に含め、run/plan再実行やforce-unlockは行わない。
+
+既存identity smokeのinitial state GETをHEAD/GET/HEAD付きのprivate snapshotへ置き換える。exact既存11 managed instance、history未登録、正常なTerraform4 state envelope・pass状態の既知check結果、current VersionIdを確認する。provider定義のattributes/identity/privateは値を公開せず、全state bytesを前後完全一致で保持する。新しいstate envelope属性・taint/deposed・unknown checkは拒否する。既存のcanonical8 metadata helperとprivate varfileはそのまま使う。
+
+init/plan/sanitizer後は`always()`で再snapshot・完全なtables.get比較・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
+
+public Summaryは固定のPASS/STOPラベルとsanitized action数だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のRUNNER_TEMPファイルのみで扱い、常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
+
 ### Existing development backend
 
 Issue #1154で作成したdevelopment GCS state backendは、empty state / inactive lockであることを再確認した後、2026-10-05の承認済みcleanupで退役しました。

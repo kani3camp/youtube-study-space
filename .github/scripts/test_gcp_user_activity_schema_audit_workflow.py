@@ -923,11 +923,18 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             plan, metadata = self.fixture_source.fixture(importing)
             rc, summary = self.protected(plan, metadata, phase=phase)
             self.assertEqual(rc, 0)
+
             self.assertEqual(summary["counts"]["import"], int(importing))
             self.assertEqual(summary["counts"]["no-op"], 12)
             self.assertEqual(summary["policy"], "import-only")
         plan, metadata = self.fixture_source.fixture(True)
         self.assertEqual(self.protected(plan, metadata, phase="post")[0], 3)
+
+    def test_history_plan_mode_requires_first_import_and_rejects_import_zero(self):
+        for importing in (True, False):
+            plan, metadata = self.fixture_source.fixture(importing)
+            rc, _ = self.protected(plan, metadata, operation="plan")
+            self.assertEqual(rc, 0 if importing else 3)
 
     def test_protected_entrypoint_requires_activation_private_metadata_order_and_normal_dev_wave(self):
         for override in ({"TF_VAR_manage_user_activity_history": "false"}, {"TF_VAR_manage_user_activity_history": "invalid"},
