@@ -37,6 +37,13 @@ type OperatorIntent struct {
 	Purpose     SupportPurpose
 	OperationID string
 	Action      string
+	// These fields are derived by FirestoreSupportOperator from the full
+	// operation before authorization. A caller-supplied intent cannot replace
+	// the proof, revision, reply binding or operation payload.
+	ProofRef         string
+	ExpectedRevision int64
+	ReplyDigest      string
+	OperationDigest  string
 }
 
 type OperatorIdentity struct {
@@ -60,7 +67,10 @@ type CompletionOperation struct {
 	ExpectedRevision        int64
 	ActionEvidence          string
 	DeliveryAcknowledgement string
-	At                      time.Time
+	// Required by a future human OIDC authority; existing synthetic evidence
+	// adapters still verify the digest independently against the stored reply.
+	ReplyDigest string
+	At          time.Time
 }
 
 // VerifiedCompletionEvidence is returned only after the trusted authority has
@@ -85,7 +95,7 @@ func (e VerifiedCompletionEvidence) matches(identity OperatorIdentity, op Comple
 	return e.Actor == identity.Subject && e.Environment == op.Intent.Environment && e.ProjectID == op.Intent.ProjectID &&
 		e.RequestRef == op.Intent.RequestRef && e.Purpose == op.Intent.Purpose && e.OperationID == op.Intent.OperationID &&
 		e.ProofRef == op.ProofRef && e.ReplyOperationID == op.ReplyOperationID && e.ExpectedRevision == op.ExpectedRevision &&
-		validOpaque(e.ReplyDigest) && e.ActionEvidence == op.ActionEvidence && e.DeliveryAcknowledgement == op.DeliveryAcknowledgement
+		validOpaque(e.ReplyDigest) && (op.ReplyDigest == "" || e.ReplyDigest == op.ReplyDigest) && e.ActionEvidence == op.ActionEvidence && e.DeliveryAcknowledgement == op.DeliveryAcknowledgement
 }
 
 // FirestoreSupportOperator is never constructed by a public HTTP handler.
@@ -97,6 +107,26 @@ type FirestoreSupportOperator struct {
 	ProjectID   string
 	AuditKey    []byte
 	Authority   OperatorAuthority
+	// A future human authority must use this trusted server clock; caller At is
+	// retained only for the existing synthetic/offline fixtures.
+	Clock func() time.Time
+}
+
+func (s *FirestoreSupportOperator) operationTime(caller time.Time) (time.Time, error) {
+	if s == nil {
+		return time.Time{}, ErrOperatorDenied
+	}
+	if s.Clock != nil {
+		now := s.Clock().UTC()
+		if now.IsZero() {
+			return time.Time{}, ErrOperatorDenied
+		}
+		return now, nil
+	}
+	if _, human := s.Authority.(*GoogleHumanOperatorAuthority); human {
+		return time.Time{}, ErrOperatorDenied
+	}
+	return caller, nil
 }
 
 type operatorAuditEvent struct {
@@ -117,6 +147,41 @@ func (s *FirestoreSupportOperator) mac(parts ...string) string {
 		_, _ = h.Write([]byte{0})
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// ReplyAuthorizationIntent binds the reviewed body without exposing it in a
+// challenge or audit. The same derived intent is passed to Authorize by Reply.
+func (s *FirestoreSupportOperator) ReplyAuthorizationIntent(op ReplyOperation) (OperatorIntent, error) {
+	if s == nil || len(s.AuditKey) < 32 || !validOpaque(op.ProofRef) || op.ExpectedRevision < 0 || op.At.IsZero() || op.Body == "" || !validPrivacyBody(op.Body) {
+		return OperatorIntent{}, ErrOperatorDenied
+	}
+	intent := op.Intent
+	intent.ProofRef = op.ProofRef
+	intent.ExpectedRevision = op.ExpectedRevision
+	intent.ReplyDigest = s.mac("reply", intent.Environment, intent.ProjectID, intent.RequestRef, string(intent.Purpose), op.ProofRef, intent.OperationID, fmt.Sprint(op.ExpectedRevision), op.Body)
+	intent.OperationDigest = intent.ReplyDigest
+	return intent, nil
+}
+
+// CompletionAuthorizationIntent binds the proposed action/delivery references
+// and reviewed reply digest. An actual completion still requires independent
+// evidence and the receipt transaction; this intent grants no write access.
+func (s *FirestoreSupportOperator) CompletionAuthorizationIntent(op CompletionOperation) (OperatorIntent, error) {
+	if s == nil || len(s.AuditKey) < 32 || op.Intent.Purpose == SupportDelete || !validOpaque(op.ProofRef) || !validOpaque(op.ReplyOperationID) || !validOpaque(op.ActionEvidence) || !validOpaque(op.DeliveryAcknowledgement) || op.ExpectedRevision < 1 || op.At.IsZero() || (op.ReplyDigest != "" && !validOpaque(op.ReplyDigest)) {
+		return OperatorIntent{}, ErrOperatorDenied
+	}
+	intent := op.Intent
+	intent.ProofRef = op.ProofRef
+	intent.ExpectedRevision = op.ExpectedRevision
+	intent.ReplyDigest = op.ReplyDigest
+	parts := []string{"complete", intent.Environment, intent.ProjectID, intent.RequestRef, string(intent.Purpose), op.ProofRef, intent.OperationID, op.ReplyOperationID, fmt.Sprint(op.ExpectedRevision), op.ActionEvidence, op.DeliveryAcknowledgement}
+	// The legacy fingerprint is unchanged for existing operations. A supplied
+	// reply digest becomes part of every new human-authorized retry binding.
+	if op.ReplyDigest != "" {
+		parts = append(parts, op.ReplyDigest)
+	}
+	intent.OperationDigest = s.mac(parts...)
+	return intent, nil
 }
 
 func (s *FirestoreSupportOperator) authorize(ctx context.Context, intent OperatorIntent, action string) (OperatorIdentity, error) {
@@ -162,14 +227,20 @@ func (s *FirestoreSupportOperator) deletionClaimed(tx *firestore.Transaction, pr
 // Reply writes one reviewed response and a bounded body-free audit event in
 // the same transaction. It never marks the requested action completed.
 func (s *FirestoreSupportOperator) Reply(ctx context.Context, op ReplyOperation) error {
-	identity, err := s.authorize(ctx, op.Intent, "reply")
+	trustedAt, err := s.operationTime(op.At)
 	if err != nil {
 		return err
 	}
-	if !validOpaque(op.ProofRef) || op.ExpectedRevision < 0 || op.At.IsZero() || op.Body == "" || !validPrivacyBody(op.Body) {
-		return ErrOperatorDenied
+	op.At = trustedAt
+	intent, err := s.ReplyAuthorizationIntent(op)
+	if err != nil {
+		return err
 	}
-	fingerprint := s.mac("reply", op.Intent.Environment, op.Intent.ProjectID, op.Intent.RequestRef, string(op.Intent.Purpose), op.ProofRef, op.Intent.OperationID, fmt.Sprint(op.ExpectedRevision), op.Body)
+	identity, err := s.authorize(ctx, intent, "reply")
+	if err != nil {
+		return err
+	}
+	fingerprint := intent.ReplyDigest
 	err = s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		ref := s.Client.Collection("support-requests").Doc(op.Intent.RequestRef)
 		v, err := readSupportRecord(tx, ref)
@@ -222,14 +293,20 @@ func (s *FirestoreSupportOperator) Reply(ctx context.Context, op ReplyOperation)
 // verification is delegated to the trusted adapter; strings are references,
 // not self-attested proof. Deletion has its own fenced Finalize workflow.
 func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOperation) error {
-	identity, err := s.authorize(ctx, op.Intent, "complete")
+	trustedAt, err := s.operationTime(op.At)
 	if err != nil {
 		return err
 	}
-	if op.Intent.Purpose == SupportDelete || !validOpaque(op.ProofRef) || !validOpaque(op.ReplyOperationID) || !validOpaque(op.ActionEvidence) || !validOpaque(op.DeliveryAcknowledgement) || op.ExpectedRevision < 1 || op.At.IsZero() {
-		return ErrOperatorDenied
+	op.At = trustedAt
+	intent, err := s.CompletionAuthorizationIntent(op)
+	if err != nil {
+		return err
 	}
-	fingerprint := s.mac("complete", op.Intent.Environment, op.Intent.ProjectID, op.Intent.RequestRef, string(op.Intent.Purpose), op.ProofRef, op.Intent.OperationID, op.ReplyOperationID, fmt.Sprint(op.ExpectedRevision), op.ActionEvidence, op.DeliveryAcknowledgement)
+	identity, err := s.authorize(ctx, intent, "complete")
+	if err != nil {
+		return err
+	}
+	fingerprint := intent.OperationDigest
 	auditRef := s.auditRef(op.Intent)
 	// A committed audit and terminal receipt are enough to recover a lost ACK.
 	// Evidence may have been scrubbed or its verifier may now be unavailable.
