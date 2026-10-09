@@ -47,6 +47,8 @@ Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複
 
 [synthetic Auth / related-record adapter](support-delete-auth-adapter.md) は独立 complete inventory、durable ownership snapshot、incarnation mutation guard と fake SDK readback を追加する。Emulator 内の関連閉路・mapping 削除後の再開・終端 snapshot 消去を検証するが、Registry / CLI の live 接続と上記 gate は変更しない。
 
+[synthetic BigQuery adapter](support-delete-bigquery-adapter.md) adds frozen main/tmp/job/result-copy inventory, stable job reconciliation, temporary Firestore state and target-only synthetic deletion. It does not connect a live Registry/CLI or close backup/vendor/log gates.
+
 ## offline CLI
 
 `MYPAGE_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` を明示する。alias project env に不一致がある場合や live credential/endpoint env がある場合は拒否する。対象を stdin または exact 0600 regular file の `--manifest` で渡す。最終 symlink/FIFO、16 KiB 超過、duplicate / case-variant / unknown / missing JSON field、確認の不一致を拒否する。report に target、ref、path、raw error は出力しない。

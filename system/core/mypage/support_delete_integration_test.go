@@ -50,7 +50,7 @@ func deletionFixture(t *testing.T) (*FirestoreDeletionStore, supportdelete.Start
 	selector := supportdelete.Selector{Target: supportdelete.Target{Environment: "development", ProjectID: "demo-youtube-study-space-ci", ChannelID: channel}, RequestRef: ref, ExecutionRef: digest(requestID + "execution"), ProofRef: proof}
 	start := supportdelete.Start{Selector: selector, Manifest: supportdelete.Manifest{Ref: digest("synthetic-complete-fleet"), Mode: "emulator"}, OwnerRef: digest(requestID + "owner"), Now: now}
 	t.Cleanup(func() {
-		for _, r := range []*firestore.DocumentRef{client.Collection(serviceaccess.Collection).Doc(channel), client.Collection("support-requests").Doc(ref), client.Collection("support-request-ids").Doc(digest("development:" + requestID)), client.Collection("oauth-transactions").Doc(oauthRef), client.Collection(supportDeleteClaims).Doc(proof), client.Collection(supportDeleteExecutions).Doc(selector.ExecutionRef), client.Collection("users").Doc(channel)} {
+		for _, r := range []*firestore.DocumentRef{client.Collection(serviceaccess.Collection).Doc(channel), client.Collection("support-requests").Doc(ref), client.Collection("support-request-ids").Doc(digest("development:" + requestID)), client.Collection("oauth-transactions").Doc(oauthRef), client.Collection(supportDeleteClaims).Doc(proof), client.Collection(supportDeleteExecutions).Doc(selector.ExecutionRef), client.Collection("users").Doc(channel), client.Collection(supportDeleteBigQueryInventory).Doc(selector.ExecutionRef), client.Collection(supportDeleteBigQueryBinding).Doc(selector.ExecutionRef)} {
 			_, err := r.Delete(ctx)
 			require.NoError(t, err)
 		}
@@ -291,7 +291,7 @@ func TestDeletionCheckpointClientRulesDenyReadAndWrite(t *testing.T) {
 	encode := base64.RawURLEncoding.EncodeToString
 	token := encode([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + encode([]byte(`{"iss":"https://securetoken.google.com/demo-youtube-study-space-ci","aud":"demo-youtube-study-space-ci","sub":"synthetic-rules-user","user_id":"synthetic-rules-user","iat":1780000000,"exp":2090000000,"firebase":{"sign_in_provider":"custom"}}`)) + "."
 	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership} {
+	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership, supportDeleteBigQueryInventory, supportDeleteBigQueryBinding} {
 		ref := start.Selector.ExecutionRef
 		if collection == supportDeleteClaims {
 			ref = start.Selector.ProofRef
