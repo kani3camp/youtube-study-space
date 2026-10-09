@@ -1,6 +1,6 @@
 # MyPage owner preparation packet
 
-これは本人へ一度で説明するための準備案。新しい実フォーム・公開・Google設定変更は実行していない。[Privacy Canon](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)と[09 D01〜03](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)の未決を残す。
+これは本人へ一度で説明するための準備案。新しい実フォーム・公開・Google設定変更は実行していない。[Privacy Canon](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)と[09 D01〜03](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)に従う。D01は2026-10-07確定済み、D02〜03の未決と実運用Gateを残す。
 
 ## 指定済みのOAuthサポートメール
 
@@ -32,18 +32,18 @@ Privacy Formを選ぶ場合のdraft:
 
 既存の本人確認は、受付後のSupportRequestとfresh OAuthをenvironment/request/purpose/channelへbindingする専用flow。opaqueな参照番号は照合用で、削除権限でも公開ticket URLでもない。削除受付を「ログイン後の専用フォームで完結」に変更しない。
 
-## D01 / D02の必要判断
+## D01の確定仕様とD02の必要判断
 
 | 項目 | 既決 | 推奨案と代案 | 必要な承認 |
 | --- | --- | --- | --- |
-| D01 削除中停止 | 7日以内横断削除、通常revokeは最大約1時間、proofは実行と別 | channel単位の一時guardを全Bot/batch/BFF/refresh/cacheへ適用し、世代/checkpointで古い遅延処理を拒否。代案は関係サービスを全体停止し残存token/遅延処理を待つ | 0B前に方式を本人確定。全writer実装/実store inventory/実行対象をreviewした後に個別の実行承認 |
+| D01 削除中停止 | 2026-10-07確定。User/WebAccountとは独立したServiceAccessControlでmoderationとprivacyDeletionを独立管理 | 初期適用はMyPageのみ。cache前のauthoritative read、write transaction直前の再確認、取得障害は503 fail closed。Bot未接続期間の実削除はdestructive windowにrelevant legacy writerを全体pause/drainする | 方式の再判断は不要。全runtime/launch・store・restore inventoryと実pause/drain/横断削除の証跡、個別の実行承認は未完 |
 | D02 Google grant取消 | YouTube refresh tokenは要求/保存なし。Firebase sessionとgrant取消は別。既定R-API受容あり | 実際の短命OAuth→channel identity→Firebase session→public metadata/cleanup flowをverification/complianceへ提示し確認。回答前0Bを選ぶ代案は新しい残余リスク受容と再設計条件の明示 | 一般OAuth verificationだけをこの解釈の承認と読み替えない。新しいリスク受容を代理確定しない |
 
 D03のうちOAuth user support emailの指定は上記で解消済み。返信窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。フォーム案や設定の形式検査はD01/D02/D03全体完了の証拠ではない。
 
 ## OAuth / Hostingの安全な先行準備
 
-今、本人が先に用意できるものは、選ぶ公開domain/予定URL、本人テスト用Google accountと対象channel、Privacy返信窓口の媒体と担当/期限管理、施行日/管轄の公開条件、D01/D02の方針判断。既存一般フォームは継続、実名/自宅住所の常時掲載とOAuthサポートメールは再質問しない。インフラの設定値やIAMは担当の証跡で閉じ、新しい本人質問へ置換しない。
+今、本人が先に用意できるものは、選ぶ公開domain/予定URL、本人テスト用Google accountと対象channel、Privacy返信窓口の媒体と担当/期限管理、施行日/管轄の公開条件、D02の方針判断。D01は再質問せず、確定仕様の実装・実運用証跡を確認する。既存一般フォームは継続、実名/自宅住所の常時掲載とOAuthサポートメールは再質問しない。インフラの設定値やIAMは担当の証跡で閉じ、新しい本人質問へ置換しない。
 
 - App Name/サービス説明、Homepage/Privacy/Terms予定path、user support email（指定済み、実値は安全なoperator設定入力で受け渡す）、未指定のdeveloper contact、所有domainとGoogle Auth PlatformのTesting accounts候補を整理する。指定メールの用途を拡張しない。
 - scopeは既決の `youtube.readonly` のみ。offline access/refresh tokenを追加しない。既存scope justificationと[demo storyboard](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)を実装と照合する。
@@ -56,12 +56,12 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 
 ## 本人へ一度で依頼する文案（review用）
 
-> 公開前の準備として、次の3点をまとめて確認してください。OAuth同意画面のサポートメールは指定済み、本名/自宅住所は常時非公開、一般問い合わせは既存フォーム継続として準備しています。指定メールの実値は安全なoperator設定入力で扱い、公開資料には掲載しません。
+> 公開前の準備として、D01の確定事項と残る2点をまとめて確認してください。OAuth同意画面のサポートメールは指定済み、本名/自宅住所は常時非公開、一般問い合わせは既存フォーム継続として準備しています。指定メールの実値は安全なoperator設定入力で扱い、公開資料には掲載しません。
 >
-> 1. 削除中の停止方式は、対象チャンネルだけを一時停止し、Bot/batch/API/cacheと遅延処理に共通のguardを適用する案を推奨します。関係サービス全体を停止する代案との運営上の選択をお願いします。選択後に実装・実inventory・削除検証を行います。
+> 1. D01は独立ServiceAccessControl方式に確定済みです。初期MyPageのguardに加え、Bot未接続期間の実削除では関係legacy writerの全体pause/drainが必要です。方式の選択は再依頼せず、実inventory・再生成防止・横断削除・復元後の再削除を証跡で確認します。moderationとinactive generation checkpointは削除完了後も保持する実装です。
 > 2. Google側の許可取消の扱いは、実際の認証/session/metadata flowをverification/complianceへ提示して確認する案を推奨します。回答前に0Bを選ぶ場合は、追加残余リスクと再設計条件の明示が別途必要です。
 > 3. 返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。Privacy Formは上記の項目案までで、作成/公開はまだ行いません。施行日・管轄等は公開予定と本文のreview時に確定します。
 >
 > インフラ担当から受け取るproject/app/IAM等の証跡は別に進めます。フォーム作成・公開、OAuth実設定・権限変更、live試験、deployや実データ操作は、対象と具体的な操作を確認してから承認を受けて実施します。
 
-この文案は準備依頼のためのもので、選択済み・承認済み・外部へ送信済みとは扱わない。
+この文案は準備依頼のためのもの。D01の確定を実運用承認やGate完了へ読み替えず、D02〜03の選択・公開承認・外部送信は未実施とする。

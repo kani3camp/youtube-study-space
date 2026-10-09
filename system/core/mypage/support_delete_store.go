@@ -34,10 +34,16 @@ func (s *FirestoreDeletionStore) check(selector supportdelete.Selector) error {
 
 func readDeletionExecution(doc *firestore.DocumentSnapshot) (supportdelete.Execution, error) {
 	var e supportdelete.Execution
-	if doc == nil || len(doc.Data()) != 12 || doc.DataTo(&e) != nil || e.Validate() != nil {
+	if doc == nil || (len(doc.Data()) != 12 && len(doc.Data()) != 13) || doc.DataTo(&e) != nil || e.Validate() != nil {
 		return e, supportdelete.ErrUnavailable
 	}
 	data := doc.Data()
+	if len(data) == 13 {
+		ref, ok := data["bigQueryInventoryRef"].(string)
+		if !ok || !supportdelete.ValidRef(ref) {
+			return e, supportdelete.ErrUnavailable
+		}
+	}
 	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {
 		if _, ok := data[key]; !ok {
 			return e, supportdelete.ErrUnavailable
@@ -230,10 +236,10 @@ func (s *FirestoreDeletionStore) Refresh(ctx context.Context, expected supportde
 		if result.Cursor > supportdelete.InspectionStart() && result.Cursor < supportdelete.ResumeStart() {
 			result.Cursor = supportdelete.InspectionStart()
 		}
-		if err := s.moveAuthOwnership(tx, e, result, false); err != nil {
+		if err := s.moveDeletionSnapshots(tx, e, result, false); err != nil {
 			return err
 		}
-		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result) != nil {
+		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
 		return nil
@@ -259,10 +265,10 @@ func (s *FirestoreDeletionStore) Commit(ctx context.Context, expected supportdel
 		result.Revision++
 		result.EvidenceDigest = supportdelete.EvidenceDigest(e.EvidenceDigest, evidence)
 		result.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		if err := s.moveAuthOwnership(tx, e, result, false); err != nil {
+		if err := s.moveDeletionSnapshots(tx, e, result, false); err != nil {
 			return err
 		}
-		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result) != nil {
+		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
 		return nil
@@ -295,10 +301,10 @@ func (s *FirestoreDeletionStore) Recover(ctx context.Context, proof supportdelet
 		e.OwnerRef = proof.NewOwnerRef
 		e.Revision++
 		e.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		if err := s.moveAuthOwnership(tx, previous, e, false); err != nil {
+		if err := s.moveDeletionSnapshots(tx, previous, e, false); err != nil {
 			return err
 		}
-		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), e) != nil {
+		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), e, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
 		return nil
@@ -336,7 +342,7 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		// Minimal opaque terminal receipts carry no channel/proof/request links.
 		// Inactive control checkpoints are retained without TTL/reset/deletion.
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond)}
-		if err := s.moveAuthOwnership(tx, e, e, true); err != nil {
+		if err := s.moveDeletionSnapshots(tx, e, e, true); err != nil {
 			return err
 		}
 		for _, ref := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(receipt.OAuthTransactionID), s.Client.Collection("support-request-ids").Doc(digest(receipt.Environment + ":" + receipt.RequestID)), s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef)} {
@@ -354,4 +360,14 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 
 func completionBinding(selector supportdelete.Selector, manifest supportdelete.Manifest) string {
 	return digest(selector.Target.Environment + ":" + selector.Target.ProjectID + ":" + selector.Target.ChannelID + ":" + selector.RequestRef + ":" + selector.ExecutionRef + ":" + selector.ProofRef + ":" + manifest.Ref + ":" + manifest.Mode)
+}
+
+// Preserve the optional immutable BQ capture marker across ordinary checkpoint
+// updates. Terminal replacement deliberately removes it with all raw links.
+func mergeDeletionExecution() firestore.SetOption {
+	var paths []firestore.FieldPath
+	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {
+		paths = append(paths, firestore.FieldPath{key})
+	}
+	return firestore.Merge(paths...)
 }

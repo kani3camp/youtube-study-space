@@ -842,6 +842,24 @@
           "symbol": "InspectUserData/countRowsByField",
           "line": 23,
           "anchor": "func (c *BigqueryController) InspectUserData("
+        },
+        {
+          "path": "system/core/mypage/support_delete_bigquery.go",
+          "symbol": "BigQueryDeletionEffects",
+          "line": 214,
+          "anchor": "type BigQueryDeletionEffects struct {"
+        },
+        {
+          "path": "system/core/mypage/support_delete_bigquery_store.go",
+          "symbol": "CaptureBigQueryInventory",
+          "line": 125,
+          "anchor": "func (s *FirestoreDeletionStore) CaptureBigQueryInventory("
+        },
+        {
+          "path": "system/core/mybigquery/target_query.go",
+          "symbol": "pure TargetDeletionSQL planner",
+          "line": 14,
+          "anchor": "func TargetDeletionSQL("
         }
       ],
       "writerIds": [
@@ -869,7 +887,8 @@
       },
       "sourceKnown": [
         "User inventory uses parameterized values for three main-table counts only.",
-        "tmp is shared and loaded with WriteTruncate from whole GCS collection; main queries WriteAppend; raw import skipped in current source."
+        "tmp is shared and loaded with WriteTruncate from whole GCS collection; main queries WriteAppend; raw import skipped in current source.",
+        "Synthetic-only BigQueryDeletionEffects pins complete table/job/copy inventory, stable target job plans and definitive readback; temporary Firestore state moves atomically with Auth/checkpoints. No live executor/bootstrap is provided."
       ],
       "liveUnknown": [
         "Live tables/schema/location, alternate jobs/copies/results, IAM/deletion ownership, historical imports and retained snapshots."
@@ -888,9 +907,9 @@
         "state": "required-not-collected"
       },
       "implementationStatus": {
-        "sourceObservation": "Import and read-only main counters exist.",
+        "sourceObservation": "Importer/read-only main counters and synthetic target deletion/reconciliation adapter exist; live capabilities and completeness remain unverified.",
         "requiredExecutionCapabilities": [
-          "B target deletion/postcondition, tmp/job/result-copy adapters and live resource/permission evidence are required."
+          "Live main/tmp/job/result-copy executor, complete resource/schema/location inventory, pause/replay exclusion, copy disposition, SQL/API guarantees and permission evidence remain required."
         ],
         "liveOperationsExecuted": false,
         "liveReadiness": "unknown"

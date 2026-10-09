@@ -412,30 +412,35 @@ func (s *FirestoreDeletionStore) ApplyAuthRecords(ctx context.Context, op suppor
 	return deletionStoreError(err)
 }
 
-// moveAuthOwnership must run before any writes in the enclosing lifecycle
+// prepareAuthOwnership reads before any writes in the enclosing lifecycle
 // transaction. Missing state is valid for workflows using other adapters.
-func (s *FirestoreDeletionStore) moveAuthOwnership(tx *firestore.Transaction, old, next supportdelete.Execution, terminal bool) error {
+func (s *FirestoreDeletionStore) prepareAuthOwnership(tx *firestore.Transaction, old, next supportdelete.Execution, terminal bool) (func() error, error) {
 	ref := s.Client.Collection(supportDeleteAuthOwnership).Doc(old.Selector.ExecutionRef)
 	doc, err := tx.Get(ref)
 	if status.Code(err) == codes.NotFound {
-		return nil
+		return func() error { return nil }, nil
 	}
 	if err != nil {
-		return supportdelete.ErrUnavailable
+		return nil, supportdelete.ErrUnavailable
 	}
 	snapshot, err := readAuthOwnership(doc)
 	if err != nil || snapshot.Execution != old {
-		return supportdelete.ErrConflict
+		return nil, supportdelete.ErrConflict
 	}
-	if terminal {
-		if tx.Delete(ref) != nil {
+	if !terminal {
+		snapshot.Execution = next
+		if snapshot.validate() != nil {
+			return nil, supportdelete.ErrUnavailable
+		}
+	}
+	return func() error {
+		if terminal {
+			if tx.Delete(ref) != nil {
+				return supportdelete.ErrUnavailable
+			}
+		} else if tx.Set(ref, snapshot) != nil {
 			return supportdelete.ErrUnavailable
 		}
 		return nil
-	}
-	snapshot.Execution = next
-	if snapshot.validate() != nil || tx.Set(ref, snapshot) != nil {
-		return supportdelete.ErrUnavailable
-	}
-	return nil
+	}, nil
 }

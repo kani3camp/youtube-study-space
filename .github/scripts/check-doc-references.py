@@ -25,6 +25,7 @@ TARGETS = (
     "docs/mypage/service-access-control.md",
     "docs/mypage/support-delete.md",
     "docs/mypage/support-delete-inventory.md",
+    "docs/mypage/support-delete-bigquery-adapter.md",
     "docs/mypage/release/README.md",
     "docs/mypage/release/owner-packet.md",
     "docs/mypage/release/e2e.md",
