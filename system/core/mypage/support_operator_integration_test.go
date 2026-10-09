@@ -126,6 +126,7 @@ func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
 	require.NoError(t, err)
 	requestID := before.Data()["requestId"].(string)
 	completion := CompletionOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: reply.Intent.RequestRef, Purpose: SupportRevoke, OperationID: digest("operator-complete"), Action: "complete"}, ProofRef: reply.ProofRef, ReplyOperationID: reply.Intent.OperationID, ExpectedRevision: 1, ActionEvidence: digest("synthetic-action"), DeliveryAcknowledgement: digest("synthetic-delivery"), At: reply.At.Add(time.Second)}
+	completion.ReplyDigest = before.Data()["replyDigest"].(string)
 	var verifyCalls atomic.Int64
 	op.Authority = syntheticOperatorAuthority{evidence: true, verified: syntheticVerifiedCompletion(completion, before.Data()["replyDigest"].(string)), verifyCalls: &verifyCalls}
 	missing := completion
@@ -163,7 +164,24 @@ func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
 	changed := completion
 	changed.DeliveryAcknowledgement = digest("other-delivery")
 	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorConflict)
+	changed = completion
+	changed.ReplyDigest = digest("other-reply")
+	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorConflict)
 	require.Equal(t, int64(2), verifyCalls.Load())
+}
+
+func TestOperatorTrustedClockIgnoresCallerAt(t *testing.T) {
+	op, reply, _ := operatorFixture(t, SupportDisclosure)
+	trusted := reply.At.Add(2 * time.Second)
+	op.Clock = func() time.Time { return trusted }
+	reply.At = reply.At.Add(-24 * time.Hour)
+	require.NoError(t, op.Reply(context.Background(), reply))
+	snap, err := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef).Get(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, trusted, snap.Data()["operatorReplyAt"])
+	audit, err := op.auditRef(reply.Intent).Get(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, trusted, audit.Data()["at"])
 }
 
 func TestOperatorCompletionRejectsSwappedEvidenceAndReplyWithoutMutation(t *testing.T) {
