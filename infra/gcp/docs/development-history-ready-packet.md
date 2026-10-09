@@ -267,7 +267,11 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
    successはいずれもSTOP。前後でcurrent VersionId/ETag/HEADとbody SHA-256、exact lock absenceを
    privateに比較し、0600の一時receiptに両HEAD/body digest/lock判定/条件headerと403判定を残す。
    runner終了時に消去しpublic artifactにしない。失敗・timeout・強制停止ではこの一時receiptの
-   残存を事故解析の前提にできない。固定STOP分類を起点に、安全な権限でcurrent snapshotと
+   残存を事故解析の前提にできない。公開するのは固定stageの
+   `aws-state-probe-request/post/invariant/deny/receipt`と固定categoryだけ。
+   `request`は送信結果不明も含み、`post`は再取得不成立、`invariant`は前後差分、
+   `deny`は403以外、`receipt`は一時記録失敗として全てSTOPする。
+   固定STOP分類を起点に、安全な権限でcurrent snapshotと
    必要ならCloudTrail等を別途確認し、秘密をpublic artifactへ移さない。
    万一予期せぬ書込みが可能だった場合の被害を抑えるためrequest bodyは直前に
    読んだstateそのものを使うが、競合で将来ETagが偶然一致する可能性やS3の想定外動作は

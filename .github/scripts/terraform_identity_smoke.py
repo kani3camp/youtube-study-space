@@ -296,25 +296,27 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_
         before, before_digest = at_stage("aws-state-read", lambda: capture_exact_state_and_lock(env, Path(directory) / "probe-before.json"))
         candidate = secrets.token_hex(16)
         if candidate == before["ETag"].strip('"'):
-            raise SmokeFailure("aws-state-probe-etag-collision")
-        result = aws("s3api", "put-object", "--bucket", bucket, "--expected-bucket-owner", env["STATE_ACCOUNT_ID"],
-                     "--key", key, "--body", str(Path(directory) / "probe-before.json"), "--if-match", f'"{candidate}"')
-        after, after_digest = capture_exact_state_and_lock(env, Path(directory) / "probe-after.json")
+            raise StageFailure("aws-state-probe-request", "check-failed")
+        result = at_stage("aws-state-probe-request", lambda: aws(
+            "s3api", "put-object", "--bucket", bucket, "--expected-bucket-owner", env["STATE_ACCOUNT_ID"],
+            "--key", key, "--body", str(Path(directory) / "probe-before.json"), "--if-match", f'"{candidate}"'))
+        after, after_digest = at_stage("aws-state-probe-post", lambda: capture_exact_state_and_lock(
+            env, Path(directory) / "probe-after.json"))
         try:
             denied_aws(result, "aws-plan-state-write-denied")
             put_denied = True
         except SmokeFailure:
             put_denied = False
         from terraform_history_plan_receipt import write_private
-        write_private(Path(directory) / "probe-private-receipt.json", {
+        at_stage("aws-state-probe-receipt", lambda: write_private(Path(directory) / "probe-private-receipt.json", {
             "before_head": before, "before_body_sha256": before_digest, "before_lock_absent": True,
             "after_head": after, "after_body_sha256": after_digest, "after_lock_absent": True,
             "if_match": f'"{candidate}"', "put_denied_403": put_denied,
-        })
+        }))
         if after != before or after_digest != before_digest:
-            raise SmokeFailure("aws-state-probe-changed")
+            raise StageFailure("aws-state-probe-invariant", "check-failed")
         if not put_denied:
-            raise SmokeFailure("aws-plan-state-write-denied")
+            raise StageFailure("aws-state-probe-deny", "check-failed")
     for prefix, label in [("youtube-study-space/prod/", "aws-production-prefix-denied"), ("unrelated-product/dev/", "aws-other-product-prefix-denied")]:
         denied_aws(aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", prefix, "--max-keys", "1"), label)
         denied_aws(aws("s3api", "head-object", "--bucket", bucket, "--key", prefix + "terraform.tfstate"), label)

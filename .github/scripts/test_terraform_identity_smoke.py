@@ -340,6 +340,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                     "MaxKeys": 1, "KeyCount": int(lock_present[0]), "IsTruncated": False,
                     **({"Contents": [{"Key": state_key + ".tflock", "Size": 1}]} if lock_present[0] else {})}), "")
             if args[:2] == ("s3api", "put-object"):
+                if put_error == "raise": raise RuntimeError("PRIVATE_TIMEOUT_TOKEN")
                 if change_after_put == "version": current_version[0] = "DUMMY_NEW_VERSION_ID"
                 if change_after_put == "body": state_body[0] += b"\n"
                 if change_after_put == "lock": lock_present[0] = True
@@ -498,12 +499,15 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                 self.assertEqual(rc, 1)
                 self.assertEqual(sum(c[:2] == ("s3api", "get-object") for c in calls), 2)
                 self.assertEqual(summary, "")
+                self.assertIn("stage=aws-state-probe-deny; category=check-failed", output)
                 self.assertNotIn("PRIVATE", output)
         for mutation in ("version", "body", "lock"):
             with self.subTest(mutation=mutation):
-                rc, _, _, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True,
+                rc, _, _, summary, output = self.run_smoke(args=("security-probe",), legacy_denials=True,
                     change_after_put=mutation)
                 self.assertEqual((rc, summary), (1, ""))
+                stage = "aws-state-probe-post" if mutation == "lock" else "aws-state-probe-invariant"
+                self.assertIn(f"stage={stage};", output)
         rc, _, calls, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True)
         self.assertEqual(rc, 0)
         self.assertIn("AWS plan state PutObject denied for mismatched If-Match request", summary)
@@ -513,6 +517,11 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
             rc, _, calls, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True)
         self.assertEqual((rc, summary), (1, ""))
         self.assertFalse(any(c[:2] == ("s3api", "put-object") for c in calls))
+        rc, _, _, summary, output = self.run_smoke(args=("security-probe",), legacy_denials=True,
+            put_error="raise")
+        self.assertEqual((rc, summary), (1, ""))
+        self.assertIn("stage=aws-state-probe-request; category=dependency-error", output)
+        self.assertNotIn("PRIVATE", output)
 
     def test_invalid_read_only_cli_does_not_fall_back_to_legacy(self):
         rc, http, aws, summary, _ = self.run_smoke(args=("plan-read-only", "apply"))
