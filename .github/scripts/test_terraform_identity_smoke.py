@@ -559,6 +559,27 @@ class FixedDatetime(datetime):
 receipt.datetime = FixedDatetime
 
 backend = FakeS3()
+mutation = os.environ.get("DUMMY_STATE_MUTATION")
+if mutation:
+    state = json.loads(backend.body)
+    if mutation == "output-sensitive":
+        state["outputs"]["project_id"]["sensitive"] = True
+    elif mutation == "output-extra":
+        state["outputs"]["project_id"]["PRIVATE_UNKNOWN_FIELD"] = "PRIVATE_SENTINEL"
+    elif mutation == "check-unknown":
+        state["check_results"][1]["config_addr"] = "module.PRIVATE_UNKNOWN.var.secret"
+    elif mutation == "check-empty-active":
+        state["check_results"][1]["objects"] = None
+    elif mutation == "check-nonpass":
+        state["check_results"][-2]["status"] = "unknown"
+    elif mutation == "state-serial-bool":
+        state["serial"] = True
+    elif mutation == "resource-extra":
+        state["resources"].append(state["resources"][0] | {"name": "PRIVATE_EXTRA"})
+    if mutation == "json-duplicate":
+        backend.body = b'{"version":4,"version":4}'
+    else:
+        backend.body = json.dumps(state).encode()
 counts = {}
 sentinel = "PRIVATE_URL_TOKEN_HTTP_BODY_TRACEBACK"
 
@@ -598,9 +619,17 @@ subprocess.run = fake_run
 urllib.request.urlopen = fake_urlopen
 '''
         script = Path(__file__).with_name("terraform_identity_smoke.py")
-        for stage in (None, "history-policy", "history-head", "history-get", "history-re-head",
-                      "history-lock-list", "history-workspace-list"):
-            with self.subTest(stage=stage):
+        cases = [(None, None, None),
+                 *[(stage, None, "file-open-read" if stage == "history-policy" else "s3-request")
+                   for stage in ("history-policy", "history-head", "history-get", "history-re-head",
+                                 "history-lock-list", "history-workspace-list")],
+                 *[("history-get", mutation, reason) for mutation, reason in (
+                     ("output-sensitive", "state-output-value"), ("output-extra", "state-output-value"),
+                     ("check-unknown", "checks-address"), ("check-empty-active", "checks-object-list"),
+                     ("check-nonpass", "checks-result"), ("state-serial-bool", "state-serial"),
+                     ("resource-extra", "state-address-set"), ("json-duplicate", "json-duplicate"))]]
+        for stage, mutation, reason in cases:
+            with self.subTest(stage=stage, mutation=mutation):
                 fixture = receipt_fixtures.ReceiptTests("runTest")
                 fixture.setUp(); self.addCleanup(fixture.doCleanups)
                 evidence = receipt_fixtures.profile()
@@ -613,7 +642,8 @@ urllib.request.urlopen = fake_urlopen
                     "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "DUMMY_GITHUB_TOKEN",
                     "BACKEND_ROLE_ARN": "arn:aws:iam::" + "111111111111:role/fixture-plan",
                     "DUMMY_OIDC_TOKEN": token,
-                    "DUMMY_FAIL_STAGE": stage or "",
+                    "DUMMY_FAIL_STAGE": (stage or "") if mutation is None else "",
+                    "DUMMY_STATE_MUTATION": mutation or "",
                     "PYTHONPATH": os.pathsep.join((str(fixture.root), str(script.parent))),
                     "PYTHONDONTWRITEBYTECODE": "1",
                 })
@@ -629,7 +659,8 @@ urllib.request.urlopen = fake_urlopen
                     self.assertTrue((fixture.root / "history-plan-state-before-receipt.json").exists())
                 else:
                     self.assertEqual(result.returncode, 1, exposed)
-                    self.assertIn(f"stage={stage}; category=dependency-error", exposed)
+                    category = "invalid-evidence" if mutation else "dependency-error"
+                    self.assertIn(f"stage={stage}; category={category}; reason={reason}", exposed)
                     self.assertFalse((fixture.root / "history-plan-state-before-receipt.json").exists())
 
 
