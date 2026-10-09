@@ -1,147 +1,139 @@
-# CodeQL advanced setup: source preparation
+# CodeQL advanced setup: staged-disabled source
 
-この変更は実行されない設定案と静的 CI の準備です。解析成功、OIDC 修復、Environment 作成、default setup 切替を示すものではありません。
-caller/callee は `templates/*.yml.template` に置き、Actions の workflow 探索対象から外しています。caller の `if: ${{ false }}` も維持します。
-通常 CI、Terraform workflow、AWS/GCP trust、MyPage のソースは変更しません。
+caller/callee を `.github/workflows` に配置した準備段階です。**両方の解析 job は `if: ${{ false }}` のままです。**
+手動・push・PR・schedule、または別 caller の `workflow_call` のどの経路でも解析 job は起動しません。
+実行可能な新規 CI はソース契約の静的検証だけです。これは解析成功、OIDC 修復、Environment 作成、default setup の切替を示しません。
 
-## 観測した失敗と未検証の仮説
+この PR の stack は `slice/codeql-staged-disabled-20261009 → feature/codeql-advanced-setup → dev` です。
+基点は PR #1253 を取り込んだ `c51790f4e89e899404f28c8b77097b2dad864582`。この PR の base は専用 integration のみです。
+dev/main/Terraform/MyPage の枝への反映、Environment 作成、security 設定変更、有効化、cloud 操作は後日の別承認です。
 
-[run 37618974902](https://github.com/kani3camp/youtube-study-space/actions/runs/37618974902)
-は `dynamic/github-code-scanning/codeql` の managed default setup です。Actions / Go / JavaScript-TypeScript の全 job が
-`environment` claim の欠落で失敗し、runner steps は空でした。前段のプラットフォーム処理で停止したと考えられます。
-通常 `ci.yml` の変更でこの別 workflow が修復したとは判断できません。
+## 現行設定の read-only snapshot
 
-annotation が列挙した required claims は次の 7 個です。設定 API の現値を再取得した証拠ではありません。
+2026-10-09 19:04 UTC、既存の認証済み `gh api --method GET` で取得しました。permission error はありませんでした。
+CodeQL の既知の失敗原因（repository OIDC subject が要求する `environment` を managed default job が持たない）は再調査していません。
 
-```text
-repository_id, repository_owner_id, environment, ref,
-workflow_ref, job_workflow_ref, event_name
-```
-
-[公式 OIDC reference](https://docs.github.com/en/actions/reference/security/oidc) は Environment claim と reusable job の
-`job_workflow_ref` を説明しています。本案は fixed Environment を callee job に付け、通常の reusable workflow 構造を作ります。
-`id-token: none` は cloud 用 OIDC を要求する権限を与えません。GitHub/CodeQL 内部の token 処理が無くなる、同じエラーが必ず解消する、とは断定できません。
-内部処理のどこで claim が検証されるか、advanced job が runner 開始・init・analyze・upload まで到達するかは、別承認後の実行で確認します。
-repo subject template の 7 claims を削除・順序変更せず、AWS/GCP trust に CodeQL の Environment/ref/audience を追加しません。
-
-## ソース案の契約
-
-| 項目 | 案 |
+| 項目 | API の実値 |
 | --- | --- |
-| caller → callee | `.github/workflows/codeql-advanced.yml` → local `codeql-analyzer.yml`（将来の配置先） |
-| callee Environment | literal `codeql-analysis`。入力なし、`secrets: inherit` なし |
-| caller/callee permissions | `contents: read`, `security-events: write`, `id-token: none`。他の権限は付与しない |
-| languages | `actions: none`, `go: manual`, `javascript-typescript: none` |
-| Go | `system/go.mod` の toolchain。全 tracked `go.mod` を `go build -a ./...`。Bot、tests、generate は起動しない |
-| checkout/cache | checkout credentials を保存しない。Go/dependency cache を無効化し、fresh compile を抽出する |
-| upload | 言語別 category `/language:<language>`。処理完了を待つ。`upload-database: false`, `debug: false` を明示 |
-| 準備段階の実行 | 新しい `CodeQL Source Contracts` は parser / unit contract / actionlint / shell syntax / CI routing のみ。Environment と解析権限を持たない |
+| default setup | `state: configured` |
+| languages（返値をそのまま記録） | `actions`, `go`, `javascript`, `javascript-typescript`, `typescript` |
+| query suite / threat model | `default` / `remote` |
+| runner | `runner_type: standard`, `runner_label: ""` |
+| schedule / updated_at | `weekly` / `2026-07-23T07:21:59Z`。実行時刻は未提供 |
+| `codeql-analysis` | 全 10 Environment を case-insensitive に比較して absent |
+| 対象 Environment の protection / branch policies / secrets / variables | absent のため N/A。secret/variable listing は行っていない |
+| OIDC `include_claim_keys`（順序保持） | `repository_id`, `repository_owner_id`, `environment`, `ref`, `workflow_ref`, `job_workflow_ref`, `event_name` |
+| OIDC その他 | `use_default: false`, `use_immutable_subject: false`, `sub_claim_prefix: repo:kani3camp/youtube-study-space` |
 
-manual build は `init` と `analyze` の間に置き、root と入れ子の module を NUL 区切りで列挙します。
-現 dev の `system` と `tools/room-image-prompt`、将来追加される tracked module を対象にします。
-ビルド設定・生成ファイル・CGO・build tags による対象外ファイル、Go toolchain と CodeQL bundle の互換性は実解析前に再確認します。
-fixture テストは偽の command recorder を使い、実 Go コンパイラや外部サービスを実行しません。
-[compiled-language docs](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/manage-your-configuration/codeql-for-compiled-languages)
-に従い Go の `none` は採用しません。
+使用した repository 相対 GET routes は `/code-scanning/default-setup`、`/environments?per_page=100`（pagination）、
+`/actions/oidc/customization/sub` のみです。無関係な Environment の secrets は取得していません。
+snapshot は有効化の許可ではなく、設定変更直前に再取得する baseline です。
 
-## Repository 全体の coverage と checks
+## 無効状態のソース契約
 
-| ref / event | 将来の trigger / Environment branch policy | 有効化前に必要な準備 |
+| 項目 | 現在の契約 |
+| --- | --- |
+| caller → callee | [`codeql-advanced.yml`](../workflows/codeql-advanced.yml) → same-tree local [`codeql-analyzer.yml`](../workflows/codeql-analyzer.yml) |
+| caller gate | literal `if: ${{ false }}`。手動入力・vars・secrets による解除経路なし |
+| callee gate | 同じ literal false を matrix job 自体に指定。別 caller から呼ばれても全解析が無効 |
+| callee Environment | literal `codeql-analysis`。job がスキップされるので runner/deployment/Environment 作成経路は到達不能 |
+| workflow-wide permissions | `{}`。予定の job permissions は `contents: read`, `security-events: write`, `id-token: none` のみ。スキップ中は解析 token を発行しない |
+| secrets / variables / cloud | input・secret 継承・secret/vars 参照・AWS/GCP auth なし。既存 dev Environment を使わない |
+| runner | standard GitHub-hosted `ubuntu-latest`。custom runner label なし |
+| languages / build mode | `actions: none`, `go: manual`, `javascript-typescript: none`。JS と TS は同じ canonical language で両方を解析する案 |
+| analysis scope | [`analysis-config.yml`](analysis-config.yml) で default queries と remote sources を固定。追加 queries/packs、query/path filters、local model なし |
+| Go | [`build-go.sh`](build-go.sh) は全 tracked `go.mod` を NUL 区切りで列挙し `GOWORK=off GOFLAGS=-mod=readonly go build -a ./...` のみ。Bot/tests/generators は実行しない |
+| checkout/cache/upload | checkout credential 保存なし、Go/dependency cache 無効、debug/database artifact 無効、language category と processing wait を維持 |
+| 静的 CI | [`codeql-source-contracts.yml`](../workflows/codeql-source-contracts.yml) は Environment・解析権限・解析実行を持たない |
+
+[GitHub の job 条件](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif) は matrix 展開前に評価されます。
+step 単位の skip だけには依存しません。[Environment 参照は暗黙作成を起こし得る](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+ため、実行可能な Environment job は現在の契約で拒否します。
+`id-token: none` は cloud 用 token を要求する権限を与えません。GitHub/CodeQL 内部の claim 検証が解消するかは未検証です。
+
+validator は templates を読みません。実際の workflow 全体、両 gate、全解析 job、予定権限、解析範囲、別経路の CodeQL 呼出し、
+静的 CI の全必須 commands と bypass を検査します。重複 YAML key、追加 job/step/env、CI の `if`/`continue-on-error` も拒否します。
+全 workflow・CodeQL source・routing scripts・全 `go.mod`/`go.sum` の変更が静的検証に入り、CodeQL source の変更も通常 CI の全群に分類します。
+
+Go helper/config/parser/tooling と caller/callee は同じ tree で tracked・実在・非 symlink である必要があります。
+helper の reviewed SHA-256 は [`tooling.json`](tooling.json) に固定し、合成 fixture の command recorder で root/入れ子/空白入り module の compile-only 列挙を確認します。
+現在の `system/go.mod` と `tools/room-image-prompt/go.mod` の全 require は同じ tree の `go.sum` に対応し、canonical `system/go.mod` の version が全 module を覆うことも確認します。
+この検査は Go compiler や application/service を起動しません。CGO/build tags/generated source/CodeQL toolchain 対応と実ビルド結果は未検証です。
+
+## 後日の有効化 packet（この PR の実行範囲外）
+
+### 1. 直前の再確認と対象 tree の準備
+
+上記 GET snapshot、default/protected refs、rulesets・required contexts/app IDs、対象 PR の head/merge tree を read-only で再確認します。
+403/unavailable はそのまま報告し、別 account、credential 抽出、permission 拡張をしません。
+既存 `codeql-analysis` があれば上書きせず停止し、その Environment の protection と secret/variable **名前・件数のみ**を確認します。
+runner debug logging と query scope、全 tracked Go modules、Go/CodeQL supported toolchain も確認します。
+OIDC 7 claims と順序は保持し、AWS/GCP trust、IAM/WIF、long-lived keys への変更は 0 とします。
+
+| 将来の coverage | trigger 案 / Environment branch policy 案 | 必要な別作業 |
 | --- | --- | --- |
-| default `dev` | push `dev`、weekly schedule、dispatch / branch `dev` | owner が active caller/callee/helper を同じ tree に配置。dev merge は owner のみ |
-| protected `main` | push `main` / branch `main` | main の workflow/helper を独立 PR で同期 |
-| protected `feature/gcp-terraform-iac` | push exact branch / 同名 branch | infra 担当と調整した独立 PR で同期。既存 Terraform workflow は変更しない |
-| MyPage integration | push `integration/mypage-canon-20261006` / 同名 branch | MyPage 担当が独立 PR で同期。本準備 PR はその枝に触れない |
-| PR（全 base / slice / forks / Dependabot） | `pull_request.branches: ["**"]`、paths filter なし / branch `refs/pull/*/merge` | PR の merge tree に caller/callee/helper が揃う。fork/Dependabot の実 check/upload は承認後に検証 |
+| default `dev` | push `dev`、weekly schedule、dispatch / `dev` | owner による専用 integration → dev 反映 |
+| protected `main` | push `main` / `main` | 別の exact-diff PR で同じ helper/config/dependencies を同期 |
+| protected Terraform integration | push `feature/gcp-terraform-iac` / 同名 branch | 担当者と調整した独立 PR。既存 Terraform workflow は変更しない |
+| MyPage integration | push `integration/mypage-canon-20261006` / 同名 branch | 担当者の独立 PR |
+| PR（全 base/fork/Dependabot） | `pull_request.branches: ["**"]`、paths filter なし / `refs/pull/*/merge` | 各 merge tree の同一 tree 整合と check/upload 実互換性の検証 |
 
-push は表の 4 枝を対象とし、その他の作業枝は PR で coverage を得ます。schedule は default branch でのみ動きます。
-branch 名、default、保護対象が変わったら activation 前に trigger / Environment policy / この表 / static contract を一緒に見直します。
-古い open PR は base に workflow を足しただけで新しい run が保証されません。対象 head と merge tree を一覧にし、別承認の synchronize/dispatch を計画します。
-CI routing の更新で MyPage の共通 CI と競合する場合は担当に調整を依頼します。
+この trigger 案は workflow に既に記述されていますが、両 job gate は false です。
+schedule は default branch でのみ動きます。古い PR は base 更新だけで run が保証されないため、別承認の synchronize/dispatch を計画します。
+2026-10-07 の過去の ruleset 観測（Terraform の `CI Gate` / `GCP Terraform Validate`、dev/main に CodeQL gate なし）は現在値の保証ではありません。
+activation 直前に required contexts/app IDs を照合し、緑 alias、required-check 削除、strict 無効化で置き換えません。
 
-2026-10-07 の read-only ruleset snapshot では Terraform integration の strict required contexts は `CI Gate` と `GCP Terraform Validate` です。
-default `dev` と `main` の ruleset には required status-check / CodeQL rules はありませんでした。直前に再取得し、snapshot と異なれば停止します。
-本案の reusable check 名は managed setup の `Analyze (go)` 等と同じとは限りません。実際の nested context、app ID、category、ref/SHA、
-tool status を read-back して既存 gate と照合します。緑色の代替 alias、required-check 削除、strict 無効化は行いません。
-`CodeQL Source Contracts` 成功を security analysis 成功の代わりにしません。ruleset 変更が必要なら別 packet / 別承認です。
+### 2. Environment 作成の別承認
 
-## 将来の approval packet（現在は未承認）
-
-対象は public `kani3camp/youtube-study-space` の GitHub security 設定です。cloud IAM/SA/credentials の作成・変更は含みません。
-source PR は専用 stack `slice/codeql-advanced-source-prep-20261007 → feature/codeql-advanced-setup → dev` に置きます。
-複数 wave のため最新 dev から独立 integration を作り、Terraform integration に混ぜません。各 wave の exact base/head/diff を承認時に提示します。
-
-### 1. 直前の read-only packet
-
-承認済みの正規 connector/owner 操作で次を取得します。admin read が unavailable / 403 なら owner に取得を依頼し、token 抜き出しや経路迂回はしません。
-
-- `GET /repos/kani3camp/youtube-study-space/code-scanning/default-setup` の state / languages / query_suite / threat_model / runner_type / runner_label / schedule と取得時刻。未提供 field は推測で補わない。
-- default/protected refs、ruleset と required contexts/app IDs、対象 PR の head/merge tree、最近の言語別 analysis/category/tool status。全言語成功の baseline が無ければそう記録する。
-- `codeql-analysis` が case-insensitive に存在しないこと。既存なら設定を上書きせず衝突として停止。Environment policy / secret・variable の**名前と件数だけ**を owner が確認する。解析 run の debug logging が有効になっていないことも確認する。
-- repository OIDC 7 claims と AWS/GCP trust の unchanged を owner の既存 read 権限で照合。JWT、credential、secret value、非公開設定の原文はログ/PR/artifact に出さない。
-
-### 2. Environment 作成の action-time 承認
-
-source を全対象 tree に gate false のまま配置する PR は、branch ごとの exact diff をレビューします。
-その際、この準備 validator の「active workflow 不在」契約を staged-disabled 用の契約へ置き換える専用 diff が必要です。static CI を単に無効化しません。
-まだ false caller からは runner/Environment/解析を起動しません。
-[GitHub は job の参照だけで新しい Environment を暗黙作成し得る](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
-ため、自動作成に依存せず次の exact settings diff を別承認します。
-
-| 設定 | Before | After proposal |
+| 設定 | Before snapshot | After proposal |
 | --- | --- | --- |
-| `codeql-analysis` | owner が absent を確認 | 専用 Environment を 1 個作成 |
-| secrets / variables | absent | 0 / 0。継承なし、新 credential なし |
-| required reviewers / wait timer / custom protection rules | absent | none / 0 / none（通常 PR 解析を待ち状態にしない） |
-| admin bypass | absent | false |
-| deployment_branch_policy | absent | `protected_branches: false`, `custom_branch_policies: true` |
-| selected branch policies（type `branch` のみ） | absent | `dev`, `main`, `feature/gcp-terraform-iac`, `integration/mypage-canon-20261006`, `refs/pull/*/merge`。tag policy 0 |
-| IAM / WIF / OIDC template / long-lived keys | 現設定 | 変更 0 |
+| `codeql-analysis` | absent | 専用 Environment を 1 個明示作成 |
+| secrets / variables | N/A | 0 / 0。継承なし |
+| reviewers / wait timer / custom protection | N/A | none / 0 / none |
+| admin bypass | N/A | false |
+| deployment_branch_policy | N/A | `protected_branches: false`, `custom_branch_policies: true` |
+| selected policies（type branch、tag 0） | N/A | `dev`, `main`, `feature/gcp-terraform-iac`, `integration/mypage-canon-20261006`, `refs/pull/*/merge` |
+| OIDC / cloud trust / credentials | 現設定 | 変更 0 |
 
-[Environment policies](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
-は workflow の ref に一致させます。`refs/pull/*/merge` を別 rule として指定し、protected-branches-only で PR を塞ぎません。
-作成後の read-back が一致しない場合、解析は始めません。
+Environment 作成だけでは両 false gate を変更しません。自動作成には依存しません。
 
-### 3. default → advanced 切替と実解析の action-time 承認
+### 3. default → advanced 切替と source 有効化の別承認
 
-[公式 advanced setup](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)
-は default を無効化してから切り替えます。
-[default setup は advanced CodeQL upload をブロックする](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configure-code-scanning)
-ため、default を enabled のまま成功検証する手順や無停止の overlap は約束しません。
+1. 承認対象の exact base/head と **caller + callee 両方の false gate を変更する差分**、validator/negative tests を active 用契約へ変更する差分、各 branch の反映順をまとめて承認します。静的 CI 自体は維持します。
+2. default setup の `configured → not-configured` を別承認の owner 操作で変更し read-back します。default enabled 中は advanced SARIF upload が拒否されるため、切替の gap と security/release hold を計画します。
+3. 承認対象 tree の gate を有効にし、承認済み trigger で実行します。root permissions `{}` と予定 job の bounded permissions、default/remote/standard を維持します。
+4. 全 3 言語の runner/init/Go compile/analyze/SARIF processing、head/merge SHA/ref/category、nested check context/app ID、tool status を確認します。実行成功を確認するまで修復完了とは扱いません。
+5. fork/Dependabot の権限や Environment policy による pending/failure/skip も検証し、既存 security gate と release hold を維持します。JWT/raw SARIF/database/debug data を汎用 artifact に出しません。
 
-1. 全対象 tree の disabled caller/callee/helper と Environment read-back、保存済み rollback snapshot、対象 head/merge tree、実行上限を owner が確認する。MyPage/infra 担当の同期完了が前提。
-2. bounded maintenance window を承認する。repository default setup の state を `configured → not-configured` とする（現 state の owner 確認が前提）。他の security settings を変更しない。
-3. 各枝の exact source activation diff（caller の false gate 解除と activation-stage contract）を owner が承認・反映する。dev merge は owner のみ。default/protected/MyPage 各 push/head と対象 PR merge tree の実行を同じ承認範囲で指定する。
-4. 各 run で全 3 言語の runner開始 / init / Go manual compile / analyze / SARIF processing を確認する。run URL、head/merge SHA、ref、category、check context/app ID、upload結果、tool status のみを記録する。JWT/debug database/実データ/raw SARIF を汎用 artifact に保存しない。
-5. fork/Dependabot の permissions/Environment policy により失敗・pending・解析 skip があれば全体完了にしない。CI と解析 coverage が揃うまで release/ReadyGate を開けない。default 解除から coverage 確認までの gap と終了時刻を記録する。
+snapshot の language aliases は API 返値として保持しています。設定復元 payload はその時点の supported enum を確認し、
+Actions/Go/JS/TS の範囲を欠かさない exact payload を承認します。query_suite を extended にしたり threat_model を local に拡大したりしません。
+実 check/category と過去 analysis/alerts の対応は read-back で照合し、既存 analysis/alerts を削除・一括 dismiss しません。
 
-Go build の成否、実行時間、CodeQL supported toolchain、upload/category の既存 analysis との対応はこの wave の未検証項目です。
-既存 categories を削除したり alert を一括 dismiss したりしません。切替後の alerts/history を読み、差分が必要なら別レビューを行います。
+### 4. 戻し方
 
-### 4. rollback
+現在の未 merge draft は閉じれば終了です。staged-disabled source を専用 integration に merge した後の source rollback はこの差分を revert します。
+現在は security 設定を変更していないため設定 rollback は不要です。
 
-未作成・未有効化の現在は source PR を閉じるだけで security 設定への rollback は不要です。
-将来の rollback も設定変更なので activation packet に owner の実行権限と exact target を含めます。
+将来の有効化後は、別承認した範囲で caller/callee 両 gate と staged-disabled validator を復元し、in-flight advanced runs を停止します。
+保存した default 設定を [supported default-setup API](https://docs.github.com/en/rest/code-scanning/code-scanning#update-a-code-scanning-default-setup-configuration) / owner UI で復元し read-back します。
+default 再設定は managed validation run を起動し得るため、この実行も rollback 承認に含めます。
+rollback は既知の default OIDC failure に戻る可能性があり、解析成功を保証しません。security/release hold は維持します。
+専用 Environment の削除は無参照・secret/variable 0 の確認後に別の明示承認がある場合のみです。
 
-1. advanced caller を全対象 tree で disabled に戻し、承認範囲の in-flight advanced runs を停止する。外部 cloud trust は変更しない。
-2. 保存した default 設定を [default-setup API](https://docs.github.com/en/rest/code-scanning/code-scanning#update-a-code-scanning-default-setup-configuration) / owner UI で復元し read-back する。languages/query_suite/threat_model/runner fields は snapshot の supported fields に限り復元する。再設定は managed validation run を起動し得るので rollback 承認にも含める。
-3. rollback は**以前の既知の OIDC failure 状態へ戻る可能性**があり、解析を緑にする保証ではない。security gate と release hold を維持する。
-4. 今回作成した Environment は無参照・secret/variable 0 を確認し、削除は別の明示承認があるときだけ行う。既存 analysis/alerts は保持する。
-
-## 静的検証と出典
+## 静的検証
 
 ```sh
 python3 -m pip install --only-binary=:all: -r .github/codeql/requirements.txt
 python3 .github/codeql/validate-source.py
 python3 -m unittest discover -s .github/codeql -p 'test_*.py' -v
-python3 .github/codeql/lint-templates.py --actionlint /path/to/verified/actionlint
+python3 .github/codeql/lint-workflows.py --actionlint /path/to/verified/actionlint
 bash -n .github/codeql/build-go.sh .github/codeql/install-actionlint.sh
 bash .github/scripts/test-detect-ci-paths.sh
+python3 .github/scripts/check-doc-references.py
 ```
 
-tool version / official release archive checksum と参照した starter commit は [`tooling.json`](tooling.json) に固定します。
-caller/callee の action は commit SHA pin です。source contract は無効 gate / active analyzer 不在 / bounded permissions / fixed Environment / 全言語 / 全 PR routing を検査します。
-actionlint は disposable directory に template を写して local reusable reference も検証し、action を実行しません。
-意図的な constant-false gate の exact diagnostic だけを除外します。shellcheck/pyflakes は含めず、shell は `bash -n` と合成 fixture で確認します。
-[公式 starter](https://github.com/actions/starter-workflows/blob/e3c451d60f119b71caebf13c98ac45da6e15b4b7/code-scanning/codeql.yml)
-の最新版を確認した上で、public/secretless、reusable、複数 Go module、gate false を本 repo の契約として加えています。
+actionlint は実際の 3 workflow と local reusable reference を検証し、workflow/action を実行しません。
+両 gate を先に検証した上で、意図的な constant-false の exact diagnostic だけを除外します。shellcheck/pyflakes は含めません。
+公式 release の checksum と tool version は tooling.json に固定し、shell は `bash -n` と合成 fixture で確認します。
+解析 scope の根拠は [公式 configuration options](https://docs.github.com/en/code-security/reference/code-scanning/workflow-configuration-options)、
+default queries の扱いと `config-file` input は [固定 CodeQL action source](https://github.com/github/codeql-action/tree/2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2) です。

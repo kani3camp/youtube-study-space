@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 
@@ -15,12 +16,16 @@ spec.loader.exec_module(contract)
 
 class SourceContracts(unittest.TestCase):
     def setUp(self):
-        self.caller = contract.load_yaml(HERE / "templates/codeql-advanced.yml.template")
-        self.callee = contract.load_yaml(HERE / "templates/codeql-analyzer.yml.template")
+        self.caller = contract.load_yaml(contract.WORKFLOWS / contract.CALLER)
+        self.callee = contract.load_yaml(contract.WORKFLOWS / contract.CALLEE)
         self.static = contract.load_yaml(contract.ROOT / ".github/workflows/codeql-source-contracts.yml")
+        self.config = contract.load_yaml(HERE / "analysis-config.yml")
 
     def validate(self, active=None):
-        contract.validate(self.caller, self.callee, self.static, active or [self.static])
+        workflows = {contract.CALLER: self.caller, contract.CALLEE: self.callee, contract.STATIC: self.static}
+        if active is not None:
+            workflows.update(active)
+        contract.validate(self.caller, self.callee, self.static, workflows, self.config)
 
     def test_preparation_is_inert_and_complete(self):
         self.validate()
@@ -51,7 +56,7 @@ class SourceContracts(unittest.TestCase):
         for command in ["bash .github/codeql/build-go.sh", "codeql database analyze db", "go run ./cmd/youtube-bot"]:
             with self.subTest(command=command):
                 steps.append({"run": command})
-                with self.assertRaisesRegex(ValueError, "reviewed static commands"):
+                with self.assertRaisesRegex(ValueError, "static checks"):
                     self.validate()
                 steps.pop()
 
@@ -68,6 +73,77 @@ class SourceContracts(unittest.TestCase):
     def test_enabled_caller_rejected(self):
         self.caller["jobs"]["analyze"]["if"] = "${{ true }}"
         with self.assertRaisesRegex(ValueError, "disabled"):
+            self.validate()
+
+    def test_either_gate_cannot_be_removed_or_enabled_by_any_event(self):
+        for document in [self.caller, self.callee]:
+            job = document["jobs"]["analyze"]
+            for condition in [None, True, "${{ true }}", "${{ always() }}"] + [
+                "${{ github.event_name == '" + event + "' }}" for event in
+                ["workflow_dispatch", "push", "pull_request", "schedule", "workflow_call"]
+            ]:
+                with self.subTest(workflow=document["name"], condition=condition):
+                    if condition is None:
+                        del job["if"]
+                    else:
+                        job["if"] = condition
+                    with self.assertRaisesRegex(ValueError, "explicitly disabled"):
+                        self.validate()
+                    job["if"] = contract.DISABLED
+
+    def test_extra_caller_or_callee_job_rejected_even_if_disabled(self):
+        for document in [self.caller, self.callee]:
+            document["jobs"]["alternate"] = copy.deepcopy(document["jobs"]["analyze"])
+            with self.assertRaisesRegex(ValueError, "only reusable|Single analyzer"):
+                self.validate()
+            del document["jobs"]["alternate"]
+
+    def test_workflow_wide_analysis_permissions_rejected(self):
+        for document in [self.caller, self.callee]:
+            document["permissions"] = contract.ANALYSIS_PERMISSIONS
+            with self.assertRaisesRegex(ValueError, "workflow permissions"):
+                self.validate()
+            document["permissions"] = {}
+
+    def test_dispatch_or_reusable_activation_inputs_rejected(self):
+        self.caller["on"]["workflow_dispatch"] = {"inputs": {"enable": {"type": "boolean"}}}
+        with self.assertRaisesRegex(ValueError, "activation switch"):
+            self.validate()
+        self.caller["on"]["workflow_dispatch"] = None
+        self.callee["on"]["workflow_call"] = {"inputs": {"enable": {"type": "boolean"}}}
+        with self.assertRaisesRegex(ValueError, "configurable inputs"):
+            self.validate()
+
+    def test_default_remote_scope_cannot_be_expanded_or_filtered(self):
+        for key, value in [("threat-models", ["remote", "local"]), ("queries", [{"uses": "security-extended"}]),
+                           ("disable-default-queries", True), ("paths-ignore", ["tools/**"]),
+                           ("packs", ["codeql/go-queries"])]:
+            with self.subTest(key=key):
+                original = copy.deepcopy(self.config)
+                self.config[key] = value
+                with self.assertRaisesRegex(ValueError, "default queries"):
+                    self.validate()
+                self.config = original
+
+    def test_init_cannot_override_config_or_add_queries(self):
+        settings = self.callee["jobs"]["analyze"]["steps"][2]["with"]
+        for key, value in [("queries", "security-extended"), ("config", "threat-models: local"),
+                           ("config-file", "https://example.invalid/config.yml")]:
+            original = copy.deepcopy(settings)
+            settings[key] = value
+            with self.assertRaisesRegex(ValueError, "default/remote scope"):
+                self.validate()
+            settings.clear()
+            settings.update(original)
+
+    def test_analyzer_extra_env_or_step_command_rejected(self):
+        job = self.callee["jobs"]["analyze"]
+        job["env"] = {"CODEQL_ACTION_EXTRA_OPTIONS": "{}"}
+        with self.assertRaisesRegex(ValueError, "extra analyzer"):
+            self.validate()
+        del job["env"]
+        job["steps"][2]["run"] = "echo hidden"
+        with self.assertRaisesRegex(ValueError, "hidden commands"):
             self.validate()
 
     def test_all_languages_retained_and_go_none_rejected(self):
@@ -109,16 +185,113 @@ class SourceContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "routed"):
             self.validate()
 
-    def test_implicit_environment_creation_or_live_analyzer_rejected(self):
-        for active in [self.callee, {"jobs": {"run": {"uses": "./.github/workflows/codeql-analyzer.yml"}}}]:
-            with self.subTest(active=active.get("name")), self.assertRaisesRegex(ValueError, "No live"):
-                self.validate([active])
+    def test_alternate_live_analyzer_environment_or_helper_rejected(self):
+        for job in [{"uses": "./.github/workflows/codeql-analyzer.yml"},
+                    {"uses": "kani3camp/youtube-study-space/.github/workflows/codeql-analyzer.yml@dev"},
+                    {"steps": [{"uses": "github/codeql-action/analyze@v4"}]},
+                    {"environment": {"name": "CodeQL-Analysis"}},
+                    {"steps": [{"run": "codeql database analyze db"}]},
+                    {"steps": [{"run": "bash .github/codeql/build-go.sh"}]}]:
+            with self.subTest(job=job), self.assertRaisesRegex(ValueError, "alternate live"):
+                self.validate({"alternate.yml": {"jobs": {"run": job}}})
+
+    def test_actual_workflows_must_exist_and_match_the_validated_documents(self):
+        for name in [contract.CALLER, contract.CALLEE, contract.STATIC]:
+            workflows = {contract.CALLER: self.caller, contract.CALLEE: self.callee, contract.STATIC: self.static}
+            del workflows[name]
+            with self.assertRaisesRegex(ValueError, "same tree"):
+                contract.validate(self.caller, self.callee, self.static, workflows, self.config)
+        with self.assertRaisesRegex(ValueError, "actual workflow"):
+            self.validate({contract.CALLEE: {"jobs": {}}})
+
+    def test_static_ci_cannot_skip_hide_or_remove_required_checks(self):
+        job = self.static["jobs"]["source-contracts"]
+        for target in [job, job["steps"][3]]:
+            for key, value in [("if", contract.DISABLED), ("continue-on-error", True), ("env", {"BASH_ENV": "override.sh"})]:
+                target[key] = value
+                with self.assertRaisesRegex(ValueError, "bypass"):
+                    self.validate()
+                del target[key]
+        original = job["steps"][3]["run"]
+        job["steps"][3]["run"] = "true"
+        with self.assertRaisesRegex(ValueError, "all reviewed static commands"):
+            self.validate()
+        job["steps"][3]["run"] = original
+
+    def test_duplicate_yaml_keys_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "duplicate.yml"
+            path.write_text("on: push\njobs:\n  analyze:\n    if: '${{ false }}'\n    if: '${{ true }}'\n")
+            with self.assertRaisesRegex(ValueError, "Duplicate YAML"):
+                contract.load_yaml(path)
+
+
+class SameTreeContracts(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="codeql-tree-fixture-")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        tracked = contract.tracked_files(contract.ROOT)
+        for name in tracked:
+            if name.startswith(".github/codeql/") or name.startswith(".github/workflows/codeql-") or name.endswith(("go.mod", "go.sum")):
+                source = contract.ROOT / name
+                if source.is_file():
+                    target = self.root / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, target)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+
+    def test_same_tree_helper_config_parser_and_module_dependencies_are_complete(self):
+        self.assertEqual(contract.validate_tree(self.root), ["system/go.mod", "tools/room-image-prompt/go.mod"])
+
+    def test_required_dependencies_cannot_be_missing_or_untracked(self):
+        for name in [".github/codeql/build-go.sh", ".github/codeql/analysis-config.yml", ".github/codeql/requirements.txt",
+                     ".github/workflows/codeql-analyzer.yml", "system/go.sum", "tools/room-image-prompt/go.sum"]:
+            path = self.root / name
+            original = path.read_bytes()
+            path.unlink()
+            with self.subTest(missing=name), self.assertRaisesRegex(ValueError, "missing"):
+                contract.validate_tree(self.root)
+            path.write_bytes(original)
+        subprocess.run(["git", "rm", "--cached", "-q", ".github/codeql/build-go.sh"], cwd=self.root, check=True)
+        with self.assertRaisesRegex(ValueError, "tracked dependency"):
+            contract.validate_tree(self.root)
+
+    def test_unreviewed_go_helper_commands_rejected_without_executing_them(self):
+        path = self.root / ".github/codeql/build-go.sh"
+        path.write_text(path.read_text() + "curl https://example.invalid\n")
+        with self.assertRaisesRegex(ValueError, "Compile-only helper changed"):
+            contract.validate_tree(self.root)
+
+    def test_requirements_cannot_install_extra_commands(self):
+        (self.root / ".github/codeql/requirements.txt").write_text("PyYAML==6.0.3\nexample-package==1.0.0\n")
+        with self.assertRaisesRegex(ValueError, "pinned YAML parser"):
+            contract.validate_tree(self.root)
+
+    def test_manifest_and_checksum_mismatch_rejected(self):
+        path = self.root / "tools/room-image-prompt/go.mod"
+        path.write_text(path.read_text().replace("v0.1.4", "v9.9.9"))
+        with self.assertRaisesRegex(ValueError, "Dependency checksum missing"):
+            contract.validate_tree(self.root)
+
+    def test_new_module_requires_sums_and_supported_canonical_toolchain(self):
+        path = self.root / "tools/new-module/go.mod"
+        path.parent.mkdir(parents=True)
+        path.write_text("module example.invalid/new\n\ngo 1.99.0\n")
+        subprocess.run(["git", "add", str(path.relative_to(self.root))], cwd=self.root, check=True)
+        with self.assertRaisesRegex(ValueError, "go.sum missing"):
+            contract.validate_tree(self.root)
+        path.with_suffix(".sum").write_text("")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        with self.assertRaisesRegex(ValueError, "cover every tracked module"):
+            contract.validate_tree(self.root)
 
 
 class CompileOnlyFixtures(unittest.TestCase):
     def test_every_tracked_module_compiles_without_running_applications(self):
         with tempfile.TemporaryDirectory(prefix="codeql-build-fixture-") as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             subprocess.run(["git", "init", "-q", str(root)], check=True)
             for name in ["go.mod", "system/go.mod", "tools/fixture module/go.mod"]:
                 path = root / name
