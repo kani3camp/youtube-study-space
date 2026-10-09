@@ -16,6 +16,24 @@ export type BrowserSession = TokenSource & {
 	signOut: () => Promise<void>
 }
 export type SupportPurpose = 'delete' | 'revoke' | 'disclosure'
+export type PrivacyIntakeReceipt = {
+	requestRef: string
+	supportChallenge?: string
+	purpose: SupportPurpose
+	status: string
+	acceptedAt: string
+	deleteBy: string | null
+}
+export type PrivacyRequestStatus = {
+	requestRef: string
+	purpose: SupportPurpose
+	status: string
+	acceptedAt: string
+	deleteBy: string | null
+	verifiedAt: string
+	reply?: string
+	replyAt?: string
+}
 export type ConfirmationResult =
 	| { purpose: 'login' }
 	| { purpose: 'support'; requestRef: string }
@@ -34,6 +52,7 @@ export class BrowserRuntime {
 	readonly session: BrowserSession | null
 	readonly policy: { privacy: string; terms: string }
 	readonly unavailable: string | null
+	readonly intakeEnabled: boolean
 	private request: typeof fetch
 	private completingSession = false
 	private active = false
@@ -55,11 +74,13 @@ export class BrowserRuntime {
 		policy: { privacy: string; terms: string },
 		request: typeof fetch = fetch,
 		unavailable: string | null = null,
+		intakeEnabled = false,
 	) {
 		this.session = session
 		this.policy = policy
 		this.request = request
 		this.unavailable = unavailable
+		this.intakeEnabled = intakeEnabled
 		this.memory = new MyPageMemory(
 			session
 				? createLoader(session, request)
@@ -245,7 +266,7 @@ export class BrowserRuntime {
 			if (body !== undefined) headers['Content-Type'] = 'application/json'
 			if (budget.aborted || (uid && session.currentUID() !== uid))
 				throw new RequestError(401, 'AUTH_REQUIRED')
-			return checkedJSON(
+			const result = await checkedJSON(
 				await this.request(path, {
 					method,
 					headers,
@@ -255,6 +276,9 @@ export class BrowserRuntime {
 					cache: 'no-store',
 				}),
 			)
+			if (budget.aborted || (uid && session.currentUID() !== uid))
+				throw new RequestError(401, 'AUTH_REQUIRED')
+			return result
 		}
 		try {
 			return await Promise.race([work(), aborted])
@@ -264,6 +288,63 @@ export class BrowserRuntime {
 		} finally {
 			budget.removeEventListener('abort', onAbort)
 		}
+	}
+
+	async submitPrivacyRequest(
+		purpose: SupportPurpose,
+		body: string,
+		submissionKey: string,
+		signal: AbortSignal,
+	): Promise<PrivacyIntakeReceipt> {
+		const uid = this.session?.currentUID()
+		if (!this.intakeEnabled || !uid)
+			throw new RequestError(401, 'AUTH_REQUIRED')
+		const value = await this.call(
+			'/api/privacy/requests',
+			'POST',
+			{ purpose, body, submissionKey },
+			signal,
+			uid,
+		)
+		if (
+			!value ||
+			typeof value !== 'object' ||
+			!('requestRef' in value) ||
+			typeof value.requestRef !== 'string' ||
+			!/^[a-f0-9]{64}$/.test(value.requestRef) ||
+			!('acceptedAt' in value) ||
+			typeof value.acceptedAt !== 'string'
+		)
+			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+		return value as PrivacyIntakeReceipt
+	}
+
+	async privacyRequestStatus(
+		requestRef: string,
+		signal: AbortSignal,
+	): Promise<PrivacyRequestStatus> {
+		const uid = this.session?.currentUID()
+		if (!this.intakeEnabled || !uid)
+			throw new RequestError(401, 'AUTH_REQUIRED')
+		if (!/^[a-f0-9]{64}$/.test(requestRef))
+			throw new RequestError(400, 'SUPPORT_CHALLENGE_INVALID')
+		const value = await this.call(
+			'/api/privacy/requests/status',
+			'POST',
+			{ requestRef },
+			signal,
+			uid,
+		)
+		if (
+			!value ||
+			typeof value !== 'object' ||
+			!('requestRef' in value) ||
+			value.requestRef !== requestRef ||
+			!('status' in value) ||
+			value.status !== 'verified'
+		)
+			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
+		return value as PrivacyRequestStatus
 	}
 
 	async start(signal: AbortSignal, supportChallenge?: string) {

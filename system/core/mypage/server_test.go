@@ -109,6 +109,16 @@ func TestMyPageServerValidatesConfigurationAndConstructsWithoutBootstrapIO(t *te
 	require.Equal(t, config.PublicOrigin, server.PublicOrigin)
 	require.Equal(t, "development", server.Auth.Support.Environment)
 	require.Same(t, server.Verifier, server.Auth.Minter)
+	require.Nil(t, server.Intake)
+	config.EnablePrivacyIntake = true
+	_, err = NewMyPageServer(config, deps)
+	require.Error(t, err)
+	config.PrivacyIntakeSecret = []byte("synthetic-test-only-key-with-thirty-two-bytes")
+	server, err = NewMyPageServer(config, deps)
+	require.NoError(t, err)
+	require.NotNil(t, server.Intake)
+	config.EnablePrivacyIntake = false
+	config.PrivacyIntakeSecret = nil
 	config.Environment = "unknown"
 	_, err = NewMyPageServer(config, deps)
 	require.Error(t, err)

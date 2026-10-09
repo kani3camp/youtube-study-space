@@ -14,6 +14,25 @@ import {
 
 const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
 
+it('keeps privacy intake disabled in source-only release manifests', () => {
+	const config = fixture()
+	config.frontend.VITE_PRIVACY_INTAKE_ENABLED = 'true'
+	const report = checkReleaseConfig(config)
+	expect(report.configurationValid).toBe(false)
+	expect(report.diagnostics).toContainEqual(
+		expect.objectContaining({
+			field: 'frontend.VITE_PRIVACY_INTAKE_ENABLED',
+			code: 'INVALID_FIELD',
+		}),
+	)
+	config.frontend.VITE_PRIVACY_INTAKE_ENABLED = 'false'
+	expect(
+		checkReleaseConfig(config).diagnostics.some(
+			(x) => x.field === 'frontend.VITE_PRIVACY_INTAKE_ENABLED',
+		),
+	).toBe(false)
+})
+
 // Negative URL cases are constructed at runtime from obviously synthetic parts.
 // This preserves userinfo rejection without publishing literal Basic Auth URLs.
 function credentialTestURL(hostname: string, withPassword: boolean) {

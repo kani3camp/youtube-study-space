@@ -8,29 +8,15 @@ OAuth同意画面の user support email は、**指定済みのOAuthユーザー
 
 運営者の本名・自宅住所をPrivacy本文へ常時掲載しない既定を維持し、必要な請求へ遅滞なく回答する運用を用意する。公開サービス名/名称を表示する場合も、実名を勝手に推測・要求しない。公開draftの氏名placeholderは、常時実名掲載が必須という決定ではない。
 
-## 窓口の準備案
+## Privacy請求の受付準備
 
-一般問い合わせは[既存Google Formを案内する公開ページ](https://app.notion.com/p/673257758f8849dcb5cdeafeb160ee8c)を継続する。ここでフォーム内部設定を調査・変更済みとは扱わない。Privacy専用Google Formの採用・実URL・作成/公開は未確定。媒体の可否判断と、返信・本人確認・期限管理ができる運用の成立を分ける。
+一般問い合わせは既存の公開案内を継続する。Privacy請求の通常入口は[アプリ内受付](../privacy-intake.md)に変更した。既存の有効なFirebase本人識別がある場合にだけ自動受付し、対象channelはserverのuidから決める。受付と7暦日期限の記録をfresh OAuthより先に行い、本人確認成功でも削除・開示・全session解除は実行しない。通常MyPageの利用制限中も、この狭い請求経路は使える。
 
-Privacy Formを選ぶ場合のdraft:
-
-| 項目 | 推奨する準備案 | 理由 |
-| --- | --- | --- |
-| アクセス | Google/本サービスのログインを必須にしない | ログイン不能時や運営情報への請求も受け付ける |
-| 返信先 | 回答できるemailを本人入力。必要な案内だけに利用する説明 | 受付・fresh proof案内・完了連絡が必要 |
-| 依頼分類 | Privacy問い合わせ / 保存データ削除 / 全session解除 / 開示・訂正等 | logout、Google grant取消、削除を区別する |
-| 内容 | 依頼内容、必要な場合だけ対象channelのURL/申告 | 申告だけを本人確認にしない。不要な身分証/作業履歴は集めない |
-| 設定 | 返信の通知・担当の監視・受付時刻/期限記録、応答の公開一覧OFF | 7日SLAの起算と個人data保護 |
-| 完了案内 | 受付済みであり、本人確認/実行/完了とは別と説明 | form送信やproof成功で削除完了を表示しない |
-| 運用 | form response/通知/担当copyの保存先・access・保持/削除をinventoryへ追加 | 受付dataも削除/保持対象に含める |
-
-必須にしないもの: FAQ読了、通常ログイン、既存session、本人のスクショ、過剰な身分資料。自動収集のGoogle emailやfile uploadは必要性とdata flowの確認前に追加しない。ログインできない例外は公開窓口で個別対応する。
+利用可能な既存sessionがない場合は、公開Contactに設定する**返信可能な人的例外窓口**へ案内する。匿名の自動SupportRequest作成、推測した公開メール、OAuth scope追加は行わない。例外窓口の媒体・担当・期限管理・本人確認手順・実URLは未確定で、D03の公開文面とともに確認する。アプリ内status/返信は本人確認済みrecordと同一Firebase uidの両方を必要とし、session喪失や削除完了後は人的窓口で対応する。公開前にoperator返信の認可・監査・保持/削除と実通知運用を成立させる。
 
 案内文draft:
 
-> 個人情報の取り扱い、保存データの削除・開示等、ログインの解除についてはこちらへご連絡ください。受付後、必要に応じて対象チャンネルを新しく確認する方法をご案内します。フォーム送信や本人確認だけでデータを削除することはありません。ログインできない場合も、この窓口へご連絡ください。認証token・パスワード・身分証等を送らないでください。
-
-既存の本人確認は、受付後のSupportRequestとfresh OAuthをenvironment/request/purpose/channelへbindingする専用flow。opaqueな参照番号は照合用で、削除権限でも公開ticket URLでもない。削除受付を「ログイン後の専用フォームで完結」に変更しない。
+> 個人情報の取り扱い、保存データの削除・開示等、ログインの解除は、利用可能なログインがある場合、アプリ内から依頼できます。受付後、対象チャンネルを新しいYouTubeの許可で本人確認します。受付や本人確認だけでデータは削除されません。ログインできない場合も、公開された返信可能なPrivacy窓口へご連絡ください。認証token・パスワード・身分証等を送らないでください。
 
 ## D01の確定仕様とD02の必要判断
 
@@ -39,7 +25,7 @@ Privacy Formを選ぶ場合のdraft:
 | D01 削除中停止 | 2026-10-07確定。User/WebAccountとは独立したServiceAccessControlでmoderationとprivacyDeletionを独立管理 | 初期適用はMyPageのみ。cache前のauthoritative read、write transaction直前の再確認、取得障害は503 fail closed。Bot未接続期間の実削除はdestructive windowにrelevant legacy writerを全体pause/drainする | 方式の再判断は不要。全runtime/launch・store・restore inventoryと実pause/drain/横断削除の証跡、個別の実行承認は未完 |
 | D02 Google grant取消 | YouTube refresh tokenは要求/保存なし。Firebase sessionとgrant取消は別。既定R-API受容あり | 実際の短命OAuth→channel identity→Firebase session→public metadata/cleanup flowをverification/complianceへ提示し確認。回答前0Bを選ぶ代案は新しい残余リスク受容と再設計条件の明示 | 一般OAuth verificationだけをこの解釈の承認と読み替えない。新しいリスク受容を代理確定しない |
 
-D03のうちOAuth user support emailの指定は上記で解消済み。返信窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。フォーム案や設定の形式検査はD01/D02/D03全体完了の証拠ではない。
+D03のうちOAuth user support emailの指定は上記で解消済み。返信窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。アプリ内受付の合成検証や公開URLの形式検査はD01/D02/D03全体完了の証拠ではない。
 
 ## OAuth / Hostingの安全な先行準備
 
@@ -52,7 +38,7 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 - GA4は現行explicit opt-in、User-ID/Signals/adsなし、保持14か月・reset OFF。Console設定と実Networkで確認するまでreadiness宣言で有効化しない。
 - Phase 1のBot入口は `!app` / `!mypage` / `!page` / `!my page` と固定UTMを正本どおり準備する。新しいruntimeコマンド接続は本PRに含めず、別scope承認後に実装し、Phase 1承認まで実URLを有効化しない。
 
-実行時に別承認を求めるもの: project/API/secret/IAM/App Check/Auth/Hosting変更、resource作成・deploy、実ユーザー/production dataへの操作、Google Auth PlatformのIn production切替と審査提出、Privacy Form作成/公開、0B受入とPhase1告知。設定案・ドラフト作成・synthetic local検証は先行できる。
+実行時に別承認を求めるもの: project/API/secret/IAM/App Check/Auth/Hosting変更、resource作成・deploy、実ユーザー/production dataへの操作、Google Auth PlatformのIn production切替と審査提出、Privacy受付の有効化・公開、0B受入とPhase1告知。設定案・ドラフト作成・synthetic local検証は先行できる。
 
 ## 本人へ一度で依頼する文案（review用）
 
@@ -60,8 +46,8 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 >
 > 1. D01は独立ServiceAccessControl方式に確定済みです。初期MyPageのguardに加え、Bot未接続期間の実削除では関係legacy writerの全体pause/drainが必要です。方式の選択は再依頼せず、実inventory・再生成防止・横断削除・復元後の再削除を証跡で確認します。moderationとinactive generation checkpointは削除完了後も保持する実装です。
 > 2. Google側の許可取消の扱いは、実際の認証/session/metadata flowをverification/complianceへ提示して確認する案を推奨します。回答前に0Bを選ぶ場合は、追加残余リスクと再設計条件の明示が別途必要です。
-> 3. 返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。Privacy Formは上記の項目案までで、作成/公開はまだ行いません。施行日・管轄等は公開予定と本文のreview時に確定します。
+> 3. 返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。アプリ内受付はsource-onlyで無効のままです。例外窓口とoperator返信の実運用が整うまで有効化しません。施行日・管轄等は公開予定と本文のreview時に確定します。
 >
-> インフラ担当から受け取るproject/app/IAM等の証跡は別に進めます。フォーム作成・公開、OAuth実設定・権限変更、live試験、deployや実データ操作は、対象と具体的な操作を確認してから承認を受けて実施します。
+> インフラ担当から受け取るproject/app/IAM等の証跡は別に進めます。Privacy受付の有効化・公開、OAuth実設定・権限変更、live試験、deployや実データ操作は、対象と具体的な操作を確認してから承認を受けて実施します。
 
 この文案は準備依頼のためのもの。D01の確定を実運用承認やGate完了へ読み替えず、D02〜03の選択・公開承認・外部送信は未実施とする。

@@ -2,9 +2,11 @@
 
 公開準備は[release runbook](release/README.md)、[owner準備packet](release/owner-packet.md)、[実E2E/rollback手順](release/e2e.md)を参照する。既存実装と外部/本人判断待ちを区別し、設定検査やlocal合成QAを公開承認・live E2Eの証拠へ読み替えない。
 
+source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受付・本人確認・返信の境界と残る運用判断を記録する。
+
 横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
 
-現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は six-endpoint API の契約、`fixtures/` は実ユーザーに依存しない合成例。
+現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は eight-endpoint API の契約（うちprivacy受付2本はdefault off）、`fixtures/` は実ユーザーに依存しない合成例。
 
 - 本人識別は YouTube channel ID と同じ Firebase custom-provider uid。client から対象 ID を受け取らない。
 - OAuth callback の atomic claim と confirm の atomic consume の後に、外部 API / token mint を transaction callback の外で実行する。
@@ -39,7 +41,7 @@ Google provider と Firebase token mint は interface として分離し、demo 
 
 ## Contract completeness
 
-6 endpointはlogin/supportをpurposeで区別する契約。任意supportChallengeはserver recordへ照合し、support confirmはCustom Tokenを返さない。Frontend support flowとoperator lifecycleは独立した未完了条件。
+既存6 endpointはlogin/supportをpurposeで区別する契約。任意supportChallengeはserver recordへ照合し、support confirmはCustom Tokenを返さない。後続の実装経緯と現行のprivacy受付2 endpointは上記のsource packageを参照する。
 
 ## Snapshot adapter and writer ordering
 

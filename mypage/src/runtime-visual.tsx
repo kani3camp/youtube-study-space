@@ -64,6 +64,38 @@ if (import.meta.env.DEV) {
 		const counter = document.getElementById('synthetic-requests')
 		if (counter) counter.textContent = JSON.stringify(requests)
 		if (
+			mode === 'privacy-intake-authenticated' &&
+			path === '/api/privacy/requests'
+		) {
+			if (holdNext) {
+				holdNext = false
+				await new Promise<void>((resolve) => {
+					release = resolve
+				})
+			}
+			return Response.json({
+				requestRef: 'c'.repeat(64),
+				supportChallenge: 'd'.repeat(64),
+				purpose: 'delete',
+				status: 'awaiting_proof',
+				acceptedAt: '2026-10-09T00:00:00Z',
+				deleteBy: '2026-10-16T00:00:00Z',
+			})
+		}
+		if (
+			mode === 'privacy-intake-authenticated' &&
+			path === '/api/privacy/requests/status'
+		)
+			return Response.json({
+				requestRef: 'c'.repeat(64),
+				purpose: 'delete',
+				status: 'verified',
+				acceptedAt: '2026-10-09T00:00:00Z',
+				deleteBy: '2026-10-16T00:00:00Z',
+				verifiedAt: '2026-10-09T01:00:00Z',
+				reply: 'Synthetic operator response',
+			})
+		if (
 			restriction &&
 			((path === '/api/auth/session/complete' &&
 				(!mode?.includes('confirm') || mode?.startsWith('support-confirm-'))) ||
@@ -140,6 +172,8 @@ if (import.meta.env.DEV) {
 		session,
 		{ privacy: 'synthetic-p1', terms: 'synthetic-t1' },
 		request,
+		null,
+		mode?.startsWith('privacy-intake') ?? false,
 	)
 	const initial = search.get('path') ?? '/'
 	const router = createApp(

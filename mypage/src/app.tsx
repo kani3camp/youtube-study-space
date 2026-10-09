@@ -30,7 +30,14 @@ import {
 } from './features/mypage/view'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
-import type { BrowserRuntime, ChannelConfirmation } from './runtime'
+import { readPublicPolicyConfig } from './public-policy-config'
+import type {
+	BrowserRuntime,
+	ChannelConfirmation,
+	PrivacyIntakeReceipt,
+	PrivacyRequestStatus,
+	SupportPurpose,
+} from './runtime'
 
 type LoginSearch = {
 	error?: string
@@ -46,6 +53,12 @@ const supportPurposeLabel = {
 	delete: '保存データの削除依頼',
 	revoke: 'すべてのログインの解除依頼',
 	disclosure: '保存データの開示依頼',
+}
+function receiptTime(value: string) {
+	const time = Date.parse(value)
+	return Number.isFinite(time)
+		? `${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tokyo' }).format(time)}（日本時間）`
+		: value
 }
 const CookieSettings = createContext<() => void>(() => {})
 
@@ -721,6 +734,125 @@ export function createApp(
 	}
 	function Contact() {
 		const receipt = useContext(SupportReceipt)
+		const [purpose, setPurpose] = useState<SupportPurpose>('delete')
+		const [body, setBody] = useState('')
+		const [created, setCreated] = useState<PrivacyIntakeReceipt | null>(null)
+		const [ref, setRef] = useState('')
+		const [status, setStatus] = useState<PrivacyRequestStatus | null>(null)
+		const [busy, setBusy] = useState(false)
+		const [error, setError] = useState('')
+		const [cooldown, setCooldown] = useState(0)
+		const key = useRef<string | null>(null)
+		const inFlight = useRef(false)
+		const controller = useRef<AbortController | null>(null)
+		const available =
+			runtime.intakeEnabled &&
+			!!readPublicPolicyConfig().config.privacyContactURL
+		const signedIn = !!runtime.session?.currentUID()
+		const bodyBytes = new TextEncoder().encode(body.trim()).length
+		const cooling = cooldown > Date.now()
+		useEffect(() => {
+			if (!cooling) return
+			const timer = window.setTimeout(
+				() => setCooldown(0),
+				cooldown - Date.now(),
+			)
+			return () => window.clearTimeout(timer)
+		}, [cooldown, cooling])
+		const showError = (cause: unknown) => {
+			setError(message(cause))
+			if (cause instanceof RequestError && cause.code === 'RATE_LIMITED')
+				setCooldown(Date.now() + Math.max(1, cause.retryAfter) * 1000)
+		}
+		useEffect(() => {
+			let previousUID = runtime.session?.currentUID()
+			const clear = () => {
+				controller.current?.abort()
+				setCreated(null)
+				setStatus(null)
+				key.current = null
+			}
+			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (uid !== previousUID) clear()
+				previousUID = uid
+			})
+			window.addEventListener('pagehide', clear)
+			return () => {
+				clear()
+				unsubscribe?.()
+				window.removeEventListener('pagehide', clear)
+			}
+		}, [])
+		const change = (nextPurpose: SupportPurpose, nextBody: string) => {
+			setPurpose(nextPurpose)
+			setBody(nextBody)
+			key.current = null
+			setCreated(null)
+			setStatus(null)
+		}
+		const submit = async () => {
+			if (
+				inFlight.current ||
+				!available ||
+				!signedIn ||
+				cooling ||
+				bodyBytes > 2000
+			)
+				return
+			inFlight.current = true
+			setBusy(true)
+			setError('')
+			if (!key.current) key.current = crypto.randomUUID().replaceAll('-', '')
+			const pending = new AbortController()
+			controller.current = pending
+			try {
+				const result = await runtime.submitPrivacyRequest(
+					purpose,
+					body.trim(),
+					key.current,
+					pending.signal,
+				)
+				if (!pending.signal.aborted) {
+					setCreated(result)
+					setRef(result.requestRef)
+					setBody('')
+				}
+			} catch (cause) {
+				if (!pending.signal.aborted) showError(cause)
+			} finally {
+				inFlight.current = false
+				setBusy(false)
+			}
+		}
+		const loadStatus = async () => {
+			if (inFlight.current || !available || !signedIn || cooling) return
+			inFlight.current = true
+			setBusy(true)
+			setError('')
+			const pending = new AbortController()
+			controller.current = pending
+			try {
+				const result = await runtime.privacyRequestStatus(
+					(receipt.ref ?? ref).trim(),
+					pending.signal,
+				)
+				if (!pending.signal.aborted) setStatus(result)
+			} catch (cause) {
+				if (!pending.signal.aborted) {
+					if (
+						cause instanceof RequestError &&
+						cause.code === 'SUPPORT_CHALLENGE_INVALID'
+					)
+						setError(
+							'本人確認済みの依頼を確認できません。参照番号とログイン中のチャンネルをご確認ください。',
+						)
+					else showError(cause)
+				}
+			} finally {
+				inFlight.current = false
+				setBusy(false)
+			}
+		}
 		return (
 			<main className="main-content public-page">
 				<section className="card policy-page">
@@ -742,12 +874,116 @@ export function createApp(
 						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
 					</p>
 					<PublicPolicyContact />
-					<p role="status">
-						本人確認付きの請求窓口は準備中です。公開前に受付方法をご案内します。
-					</p>
-					<p>
-						依頼受付後、同じチャンネルを新しいYouTubeの許可で確認し、確認結果を依頼目的に結び付ける案です。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせいただけるよう準備します。
-					</p>
+					{available && signedIn ? (
+						<section aria-labelledby="privacy-intake-heading">
+							<h2 id="privacy-intake-heading">アプリ内で依頼する</h2>
+							<p>
+								受付後に同じYouTubeチャンネルで本人確認します。本人確認だけで削除や開示は実行しません。
+							</p>
+							{!created && (
+								<form
+									className="privacy-intake-form"
+									onSubmit={(event) => {
+										event.preventDefault()
+										void submit()
+									}}
+								>
+									<label htmlFor="privacy-purpose">依頼内容</label>
+									<select
+										id="privacy-purpose"
+										value={purpose}
+										onChange={(event) =>
+											change(event.target.value as SupportPurpose, body)
+										}
+									>
+										<option value="delete">保存データの削除</option>
+										<option value="disclosure">開示</option>
+										<option value="revoke">全ログインの解除</option>
+									</select>
+									<label htmlFor="privacy-body">
+										補足（2000バイト以内。認証情報は記入しないでください）
+									</label>
+									<textarea
+										id="privacy-body"
+										value={body}
+										maxLength={2000}
+										onChange={(event) => change(purpose, event.target.value)}
+									/>
+									<button
+										className="button primary"
+										disabled={busy || cooling || bodyBytes > 2000}
+										type="submit"
+									>
+										{busy ? '送信中…' : '依頼を受け付ける'}
+									</button>
+								</form>
+							)}
+							{created && (
+								<div role="status">
+									<p className="proof-reference">
+										受付しました。参照番号：{created.requestRef}
+									</p>
+									<p>受付時刻：{receiptTime(created.acceptedAt)}</p>
+									{created.supportChallenge && (
+										<Link
+											to="/login"
+											search={{ supportChallenge: created.supportChallenge }}
+										>
+											YouTubeで本人確認を続ける
+										</Link>
+									)}
+									{!created.supportChallenge &&
+										created.status === 'awaiting_proof' && (
+											<p role="alert">
+												本人確認リンクの期限が切れています。上記のプライバシー窓口へ再案内をご依頼ください。受付時刻は変わりません。
+											</p>
+										)}
+								</div>
+							)}
+							<h3>依頼の状態・返信</h3>
+							<p>
+								本人確認後、同じチャンネルの有効なログインがある場合に表示できます。利用制限中でも確認できます。
+							</p>
+							<label htmlFor="privacy-ref">参照番号</label>
+							<input
+								id="privacy-ref"
+								value={receipt.ref ?? ref}
+								onChange={(event) => {
+									receipt.set(null)
+									setRef(event.target.value)
+									setStatus(null)
+								}}
+							/>
+							<button
+								className="button"
+								type="button"
+								disabled={busy || cooling}
+								onClick={() => void loadStatus()}
+							>
+								状態を確認
+							</button>
+							{status && (
+								<div role="status">
+									<p>状態：本人確認済み</p>
+									{status.reply && <p>運営からの返信：{status.reply}</p>}
+								</div>
+							)}
+							{error && <p role="alert">{error}</p>}
+						</section>
+					) : available ? (
+						<p role="status">
+							この端末に利用可能なログインがありません。上記の返信可能なプライバシー窓口へご連絡ください。利用制限中の方も請求できます。
+						</p>
+					) : (
+						<p role="status">
+							本人確認付きの請求窓口は準備中です。公開前に受付方法をご案内します。
+						</p>
+					)}
+					{!available && (
+						<p>
+							依頼受付後、同じチャンネルを新しいYouTubeの許可で確認し、確認結果を依頼目的に結び付ける案です。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせいただけるよう準備します。
+						</p>
+					)}
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				</section>
 			</main>

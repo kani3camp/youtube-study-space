@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// SupportPurpose is chosen by the operator record, never supplied by the
-// browser as the source of authority for a proof or account operation.
+// SupportPurpose is fixed in a server-owned record. Intake may accept a
+// validated category, but browser input never authorizes proof or an action.
 type SupportPurpose string
 
 const (
@@ -40,6 +40,12 @@ type SupportRequest struct {
 	ProofRef           string         `firestore:"proofRef"`
 	OAuthTransactionID string         `firestore:"oauthTransactionId"`
 	CompletedAt        *time.Time     `firestore:"completedAt"`
+	// Intake text is server-only and removed on completion. SubmissionHash
+	// binds retries to the exact original request without collapsing claims.
+	SubmissionHash  string     `firestore:"submissionHash,omitempty"`
+	Body            string     `firestore:"body,omitempty"`
+	OperatorReply   string     `firestore:"operatorReply,omitempty"`
+	OperatorReplyAt *time.Time `firestore:"operatorReplyAt,omitempty"`
 }
 
 func validSupportEnvironment(environment string) bool {
@@ -125,5 +131,9 @@ func completeSupportRecord(value SupportRequest, environment string, now time.Ti
 	value.ChallengeExpiresAt = time.Time{}
 	value.ProofRef = ""
 	value.OAuthTransactionID = ""
+	value.Body = ""
+	value.OperatorReply = ""
+	value.OperatorReplyAt = nil
+	value.SubmissionHash = ""
 	return value, nil
 }
