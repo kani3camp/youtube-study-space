@@ -26,6 +26,17 @@ Canon 05 の境界は、停止前に取得・受付した古い message、seat s
 
 現行ソースの trend・SNS 通知・一括退室経路は、作業名、モデル応答、SNS 件名/本文、退室通知文をログに転記せず、件数・配送状態・固定の失敗種別を記録する。近接する owner 通知と CloudWatch 転送の配送失敗ログも、provider のエラー本文を記録しない。通知本文の Discord 配送、CloudWatch 内容の転送、OpenAI への作業名送信は従来どおりである。旧 revision の実行、既存ログ、転送済み通知、他の legacy ログ経路の帰属・残存処置は未確認であり、この source 修正を `platform-logs` の削除証跡として扱わない。
 
+この追加 source 修正の範囲は次のとおり。プロセスログと配送・返却データは別経路として扱う。
+
+| 経路 | プロセスログで固定した内容 | 意図して維持する経路 |
+| --- | --- | --- |
+| `batch.go` の RP 更新・重複判定、export folder 解決 | channel ID と GCS folder path を除き、開始・skip reason・解決イベントを記録 | RP 更新の transaction と error identity、失敗時 owner 通知に含む既存の user ID/error |
+| `utils.go` の座席制限・活動取得・退室検算と完了 | channel ID、作業名、個人の時間/RP 値を除き、固定 status と活動件数だけを記録 | seat/activity/work segment の書込、返却エラー、検算失敗時の owner 通知内容 |
+| `youtube_organize_database`、`cmd/batch`、`youtube-bot` の該当入口 | OrganizeDB の生エラーと、Firestore option／WorkspaceApp 初期化エラーを固定 `error_class` に置換 | Lambda の従来の OK/timeout/継続分岐、batch の exit status、owner への元エラー通知 |
+| `error_log_notify_discord` の parse・Firestore option・WorkspaceApp 初期化 | 生の依存エラーを除き固定 `error_class` を記録。返却エラーの表示も固定し、`errors.Is` から元の原因を照合可能にする | CloudWatch log body/logGroup/request ID の Discord 転送と、配送失敗時の non-nil error |
+
+対象は上記の直接ログであり、owner/Discord や YouTube の配送内容を redaction した証拠ではない。`start_daily_batch` など他の起動経路・legacy logger、旧 binary、CloudWatch/SNS の queue・subscription・archive、実 retention/hold と対象帰属は引き続き `platform-logs` の実環境 inventory と処置証跡を要する。
+
 完了 receipt と匿名 durable audit は別の completion adapter / workflow が担当する。この台帳は現在 receipt を削除したり completed に変更したりしない。現在の proof/index 依存を保持し、全 scope postcondition と runtime 再開・privacy clear の照合が成立してから、その completion 段階で処置する。
 
 ソースだけでは次の release gate を閉じられない。全 runtime/launch 経路と stop/drain/resume ownership、channel 未確定 callback と token mint/配達、複数 receipt と旧 UID、BQ tmp/job と mixed/soft-deleted backup の復元経路、channel index のない trend/vendor/log コピー、実権限・index/TTL・revision・hosting redaction が未確認。未知・上限超過・障害・ack loss は `unknown` として残し、0、不存在、completed に変換しない。既存期間の保持・処置判断を推測せず、必要な実環境証跡を別に取得する。
