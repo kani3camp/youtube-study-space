@@ -234,7 +234,7 @@ def head(env, maximum, *, request=None):
     return value
 
 
-def state_shape(raw):
+def state_shape(raw, *, imported=False):
     state = decode(raw)
     require(type(state) is dict and {"version", "terraform_version", "serial", "lineage", "outputs", "resources"} <= set(state)
             <= {"version", "terraform_version", "serial", "lineage", "outputs", "resources", "check_results"}, "state-envelope")
@@ -246,7 +246,7 @@ def state_shape(raw):
     except (ValueError, TypeError, AttributeError):
         valid_lineage = False
     require(valid_lineage, "state-lineage")
-    checks_pass(state.get("check_results"))
+    checks_pass(state.get("check_results"), imported=imported)
     require(type(state["outputs"]) is dict and set(state["outputs"]) == {"environment", "project_id"}, "state-output-names")
     for key, expected in (("environment", "development"), ("project_id", "test-youtube-study-space")):
         output = state["outputs"][key]
@@ -281,11 +281,13 @@ def state_shape(raw):
             suffix = "" if "index_key" not in instance else "[" + json.dumps(index, separators=(",", ":")) + "]"
             address = (resource["module"] + "." if "module" in resource else "") + resource["type"] + "." + resource["name"] + suffix
             addresses.append(address)
-    require(len(addresses) == 11 and len(set(addresses)) == 11 and set(addresses) == BASELINE and TABLE not in addresses, "state-address-set")
+    expected = BASELINE | ({TABLE} if imported else set())
+    require(len(addresses) == len(expected) and len(set(addresses)) == len(expected)
+            and set(addresses) == expected, "state-address-set")
     return state
 
 
-def checks_pass(checks):
+def checks_pass(checks, *, imported=False):
     # Terraform1.16.4 state legitimately persists variable checks and resource
     # identities. Validate the known envelope rather than requiring them absent.
     if checks is None:
@@ -298,7 +300,8 @@ def checks_pass(checks):
                "export_scheduler": "firestore-export-scheduler", "export_function": "firestore-export-function",
                "runtime_wif": "runtime-aws-wif", "owned_apis": "owned-project-apis",
                "user_activity_history": "retained-user-activity-history"}
-    known = {"resource": {re.sub(r'\[(?:\d+|"[^"]*")\]', "", a) for a in BASELINE}, "var": set(), "output": set(), "check": set()}
+    known = {"resource": {re.sub(r'\[(?:\d+|"[^"]*")\]', "", a) for a in BASELINE | ({TABLE} if imported else set())},
+             "var": set(), "output": set(), "check": set()}
     for prefix, directory in [("", source / "environments/dev"), *[("module." + key + ".", source / "modules" / value) for key, value in modules.items()]]:
         files = tuple(directory.glob("*.tf"))
         require(directory.is_dir() and bool(files), "checks-catalog-source")
@@ -332,7 +335,7 @@ def checks_pass(checks):
             require(type(obj) is str and obj not in objects and re.sub(r'\[(?:\d+|"[^"]*")\]', "", obj) == address, "checks-object-address")
             require(item["status"] == "pass" and item.get("failure_messages", []) == [], "checks-object-result")
             if kind == "resource":
-                require(obj in BASELINE, "checks-resource-address")
+                require(obj in BASELINE | ({TABLE} if imported else set()), "checks-resource-address")
             objects.add(obj)
 
 
@@ -454,8 +457,11 @@ def main(argv=None):
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
             message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            # The value-free projection digest is the only plan artifact handle
+            # a future one-shot approval may cite. The binary plan is deleted.
+            digest = hashlib.sha256(private_bytes(Path(env["RUNNER_TEMP"]) / "sanitized-plan.json")).hexdigest()
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
-                handle.write(message)
+                handle.write(message + f"History sanitized summary SHA-256: `{digest}`\n")
         else:
             message = "Protected history plan private precheck passed. No Terraform execution or lock operation performed.\n"
     except (ReceiptInvariantError, ReceiptDependencyError) as error:

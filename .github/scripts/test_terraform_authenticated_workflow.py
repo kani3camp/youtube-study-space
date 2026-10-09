@@ -65,6 +65,22 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertIn(f'"${{RUNNER_TEMP}}/history-plan-{name}.json"', cleanup)
         self.assertIn("test_terraform_history_plan_receipt.py", self.caller)
 
+    def test_one_shot_history_import_has_separate_approval_and_state_receipts(self):
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        apply = self.text.split("  apply:\n", 1)[1]
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+        self.assertIn("history_import_approval: ${{ inputs.terraform_history_import_approval }}", self.caller)
+        self.assertLess(plan.index("Check one-shot history import authorization"), plan.index("Configure AWS backend credential"))
+        ordered = ["Re-read canonical history metadata", "Capture exact pre-import state",
+                   "Re-plan at the exact", "Verify re-plan matches", "Seal the one-shot history saved plan",
+                   "Apply the locally", "Verify post-import canonical metadata", "Require post-apply no-op",
+                   "Verify one-shot history state and table receipt", "Cleanup sensitive temporary files"]
+        self.assertEqual([apply.index(step) for step in ordered], sorted(apply.index(step) for step in ordered))
+        self.assertIn("history_plan_sha256", apply)
+        self.assertIn("steps.history_import_before.outcome == 'success'", apply)
+        self.assertNotIn("force-unlock", apply)
+        self.assertIn("test_terraform_history_import_verifier.py", self.caller)
+
     def test_job_level_env_does_not_use_unavailable_env_context(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
             env_block = job.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]

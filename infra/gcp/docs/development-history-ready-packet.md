@@ -121,13 +121,14 @@ python3 infra/gcp/scripts/validate_user_activity_history_plan.py \
 `TF_VAR_export_function_execution_service_account_email` は既存Function identityの照合用。
 inputはowner-only regular file、symlink/duplicate JSON key/oversizeを拒否。結果はvalue/pathを
 含まないPASS/STOPのみ。実provider plan、metadata provenance、live prerequisitesや承認の
-証明ではない。protected workflowへのdefault-off配線は下記に準備済みで、source adoption=false。
+証明ではない。protected plan配線は下記に準備済みで、apply gateはfalse。
 既存11のownership/configが変わったら候補を再reviewする。12という数だけでPASSにしない。
 
-## Default-off protected history adoption
+## Protected history plan, with apply still disabled
 
 既存[protected workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)の
-`DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=false`を維持したsource準備です。通常PRは
+`DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=true` はcanonical修復後のprotected plan用です。
+`DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`を維持したsource準備です。通常PRは
 credentiallessで、mergeやテスト成功からmetadata GET・schema mutation・importを自動実行しません。
 共通`ci.yml`、OIDC/trust/Environment/permission、production rootは変更しません。
 
@@ -230,3 +231,68 @@ template単独で必須environment/job_workflow_refを満たせるとも扱わ�
 実際にpinするAction/依存と実producerの挙動は別検証で、今回の失敗修復も未証明。Terraform Environmentを
 流用しない。[default→advanced切替](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)
 は別settings actionなので、source PRだけで修復済みとは報告しない。
+
+## One-shot import source contract (not execution approval)
+
+2026-10-09の[plan run 37925757786](https://github.com/kani3camp/youtube-study-space/actions/runs/37925757786)は
+SHA `244a5a3e455139621717ca2496d35d2fb5742150` のfull-rootでimport1/既存11 no-op、
+create/update/delete/replace/read/drift/other0、stateとcomplete table metadata不変、
+native lock不在、cleanup成功、artifact0、実apply0を確認した。saved planはcleanup済みで再利用不可。
+plan-onlyではnegative security probesを実行しておらず **Full security gate: NOT VERIFIED**。
+apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去runの記録であり、次のapplyの枠ではない。
+
+### Before an owner could authorize one apply
+
+1. 新しいreview済みsourceをtrusted `feature/gcp-terraform-iac`へ取り込み、exact SHAのcredentialless
+   CIと、同SHAのprotected full-root planを通す。旧runのplan/metadata/digestを新SHAの承認へ流用しない。
+   dev tableの8列、nested schema、既存description、完全metadataとrow-count metadataの鮮度、
+   writer停止window、consumer/recoveryのowner factsをprivate packetで照合する。
+2. applyに必要なnegative security probesを別承認のlive確認で完了させる。plan-only成功をその代用にしない。
+   IAM/credential/trust変更はこのsource準備に含まない。新たなpermissionが必要ならSTOPして別review。
+3. 次のplanとapplyが追加する当月UTC費用を別に見積る。AWS state GET/HEAD/LIST、native lock PUT/GET/DELETE、
+   state新versionとlock version/delete markerの後月保管、暗号化/KMS、転送、GCP `tables.get`、
+   provider refresh、logging/audit、別料金がある場合の上限をprivateなread証拠と単価で積算し、
+   既存の月次台帳に過去分USD0.507609043と今回の予約額を区別して記録する。追加料金runは今回0。
+   値やbooleanだけで未知項目が解決したことにしない。
+4. 本人がexact target `dev / test-youtube-study-space.firestore_export.user-activity-history`、
+   state key、SHA、差分「tableのstate記録1件のみ・既存11 no-op」、private plan digest、
+   期限、費用、状態不明時の停止をreviewする。planとapplyの両GitHub Environmentの本人review、
+   gate変更とdispatchはそれぞれ別のlive承認が必要。
+
+`terraform_history_import_approval` は公開可能な小さなJSONで、キーを
+`target=dev`、`git_sha`、正の`plan_run_id`、`summary_sha256`、`cost_evidence_sha256`、
+`max_added_current_month_usd`（正の小数文字列）、`issued_utc`、`expires_utc`だけに限定する。
+発行から最大24時間で失効し、実行時刻も範囲内とする。`plan_run_id`は新しいapproved planの
+run IDで、37925757786を使わない。`summary_sha256`はそのrunのsanitized summary bytesのdigest。
+`cost_evidence_sha256`は本人がprivateでreviewした今回のitemized estimateのdigestであり、
+public inputに証拠本文やbucket/account/role/SA名を貼らない。digestだけではread証拠の真偽を
+自動証明できないためEnvironment reviewerがpacketとrunを照合する。
+
+既存workflowは同SHAのapply jobで新しいplanを作り、approved summary digestと再plan summaryを
+比較する。[one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
+beforeでstateに既存11件だけあること、preapplyでtable import **exact1**・既存11 no-op・他0、
+元state不変、完全metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
+apply直前に同binary digestを再確認する。plan jobからbinaryをartifactで渡さない。
+postは同じlineage、増加serial、既存11の完全state値とoutputs/checks不変、追加table1件とschema、
+complete `tables.get`不変、native lock不在、post full-root import0/no-op12/他0を要求する。
+列descriptionはnestedを含めて比較し、`numRows`/`numBytes`/`lastModifiedTime`の変化も拒否する。
+これはmetadata観測の一致であり、row本文が同一である独立proofではない。writer quiescenceと
+外部記録でrow不変を確認し、追加queryは別承認。runnerのprivate state/metadata/planは0600で
+扱い、publicには固定の分類だけを出し、always cleanupする。強制停止時のcleanupは保証しない。
+
+最小の`terraform state import`経路もtable state記録を加えるが、full-rootのimport1/no-op11、
+same-SHA再plan、provider値、post-plan、既存Environment/security boundaryを一体で検証できない。
+推奨は既存protected saved-plan applyに上記verifierを足す経路。gateを単にtrueへ変えるだけでは
+未実施のsecurity gateやowner factsを満たさない。
+
+### Failure classification and recovery
+
+post receiptの`state=unchanged`はimport未記録、`state=imported`は許容state差分、`unknown`は
+部分write/競合/取得失敗を含む。metadata STOP、lock unknown、apply/post-plan失敗は成功扱いしない。
+いずれも自動retry、`force-unlock`、旧S3 versionの上書きrestore、`state rm`、DDL、table再作成を
+行わず、writerを止めたままprivateにcurrent S3 version/serial/lineage、exact table metadata、
+lock holder、Terraform apply logとstate差分を照合する。stateだけimport済みならdata/tableは
+そのままで通常full-root no-opを独立確認し、同一importの再applyは拒否する。state未変更なら
+失敗原因と費用/期限/identityを再評価して新planと新承認を得る。state異常またはtable metadata
+変化時は別scopeのstate-only修復またはdata recoveryを候補にし、新writeとprivacy retention、
+復元先と費用をreviewしてから別承認する。古いsnapshotを後続writeの上へ戻さない。

@@ -499,6 +499,8 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(receipt.main(["--phase", "after"]), 0)
         exposed = stdout.getvalue() + stderr.getvalue() + (self.root / "summary").read_text()
         self.assertIn("receipt: PASS", exposed)
+        self.assertIn("History sanitized summary SHA-256: `" +
+                      receipt.hashlib.sha256(receipt.private_bytes(self.root / "sanitized-plan.json")).hexdigest() + "`", exposed)
         self.assertIn("added current UTC month cost bound", exposed)
         self.assertIn("cost bound <= USD0.25.", exposed)
         self.assertNotIn("cost bound <= USD0.01.", exposed)

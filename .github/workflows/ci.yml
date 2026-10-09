@@ -39,6 +39,11 @@ on:
         required: false
         default: ""
         type: string
+      terraform_history_import_approval:
+        description: Public one-shot dev import approval binding exact SHA, prior plan digest and UTC expiry
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -602,6 +607,7 @@ jobs:
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
+          python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
@@ -674,6 +680,7 @@ jobs:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
       plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}
+      history_import_approval: ${{ inputs.terraform_history_import_approval }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit

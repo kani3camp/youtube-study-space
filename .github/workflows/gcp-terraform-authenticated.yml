@@ -16,6 +16,11 @@ on:
         required: false
         default: ""
         type: string
+      history_import_approval:
+        description: Public one-shot dev import approval binding exact SHA, prior plan digest and UTC expiry
+        required: false
+        default: ""
+        type: string
     # Explicit names allow Environment secret resolution in called jobs without
     # inheriting unrelated repository secrets. Values come from each job's gate.
     secrets:
@@ -240,6 +245,8 @@ jobs:
       TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}
       TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+      HISTORY_TARGET: ${{ inputs.target }}
+      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
     steps:
       - name: Mask private identity fragments before authentication
         shell: bash
@@ -277,6 +284,10 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
+
+      - name: Check one-shot history import authorization before cloud credentials
+        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
 
       - name: Bound the single history plan cost before authentication or locks
         if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
@@ -402,8 +413,8 @@ jobs:
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
-            "${plan_args[@]}" \
-            "${history_args[@]}" \
+            ${plan_args[@]+"${plan_args[@]}"} \
+            ${history_args[@]+"${history_args[@]}"} \
             -input=false \
             -lock-timeout=0s \
             -detailed-exitcode \
@@ -507,6 +518,14 @@ jobs:
       contents: read
       id-token: write
     env:
+      MODE: ${{ inputs.mode }}
+      HISTORY_TARGET: ${{ inputs.target }}
+      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_WORKSPACE: default
@@ -573,6 +592,7 @@ jobs:
           aws-region: ${{ env.STATE_AWS_REGION }}
           mask-aws-account-id: true
           unset-current-credentials: true
+          retry-max-attempts: 1
 
       - name: Create private backend config
         shell: bash
@@ -592,26 +612,10 @@ jobs:
           region              = "${STATE_AWS_REGION}"
           encrypt             = true
           use_lockfile        = true
+          max_retries         = 1
           workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
           allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
           EOF
-
-      - name: Initialize remote backend without public output
-        shell: bash
-        env:
-          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
-        run: |
-          set -euo pipefail
-          umask 077
-          if ! terraform -chdir="${TF_ROOT}" init \
-            -reconfigure \
-            -backend-config="${RUNNER_TEMP}/backend.hcl" \
-            -input=false \
-            -lockfile=readonly \
-            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
-            echo "::error::Terraform init failed. Raw output is intentionally not printed."
-            exit 1
-          fi
 
       - name: Configure GCP provider credential
         id: apply_gcp_auth
@@ -663,6 +667,30 @@ jobs:
           HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}
         run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
 
+      - name: Capture exact pre-import state and approved history plan
+        id: history_import_before
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase before
+
+      - name: Initialize remote backend without public output
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
       - name: Re-plan at the exact approved commit
         shell: bash
         env:
@@ -679,8 +707,8 @@ jobs:
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
-            "${plan_args[@]}" \
-            "${history_args[@]}" \
+            ${plan_args[@]+"${plan_args[@]}"} \
+            ${history_args[@]+"${history_args[@]}"} \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
@@ -732,13 +760,26 @@ jobs:
             exit 1
           }
 
+      - name: Seal the one-shot history saved plan before apply
+        id: history_import_preapply
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase preapply
+
       - name: Apply the locally re-created saved plan
+        id: apply_saved
         shell: bash
         env:
           TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          HISTORY_PLAN_SHA256: ${{ steps.history_import_preapply.outputs.history_plan_sha256 }}
         run: |
           set -euo pipefail
           umask 077
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            [[ -n "${HISTORY_PLAN_SHA256}" && "$(sha256sum "${RUNNER_TEMP}/tfplan" | awk '{print $1}')" == "${HISTORY_PLAN_SHA256}" ]] || {
+              echo "::error::Sealed history plan changed before apply."
+              exit 1
+            }
+          fi
           if ! terraform -chdir="${TF_ROOT}" apply \
             -input=false \
             "${RUNNER_TEMP}/tfplan" \
@@ -757,6 +798,7 @@ jobs:
         run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase post
 
       - name: Require post-apply no-op
+        id: post_plan
         shell: bash
         env:
           TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
@@ -769,7 +811,7 @@ jobs:
           fi
           set +e
           terraform -chdir="${TF_ROOT}" plan \
-            "${history_args[@]}" \
+            ${history_args[@]+"${history_args[@]}"} \
             -input=false \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/post-apply.tfplan" \
@@ -804,12 +846,25 @@ jobs:
             exit 1
           }
 
+      - name: Verify one-shot history state and table receipt
+        if: ${{ always() && steps.history_import_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          APPLY_OUTCOME: ${{ steps.apply_saved.outcome }}
+          POST_PLAN_OUTCOME: ${{ steps.post_plan.outcome }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase post
+
       - name: Cleanup sensitive temporary files
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/history-import-before.json" \
+            "${RUNNER_TEMP}/history-import-preapply.json" \
+            "${RUNNER_TEMP}/history-import-state-before.json" \
+            "${RUNNER_TEMP}/history-import-state-preapply.json" \
+            "${RUNNER_TEMP}/history-import-state-after.json" \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
             "${RUNNER_TEMP}/user-history-before.tfvars.json" \

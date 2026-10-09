@@ -3,7 +3,7 @@
 
 Use an already issued workflow token for one exact tables.get. No token minting,
 query, data read, retry, IAM, schema, state or ownership activation is performed.
-The workflow default-off gate and live prerequisites remain separate approvals.
+The workflow apply gate remains off; live prerequisites require separate approval.
 """
 from __future__ import annotations
 
