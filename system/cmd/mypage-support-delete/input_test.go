@@ -189,7 +189,15 @@ func TestManifestMustBeExact0600RegularNonSymlinkAndBounded(t *testing.T) {
 	require.NoError(t, err)
 	for _, mode := range []os.FileMode{0o400, 0o640, 0o644, 0o700, 0o600 | os.ModeSetuid, 0o600 | os.ModeSetgid, 0o600 | os.ModeSticky} {
 		require.NoError(t, os.Chmod(path, mode))
-		_, _, err := inputFrom(options{manifest: path}, nil)
+		info, err := os.Lstat(path)
+		require.NoError(t, err)
+		// Some filesystems clear setuid/setgid on chmod. In that case the
+		// ordinary 0600 file is not a valid negative fixture.
+		if special := mode & (os.ModeSetuid | os.ModeSetgid | os.ModeSticky); special != 0 && info.Mode()&special != special {
+			t.Logf("filesystem cleared requested special mode %v", special)
+			continue
+		}
+		_, _, err = inputFrom(options{manifest: path}, nil)
 		require.ErrorIs(t, err, errInput)
 	}
 	require.NoError(t, os.Chmod(path, 0o600))
