@@ -4,6 +4,7 @@ package mypage
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"sync"
 	"testing"
@@ -46,7 +47,8 @@ func TestIntakeFreshOAuthReturnsDistinctStatusAndProofReferences(t *testing.T) {
 	if _, err := intake.Status(ctx, uid, confirmation.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
 		t.Fatal("proof reference opened status")
 	}
-	if err := intake.SetReply(ctx, receipt.RequestRef, "Synthetic reply", now); err != nil {
+	operator := syntheticOperator(authStore.Client)
+	if err := operator.Reply(ctx, ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: receipt.RequestRef, Purpose: SupportDelete, OperationID: digest("reply-1"), Action: "reply"}, ProofRef: confirmation.RequestRef, Body: "Synthetic reply", At: now}); err != nil {
 		t.Fatal(err)
 	}
 	statusValue, err := intake.Status(ctx, uid, confirmation.SupportRequestRef)
@@ -106,7 +108,9 @@ func TestPrivacyIntakeReceiptIdempotencyReplyAndIsolation(t *testing.T) {
 	if _, err := store.Status(ctx, "UCother", first.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
 		t.Fatal("guessed reference exposed")
 	}
-	if err := store.SetReply(ctx, first.RequestRef, "Synthetic response", now); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
+	operator := syntheticOperator(store.Client)
+	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: first.RequestRef, Purpose: SupportDelete, OperationID: digest("reply-2"), Action: "reply"}, ProofRef: distinct.RequestRef, Body: "Synthetic response", At: now}
+	if err := operator.Reply(ctx, reply); !errors.Is(err, ErrOperatorConflict) {
 		t.Fatal("preproof reply accepted")
 	}
 	binding, err := (&FirestoreSupportStore{Client: authStore.Client, Environment: "development"}).Resolve(ctx, first.Challenge, now)
@@ -115,11 +119,11 @@ func TestPrivacyIntakeReceiptIdempotencyReplyAndIsolation(t *testing.T) {
 	}
 	// Synthetic proof state: full one-time OAuth transition has its own integration tests.
 	doc := store.Client.Collection("support-requests").Doc(first.RequestRef)
-	_, err = doc.Update(ctx, []firestore.Update{{Path: "status", Value: "verified"}, {Path: "verifiedAt", Value: now}, {Path: "proofRef", Value: distinct.RequestRef}, {Path: "challengeHash", Value: ""}})
+	_, err = doc.Update(ctx, []firestore.Update{{Path: "status", Value: "verified"}, {Path: "verifiedAt", Value: now}, {Path: "proofRef", Value: distinct.RequestRef}, {Path: "oauthTransactionId", Value: digest("synthetic-verified-oauth")}, {Path: "challengeHash", Value: ""}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetReply(ctx, first.RequestRef, "Synthetic response", now); err != nil {
+	if err := operator.Reply(ctx, reply); err != nil {
 		t.Fatal(err)
 	}
 	result, err := store.Status(ctx, "UCsynthetic-intake", first.RequestRef)

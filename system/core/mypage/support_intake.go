@@ -163,29 +163,3 @@ func (s *FirestorePrivacyIntake) Status(ctx context.Context, uid, ref string) (P
 	}
 	return PrivacyRequestStatus{RequestRef: ref, Purpose: value.Purpose, Status: value.Status, AcceptedAt: value.AcceptedAt, DeleteBy: value.DeleteBy, VerifiedAt: value.VerifiedAt, Reply: value.OperatorReply, ReplyAt: value.OperatorReplyAt}, nil
 }
-
-// SetReply is an operator-library boundary only. Trusted operator wiring,
-// authorization and audit are prerequisites before any real response is sent.
-func (s *FirestorePrivacyIntake) SetReply(ctx context.Context, ref, reply string, now time.Time) error {
-	if !s.ready() {
-		return apiError("TEMPORARY_UNAVAILABLE")
-	}
-	if !validOpaque(ref) || !validPrivacyBody(reply) || reply == "" {
-		return apiError("INVALID_REQUEST")
-	}
-	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		doc := s.Client.Collection("support-requests").Doc(ref)
-		value, err := readSupportRecord(tx, doc)
-		if err != nil {
-			return err
-		}
-		if value.Environment != s.Environment || value.Status != "verified" || value.VerifiedAt == nil {
-			return apiError("SUPPORT_CHALLENGE_INVALID")
-		}
-		return tx.Update(doc, []firestore.Update{{Path: "operatorReply", Value: reply}, {Path: "operatorReplyAt", Value: now.UTC()}})
-	})
-	if err != nil {
-		return fmt.Errorf("set privacy reply: %w", err)
-	}
-	return nil
-}

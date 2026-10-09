@@ -190,6 +190,9 @@ func TestDeletionMissingTraceWrongTargetAndBindingLeaveNoGuard(t *testing.T) {
 func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *testing.T) {
 	s, start, oauthRef := deletionFixture(t)
 	ctx := context.Background()
+	operator := syntheticOperator(s.Client)
+	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: start.Selector.RequestRef, Purpose: SupportDelete, OperationID: digest("deletion-terminal-reply"), Action: "reply"}, ProofRef: start.Selector.ProofRef, Body: "Synthetic private reply", At: start.Now}
+	require.NoError(t, operator.Reply(ctx, reply))
 	controls := &serviceaccess.FirestoreStore{Client: s.Client}
 	_, err := controls.Change(ctx, start.Selector.Target.ChannelID, serviceaccess.Change{Reason: serviceaccess.Moderation, Active: true, ReasonCode: "SECURITY", Reference: digest("moderation1")}, start.Now)
 	require.NoError(t, err)
@@ -212,6 +215,12 @@ func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *
 	require.NoError(t, err)
 	require.Equal(t, len(supportdelete.Steps()), e.Cursor)
 	require.NoError(t, s.Finalize(ctx, e, start.Now.Add(2*time.Second)))
+	audit, err := s.Client.Collection(supportOperatorAudit).Doc(digest("delete-finalized:" + start.Selector.ExecutionRef)).Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "delete-finalized", audit.Data()["action"])
+	for _, key := range []string{"body", "operatorReply", "targetChannel", "proofRef", "requestRef"} {
+		require.NotContains(t, audit.Data(), key)
+	}
 	control, err := controls.Read(ctx, start.Selector.Target.ChannelID)
 	require.NoError(t, err)
 	require.True(t, control.Exists)
@@ -228,6 +237,8 @@ func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *
 			require.Len(t, doc.Data(), 4)
 		}
 	}
+	_, err = operator.auditRef(reply.Intent).Get(ctx)
+	require.NoError(t, err, "body-free reply audit survives terminal receipt cleanup")
 	for _, r := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(oauthRef), s.Client.Collection(supportDeleteClaims).Doc(start.Selector.ProofRef)} {
 		_, err := r.Get(ctx)
 		require.Equal(t, codes.NotFound, status.Code(err))
@@ -321,7 +332,7 @@ func TestDeletionCheckpointClientRulesDenyReadAndWrite(t *testing.T) {
 	encode := base64.RawURLEncoding.EncodeToString
 	token := encode([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + encode([]byte(`{"iss":"https://securetoken.google.com/demo-youtube-study-space-ci","aud":"demo-youtube-study-space-ci","sub":"synthetic-rules-user","user_id":"synthetic-rules-user","iat":1780000000,"exp":2090000000,"firebase":{"sign_in_provider":"custom"}}`)) + "."
 	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership, supportDeleteBigQueryInventory, supportDeleteBigQueryBinding} {
+	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership, supportDeleteBigQueryInventory, supportDeleteBigQueryBinding, supportOperatorAudit, "support-requests"} {
 		ref := start.Selector.ExecutionRef
 		if collection == supportDeleteClaims {
 			ref = start.Selector.ProofRef

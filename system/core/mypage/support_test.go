@@ -1,7 +1,6 @@
 package mypage
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -67,40 +66,6 @@ func TestSupportProofRejectsMismatchExpiryAndReplay(t *testing.T) {
 	}
 	if _, err := reissueSupportRecord(verified, "development", digest("replacement"), now); err == nil {
 		t.Fatal("verified request reopened by challenge reissue")
-	}
-}
-
-func TestSupportCompletedRecordContainsOnlyAnonymousAudit(t *testing.T) {
-	value, binding, now := supportFixture(t)
-	value.Body = "synthetic intake body"
-	value.OperatorReply = "synthetic operator reply"
-	value.SubmissionHash = digest("synthetic submission")
-	value.OperatorReplyAt = &now
-	if _, err := completeSupportRecord(value, "development", now); err == nil {
-		t.Fatal("unverified request completed")
-	}
-	verified, err := verifySupportRecord(value, binding, value.TargetChannel, strings.Repeat("b", 64), strings.Repeat("c", 64), now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	completed, err := completeSupportRecord(verified, "development", now.Add(time.Minute))
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := json.Marshal(completed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, privateValue := range []string{value.TargetChannel, value.ChallengeHash, verified.ProofRef, verified.OAuthTransactionID, value.Body, value.OperatorReply, value.SubmissionHash} {
-		if strings.Contains(string(encoded), privateValue) {
-			t.Fatal("completed audit retained linkable proof/channel data")
-		}
-	}
-	if completed.OperatorReplyAt != nil {
-		t.Fatal("completed audit retained reply timestamp")
-	}
-	if completed.RequestID != value.RequestID || completed.AcceptedAt != value.AcceptedAt || completed.VerifiedAt == nil || completed.CompletedAt == nil || completed.Status != "completed" {
-		t.Fatal("minimum receipt/proof/completion audit was lost")
 	}
 }
 

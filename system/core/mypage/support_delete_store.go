@@ -365,6 +365,15 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		if tx.Set(receiptRef, terminal) != nil || tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond), "completionBinding": completionBinding(e.Selector, e.Manifest)}) != nil || tx.Set(s.Client.Collection(serviceaccess.Collection).Doc(e.Selector.Target.ChannelID), next) != nil {
 			return supportdelete.ErrUnavailable
 		}
+		// The existing deletion engine alone owns this terminal event. Keep it
+		// body-free and unlinkable by raw channel, proof or receipt reference.
+		if tx.Create(s.Client.Collection(supportOperatorAudit).Doc(digest("delete-finalized:"+e.Selector.ExecutionRef)), operatorAuditEvent{
+			SchemaVersion: 1, Environment: e.Selector.Target.Environment, Purpose: SupportDelete,
+			Action: "delete-finalized", Actor: "deletion-workflow", Binding: digest(e.Selector.RequestRef),
+			Fingerprint: completionBinding(e.Selector, e.Manifest), At: now.UTC().Truncate(time.Microsecond),
+		}) != nil {
+			return supportdelete.ErrUnavailable
+		}
 		return nil
 	})
 	return deletionStoreError(err)
