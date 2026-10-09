@@ -1147,21 +1147,45 @@
         },
         {
           "path": "system/core/workspaceapp/batch.go",
-          "symbol": "RP user ID logging",
+          "symbol": "RP payload-safe status log",
           "line": 389,
-          "anchor": "slog.Info(\"processing RP.\""
+          "anchor": "slog.InfoContext(ctx, \"RP update started\""
         },
         {
           "path": "system/cmd/lambda/error_log_notify_discord/main.go",
           "symbol": "error log forwarding",
-          "line": 93,
+          "line": 105,
           "anchor": "func buildDiscordMessageChunks("
+        },
+        {
+          "path": "system/cmd/lambda/error_log_notify_discord/main.go",
+          "symbol": "sanitized notifier source error with original error identity",
+          "line": 49,
+          "anchor": "type notifierSourceError struct"
         },
         {
           "path": "system/cmd/lambda/sns_notify_discord/main.go",
           "symbol": "SNS payload-safe dispatch log",
           "line": 84,
           "anchor": "slog.InfoContext(gracefulCtx, \"sns notification dispatch\""
+        },
+        {
+          "path": "system/cmd/lambda/youtube_organize_database/main.go",
+          "symbol": "organizer handler safe error class",
+          "line": 91,
+          "anchor": "\"error_class\", \"organize_failed\""
+        },
+        {
+          "path": "system/cmd/batch/main.go",
+          "symbol": "batch init safe error class",
+          "line": 25,
+          "anchor": "slog.Error(\"failed to get Firestore client option\", \"error_class\""
+        },
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "legacy bot init safe error class",
+          "line": 60,
+          "anchor": "slog.ErrorContext(ctx, \"failed core.NewWorkspaceApp()\", \"error_class\""
         },
         {
           "path": "aws-cdk/lib/aws-cdk-stack.ts",
@@ -1237,7 +1261,7 @@
         ]
       },
       "sourceKnown": [
-        "Legacy RP still logs channel ID; current trend and SNS handlers log counts/status without payload, while SNS forwards notification content to Discord. Historical log copies remain unknown.",
+        "Current RP, seat-limit and exit paths log fixed events/counts without channel IDs or work text; related organizer/batch/Bot entrypoints and trend/SNS handlers omit raw dependency/payload logs; CloudWatch notifier parse/init logs and returned error strings use fixed classes. Owner/Discord content forwarding and historical log copies remain separate.",
         "CDK defines INFINITE retention for batch/SFN/API access logs and error subscription forwarding.",
         "MyPage server discards HTTP error log and uses sanitized API codes, but hosting/edge/cloud log configuration remains a release gate."
       ],
@@ -1258,7 +1282,7 @@
         "state": "required-not-collected"
       },
       "implementationStatus": {
-        "sourceObservation": "Source logging and forwarding routes are known; sanitized new telemetry is not a legacy purge.",
+        "sourceObservation": "Bounded RP/seat/exit and related entrypoint/trend/SNS/notifier process-log hardening exists. Original notifier parse/init causes remain available through errors.Is; historical logs and other producer paths are not proven clean.",
         "requiredExecutionCapabilities": [
           "B log inventory/disposition adapters, permissions and actual redaction/retention evidence remain required."
         ],
@@ -1746,7 +1770,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "WorkspaceApp.CreateUser",
-          "line": 94,
+          "line": 93,
           "anchor": "func (app *WorkspaceApp) CreateUser("
         },
         {
@@ -1764,7 +1788,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "enterRoom/exitRoomAt/moveSeat",
-          "line": 838,
+          "line": 833,
           "anchor": "func (app *WorkspaceApp) exitRoomAt("
         }
       ],
@@ -1845,7 +1869,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "CheckIfUserSittingTooMuchForSeat",
-          "line": 516,
+          "line": 515,
           "anchor": "func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat("
         }
       ],
@@ -2366,7 +2390,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "WorkspaceApp.ExitAllUsersInRoom",
-          "line": 194,
+          "line": 193,
           "anchor": "func (app *WorkspaceApp) ExitAllUsersInRoom("
         },
         {
@@ -2436,7 +2460,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "AddLiveChatHistoryDoc retained helper",
-          "line": 420,
+          "line": 419,
           "anchor": "func (app *WorkspaceApp) AddLiveChatHistoryDoc("
         },
         {
@@ -2513,7 +2537,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "LogToModerators/MessageToOwnerWithError",
-          "line": 294,
+          "line": 293,
           "anchor": "func (app *WorkspaceApp) LogToModerators("
         },
         {
@@ -2537,7 +2561,7 @@
         {
           "path": "system/cmd/lambda/error_log_notify_discord/main.go",
           "symbol": "CloudWatch error forwarding handler",
-          "line": 46,
+          "line": 58,
           "anchor": "func handler("
         },
         {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -137,7 +138,8 @@ func TestSplitToDiscordSizedChunksUTF8Safe(t *testing.T) {
 }
 
 func TestHandlerReturnsErrorWhenWorkspaceInitFails(t *testing.T) {
-	restore := stubErrorLogNotifyDeps(t, nil, errors.New("workspace init failed"), nil)
+	cause := errors.New("workspace init failed")
+	restore := stubErrorLogNotifyDeps(t, nil, cause, nil)
 	defer restore()
 
 	ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
@@ -148,7 +150,7 @@ func TestHandlerReturnsErrorWhenWorkspaceInitFails(t *testing.T) {
 	})
 
 	err := handler(context.Background(), ev)
-	if err == nil || !strings.Contains(err.Error(), "init WorkspaceApp: workspace init failed") {
+	if err == nil || !errors.Is(err, cause) || err.Error() != "init WorkspaceApp: workspace_init_failed" {
 		t.Fatalf("expected workspace init error, got %v", err)
 	}
 }
@@ -208,6 +210,10 @@ func TestHandlerSuccessSendsAllChunksAndClosesClient(t *testing.T) {
 	app := &mockErrorLogNotifyApp{}
 	restore := stubErrorLogNotifyDeps(t, nil, nil, app)
 	defer restore()
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
 
 	ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
 		LogGroup:  "/aws/lambda/check_live_stream_status",
@@ -226,10 +232,14 @@ func TestHandlerSuccessSendsAllChunksAndClosesClient(t *testing.T) {
 	if !app.closed {
 		t.Fatal("expected CloseFirestoreClient")
 	}
+	if strings.Contains(logs.String(), "勉強🚀") || strings.Contains(logs.String(), "/aws/lambda/check_live_stream_status") {
+		t.Fatalf("success log exposed forwarded content or log group: %s", logs.String())
+	}
 }
 
 func TestHandlerReturnsErrorWhenFirestoreInitFails(t *testing.T) {
-	restore := stubErrorLogNotifyDeps(t, errors.New("firestore init failed"), nil, nil)
+	cause := errors.New("firestore init failed")
+	restore := stubErrorLogNotifyDeps(t, cause, nil, nil)
 	defer restore()
 
 	ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
@@ -240,8 +250,69 @@ func TestHandlerReturnsErrorWhenFirestoreInitFails(t *testing.T) {
 	})
 
 	err := handler(context.Background(), ev)
-	if err == nil || !strings.Contains(err.Error(), "get Firestore client option: firestore init failed") {
+	if err == nil || !errors.Is(err, cause) || err.Error() != "get Firestore client option: firestore_option_failed" {
 		t.Fatalf("expected firestore init error, got %v", err)
+	}
+}
+
+func TestHandlerSourceFailuresPreserveIdentityWithoutLoggingPrivateCause(t *testing.T) {
+	const channelID = "PRIVATE_CHANNEL_ID_543"
+	const content = "PRIVATE_WORK_CONTENT_963"
+	const credential = "PRIVATE_CREDENTIAL_753"
+	cause := errors.New("synthetic sentinel")
+	privateErr := fmt.Errorf("channel=%s content=%s credential=%s: %w", channelID, content, credential, cause)
+	for _, tc := range []struct {
+		name      string
+		stage     string
+		wantClass string
+	}{
+		{name: "parse", stage: "parse", wantClass: "payload_parse_failed"},
+		{name: "firestore option", stage: "option", wantClass: "firestore_option_failed"},
+		{name: "workspace init", stage: "init", wantClass: "workspace_init_failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			previousLogger := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+			previousParse := parseCloudWatchLogs
+			if tc.stage == "parse" {
+				parseCloudWatchLogs = func(events.CloudwatchLogsRawData) (events.CloudwatchLogsData, error) {
+					return events.CloudwatchLogsData{}, privateErr
+				}
+			}
+			t.Cleanup(func() { parseCloudWatchLogs = previousParse })
+
+			var optionErr, initErr error
+			if tc.stage == "option" {
+				optionErr = privateErr
+			}
+			if tc.stage == "init" {
+				initErr = privateErr
+			}
+			restore := stubErrorLogNotifyDeps(t, optionErr, initErr, &mockErrorLogNotifyApp{})
+			t.Cleanup(restore)
+
+			ev := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
+				LogGroup: "/aws/lambda/synthetic-log-source",
+				LogEvents: []events.CloudwatchLogsLogEvent{
+					{ID: "1", Timestamp: 123, Message: content},
+				},
+			})
+			err := handler(context.Background(), ev)
+			if !errors.Is(err, cause) {
+				t.Fatalf("expected original error identity, got %v", err)
+			}
+			if !strings.Contains(err.Error(), tc.wantClass) || !strings.Contains(logs.String(), `"error_class":"`+tc.wantClass+`"`) {
+				t.Fatalf("expected safe stage/class, error=%v logs=%s", err, logs.String())
+			}
+			for _, private := range []string{channelID, content, credential} {
+				if strings.Contains(err.Error(), private) || strings.Contains(fmt.Sprintf("%+v", err), private) || strings.Contains(logs.String(), private) {
+					t.Fatalf("private value exposed by returned error or log: error=%v logs=%s", err, logs.String())
+				}
+			}
+		})
 	}
 }
 

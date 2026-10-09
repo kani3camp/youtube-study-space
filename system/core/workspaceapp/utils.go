@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"strconv"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -536,7 +535,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		return false, fmt.Errorf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(whiteListForUserAndSeat) == 1 {
 		if whiteListForUserAndSeat[0].Until.After(jstNow) {
-			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in white list. skipping.")
+			slog.InfoContext(ctx, "seat limit check skipped", "reason", "white_list_active")
 			return false, nil
 		}
 		// ホワイトリストに入っているが、期限切れのためチェックを続行
@@ -545,7 +544,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		return false, fmt.Errorf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
 	} else if len(blackListForUserAndSeat) == 1 {
 		if blackListForUserAndSeat[0].Until.After(jstNow) {
-			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] found in black list. skipping.")
+			slog.InfoContext(ctx, "seat limit check skipped", "reason", "black_list_active")
 			return true, nil
 		}
 		// ブラックリストに入っているが、期限切れのためチェックを続行
@@ -556,11 +555,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		return false, fmt.Errorf("in GetRecentUserSittingTimeForSeat(): %w", err)
 	}
 
-	slog.Info("",
-		"userID", userID,
-		"seatID", seatID,
-		"過去何分", app.Configs.Constants.RecentRangeMin,
-		"合計何分", int(totalEntryDuration.Minutes()))
+	slog.InfoContext(ctx, "seat limit evaluated")
 
 	// 制限値と比較
 	ifSittingTooMuch := int(totalEntryDuration.Minutes()) > app.Configs.Constants.RecentThresholdMin
@@ -572,7 +567,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 			if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
 				return false, fmt.Errorf("in CreateSeatLimitInWHITEList(): %w", err)
 			}
-			slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] saved to white list.")
+			slog.InfoContext(ctx, "seat limit saved", "list", "white")
 		}
 	} else {
 		// ブラックリストに登録
@@ -580,7 +575,7 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
 			return false, fmt.Errorf("in CreateSeatLimitInBLACKList(): %w", err)
 		}
-		slog.Info("[seat " + strconv.Itoa(seatID) + ": " + userID + "] saved to black list.")
+		slog.InfoContext(ctx, "seat limit saved", "list", "black")
 	}
 
 	return ifSittingTooMuch, nil
@@ -611,7 +606,7 @@ func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, us
 		return 0, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
 	}
 
-	slog.Info("入退室ドキュメント数：" + strconv.Itoa(len(activityOnlyEnterExitList)))
+	slog.InfoContext(ctx, "seat activity documents read", "activity_count", len(activityOnlyEnterExitList))
 
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
@@ -920,13 +915,7 @@ func (app *WorkspaceApp) exitRoomAt(
 			))
 		} else {
 			slog.DebugContext(ctx,
-				"検算成功: abs(onlyWorkSegmentSec-addedWorkedTimeSec) <= allowedDiffSec",
-				"allowedDiffSec", allowedDiffSec,
-				"userID", previousSeat.UserID,
-				"seatID", previousSeat.SeatID,
-				"onlyWorkSegmentSec", onlyWorkSegmentSec,
-				"addedWorkedTimeSec", addedWorkedTimeSec,
-				"diffSec", diffSec,
+				"work duration validation passed", "kind", "session",
 			)
 		}
 	}
@@ -954,13 +943,7 @@ func (app *WorkspaceApp) exitRoomAt(
 			))
 		} else {
 			slog.DebugContext(ctx,
-				"検算成功: abs(onlyDailyWorkSec-addedDailyWorkedTimeSec) <= allowedDailyDiffSec",
-				"allowedDailyDiffSec", allowedDailyDiffSec,
-				"userID", previousSeat.UserID,
-				"seatID", previousSeat.SeatID,
-				"onlyDailyWorkSec", onlyDailyWorkSec,
-				"addedDailyWorkedTimeSec", addedDailyWorkedTimeSec,
-				"diffDailySec", diffDailySec,
+				"work duration validation passed", "kind", "daily",
 			)
 		}
 	}
@@ -980,13 +963,7 @@ func (app *WorkspaceApp) exitRoomAt(
 	}
 	addedRP := newRP - previousUserDoc.RankPoint
 
-	slog.Info("user exited the room.",
-		"userID", previousSeat.UserID,
-		"seatID", previousSeat.SeatID,
-		"addedWorkedTimeSec", addedWorkedTimeSec,
-		"addedRP", addedRP,
-		"newRP", newRP,
-		"previous RP", previousUserDoc.RankPoint)
+	slog.InfoContext(ctx, "room exit completed")
 	return addedWorkedTimeSec, addedRP, nil
 }
 
