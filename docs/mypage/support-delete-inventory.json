@@ -1035,13 +1035,13 @@
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "stored OpenAI Responses",
-          "line": 94,
+          "line": 106,
           "anchor": "Store: openai.Bool(true)"
         },
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "global derived ranking/examples",
-          "line": 174,
+          "line": 186,
           "anchor": "func (app *WorkspaceApp) saveWorkNameTrend("
         },
         {
@@ -1083,13 +1083,13 @@
         "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications.",
         "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
         "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
-        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, logs joined input/output, sends stored OpenAI Response and writes global ranking.",
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output.",
         "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
         "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
         "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
         "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
         "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
-        "SNS handler logs full message before truncating its Discord notification."
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord."
       ],
       "deletionAttribution": {
         "method": "source-time task/job/message/request provenance plus verified content/identity relation; operator-private manifest only",
@@ -1100,7 +1100,7 @@
         ]
       },
       "sourceKnown": [
-        "Trend reads full work text, logs input/output, stores OpenAI Response and saves public examples without channel attribution.",
+        "Trend reads full work text, logs counts/status without request or response body, stores OpenAI Response and saves public examples without channel attribution.",
         "Discord messages can contain target name/text/IDs/raw errors; legacy notifications are independent external copies."
       ],
       "liveUnknown": [
@@ -1141,9 +1141,9 @@
       "sourceReferences": [
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
-          "symbol": "trend raw input/output logs",
-          "line": 70,
-          "anchor": "slog.Info(\"userInput\""
+          "symbol": "trend payload-safe request status log",
+          "line": 75,
+          "anchor": "slog.InfoContext(ctx, \"work name trend request started\""
         },
         {
           "path": "system/core/workspaceapp/batch.go",
@@ -1154,14 +1154,14 @@
         {
           "path": "system/cmd/lambda/error_log_notify_discord/main.go",
           "symbol": "error log forwarding",
-          "line": 92,
+          "line": 93,
           "anchor": "func buildDiscordMessageChunks("
         },
         {
           "path": "system/cmd/lambda/sns_notify_discord/main.go",
-          "symbol": "SNS full payload logging",
-          "line": 72,
-          "anchor": "\"message_full\", message"
+          "symbol": "SNS payload-safe dispatch log",
+          "line": 84,
+          "anchor": "slog.InfoContext(gracefulCtx, \"sns notification dispatch\""
         },
         {
           "path": "aws-cdk/lib/aws-cdk-stack.ts",
@@ -1216,7 +1216,7 @@
         "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
         "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
         "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint.",
-        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, logs joined input/output, sends stored OpenAI Response and writes global ranking.",
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output.",
         "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
         "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
         "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
@@ -1224,7 +1224,7 @@
         "Old imports/restores can bring historical raw rows back even when current source excludes imports.",
         "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
         "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
-        "SNS handler logs full message before truncating its Discord notification.",
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord.",
         "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
         "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
       ],
@@ -1237,7 +1237,7 @@
         ]
       },
       "sourceKnown": [
-        "Legacy RP logs channel ID; trend logs work input/output; SNS logs full notification and forwards to Discord.",
+        "Legacy RP still logs channel ID; current trend and SNS handlers log counts/status without payload, while SNS forwards notification content to Discord. Historical log copies remain unknown.",
         "CDK defines INFINITE retention for batch/SFN/API access logs and error subscription forwarding.",
         "MyPage server discards HTTP error log and uses sanitized API codes, but hosting/edge/cloud log configuration remains a release gate."
       ],
@@ -1746,7 +1746,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "WorkspaceApp.CreateUser",
-          "line": 96,
+          "line": 94,
           "anchor": "func (app *WorkspaceApp) CreateUser("
         },
         {
@@ -1764,7 +1764,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "enterRoom/exitRoomAt/moveSeat",
-          "line": 843,
+          "line": 838,
           "anchor": "func (app *WorkspaceApp) exitRoomAt("
         }
       ],
@@ -1845,7 +1845,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "CheckIfUserSittingTooMuchForSeat",
-          "line": 521,
+          "line": 516,
           "anchor": "func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat("
         }
       ],
@@ -2257,25 +2257,25 @@
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "UpdateWorkNameTrend/readActiveWorkNames",
-          "line": 20,
+          "line": 21,
           "anchor": "func (app *WorkspaceApp) UpdateWorkNameTrend("
         },
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "generateWorkNameTrendRankings",
-          "line": 63,
+          "line": 64,
           "anchor": "func (app *WorkspaceApp) generateWorkNameTrendRankings("
         },
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "newWorkNameTrendResponseParams Store=true",
-          "line": 94,
+          "line": 106,
           "anchor": "Store: openai.Bool(true)"
         },
         {
           "path": "system/core/workspaceapp/work_name_trend.go",
           "symbol": "saveWorkNameTrend",
-          "line": 174,
+          "line": 186,
           "anchor": "func (app *WorkspaceApp) saveWorkNameTrend("
         },
         {
@@ -2292,7 +2292,7 @@
         }
       ],
       "creationAndRecreationRoutes": [
-        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, logs joined input/output, sends stored OpenAI Response and writes global ranking."
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output."
       ],
       "sourceKnown": [
         "OpenAI request sets Store=true; returned response ID is not persisted as a deletion index in this path.",
@@ -2316,7 +2316,7 @@
         "state": "required-not-collected"
       },
       "implementationStatus": {
-        "sourceObservation": "Derived ranking writer, raw input/output logging and stored vendor response request exist.",
+        "sourceObservation": "Derived ranking writer and stored vendor response request exist; current source logs count/status rather than input/output payload.",
         "requiredExecutionCapabilities": [
           "Target attribution, derived cleanup and vendor deletion/proof adapters are absent from this path."
         ],
@@ -2366,7 +2366,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "WorkspaceApp.ExitAllUsersInRoom",
-          "line": 196,
+          "line": 194,
           "anchor": "func (app *WorkspaceApp) ExitAllUsersInRoom("
         },
         {
@@ -2436,7 +2436,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "AddLiveChatHistoryDoc retained helper",
-          "line": 425,
+          "line": 420,
           "anchor": "func (app *WorkspaceApp) AddLiveChatHistoryDoc("
         },
         {
@@ -2513,7 +2513,7 @@
         {
           "path": "system/core/workspaceapp/utils.go",
           "symbol": "LogToModerators/MessageToOwnerWithError",
-          "line": 299,
+          "line": 294,
           "anchor": "func (app *WorkspaceApp) LogToModerators("
         },
         {
@@ -2537,26 +2537,26 @@
         {
           "path": "system/cmd/lambda/error_log_notify_discord/main.go",
           "symbol": "CloudWatch error forwarding handler",
-          "line": 45,
+          "line": 46,
           "anchor": "func handler("
         },
         {
           "path": "system/cmd/lambda/sns_notify_discord/main.go",
           "symbol": "SNS notify handler",
-          "line": 30,
+          "line": 43,
           "anchor": "func handler("
         },
         {
           "path": "system/cmd/lambda/sns_notify_discord/main.go",
-          "symbol": "full SNS notification log",
-          "line": 72,
-          "anchor": "\"message_full\", message"
+          "symbol": "SNS payload-safe dispatch log",
+          "line": 84,
+          "anchor": "slog.InfoContext(gracefulCtx, \"sns notification dispatch\""
         }
       ],
       "creationAndRecreationRoutes": [
         "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
         "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
-        "SNS handler logs full message before truncating its Discord notification."
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord."
       ],
       "sourceKnown": [
         "!block exits target seat then performs YouTube Ban/Discord log; it is not SAC moderation or a safe privacy deletion operation.",

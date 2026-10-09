@@ -24,6 +24,8 @@ Canon 05 の境界は、停止前に取得・受付した古い message、seat s
 
 `service-access-controls/{channel}` は横断消去の対象から外し、privacy clear 後も **全 inactive checkpoint と両 reason state、generation、revision を保持する**。TTL、削除、subset tombstone、generation reset を追加しない。独立した active moderation を保持し、restore/migration による checkpoint 巻き戻しも許容しない。これは新しい retention policy の決定ではない。
 
+現行ソースの trend・SNS 通知・一括退室経路は、作業名、モデル応答、SNS 件名/本文、退室通知文をログに転記せず、件数・配送状態・固定の失敗種別を記録する。近接する owner 通知と CloudWatch 転送の配送失敗ログも、provider のエラー本文を記録しない。通知本文の Discord 配送、CloudWatch 内容の転送、OpenAI への作業名送信は従来どおりである。旧 revision の実行、既存ログ、転送済み通知、他の legacy ログ経路の帰属・残存処置は未確認であり、この source 修正を `platform-logs` の削除証跡として扱わない。
+
 完了 receipt と匿名 durable audit は別の completion adapter / workflow が担当する。この台帳は現在 receipt を削除したり completed に変更したりしない。現在の proof/index 依存を保持し、全 scope postcondition と runtime 再開・privacy clear の照合が成立してから、その completion 段階で処置する。
 
 ソースだけでは次の release gate を閉じられない。全 runtime/launch 経路と stop/drain/resume ownership、channel 未確定 callback と token mint/配達、複数 receipt と旧 UID、BQ tmp/job と mixed/soft-deleted backup の復元経路、channel index のない trend/vendor/log コピー、実権限・index/TTL・revision・hosting redaction が未確認。未知・上限超過・障害・ack loss は `unknown` として残し、0、不存在、completed に変換しない。既存期間の保持・処置判断を推測せず、必要な実環境証跡を別に取得する。
