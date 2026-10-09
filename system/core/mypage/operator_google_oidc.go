@@ -56,6 +56,7 @@ type GoogleOperatorChallenge struct {
 	Nonce     string
 	State     string
 	ExpiresAt time.Time
+	seal      string
 }
 
 // GoogleHumanOperatorAuthority proves one allowlisted human Google subject for
@@ -123,6 +124,7 @@ func (a *GoogleHumanOperatorAuthority) Begin(ctx context.Context, intent Operato
 		State:     base64.RawURLEncoding.EncodeToString(random[32:]),
 		ExpiresAt: now.Add(googleOperatorChallengeLifetime),
 	}
+	challenge.seal = a.mac("operator-url-v1", challenge.Nonce, challenge.State, challenge.ExpiresAt.Format(time.RFC3339Nano))
 	record := GoogleOperatorChallengeRecord{NonceHash: digest(challenge.Nonce), Binding: a.binding(intent), IssuedAt: now, ExpiresAt: challenge.ExpiresAt}
 	if a.Challenges.Put(ctx, record) != nil {
 		return GoogleOperatorChallenge{}, ErrOperatorDenied
@@ -136,6 +138,10 @@ func (a *GoogleHumanOperatorAuthority) Begin(ctx context.Context, intent Operato
 func (a *GoogleHumanOperatorAuthority) AuthorizationURL(challenge GoogleOperatorChallenge, codeChallenge string) (string, error) {
 	if !a.ready() || !pkceS256Challenge.MatchString(codeChallenge) || len(challenge.State) != 43 || len(challenge.Nonce) != 43 ||
 		!a.Clock().Before(challenge.ExpiresAt) || challenge.ExpiresAt.After(a.Clock().Add(googleOperatorChallengeLifetime)) || a.RedirectURI == "" {
+		return "", ErrOperatorDenied
+	}
+	wantSeal := a.mac("operator-url-v1", challenge.Nonce, challenge.State, challenge.ExpiresAt.Format(time.RFC3339Nano))
+	if !hmac.Equal([]byte(challenge.seal), []byte(wantSeal)) {
 		return "", ErrOperatorDenied
 	}
 	redirect, err := url.Parse(a.RedirectURI)

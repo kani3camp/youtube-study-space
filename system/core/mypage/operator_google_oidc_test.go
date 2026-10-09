@@ -322,6 +322,11 @@ func TestGoogleHumanOperatorOIDCRejectsUntrustedJWKSAndUnsafeRedirect(t *testing
 		_, err = f.authority.AuthorizationURL(challenge, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("p", 32))))
 		require.ErrorIs(t, err, ErrOperatorDenied)
 	}
+	f.authority.RedirectURI = "http://127.0.0.1:18083/callback"
+	forged := challenge
+	forged.State = base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("r", 32)))
+	_, err = f.authority.AuthorizationURL(forged, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("p", 32))))
+	require.ErrorIs(t, err, ErrOperatorDenied, "only Begin-issued opaque state can enter the URL")
 }
 
 func TestGoogleHumanOperatorOIDCNonceConsumeIsAtomic(t *testing.T) {
