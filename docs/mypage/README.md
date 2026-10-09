@@ -2,7 +2,7 @@
 
 公開準備は[release runbook](release/README.md)、[owner準備packet](release/owner-packet.md)、[実E2E/rollback手順](release/e2e.md)を参照する。既存実装と外部/本人判断待ちを区別し、設定検査やlocal合成QAを公開承認・live E2Eの証拠へ読み替えない。
 
-source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受付・本人確認・返信の境界と残る運用判断を記録する。
+source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受付・本人確認・返信の境界と残る運用判断を記録する。Canon 05/09の初期公開経路は返信可能な人的Privacy窓口と既存fresh OAuth・private CLI / Runbookの実運用であり、アプリ内受付UIの有効化は必須条件ではない。CLIのlive adapterは未接続で、現状のsourceだけで公開可能とは扱わない。
 
 横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
 

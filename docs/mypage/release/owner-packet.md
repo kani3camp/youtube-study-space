@@ -10,22 +10,22 @@ OAuth同意画面の user support email は、**指定済みのOAuthユーザー
 
 ## Privacy請求の受付準備
 
-一般問い合わせは既存の公開案内を継続する。Privacy請求の通常入口は[アプリ内受付](../privacy-intake.md)に変更した。既存の有効なFirebase本人識別がある場合にだけ自動受付し、対象channelはserverのuidから決める。受付と7暦日期限の記録をfresh OAuthより先に行い、本人確認成功でも削除・開示・全session解除は実行しない。通常MyPageの利用制限中も、この狭い請求経路は使える。
+一般問い合わせは既存の公開案内を継続する。初期公開のPrivacy請求入口は、ログイン不要で返信可能な**人的Privacy窓口**とする。担当者が依頼を受けた時刻を記録し、削除の7暦日期限をfresh OAuth本人確認やchallenge再発行で延ばさない。既存の依頼目的に束縛したfresh OAuth、private CLI / Runbookを実運用化して個別に処理する。本人確認成功だけでは削除・開示・全session解除を実行しない。[アプリ内受付・status/返信UI](../privacy-intake.md)はsource-only・flags OFFのまま残し、初期公開の必須経路にしない。
 
-利用可能な既存sessionがない場合は、公開Contactに設定する**返信可能な人的例外窓口**へ案内する。匿名の自動SupportRequest作成、推測した公開メール、OAuth scope追加は行わない。例外窓口の媒体・担当・期限管理・本人確認手順・実URLは未確定で、D03の公開文面とともに確認する。アプリ内status/返信は本人確認済みrecordと同一Firebase uidの両方を必要とし、session喪失や削除完了後は人的窓口で対応する。公開前にoperator返信の認可・監査・保持/削除と実通知運用を成立させる。
+既存sessionがない場合も同じ人的窓口で受ける。匿名の自動SupportRequest作成、新しいbearer status credential、推測した公開メール、OAuth scope追加は行わない。窓口の媒体・担当・期限管理・本人確認手順・実URLはD03として未確定。アプリ内status/返信を将来有効化する場合も、本人確認済みrecordと同一Firebase uidの両方が必要で、session喪失や削除完了後は人的窓口で対応する。現行のoperator・削除CLIにはlive adapterがなく、`--execute`は拒否される。人的返信の実運用、横断削除と再生成防止、完了確認を実経路で成立させるまで0Bの削除Gateは閉じない。
 
 案内文draft:
 
-> 個人情報の取り扱い、保存データの削除・開示等、ログインの解除は、利用可能なログインがある場合、アプリ内から依頼できます。受付後、対象チャンネルを新しいYouTubeの許可で本人確認します。受付や本人確認だけでデータは削除されません。ログインできない場合も、公開された返信可能なPrivacy窓口へご連絡ください。認証token・パスワード・身分証等を送らないでください。
+> 個人情報の取り扱い、保存データの削除・開示等、全端末のログイン解除は、公開された返信可能なPrivacy窓口へご連絡ください。依頼の内容と対象を確認し、必要に応じて新しいYouTubeの許可で本人確認をご案内します。受付や本人確認だけでデータは削除されません。認証token・パスワード・身分証等を送らないでください。
 
 ## D01・D02の確定仕様と残る確認
 
 | 項目 | 既決 | 残る証跡・確認 | 公開前の条件 |
 | --- | --- | --- | --- |
 | D01 削除中停止 | 2026-10-07確定。User/WebAccountとは独立したServiceAccessControlでmoderationとprivacyDeletionを独立管理 | 初期適用はMyPageのみ。cache前のauthoritative read、write transaction直前の再確認、取得障害は503 fail closed。Bot未接続期間の実削除はdestructive windowにrelevant legacy writerを全体pause/drainする | 方式の再判断は不要。全runtime/launch・store・restore inventoryと実pause/drain/横断削除の証跡、個別の実行承認は未完 |
-| D02 Google grant取消 | 2026-10-09確定。外部Google解除検知だけを目的とするrefresh tokenの要求・保存と定期pollingは採用しない。Firebase sessionとgrant取消は別 | 実際の短命OAuth→channel identity→Firebase session→public metadata/cleanup flowをverification/complianceへ提示し、取消後に保持済みAPI dataをどう扱うべきか規約解釈を確認する | 規約適合性は未確認。一般OAuth verificationだけをこの解釈の承認と読み替えず、設計選択の確定を公開承認と扱わない |
+| D02 Google grant取消 | 2026-10-09確定。外部Google解除検知だけを目的とするrefresh tokenの要求・保存と定期pollingは採用しない。Firebase sessionとgrant取消は別 | 実際の短命OAuth→channel identity→Firebase session→public metadata/cleanup flowを提示し、アプリ内とGoogle設定画面の両取消経路で保持済みAPI dataをどう扱うべきかverification/complianceで確認する | 両経路の規約適合性は未確認。一般OAuth verificationだけをこの解釈の承認と読み替えず、設計選択の確定を公開承認と扱わない |
 
-D03のうちOAuth user support emailの指定は上記で解消済み。返信窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。アプリ内受付の合成検証や公開URLの形式検査はD01の実装・D02の適合性確認・D03の実値確定の証拠ではない。
+D03のうちOAuth user support emailの指定は上記で解消済み。人的Privacy窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。アプリ内受付の合成検証や公開URLの形式検査は人的運用、D01の実装、D02の適合性確認、D03の実値確定の証拠ではない。
 
 ## OAuth / Hostingの安全な先行準備
 
@@ -45,8 +45,8 @@ D03のうちOAuth user support emailの指定は上記で解消済み。返信�
 > 公開前の準備として、D01・D02の確定事項、D02の適合性確認とD03の残る実値をまとめて確認してください。OAuth同意画面のサポートメールは指定済み、本名/自宅住所は常時非公開、一般問い合わせは既存フォーム継続として準備しています。指定メールの実値は安全なoperator設定入力で扱い、公開資料には掲載しません。
 >
 > 1. D01は独立ServiceAccessControl方式に確定済みです。初期MyPageのguardに加え、Bot未接続期間の実削除では関係legacy writerの全体pause/drainが必要です。方式の選択は再依頼せず、実inventory・再生成防止・横断削除・復元後の再削除を証跡で確認します。moderationとinactive generation checkpointは削除完了後も保持する実装です。
-> 2. D02は、外部Google解除検知だけのためのrefresh token保存と定期pollingを採用しない設計に確定しました。実際の認証/session/metadata flowと取消後の保持済みAPI dataの扱いをverification/complianceへ提示し、規約適合性を確認します。この確認が終わるまで公開Gateは閉じません。
-> 3. 返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。アプリ内受付はsource-onlyで無効のままです。例外窓口とoperator返信の実運用が整うまで有効化しません。施行日・管轄等は公開予定と本文のreview時に確定します。
+> 2. D02は、外部Google解除検知だけのためのrefresh token保存と定期pollingを採用しない設計に確定しました。実際の認証/session/metadata flowとアプリ内・Google設定画面の両取消経路で保持済みAPI dataをどう扱うかをverification/complianceへ提示し、規約適合性を確認します。この確認が終わるまで公開Gateは閉じません。
+> 3. 初期公開の通常入口となる、返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。アプリ内受付・返信UIはsource-onlyで無効のままとし、初期公開の必須経路にしません。既存fresh OAuth・private CLI / Runbookの実運用、横断削除・再生成防止・完了確認は別のGateです。施行日・管轄等は公開予定と本文のreview時に確定します。
 >
 > インフラ担当から受け取るproject/app/IAM等の証跡は別に進めます。Privacy受付の有効化・公開、OAuth実設定・権限変更、live試験、deployや実データ操作は、対象と具体的な操作を確認してから承認を受けて実施します。
 
