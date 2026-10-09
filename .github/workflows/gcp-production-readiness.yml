@@ -8,6 +8,7 @@ on:
       - .github/workflows/gcp-terraform-authenticated.yml
       - .github/workflows/ci.yml
       - .github/scripts/terraform_plan_summary.py
+      - .github/scripts/terraform_identity_diagnostics.py
       - .github/scripts/terraform_identity_smoke.py
 
 permissions:
