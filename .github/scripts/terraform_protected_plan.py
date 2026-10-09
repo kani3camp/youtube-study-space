@@ -85,7 +85,6 @@ def main():
             if type(inputs) is not dict or inputs != expected_inputs:
                 raise ValueError("Fresh history field order and descriptions required")
             validate_history(plan, metadata=metadata, phase=args.phase,
-                             allow_adopted=not (args.operation == "plan" and args.phase == "before"),
                              execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
             summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
         elif args.operation == "email-adoption":

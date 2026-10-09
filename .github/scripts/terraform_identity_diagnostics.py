@@ -3,7 +3,9 @@ from __future__ import annotations
 
 STAGES = frozenset({
     "oidc", "gcp-project", "gcp-quota", "gcp-export", "gcp-function",
-    "aws-sts", "aws-state-read", "history-policy", "history-head",
+    "aws-sts", "aws-state-read", "aws-state-probe-request", "aws-state-probe-post",
+    "aws-state-probe-invariant", "aws-state-probe-deny", "aws-state-probe-receipt",
+    "history-policy", "history-head",
     "history-get", "history-re-head", "history-lock-list",
     "history-workspace-list", "identity-mode", "identity-output",
 })

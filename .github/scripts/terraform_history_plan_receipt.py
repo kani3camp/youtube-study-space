@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"
 from prepare_user_activity_history_adoption import prepare, unique_object
 from prepare_user_activity_history_workflow import TABLE_PATH, PrivateArgumentParser
 from validate_user_activity_history_plan import TABLE
+from terraform_history_table_metadata import stable_table_metadata, volatile_table_metadata
 
 BASELINE = EXISTING | {CHANNEL, TOPIC, SCHEDULER, FUNCTION} | ADDRESSES
 ZERO_INSTANCE_CHECKS = frozenset({
@@ -234,7 +235,7 @@ def head(env, maximum, *, request=None):
     return value
 
 
-def state_shape(raw):
+def state_shape(raw, *, imported=False):
     state = decode(raw)
     require(type(state) is dict and {"version", "terraform_version", "serial", "lineage", "outputs", "resources"} <= set(state)
             <= {"version", "terraform_version", "serial", "lineage", "outputs", "resources", "check_results"}, "state-envelope")
@@ -246,7 +247,7 @@ def state_shape(raw):
     except (ValueError, TypeError, AttributeError):
         valid_lineage = False
     require(valid_lineage, "state-lineage")
-    checks_pass(state.get("check_results"))
+    checks_pass(state.get("check_results"), imported=imported)
     require(type(state["outputs"]) is dict and set(state["outputs"]) == {"environment", "project_id"}, "state-output-names")
     for key, expected in (("environment", "development"), ("project_id", "test-youtube-study-space")):
         output = state["outputs"][key]
@@ -281,11 +282,13 @@ def state_shape(raw):
             suffix = "" if "index_key" not in instance else "[" + json.dumps(index, separators=(",", ":")) + "]"
             address = (resource["module"] + "." if "module" in resource else "") + resource["type"] + "." + resource["name"] + suffix
             addresses.append(address)
-    require(len(addresses) == 11 and len(set(addresses)) == 11 and set(addresses) == BASELINE and TABLE not in addresses, "state-address-set")
+    expected = BASELINE | ({TABLE} if imported else set())
+    require(len(addresses) == len(expected) and len(set(addresses)) == len(expected)
+            and set(addresses) == expected, "state-address-set")
     return state
 
 
-def checks_pass(checks):
+def checks_pass(checks, *, imported=False):
     # Terraform1.16.4 state legitimately persists variable checks and resource
     # identities. Validate the known envelope rather than requiring them absent.
     if checks is None:
@@ -298,7 +301,8 @@ def checks_pass(checks):
                "export_scheduler": "firestore-export-scheduler", "export_function": "firestore-export-function",
                "runtime_wif": "runtime-aws-wif", "owned_apis": "owned-project-apis",
                "user_activity_history": "retained-user-activity-history"}
-    known = {"resource": {re.sub(r'\[(?:\d+|"[^"]*")\]', "", a) for a in BASELINE}, "var": set(), "output": set(), "check": set()}
+    known = {"resource": {re.sub(r'\[(?:\d+|"[^"]*")\]', "", a) for a in BASELINE | ({TABLE} if imported else set())},
+             "var": set(), "output": set(), "check": set()}
     for prefix, directory in [("", source / "environments/dev"), *[("module." + key + ".", source / "modules" / value) for key, value in modules.items()]]:
         files = tuple(directory.glob("*.tf"))
         require(directory.is_dir() and bool(files), "checks-catalog-source")
@@ -332,7 +336,7 @@ def checks_pass(checks):
             require(type(obj) is str and obj not in objects and re.sub(r'\[(?:\d+|"[^"]*")\]', "", obj) == address, "checks-object-address")
             require(item["status"] == "pass" and item.get("failure_messages", []) == [], "checks-object-result")
             if kind == "resource":
-                require(obj in BASELINE, "checks-resource-address")
+                require(obj in BASELINE | ({TABLE} if imported else set()), "checks-resource-address")
             objects.add(obj)
 
 
@@ -389,7 +393,8 @@ def after(env, *, request=None, metadata_request=None):
     require(initial["git_sha"] == env["GITHUB_SHA"] and initial["cost"] == budget, "after-initial-evidence")
     # These reads execute even if Terraform init/plan/validation failed. Only
     # complete evidence plus a strict import1 summary can produce final PASS.
-    checks = {"Persistent state invariant": False, "Complete table metadata invariant": False, "Exact native lock absence": False}
+    checks = {"Persistent state invariant": False, "Stable table metadata invariant": False, "Exact native lock absence": False}
+    volatile_changed = None
     try:
         final = snapshot(env, "after", request=request)
         checks["Persistent state invariant"] = (final == initial["state"] and
@@ -404,8 +409,9 @@ def after(env, *, request=None, metadata_request=None):
         json.dumps(metadata, allow_nan=False)
         write_private(directory / "history-plan-table-after.json", metadata)
         original = private_json(str(directory / "user-history-before.json"))
-        checks["Complete table metadata invariant"] = (metadata == original and
+        checks["Stable table metadata invariant"] = (stable_table_metadata(metadata) == stable_table_metadata(original) and
             initial["metadata_sha256"] == hashlib.sha256(json.dumps(original, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+        volatile_changed = volatile_table_metadata(metadata) != volatile_table_metadata(original)
     except Exception:
         pass
     try:
@@ -420,6 +426,7 @@ def after(env, *, request=None, metadata_request=None):
         handle.write("History plan safety checks (final receipt still required):\n")
         for label, passed in checks.items():
             handle.write(f"- {label}: {'PASS' if passed else 'STOP'}\n")
+        handle.write("- Volatile table observations: " + ("changed" if volatile_changed else "unchanged" if volatile_changed is False else "unknown") + "\n")
     require(all(checks.values()), "after-safety")
     require(cost_policy(json.dumps(budget["profile"]), env["GITHUB_SHA"]) == budget, "after-cost-fresh")
     require(all(env.get(key) == "success" for key in ("BACKEND_INIT_OUTCOME", "TERRAFORM_PLAN_OUTCOME", "PLAN_VALIDATION_OUTCOME")), "after-outcomes")
@@ -440,7 +447,8 @@ def after(env, *, request=None, metadata_request=None):
     require({r.get("address") for r in resources} == BASELINE | {TABLE}, "after-plan-addresses")
     require(all(r.get("mode") == "managed" and r.get("action") == "no-op" and r.get("import") is (r["address"] == TABLE) for r in resources), "after-plan-actions")
     write_private(directory / "history-plan-after.json", {"git_sha": env["GITHUB_SHA"], "state": final,
-                  "complete_table_metadata_unchanged": True, "native_lock_absent": True, "import": 1, "existing_no_op": 11,
+                  "stable_table_metadata_unchanged": True, "volatile_table_observations_changed": volatile_changed,
+                  "native_lock_absent": True, "import": 1, "existing_no_op": 11,
                   "cost_upper_bound_usd": budget["upper_bound_usd"], "monthly_ledger_entry": budget["monthly_ledger_entry"]})
 
 
@@ -453,9 +461,12 @@ def main(argv=None):
         env = dict(os.environ)
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
-            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and stable table metadata unchanged; volatile observations recorded privately; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            # The value-free projection digest is the only plan artifact handle
+            # a future one-shot approval may cite. The binary plan is deleted.
+            digest = hashlib.sha256(private_bytes(Path(env["RUNNER_TEMP"]) / "sanitized-plan.json")).hexdigest()
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
-                handle.write(message)
+                handle.write(message + f"History sanitized summary SHA-256: `{digest}`\n")
         else:
             message = "Protected history plan private precheck passed. No Terraform execution or lock operation performed.\n"
     except (ReceiptInvariantError, ReceiptDependencyError) as error:

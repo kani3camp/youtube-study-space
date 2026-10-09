@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Development-only identity smoke. Emit fixed labels, never API responses.
 
-plan-read-only performs only dev reads and dev testIamPermissions. Legacy modes
-retain negative credential/write probes; omitted checks are not DENY evidence.
+plan-read-only and apply-read-only perform only bounded dev reads and dev
+testIamPermissions. The separately gated security-probe performs negative
+tests with private before/after state checks; omitted checks are not DENY evidence.
 No credentials, raw state, identifiers, or dependency errors go to public output.
 """
 from __future__ import annotations
 
 import json
 import base64
+import hashlib
 import os
+import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -44,7 +48,8 @@ def aws(*args: str) -> subprocess.CompletedProcess[str]:
 
 def denied_aws(result: subprocess.CompletedProcess[str], label: str) -> None:
     # Network errors, missing objects, and precondition failures are not DENY evidence.
-    if result.returncode == 0 or not any(code in result.stderr for code in ("(AccessDenied)", "(403)")):
+    if (result.returncode == 0 or re.search(r"\((?:412|404|409|PreconditionFailed|NoSuchKey|ConditionalRequestConflict)\)", result.stderr)
+            or not re.search(r"\((?:AccessDenied|403)\)", result.stderr)):
         raise SmokeFailure(label)
 
 
@@ -175,7 +180,7 @@ EXPORT_TOPIC_PERMISSIONS = (
 )
 
 
-def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False, function=False, plan_read_only=False):
+def verify_export_topic_google(token, service_account, request=google, *, project="test-youtube-study-space", scheduler=False, function=False, plan_read_only=False, dev_only=False):
     if service_account not in {f"terraform-dev-{kind}@{project}.iam.gserviceaccount.com" for kind in ("plan", "apply")}:
         raise SmokeFailure("topic-development-identity-target")
     if plan_read_only and service_account != f"terraform-dev-plan@{project}.iam.gserviceaccount.com":
@@ -191,7 +196,7 @@ def verify_export_topic_google(token, service_account, request=google, *, projec
     if status != 200 or set(data.get("permissions", [])) != expected:
         raise SmokeFailure("topic-exact-get-only-permissions")
     production = []
-    if not plan_read_only:
+    if not (plan_read_only or dev_only):
         status, data = request("v3/projects/youtube-study-space:testIamPermissions", token, {"permissions": requested})
         if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
             raise SmokeFailure("topic-production-permissions-denied")
@@ -202,7 +207,7 @@ def verify_export_topic_google(token, service_account, request=google, *, projec
     if scheduler:
         return ["GCP topic + Scheduler exact GET only", "GCP Scheduler list/mutation/run/pause/resume/publish grants absent",
                 "GCP Function GET remains ungranted"] + production
-    return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted"] + (["GCP topic production grants absent"] if not plan_read_only else [])
+    return ["GCP topic exact GET only", "GCP topic publish/subscription/mutation/list/IAM grants absent", "GCP Scheduler/Function GET remains ungranted"] + (["GCP topic production grants absent"] if not (plan_read_only or dev_only) else [])
 
 
 def configure_function_execution_identity(token, env, request=google):
@@ -233,7 +238,27 @@ def state_counts(state: dict) -> str:
     return f"AWS current state resource count {count}, serial {state['serial']}, output count {len(state['outputs'])}"
 
 
-def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
+def capture_exact_state_and_lock(env: dict[str, str], path: Path) -> tuple[dict, str]:
+    """Private exact-version body and lock snapshot; never print state or headers."""
+    from terraform_history_plan_receipt import MAX_BYTES, STATE_KEY, absent, head, private_bytes, s3
+
+    first = head(env, MAX_BYTES, request=aws)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    os.close(fd)
+    result = s3(env, "get-object", "--key", STATE_KEY, "--range", f"bytes=0-{MAX_BYTES}", str(path), request=aws)
+    raw = private_bytes(path)
+    if (result.get("VersionId") != first["VersionId"] or result.get("ETag") != first["ETag"]
+            or result.get("ContentLength") != first["ContentLength"] or len(raw) != first["ContentLength"]
+            or head(env, MAX_BYTES, request=aws) != first):
+        raise SmokeFailure("aws-state-probe-snapshot")
+    state_counts(json.loads(raw))
+    absent(env, STATE_KEY + ".tflock", request=aws)
+    return first, hashlib.sha256(raw).hexdigest()
+
+
+def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_only: bool = False) -> list[str]:
+    if plan_read_only and apply_read_only:
+        raise SmokeFailure("aws-identity-mode")
     def check_sts():
         identity = aws("sts", "get-caller-identity")
         if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
@@ -250,27 +275,54 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str
         return ["AWS OIDC + dedicated STS identity", "AWS exact persistent eleven-resource state verified privately",
                 "Owner-evidenced cost bound and native lock/workspace absence prechecks"]
     with tempfile.TemporaryDirectory(dir=env["RUNNER_TEMP"]) as directory:
-        state = Path(directory) / "state.json"
-        def read_state():
-            result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))
-            if result.returncode or not state.is_file():
-                raise SmokeFailure("aws-development-state-read")
-            return state_counts(json.loads(state.read_text()))
-        counts = at_stage("aws-state-read", read_state)
-        checks = ["AWS OIDC + dedicated STS identity", "AWS development state read", counts]
+        if apply_read_only:
+            # MODE=apply has no history plan-cost receipt. The one-shot verifier
+            # separately checks exact eleven-resource state before any apply.
+            at_stage("aws-state-read", lambda: capture_exact_state_and_lock(env, Path(directory) / "apply-state.json"))
+            return ["AWS OIDC + dedicated STS identity", "AWS exact state and native lock read privately"]
         if plan_read_only:
-            return checks
-        # Legacy probe: an existing current object prevents overwrite, but a
-        # concurrent deletion plus a mistaken grant could create an empty version.
-        # plan-read-only never performs this write request.
-        empty = Path(directory) / "empty"
-        empty.write_bytes(b"")
-        result = aws("s3api", "put-object", "--bucket", bucket, "--key", key, "--body", str(empty), "--if-none-match", "*")
-        denied_aws(result, "aws-plan-state-write-denied")
+            state = Path(directory) / "state.json"
+            def read_state():
+                result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))
+                if result.returncode or not state.is_file():
+                    raise SmokeFailure("aws-development-state-read")
+                return state_counts(json.loads(state.read_text()))
+            counts = at_stage("aws-state-read", read_state)
+            return ["AWS OIDC + dedicated STS identity", "AWS development state read", counts]
+        # A random ETag unequal to a fresh HEAD cannot create an absent key.
+        # If permission were unexpectedly granted and an object raced to that
+        # ETag, a write is still theoretically possible. The gate stays closed
+        # until owner review. Reuse the current body to limit that residual harm.
+        before, before_digest = at_stage("aws-state-read", lambda: capture_exact_state_and_lock(env, Path(directory) / "probe-before.json"))
+        candidate = secrets.token_hex(16)
+        if candidate == before["ETag"].strip('"'):
+            raise StageFailure("aws-state-probe-request", "check-failed")
+        result = at_stage("aws-state-probe-request", lambda: aws(
+            "s3api", "put-object", "--bucket", bucket, "--expected-bucket-owner", env["STATE_ACCOUNT_ID"],
+            "--key", key, "--body", str(Path(directory) / "probe-before.json"), "--if-match", f'"{candidate}"'))
+        after, after_digest = at_stage("aws-state-probe-post", lambda: capture_exact_state_and_lock(
+            env, Path(directory) / "probe-after.json"))
+        try:
+            denied_aws(result, "aws-plan-state-write-denied")
+            put_denied = True
+        except SmokeFailure:
+            put_denied = False
+        from terraform_history_plan_receipt import write_private
+        at_stage("aws-state-probe-receipt", lambda: write_private(Path(directory) / "probe-private-receipt.json", {
+            "before_head": before, "before_body_sha256": before_digest, "before_lock_absent": True,
+            "after_head": after, "after_body_sha256": after_digest, "after_lock_absent": True,
+            "if_match": f'"{candidate}"', "put_denied_403": put_denied,
+        }))
+        if after != before or after_digest != before_digest:
+            raise StageFailure("aws-state-probe-invariant", "check-failed")
+        if not put_denied:
+            raise StageFailure("aws-state-probe-deny", "check-failed")
     for prefix, label in [("youtube-study-space/prod/", "aws-production-prefix-denied"), ("unrelated-product/dev/", "aws-other-product-prefix-denied")]:
         denied_aws(aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", prefix, "--max-keys", "1"), label)
         denied_aws(aws("s3api", "head-object", "--bucket", bucket, "--key", prefix + "terraform.tfstate"), label)
-    return checks + ["AWS plan state PutObject denied", "AWS production/other-product prefixes denied"]
+    return ["AWS OIDC + dedicated STS identity", "AWS exact state and lock snapshots unchanged",
+            "AWS plan state PutObject denied for mismatched If-Match request",
+            "AWS production/other-product prefixes denied"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -280,45 +332,67 @@ def main(argv: list[str] | None = None) -> int:
         args = sys.argv[1:] if argv is None else argv
         if args == ["quota-apply"]:
             checks = at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply"))
-        elif args == ["export-function"]:
-            checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True, function=True))
+        elif args in (["export-function"], ["export-function-apply-read-only"]):
+            project = "test-youtube-study-space"
+            if args == ["export-function-apply-read-only"] and (env.get("MODE") != "apply" or
+                    env.get("GCP_SMOKE_SERVICE_ACCOUNT") != f"terraform-dev-apply@{project}.iam.gserviceaccount.com"):
+                raise StageFailure("identity-mode", "check-failed")
+            checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
+                scheduler=True, function=True, dev_only=args == ["export-function-apply-read-only"]))
             checks += at_stage("gcp-function", lambda: configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env))
         elif args == ["export-scheduler"]:
             checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True))
         elif args == ["export-topic"]:
             checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"]))
-        elif not args or args == ["plan-read-only"]:
+        elif args in (["plan-read-only"], ["apply-read-only"], ["security-probe"]):
+            if (args == ["security-probe"] and
+                    (env.get("MODE") != "security-probe" or env.get("DEV_TERRAFORM_SECURITY_PROBE_ENABLED") != "true")):
+                raise StageFailure("identity-mode", "check-failed")
+            if (args == ["apply-read-only"] and
+                    env.get("MODE") not in {"apply", "email-adoption", "quota-create", "quota-refresh"}):
+                raise StageFailure("identity-mode", "check-failed")
             plan_read_only = args == ["plan-read-only"]
-            checks = at_stage("oidc", lambda: verify_oidc(env, plan_read_only=plan_read_only))
-            checks += at_stage("gcp-project", lambda: verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=plan_read_only))
+            apply_read_only = args == ["apply-read-only"]
+            positive_only = plan_read_only or apply_read_only
+            checks = at_stage("oidc", lambda: verify_oidc(env, plan_read_only=positive_only))
+            checks += at_stage("gcp-project", lambda: verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=positive_only))
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
-                checks += at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan", plan_read_only=plan_read_only))
+                checks += at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan", plan_read_only=positive_only))
             if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
                 checks += at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
                     scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true",
-                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true", plan_read_only=plan_read_only))
+                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true", plan_read_only=positive_only))
                 if env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true":
                     checks += at_stage("gcp-function", lambda: configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env))
-            checks += verify_aws(env, plan_read_only=plan_read_only)
+            checks += verify_aws(env, plan_read_only=plan_read_only, apply_read_only=apply_read_only)
         else:
             raise StageFailure("identity-mode", "check-failed")
-        title = "Development plan read-only checks" if args == ["plan-read-only"] else "Development identity smoke"
+        title = ("Development plan read-only checks" if args == ["plan-read-only"] else
+                 "Development apply read-only checks" if args == ["apply-read-only"] else
+                 "Development conditional security probe" if args == ["security-probe"] else "Development identity smoke")
         summary = f"### {title}\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
-        if args == ["plan-read-only"]:
-            summary += "".join(f"- SKIPPED (plan-read-only): {label}\n" for label in (
+        if args in (["plan-read-only"], ["apply-read-only"]):
+            mode = args[0]
+            summary += "".join(f"- SKIPPED ({mode}): {label}\n" for label in (
                 "AWS apply-role AssumeRole DENY probe",
                 "GCP apply-SA generateAccessToken DENY probe",
                 "AWS state-body PutObject DENY probe",
                 "AWS production/other-product prefix read/list DENY probes",
                 "GCP production permission checks",
             ))
-            summary += "\nFull security gate: NOT VERIFIED by this read-only plan.\n"
+            summary += "\nFull security gate: NOT VERIFIED by this read-only identity check.\n"
+        if args == ["security-probe"]:
+            summary += "\nConditional PutObject denial is evidence for this request/header only; owner review of role, bucket, session policy and SCP remains required.\n"
         def write_summary():
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
                 output.write(summary)
         at_stage("identity-output", write_summary)
         print("Development plan read-only checks: PASS; full security gate: NOT VERIFIED"
-              if args == ["plan-read-only"] else "Development identity smoke: PASS")
+              if args == ["plan-read-only"] else
+              "Development apply read-only checks: PASS; full security gate: NOT VERIFIED"
+              if args == ["apply-read-only"] else
+              "Development conditional security probe: PASS; request/header only"
+              if args == ["security-probe"] else "Development identity smoke: PASS")
         return 0
     except StageFailure as error:
         reason = f"; reason={error.reason}" if error.reason is not None else ""

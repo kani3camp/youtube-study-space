@@ -150,12 +150,18 @@ development planとapplyは独立gateを持ちます。planの有効化はtrust�
 - backendのworkspace discovery prefixは対象environment配下に固定し、`TF_WORKSPACE=default` を使用する
 - development planは空resource graphでもGCP WIF token交換とplan SA impersonationを強制し、project metadataのharmless readで認証を証明する
 - `mode=plan`のidentity smokeは`plan-read-only`を使用し、同一SHA OIDC claim、plan identity、exact dev state read、dev project/Function metadata GETとdevの必要GET・mutation permission不在だけを確認する。state本体PUT、apply role/SA credential発行試験、prod / 他productのread/listとprod permission検査は実行せず、Summaryに`SKIPPED`と`Full security gate: NOT VERIFIED`を記録する。Terraform native dev `.tflock`の通常PUT/GET/DELETEはplanに必要な一時操作として別に扱う
-- 非plan承認経路の既存security smokeはstateへの条件付きPut拒否、prod / 他productのread/list拒否、wrong EnvironmentのSTS拒否、prod permission不在と別SA impersonation拒否を保持する。unexpected grant / network error / object不在をDENY成功と混同しない。条件付きPutはcurrent stateが存在する間は上書きしないが、GET後の削除と誤許可が重なると空versionを作り得るため、read-only planでは呼ばない。plan成功だけで未実施のsecurity検証やapply有効化を承認しない
+- historyの`mode=apply` plan jobは専用`apply-read-only` checkを使う。`plan-read-only`のMODE=plan/cost-policy receiptへ流用せず、exact OIDC、dev GCP/STS、state HEAD/GET/HEADとlock LISTを確認する。apply jobのFunction checkもこのmodeではdev-only。条件付きPut、wrong-role STS、prod/他product、別SAのnegative requestをapply経路から呼ばない
+- full negative smokeは別gate `DEV_TERRAFORM_SECURITY_PROBE_ENABLED=false`の`security-probe` job/modeに限定する。fresh HEADと異なるrandom ETagの`If-Match`による条件付きPutObject拒否は403のみ合格で、前後version/body/lock差分や412/404/409はSTOP。条件付きrequest/headerの結果だけでrole/bucket/session/SCP全体を証明しない。別のlive承認・private policy review・probe結果がapply gateを開く前に必要
 - raw init / plan / apply出力はpublic logへ流さない
 - saved planはrunner一時領域だけで扱い、artifact / cacheへ保存しない
 - public outputは `.github/scripts/terraform_plan_summary.py` が生成するresource address / action count中心のsanitized summaryだけ
 - import移行期はcreate / update / delete / replacement / driftをstopする
 - plan jobとapply jobでsaved planを渡さず、apply jobは同じ `github.sha` から再planし、sanitized projectionが一致した場合だけ同一job内のplanをapplyする
+
+historyの次applyについて、現行`mode=apply`はapply gate=falseでpreflight停止します。
+probe gateもfalseで、source準備だけではfull security gateを満たしません。
+live probeとrole/bucket/session/SCPのprivate reviewは別承認で行い、plan-only成功を
+full security gate PASSへ読み替えません。
 
 developmentのGitHub Environment / branch trust、AWS GitHub OIDC backend role、GCP GitHub WIF / Terraform Service Accountは#1162で構築・実測済みです。通常PRはcredentiallessのまま、authenticated executionはtrusted integration refと独立Environment approvalへ限定します。production側のbackend / trust / identityは未開始で、#1191の別approval境界です。
 
@@ -189,7 +195,7 @@ CIのRUNNER_TEMPはcleanupされ、永続台帳にはならない。実行operat
 
 既存identity smokeのinitial state GETをHEAD/GET/HEAD付きのprivate snapshotへ置き換える。exact既存11 managed instance、history未登録、正常なTerraform4 state envelope・pass状態の既知check結果、current VersionIdを確認する。provider定義のattributes/identity/privateは値を公開せず、全state bytesを前後完全一致で保持する。新しいstate envelope属性・taint/deposed・unknown checkは拒否する。既存のcanonical8 metadata helperとprivate varfileはそのまま使う。
 
-init/plan/sanitizer後は`always()`で再snapshot・完全なtables.get比較・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
+init/plan/sanitizer後は`always()`で再snapshot・stable/未知fieldのstrict tables.get比較（output-only volatile観測値はprivate保存）・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
 
 public Summaryは固定のPASS/STOPラベルとsanitized action数、当月のみの追加費用枠・後月の保管費継続・削除期限を仮定しない旨の固定文だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のprivateファイルで扱い、CIのRUNNER_TEMPは常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
 

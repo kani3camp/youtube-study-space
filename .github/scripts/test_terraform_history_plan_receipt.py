@@ -156,7 +156,8 @@ class ReceiptTests(unittest.TestCase):
         result = receipt.private_json(str(self.root / "history-plan-after.json"))
         self.assertEqual(result["import"], 1)
         self.assertEqual(result["existing_no_op"], 11)
-        self.assertTrue(result["complete_table_metadata_unchanged"] and result["native_lock_absent"])
+        self.assertTrue(result["stable_table_metadata_unchanged"] and result["native_lock_absent"])
+        self.assertFalse(result["volatile_table_observations_changed"])
         self.assertEqual([a[:2] for a in self.aws.calls], [
             ("sts", "get-caller-identity"), ("s3api", "head-object"), ("s3api", "get-object"), ("s3api", "head-object"),
             ("s3api", "list-objects-v2"), ("s3api", "list-objects-v2"),
@@ -372,7 +373,7 @@ class ReceiptTests(unittest.TestCase):
                 self.assertIn(guard.args[1].value, RECEIPT_REASONS)
 
     def test_current_version_body_serial_lineage_and_metadata_changes_cannot_pass(self):
-        cases = ["version", "bytes", "serial", "lineage", "etag", "numRows", "numBytes", "lastModifiedTime", "newMetadata", "description"]
+        cases = ["version", "bytes", "serial", "lineage", "newMetadata", "description", "creationTime", "streamingBuffer", "numRows"]
         # Each case needs a fresh immutable baseline, not overwritten evidence.
         for case in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
@@ -386,9 +387,26 @@ class ReceiptTests(unittest.TestCase):
                         state[case] = 28 if case == "serial" else "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
                         child.aws.body = json.dumps(state).encode()
                 elif case == "description": child.metadata["schema"]["fields"][0]["description"] = "Public dummy changed description"
+                elif case == "streamingBuffer": child.metadata[case] = {"unknown": "1"}
+                elif case == "numRows": child.metadata[case] = {"invalid": True}
                 else: child.metadata[case] = "DUMMY_CHANGED_VALUE"
                 with self.assertRaises(ValueError): child.after_check()
                 self.assertFalse((child.root / "history-plan-after.json").exists())
+
+    def test_independent_writer_metrics_may_change_but_stable_unknown_fields_remain_strict(self):
+        self.baseline()
+        self.metadata.update(etag="DUMMY_ETAG_2", lastModifiedTime="123456790", numRows="43",
+                             numBytes="90", numActiveLogicalBytes="90",
+                             streamingBuffer={"estimatedRows": "1", "oldestEntryTime": "123456790"})
+        receipt.after(self.env, request=self.aws, metadata_request=self.google)
+        record = receipt.private_json(str(self.root / "history-plan-after.json"))
+        self.assertTrue(record["stable_table_metadata_unchanged"])
+        self.assertTrue(record["volatile_table_observations_changed"])
+        self.assertEqual(receipt.private_json(str(self.root / "history-plan-table-after.json")), self.metadata)
+        summary = (self.root / "summary").read_text()
+        self.assertIn("Stable table metadata invariant: PASS", summary)
+        self.assertIn("Volatile table observations: changed", summary)
+        self.assertNotIn("DUMMY_", summary)
 
     def after_check(self):
         receipt.after(self.env, request=self.aws, metadata_request=self.google)
@@ -499,6 +517,8 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(receipt.main(["--phase", "after"]), 0)
         exposed = stdout.getvalue() + stderr.getvalue() + (self.root / "summary").read_text()
         self.assertIn("receipt: PASS", exposed)
+        self.assertIn("History sanitized summary SHA-256: `" +
+                      receipt.hashlib.sha256(receipt.private_bytes(self.root / "sanitized-plan.json")).hexdigest() + "`", exposed)
         self.assertIn("added current UTC month cost bound", exposed)
         self.assertIn("cost bound <= USD0.25.", exposed)
         self.assertNotIn("cost bound <= USD0.01.", exposed)

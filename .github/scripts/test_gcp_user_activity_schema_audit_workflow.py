@@ -919,7 +919,7 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             return rc, json.loads(outputs[0].read_text()) if outputs[0].exists() else None
 
     def test_protected_entrypoint_import_replan_persistent_noop_and_post_use_same_strict_contract(self):
-        for phase, importing in (("before", True), ("before", False), ("post", False)):
+        for phase, importing in (("before", True), ("post", False)):
             plan, metadata = self.fixture_source.fixture(importing)
             rc, summary = self.protected(plan, metadata, phase=phase)
             self.assertEqual(rc, 0)
@@ -929,6 +929,8 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             self.assertEqual(summary["policy"], "import-only")
         plan, metadata = self.fixture_source.fixture(True)
         self.assertEqual(self.protected(plan, metadata, phase="post")[0], 3)
+        plan, metadata = self.fixture_source.fixture(False)
+        self.assertEqual(self.protected(plan, metadata, phase="before")[0], 3)
 
     def test_history_plan_mode_requires_first_import_and_rejects_import_zero(self):
         for importing in (True, False):
