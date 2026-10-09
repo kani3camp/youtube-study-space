@@ -65,10 +65,40 @@ func (deletionFixtureEffects) Apply(_ context.Context, op supportdelete.Operatio
 	return supportdelete.Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "emulator", TraceRef: digest("synthetic-evidence:" + op.ID), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
 }
 
+// The generic checkpoint fixture uses a complete synthetic empty catalog for
+// derived/vendor. An injected Evidence alone must not bypass its durable
+// ownership snapshot when this step advances.
+type emptyDerivedInventory struct{}
+
+func (emptyDerivedInventory) Capture(_ context.Context, op supportdelete.Operation) (DerivedInventorySnapshot, error) {
+	sources := make([]DerivedSource, len(derivedSources))
+	for i, name := range derivedSources {
+		sources[i] = DerivedSource{Name: name, Complete: true, Supported: true, Items: []DerivedItem{}}
+	}
+	s := DerivedInventorySnapshot{SchemaVersion: 1, Execution: op.Execution, CaptureOperationID: op.ID, TraceRef: digest("empty-synthetic-derived-inventory"), CapturedAt: op.ObservedAfter, Sources: sources}
+	s.InventoryRef = derivedInventoryRef(s)
+	return s, nil
+}
+
+func emptyDerivedAdapter(store *FirestoreDeletionStore, now time.Time) *DerivedDeletionEffects {
+	return &DerivedDeletionEffects{
+		Store: store, Inventory: emptyDerivedInventory{},
+		Executor: &derivedFake{objects: map[string]*derivedObject{}, catalogKnown: true, applyCount: map[string]int{}, identities: map[string]string{}},
+		Guard:    derivedFixtureGuard{now: now}, Clock: func() time.Time { return now },
+	}
+}
+
 func advanceDeletion(t *testing.T, s *FirestoreDeletionStore, e supportdelete.Execution, cursor int, now time.Time) supportdelete.Execution {
 	t.Helper()
 	for e.Cursor < cursor {
-		v, err := (deletionFixtureEffects{}).Apply(context.Background(), supportdelete.NewOperation(e, now))
+		op := supportdelete.NewOperation(e, now)
+		var v supportdelete.Evidence
+		var err error
+		if op.Step.Scope == "derived-vendor" {
+			v, err = emptyDerivedAdapter(s, now).Apply(context.Background(), op)
+		} else {
+			v, err = (deletionFixtureEffects{}).Apply(context.Background(), op)
+		}
 		require.NoError(t, err)
 		e, err = s.Commit(context.Background(), e, v, now)
 		require.NoError(t, err)

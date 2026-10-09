@@ -135,3 +135,101 @@ func TestDerivedEmulatorMissingOrReplacedInventoryCannotRecapture(t *testing.T) 
 		})
 	}
 }
+
+func TestDerivedStoreRequiresInventoryAtDeleteAndAllowsPreCaptureRecovery(t *testing.T) {
+	s, start, _ := deletionFixture(t)
+	ctx := context.Background()
+	e, err := s.Acquire(ctx, start)
+	require.NoError(t, err)
+	// Earlier steps have no derived snapshot and may advance normally.
+	e = advanceDeletion(t, s, e, derivedDeleteCursor(), start.Now)
+	_, err = s.LoadDerivedInventory(ctx, e)
+	require.ErrorIs(t, err, ErrDerivedInventoryMissing)
+	proof := supportdelete.Recovery{Selector: e.Selector, PreviousOwnerRef: e.OwnerRef, NewOwnerRef: digest("pre-capture-derived-owner"), ManifestRef: e.Manifest.Ref, TraceRef: digest("pre-capture-worker-stopped"), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: start.Now}
+	require.NoError(t, s.Recover(ctx, proof, start.Now))
+	start.OwnerRef = proof.NewOwnerRef
+	e, err = s.Acquire(ctx, start)
+	require.NoError(t, err)
+	op := supportdelete.NewOperation(e, start.Now)
+	fabricated, err := (deletionFixtureEffects{}).Apply(ctx, op)
+	require.NoError(t, err)
+	_, err = s.Commit(ctx, e, fabricated, start.Now)
+	require.ErrorIs(t, err, supportdelete.ErrUnavailable)
+	current, err := s.Acquire(ctx, start)
+	require.NoError(t, err)
+	require.Equal(t, e, current)
+	// Actual synthetic capture/readback permits the same transition.
+	v, err := emptyDerivedAdapter(s, start.Now).Apply(ctx, op)
+	require.NoError(t, err)
+	next, err := s.Commit(ctx, e, v, start.Now)
+	require.NoError(t, err)
+	require.Equal(t, e.Cursor+1, next.Cursor)
+}
+
+func TestDerivedStoreMissingInventoryAfterDeleteBlocksInspectionRecoveryAndFinalize(t *testing.T) {
+	for _, stage := range []string{"post-delete", "inspection", "finalize"} {
+		t.Run(stage, func(t *testing.T) {
+			s, start, _ := deletionFixture(t)
+			ctx := context.Background()
+			e, err := s.Acquire(ctx, start)
+			require.NoError(t, err)
+			switch stage {
+			case "post-delete":
+				e = advanceDeletion(t, s, e, derivedDeleteCursor()+1, start.Now)
+			case "inspection":
+				e = advanceDeletion(t, s, e, derivedInspectCursor(), start.Now)
+			case "finalize":
+				e = advanceDeletion(t, s, e, len(supportdelete.Steps()), start.Now)
+			}
+			for _, collection := range []string{supportDeleteDerivedInventory, supportDeleteDerivedBinding} {
+				_, err = s.Client.Collection(collection).Doc(e.Selector.ExecutionRef).Delete(ctx)
+				require.NoError(t, err)
+			}
+			_, err = s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef).Update(ctx, []firestore.Update{{Path: "derivedInventoryRef", Value: firestore.Delete}})
+			require.NoError(t, err)
+			if stage == "finalize" {
+				require.ErrorIs(t, s.Finalize(ctx, e, start.Now), supportdelete.ErrUnavailable)
+			} else {
+				v, effectErr := (deletionFixtureEffects{}).Apply(ctx, supportdelete.NewOperation(e, start.Now))
+				require.NoError(t, effectErr)
+				_, err = s.Commit(ctx, e, v, start.Now)
+				require.ErrorIs(t, err, supportdelete.ErrUnavailable)
+			}
+			proof := supportdelete.Recovery{Selector: e.Selector, PreviousOwnerRef: e.OwnerRef, NewOwnerRef: digest("post-delete-derived-owner"), ManifestRef: e.Manifest.Ref, TraceRef: digest("post-delete-worker-stopped"), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: start.Now}
+			require.ErrorIs(t, s.Recover(ctx, proof, start.Now), supportdelete.ErrUnavailable)
+			current, err := s.Acquire(ctx, start)
+			require.NoError(t, err)
+			require.Equal(t, e, current)
+		})
+	}
+}
+
+func TestDerivedStoreMismatchedSnapshotHalvesBlockCommit(t *testing.T) {
+	for _, condition := range []string{"snapshot-missing", "binding-missing", "both-missing", "marker-missing", "marker-replaced"} {
+		t.Run(condition, func(t *testing.T) {
+			s, start, a, _, e := emulatorDerivedFixture(t)
+			ctx := context.Background()
+			v, err := a.Apply(ctx, supportdelete.NewOperation(e, start.Now))
+			require.NoError(t, err)
+			switch condition {
+			case "snapshot-missing":
+				_, err = s.Client.Collection(supportDeleteDerivedInventory).Doc(e.Selector.ExecutionRef).Delete(ctx)
+			case "binding-missing":
+				_, err = s.Client.Collection(supportDeleteDerivedBinding).Doc(e.Selector.ExecutionRef).Delete(ctx)
+			case "both-missing":
+				_, err = s.Client.Collection(supportDeleteDerivedInventory).Doc(e.Selector.ExecutionRef).Delete(ctx)
+				require.NoError(t, err)
+				_, err = s.Client.Collection(supportDeleteDerivedBinding).Doc(e.Selector.ExecutionRef).Delete(ctx)
+			case "marker-missing":
+				_, err = s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef).Update(ctx, []firestore.Update{{Path: "derivedInventoryRef", Value: firestore.Delete}})
+			case "marker-replaced":
+				_, err = s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef).Update(ctx, []firestore.Update{{Path: "derivedInventoryRef", Value: digest("different-derived-inventory")}})
+			}
+			require.NoError(t, err)
+			_, err = s.Commit(ctx, e, v, start.Now)
+			require.ErrorIs(t, err, supportdelete.ErrConflict)
+			proof := supportdelete.Recovery{Selector: e.Selector, PreviousOwnerRef: e.OwnerRef, NewOwnerRef: digest("mismatched-derived-owner"), ManifestRef: e.Manifest.Ref, TraceRef: digest("mismatched-worker-stopped"), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: start.Now}
+			require.ErrorIs(t, s.Recover(ctx, proof, start.Now), supportdelete.ErrConflict)
+		})
+	}
+}

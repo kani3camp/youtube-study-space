@@ -193,6 +193,12 @@ func (s *FirestoreDeletionStore) ConfirmDerivedInventory(ctx context.Context, ex
 func (s *FirestoreDeletionStore) prepareDerivedInventory(tx *firestore.Transaction, old, next supportdelete.Execution, terminal bool) (func() error, error) {
 	snapshot, err := s.readDerivedInventory(tx, old)
 	if err == ErrDerivedInventoryMissing {
+		// Before the first derived effect there is legitimately no snapshot.
+		// Once its delete step advances, every later checkpoint (including
+		// recovery and finalization) must retain that captured inventory.
+		if terminal || old.Cursor > derivedDeleteCursor() || (old.Cursor == derivedDeleteCursor() && next.Cursor > old.Cursor) {
+			return nil, supportdelete.ErrEvidence
+		}
 		return func() error { return nil }, nil
 	}
 	if err != nil {
