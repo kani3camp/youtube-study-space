@@ -49,7 +49,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	apiKey, err := secretFieldFromSecretsManager(gracefulCtx, secretName, "OPENAI_API_KEY")
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get OPENAI API key from Secrets Manager",
-			"err", err,
+			"error_class", "secret_fetch_failed",
 		)
 		return nil
 	}
@@ -57,7 +57,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	clientOption, err := firestoreClientOptionTrend()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get Firestore client option",
-			"err", err,
+			"error_class", "firestore_option_failed",
 		)
 		return nil
 	}
@@ -65,7 +65,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	app, err := newTrendWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get WorkspaceApp",
-			"err", err,
+			"error_class", "workspace_init_failed",
 		)
 		return nil
 	}
@@ -73,11 +73,11 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 
 	if err := app.UpdateWorkNameTrend(gracefulCtx, apiKey); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			slog.ErrorContext(ctx, "timeout warning in update_work_name_trend during UpdateWorkNameTrend", "err", err)
+			slog.ErrorContext(ctx, "timeout warning in update_work_name_trend during UpdateWorkNameTrend", "error_class", "deadline_exceeded")
 			return nil
 		}
 		slog.ErrorContext(ctx, "failed to update work name trends",
-			"err", err,
+			"error_class", "trend_update_failed",
 		)
 		return nil
 	}

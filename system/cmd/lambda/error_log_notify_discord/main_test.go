@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,6 +172,35 @@ func TestHandlerReturnsErrorWhenOwnerMessageFails(t *testing.T) {
 	}
 	if !app.closed {
 		t.Fatal("expected CloseFirestoreClient")
+	}
+}
+
+func TestHandlerDeliveryFailureDoesNotLogForwardedPayload(t *testing.T) {
+	const privateValue = "PRIVATE_FORWARDED_LOG_BODY_832"
+	app := &mockErrorLogNotifyApp{sendErr: errors.New("provider echoed " + privateValue)}
+	restore := stubErrorLogNotifyDeps(t, nil, nil, app)
+	t.Cleanup(restore)
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	event := mustCloudwatchLogsEvent(t, events.CloudwatchLogsData{
+		LogGroup: "/aws/lambda/synthetic-log-source",
+		LogEvents: []events.CloudwatchLogsLogEvent{
+			{ID: "1", Timestamp: 123, Message: privateValue},
+		},
+	})
+	err := handler(context.Background(), event)
+	if err == nil || !strings.Contains(err.Error(), "delivery_failed") || strings.Contains(err.Error(), privateValue) {
+		t.Fatalf("expected sanitized delivery error, got %v", err)
+	}
+	if len(app.messages) != 1 || !strings.Contains(app.messages[0], privateValue) {
+		t.Fatalf("forwarded notification changed: %q", app.messages)
+	}
+	if !strings.Contains(logs.String(), `"error_class":"delivery_failed"`) || strings.Contains(logs.String(), privateValue) {
+		t.Fatalf("expected sanitized forwarding log: %s", logs.String())
 	}
 }
 

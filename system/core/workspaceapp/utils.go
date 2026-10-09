@@ -17,12 +17,10 @@ import (
 	"google.golang.org/grpc/status"
 
 	"app.modules/core/guardians"
-	i18nmsg "app.modules/core/i18n/typed"
 	"app.modules/core/repository"
 	"app.modules/core/studyspaceerror"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
-	"app.modules/core/workspaceapp/presenter"
 	"app.modules/core/youtubebot"
 )
 
@@ -212,7 +210,6 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 			break
 		}
 		for _, seatCandidate := range seats {
-			var message string
 			txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 				seat, err := app.Repository.ReadSeat(ctx, tx, seatCandidate.SeatID, isMemberRoom)
 				if err != nil {
@@ -230,26 +227,24 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				}
 
 				// 退室処理
-				workedTimeSec, addedRP, err := app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
+				_, _, err = app.exitRoom(ctx, tx, isMemberRoom, seat, &userDoc, workSegments)
 				if err != nil {
 					return fmt.Errorf("failed to exitRoom for %s: %w", app.ProcessedUserID, err)
 				}
-				var rpEarned string
-				var seatIDStr string
-				if userDoc.RankVisible {
-					rpEarned = i18nmsg.CommandRpEarned(addedRP)
-				}
-				seatIDStr = presenter.SeatIDStr(seat.SeatID, isMemberRoom)
-				message = i18nmsg.CommandExit(app.ProcessedUserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 				return nil
 			})
-			if txErr != nil { // log txErr but continues
-				slog.Error("error in transaction", "txErr", txErr)
-			}
-			slog.Info(message)
+			logSeatExitResult(txErr) // continue with the next seat after a failed transaction
 		}
 	}
 	return nil
+}
+
+func logSeatExitResult(err error) {
+	if err != nil {
+		slog.Error("seat exit failed", "error_class", "transaction_failed")
+		return
+	}
+	slog.Info("seat exit completed")
 }
 
 func (app *WorkspaceApp) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
@@ -268,7 +263,7 @@ func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) 
 
 func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
-		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
+		slog.ErrorContext(ctx, "failed to send message to owner", "error_class", "delivery_failed")
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
@@ -284,7 +279,7 @@ func (app *WorkspaceApp) MessageToOwnerOrError(ctx context.Context, message stri
 
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
 	if err := app.alertOwnerBot.SendMessageWithError(ctx, message, argErr); err != nil {
-		slog.ErrorContext(ctx, "failed to send message to owner", "error", err)
+		slog.ErrorContext(ctx, "failed to send message to owner", "error_class", "delivery_failed")
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }

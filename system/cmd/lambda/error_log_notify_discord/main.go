@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -74,8 +75,8 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 
 	for _, chunk := range chunks {
 		if err := app.MessageToOwnerOrError(gracefulCtx, chunk); err != nil {
-			slog.ErrorContext(ctx, "failed to send log notification to owner", "err", err)
-			return fmt.Errorf("send log notification to owner: %w", err)
+			slog.ErrorContext(ctx, "failed to send log notification to owner", "error_class", "delivery_failed")
+			return errors.New("send log notification to owner: delivery_failed")
 		}
 	}
 
