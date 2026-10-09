@@ -163,23 +163,27 @@ production backendは未bootstrapのため、production authenticated plan / app
 
 ### Single development history plan receipt
 
-history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。Environment承認者は入力に対応する費用証拠を事前にreviewする。既存の条件付き見積りやbooleanの自己申告だけを、未知の課金項目が解決した証拠として扱わない。
+history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。2026-10-08の承認に従い、上限USD0.01はこのrunが追加する当月UTCの費用を対象にする。lifecycle設定や永久削除期限を要求せず、残るlock version/delete markerの保管費は後月の累積費用に継続計上する。Environment承認者は実設定のread証拠に対応する入力をreviewする。既存operator/toolが取得した証拠を使え、所有者本人だけの新しい確認gateを設けない。booleanや金額だけを、未知の課金項目が解決した証拠として扱わない。
 
 JSON input は次のキーだけを許可する。実state・table metadata・bucket/account/role/SA名・privateな証拠本文を入力に貼らない。
 
 | Key | Required evidence |
 | --- | --- |
-| `model` | `dev-history-plan-2026-10-08-v1`。この価格モデルは2026-10-15 UTCに失効する |
+| `model` | `dev-history-plan-monthly-2026-10-08-v1`。この価格モデルは2026-10-15 UTCに失効する |
 | `git_sha` | review・公開された実行対象の完全なSHA |
-| `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、期限は発行後24時間以内かつモデル失効前 |
+| `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、期限は発行後24時間以内かつモデル失効前。15分のplan jobと取消・post readの余裕を確保し、期限はUTC月末の30分前以前 |
 | `max_state_bytes` | 非秘密の保守的サイズ上限（正整数、4 MiB以下）。実サイズはCIのexact current object HEADでprivateに確認する |
-| `lock_retention_days` | 既存lifecycleで証明されたnative lock version/delete markerの保持上限日数（正整数、3650以下） |
-| `cloud_side_cost_usd` | 小数の文字列。下記AWS費用に加算する、証拠に基づく正の付随費用上限 |
+| `budget_month` | `YYYY-MM`。発行日時・実行時の現在UTC月と一致。旧lifetimeモデル・`lock_retention_days`は受け付けない |
+| `cloud_side_cost_usd` | 小数の文字列。下記AWS費用に加算する、このrunの当月追加付随費用の正の上限。実設定のread証拠と保守的な数量・単価に基づく |
 | `cloud_side_evidence_reviewed` | 全GCP/provider retry・OIDC/STS・CloudTrail/Cloud Logging・既存sink/replication等の追加課金を含むprivateな数量・単価・保持条件が確認できた場合だけtrue |
 | `rates_verified` | 実行時の公開単価が下記ceiling以下であることを確認した場合だけtrue |
 | `state_writers_quiescent` | 指定オペレーターだけが実行し、state/workspace prefixの並行writerがないことを確認した場合だけtrue |
 
-費用計算はDecimalで上方丸めし、合計USD0.01以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、2個の32 KiB lock/version payloadをUSD0.10/GiB/月で保持日数分、さらに`cloud_side_cost_usd`を加算する。HEADが上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければ、state downloadやremote initへ進まない。未知の付随費用があればinputを作成せず停止する。
+費用計算はDecimalで各成分を上方丸めし、当月追加合計USD0.01以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、さらに`cloud_side_cost_usd`を単発・当月費用として予約する。追加するlock bodyとdelete markerを各32 KiBの保守的上限で見積り、USD0.10/GiB/月で丸一月分を予約する。月末のrunでも日割りによる値引きをしない。実サイズは後続HEADでprivateに確認し、上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければstate downloadやremote initへ進まない。UIの丸められたサイズをexact bytesと見なさない。未知の付随費用から確認済みflagを生成せず停止する。
+
+`history-plan-cost.json`には、当月、profileのdigestであるentry ID、単発・当月side費用上限、当月保管費上限、当月合計、追加保管bytes上限、現行単価による翌月以降一月分の保管費推定、削除期限なしを明記したprivateな`monthly_ledger_entry`を含む。すべて保守的推定で、実測費用や永久費用上限ではない。通常unlockのpositive absenceはcurrent lockが無い証拠であり、過去version/delete markerの永久削除や将来保管費0の証拠ではない。[S3 delete markers](https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html)も保管費を生じる。
+
+CIのRUNNER_TEMPはcleanupされ、永続台帳にはならない。実行operator/toolは同じreview済みsourceとinputで認証不要の`--phase policy`をローカル実行し、privateなcost receiptの予約行を実行前に月次台帳へ保存する。実run ID/attemptを予約entry IDと結び付け、receipt失敗・取消・lock absenceによって予約を勝手に取り消さない。後月は保管bytesを繰り越し、単価を再確認して既存支出・新しい単発費用と累積する。既存state/lock versionsは別のbaselineであり、このrunの追加上限に含めたと見なさない。旧versionの消失や減額は既存権限のread証拠がある場合だけ反映し、削除操作は行わない。監査/logging等の後月費用も0と仮定せず実設定・月次証拠で照合する。台帳にraw state/metadata/private descriptionを保存・公開しない。
 
 価格根拠は[AWS S3 pricing](https://aws.amazon.com/s3/pricing/)、[KMS pricing](https://aws.amazon.com/kms/pricing/)、[CloudTrail pricing](https://aws.amazon.com/cloudtrail/pricing/)、[Cloud Logging pricing](https://cloud.google.com/products/observability/pricing)。許可されたAPI envelopeとprice ceilingを広げる場合は再reviewが必要。Terraform1.16.4の[backend](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/backend/remote-state/s3/client.go)と固定依存[aws-sdk-go-base beta.72](https://github.com/hashicorp/aws-sdk-go-base/blob/v2.0.0-beta.72/aws_config.go)、[S3 downloader1.17.22](https://github.com/aws/aws-sdk-go-v2/blob/feature/s3/manager/v1.17.22/feature/s3/manager/download.go)を根拠に、小さい単一part state・空のworkspace discovery prefix・native lock一回分に余裕を含む。backendの`max_retries=1`はこの固定AWS v2依存で`WithRetryMaxAttempts(1)`となる。CLIは[AWS_MAX_ATTEMPTS=1](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-retries.html)、認証Actionも1 attempt、planのlock timeoutは0s。native downloader自身のbody attemptを費用に含め、run/plan再実行やforce-unlockは行わない。
 
@@ -187,7 +191,7 @@ JSON input は次のキーだけを許可する。実state・table metadata・bu
 
 init/plan/sanitizer後は`always()`で再snapshot・完全なtables.get比較・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
 
-public Summaryは固定のPASS/STOPラベルとsanitized action数だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のRUNNER_TEMPファイルのみで扱い、常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
+public Summaryは固定のPASS/STOPラベルとsanitized action数、当月のみの追加費用枠・後月の保管費継続・削除期限を仮定しない旨の固定文だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のprivateファイルで扱い、CIのRUNNER_TEMPは常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
 
 ### Existing development backend
 

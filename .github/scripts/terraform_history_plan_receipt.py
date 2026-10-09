@@ -33,7 +33,7 @@ from validate_user_activity_history_plan import TABLE
 
 BASELINE = EXISTING | {CHANNEL, TOPIC, SCHEDULER, FUNCTION} | ADDRESSES
 STATE_KEY = "youtube-study-space/dev/terraform.tfstate"
-MODEL = "dev-history-plan-2026-10-08-v1"
+MODEL = "dev-history-plan-monthly-2026-10-08-v1"
 MODEL_EXPIRES = datetime(2026, 10, 15, tzinfo=timezone.utc)
 MAX_BYTES = 4 * 1024 * 1024
 # Reviewed conservative ceilings, not free-tier estimates. See infra/gcp/README.
@@ -43,7 +43,7 @@ DOWNLOADS, REQUESTS, KMS_REQUESTS, HEADER_BYTES, LOCK_BYTES = 64, 256, 128, 1638
 GIB = Decimal(1024 ** 3)
 LIMIT = Decimal("0.01")
 COST_KEYS = {"model", "git_sha", "issued_utc", "expires_utc", "max_state_bytes",
-             "lock_retention_days", "cloud_side_cost_usd", "cloud_side_evidence_reviewed",
+             "budget_month", "cloud_side_cost_usd", "cloud_side_evidence_reviewed",
              "rates_verified", "state_writers_quiescent"}
 
 
@@ -98,25 +98,45 @@ def cost_policy(raw, sha, *, now=None):
     now = now or datetime.now(timezone.utc)
     issued, expires = timestamp(profile["issued_utc"]), timestamp(profile["expires_utc"])
     require(issued <= now < expires <= issued + timedelta(hours=24) and expires <= MODEL_EXPIRES)
+    month = profile["budget_month"]
+    require(type(month) is str and month == issued.strftime("%Y-%m") == now.strftime("%Y-%m"))
+    # Exclude the month boundary: the plan job has a 15-minute timeout. The
+    # additional margin covers cancellation and bounded post-safety reads.
+    following = issued.replace(year=issued.year + (issued.month == 12), month=issued.month % 12 + 1,
+                               day=1, hour=0, minute=0, second=0, microsecond=0)
+    require(expires <= following - timedelta(minutes=30))
     for key in ("rates_verified", "cloud_side_evidence_reviewed", "state_writers_quiescent"):
         require(profile[key] is True)
-    size, days = profile["max_state_bytes"], profile["lock_retention_days"]
+    size = profile["max_state_bytes"]
     require(type(size) is int and 0 < size <= MAX_BYTES)
-    require(type(days) is int and 0 < days <= 3650)
     overhead = profile["cloud_side_cost_usd"]
     require(type(overhead) is str and re.fullmatch(r"0\.\d{1,9}", overhead))
     overhead = Decimal(overhead)
     require(0 < overhead < LIMIT)
-    # Charge all requests at PUT/LIST ceiling, all possible symmetric KMS
-    # decrypts, all state/header transfer, and both retained lock/delete-marker
-    # payloads. No remaining free allowance or public-runner region is assumed.
-    total = (Decimal(REQUESTS) * Decimal("0.00001")
-             + Decimal(KMS_REQUESTS) * Decimal("0.00001")
-             + Decimal(DOWNLOADS * size + REQUESTS * HEADER_BYTES) / GIB * Decimal("0.25")
-             + Decimal(2 * LOCK_BYTES * days) / GIB / Decimal(30) * Decimal("0.10")
-             + overhead).quantize(Decimal("0.000000001"), rounding=ROUND_CEILING)
+    # Reserve a full billing month of added storage, even for a late-month
+    # execution. No finite deletion deadline or lifetime cost is asserted.
+    # These are conservative estimates; the exact state size is checked later
+    # by HEAD. Unknown side-cost facts must not be replaced by true flags.
+    quantum = Decimal("0.000000001")
+    once = (Decimal(REQUESTS) * Decimal("0.00001")
+            + Decimal(KMS_REQUESTS) * Decimal("0.00001")
+            + Decimal(DOWNLOADS * size + REQUESTS * HEADER_BYTES) / GIB * Decimal("0.25")
+            + overhead).quantize(quantum, rounding=ROUND_CEILING)
+    storage = (Decimal(2 * LOCK_BYTES) / GIB * Decimal("0.10")).quantize(quantum, rounding=ROUND_CEILING)
+    total = once + storage
     require(total <= LIMIT)
-    return {"profile": profile, "upper_bound_usd": str(total)}
+    ledger = {"schema_version": 1, "basis": "conservative-upper-bound-estimate",
+              "entry_id": hashlib.sha256(json.dumps(profile, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+              "git_sha": sha, "budget_month": month, "status": "reserved-upper-bound",
+              "one_time_and_current_month_side_cost_upper_bound_usd": str(once),
+              "current_month_added_lock_storage_upper_bound_usd": str(storage),
+              "current_month_added_cost_upper_bound_usd": str(total),
+              "added_retained_bytes_upper_bound": 2 * LOCK_BYTES,
+              "future_full_month_lock_storage_estimate_at_model_rates_usd": str(storage),
+              "retention_end_utc": None, "retention_assumption": "no-assumed-deletion",
+              "future_side_costs": "not-assumed-zero; reconcile-from-read-evidence",
+              "future_rates": "revalidate-each-month"}
+    return {"profile": profile, "upper_bound_usd": str(total), "monthly_ledger_entry": ledger}
 
 
 def policy(env):
@@ -128,7 +148,7 @@ def policy(env):
 def load_policy(env, *, fresh=True):
     directory = context(env)
     stored = private_json(str(directory / "history-plan-cost.json"))
-    require(type(stored) is dict and set(stored) == {"profile", "upper_bound_usd"})
+    require(type(stored) is dict and set(stored) == {"profile", "upper_bound_usd", "monthly_ledger_entry"})
     # A late/failed job must still collect bounded safety reads. Expired evidence
     # can never produce PASS; validate freshness again after the post checks.
     check_time = None if fresh else timestamp(stored["profile"]["issued_utc"])
@@ -346,7 +366,7 @@ def after(env, *, request=None, metadata_request=None):
     require(all(r.get("mode") == "managed" and r.get("action") == "no-op" and r.get("import") is (r["address"] == TABLE) for r in resources))
     write_private(directory / "history-plan-after.json", {"git_sha": env["GITHUB_SHA"], "state": final,
                   "complete_table_metadata_unchanged": True, "native_lock_absent": True, "import": 1, "existing_no_op": 11,
-                  "cost_upper_bound_usd": budget["upper_bound_usd"]})
+                  "cost_upper_bound_usd": budget["upper_bound_usd"], "monthly_ledger_entry": budget["monthly_ledger_entry"]})
 
 
 def main(argv=None):
@@ -358,7 +378,7 @@ def main(argv=None):
         env = dict(os.environ)
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
-            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; owner-evidenced cost bound <= USD0.01.\n"
+            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.01. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
                 handle.write(message)
         else:
