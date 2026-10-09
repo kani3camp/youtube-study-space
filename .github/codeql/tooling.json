@@ -1,0 +1,11 @@
+{
+  "actionlint": {
+    "version": "1.7.12",
+    "linux_amd64_sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+  },
+  "starter": {
+    "repository": "actions/starter-workflows",
+    "commit": "e3c451d60f119b71caebf13c98ac45da6e15b4b7",
+    "path": "code-scanning/codeql.yml"
+  }
+}
