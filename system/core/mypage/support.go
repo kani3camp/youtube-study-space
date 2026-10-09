@@ -42,10 +42,13 @@ type SupportRequest struct {
 	CompletedAt        *time.Time     `firestore:"completedAt"`
 	// Intake text is server-only and removed on completion. SubmissionHash
 	// binds retries to the exact original request without collapsing claims.
-	SubmissionHash  string     `firestore:"submissionHash,omitempty"`
-	Body            string     `firestore:"body,omitempty"`
-	OperatorReply   string     `firestore:"operatorReply,omitempty"`
-	OperatorReplyAt *time.Time `firestore:"operatorReplyAt,omitempty"`
+	SubmissionHash   string     `firestore:"submissionHash,omitempty"`
+	Body             string     `firestore:"body,omitempty"`
+	OperatorReply    string     `firestore:"operatorReply,omitempty"`
+	OperatorReplyAt  *time.Time `firestore:"operatorReplyAt,omitempty"`
+	OperatorRevision int64      `firestore:"operatorRevision,omitempty"`
+	ReplyOperationID string     `firestore:"replyOperationId,omitempty"`
+	ReplyDigest      string     `firestore:"replyDigest,omitempty"`
 }
 
 func validSupportEnvironment(environment string) bool {
@@ -116,24 +119,5 @@ func reissueSupportRecord(value SupportRequest, environment, hash string, now ti
 	}
 	value.ChallengeHash = hash
 	value.ChallengeExpiresAt = now.UTC().Add(24 * time.Hour)
-	return value, nil
-}
-
-func completeSupportRecord(value SupportRequest, environment string, now time.Time) (SupportRequest, error) {
-	if !validSupportEnvironment(environment) || value.Environment != environment || value.Status != "verified" || value.VerifiedAt == nil || now.Before(*value.VerifiedAt) || value.OAuthTransactionID == "" {
-		return value, apiError("SUPPORT_CHALLENGE_INVALID")
-	}
-	at := now.UTC()
-	value.Status = "completed"
-	value.CompletedAt = &at
-	value.TargetChannel = ""
-	value.ChallengeHash = ""
-	value.ChallengeExpiresAt = time.Time{}
-	value.ProofRef = ""
-	value.OAuthTransactionID = ""
-	value.Body = ""
-	value.OperatorReply = ""
-	value.OperatorReplyAt = nil
-	value.SubmissionHash = ""
 	return value, nil
 }
