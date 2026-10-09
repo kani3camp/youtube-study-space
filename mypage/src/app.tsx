@@ -46,9 +46,26 @@ type LoginSearch = {
 	supportInvalid?: boolean
 }
 const SupportReceipt = createContext<{
-	ref: string | null
-	set: (ref: string | null) => void
-}>({ ref: null, set: () => {} })
+	proofRef: string | null
+	supportRequestRef: string | null
+	set: (proofRef: string | null, supportRequestRef?: string | null) => void
+}>({ proofRef: null, supportRequestRef: null, set: () => {} })
+type IntakeDraft = {
+	purpose: SupportPurpose
+	body: string
+	submissionKey: string | null
+	created: PrivacyIntakeReceipt | null
+}
+const emptyIntakeDraft: IntakeDraft = {
+	purpose: 'delete',
+	body: '',
+	submissionKey: null,
+	created: null,
+}
+const IntakeMemory = createContext<{
+	value: IntakeDraft
+	set: (next: IntakeDraft) => void
+}>({ value: emptyIntakeDraft, set: () => {} })
 const supportPurposeLabel = {
 	delete: '保存データの削除依頼',
 	revoke: 'すべてのログインの解除依頼',
@@ -135,7 +152,12 @@ export function createApp(
 	}
 	function Root() {
 		const [cookieOpen, setCookieOpen] = useState(false)
-		const [receipt, setReceipt] = useState<string | null>(null)
+		const [receipt, setReceipt] = useState<{
+			proofRef: string
+			supportRequestRef: string | null
+		} | null>(null)
+		const [intakeDraft, setIntakeDraft] =
+			useState<IntakeDraft>(emptyIntakeDraft)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
 		const cookieOpener = useRef<HTMLElement | null>(null)
 		const consent = useSyncExternalStore(
@@ -175,142 +197,164 @@ export function createApp(
 			if (pathname !== '/contact') setReceipt(null)
 		}, [pathname])
 		useEffect(() => {
-			const clear = () => setReceipt(null)
+			const clear = () => {
+				setReceipt(null)
+				setIntakeDraft(emptyIntakeDraft)
+			}
+			const clearRestoredPage = (event: PageTransitionEvent) => {
+				if (event.persisted) clear()
+			}
 			let previousUID = runtime.session?.currentUID()
 			const unsubscribe = runtime.session?.subscribe((uid) => {
 				if (uid !== previousUID) clear()
 				previousUID = uid
 			})
 			window.addEventListener('pagehide', clear)
+			window.addEventListener('pageshow', clearRestoredPage)
 			return () => {
 				unsubscribe?.()
 				window.removeEventListener('pagehide', clear)
+				window.removeEventListener('pageshow', clearRestoredPage)
 			}
 		}, [])
 		useEffect(() => {
 			if (cookieOpen) cookieDialog.current?.showModal()
 		}, [cookieOpen])
 		return (
-			<SupportReceipt.Provider value={{ ref: receipt, set: setReceipt }}>
-				<CookieSettings.Provider value={openCookie}>
-					<Outlet />
-					{consent.value === 'unset' && (
-						<aside
-							className="consent-banner"
-							aria-labelledby="analytics-consent-heading"
-						>
-							<h2 id="analytics-consent-heading">利用状況の計測について</h2>
-							<p>
-								計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
-							</p>
-							<p>
-								Google
-								Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
-							</p>
-							<div className="hero-links">
-								<button
-									className="button"
-									type="button"
-									onClick={() => privacyServices.consent.set('granted')}
-								>
-									計測を許可
-								</button>
-								<button
-									className="button"
-									type="button"
-									onClick={() => privacyServices.consent.set('denied')}
-								>
-									許可しない
-								</button>
-							</div>
-						</aside>
-					)}
-					{(pathname !== '/mypage' || auth.phase === 'restricted') && (
-						<footer className="site-footer public-footer">
-							<Link to="/privacy">プライバシー</Link>
-							<Link to="/terms">利用規約</Link>
-							<button type="button" onClick={openCookie}>
-								Cookie設定
-							</button>
-							<Link to="/contact">お問い合わせ</Link>
-						</footer>
-					)}
-					{cookieOpen && (
-						<dialog
-							className="account-dialog"
-							ref={cookieDialog}
-							onClose={() => {
-								setCookieOpen(false)
-								queueMicrotask(() => {
-									if (cookieOpener.current?.isConnected)
-										cookieOpener.current.focus()
-									else
-										document
-											.querySelector<HTMLButtonElement>('.site-footer button')
-											?.focus()
-								})
-							}}
-							onKeyDown={(event) => {
-								if (event.key !== 'Tab') return
-								const targets = [
-									...event.currentTarget.querySelectorAll<HTMLElement>(
-										'button:not([disabled]), input:not([disabled]), a[href]',
-									),
-								].filter((item) => item.getClientRects().length > 0)
-								const first = targets[0]
-								const last = targets.at(-1)
-								if (event.shiftKey && document.activeElement === first) {
-									event.preventDefault()
-									last?.focus()
-								} else if (!event.shiftKey && document.activeElement === last) {
-									event.preventDefault()
-									first?.focus()
-								}
-							}}
-							aria-labelledby="cookie-heading"
-						>
-							<h2 id="cookie-heading">Cookie設定</h2>
-							<p>
-								Google
-								Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
-							</p>
-							<label className="consent-label">
-								<input
-									type="checkbox"
-									role="switch"
-									aria-checked={consent.value === 'granted'}
-									checked={consent.value === 'granted'}
-									onChange={(event) =>
-										privacyServices.consent.set(
-											event.target.checked ? 'granted' : 'denied',
-										)
-									}
-								/>
-								<span>利用状況の計測を許可</span>
-							</label>
-							<p role="status">
-								{consent.value === 'granted'
-									? '任意の計測：許可'
-									: '任意の計測：オフ'}
-							</p>
-							{!consent.saved && (
-								<p role="alert">
-									設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
-								</p>
-							)}
-							<p>
-								必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
-							</p>
-							<button
-								type="button"
-								className="button"
-								onClick={() => cookieDialog.current?.close()}
+			<SupportReceipt.Provider
+				value={{
+					proofRef: receipt?.proofRef ?? null,
+					supportRequestRef: receipt?.supportRequestRef ?? null,
+					set: (proofRef, supportRequestRef = null) =>
+						setReceipt(proofRef ? { proofRef, supportRequestRef } : null),
+				}}
+			>
+				<IntakeMemory.Provider
+					value={{ value: intakeDraft, set: setIntakeDraft }}
+				>
+					<CookieSettings.Provider value={openCookie}>
+						<Outlet />
+						{consent.value === 'unset' && (
+							<aside
+								className="consent-banner"
+								aria-labelledby="analytics-consent-heading"
 							>
-								閉じる
-							</button>
-						</dialog>
-					)}
-				</CookieSettings.Provider>
+								<h2 id="analytics-consent-heading">利用状況の計測について</h2>
+								<p>
+									計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
+								</p>
+								<p>
+									Google
+									Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
+								</p>
+								<div className="hero-links">
+									<button
+										className="button"
+										type="button"
+										onClick={() => privacyServices.consent.set('granted')}
+									>
+										計測を許可
+									</button>
+									<button
+										className="button"
+										type="button"
+										onClick={() => privacyServices.consent.set('denied')}
+									>
+										許可しない
+									</button>
+								</div>
+							</aside>
+						)}
+						{(pathname !== '/mypage' || auth.phase === 'restricted') && (
+							<footer className="site-footer public-footer">
+								<Link to="/privacy">プライバシー</Link>
+								<Link to="/terms">利用規約</Link>
+								<button type="button" onClick={openCookie}>
+									Cookie設定
+								</button>
+								<Link to="/contact">お問い合わせ</Link>
+							</footer>
+						)}
+						{cookieOpen && (
+							<dialog
+								className="account-dialog"
+								ref={cookieDialog}
+								onClose={() => {
+									setCookieOpen(false)
+									queueMicrotask(() => {
+										if (cookieOpener.current?.isConnected)
+											cookieOpener.current.focus()
+										else
+											document
+												.querySelector<HTMLButtonElement>('.site-footer button')
+												?.focus()
+									})
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== 'Tab') return
+									const targets = [
+										...event.currentTarget.querySelectorAll<HTMLElement>(
+											'button:not([disabled]), input:not([disabled]), a[href]',
+										),
+									].filter((item) => item.getClientRects().length > 0)
+									const first = targets[0]
+									const last = targets.at(-1)
+									if (event.shiftKey && document.activeElement === first) {
+										event.preventDefault()
+										last?.focus()
+									} else if (
+										!event.shiftKey &&
+										document.activeElement === last
+									) {
+										event.preventDefault()
+										first?.focus()
+									}
+								}}
+								aria-labelledby="cookie-heading"
+							>
+								<h2 id="cookie-heading">Cookie設定</h2>
+								<p>
+									Google
+									Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
+								</p>
+								<label className="consent-label">
+									<input
+										type="checkbox"
+										role="switch"
+										aria-checked={consent.value === 'granted'}
+										checked={consent.value === 'granted'}
+										onChange={(event) =>
+											privacyServices.consent.set(
+												event.target.checked ? 'granted' : 'denied',
+											)
+										}
+									/>
+									<span>利用状況の計測を許可</span>
+								</label>
+								<p role="status">
+									{consent.value === 'granted'
+										? '任意の計測：許可'
+										: '任意の計測：オフ'}
+								</p>
+								{!consent.saved && (
+									<p role="alert">
+										設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+									</p>
+								)}
+								<p>
+									必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
+								</p>
+								<button
+									type="button"
+									className="button"
+									onClick={() => cookieDialog.current?.close()}
+								>
+									閉じる
+								</button>
+							</dialog>
+						)}
+					</CookieSettings.Provider>
+				</IntakeMemory.Provider>
 			</SupportReceipt.Provider>
 		)
 	}
@@ -577,7 +621,7 @@ export function createApp(
 					!currentController.signal.aborted
 				) {
 					if (result.purpose === 'support') {
-						receipt.set(result.requestRef)
+						receipt.set(result.requestRef, result.supportRequestRef)
 						await router.navigate({ to: '/contact' })
 					} else {
 						privacyServices.analytics.event('login')
@@ -734,21 +778,27 @@ export function createApp(
 	}
 	function Contact() {
 		const receipt = useContext(SupportReceipt)
-		const [purpose, setPurpose] = useState<SupportPurpose>('delete')
-		const [body, setBody] = useState('')
-		const [created, setCreated] = useState<PrivacyIntakeReceipt | null>(null)
+		const draft = useContext(IntakeMemory)
+		const { purpose, body, created } = draft.value
 		const [ref, setRef] = useState('')
 		const [status, setStatus] = useState<PrivacyRequestStatus | null>(null)
 		const [busy, setBusy] = useState(false)
 		const [error, setError] = useState('')
 		const [cooldown, setCooldown] = useState(0)
-		const key = useRef<string | null>(null)
+		const [sessionUID, setSessionUID] = useState(
+			runtime.session?.currentUID() ?? null,
+		)
 		const inFlight = useRef(false)
 		const controller = useRef<AbortController | null>(null)
+		const operation = useRef(0)
 		const available =
 			runtime.intakeEnabled &&
 			!!readPublicPolicyConfig().config.privacyContactURL
-		const signedIn = !!runtime.session?.currentUID()
+		const signedIn = !!sessionUID
+		const statusRef =
+			receipt.supportRequestRef ?? (ref || created?.requestRef || '')
+		const currentStatusRef = useRef(statusRef)
+		currentStatusRef.current = statusRef
 		const bodyBytes = new TextEncoder().encode(body.trim()).length
 		const cooling = cooldown > Date.now()
 		useEffect(() => {
@@ -767,27 +817,44 @@ export function createApp(
 		useEffect(() => {
 			let previousUID = runtime.session?.currentUID()
 			const clear = () => {
+				operation.current += 1
 				controller.current?.abort()
-				setCreated(null)
+				controller.current = null
+				inFlight.current = false
+				currentStatusRef.current = ''
+				setBusy(false)
 				setStatus(null)
-				key.current = null
+				setRef('')
+				setError('')
+				setCooldown(0)
+			}
+			const clearRestoredPage = (event: PageTransitionEvent) => {
+				if (event.persisted) clear()
 			}
 			const unsubscribe = runtime.session?.subscribe((uid) => {
 				if (uid !== previousUID) clear()
 				previousUID = uid
+				setSessionUID(uid)
 			})
 			window.addEventListener('pagehide', clear)
+			window.addEventListener('pageshow', clearRestoredPage)
 			return () => {
-				clear()
+				operation.current += 1
+				controller.current?.abort()
 				unsubscribe?.()
 				window.removeEventListener('pagehide', clear)
+				window.removeEventListener('pageshow', clearRestoredPage)
 			}
 		}, [])
 		const change = (nextPurpose: SupportPurpose, nextBody: string) => {
-			setPurpose(nextPurpose)
-			setBody(nextBody)
-			key.current = null
-			setCreated(null)
+			if (inFlight.current) return
+			receipt.set(null)
+			draft.set({
+				purpose: nextPurpose,
+				body: nextBody,
+				submissionKey: null,
+				created: null,
+			})
 			setStatus(null)
 		}
 		const submit = async () => {
@@ -800,45 +867,75 @@ export function createApp(
 			)
 				return
 			inFlight.current = true
+			const sequence = ++operation.current
+			const uid = runtime.session?.currentUID()
 			setBusy(true)
 			setError('')
-			if (!key.current) key.current = crypto.randomUUID().replaceAll('-', '')
+			receipt.set(null)
+			const submissionKey =
+				draft.value.submissionKey ?? crypto.randomUUID().replaceAll('-', '')
+			draft.set({ ...draft.value, submissionKey })
 			const pending = new AbortController()
 			controller.current = pending
 			try {
 				const result = await runtime.submitPrivacyRequest(
 					purpose,
 					body.trim(),
-					key.current,
+					submissionKey,
 					pending.signal,
 				)
-				if (!pending.signal.aborted) {
-					setCreated(result)
+				if (
+					operation.current === sequence &&
+					!pending.signal.aborted &&
+					runtime.session?.currentUID() === uid
+				) {
+					draft.set({ purpose, body: '', submissionKey, created: result })
 					setRef(result.requestRef)
-					setBody('')
 				}
 			} catch (cause) {
-				if (!pending.signal.aborted) showError(cause)
+				if (
+					operation.current === sequence &&
+					!pending.signal.aborted &&
+					runtime.session?.currentUID() === uid
+				)
+					showError(cause)
 			} finally {
-				inFlight.current = false
-				setBusy(false)
+				if (operation.current === sequence) {
+					controller.current = null
+					inFlight.current = false
+					setBusy(false)
+				}
 			}
 		}
 		const loadStatus = async () => {
 			if (inFlight.current || !available || !signedIn || cooling) return
 			inFlight.current = true
+			const sequence = ++operation.current
+			const uid = runtime.session?.currentUID()
+			const requestedRef = statusRef.trim()
 			setBusy(true)
 			setError('')
 			const pending = new AbortController()
 			controller.current = pending
 			try {
 				const result = await runtime.privacyRequestStatus(
-					(receipt.ref ?? ref).trim(),
+					requestedRef,
 					pending.signal,
 				)
-				if (!pending.signal.aborted) setStatus(result)
+				if (
+					operation.current === sequence &&
+					!pending.signal.aborted &&
+					runtime.session?.currentUID() === uid &&
+					currentStatusRef.current.trim() === requestedRef
+				)
+					setStatus(result)
 			} catch (cause) {
-				if (!pending.signal.aborted) {
+				if (
+					operation.current === sequence &&
+					!pending.signal.aborted &&
+					runtime.session?.currentUID() === uid &&
+					currentStatusRef.current.trim() === requestedRef
+				) {
 					if (
 						cause instanceof RequestError &&
 						cause.code === 'SUPPORT_CHALLENGE_INVALID'
@@ -849,22 +946,25 @@ export function createApp(
 					else showError(cause)
 				}
 			} finally {
-				inFlight.current = false
-				setBusy(false)
+				if (operation.current === sequence) {
+					controller.current = null
+					inFlight.current = false
+					setBusy(false)
+				}
 			}
 		}
 		return (
 			<main className="main-content public-page">
 				<section className="card policy-page">
 					<h1>お問い合わせ</h1>
-					{receipt.ref && (
+					{receipt.proofRef && (
 						<section aria-labelledby="support-complete">
 							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
 							<p>
 								受付窓口で依頼内容と照合して対応します。データの削除やログインの解除は、この画面では実行していません。
 							</p>
 							<p>確認結果の参照番号</p>
-							<p className="proof-reference">{receipt.ref}</p>
+							<p className="proof-reference">{receipt.proofRef}</p>
 							<p>
 								この番号は画面を離れたり、再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
 							</p>
@@ -892,6 +992,7 @@ export function createApp(
 									<select
 										id="privacy-purpose"
 										value={purpose}
+										disabled={busy}
 										onChange={(event) =>
 											change(event.target.value as SupportPurpose, body)
 										}
@@ -906,6 +1007,7 @@ export function createApp(
 									<textarea
 										id="privacy-body"
 										value={body}
+										disabled={busy}
 										maxLength={2000}
 										onChange={(event) => change(purpose, event.target.value)}
 									/>
@@ -947,9 +1049,12 @@ export function createApp(
 							<label htmlFor="privacy-ref">参照番号</label>
 							<input
 								id="privacy-ref"
-								value={receipt.ref ?? ref}
+								value={statusRef}
+								disabled={busy}
 								onChange={(event) => {
+									if (inFlight.current) return
 									receipt.set(null)
+									currentStatusRef.current = event.target.value
 									setRef(event.target.value)
 									setStatus(null)
 								}}

@@ -36,7 +36,7 @@ export type PrivacyRequestStatus = {
 }
 export type ConfirmationResult =
 	| { purpose: 'login' }
-	| { purpose: 'support'; requestRef: string }
+	| { purpose: 'support'; requestRef: string; supportRequestRef?: string }
 export type ChannelConfirmation = (
 	| { purpose: 'login' }
 	| { purpose: 'support'; supportPurpose: SupportPurpose }
@@ -529,10 +529,20 @@ export class BrowserRuntime {
 				!('requestRef' in result) ||
 				typeof result.requestRef !== 'string' ||
 				!/^[a-f0-9]{64}$/.test(result.requestRef) ||
+				('supportRequestRef' in result &&
+					(typeof result.supportRequestRef !== 'string' ||
+						!/^[a-f0-9]{64}$/.test(result.supportRequestRef) ||
+						result.supportRequestRef === result.requestRef)) ||
 				'customToken' in result
 			)
 				throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-			return { purpose: 'support', requestRef: result.requestRef }
+			return {
+				purpose: 'support',
+				requestRef: result.requestRef,
+				...('supportRequestRef' in result
+					? { supportRequestRef: result.supportRequestRef as string }
+					: {}),
+			}
 		}
 		if (
 			!result ||
@@ -540,6 +550,7 @@ export class BrowserRuntime {
 			!('purpose' in result) ||
 			result.purpose !== 'login' ||
 			'requestRef' in result ||
+			'supportRequestRef' in result ||
 			!('customToken' in result) ||
 			typeof result.customToken !== 'string' ||
 			result.customToken === '' ||

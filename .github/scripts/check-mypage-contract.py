@@ -66,7 +66,8 @@ def contract_validator(name):
 confirm = contract_validator("ConfirmResponse")
 confirm.validate({"purpose": "login", "customToken": "synthetic-custom"})
 confirm.validate({"purpose": "support", "requestRef": "a" * 64})
-for invalid in [{"customToken": "synthetic-custom"}, {"purpose": "support", "customToken": "synthetic-custom", "requestRef": "a" * 64}, {"purpose": "login", "requestRef": "a" * 64}, {"purpose": "support", "requestRef": "not-opaque"}]:
+confirm.validate({"purpose": "support", "requestRef": "a" * 64, "supportRequestRef": "b" * 64})
+for invalid in [{"customToken": "synthetic-custom"}, {"purpose": "support", "customToken": "synthetic-custom", "requestRef": "a" * 64}, {"purpose": "login", "requestRef": "a" * 64}, {"purpose": "login", "customToken": "synthetic-custom", "supportRequestRef": "b" * 64}, {"purpose": "support", "requestRef": "not-opaque"}, {"purpose": "support", "requestRef": "a" * 64, "supportRequestRef": "not-opaque"}]:
     assert not confirm.is_valid(invalid)
 channel = contract_validator("ChannelResponse")
 common = {"displayName": "Synthetic channel", "handle": None, "avatarUrl": None, "confirmationRef": "b" * 64}

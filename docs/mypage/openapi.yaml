@@ -863,6 +863,11 @@ components:
           requestRef:
             type: string
             pattern: ^[a-f0-9]{64}$
+            description: Existing one-time support proof reference, not a status request identifier.
+          supportRequestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: Server-bound SupportRequest record reference for authenticated status lookup. Additive during rollout; the proof reference remains separate.
       discriminator:
         propertyName: purpose
     Error:

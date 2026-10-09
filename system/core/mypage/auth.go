@@ -310,7 +310,10 @@ type supportAuthStore interface {
 type ConfirmResponse struct {
 	Purpose     string `json:"purpose"`
 	CustomToken string `json:"customToken,omitempty"`
-	RequestRef  string `json:"requestRef,omitempty"`
+	// RequestRef is the existing proof receipt. SupportRequestRef identifies
+	// the server-bound request record for authenticated status lookup only.
+	RequestRef        string `json:"requestRef,omitempty"`
+	SupportRequestRef string `json:"supportRequestRef,omitempty"`
 }
 
 func transactionPurpose(tx OAuthTransaction) string {
@@ -343,5 +346,5 @@ func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string
 	if err := store.ConsumeSupport(ctx, id, confirmation, s.Policy, s.Support.Environment, proofRef, s.Now().UTC()); err != nil {
 		return ConfirmResponse{}, fmt.Errorf("confirm support purpose: %w", err)
 	}
-	return ConfirmResponse{Purpose: "support", RequestRef: proofRef}, nil
+	return ConfirmResponse{Purpose: "support", RequestRef: proofRef, SupportRequestRef: tx.Support.RequestRef}, nil
 }

@@ -22,6 +22,7 @@ if (import.meta.env.DEV) {
 			? 'SERVICE_ACCESS_RESTRICTED'
 			: null
 	const requests: string[] = []
+	let syntheticVerified = false
 	let holdNext = false
 	let release: (() => void) | null = null
 	const listeners = new Set<(uid: string | null) => void>()
@@ -85,7 +86,21 @@ if (import.meta.env.DEV) {
 		if (
 			mode === 'privacy-intake-authenticated' &&
 			path === '/api/privacy/requests/status'
-		)
+		) {
+			if (holdNext) {
+				holdNext = false
+				await new Promise<void>((resolve) => {
+					release = resolve
+				})
+			}
+			const submitted = JSON.parse(String(init?.body)) as {
+				requestRef?: string
+			}
+			if (!syntheticVerified || submitted.requestRef !== 'c'.repeat(64))
+				return Response.json(
+					{ error: { code: 'SUPPORT_CHALLENGE_INVALID' } },
+					{ status: 400 },
+				)
 			return Response.json({
 				requestRef: 'c'.repeat(64),
 				purpose: 'delete',
@@ -95,6 +110,7 @@ if (import.meta.env.DEV) {
 				verifiedAt: '2026-10-09T01:00:00Z',
 				reply: 'Synthetic operator response',
 			})
+		}
 		if (
 			restriction &&
 			((path === '/api/auth/session/complete' &&
@@ -117,8 +133,15 @@ if (import.meta.env.DEV) {
 			)
 		if (path === '/api/auth/youtube/channel')
 			return Response.json({
-				...(mode?.startsWith('support-confirm-')
-					? { purpose: 'support', supportPurpose: mode.split('-')[2] }
+				...(mode?.startsWith('support-confirm-') ||
+				mode === 'privacy-intake-authenticated'
+					? {
+							purpose: 'support',
+							supportPurpose:
+								mode === 'privacy-intake-authenticated'
+									? 'delete'
+									: mode.split('-')[2],
+						}
 					: { purpose: 'login' }),
 				displayName: 'Sample Channel',
 				handle: '@sample',
@@ -135,9 +158,15 @@ if (import.meta.env.DEV) {
 					release = resolve
 				})
 			}
+			if (mode === 'privacy-intake-authenticated') syntheticVerified = true
 			return Response.json(
-				mode?.startsWith('support-confirm-')
-					? { purpose: 'support', requestRef: 'b'.repeat(64) }
+				mode?.startsWith('support-confirm-') ||
+					mode === 'privacy-intake-authenticated'
+					? {
+							purpose: 'support',
+							requestRef: 'b'.repeat(64),
+							supportRequestRef: 'c'.repeat(64),
+						}
 					: { purpose: 'login', customToken: 'synthetic-custom' },
 			)
 		}

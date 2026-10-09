@@ -4,6 +4,7 @@ package mypage
 
 import (
 	"context"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,50 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestIntakeFreshOAuthReturnsDistinctStatusAndProofReferences(t *testing.T) {
+	s, authStore, provider, minter, now := authTestService(t)
+	ctx := context.Background()
+	s.Support = &FirestoreSupportStore{Client: authStore.Client, Environment: "development"}
+	intake := &FirestorePrivacyIntake{Client: authStore.Client, Environment: "development", IntakeSecret: []byte("synthetic-test-only-key-with-thirty-two-bytes")}
+	uid := provider.channels[0].ID
+	receipt, err := intake.Create(ctx, uid, "synthetic-oauth-key-0001", SupportDelete, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, id, err := s.Start(ctx, "", StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, PrivacyAccepted: true, TermsVersion: s.Policy.Terms, TermsAccepted: true, SupportChallenge: &receipt.Challenge})
+	if err != nil {
+		t.Fatal(err)
+	}
+	redirect, err := url.Parse(start.AuthorizationURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Callback(ctx, id, redirect.Query().Get("state"), "synthetic-code", false); err != nil {
+		t.Fatal(err)
+	}
+	channel, err := s.Channel(ctx, id)
+	if err != nil || channel.Purpose != "support" || channel.SupportPurpose != SupportDelete {
+		t.Fatal("fresh support OAuth did not bind purpose")
+	}
+	confirmation, err := s.ConfirmResult(ctx, id, channel.ConfirmationRef)
+	if err != nil || confirmation.SupportRequestRef != receipt.RequestRef || confirmation.RequestRef == receipt.RequestRef || !validOpaque(confirmation.RequestRef) || minter.calls.Load() != 0 {
+		t.Fatal("proof and status references were confused")
+	}
+	if _, err := intake.Status(ctx, uid, confirmation.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
+		t.Fatal("proof reference opened status")
+	}
+	if err := intake.SetReply(ctx, receipt.RequestRef, "Synthetic reply", now); err != nil {
+		t.Fatal(err)
+	}
+	statusValue, err := intake.Status(ctx, uid, confirmation.SupportRequestRef)
+	if err != nil || statusValue.Reply != "Synthetic reply" {
+		t.Fatal("status did not resolve the verified intake receipt")
+	}
+	if _, err := s.ConfirmResult(ctx, id, channel.ConfirmationRef); err == nil {
+		t.Fatal("OAuth proof replay accepted")
+	}
+}
 
 func TestPrivacyIntakeReceiptIdempotencyReplyAndIsolation(t *testing.T) {
 	_, authStore, _, _, now := authTestService(t)
