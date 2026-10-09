@@ -87,7 +87,10 @@ class FakeS3:
         elif operation == "list-objects-v2":
             prefix = args[args.index("--prefix") + 1]
             present = self.lock if prefix.endswith(".tflock") else self.workspaces
-            value = {"Name": "dummy-state-bucket", "Prefix": prefix, "MaxKeys": 1, "KeyCount": int(present), "IsTruncated": False}
+            # AWS CLI 2.37.9 botocore auto-requests URL encoding and retains
+            # EncodingType in the parsed response after decoding Prefix/Key.
+            value = {"Name": "dummy-state-bucket", "Prefix": prefix, "MaxKeys": 1, "KeyCount": int(present),
+                     "IsTruncated": False, "EncodingType": "url"}
             if present:
                 value["Contents"] = [{"Key": prefix, "Size": 123}]
         else:
@@ -191,8 +194,9 @@ class ReceiptTests(unittest.TestCase):
                         {"ContentLength": True}, {"ContentLength": 16385}, {"ContentLength": 0},
                         {"DeleteMarker": True}, {"ServerSideEncryption": "unknown"}, {"ContentEncoding": "gzip"}):
             self.aws.overrides = {"head-object": changes}; self.aws.calls.clear()
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
+            with self.subTest(changes=changes), self.assertRaises(smoke.StageFailure) as caught:
                 receipt.snapshot_before(self.env, request=self.aws)
+            self.assertEqual((caught.exception.stage, caught.exception.category), ("history-head", "invalid-evidence"))
             self.assertEqual([a[1] for a in self.aws.calls], ["head-object"])
 
     def test_monthly_profile_accepts_no_deletion_deadline_and_rejects_old_lifetime_contract(self):
@@ -248,7 +252,8 @@ class ReceiptTests(unittest.TestCase):
                         {"added_retained_bytes_upper_bound": 0}, {"unapproved": True}):
             changed = copy.deepcopy(early); changed["monthly_ledger_entry"].update(changes)
             path.write_text(json.dumps(changed))
-            with self.assertRaises(ValueError): receipt.snapshot_before(self.env, request=self.aws)
+            with self.assertRaises(smoke.StageFailure) as caught: receipt.snapshot_before(self.env, request=self.aws)
+            self.assertEqual((caught.exception.stage, caught.exception.category), ("history-policy", "invalid-evidence"))
         self.assertEqual(self.aws.calls, [])
 
     def test_normal_unlock_or_failed_receipt_never_cancels_recurring_storage_reservation(self):
@@ -318,13 +323,24 @@ class ReceiptTests(unittest.TestCase):
         receipt.policy(self.env)
         for override in ({"KeyCount": 1, "Contents": [{"Key": receipt.STATE_KEY + ".tflock"}]}, {"IsTruncated": True},
                          {"KeyCount": None}, {"MaxKeys": True}, {"Prefix": "other"}, {"Name": "foreign"},
-                         {"NextContinuationToken": "more"}, {"error": {"code": 403}}, {"unapproved": False}):
+                         {"NextContinuationToken": "more"}, {"NextContinuationToken": ""},
+                         {"CommonPrefixes": None}, {"CommonPrefixes": [{"Prefix": "private"}]},
+                         {"error": {"code": 403}}, {"unapproved": False},
+                         {"EncodingType": "xml"}, {"EncodingType": None}, {"EncodingType": True}):
             self.aws.overrides = {"list-objects-v2": override}
             with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
         self.aws.overrides = {}; self.aws.denied = "list-objects-v2"
         with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
         self.aws.denied = None; self.aws.network = True
         with self.assertRaises(RuntimeError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+
+    def test_sdk_url_encoding_proves_empty_lock_and_workspace_lists_only(self):
+        receipt.policy(self.env)
+        for prefix in (receipt.STATE_KEY + ".tflock", receipt.STATE_KEY.rsplit("/", 1)[0] + "/workspaces/"):
+            with self.subTest(prefix=prefix):
+                receipt.absent(self.env, prefix, request=self.aws)
+                self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
+                self.assertEqual(self.aws.calls[-1][self.aws.calls[-1].index("--prefix") + 1], prefix)
 
     def test_released_lock_is_required_and_failed_plan_or_import_zero_cannot_pass(self):
         self.baseline(); self.aws.lock = True
@@ -420,7 +436,8 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(OSError): receipt.policy(self.env)
         self.assertEqual(target.read_text(), "DUMMY_KEEP")
         path.unlink(); receipt.policy(self.env); path.chmod(0o644)
-        with self.assertRaises(ValueError): receipt.snapshot_before(self.env, request=self.aws)
+        with self.assertRaises(smoke.StageFailure) as caught: receipt.snapshot_before(self.env, request=self.aws)
+        self.assertEqual((caught.exception.stage, caught.exception.category), ("history-policy", "invalid-evidence"))
         self.assertEqual(self.aws.calls, [])
         for changes in ({"MODE": "apply"}, {"TF_WORKSPACE": "foreign"}, {"TF_VAR_project_id": "youtube-study-space"}):
             with self.assertRaises(ValueError): receipt.policy(dict(self.env, **changes))

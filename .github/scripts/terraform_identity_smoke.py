@@ -22,6 +22,39 @@ class SmokeFailure(Exception):
     pass
 
 
+STAGES = frozenset({
+    "oidc", "gcp-project", "gcp-quota", "gcp-export", "gcp-function",
+    "aws-sts", "aws-state-read", "history-policy", "history-head",
+    "history-get", "history-re-head", "history-lock-list",
+    "history-workspace-list", "identity-mode", "identity-output",
+})
+CATEGORIES = frozenset({"check-failed", "invalid-evidence", "dependency-error"})
+
+
+class StageFailure(Exception):
+    """Only fixed diagnostic labels may cross the public output boundary."""
+
+    def __init__(self, stage: str, category: str):
+        if stage not in STAGES or category not in CATEGORIES:
+            raise ValueError("Invalid identity smoke diagnostic label")
+        self.stage, self.category = stage, category
+        super().__init__(stage, category)
+
+
+def at_stage(stage: str, operation):
+    try:
+        return operation()
+    except StageFailure:
+        raise
+    except SmokeFailure:
+        raise StageFailure(stage, "check-failed") from None
+    except (ValueError, TypeError, KeyError, IndexError):
+        raise StageFailure(stage, "invalid-evidence") from None
+    except Exception:
+        # Dependency exceptions may contain URLs, payloads, tokens and IDs.
+        raise StageFailure(stage, "dependency-error") from None
+
+
 FORBIDDEN_PERMISSIONS = (
     "resourcemanager.projects.update", "resourcemanager.projects.delete",
     "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
@@ -236,12 +269,14 @@ def state_counts(state: dict) -> str:
 
 
 def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
-    identity = aws("sts", "get-caller-identity")
-    if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
-        raise SmokeFailure("aws-dedicated-state-account")
+    def check_sts():
+        identity = aws("sts", "get-caller-identity")
+        if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
+            raise SmokeFailure("aws-dedicated-state-account")
+    at_stage("aws-sts", check_sts)
     bucket, key = env["STATE_BUCKET"], env["STATE_KEY"]
     if key != "youtube-study-space/dev/terraform.tfstate":
-        raise SmokeFailure("aws-development-state-key")
+        raise StageFailure("aws-state-read", "check-failed")
     if plan_read_only and env.get("TF_VAR_manage_user_activity_history") == "true":
         # Reuse this initial read for the complete private receipt. The cost
         # policy is validated before authentication and before any native lock.
@@ -251,10 +286,12 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False) -> list[str
                 "Owner-evidenced cost bound and native lock/workspace absence prechecks"]
     with tempfile.TemporaryDirectory(dir=env["RUNNER_TEMP"]) as directory:
         state = Path(directory) / "state.json"
-        result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))
-        if result.returncode or not state.is_file():
-            raise SmokeFailure("aws-development-state-read")
-        counts = state_counts(json.loads(state.read_text()))
+        def read_state():
+            result = aws("s3api", "get-object", "--bucket", bucket, "--key", key, str(state))
+            if result.returncode or not state.is_file():
+                raise SmokeFailure("aws-development-state-read")
+            return state_counts(json.loads(state.read_text()))
+        counts = at_stage("aws-state-read", read_state)
         checks = ["AWS OIDC + dedicated STS identity", "AWS development state read", counts]
         if plan_read_only:
             return checks
@@ -277,29 +314,29 @@ def main(argv: list[str] | None = None) -> int:
         env = os.environ
         args = sys.argv[1:] if argv is None else argv
         if args == ["quota-apply"]:
-            checks = verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply")
+            checks = at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply"))
         elif args == ["export-function"]:
-            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True, function=True)
-            checks += configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env)
+            checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True, function=True))
+            checks += at_stage("gcp-function", lambda: configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env))
         elif args == ["export-scheduler"]:
-            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True)
+            checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True))
         elif args == ["export-topic"]:
-            checks = verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"])
+            checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"]))
         elif not args or args == ["plan-read-only"]:
             plan_read_only = args == ["plan-read-only"]
-            checks = verify_oidc(env, plan_read_only=plan_read_only)
-            checks += verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=plan_read_only)
+            checks = at_stage("oidc", lambda: verify_oidc(env, plan_read_only=plan_read_only))
+            checks += at_stage("gcp-project", lambda: verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=plan_read_only))
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
-                checks += verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan", plan_read_only=plan_read_only)
+                checks += at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="plan", plan_read_only=plan_read_only))
             if env.get("EXPORT_TOPIC_IDENTITY_REQUIRED") == "true":
-                checks += verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
+                checks += at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"],
                     scheduler=env.get("EXPORT_SCHEDULER_IDENTITY_REQUIRED") == "true",
-                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true", plan_read_only=plan_read_only)
+                    function=env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true", plan_read_only=plan_read_only))
                 if env.get("EXPORT_FUNCTION_IDENTITY_REQUIRED") == "true":
-                    checks += configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env)
+                    checks += at_stage("gcp-function", lambda: configure_function_execution_identity(env["GCP_SMOKE_ACCESS_TOKEN"], env))
             checks += verify_aws(env, plan_read_only=plan_read_only)
         else:
-            raise SmokeFailure("unsupported-identity-smoke-mode")
+            raise StageFailure("identity-mode", "check-failed")
         title = "Development plan read-only checks" if args == ["plan-read-only"] else "Development identity smoke"
         summary = f"### {title}\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
         if args == ["plan-read-only"]:
@@ -311,16 +348,20 @@ def main(argv: list[str] | None = None) -> int:
                 "GCP production permission checks",
             ))
             summary += "\nFull security gate: NOT VERIFIED by this read-only plan.\n"
-        with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
-            output.write(summary)
+        def write_summary():
+            with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+                output.write(summary)
+        at_stage("identity-output", write_summary)
         print("Development plan read-only checks: PASS; full security gate: NOT VERIFIED"
               if args == ["plan-read-only"] else "Development identity smoke: PASS")
         return 0
-    except SmokeFailure as error:
-        print(f"::error::Development identity smoke failed: {error}", file=sys.stderr)
+    except StageFailure as error:
+        print(f"::error::Development identity smoke STOP; stage={error.stage}; category={error.category}.", file=sys.stderr)
+    except SmokeFailure:
+        print("::error::Development identity smoke STOP; stage=identity-mode; category=check-failed.", file=sys.stderr)
     except Exception:
         # Do not expose URLs, API response bodies, env values, or subprocess errors.
-        print("::error::Development identity smoke could not complete; raw error suppressed.", file=sys.stderr)
+        print("::error::Development identity smoke STOP; stage=identity-mode; category=dependency-error.", file=sys.stderr)
     return 1
 
 

@@ -19,7 +19,7 @@ import stat
 import sys
 import uuid
 
-from terraform_identity_smoke import aws, google
+from terraform_identity_smoke import at_stage, aws, google
 from terraform_email_adoption_gate import CHANNEL, EXISTING
 from terraform_quota_create_gate import ADDRESSES
 from terraform_export_topic_gate import TOPIC
@@ -174,12 +174,15 @@ def absent(env, prefix, *, request=None):
     # A positive successful LIST response proves absence. HEAD 403/404,
     # network failures, malformed/truncated results are never treated as proof.
     value = s3(env, "list-objects-v2", "--prefix", prefix, "--max-keys", "1", request=request)
-    require(set(value) <= {"Name", "Prefix", "MaxKeys", "KeyCount", "IsTruncated", "Contents", "CommonPrefixes", "NextContinuationToken"})
+    # AWS CLI 2.37.9/botocore auto-requests EncodingType=url for ListObjectsV2.
+    # Its response decoder keeps this field while decoding Prefix/Key values.
+    require(set(value) <= {"Name", "Prefix", "MaxKeys", "KeyCount", "IsTruncated", "Contents", "CommonPrefixes", "NextContinuationToken", "EncodingType"})
+    require("EncodingType" not in value or value["EncodingType"] == "url")
     require(value.get("Name") == env["STATE_BUCKET"] and value.get("Prefix") == prefix)
     require(type(value.get("MaxKeys")) is int and value["MaxKeys"] == 1)
     require(type(value.get("KeyCount")) is int and value["KeyCount"] == 0)
     require(value.get("IsTruncated") is False and value.get("Contents", []) == [])
-    require(not value.get("CommonPrefixes") and not value.get("NextContinuationToken"))
+    require(value.get("CommonPrefixes", []) == [] and "NextContinuationToken" not in value)
 
 
 def head(env, maximum, *, request=None):
@@ -273,27 +276,35 @@ def checks_pass(checks):
 
 
 def snapshot(env, phase, *, request=None):
-    directory, budget = load_policy(env, fresh=phase != "after")
+    staged = phase == "before"
+    directory, budget = (at_stage("history-policy", lambda: load_policy(env)) if staged
+                         else load_policy(env, fresh=False))
     maximum = budget["profile"]["max_state_bytes"]
-    before = head(env, maximum, request=request)
+    before = (at_stage("history-head", lambda: head(env, maximum, request=request)) if staged
+              else head(env, maximum, request=request))
     target = directory / f"history-plan-state-{phase}.json"
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    os.close(fd)
-    result = s3(env, "get-object", "--key", STATE_KEY, "--range", f"bytes=0-{maximum}", str(target), request=request)
-    raw = private_bytes(target)
-    require(result.get("VersionId") == before["VersionId"] and result.get("ETag") == before["ETag"])
-    require(result.get("ContentLength") == len(raw) == before["ContentLength"])
-    state = state_shape(raw)
-    require(head(env, maximum, request=request) == before)
+    def read_state():
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        os.close(fd)
+        result = s3(env, "get-object", "--key", STATE_KEY, "--range", f"bytes=0-{maximum}", str(target), request=request)
+        raw = private_bytes(target)
+        require(result.get("VersionId") == before["VersionId"] and result.get("ETag") == before["ETag"])
+        require(result.get("ContentLength") == len(raw) == before["ContentLength"])
+        return raw, state_shape(raw)
+    raw, state = (at_stage("history-get", read_state) if staged else read_state())
+    if staged:
+        at_stage("history-re-head", lambda: require(head(env, maximum, request=request) == before))
+    else:
+        require(head(env, maximum, request=request) == before)
     return {"head": before, "sha256": hashlib.sha256(raw).hexdigest(),
             "serial": state["serial"], "lineage": state["lineage"]}
 
 
 def snapshot_before(env, *, request=None):
-    directory, _ = load_policy(env)
+    directory, _ = at_stage("history-policy", lambda: load_policy(env))
     captured = snapshot(env, "before", request=request)
-    absent(env, STATE_KEY + ".tflock", request=request)
-    absent(env, STATE_KEY.rsplit("/", 1)[0] + "/workspaces/", request=request)
+    at_stage("history-lock-list", lambda: absent(env, STATE_KEY + ".tflock", request=request))
+    at_stage("history-workspace-list", lambda: absent(env, STATE_KEY.rsplit("/", 1)[0] + "/workspaces/", request=request))
     write_private(directory / "history-plan-state-before-receipt.json", captured)
 
 
