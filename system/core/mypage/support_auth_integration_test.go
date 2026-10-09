@@ -71,7 +71,7 @@ func TestSupportConfirmThroughHTTPNeverMintsOrCreatesWebAccount(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Purpose != "support" || !validOpaque(response.RequestRef) || response.CustomToken != "" || minter.calls.Load() != 0 || strings.Contains(w.Body.String(), "customToken") {
+	if response.Purpose != "support" || !validOpaque(response.RequestRef) || response.SupportRequestRef != requestRef || response.RequestRef == requestRef || response.CustomToken != "" || minter.calls.Load() != 0 || strings.Contains(w.Body.String(), "customToken") {
 		t.Fatal("support proof was used as normal login")
 	}
 	doc, err := store.Client.Collection("support-requests").Doc(requestRef).Get(ctx)

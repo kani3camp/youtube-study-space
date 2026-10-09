@@ -99,6 +99,8 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 | Phase 0A準備 | exact commit/CI、設定preflight、公開文面とAPI前同意、対象/rollback/実試験計画 | local prepareは継続。target値を推測しない |
 | 0A実施承認 | 対象project/domain/revision、操作一覧、本人test accounts、infra/security証跡、秘密の供給方式 | live実行/公開/追加IAMを行わない |
 | 0B受入 | 0A実経路PASS、D01/D02/D03、返信窓口、7日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
+
+Privacy受付の[アプリ内source package](../privacy-intake.md)はdefault off。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。返信担当/認可/監査とログイン不能時の人的例外窓口を成立させ、D02/D03と実経路を確認してから別の公開判断を行う。
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
 正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は2026-10-07 Canonの独立ServiceAccessControlに決定済み。AのguardとBの横断削除/drain完了を区別し、D02の新しい残余リスク受容は本人判断に残す。

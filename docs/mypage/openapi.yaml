@@ -269,6 +269,69 @@ paths:
         parameters; authenticated identity is verified custom-provider uid only.
         Fresh ServiceAccessControl is checked before account/cache reads; active
         reasons return stable 403 codes, read/decode failures return 503.
+  /api/privacy/requests:
+    post:
+      operationId: submitPrivacyRequest
+      description: Feature disabled by default. Existing verified Firebase custom uid is the target.
+        ServiceAccessControl does not block this narrow intake. Receipt is committed before
+        fresh purpose-bound support OAuth; no deletion, disclosure or revoke occurs here.
+        Exact retries preserve acceptedAt and deleteBy; changed input with the same key is 409.
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivacyIntakeRequest'
+      responses:
+        '200':
+          description: Committed receipt, including a challenge only while still awaiting proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyIntakeReceipt'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id006
+        '413': *id008
+        '429': *id009
+        '503': *id011
+  /api/privacy/requests/status:
+    post:
+      operationId: getPrivacyRequestStatus
+      description: Requires matching Firebase uid and completed fresh support OAuth proof.
+        Opaque ref alone cannot reveal a reply. Available during ordinary service restriction.
+        Completed/anonymized requests use the configured human exception contact.
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestRef]
+              properties:
+                requestRef:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+      responses:
+        '200':
+          description: Verified status and optional operator response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyRequestStatus'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '429': *id009
+        '503': *id011
 components:
   securitySchemes:
     FirebaseAuth:
@@ -285,6 +348,73 @@ components:
       name: __session
       description: Opaque ID; HttpOnly; Secure; SameSite=Lax; Path=/; no Domain; Max-Age=600.
   schemas:
+    PrivacyIntakeRequest:
+      type: object
+      additionalProperties: false
+      required: [submissionKey, purpose, body]
+      properties:
+        submissionKey:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{16,128}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        body:
+          type: string
+          minLength: 0
+          maxLength: 2000
+          description: At most 2000 UTF-8 bytes; leading/trailing whitespace and controls are rejected.
+    PrivacyIntakeReceipt:
+      type: object
+      additionalProperties: false
+      required: [requestRef, purpose, status, acceptedAt, deleteBy]
+      properties:
+        requestRef:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        supportChallenge:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        status:
+          type: string
+          enum: [awaiting_proof, verified]
+        acceptedAt:
+          type: string
+          format: date-time
+        deleteBy:
+          type: [string, 'null']
+          format: date-time
+    PrivacyRequestStatus:
+      type: object
+      additionalProperties: false
+      required: [requestRef, purpose, status, acceptedAt, deleteBy, verifiedAt]
+      properties:
+        requestRef:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        status:
+          const: verified
+        acceptedAt:
+          type: string
+          format: date-time
+        deleteBy:
+          type: [string, 'null']
+          format: date-time
+        verifiedAt:
+          type: string
+          format: date-time
+        reply:
+          type: string
+          maxLength: 2000
+        replyAt:
+          type: string
+          format: date-time
     ReasonCode:
       type:
       - string
@@ -733,6 +863,11 @@ components:
           requestRef:
             type: string
             pattern: ^[a-f0-9]{64}$
+            description: Existing one-time support proof reference, not a status request identifier.
+          supportRequestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: Server-bound SupportRequest record reference for authenticated status lookup. Additive during rollout; the proof reference remains separate.
       discriminator:
         propertyName: purpose
     Error:
@@ -762,6 +897,7 @@ components:
               - DATA_DELETION_IN_PROGRESS
               - SUPPORT_CHALLENGE_INVALID
               - SUPPORT_CHANNEL_MISMATCH
+              - INTAKE_KEY_CONFLICT
               - OAUTH_FAILED
               - OAUTH_SCOPE_INSUFFICIENT
               - CHANNEL_UNAVAILABLE

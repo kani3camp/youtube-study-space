@@ -850,6 +850,42 @@ summary {
 	font-family: monospace;
 }
 
+.policy-page input,
+.policy-page textarea,
+.policy-page select {
+	max-width: 100%;
+}
+
+.privacy-intake-form {
+	display: grid;
+	gap: 10px;
+	margin-block: 20px;
+}
+.privacy-intake-form label {
+	font-weight: 700;
+}
+.privacy-intake-form select,
+.privacy-intake-form textarea,
+#privacy-ref {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid var(--color-line);
+	border-radius: 8px;
+	background: #fff;
+	color: var(--color-ink);
+}
+.privacy-intake-form textarea {
+	min-height: 128px;
+	resize: vertical;
+}
+.privacy-intake-form .button {
+	justify-self: start;
+}
+#privacy-ref {
+	display: block;
+	margin-block: 8px;
+}
+
 .consent-banner {
 	max-width: 880px;
 	margin: 24px auto;

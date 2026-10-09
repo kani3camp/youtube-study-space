@@ -19,12 +19,14 @@ expected_paths = {
     "/api/auth/youtube/confirm": "post",
     "/api/auth/session/complete": "post",
     "/api/mypage": "get",
+    "/api/privacy/requests": "post",
+    "/api/privacy/requests/status": "post",
 }
 assert set(api["paths"]) == set(expected_paths)
 for path, method in expected_paths.items():
     assert set(api["paths"][path]) == {method}
     op = api["paths"][path][method]
-    if path in ("/api/mypage", "/api/auth/session/complete"):
+    if path in ("/api/mypage", "/api/auth/session/complete", "/api/privacy/requests", "/api/privacy/requests/status"):
         assert op["security"] == [{"FirebaseAuth": [], "AppCheck": []}]
     elif path.endswith("callback"):
         assert op["security"] == []
@@ -54,7 +56,7 @@ rejects(lambda x: x["summary"]["data"]["today"].update(workSec=1.5))
 rejects(lambda x: x["summary"]["data"]["today"].update(availability="unavailable", workSec=0))
 rejects(lambda x: x["current"].update(availability="unavailable", reasonCode="SOURCE_UNAVAILABLE"))
 rejects(lambda x: x["current"]["data"].update(breakWorkName="obsolete"))
-print(f"MyPage six-endpoint schema and {len(fixtures)} synthetic fixtures passed")
+print(f"MyPage eight-endpoint schema and {len(fixtures)} synthetic fixtures passed")
 
 
 # Purpose is authoritative server-side. A support response cannot carry a login
@@ -64,7 +66,8 @@ def contract_validator(name):
 confirm = contract_validator("ConfirmResponse")
 confirm.validate({"purpose": "login", "customToken": "synthetic-custom"})
 confirm.validate({"purpose": "support", "requestRef": "a" * 64})
-for invalid in [{"customToken": "synthetic-custom"}, {"purpose": "support", "customToken": "synthetic-custom", "requestRef": "a" * 64}, {"purpose": "login", "requestRef": "a" * 64}, {"purpose": "support", "requestRef": "not-opaque"}]:
+confirm.validate({"purpose": "support", "requestRef": "a" * 64, "supportRequestRef": "b" * 64})
+for invalid in [{"customToken": "synthetic-custom"}, {"purpose": "support", "customToken": "synthetic-custom", "requestRef": "a" * 64}, {"purpose": "login", "requestRef": "a" * 64}, {"purpose": "login", "customToken": "synthetic-custom", "supportRequestRef": "b" * 64}, {"purpose": "support", "requestRef": "not-opaque"}, {"purpose": "support", "requestRef": "a" * 64, "supportRequestRef": "not-opaque"}]:
     assert not confirm.is_valid(invalid)
 channel = contract_validator("ChannelResponse")
 common = {"displayName": "Synthetic channel", "handle": None, "avatarUrl": None, "confirmationRef": "b" * 64}
@@ -81,6 +84,19 @@ for invalid in [None, "", "client-channel"]:
     assert not start.is_valid({**normal, "supportChallenge": invalid})
 assert not start.is_valid({**normal, "targetChannel": "UCsynthetic"})
 print("Login/support discriminated contract and purpose isolation passed")
+
+intake = contract_validator("PrivacyIntakeRequest")
+intake.validate({"submissionKey": "synthetic-key-0001", "purpose": "delete", "body": "Synthetic request"})
+for invalid in [
+    {"submissionKey": "synthetic-key-0001", "purpose": "login", "body": "Synthetic request"},
+    {"submissionKey": "synthetic-key-0001", "purpose": "delete", "body": "Synthetic request", "targetChannel": "UCvictim"},
+]:
+    assert not intake.is_valid(invalid)
+receipt = contract_validator("PrivacyIntakeReceipt")
+receipt.validate({"requestRef": "a" * 64, "supportChallenge": "b" * 64, "purpose": "delete", "status": "awaiting_proof", "acceptedAt": "2026-10-09T00:00:00Z", "deleteBy": "2026-10-16T00:00:00Z"})
+status_schema = contract_validator("PrivacyRequestStatus")
+status_schema.validate({"requestRef": "a" * 64, "purpose": "delete", "status": "verified", "acceptedAt": "2026-10-09T00:00:00Z", "deleteBy": "2026-10-16T00:00:00Z", "verifiedAt": "2026-10-09T01:00:00Z", "reply": "Synthetic reply"})
+assert not status_schema.is_valid({"requestRef": "a" * 64, "purpose": "delete", "status": "awaiting_proof", "acceptedAt": "2026-10-09T00:00:00Z", "deleteBy": "2026-10-16T00:00:00Z", "verifiedAt": "2026-10-09T01:00:00Z", "reply": "Synthetic reply"})
 
 # Restriction wire codes are stable and cannot carry internal reason/target data.
 error = contract_validator("Error")

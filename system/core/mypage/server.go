@@ -47,6 +47,10 @@ func NewKeylessFirebaseClient(ctx context.Context, projectID, signerEmail string
 type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
+	// Default off. Enable only after the reply operator and no-session
+	// exception contact are operational and D02/D03 are resolved.
+	EnablePrivacyIntake bool
+	PrivacyIntakeSecret []byte
 	// Supply only verified historical coverage; nil means unavailable history.
 	Coverage []Interval
 }
@@ -72,6 +76,9 @@ func (config ServerConfig) validate() error {
 	if !validSupportEnvironment(config.Environment) || !firebaseProjectID.MatchString(config.ProjectID) || config.Policy.Privacy == "" || config.Policy.Terms == "" {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
+	if config.EnablePrivacyIntake && len(config.PrivacyIntakeSecret) < 32 {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
 	if _, err := NewGoogleYouTubeOAuth("validation-only", "validation-only", config.PublicOrigin, nil); err != nil {
 		return err
 	}
@@ -89,7 +96,7 @@ type ServerDependencies struct {
 	Now            func() time.Time
 }
 
-// NewMyPageServer constructs the six-endpoint handler without bootstrap IO,
+// NewMyPageServer constructs the handler without bootstrap IO,
 // service-account creation, secret access, listen/deploy, or notifications.
 func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler, error) {
 	if config.validate() != nil || deps.Firestore == nil || deps.Firebase == nil || deps.OAuth == nil {
@@ -111,9 +118,13 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 		metadata = &AccountMetadataRefresh{Access: access, Provider: deps.PublicMetadata, Store: store, Policy: config.Policy, Now: now}
 	}
 
-	return &HTTPHandler{
+	handler := &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, Verifier: boundary,
 		Auth: &AuthService{Access: access, Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
 		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
-	}, nil
+	}
+	if config.EnablePrivacyIntake {
+		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}
+	}
+	return handler, nil
 }

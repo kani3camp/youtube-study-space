@@ -22,7 +22,7 @@ func errorCode(err error) string {
 	var e *APIError
 	if errors.As(err, &e) {
 		switch e.Code {
-		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
+		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "INTAKE_KEY_CONFLICT", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
 			return e.Code
 		}
 	}
@@ -310,7 +310,10 @@ type supportAuthStore interface {
 type ConfirmResponse struct {
 	Purpose     string `json:"purpose"`
 	CustomToken string `json:"customToken,omitempty"`
-	RequestRef  string `json:"requestRef,omitempty"`
+	// RequestRef is the existing proof receipt. SupportRequestRef identifies
+	// the server-bound request record for authenticated status lookup only.
+	RequestRef        string `json:"requestRef,omitempty"`
+	SupportRequestRef string `json:"supportRequestRef,omitempty"`
 }
 
 func transactionPurpose(tx OAuthTransaction) string {
@@ -343,5 +346,5 @@ func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string
 	if err := store.ConsumeSupport(ctx, id, confirmation, s.Policy, s.Support.Environment, proofRef, s.Now().UTC()); err != nil {
 		return ConfirmResponse{}, fmt.Errorf("confirm support purpose: %w", err)
 	}
-	return ConfirmResponse{Purpose: "support", RequestRef: proofRef}, nil
+	return ConfirmResponse{Purpose: "support", RequestRef: proofRef, SupportRequestRef: tx.Support.RequestRef}, nil
 }

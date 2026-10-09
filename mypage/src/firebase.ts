@@ -70,7 +70,13 @@ export function initializeRuntime() {
 				(await signInWithCustomToken(auth, token)).user.uid,
 			signOut: () => signOut(auth),
 		}
-		return new BrowserRuntime(session, policy)
+		return new BrowserRuntime(
+			session,
+			policy,
+			fetch,
+			null,
+			env.VITE_PRIVACY_INTAKE_ENABLED === 'true',
+		)
 	} catch {
 		return new BrowserRuntime(null, policy, fetch, 'SUPPORTED_BROWSER_REQUIRED')
 	}
