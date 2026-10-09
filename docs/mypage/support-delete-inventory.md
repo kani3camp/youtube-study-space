@@ -17,7 +17,7 @@
 | `firebase-auth` | 現在・旧 mapped UID、mint/token/session | 明示 project/tenant/UID、mint と配達 drain、revoke/delete の結果と readback |
 | `bigquery` | 3 本表、`tmp`、load/query/copy/export job と結果コピー | main/tmp 不存在、実行・再開可能な古い job/source が再投入しないこと |
 | `backups-exports` | mixed GCS snapshot、generation/soft delete、managed backup/PITR、local JSON/export copies | snapshot integrity を維持した帰属・残存処置、recoverable copy と restore の確認 |
-| `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡 |
+| `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡。合成adapterは[別文書](support-delete-derived-adapter.md)参照 |
 | `platform-logs` | local/CloudWatch/SFN/API/Hosting/Cloud Run/vendor logs、forwarded payload | 各 sink の実帰属と処置、遅延 forwarding drain、実設定の redaction |
 
 Canon 05 の境界は、停止前に取得・受付した古い message、seat snapshot、callback、mint/result、import/restore/retry が削除済みデータを復活させないこと。再開後の正当な新しい利用による新規データ作成は許容する。初期 SAC は MyPage のみで、既存 Bot の通常 writer、`!block` と YouTube Ban の意味を変更しない。

@@ -34,15 +34,27 @@ func (s *FirestoreDeletionStore) check(selector supportdelete.Selector) error {
 
 func readDeletionExecution(doc *firestore.DocumentSnapshot) (supportdelete.Execution, error) {
 	var e supportdelete.Execution
-	if doc == nil || (len(doc.Data()) != 12 && len(doc.Data()) != 13) || doc.DataTo(&e) != nil || e.Validate() != nil {
+	if doc == nil || (len(doc.Data()) < 12 || len(doc.Data()) > 14) || doc.DataTo(&e) != nil || e.Validate() != nil {
 		return e, supportdelete.ErrUnavailable
 	}
 	data := doc.Data()
-	if len(data) == 13 {
-		ref, ok := data["bigQueryInventoryRef"].(string)
-		if !ok || !supportdelete.ValidRef(ref) {
+	extras := 0
+	if ref, ok := data["bigQueryInventoryRef"]; ok {
+		extras++
+		value, typeOK := ref.(string)
+		if !typeOK || !supportdelete.ValidRef(value) {
 			return e, supportdelete.ErrUnavailable
 		}
+	}
+	if ref, ok := data["derivedInventoryRef"]; ok {
+		extras++
+		value, typeOK := ref.(string)
+		if !typeOK || !supportdelete.ValidRef(value) {
+			return e, supportdelete.ErrUnavailable
+		}
+	}
+	if len(data) != 12+extras {
+		return e, supportdelete.ErrUnavailable
 	}
 	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {
 		if _, ok := data[key]; !ok {
