@@ -230,6 +230,9 @@ func (s *FirestoreDeletionStore) Refresh(ctx context.Context, expected supportde
 		if result.Cursor > supportdelete.InspectionStart() && result.Cursor < supportdelete.ResumeStart() {
 			result.Cursor = supportdelete.InspectionStart()
 		}
+		if err := s.moveAuthOwnership(tx, e, result, false); err != nil {
+			return err
+		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -256,6 +259,9 @@ func (s *FirestoreDeletionStore) Commit(ctx context.Context, expected supportdel
 		result.Revision++
 		result.EvidenceDigest = supportdelete.EvidenceDigest(e.EvidenceDigest, evidence)
 		result.UpdatedAt = now.UTC().Truncate(time.Microsecond)
+		if err := s.moveAuthOwnership(tx, e, result, false); err != nil {
+			return err
+		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -285,9 +291,13 @@ func (s *FirestoreDeletionStore) Recover(ctx context.Context, proof supportdelet
 		if _, _, err = s.readFence(tx, e, true); err != nil {
 			return err
 		}
+		previous := e
 		e.OwnerRef = proof.NewOwnerRef
 		e.Revision++
 		e.UpdatedAt = now.UTC().Truncate(time.Microsecond)
+		if err := s.moveAuthOwnership(tx, previous, e, false); err != nil {
+			return err
+		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), e) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -326,6 +336,9 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		// Minimal opaque terminal receipts carry no channel/proof/request links.
 		// Inactive control checkpoints are retained without TTL/reset/deletion.
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond)}
+		if err := s.moveAuthOwnership(tx, e, e, true); err != nil {
+			return err
+		}
 		for _, ref := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(receipt.OAuthTransactionID), s.Client.Collection("support-request-ids").Doc(digest(receipt.Environment + ":" + receipt.RequestID)), s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef)} {
 			if tx.Delete(ref) != nil {
 				return supportdelete.ErrUnavailable
