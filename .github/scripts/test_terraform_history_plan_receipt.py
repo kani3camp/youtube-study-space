@@ -27,7 +27,7 @@ ACTUAL_COST_POLICY = receipt.cost_policy
 def profile(**changes):
     return {"model": receipt.MODEL, "git_sha": SHA, "issued_utc": "2026-10-08T11:00:00Z",
             "expires_utc": "2026-10-08T13:00:00Z", "max_state_bytes": 16384,
-            "lock_retention_days": 31, "cloud_side_cost_usd": "0.003",
+            "budget_month": "2026-10", "cloud_side_cost_usd": "0.003",
             "cloud_side_evidence_reviewed": True, "rates_verified": True,
             "state_writers_quiescent": True} | changes
 
@@ -159,7 +159,7 @@ class ReceiptTests(unittest.TestCase):
         bad = ["", "{}", '{"model":1,"model":2}', "NaN", "[]", json.dumps(profile(unapproved=True)),
                *[json.dumps(profile(**{key: value})) for key, value in [
                    ("git_sha", "b" * 40), ("model", "unknown"), ("max_state_bytes", True), ("max_state_bytes", receipt.MAX_BYTES + 1),
-                   ("max_state_bytes", 0), ("lock_retention_days", 0), ("cloud_side_cost_usd", "NaN"),
+                   ("max_state_bytes", 0), ("budget_month", "2026-09"), ("cloud_side_cost_usd", "NaN"),
                    ("cloud_side_cost_usd", "0"), ("cloud_side_cost_usd", "0.009"), ("cloud_side_cost_usd", "-0.01"),
                    ("cloud_side_cost_usd", 0.001), ("expires_utc", "2026-10-08T11:59:59Z"),
                    ("issued_utc", "2026-10-08T12:00:01Z"), ("expires_utc", "2026-10-10T12:00:00Z"),
@@ -170,12 +170,14 @@ class ReceiptTests(unittest.TestCase):
             self.assertFalse((self.root / "history-plan-cost.json").exists())
         self.assertEqual((self.aws.calls, self.google_calls), ([], []))
 
-    def test_cost_bound_accounts_for_size_retention_and_all_ceiling_components(self):
+    def test_cost_bound_accounts_for_size_full_month_storage_and_all_ceiling_components(self):
         value = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
-        expected = (Decimal(256) * Decimal("0.00001") + Decimal(128) * Decimal("0.00001")
-                    + Decimal(64 * 16384 + 256 * 16384) / Decimal(1024 ** 3) * Decimal("0.25")
-                    + Decimal(2 * 32768 * 31) / Decimal(1024 ** 3) / Decimal(30) * Decimal("0.10") + Decimal("0.003"))
-        self.assertEqual(Decimal(value["upper_bound_usd"]), expected.quantize(Decimal("0.000000001"), rounding=ROUND_CEILING))
+        once = (Decimal(256) * Decimal("0.00001") + Decimal(128) * Decimal("0.00001")
+                + Decimal(64 * 16384 + 256 * 16384) / Decimal(1024 ** 3) * Decimal("0.25") + Decimal("0.003"))
+        storage = Decimal(2 * 32768) / Decimal(1024 ** 3) * Decimal("0.10")
+        quantum = Decimal("0.000000001")
+        expected = once.quantize(quantum, rounding=ROUND_CEILING) + storage.quantize(quantum, rounding=ROUND_CEILING)
+        self.assertEqual(Decimal(value["upper_bound_usd"]), expected)
         for changes in ({"max_state_bytes": receipt.MAX_BYTES}, {"cloud_side_cost_usd": "0.009"}):
             with self.assertRaises(ValueError):
                 self.actual_policy(json.dumps(profile(**changes)), SHA, now=NOW)
@@ -192,6 +194,73 @@ class ReceiptTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 receipt.snapshot_before(self.env, request=self.aws)
             self.assertEqual([a[1] for a in self.aws.calls], ["head-object"])
+
+    def test_monthly_profile_accepts_no_deletion_deadline_and_rejects_old_lifetime_contract(self):
+        value = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
+        ledger = value["monthly_ledger_entry"]
+        self.assertEqual(ledger["budget_month"], "2026-10")
+        self.assertEqual(ledger["basis"], "conservative-upper-bound-estimate")
+        self.assertEqual(ledger["status"], "reserved-upper-bound")
+        self.assertIsNone(ledger["retention_end_utc"])
+        self.assertEqual(ledger["retention_assumption"], "no-assumed-deletion")
+        self.assertEqual(ledger["future_rates"], "revalidate-each-month")
+        self.assertIn("not-assumed-zero", ledger["future_side_costs"])
+        self.assertGreater(Decimal(ledger["future_full_month_lock_storage_estimate_at_model_rates_usd"]), 0)
+        for raw in (json.dumps(profile(lock_retention_days=31)),
+                    json.dumps(profile(model="dev-history-plan-2026-10-08-v1"))):
+            with self.assertRaises(ValueError): self.actual_policy(raw, SHA, now=NOW)
+
+    def test_monthly_scope_and_month_end_margin_reject_wrong_month_or_crossing(self):
+        for value in (None, True, 202610, "2026-9", "2026-09", "2026-11"):
+            with self.assertRaises(ValueError): self.actual_policy(json.dumps(profile(budget_month=value)), SHA, now=NOW)
+        with patch.object(receipt, "MODEL_EXPIRES", datetime(2029, 1, 1, tzinfo=timezone.utc)):
+            for month, last, following in (("2026-10", "2026-10-31", "2026-11-01"),
+                                          ("2026-12", "2026-12-31", "2027-01-01"),
+                                          ("2028-02", "2028-02-29", "2028-03-01")):
+                issued = last + "T12:00:00Z"
+                now = receipt.timestamp(issued)
+                good = profile(budget_month=month, issued_utc=issued, expires_utc=last + "T23:30:00Z")
+                self.actual_policy(json.dumps(good), SHA, now=now)
+                for expires in (last + "T23:30:01Z", following + "T00:00:00Z"):
+                    with self.assertRaises(ValueError): self.actual_policy(json.dumps(good | {"expires_utc": expires}), SHA, now=now)
+
+    def test_monthly_decimal_cap_accepts_exact_cent_and_rejects_one_quantum_over(self):
+        base = self.actual_policy(json.dumps(profile(cloud_side_cost_usd="0.001")), SHA, now=NOW)
+        ledger = base["monthly_ledger_entry"]
+        remaining = receipt.LIMIT - Decimal(ledger["current_month_added_cost_upper_bound_usd"]) + Decimal("0.001")
+        at_limit = self.actual_policy(json.dumps(profile(cloud_side_cost_usd=format(remaining, ".9f"))), SHA, now=NOW)
+        self.assertEqual(Decimal(at_limit["upper_bound_usd"]), receipt.LIMIT)
+        with self.assertRaises(ValueError):
+            self.actual_policy(json.dumps(profile(cloud_side_cost_usd=format(remaining + Decimal("0.000000001"), ".9f"))), SHA, now=NOW)
+
+    def test_monthly_reservation_is_stable_and_ledger_tampering_stops_before_reads(self):
+        early = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
+        late = self.actual_policy(json.dumps(profile()), SHA, now=datetime(2026, 10, 8, 12, 30, tzinfo=timezone.utc))
+        self.assertEqual(early, late)
+        receipt.policy(self.env)
+        path = self.root / "history-plan-cost.json"
+        for changes in ({"retention_end_utc": "2026-10-31T00:00:00Z"},
+                        {"added_retained_bytes_upper_bound": 0}, {"unapproved": True}):
+            changed = copy.deepcopy(early); changed["monthly_ledger_entry"].update(changes)
+            path.write_text(json.dumps(changed))
+            with self.assertRaises(ValueError): receipt.snapshot_before(self.env, request=self.aws)
+        self.assertEqual(self.aws.calls, [])
+
+    def test_normal_unlock_or_failed_receipt_never_cancels_recurring_storage_reservation(self):
+        for failed in (False, True):
+            child = ReceiptTests("runTest"); child.setUp(); self.addCleanup(child.doCleanups); child.baseline()
+            before = receipt.private_json(str(child.root / "history-plan-cost.json"))["monthly_ledger_entry"]
+            if failed:
+                child.env["TERRAFORM_PLAN_OUTCOME"] = "failure"
+                with self.assertRaises(ValueError): child.after_check()
+            else:
+                child.after_check()
+                self.assertEqual(receipt.private_json(str(child.root / "history-plan-after.json"))["monthly_ledger_entry"], before)
+            reserved = receipt.private_json(str(child.root / "history-plan-cost.json"))["monthly_ledger_entry"]
+            self.assertEqual(reserved, before)
+            self.assertEqual(reserved["added_retained_bytes_upper_bound"], 2 * receipt.LOCK_BYTES)
+            self.assertIsNone(reserved["retention_end_utc"])
+            self.assertEqual(child.aws.calls[-1][1], "list-objects-v2")
 
     def test_exact_state_eleven_rejects_history_missing_extra_duplicate_tainted_and_unknown(self):
         base = state_fixture()
@@ -330,6 +399,10 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(receipt.main(["--phase", "after"]), 0)
         exposed = stdout.getvalue() + stderr.getvalue() + (self.root / "summary").read_text()
         self.assertIn("receipt: PASS", exposed)
+        self.assertIn("added current UTC month cost bound", exposed)
+        self.assertIn("carry into later monthly cumulative costs", exposed)
+        self.assertIn("no deletion deadline assumed", exposed)
+        self.assertNotIn("monthly_ledger_entry", exposed)
         for secret in ("DUMMY", self.env["STATE_BUCKET"], str(self.root), "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"):
             self.assertNotIn(secret, exposed)
 

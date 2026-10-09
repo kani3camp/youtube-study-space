@@ -35,7 +35,7 @@ on:
         default: false
         type: boolean
       terraform_plan_cost_evidence:
-        description: Nonsecret owner-reviewed cost bounds for the single development history plan
+        description: Nonsecret read-backed added current UTC month cost bounds; retained storage carries into later months
         required: false
         default: ""
         type: string

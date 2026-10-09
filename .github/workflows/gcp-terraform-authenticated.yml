@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       plan_cost_evidence:
-        description: Nonsecret owner-reviewed bounds for one development history plan
+        description: Nonsecret read-backed added current UTC month bounds with continuing retained-storage accounting
         required: false
         default: ""
         type: string
