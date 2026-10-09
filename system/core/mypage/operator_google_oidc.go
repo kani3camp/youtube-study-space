@@ -38,11 +38,14 @@ type GoogleOperatorIDTokenSource interface {
 	IDToken(context.Context) (string, error)
 }
 
-// GoogleOperatorChallengeStore must atomically consume one matching nonce.
+// GoogleOperatorChallengeStore must atomically compare the complete keyed
+// operation binding and consume one matching nonce. A mismatch must leave it
+// available; a replay must fail. Consume returns the exact stored record so
+// the verifier, not the store, enforces issue time and the five-minute expiry.
 // A process-local fake is sufficient only for pure tests, never for live use.
 type GoogleOperatorChallengeStore interface {
 	Put(context.Context, GoogleOperatorChallengeRecord) error
-	Consume(context.Context, string, string, time.Time, time.Time) error
+	Consume(context.Context, string, string) (GoogleOperatorChallengeRecord, error)
 }
 
 type GoogleOperatorChallengeRecord struct {
@@ -166,7 +169,7 @@ type googleOperatorClaims struct {
 	EmailVerified   json.RawMessage `json:"email_verified"`
 }
 
-func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw string) (googleOperatorClaims, error) {
+func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw string, now time.Time) (googleOperatorClaims, error) {
 	if ctx.Err() != nil || raw == "" || len(raw) > 16384 {
 		return googleOperatorClaims{}, ErrOperatorDenied
 	}
@@ -187,7 +190,7 @@ func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw s
 	var publicKey *rsa.PublicKey
 	for _, key := range keys.Keys {
 		rsaKey, ok := key.Key.(*rsa.PublicKey)
-		if !ok || rsaKey.N.BitLen() < 2048 || key.KeyID == "" || seen[key.KeyID] || !key.Valid() || !key.IsPublic() ||
+		if !ok || rsaKey == nil || rsaKey.N == nil || rsaKey.N.BitLen() < 2048 || key.KeyID == "" || seen[key.KeyID] || !key.Valid() || !key.IsPublic() ||
 			(key.Algorithm != "" && key.Algorithm != "RS256") || (key.Use != "" && key.Use != "sig") {
 			return googleOperatorClaims{}, ErrOperatorDenied
 		}
@@ -203,7 +206,6 @@ func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw s
 	if token.Claims(publicKey, &claims) != nil {
 		return googleOperatorClaims{}, ErrOperatorDenied
 	}
-	now := a.Clock()
 	verified := string(claims.EmailVerified)
 	if (claims.Issuer != "https://accounts.google.com" && claims.Issuer != "accounts.google.com") ||
 		len(claims.Audience) != 1 || claims.Audience[0] != a.ClientID ||
@@ -225,8 +227,16 @@ func (a *GoogleHumanOperatorAuthority) Authorize(ctx context.Context, intent Ope
 	if err != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
-	claims, err := a.verifiedClaims(ctx, raw)
-	if err != nil || a.Challenges.Consume(ctx, digest(claims.Nonce), a.binding(intent), claims.IssuedAt.Time(), a.Clock()) != nil {
+	now := a.Clock().UTC()
+	claims, err := a.verifiedClaims(ctx, raw, now)
+	if err != nil {
+		return OperatorIdentity{}, ErrOperatorDenied
+	}
+	nonceHash, binding := digest(claims.Nonce), a.binding(intent)
+	record, err := a.Challenges.Consume(ctx, nonceHash, binding)
+	if err != nil || record.NonceHash != nonceHash || record.Binding != binding || record.IssuedAt.IsZero() ||
+		record.ExpiresAt.Sub(record.IssuedAt) != googleOperatorChallengeLifetime || now.Before(record.IssuedAt) ||
+		!now.Before(record.ExpiresAt) || claims.IssuedAt.Time().Before(record.IssuedAt.Truncate(time.Second)) || ctx.Err() != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
 	return OperatorIdentity{Subject: "google-operator-" + a.mac("subject", claims.Subject)[:32], Environment: intent.Environment, ProjectID: intent.ProjectID}, nil

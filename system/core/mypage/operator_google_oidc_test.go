@@ -61,15 +61,62 @@ func (f *fakeGoogleOperatorChallenges) Put(_ context.Context, record GoogleOpera
 	return nil
 }
 
-func (f *fakeGoogleOperatorChallenges) Consume(_ context.Context, nonceHash, binding string, tokenIssuedAt, now time.Time) error {
+func (f *fakeGoogleOperatorChallenges) Consume(_ context.Context, nonceHash, binding string) (GoogleOperatorChallengeRecord, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	record, exists := f.records[nonceHash]
-	if !exists || record.Binding != binding || now.Before(record.IssuedAt) || !now.Before(record.ExpiresAt) || tokenIssuedAt.Before(record.IssuedAt.Truncate(time.Second)) {
-		return ErrOperatorDenied
+	if !exists || record.Binding != binding {
+		return GoogleOperatorChallengeRecord{}, ErrOperatorDenied
 	}
 	delete(f.records, nonceHash)
-	return nil
+	return record, nil
+}
+
+// Reuse this contract with every future durable challenge-store implementation.
+// Time validation belongs to the authority; the store owns atomic match/take.
+func testGoogleOperatorChallengeStoreContract(t *testing.T, newStore func() GoogleOperatorChallengeStore) {
+	t.Helper()
+	t.Run("exact record and binding mismatch", func(t *testing.T) {
+		store := newStore()
+		record := GoogleOperatorChallengeRecord{NonceHash: digest("contract-nonce"), Binding: digest("contract-binding"), IssuedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 10, 9, 0, 5, 0, 0, time.UTC)}
+		require.NoError(t, store.Put(context.Background(), record))
+		_, err := store.Consume(context.Background(), record.NonceHash, digest("other-binding"))
+		require.Error(t, err)
+		got, err := store.Consume(context.Background(), record.NonceHash, record.Binding)
+		require.NoError(t, err, "a mismatch must not consume the challenge")
+		require.Equal(t, record, got)
+		_, err = store.Consume(context.Background(), record.NonceHash, record.Binding)
+		require.Error(t, err, "replay must fail")
+	})
+	t.Run("atomic single winner", func(t *testing.T) {
+		store := newStore()
+		record := GoogleOperatorChallengeRecord{NonceHash: digest("parallel-nonce"), Binding: digest("parallel-binding"), IssuedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 10, 9, 0, 5, 0, 0, time.UTC)}
+		require.NoError(t, store.Put(context.Background(), record))
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		var winners atomic.Int32
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				got, err := store.Consume(context.Background(), record.NonceHash, record.Binding)
+				if err == nil {
+					if got != record {
+						t.Errorf("consume returned another challenge record")
+					}
+					winners.Add(1)
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		require.Equal(t, int32(1), winners.Load())
+	})
+}
+
+func TestGoogleOperatorChallengeStoreContract(t *testing.T) {
+	testGoogleOperatorChallengeStoreContract(t, func() GoogleOperatorChallengeStore { return &fakeGoogleOperatorChallenges{} })
 }
 
 type googleOperatorFixture struct {
@@ -307,6 +354,8 @@ func TestGoogleHumanOperatorOIDCRejectsUntrustedJWKSAndUnsafeRedirect(t *testing
 		"empty":         {},
 		"duplicate kid": {Keys: []jose.JSONWebKey{{Key: &f.key.PublicKey, KeyID: "synthetic-google-kid", Algorithm: "RS256", Use: "sig"}, {Key: &f.key.PublicKey, KeyID: "synthetic-google-kid", Algorithm: "RS256", Use: "sig"}}},
 		"wrong key use": {Keys: []jose.JSONWebKey{{Key: &f.key.PublicKey, KeyID: "synthetic-google-kid", Algorithm: "RS256", Use: "enc"}}},
+		"typed nil RSA": {Keys: []jose.JSONWebKey{{Key: (*rsa.PublicKey)(nil), KeyID: "synthetic-google-kid", Algorithm: "RS256", Use: "sig"}}},
+		"nil RSA N":     {Keys: []jose.JSONWebKey{{Key: &rsa.PublicKey{}, KeyID: "synthetic-google-kid", Algorithm: "RS256", Use: "sig"}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f.authority.Keys = fakeGoogleOperatorKeys{set: set}
@@ -327,6 +376,54 @@ func TestGoogleHumanOperatorOIDCRejectsUntrustedJWKSAndUnsafeRedirect(t *testing
 	forged.State = base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("r", 32)))
 	_, err = f.authority.AuthorizationURL(forged, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("p", 32))))
 	require.ErrorIs(t, err, ErrOperatorDenied, "only Begin-issued opaque state can enter the URL")
+}
+
+func TestGoogleHumanOperatorOIDCChecksChallengeTimeAfterAtomicTake(t *testing.T) {
+	f := newGoogleOperatorFixture(t)
+	for name, change := range map[string]func(*GoogleOperatorChallengeRecord){
+		"expired at boundary": func(r *GoogleOperatorChallengeRecord) {
+			r.IssuedAt = f.now.Add(-googleOperatorChallengeLifetime)
+			r.ExpiresAt = f.now
+		},
+		"future issue": func(r *GoogleOperatorChallengeRecord) {
+			r.IssuedAt = f.now.Add(time.Second)
+			r.ExpiresAt = r.IssuedAt.Add(googleOperatorChallengeLifetime)
+		},
+		"extended lifetime": func(r *GoogleOperatorChallengeRecord) {
+			r.ExpiresAt = r.ExpiresAt.Add(time.Second)
+		},
+		"wrong returned nonce": func(r *GoogleOperatorChallengeRecord) {
+			r.NonceHash = digest("other-nonce")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			challenge, err := f.authority.Begin(context.Background(), f.intent)
+			require.NoError(t, err)
+			f.store.mu.Lock()
+			record := f.store.records[digest(challenge.Nonce)]
+			change(&record)
+			f.store.records[digest(challenge.Nonce)] = record
+			f.store.mu.Unlock()
+			f.token.Set(f.signed(t, f.claims(challenge)))
+			_, err = f.authority.Authorize(context.Background(), f.intent)
+			require.ErrorIs(t, err, ErrOperatorDenied, "verifier checks time and record contents even when store takes the nonce")
+		})
+	}
+	challenge, err := f.authority.Begin(context.Background(), f.intent)
+	require.NoError(t, err)
+	oldClaims := f.claims(challenge)
+	oldClaims["iat"] = f.now.Add(-time.Second).Unix()
+	f.token.Set(f.signed(t, oldClaims))
+	_, err = f.authority.Authorize(context.Background(), f.intent)
+	require.ErrorIs(t, err, ErrOperatorDenied, "ID token must be issued after this challenge")
+	valid, err := f.authority.Begin(context.Background(), f.intent)
+	require.NoError(t, err)
+	f.token.Set(f.signed(t, f.claims(valid)))
+	var clockCalls atomic.Int32
+	f.authority.Clock = func() time.Time { clockCalls.Add(1); return f.now }
+	_, err = f.authority.Authorize(context.Background(), f.intent)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), clockCalls.Load(), "token and challenge use one trusted clock snapshot")
 }
 
 func TestGoogleHumanOperatorOIDCNonceConsumeIsAtomic(t *testing.T) {
