@@ -2,7 +2,10 @@
 # Compile only: do not run applications, tests, generators, or cloud commands.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-mapfile -d '' -t manifests < <(git ls-files -z -- go.mod '**/go.mod')
+manifests=()
+while IFS= read -r -d '' manifest; do
+  manifests+=("$manifest")
+done < <(git ls-files -z -- go.mod '**/go.mod')
 if ((${#manifests[@]} == 0)); then
   echo 'No tracked Go module found' >&2
   exit 1

@@ -7,5 +7,6 @@
     "repository": "actions/starter-workflows",
     "commit": "e3c451d60f119b71caebf13c98ac45da6e15b4b7",
     "path": "code-scanning/codeql.yml"
-  }
+  },
+  "go_build_helper_sha256": "740b82983ad18fa1baf29e83ca5bc874db03195fcbdd835d84651348f717acc5"
 }

@@ -1,17 +1,16 @@
-# Called only by the separately approved advanced caller; no direct triggers.
+# Staged-disabled reusable source; its own gate also blocks any other caller.
 name: CodeQL Analyzer
 
 on:
   workflow_call:
 
-permissions:
-  contents: read
-  security-events: write
-  id-token: none
+permissions: {}
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Evaluated before the matrix: no runner, deployment, or analysis token is issued.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # Fixed, dedicated, secretless Environment. No caller input can select another.
@@ -48,6 +47,7 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           dependency-caching: false
           debug: false
+          config-file: .github/codeql/analysis-config.yml
       - name: Compile tracked Go modules
         if: ${{ matrix.language == 'go' }}
         run: bash .github/codeql/build-go.sh

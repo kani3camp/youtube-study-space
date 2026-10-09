@@ -4,12 +4,24 @@ on:
   pull_request:
     paths:
       - .github/codeql/**
-      - .github/workflows/codeql-source-contracts.yml
+      - .github/workflows/**
+      - .github/scripts/detect-ci-paths.sh
+      - .github/scripts/test-detect-ci-paths.sh
+      - go.mod
+      - go.sum
+      - '**/go.mod'
+      - '**/go.sum'
   push:
     branches: [dev, feature/codeql-advanced-setup]
     paths:
       - .github/codeql/**
-      - .github/workflows/codeql-source-contracts.yml
+      - .github/workflows/**
+      - .github/scripts/detect-ci-paths.sh
+      - .github/scripts/test-detect-ci-paths.sh
+      - go.mod
+      - go.sum
+      - '**/go.mod'
+      - '**/go.sum'
 
 permissions:
   contents: read
@@ -37,10 +49,8 @@ jobs:
         run: python .github/codeql/validate-source.py && python -m unittest discover -s .github/codeql -p 'test_*.py' -v
       - name: Install pinned actionlint
         run: bash .github/codeql/install-actionlint.sh "$RUNNER_TEMP/codeql-source-tools"
-      - name: Lint inert templates and static workflow
-        run: |
-          python .github/codeql/lint-templates.py --actionlint "$RUNNER_TEMP/codeql-source-tools/actionlint"
-          "$RUNNER_TEMP/codeql-source-tools/actionlint" -shellcheck= -pyflakes= .github/workflows/codeql-source-contracts.yml
+      - name: Lint staged workflows and local reusable reference
+        run: python .github/codeql/lint-workflows.py --actionlint "$RUNNER_TEMP/codeql-source-tools/actionlint"
       - name: Check shell syntax and existing CI routing
         run: |
           bash -n .github/codeql/build-go.sh .github/codeql/install-actionlint.sh
