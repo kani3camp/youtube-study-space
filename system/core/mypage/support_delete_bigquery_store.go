@@ -258,8 +258,15 @@ func (s *FirestoreDeletionStore) moveDeletionSnapshots(tx *firestore.Transaction
 	if err != nil {
 		return err
 	}
+	derivedMove, err := s.prepareDerivedInventory(tx, old, next, terminal)
+	if err != nil {
+		return err
+	}
 	if err = authMove(); err != nil {
 		return err
 	}
-	return bqMove()
+	if err = bqMove(); err != nil {
+		return err
+	}
+	return derivedMove()
 }

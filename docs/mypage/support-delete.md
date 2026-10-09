@@ -49,6 +49,8 @@ Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複
 
 [synthetic BigQuery adapter](support-delete-bigquery-adapter.md) adds frozen main/tmp/job/result-copy inventory, stable job reconciliation, temporary Firestore state and target-only synthetic deletion. It does not connect a live Registry/CLI or close backup/vendor/log gates.
 
+[synthetic derived/vendor adapter](support-delete-derived-adapter.md) adds exact object/owner/disposition inventory, temporary execution-bound state, stable mutation identity and synthetic readback. The actual OpenAI response and Discord message IDs are not stored by the inspected writers, so live attribution and disposal remain blocked. D02 and D03 are explicit 0B owner-decision gates; this package supplies no proxy decision or public value.
+
 ## offline CLI
 
 `MYPAGE_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` を明示する。alias project env に不一致がある場合や live credential/endpoint env がある場合は拒否する。対象を stdin または exact 0600 regular file の `--manifest` で渡す。最終 symlink/FIFO、16 KiB 超過、duplicate / case-variant / unknown / missing JSON field、確認の不一致を拒否する。report に target、ref、path、raw error は出力しない。

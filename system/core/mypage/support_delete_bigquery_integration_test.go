@@ -246,6 +246,7 @@ func TestBigQueryEmulatorEngineBlocksUnknownAndResumesLostCheckpointWithoutDelet
 		adapters[scope] = tracked
 	}
 	adapters["bigquery"] = a
+	adapters["derived-vendor"] = emptyDerivedAdapter(s, a.Clock())
 	checkpoint := &bigQueryCheckpointFailures{Store: s, loseBQCommit: true, failFinalize: true}
 	engine := &supportdelete.Engine{Store: checkpoint, Effects: supportdelete.Registry{Adapters: adapters}, Manifest: start.Manifest, Clock: a.Clock}
 	remote.pending = true

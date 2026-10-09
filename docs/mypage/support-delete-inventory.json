@@ -1120,9 +1120,9 @@
         "state": "required-not-collected"
       },
       "implementationStatus": {
-        "sourceObservation": "Derived/vendor production paths exist without request-bound attribution/delete closure.",
+        "sourceObservation": "Synthetic derived/vendor inventory and readback adapter exists. Production OpenAI response IDs and Discord message IDs are not persisted; global trend examples lack channel attribution.",
         "requiredExecutionCapabilities": [
-          "B vendor/derived adapters and external ownership/deletion evidence are required."
+          "Exact live vendor object and channel ownership inventory, supported target-only disposition and external readback are required; synthetic fixture is not live evidence."
         ],
         "liveOperationsExecuted": false,
         "liveReadiness": "unknown"
