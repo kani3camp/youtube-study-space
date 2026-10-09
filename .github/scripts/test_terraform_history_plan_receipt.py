@@ -160,7 +160,7 @@ class ReceiptTests(unittest.TestCase):
                *[json.dumps(profile(**{key: value})) for key, value in [
                    ("git_sha", "b" * 40), ("model", "unknown"), ("max_state_bytes", True), ("max_state_bytes", receipt.MAX_BYTES + 1),
                    ("max_state_bytes", 0), ("budget_month", "2026-09"), ("cloud_side_cost_usd", "NaN"),
-                   ("cloud_side_cost_usd", "0"), ("cloud_side_cost_usd", "0.009"), ("cloud_side_cost_usd", "-0.01"),
+                   ("cloud_side_cost_usd", "0"), ("cloud_side_cost_usd", "0.25"), ("cloud_side_cost_usd", "0.249"), ("cloud_side_cost_usd", "-0.01"),
                    ("cloud_side_cost_usd", 0.001), ("expires_utc", "2026-10-08T11:59:59Z"),
                    ("issued_utc", "2026-10-08T12:00:01Z"), ("expires_utc", "2026-10-10T12:00:00Z"),
                    ("rates_verified", False), ("cloud_side_evidence_reviewed", "true"), ("state_writers_quiescent", False)]]]
@@ -178,7 +178,7 @@ class ReceiptTests(unittest.TestCase):
         quantum = Decimal("0.000000001")
         expected = once.quantize(quantum, rounding=ROUND_CEILING) + storage.quantize(quantum, rounding=ROUND_CEILING)
         self.assertEqual(Decimal(value["upper_bound_usd"]), expected)
-        for changes in ({"max_state_bytes": receipt.MAX_BYTES}, {"cloud_side_cost_usd": "0.009"}):
+        for changes in ({"max_state_bytes": receipt.MAX_BYTES, "cloud_side_cost_usd": "0.20"}, {"cloud_side_cost_usd": "0.249"}):
             with self.assertRaises(ValueError):
                 self.actual_policy(json.dumps(profile(**changes)), SHA, now=NOW)
         with self.assertRaises(ValueError):
@@ -207,6 +207,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertIn("not-assumed-zero", ledger["future_side_costs"])
         self.assertGreater(Decimal(ledger["future_full_month_lock_storage_estimate_at_model_rates_usd"]), 0)
         for raw in (json.dumps(profile(lock_retention_days=31)),
+                    json.dumps(profile(model="dev-history-plan-monthly-2026-10-08-v1")),
                     json.dumps(profile(model="dev-history-plan-2026-10-08-v1"))):
             with self.assertRaises(ValueError): self.actual_policy(raw, SHA, now=NOW)
 
@@ -224,7 +225,11 @@ class ReceiptTests(unittest.TestCase):
                 for expires in (last + "T23:30:01Z", following + "T00:00:00Z"):
                     with self.assertRaises(ValueError): self.actual_policy(json.dumps(good | {"expires_utc": expires}), SHA, now=now)
 
-    def test_monthly_decimal_cap_accepts_exact_cent_and_rejects_one_quantum_over(self):
+    def test_monthly_decimal_cap_accepts_approved_quarter_dollar_and_rejects_one_quantum_over(self):
+        self.assertEqual(receipt.LIMIT, Decimal("0.25"))
+        above_old_cap = self.actual_policy(json.dumps(profile(cloud_side_cost_usd="0.10")), SHA, now=NOW)
+        self.assertGreater(Decimal(above_old_cap["upper_bound_usd"]), Decimal("0.01"))
+        self.assertLess(Decimal(above_old_cap["upper_bound_usd"]), Decimal("0.25"))
         base = self.actual_policy(json.dumps(profile(cloud_side_cost_usd="0.001")), SHA, now=NOW)
         ledger = base["monthly_ledger_entry"]
         remaining = receipt.LIMIT - Decimal(ledger["current_month_added_cost_upper_bound_usd"]) + Decimal("0.001")
@@ -400,6 +405,8 @@ class ReceiptTests(unittest.TestCase):
         exposed = stdout.getvalue() + stderr.getvalue() + (self.root / "summary").read_text()
         self.assertIn("receipt: PASS", exposed)
         self.assertIn("added current UTC month cost bound", exposed)
+        self.assertIn("cost bound <= USD0.25.", exposed)
+        self.assertNotIn("cost bound <= USD0.01.", exposed)
         self.assertIn("carry into later monthly cumulative costs", exposed)
         self.assertIn("no deletion deadline assumed", exposed)
         self.assertNotIn("monthly_ledger_entry", exposed)
