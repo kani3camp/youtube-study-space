@@ -163,13 +163,13 @@ production backendは未bootstrapのため、production authenticated plan / app
 
 ### Single development history plan receipt
 
-history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。2026-10-08の承認に従い、上限USD0.01はこのrunが追加する当月UTCの費用を対象にする。lifecycle設定や永久削除期限を要求せず、残るlock version/delete markerの保管費は後月の累積費用に継続計上する。Environment承認者は実設定のread証拠に対応する入力をreviewする。既存operator/toolが取得した証拠を使え、所有者本人だけの新しい確認gateを設けない。booleanや金額だけを、未知の課金項目が解決した証拠として扱わない。
+history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。2026-10-09の承認に従い、上限USD0.25はこのrunが追加する当月UTCの費用を対象にする。lifecycle設定や永久削除期限を要求せず、残るlock version/delete markerの保管費は後月の累積費用に継続計上する。Environment承認者は実設定のread証拠に対応する入力をreviewする。既存operator/toolが取得した証拠を使え、所有者本人だけの新しい確認gateを設けない。booleanや金額だけを、未知の課金項目が解決した証拠として扱わない。
 
 JSON input は次のキーだけを許可する。実state・table metadata・bucket/account/role/SA名・privateな証拠本文を入力に貼らない。
 
 | Key | Required evidence |
 | --- | --- |
-| `model` | `dev-history-plan-monthly-2026-10-08-v1`。この価格モデルは2026-10-15 UTCに失効する |
+| `model` | `dev-history-plan-monthly-2026-10-09-v1`。旧USD0.01モデルの入力は拒否する。この価格モデルは2026-10-15 UTCに失効する |
 | `git_sha` | review・公開された実行対象の完全なSHA |
 | `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、期限は発行後24時間以内かつモデル失効前。15分のplan jobと取消・post readの余裕を確保し、期限はUTC月末の30分前以前 |
 | `max_state_bytes` | 非秘密の保守的サイズ上限（正整数、4 MiB以下）。実サイズはCIのexact current object HEADでprivateに確認する |
@@ -179,7 +179,7 @@ JSON input は次のキーだけを許可する。実state・table metadata・bu
 | `rates_verified` | 実行時の公開単価が下記ceiling以下であることを確認した場合だけtrue |
 | `state_writers_quiescent` | 指定オペレーターだけが実行し、state/workspace prefixの並行writerがないことを確認した場合だけtrue |
 
-費用計算はDecimalで各成分を上方丸めし、当月追加合計USD0.01以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、さらに`cloud_side_cost_usd`を単発・当月費用として予約する。追加するlock bodyとdelete markerを各32 KiBの保守的上限で見積り、USD0.10/GiB/月で丸一月分を予約する。月末のrunでも日割りによる値引きをしない。実サイズは後続HEADでprivateに確認し、上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければstate downloadやremote initへ進まない。UIの丸められたサイズをexact bytesと見なさない。未知の付随費用から確認済みflagを生成せず停止する。
+費用計算はDecimalで各成分を上方丸めし、当月追加合計USD0.25以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、さらに`cloud_side_cost_usd`を単発・当月費用として予約する。追加するlock bodyとdelete markerを各32 KiBの保守的上限で見積り、USD0.10/GiB/月で丸一月分を予約する。月末のrunでも日割りによる値引きをしない。実サイズは後続HEADでprivateに確認し、上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければstate downloadやremote initへ進まない。UIの丸められたサイズをexact bytesと見なさない。未知の付随費用から確認済みflagを生成せず停止する。
 
 `history-plan-cost.json`には、当月、profileのdigestであるentry ID、単発・当月side費用上限、当月保管費上限、当月合計、追加保管bytes上限、現行単価による翌月以降一月分の保管費推定、削除期限なしを明記したprivateな`monthly_ledger_entry`を含む。すべて保守的推定で、実測費用や永久費用上限ではない。通常unlockのpositive absenceはcurrent lockが無い証拠であり、過去version/delete markerの永久削除や将来保管費0の証拠ではない。[S3 delete markers](https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html)も保管費を生じる。
 

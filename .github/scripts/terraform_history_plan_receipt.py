@@ -33,7 +33,7 @@ from validate_user_activity_history_plan import TABLE
 
 BASELINE = EXISTING | {CHANNEL, TOPIC, SCHEDULER, FUNCTION} | ADDRESSES
 STATE_KEY = "youtube-study-space/dev/terraform.tfstate"
-MODEL = "dev-history-plan-monthly-2026-10-08-v1"
+MODEL = "dev-history-plan-monthly-2026-10-09-v1"
 MODEL_EXPIRES = datetime(2026, 10, 15, tzinfo=timezone.utc)
 MAX_BYTES = 4 * 1024 * 1024
 # Reviewed conservative ceilings, not free-tier estimates. See infra/gcp/README.
@@ -41,7 +41,7 @@ MAX_BYTES = 4 * 1024 * 1024
 # attempts; 256 requests cover HEAD/LIST/GET and one native lock lifecycle.
 DOWNLOADS, REQUESTS, KMS_REQUESTS, HEADER_BYTES, LOCK_BYTES = 64, 256, 128, 16384, 32768
 GIB = Decimal(1024 ** 3)
-LIMIT = Decimal("0.01")
+LIMIT = Decimal("0.25")
 COST_KEYS = {"model", "git_sha", "issued_utc", "expires_utc", "max_state_bytes",
              "budget_month", "cloud_side_cost_usd", "cloud_side_evidence_reviewed",
              "rates_verified", "state_writers_quiescent"}
@@ -378,7 +378,7 @@ def main(argv=None):
         env = dict(os.environ)
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
-            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.01. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
                 handle.write(message)
         else:
