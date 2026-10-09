@@ -2,6 +2,7 @@
 """Synthetic receipts only: no credential or real metadata/state access."""
 import contextlib
 import copy
+import ast
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_CEILING
 import io
@@ -16,6 +17,7 @@ from unittest.mock import patch
 
 import terraform_history_plan_receipt as receipt
 import terraform_identity_smoke as smoke
+from terraform_identity_diagnostics import RECEIPT_REASONS, ReceiptDependencyError, ReceiptInvariantError
 from terraform_plan_summary import build_summary
 import test_gcp_user_activity_schema_audit_workflow as fixtures
 
@@ -50,11 +52,20 @@ def state_fixture():
             grouped[key]["instances"].append(instance)
         else:
             grouped[key] = resource
+    checks = [{"object_kind": "var", "config_addr": "var.project_id", "status": "pass",
+               "objects": [{"object_addr": "var.project_id", "status": "pass"}]}]
+    for address in ("module.runtime_wif.var.own_provider", "module.runtime_wif.var.grant_keys",
+                    "module.runtime_wif.var.inventory", "module.owned_apis.var.classification"):
+        checks.append({"object_kind": "var", "config_addr": address, "status": "pass",
+                       "objects": [{"object_addr": address, "status": "pass"}]})
+    for address, objects in (("module.user_activity_history.var.field_order", None),
+                             ("module.user_activity_history.var.field_descriptions", [])):
+        checks.append({"object_kind": "var", "config_addr": address, "status": "pass", "objects": objects})
     return {"version": 4, "terraform_version": "1.16.4", "serial": 27,
             "lineage": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "resources": list(grouped.values()),
-            "check_results": [{"object_kind": "var", "config_addr": "var.project_id", "status": "pass",
-                               "objects": [{"object_addr": "var.project_id", "status": "pass"}]}],
-            "outputs": {key: {"sensitive": False, "type": "string", "value": value}
+            "check_results": checks,
+            # Terraform 1.16.4 uses json:"sensitive,omitempty" for false.
+            "outputs": {key: {"type": "string", "value": value}
                         for key, value in [("environment", "development"), ("project_id", "test-youtube-study-space")]}}
 
 
@@ -297,6 +308,69 @@ class ReceiptTests(unittest.TestCase):
         for raw in (b'{"version":4,"version":4}', b'NaN'):
             with self.assertRaises(ValueError): receipt.state_shape(raw)
 
+    def test_terraform_1164_normal_output_and_known_check_metadata(self):
+        state = state_fixture()
+        self.assertEqual(sum(len(resource["instances"]) for resource in state["resources"]), 11)
+        self.assertNotIn("sensitive", state["outputs"]["project_id"])
+        self.assertIsNone(state["check_results"][-2]["objects"])
+        self.assertEqual(state["check_results"][-1]["objects"], [])
+        receipt.state_shape(json.dumps(state).encode())
+        explicit_false = copy.deepcopy(state)
+        explicit_false["outputs"]["project_id"]["sensitive"] = False
+        receipt.state_shape(json.dumps(explicit_false).encode())
+
+        changes = [lambda s, value=value: s["outputs"]["project_id"].update(sensitive=value)
+                   for value in (True, 0, None, "false")]
+        changes += [lambda s: s["outputs"]["project_id"].update(unknown="PRIVATE_SENTINEL"),
+                    lambda s: s["outputs"]["project_id"].pop("type"),
+                    lambda s: s["outputs"]["project_id"].update(type="number"),
+                    lambda s: s["outputs"]["project_id"].update(value="PRIVATE_SENTINEL")]
+        for mutate in changes:
+            altered = copy.deepcopy(state); mutate(altered)
+            with self.subTest(mutate=mutate), self.assertRaises(ReceiptInvariantError) as caught:
+                receipt.state_shape(json.dumps(altered).encode())
+            self.assertEqual(caught.exception.reason, "state-output-value")
+            self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
+
+    def test_known_zero_instance_checks_only_and_unknown_or_nonpass_stops(self):
+        state = state_fixture()
+        known_active = "module.runtime_wif.var.own_provider"
+        known_zero = "module.user_activity_history.var.field_order"
+        cases = [
+            (lambda s: s["check_results"][-2].update(status="unknown"), "checks-result"),
+            (lambda s: s["check_results"][-2].update(status="fail"), "checks-result"),
+            (lambda s: s["check_results"][-2].pop("objects"), "checks-envelope"),
+            (lambda s: s["check_results"][1].update(objects=None), "checks-object-list"),
+            (lambda s: s["check_results"][1].update(objects=[]), "checks-object-list"),
+            (lambda s: s["check_results"].append({"object_kind": "var", "config_addr": known_zero,
+                "status": "pass", "objects": None}), "checks-result"),
+            (lambda s: s["check_results"].append({"object_kind": "var", "config_addr": "module.foreign.var.private",
+                "status": "pass", "objects": None}), "checks-address"),
+            (lambda s: s["check_results"].append({"object_kind": "resource",
+                "config_addr": "google_bigquery_table.foreign", "status": "pass", "objects": None}), "checks-address"),
+            (lambda s: s["check_results"][1]["objects"][0].update(status="fail", failure_messages=["PRIVATE_SENTINEL"]),
+                "checks-object-result"),
+        ]
+        for mutate, reason in cases:
+            altered = copy.deepcopy(state); mutate(altered)
+            with self.subTest(reason=reason, mutate=mutate), self.assertRaises(ReceiptInvariantError) as caught:
+                receipt.state_shape(json.dumps(altered).encode())
+            self.assertEqual(caught.exception.reason, reason)
+            self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
+        self.assertIn(known_active, {check["config_addr"] for check in state["check_results"]})
+
+    def test_every_receipt_require_has_a_literal_allowlisted_reason(self):
+        source = Path(receipt.__file__).read_text()
+        guards = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name) and node.func.id == "require"]
+        self.assertGreaterEqual(len(guards), 90)
+        for guard in guards:
+            with self.subTest(line=guard.lineno):
+                self.assertEqual(len(guard.args), 2)
+                self.assertFalse(guard.keywords)
+                self.assertIsInstance(guard.args[1], ast.Constant)
+                self.assertIn(guard.args[1].value, RECEIPT_REASONS)
+
     def test_current_version_body_serial_lineage_and_metadata_changes_cannot_pass(self):
         cases = ["version", "bytes", "serial", "lineage", "etag", "numRows", "numBytes", "lastModifiedTime", "newMetadata", "description"]
         # Each case needs a fresh immutable baseline, not overwritten evidence.
@@ -330,9 +404,13 @@ class ReceiptTests(unittest.TestCase):
             self.aws.overrides = {"list-objects-v2": override}
             with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
         self.aws.overrides = {}; self.aws.denied = "list-objects-v2"
-        with self.assertRaises(ValueError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        with self.assertRaises(ReceiptDependencyError) as caught:
+            receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        self.assertEqual(caught.exception.reason, "s3-cli-failure")
         self.aws.denied = None; self.aws.network = True
-        with self.assertRaises(RuntimeError): receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        with self.assertRaises(ReceiptDependencyError) as caught:
+            receipt.absent(self.env, receipt.STATE_KEY + ".tflock", request=self.aws)
+        self.assertEqual(caught.exception.reason, "s3-request")
 
     def test_sdk_url_encoding_proves_empty_lock_and_workspace_lists_only(self):
         receipt.policy(self.env)
@@ -359,7 +437,8 @@ class ReceiptTests(unittest.TestCase):
 
     def test_missing_summary_still_checks_remote_invariants_before_stopping(self):
         self.baseline(); (self.root / "sanitized-plan.json").unlink()
-        with self.assertRaises(OSError): self.after_check()
+        with self.assertRaises(ReceiptDependencyError) as caught: self.after_check()
+        self.assertEqual(caught.exception.reason, "file-open-read")
         self.assertTrue((self.root / "history-plan-table-after.json").exists())
         self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
 
@@ -433,7 +512,8 @@ class ReceiptTests(unittest.TestCase):
         path = self.root / "history-plan-cost.json"
         target = self.root / "unrelated"; target.write_text("DUMMY_KEEP")
         path.symlink_to(target)
-        with self.assertRaises(OSError): receipt.policy(self.env)
+        with self.assertRaises(ReceiptDependencyError) as caught: receipt.policy(self.env)
+        self.assertEqual(caught.exception.reason, "file-open-write")
         self.assertEqual(target.read_text(), "DUMMY_KEEP")
         path.unlink(); receipt.policy(self.env); path.chmod(0o644)
         with self.assertRaises(smoke.StageFailure) as caught: receipt.snapshot_before(self.env, request=self.aws)

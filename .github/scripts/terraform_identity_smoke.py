@@ -321,7 +321,8 @@ def main(argv: list[str] | None = None) -> int:
               if args == ["plan-read-only"] else "Development identity smoke: PASS")
         return 0
     except StageFailure as error:
-        print(f"::error::Development identity smoke STOP; stage={error.stage}; category={error.category}.", file=sys.stderr)
+        reason = f"; reason={error.reason}" if error.reason is not None else ""
+        print(f"::error::Development identity smoke STOP; stage={error.stage}; category={error.category}{reason}.", file=sys.stderr)
     except SmokeFailure:
         print("::error::Development identity smoke STOP; stage=identity-mode; category=check-failed.", file=sys.stderr)
     except Exception:
