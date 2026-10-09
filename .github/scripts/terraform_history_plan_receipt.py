@@ -19,7 +19,8 @@ import stat
 import sys
 import uuid
 
-from terraform_identity_smoke import at_stage, aws, google
+from terraform_identity_diagnostics import at_stage
+from terraform_identity_smoke import aws, google
 from terraform_email_adoption_gate import CHANNEL, EXISTING
 from terraform_quota_create_gate import ADDRESSES
 from terraform_export_topic_gate import TOPIC

@@ -50,6 +50,7 @@ assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
 assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_authenticated_workflow.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_identity_diagnostics.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_history_plan_receipt.py

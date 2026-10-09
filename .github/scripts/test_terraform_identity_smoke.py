@@ -5,6 +5,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -524,6 +525,112 @@ class HistoryPlanCliTest(unittest.TestCase):
                 self.assertIn(f"stage={stage}; category=invalid-evidence", exposed)
                 self.assertNotIn("PRIVATE", exposed)
                 self.assertFalse((child.root / "history-plan-state-before-receipt.json").exists())
+
+
+class HistoryPlanSubprocessCliTest(unittest.TestCase):
+    """Exercise the script as __main__, with every external call replaced in the child."""
+
+    def test_script_entrypoint_keeps_history_stage_and_secret_boundary(self):
+        claims = {
+            "repository_id": "340900071", "repository_owner_id": "54093651",
+            "environment": "terraform-dev-plan", "ref": "refs/heads/feature/gcp-terraform-iac",
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+            "event_name": "workflow_dispatch",
+        }
+        claims["sub"] = ":".join(f"{key}:{value.replace(':', '%3A')}" for key, value in claims.items())
+        claims.update(workflow_sha="a" * 40, job_workflow_sha="a" * 40)
+        token = "header." + base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=") + ".DUMMY_SIGNATURE"
+        sitecustomize = '''\
+import io
+import json
+import os
+import subprocess
+import urllib.request
+from datetime import datetime, timezone
+from test_terraform_history_plan_receipt import FakeS3
+import terraform_history_plan_receipt as receipt
+
+class FixedDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
+
+receipt.datetime = FixedDatetime
+
+backend = FakeS3()
+counts = {}
+sentinel = "PRIVATE_URL_TOKEN_HTTP_BODY_TRACEBACK"
+
+def fake_run(command, **kwargs):
+    if command[0] != "aws" or command[-2:] != ["--output", "json"]:
+        raise RuntimeError(sentinel)
+    args = command[1:-2]
+    pair = tuple(args[:2])
+    if pair not in {("sts", "get-caller-identity"), ("s3api", "head-object"),
+                    ("s3api", "get-object"), ("s3api", "list-objects-v2")}:
+        raise RuntimeError(sentinel)
+    operation = pair[1]
+    counts[operation] = counts.get(operation, 0) + 1
+    stage = os.environ.get("DUMMY_FAIL_STAGE")
+    failure = {"history-head": ("head-object", 1), "history-get": ("get-object", 1),
+               "history-re-head": ("head-object", 2), "history-lock-list": ("list-objects-v2", 1),
+               "history-workspace-list": ("list-objects-v2", 2)}.get(stage)
+    if failure == (operation, counts[operation]):
+        raise RuntimeError(sentinel)
+    return backend(*args)
+
+def fake_urlopen(request, **kwargs):
+    url = request.full_url
+    if "fixture.invalid/oidc" in url:
+        payload = {"value": os.environ["DUMMY_OIDC_TOKEN"]}
+    elif url.endswith("/v3/projects/test-youtube-study-space"):
+        payload = {"projectId": "test-youtube-study-space", "state": "ACTIVE"}
+    elif url.endswith("/v3/projects/test-youtube-study-space:testIamPermissions"):
+        payload = {"permissions": []}
+    else:
+        raise RuntimeError(sentinel)
+    response = io.BytesIO(json.dumps(payload).encode())
+    response.status = 200
+    return response
+
+subprocess.run = fake_run
+urllib.request.urlopen = fake_urlopen
+'''
+        script = Path(__file__).with_name("terraform_identity_smoke.py")
+        for stage in (None, "history-policy", "history-head", "history-get", "history-re-head",
+                      "history-lock-list", "history-workspace-list"):
+            with self.subTest(stage=stage):
+                fixture = receipt_fixtures.ReceiptTests("runTest")
+                fixture.setUp(); self.addCleanup(fixture.doCleanups)
+                evidence = receipt_fixtures.profile()
+                if stage != "history-policy":
+                    budget = fixture.actual_policy(json.dumps(evidence), fixture.env["GITHUB_SHA"], now=receipt_fixtures.NOW)
+                    receipt.write_private(fixture.root / "history-plan-cost.json", budget)
+                fixture.env.update({
+                    "GCP_SMOKE_SERVICE_ACCOUNT": "terraform-dev-plan@" + "test-youtube-study-space.iam.gserviceaccount.com",
+                    "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
+                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "DUMMY_GITHUB_TOKEN",
+                    "BACKEND_ROLE_ARN": "arn:aws:iam::" + "111111111111:role/fixture-plan",
+                    "DUMMY_OIDC_TOKEN": token,
+                    "DUMMY_FAIL_STAGE": stage or "",
+                    "PYTHONPATH": os.pathsep.join((str(fixture.root), str(script.parent))),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                })
+                (fixture.root / "sitecustomize.py").write_text(sitecustomize)
+                result = subprocess.run([sys.executable, str(script), "plan-read-only"],
+                                        env=fixture.env, capture_output=True, text=True, timeout=15)
+                exposed = result.stdout + result.stderr
+                self.assertNotIn("PRIVATE_", exposed)
+                self.assertNotIn("Traceback", exposed)
+                if stage is None:
+                    self.assertEqual(result.returncode, 0, exposed)
+                    self.assertIn("Development plan read-only checks: PASS", exposed)
+                    self.assertTrue((fixture.root / "history-plan-state-before-receipt.json").exists())
+                else:
+                    self.assertEqual(result.returncode, 1, exposed)
+                    self.assertIn(f"stage={stage}; category=dependency-error", exposed)
+                    self.assertFalse((fixture.root / "history-plan-state-before-receipt.json").exists())
 
 
 if __name__ == "__main__":
