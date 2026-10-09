@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,8 +17,11 @@ import (
 )
 
 type syntheticOperatorAuthority struct {
-	deny     bool
-	evidence bool
+	deny             bool
+	evidence         bool
+	denyVerification bool
+	verified         VerifiedCompletionEvidence
+	verifyCalls      *atomic.Int64
 }
 
 func (a syntheticOperatorAuthority) Authorize(_ context.Context, intent OperatorIntent) (OperatorIdentity, error) {
@@ -27,11 +31,23 @@ func (a syntheticOperatorAuthority) Authorize(_ context.Context, intent Operator
 	return OperatorIdentity{Subject: "synthetic-verified-operator", Environment: intent.Environment, ProjectID: intent.ProjectID}, nil
 }
 
-func (a syntheticOperatorAuthority) VerifyEvidence(_ context.Context, identity OperatorIdentity, intent OperatorIntent, action, delivery string) error {
-	if !a.evidence || identity.Subject != "synthetic-verified-operator" || identity.Environment != intent.Environment || identity.ProjectID != intent.ProjectID || action != digest("synthetic-action") || delivery != digest("synthetic-delivery") {
-		return ErrOperatorDenied
+func (a syntheticOperatorAuthority) VerifyEvidence(_ context.Context, identity OperatorIdentity, op CompletionOperation) (VerifiedCompletionEvidence, error) {
+	if a.verifyCalls != nil {
+		a.verifyCalls.Add(1)
 	}
-	return nil
+	if a.denyVerification || !a.evidence || identity.Subject != "synthetic-verified-operator" || identity.Environment != op.Intent.Environment || identity.ProjectID != op.Intent.ProjectID || op.ActionEvidence != digest("synthetic-action") || op.DeliveryAcknowledgement != digest("synthetic-delivery") {
+		return VerifiedCompletionEvidence{}, ErrOperatorDenied
+	}
+	return a.verified, nil
+}
+
+func syntheticVerifiedCompletion(op CompletionOperation, replyDigest string) VerifiedCompletionEvidence {
+	return VerifiedCompletionEvidence{
+		Actor: "synthetic-verified-operator", Environment: op.Intent.Environment, ProjectID: op.Intent.ProjectID,
+		RequestRef: op.Intent.RequestRef, Purpose: op.Intent.Purpose, OperationID: op.Intent.OperationID,
+		ProofRef: op.ProofRef, ReplyOperationID: op.ReplyOperationID, ExpectedRevision: op.ExpectedRevision,
+		ReplyDigest: replyDigest, ActionEvidence: op.ActionEvidence, DeliveryAcknowledgement: op.DeliveryAcknowledgement,
+	}
 }
 
 func syntheticOperator(client *firestore.Client) *FirestoreSupportOperator {
@@ -110,6 +126,8 @@ func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
 	require.NoError(t, err)
 	requestID := before.Data()["requestId"].(string)
 	completion := CompletionOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: reply.Intent.RequestRef, Purpose: SupportRevoke, OperationID: digest("operator-complete"), Action: "complete"}, ProofRef: reply.ProofRef, ReplyOperationID: reply.Intent.OperationID, ExpectedRevision: 1, ActionEvidence: digest("synthetic-action"), DeliveryAcknowledgement: digest("synthetic-delivery"), At: reply.At.Add(time.Second)}
+	var verifyCalls atomic.Int64
+	op.Authority = syntheticOperatorAuthority{evidence: true, verified: syntheticVerifiedCompletion(completion, before.Data()["replyDigest"].(string)), verifyCalls: &verifyCalls}
 	missing := completion
 	missing.DeliveryAcknowledgement = ""
 	require.ErrorIs(t, op.Complete(ctx, missing), ErrOperatorDenied)
@@ -120,7 +138,15 @@ func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
 	wrong.Intent.Purpose = SupportDelete
 	require.ErrorIs(t, op.Complete(ctx, wrong), ErrOperatorDenied)
 	require.NoError(t, op.Complete(ctx, completion))
-	require.NoError(t, op.Complete(ctx, completion)) // lost ACK
+	require.Equal(t, int64(2), verifyCalls.Load()) // invalid evidence and first successful attempt
+	auditsBefore, err := op.Client.Collection(supportOperatorAudit).Documents(ctx).GetAll()
+	require.NoError(t, err)
+	op.Authority = syntheticOperatorAuthority{evidence: true, denyVerification: true, verifyCalls: &verifyCalls}
+	require.NoError(t, op.Complete(ctx, completion)) // lost ACK after verifier failure
+	require.Equal(t, int64(2), verifyCalls.Load())
+	auditsAfter, err := op.Client.Collection(supportOperatorAudit).Documents(ctx).GetAll()
+	require.NoError(t, err)
+	require.Len(t, auditsAfter, len(auditsBefore))
 	snap, err := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef).Get(ctx)
 	require.NoError(t, err)
 	require.True(t, simpleOperatorTerminal(snap))
@@ -136,7 +162,82 @@ func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
 	require.ErrorIs(t, op.Reply(ctx, reply), ErrOperatorConflict)
 	changed := completion
 	changed.DeliveryAcknowledgement = digest("other-delivery")
-	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorDenied)
+	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorConflict)
+	require.Equal(t, int64(2), verifyCalls.Load())
+}
+
+func TestOperatorCompletionRejectsSwappedEvidenceAndReplyWithoutMutation(t *testing.T) {
+	op, reply, oauth := operatorFixture(t, SupportDisclosure)
+	ctx := context.Background()
+	require.NoError(t, op.Reply(ctx, reply))
+	ref := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef)
+	before, err := ref.Get(ctx)
+	require.NoError(t, err)
+	indexRef := op.Client.Collection("support-request-ids").Doc(digest("development:" + before.Data()["requestId"].(string)))
+	indexBefore, err := indexRef.Get(ctx)
+	require.NoError(t, err)
+	oauthRef := op.Client.Collection("oauth-transactions").Doc(oauth)
+	oauthBefore, err := oauthRef.Get(ctx)
+	require.NoError(t, err)
+	completion := CompletionOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: reply.Intent.RequestRef, Purpose: SupportDisclosure, OperationID: digest("swapped-evidence-complete"), Action: "complete"}, ProofRef: reply.ProofRef, ReplyOperationID: reply.Intent.OperationID, ExpectedRevision: 1, ActionEvidence: digest("synthetic-action"), DeliveryAcknowledgement: digest("synthetic-delivery"), At: reply.At.Add(time.Second)}
+	verified := syntheticVerifiedCompletion(completion, before.Data()["replyDigest"].(string))
+	auditRef := op.auditRef(completion.Intent)
+	checks := map[string]func(*CompletionOperation, *VerifiedCompletionEvidence){
+		"actor":       func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.Actor = "other-operator" },
+		"environment": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.Environment = "production" },
+		"project":     func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.ProjectID = "demo-other-project" },
+		"request":     func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.RequestRef = digest("other-request") },
+		"purpose":     func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.Purpose = SupportRevoke },
+		"completion operation": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) {
+			v.OperationID = digest("other-completion")
+		},
+		"proof": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.ProofRef = digest("other-proof") },
+		"reply operation": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) {
+			v.ReplyOperationID = digest("other-reply")
+		},
+		"revision":        func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.ExpectedRevision++ },
+		"action evidence": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) { v.ActionEvidence = digest("other-action") },
+		"delivery evidence": func(_ *CompletionOperation, v *VerifiedCompletionEvidence) {
+			v.DeliveryAcknowledgement = digest("other-delivery")
+		},
+		"submitted reply": func(op *CompletionOperation, _ *VerifiedCompletionEvidence) {
+			op.ReplyOperationID = digest("other-reply")
+		},
+	}
+	for name, change := range checks {
+		t.Run(name, func(t *testing.T) {
+			candidate, evidence := completion, verified
+			change(&candidate, &evidence)
+			op.Authority = syntheticOperatorAuthority{evidence: true, verified: evidence}
+			require.ErrorIs(t, op.Complete(ctx, candidate), ErrOperatorDenied)
+		})
+	}
+	t.Run("reply digest", func(t *testing.T) {
+		evidence := verified
+		evidence.ReplyDigest = digest("other-reply-body")
+		op.Authority = syntheticOperatorAuthority{evidence: true, verified: evidence}
+		require.ErrorIs(t, op.Complete(ctx, completion), ErrOperatorConflict)
+	})
+	t.Run("verified different reply", func(t *testing.T) {
+		candidate, evidence := completion, verified
+		candidate.ReplyOperationID = digest("other-reply")
+		evidence.ReplyOperationID = candidate.ReplyOperationID
+		evidence.ReplyDigest = digest("other-reply-body")
+		op.Authority = syntheticOperatorAuthority{evidence: true, verified: evidence}
+		require.ErrorIs(t, op.Complete(ctx, candidate), ErrOperatorConflict)
+	})
+	after, err := ref.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before.Data(), after.Data())
+	require.Equal(t, before.UpdateTime, after.UpdateTime)
+	indexAfter, err := indexRef.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, indexBefore.Data(), indexAfter.Data())
+	oauthAfter, err := oauthRef.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, oauthBefore.Data(), oauthAfter.Data())
+	_, err = auditRef.Get(ctx)
+	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestOperatorReplyBlockedByDeletionClaim(t *testing.T) {

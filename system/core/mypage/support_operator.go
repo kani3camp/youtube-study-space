@@ -27,7 +27,7 @@ var (
 // is never an authority. There is deliberately no production implementation.
 type OperatorAuthority interface {
 	Authorize(context.Context, OperatorIntent) (OperatorIdentity, error)
-	VerifyEvidence(context.Context, OperatorIdentity, OperatorIntent, string, string) error
+	VerifyEvidence(context.Context, OperatorIdentity, CompletionOperation) (VerifiedCompletionEvidence, error)
 }
 
 type OperatorIntent struct {
@@ -61,6 +61,31 @@ type CompletionOperation struct {
 	ActionEvidence          string
 	DeliveryAcknowledgement string
 	At                      time.Time
+}
+
+// VerifiedCompletionEvidence is returned only after the trusted authority has
+// verified both evidence references and their binding to the reviewed reply.
+// The operator proposal cannot attest to these fields on its own.
+type VerifiedCompletionEvidence struct {
+	Actor                   string
+	Environment             string
+	ProjectID               string
+	RequestRef              string
+	Purpose                 SupportPurpose
+	OperationID             string
+	ProofRef                string
+	ReplyOperationID        string
+	ExpectedRevision        int64
+	ReplyDigest             string
+	ActionEvidence          string
+	DeliveryAcknowledgement string
+}
+
+func (e VerifiedCompletionEvidence) matches(identity OperatorIdentity, op CompletionOperation) bool {
+	return e.Actor == identity.Subject && e.Environment == op.Intent.Environment && e.ProjectID == op.Intent.ProjectID &&
+		e.RequestRef == op.Intent.RequestRef && e.Purpose == op.Intent.Purpose && e.OperationID == op.Intent.OperationID &&
+		e.ProofRef == op.ProofRef && e.ReplyOperationID == op.ReplyOperationID && e.ExpectedRevision == op.ExpectedRevision &&
+		validOpaque(e.ReplyDigest) && e.ActionEvidence == op.ActionEvidence && e.DeliveryAcknowledgement == op.DeliveryAcknowledgement
 }
 
 // FirestoreSupportOperator is never constructed by a public HTTP handler.
@@ -204,10 +229,35 @@ func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOp
 	if op.Intent.Purpose == SupportDelete || !validOpaque(op.ProofRef) || !validOpaque(op.ReplyOperationID) || !validOpaque(op.ActionEvidence) || !validOpaque(op.DeliveryAcknowledgement) || op.ExpectedRevision < 1 || op.At.IsZero() {
 		return ErrOperatorDenied
 	}
-	if err := s.Authority.VerifyEvidence(ctx, identity, op.Intent, op.ActionEvidence, op.DeliveryAcknowledgement); err != nil {
+	fingerprint := s.mac("complete", op.Intent.Environment, op.Intent.ProjectID, op.Intent.RequestRef, string(op.Intent.Purpose), op.ProofRef, op.Intent.OperationID, op.ReplyOperationID, fmt.Sprint(op.ExpectedRevision), op.ActionEvidence, op.DeliveryAcknowledgement)
+	auditRef := s.auditRef(op.Intent)
+	// A committed audit and terminal receipt are enough to recover a lost ACK.
+	// Evidence may have been scrubbed or its verifier may now be unavailable.
+	auditSnap, err := auditRef.Get(ctx)
+	if err == nil {
+		var event operatorAuditEvent
+		if auditSnap.DataTo(&event) != nil || !s.sameCompletionAudit(event, op, identity, fingerprint) {
+			return ErrOperatorConflict
+		}
+		snap, err := s.Client.Collection("support-requests").Doc(op.Intent.RequestRef).Get(ctx)
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				return ErrOperatorConflict
+			}
+			return fmt.Errorf("read completion receipt: %w", err)
+		}
+		if !simpleOperatorTerminal(snap) || snap.Data()["purpose"] != string(op.Intent.Purpose) {
+			return ErrOperatorConflict
+		}
+		return nil
+	}
+	if status.Code(err) != codes.NotFound {
+		return fmt.Errorf("read completion audit: %w", err)
+	}
+	verified, err := s.Authority.VerifyEvidence(ctx, identity, op)
+	if err != nil || !verified.matches(identity, op) {
 		return ErrOperatorDenied
 	}
-	fingerprint := s.mac("complete", op.Intent.Environment, op.Intent.ProjectID, op.Intent.RequestRef, string(op.Intent.Purpose), op.ProofRef, op.Intent.OperationID, op.ReplyOperationID, fmt.Sprint(op.ExpectedRevision), op.ActionEvidence, op.DeliveryAcknowledgement)
 	err = s.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		ref := s.Client.Collection("support-requests").Doc(op.Intent.RequestRef)
 		snap, err := tx.Get(ref)
@@ -217,20 +267,19 @@ func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOp
 			}
 			return fmt.Errorf("read completion receipt: %w", err)
 		}
-		auditRef := s.auditRef(op.Intent)
 		auditSnap, err := tx.Get(auditRef)
 		if err != nil && status.Code(err) != codes.NotFound {
 			return fmt.Errorf("read completion audit: %w", err)
 		}
 		if err == nil {
 			var event operatorAuditEvent
-			if auditSnap.DataTo(&event) != nil || event.Fingerprint != fingerprint || event.Actor != identity.Subject || !simpleOperatorTerminal(snap) {
+			if auditSnap.DataTo(&event) != nil || !s.sameCompletionAudit(event, op, identity, fingerprint) || !simpleOperatorTerminal(snap) || snap.Data()["purpose"] != string(op.Intent.Purpose) {
 				return ErrOperatorConflict
 			}
 			return nil
 		}
 		var v SupportRequest
-		if snap.DataTo(&v) != nil || !s.validRecord(v, op.Intent, op.ProofRef, op.At) || v.OperatorRevision != op.ExpectedRevision || v.ReplyOperationID != op.ReplyOperationID || v.OperatorReply == "" || v.OperatorReplyAt == nil {
+		if snap.DataTo(&v) != nil || !s.validRecord(v, op.Intent, op.ProofRef, op.At) || v.OperatorRevision != op.ExpectedRevision || v.ReplyOperationID != op.ReplyOperationID || v.ReplyDigest != verified.ReplyDigest || v.OperatorReply == "" || v.OperatorReplyAt == nil {
 			return ErrOperatorConflict
 		}
 		claimed, err := s.deletionClaimed(tx, op.ProofRef)
@@ -260,6 +309,11 @@ func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOp
 		return fmt.Errorf("operator completion: %w", err)
 	}
 	return nil
+}
+
+func (s *FirestoreSupportOperator) sameCompletionAudit(event operatorAuditEvent, op CompletionOperation, identity OperatorIdentity, fingerprint string) bool {
+	return event.SchemaVersion == 1 && event.Environment == op.Intent.Environment && event.Purpose == op.Intent.Purpose &&
+		event.Action == "complete" && event.Actor == identity.Subject && event.Binding == s.mac("request", op.Intent.RequestRef) && event.Fingerprint == fingerprint
 }
 
 func simpleOperatorTerminal(snap *firestore.DocumentSnapshot) bool {
