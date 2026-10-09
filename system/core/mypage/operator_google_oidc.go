@@ -39,13 +39,16 @@ type GoogleOperatorIDTokenSource interface {
 }
 
 // GoogleOperatorChallengeStore must atomically compare the complete keyed
-// operation binding and consume one matching nonce. A mismatch must leave it
-// available; a replay must fail. Consume returns the exact stored record so
-// the verifier, not the store, enforces issue time and the five-minute expiry.
+// operation binding, check the current trusted time inside that atomic step,
+// and consume one live matching nonce. A mismatch must leave the nonce
+// available; an expired record and a replay must fail. Consume returns the
+// exact stored record so the verifier independently checks its time and binding
+// again after any store delay. The clock callback must be called during consume,
+// not before a potentially blocking store operation.
 // A process-local fake is sufficient only for pure tests, never for live use.
 type GoogleOperatorChallengeStore interface {
 	Put(context.Context, GoogleOperatorChallengeRecord) error
-	Consume(context.Context, string, string) (GoogleOperatorChallengeRecord, error)
+	Consume(context.Context, string, string, func() time.Time) (GoogleOperatorChallengeRecord, error)
 }
 
 type GoogleOperatorChallengeRecord struct {
@@ -169,7 +172,7 @@ type googleOperatorClaims struct {
 	EmailVerified   json.RawMessage `json:"email_verified"`
 }
 
-func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw string, now time.Time) (googleOperatorClaims, error) {
+func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw string) (googleOperatorClaims, error) {
 	if ctx.Err() != nil || raw == "" || len(raw) > 16384 {
 		return googleOperatorClaims{}, ErrOperatorDenied
 	}
@@ -211,12 +214,25 @@ func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw s
 		len(claims.Audience) != 1 || claims.Audience[0] != a.ClientID ||
 		(claims.AuthorizedParty != "" && claims.AuthorizedParty != a.ClientID) ||
 		claims.Subject != a.AllowedSubject || claims.Nonce == "" || len(claims.Nonce) != 43 ||
-		claims.Expiry == nil || claims.IssuedAt == nil || !now.Before(claims.Expiry.Time()) || claims.IssuedAt.Time().After(now) ||
+		claims.Expiry == nil || claims.IssuedAt == nil ||
 		claims.Expiry.Time().Before(claims.IssuedAt.Time()) || claims.Email == "" || !strings.Contains(claims.Email, "@") ||
 		(verified != "true" && verified != `"true"`) || ctx.Err() != nil {
 		return googleOperatorClaims{}, ErrOperatorDenied
 	}
 	return claims, nil
+}
+
+func googleOperatorClaimsLive(claims googleOperatorClaims, now time.Time) bool {
+	return !now.IsZero() && claims.Expiry != nil && claims.IssuedAt != nil &&
+		now.Before(claims.Expiry.Time()) && !now.Before(claims.IssuedAt.Time()) &&
+		// JWT NumericDate has second precision; Begin may have subsecond precision.
+		now.Sub(claims.IssuedAt.Time()) < googleOperatorChallengeLifetime+time.Second
+}
+
+func googleOperatorChallengeLive(record GoogleOperatorChallengeRecord, now time.Time) bool {
+	return !now.IsZero() && !record.IssuedAt.IsZero() &&
+		record.ExpiresAt.Sub(record.IssuedAt) == googleOperatorChallengeLifetime &&
+		!now.Before(record.IssuedAt) && now.Before(record.ExpiresAt)
 }
 
 func (a *GoogleHumanOperatorAuthority) Authorize(ctx context.Context, intent OperatorIntent) (OperatorIdentity, error) {
@@ -227,16 +243,25 @@ func (a *GoogleHumanOperatorAuthority) Authorize(ctx context.Context, intent Ope
 	if err != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
-	now := a.Clock().UTC()
-	claims, err := a.verifiedClaims(ctx, raw, now)
+	claims, err := a.verifiedClaims(ctx, raw)
 	if err != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
 	nonceHash, binding := digest(claims.Nonce), a.binding(intent)
-	record, err := a.Challenges.Consume(ctx, nonceHash, binding)
-	if err != nil || record.NonceHash != nonceHash || record.Binding != binding || record.IssuedAt.IsZero() ||
-		record.ExpiresAt.Sub(record.IssuedAt) != googleOperatorChallengeLifetime || now.Before(record.IssuedAt) ||
-		!now.Before(record.ExpiresAt) || claims.IssuedAt.Time().Before(record.IssuedAt.Truncate(time.Second)) || ctx.Err() != nil {
+	// The first snapshot follows the possibly slow JWKS fetch and signature
+	// verification. Consume reads the clock again inside its atomic check.
+	if !googleOperatorClaimsLive(claims, a.Clock().UTC()) || ctx.Err() != nil {
+		return OperatorIdentity{}, ErrOperatorDenied
+	}
+	record, err := a.Challenges.Consume(ctx, nonceHash, binding, a.Clock)
+	if err != nil {
+		return OperatorIdentity{}, ErrOperatorDenied
+	}
+	// A store may block after its atomic take. Never authorize from either
+	// earlier snapshot when the token or challenge has since expired.
+	now := a.Clock().UTC()
+	if record.NonceHash != nonceHash || record.Binding != binding || !googleOperatorClaimsLive(claims, now) ||
+		!googleOperatorChallengeLive(record, now) || claims.IssuedAt.Time().Before(record.IssuedAt.Truncate(time.Second)) || ctx.Err() != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
 	return OperatorIdentity{Subject: "google-operator-" + a.mac("subject", claims.Subject)[:32], Environment: intent.Environment, ProjectID: intent.ProjectID}, nil

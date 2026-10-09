@@ -20,10 +20,16 @@ import (
 )
 
 type fakeGoogleOperatorKeys struct {
-	set jose.JSONWebKeySet
+	set        jose.JSONWebKeySet
+	beforeRead func()
 }
 
-func (f fakeGoogleOperatorKeys) Keys(context.Context) (jose.JSONWebKeySet, error) { return f.set, nil }
+func (f fakeGoogleOperatorKeys) Keys(context.Context) (jose.JSONWebKeySet, error) {
+	if f.beforeRead != nil {
+		f.beforeRead()
+	}
+	return f.set, nil
+}
 
 type fakeGoogleOperatorToken struct {
 	mu  sync.Mutex
@@ -44,8 +50,10 @@ func (f *fakeGoogleOperatorToken) Set(raw string) {
 
 // The fake's lock makes consuming a nonce an indivisible state transition.
 type fakeGoogleOperatorChallenges struct {
-	mu      sync.Mutex
-	records map[string]GoogleOperatorChallengeRecord
+	mu            sync.Mutex
+	records       map[string]GoogleOperatorChallengeRecord
+	beforeConsume func()
+	afterConsume  func()
 }
 
 func (f *fakeGoogleOperatorChallenges) Put(_ context.Context, record GoogleOperatorChallengeRecord) error {
@@ -61,36 +69,59 @@ func (f *fakeGoogleOperatorChallenges) Put(_ context.Context, record GoogleOpera
 	return nil
 }
 
-func (f *fakeGoogleOperatorChallenges) Consume(_ context.Context, nonceHash, binding string) (GoogleOperatorChallengeRecord, error) {
+func (f *fakeGoogleOperatorChallenges) Consume(_ context.Context, nonceHash, binding string, clock func() time.Time) (GoogleOperatorChallengeRecord, error) {
+	if f.beforeConsume != nil {
+		f.beforeConsume()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	record, exists := f.records[nonceHash]
-	if !exists || record.Binding != binding {
+	if !exists || record.Binding != binding || clock == nil || !googleOperatorChallengeLive(record, clock().UTC()) {
 		return GoogleOperatorChallengeRecord{}, ErrOperatorDenied
 	}
 	delete(f.records, nonceHash)
+	if f.afterConsume != nil {
+		f.afterConsume()
+	}
 	return record, nil
 }
 
 // Reuse this contract with every future durable challenge-store implementation.
-// Time validation belongs to the authority; the store owns atomic match/take.
+// The store checks a fresh clock within atomic match/take; the authority checks
+// the returned record again after any delay on the way back to the caller.
 func testGoogleOperatorChallengeStoreContract(t *testing.T, newStore func() GoogleOperatorChallengeStore) {
 	t.Helper()
 	t.Run("exact record and binding mismatch", func(t *testing.T) {
 		store := newStore()
 		record := GoogleOperatorChallengeRecord{NonceHash: digest("contract-nonce"), Binding: digest("contract-binding"), IssuedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 10, 9, 0, 5, 0, 0, time.UTC)}
+		clock := func() time.Time { return record.IssuedAt.Add(time.Minute) }
 		require.NoError(t, store.Put(context.Background(), record))
-		_, err := store.Consume(context.Background(), record.NonceHash, digest("other-binding"))
+		_, err := store.Consume(context.Background(), record.NonceHash, digest("other-binding"), clock)
 		require.Error(t, err)
-		got, err := store.Consume(context.Background(), record.NonceHash, record.Binding)
+		got, err := store.Consume(context.Background(), record.NonceHash, record.Binding, clock)
 		require.NoError(t, err, "a mismatch must not consume the challenge")
 		require.Equal(t, record, got)
-		_, err = store.Consume(context.Background(), record.NonceHash, record.Binding)
+		_, err = store.Consume(context.Background(), record.NonceHash, record.Binding, clock)
 		require.Error(t, err, "replay must fail")
+	})
+	t.Run("expiry boundary and delayed clock", func(t *testing.T) {
+		store := newStore()
+		record := GoogleOperatorChallengeRecord{NonceHash: digest("expiry-nonce"), Binding: digest("expiry-binding"), IssuedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 10, 9, 0, 5, 0, 0, time.UTC)}
+		require.NoError(t, store.Put(context.Background(), record))
+		var current atomic.Int64
+		current.Store(record.ExpiresAt.UnixNano())
+		clock := func() time.Time { return time.Unix(0, current.Load()).UTC() }
+		_, err := store.Consume(context.Background(), record.NonceHash, record.Binding, clock)
+		require.Error(t, err, "the exact expiry is invalid")
+		current.Store(record.ExpiresAt.Add(-time.Nanosecond).UnixNano())
+		got, err := store.Consume(context.Background(), record.NonceHash, record.Binding, clock)
+		require.NoError(t, err, "an expiry failure must not consume the nonce")
+		require.Equal(t, record, got)
 	})
 	t.Run("atomic single winner", func(t *testing.T) {
 		store := newStore()
 		record := GoogleOperatorChallengeRecord{NonceHash: digest("parallel-nonce"), Binding: digest("parallel-binding"), IssuedAt: time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 10, 9, 0, 5, 0, 0, time.UTC)}
+		clock := func() time.Time { return record.IssuedAt.Add(time.Minute) }
 		require.NoError(t, store.Put(context.Background(), record))
 		start := make(chan struct{})
 		var wg sync.WaitGroup
@@ -100,7 +131,7 @@ func testGoogleOperatorChallengeStoreContract(t *testing.T, newStore func() Goog
 			go func() {
 				defer wg.Done()
 				<-start
-				got, err := store.Consume(context.Background(), record.NonceHash, record.Binding)
+				got, err := store.Consume(context.Background(), record.NonceHash, record.Binding, clock)
 				if err == nil {
 					if got != record {
 						t.Errorf("consume returned another challenge record")
@@ -419,11 +450,91 @@ func TestGoogleHumanOperatorOIDCChecksChallengeTimeAfterAtomicTake(t *testing.T)
 	valid, err := f.authority.Begin(context.Background(), f.intent)
 	require.NoError(t, err)
 	f.token.Set(f.signed(t, f.claims(valid)))
-	var clockCalls atomic.Int32
-	f.authority.Clock = func() time.Time { clockCalls.Add(1); return f.now }
 	_, err = f.authority.Authorize(context.Background(), f.intent)
 	require.NoError(t, err)
-	require.Equal(t, int32(1), clockCalls.Load(), "token and challenge use one trusted clock snapshot")
+}
+
+func TestGoogleHumanOperatorOIDCChecksCurrentTimeAfterBlockingDependencies(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		delay     string
+		expireJWT bool
+		consumed  bool
+	}{
+		{name: "JWKS passes challenge expiry", delay: "keys", consumed: false},
+		{name: "JWKS passes token expiry", delay: "keys", expireJWT: true, consumed: false},
+		{name: "consume reaches challenge expiry before atomic take", delay: "before take", consumed: false},
+		{name: "consume returns after challenge expiry", delay: "after take", consumed: true},
+		{name: "consume returns after token expiry", delay: "after take", expireJWT: true, consumed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newGoogleOperatorFixture(t)
+			var nanos atomic.Int64
+			nanos.Store(f.now.UnixNano())
+			f.authority.Clock = func() time.Time { return time.Unix(0, nanos.Load()).UTC() }
+			challenge, err := f.authority.Begin(context.Background(), f.intent)
+			require.NoError(t, err)
+			claims := f.claims(challenge)
+			expiresAt := challenge.ExpiresAt
+			if tc.expireJWT {
+				expiresAt = f.now.Add(time.Minute)
+				claims["exp"] = expiresAt.Unix()
+			}
+			f.token.Set(f.signed(t, claims))
+			advance := func() { nanos.Store(expiresAt.UnixNano()) }
+			switch tc.delay {
+			case "keys":
+				keys, ok := f.authority.Keys.(fakeGoogleOperatorKeys)
+				require.True(t, ok)
+				keys.beforeRead = advance
+				f.authority.Keys = keys
+			case "before take":
+				f.store.beforeConsume = advance
+			case "after take":
+				f.store.afterConsume = advance
+			}
+			_, err = f.authority.Authorize(context.Background(), f.intent)
+			require.ErrorIs(t, err, ErrOperatorDenied, "time at the exact expiry must deny")
+			f.store.mu.Lock()
+			_, exists := f.store.records[digest(challenge.Nonce)]
+			f.store.mu.Unlock()
+			require.Equal(t, !tc.consumed, exists, "consume may take once, but must never authorize after expiry")
+
+			// A consumed or expired proof cannot be reused. A fresh operation-bound
+			// challenge can still be completed after the clock advances.
+			f.store.beforeConsume, f.store.afterConsume = nil, nil
+			if tc.delay == "keys" {
+				keys, ok := f.authority.Keys.(fakeGoogleOperatorKeys)
+				require.True(t, ok)
+				keys.beforeRead = nil
+				f.authority.Keys = keys
+			}
+			fresh, beginErr := f.authority.Begin(context.Background(), f.intent)
+			require.NoError(t, beginErr)
+			freshClaims := f.claims(fresh)
+			freshClaims["iat"] = expiresAt.Unix()
+			freshClaims["exp"] = expiresAt.Add(time.Hour).Unix()
+			f.token.Set(f.signed(t, freshClaims))
+			_, err = f.authority.Authorize(context.Background(), f.intent)
+			require.NoError(t, err, "fresh proof retry remains available")
+		})
+	}
+}
+
+func TestGoogleHumanOperatorOIDCTokenExpiryBoundary(t *testing.T) {
+	f := newGoogleOperatorFixture(t)
+	var nanos atomic.Int64
+	nanos.Store(f.now.UnixNano())
+	f.authority.Clock = func() time.Time { return time.Unix(0, nanos.Load()).UTC() }
+	challenge, err := f.authority.Begin(context.Background(), f.intent)
+	require.NoError(t, err)
+	claims := f.claims(challenge)
+	expiresAt := f.now.Add(time.Minute)
+	claims["exp"] = expiresAt.Unix()
+	f.token.Set(f.signed(t, claims))
+	nanos.Store(expiresAt.Add(-time.Nanosecond).UnixNano())
+	_, err = f.authority.Authorize(context.Background(), f.intent)
+	require.NoError(t, err, "token is live strictly before exp")
 }
 
 func TestGoogleHumanOperatorOIDCNonceConsumeIsAtomic(t *testing.T) {
