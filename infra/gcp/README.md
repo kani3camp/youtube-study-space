@@ -157,6 +157,12 @@ development planとapplyは独立gateを持ちます。planの有効化はtrust�
 - import移行期はcreate / update / delete / replacement / driftをstopする
 - plan jobとapply jobでsaved planを渡さず、apply jobは同じ `github.sha` から再planし、sanitized projectionが一致した場合だけ同一job内のplanをapplyする
 
+historyの次applyについて、現行`mode=apply`はapply gate=falseでpreflight停止するため、
+この入口を使ってgate変更前のfull negative smokeを実施することはできません。
+既存full smokeには正本state keyへのconditional S3 PutObject否定試験があり、誤許可と同時削除の
+組合せで空versionを書き得ます。安全なprobe-only経路または具体的リスクを含む別live承認を
+先にreviewし、plan-only成功をfull security gate PASSへ読み替えません。
+
 developmentのGitHub Environment / branch trust、AWS GitHub OIDC backend role、GCP GitHub WIF / Terraform Service Accountは#1162で構築・実測済みです。通常PRはcredentiallessのまま、authenticated executionはtrusted integration refと独立Environment approvalへ限定します。production側のbackend / trust / identityは未開始で、#1191の別approval境界です。
 
 production backendは未bootstrapのため、production authenticated plan / applyはbackend準備完了まで有効化しません。

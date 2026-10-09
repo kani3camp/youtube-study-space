@@ -865,6 +865,7 @@ jobs:
             "${RUNNER_TEMP}/history-import-state-before.json" \
             "${RUNNER_TEMP}/history-import-state-preapply.json" \
             "${RUNNER_TEMP}/history-import-state-after.json" \
+            "${RUNNER_TEMP}/history-import-table-after.json" \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
             "${RUNNER_TEMP}/user-history-before.tfvars.json" \

@@ -158,8 +158,8 @@ consumer、complete row-policy list、recovery、実行承認の証明ではあ�
 
 [protected plan入口](../../../.github/scripts/terraform_protected_plan.py)はhistory flag=trueの場合だけ
 既存strict validatorを追加適用します。devの通常plan/apply、採用済みexport chain、exact12resource、
-existing11 no-op、exact history import0/1、canonical8とfresh列順、unknown/drift/move/action0を要求します。
-initial importはimport1、既存stateに採用後の通常planはimport0を許可し、postは必ずimport0/no-op12です。
+existing11 no-op、beforeのexact history import1、canonical8とfresh列順、unknown/drift/move/action0を要求します。
+既存stateに採用後のbefore planもimport0を拒否し、postは必ずimport0/no-op12です。
 standalone offline CLIはbefore import1のstrict契約を維持します。Email/quota等の例外modeと混ぜません。
 global import-only guard、独立Environment approval、同SHA再plan・sanitized projection照合は維持します。
 
@@ -170,7 +170,7 @@ global import-only guard、独立Environment approval、同SHA再plan・sanitize
 2. 既存packetのexact DROP 1 statementを別承認して実行。unknown/non-zero/新writerがあればSTOP。
    fresh metadataでtimestampだけ消失、他8列・nested・相対列順・config不変を確認する。
 3. pinned providerの実isolated import/no-opを確認し、private field-order候補をreview。
-   source gate false→trueと対応source testの期待値変更を一つのactivation差分として別承認する。
+   history plan gateは既にtrueで、apply gateはfalseを維持する。後者の変更は別review/承認。
 4. Reviewed SHAのfull-root protected planでexact history import1 + existing11 no-op、その他0。
    別apply Environmentの承認後、同SHA再plan・metadata digest・projection一致からsaved import-only apply。
 5. Fresh post metadata、import0/no-op12、state lineage/exact ownership、version/lock/live lock0、公開漏えい/artifact0を照合。
@@ -245,10 +245,24 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
 
 1. 新しいreview済みsourceをtrusted `feature/gcp-terraform-iac`へ取り込み、exact SHAのcredentialless
    CIと、同SHAのprotected full-root planを通す。旧runのplan/metadata/digestを新SHAの承認へ流用しない。
-   dev tableの8列、nested schema、既存description、完全metadataとrow-count metadataの鮮度、
-   writer停止window、consumer/recoveryのowner factsをprivate packetで照合する。
-2. applyに必要なnegative security probesを別承認のlive確認で完了させる。plan-only成功をその代用にしない。
-   IAM/credential/trust変更はこのsource準備に含まない。新たなpermissionが必要ならSTOPして別review。
+   dev tableの8列、nested schema、既存description、stable table設定とvolatile統計値の観測、
+   consumer/recoveryのowner factsをprivate packetで照合する。importだけのためにBigQuery writerを
+   停止させない。Terraform stateへの他writer/操作は競合を避けるため停止・隔離する。
+2. plan-onlyはnegative security probesを実行せず、apply gate=falseのpreflightはmode=applyを
+   拒否する。このままの通常dispatchでgate変更前のfull smokeを実施できると想定しない。
+   既存full probeは現state keyに対するconditional S3 PutObject否定試験を含み、誤付与と同時削除が
+   重なると空versionを書き得る既知リスクがある。候補は同じtrusted ref、
+   `terraform-dev-plan` EnvironmentとGitHub OIDC claimsを保持し、apply/state書換を許さない
+   security-probe専用経路だが、現workflowにはそのmodeがない。手動外部probeでは同じOIDC境界を
+   証明できない。専用経路のsource/security reviewとlive実行の別承認までは使用しない。
+   [S3 conditional write仕様](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)に
+   基づく、既存HEADと異なる予測不能な`If-Match`値を使うprobe案ならkey不存在時も新規作成しない。
+   ただし403だけをDENYとして前後versionを比較し、412/404/409を成功にしない実装・mock reviewが
+   先に必要。条件header付きrequestの拒否はそのrequestの証拠に限り、role/bucket/SCP/session policy
+   全体の権限証明とはしない。現unsafe probeの実行は承認されていない。
+   canaryや静的policy検査はその範囲の証拠に
+   限られ、正本stateでのfull probeと同等とは主張しない。今回は実probeもgate変更もしない。
+   IAM/credential/trust変更や新permissionが必要なら別reviewへ戻す。
 3. 次のplanとapplyが追加する当月UTC費用を別に見積る。AWS state GET/HEAD/LIST、native lock PUT/GET/DELETE、
    state新versionとlock version/delete markerの後月保管、暗号化/KMS、転送、GCP `tables.get`、
    provider refresh、logging/audit、別料金がある場合の上限をprivateなread証拠と単価で積算し、
@@ -264,20 +278,27 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
 `max_added_current_month_usd`（正の小数文字列）、`issued_utc`、`expires_utc`だけに限定する。
 発行から最大24時間で失効し、実行時刻も範囲内とする。`plan_run_id`は新しいapproved planの
 run IDで、37925757786を使わない。`summary_sha256`はそのrunのsanitized summary bytesのdigest。
-`cost_evidence_sha256`は本人がprivateでreviewした今回のitemized estimateのdigestであり、
-public inputに証拠本文やbucket/account/role/SA名を貼らない。digestだけではread証拠の真偽を
-自動証明できないためEnvironment reviewerがpacketとrunを照合する。
+自動照合するのはtarget/SHA/期限、plan jobとapply再planのsanitized summary digest、apply直前の
+local saved binary digestである。`plan_run_id`は正の整数という形式のみ、
+`cost_evidence_sha256`はhex形式のみ、`max_added_current_month_usd`は正の小数形式のみを検証する。
+実GitHub runとprivate itemized estimateの本文/請求設定/台帳との一致や予算内であることは
+自動検証しない。これらはEnvironment reviewerがprivate packetと照合する参照情報であり、
+public inputに証拠本文やbucket/account/role/SA名を貼らない。
 
 既存workflowは同SHAのapply jobで新しいplanを作り、approved summary digestと再plan summaryを
 比較する。[one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
 beforeでstateに既存11件だけあること、preapplyでtable import **exact1**・既存11 no-op・他0、
-元state不変、完全metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
+元state不変、stable table metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
 apply直前に同binary digestを再確認する。plan jobからbinaryをartifactで渡さない。
 postは同じlineage、増加serial、既存11の完全state値とoutputs/checks不変、追加table1件とschema、
-complete `tables.get`不変、native lock不在、post full-root import0/no-op12/他0を要求する。
-列descriptionはnestedを含めて比較し、`numRows`/`numBytes`/`lastModifiedTime`の変化も拒否する。
-これはmetadata観測の一致であり、row本文が同一である独立proofではない。writer quiescenceと
-外部記録でrow不変を確認し、追加queryは別承認。runnerのprivate state/metadata/planは0600で
+stable `tables.get`不変、native lock不在、post full-root import0/no-op12/他0を要求する。
+列descriptionはnestedを含めて比較する。[BigQuery REST Table](https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#Table)のoutput-onlyな`etag`、
+`lastModifiedTime`、`streamingBuffer`、`numRows`/各bytes/`numPartitions`は前後値をprivateに
+観測し、変化だけでSTOPしない。それ以外のfieldは未知のfieldも含めて完全一致を要求する。
+Terraformによるdata書込を許さない境界はexact saved planのimport1/他変更0、既存identity権限、
+state差分で検証する。metadata観測だけではrow本文の同一性を証明しない。独立BigQuery writerの
+通常書込をimportの失敗と混同しない。追加のbusiness-data queryが必要なら別承認。
+runnerのprivate state/metadata/planは0600で
 扱い、publicには固定の分類だけを出し、always cleanupする。強制停止時のcleanupは保証しない。
 
 最小の`terraform state import`経路もtable state記録を加えるが、full-rootのimport1/no-op11、
@@ -290,7 +311,7 @@ same-SHA再plan、provider値、post-plan、既存Environment/security boundary�
 post receiptの`state=unchanged`はimport未記録、`state=imported`は許容state差分、`unknown`は
 部分write/競合/取得失敗を含む。metadata STOP、lock unknown、apply/post-plan失敗は成功扱いしない。
 いずれも自動retry、`force-unlock`、旧S3 versionの上書きrestore、`state rm`、DDL、table再作成を
-行わず、writerを止めたままprivateにcurrent S3 version/serial/lineage、exact table metadata、
+行わず、Terraform state writerの競合を隔離してprivateにcurrent S3 version/serial/lineage、exact table metadata、
 lock holder、Terraform apply logとstate差分を照合する。stateだけimport済みならdata/tableは
 そのままで通常full-root no-opを独立確認し、同一importの再applyは拒否する。state未変更なら
 失敗原因と費用/期限/identityを再評価して新planと新承認を得る。state異常またはtable metadata

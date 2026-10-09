@@ -78,6 +78,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertEqual([apply.index(step) for step in ordered], sorted(apply.index(step) for step in ordered))
         self.assertIn("history_plan_sha256", apply)
         self.assertIn("steps.history_import_before.outcome == 'success'", apply)
+        self.assertIn('"${RUNNER_TEMP}/history-import-table-after.json"', apply)
         self.assertNotIn("force-unlock", apply)
         self.assertIn("test_terraform_history_import_verifier.py", self.caller)
 

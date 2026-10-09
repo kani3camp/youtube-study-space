@@ -25,10 +25,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"
 from prepare_user_activity_history_adoption import normalize_field, prepare
 from validate_user_activity_history_plan import TABLE, TABLE_ID
 
+# plan_run_id and cost fields are reviewer references with shape checks only.
+# Only SHA, expiry, approved summary bytes and the local binary digest are
+# enforced against execution evidence in this source path.
 APPROVAL_KEYS = {"target", "git_sha", "plan_run_id", "summary_sha256", "cost_evidence_sha256",
                  "max_added_current_month_usd", "issued_utc", "expires_utc"}
 SUMMARY_COUNTS = {key: (1 if key == "import" else 12 if key == "no-op" else 0) for key in COUNT_KEYS}
 RECEIPT = "history-import-before.json"
+# BigQuery tables.get output-only observations that may change when an
+# independent writer appends rows. Everything else, including unknown future
+# fields, remains in the exact stable comparison. See REST Table resource.
+VOLATILE_TABLE_FIELDS = frozenset({
+    "etag", "lastModifiedTime", "streamingBuffer", "numRows", "numBytes",
+    "numLongTermBytes", "numTimeTravelPhysicalBytes", "numTotalLogicalBytes",
+    "numActiveLogicalBytes", "numLongTermLogicalBytes", "numTotalPhysicalBytes",
+    "numActivePhysicalBytes", "numLongTermPhysicalBytes", "numPartitions",
+})
+VOLATILE_METRICS = VOLATILE_TABLE_FIELDS - {"etag", "streamingBuffer"}
 
 
 def need(value):
@@ -71,6 +84,25 @@ def directory(env):
     path = Path(env["RUNNER_TEMP"])
     need(path.is_absolute() and path.is_dir() and not path.is_symlink())
     return path
+
+
+def stable_table_metadata(metadata):
+    """Reject any configuration/identity change while preserving write metrics privately."""
+    prepare(metadata)
+    need(type(metadata) is dict)
+    for key in VOLATILE_METRICS & metadata.keys():
+        need(type(metadata[key]) is str and re.fullmatch(r"[0-9]+", metadata[key]))
+    if "etag" in metadata:
+        need(type(metadata["etag"]) is str and bool(metadata["etag"]))
+    if "streamingBuffer" in metadata:
+        buffer = metadata["streamingBuffer"]
+        need(type(buffer) is dict and set(buffer) <= {"estimatedRows", "estimatedBytes", "oldestEntryTime"}
+             and all(type(value) is str and re.fullmatch(r"[0-9]+", value) for value in buffer.values()))
+    return {key: value for key, value in metadata.items() if key not in VOLATILE_TABLE_FIELDS}
+
+
+def volatile_table_metadata(metadata):
+    return {key: value for key, value in metadata.items() if key in VOLATILE_TABLE_FIELDS}
 
 
 def capture(env, path, *, request=None):
@@ -137,7 +169,7 @@ def before(env, *, request=None):
     need(env.get("APPROVED_SUMMARY_DIGEST") == approved["summary_sha256"])
     root = directory(env)
     metadata = receipt.private_json(str(root / "user-history-before.json"))
-    prepare(metadata)
+    stable_table_metadata(metadata)
     raw = capture(env, "history-import-state-before.json", request=request)
     receipt.state_shape(raw)
     receipt.absent(env, receipt.STATE_KEY.rsplit("/", 1)[0] + "/workspaces/", request=request)
@@ -176,6 +208,7 @@ def post(env, *, request=None, metadata_request=None):
     original = receipt.private_bytes(root / "history-import-state-before.json")
     need(hashlib.sha256(original).hexdigest() == saved["state_sha256"])
     checks = {"state": "unknown", "metadata": False, "lock": False}
+    volatile_changed = None
     try:
         raw = capture(env, "history-import-state-after.json", request=request)
         if raw == original:
@@ -193,15 +226,16 @@ def post(env, *, request=None, metadata_request=None):
     try:
         status, metadata = (metadata_request or google)(receipt.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], host="bigquery.googleapis.com")
         need(status == 200)
-        prepare(metadata)
-        # Complete tables.get equality includes descriptions, schema, numRows,
-        # numBytes and lastModifiedTime. A live writer invalidates this proof.
-        checks["metadata"] = metadata == saved["metadata"]
+        checks["metadata"] = stable_table_metadata(metadata) == stable_table_metadata(saved["metadata"])
+        volatile_changed = volatile_table_metadata(metadata) != volatile_table_metadata(saved["metadata"])
+        receipt.write_private(root / "history-import-table-after.json", metadata)
     except Exception:
         pass
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
         output.write("History import receipt: state=" + checks["state"] +
                      "; metadata=" + ("PASS" if checks["metadata"] else "STOP") +
+                     "; volatile=" + ("unknown" if volatile_changed is None else
+                                      "changed" if volatile_changed else "unchanged") +
                      "; lock=" + ("absent" if checks["lock"] else "unknown") + "\n")
     need(checks == {"state": "imported", "metadata": True, "lock": True}
          and env.get("APPLY_OUTCOME") == "success" and env.get("POST_PLAN_OUTCOME") == "success")

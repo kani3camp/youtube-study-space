@@ -82,7 +82,7 @@ class ImportVerifierTest(unittest.TestCase):
         self.preapply()
         self.aws.body = json.dumps(self.imported_state()).encode()
         gate.post(self.env, request=self.aws, metadata_request=self.google)
-        self.assertIn("state=imported; metadata=PASS; lock=absent", (self.root / "summary").read_text())
+        self.assertIn("state=imported; metadata=PASS; volatile=unchanged; lock=absent", (self.root / "summary").read_text())
         self.assertEqual((self.root / "output").read_text(),
                          "history_plan_sha256=" + hashlib.sha256(b"DUMMY_SAVED_PLAN").hexdigest() + "\n")
         self.assertTrue(all(call[:2] in {("s3api", "head-object"), ("s3api", "get-object"),
@@ -126,8 +126,19 @@ class ImportVerifierTest(unittest.TestCase):
         with self.assertRaises(Exception):
             gate.preapply(self.env, request=self.aws)
 
-    def test_post_distinguishes_no_import_partial_state_metadata_and_lock(self):
-        for failure in ("unchanged", "other-state", "metadata", "lock", "apply-failed"):
+    def test_normal_writer_metrics_can_change_without_authorizing_stable_metadata_changes(self):
+        self.before()
+        self.preapply()
+        self.aws.body = json.dumps(self.imported_state()).encode()
+        self.metadata.update(etag="DUMMY_ETAG_2", numRows="43", numBytes="90", numActiveLogicalBytes="90",
+                             lastModifiedTime="123456790", streamingBuffer={"estimatedRows": "1"})
+        gate.post(self.env, request=self.aws, metadata_request=self.google)
+        self.assertIn("metadata=PASS; volatile=changed; lock=absent", (self.root / "summary").read_text())
+        self.assertEqual(receipt.private_json(str(self.root / "history-import-table-after.json")), self.metadata)
+
+    def test_post_distinguishes_no_import_partial_state_stable_metadata_and_lock(self):
+        for failure in ("unchanged", "other-state", "schema", "description", "creation-time", "unknown-field",
+                        "bad-metric", "unknown-streaming-field", "lock", "apply-failed"):
             with self.subTest(failure=failure):
                 child = ImportVerifierTest()
                 child.setUp()
@@ -139,8 +150,18 @@ class ImportVerifierTest(unittest.TestCase):
                         if failure == "other-state":
                             state["resources"][0]["instances"][0]["attributes"]["dummy"] = "CHANGED"
                         child.aws.body = json.dumps(state).encode()
-                    if failure == "metadata":
-                        child.metadata["numRows"] = "43"
+                    if failure == "schema":
+                        child.metadata["schema"]["fields"].reverse()
+                    if failure == "description":
+                        child.metadata["schema"]["fields"][0]["description"] = "DUMMY_CHANGED_DESCRIPTION"
+                    if failure == "creation-time":
+                        child.metadata["creationTime"] = "123456790"
+                    if failure == "unknown-field":
+                        child.metadata["unrecognizedStableSetting"] = "DUMMY_CHANGED"
+                    if failure == "bad-metric":
+                        child.metadata["numRows"] = {"unexpected": True}
+                    if failure == "unknown-streaming-field":
+                        child.metadata["streamingBuffer"] = {"unexpected": "1"}
                     if failure == "lock":
                         child.aws.lock = True
                     if failure == "apply-failed":
