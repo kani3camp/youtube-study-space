@@ -88,7 +88,7 @@ function report(diagnostics: ReleaseDiagnostic[]): ReleaseConfigReport {
 			'real-sdk-csp-and-analytics-network-inventory',
 			'analytics-console-consent-and-retention-review',
 			'data-inventory-cleanup-monitoring-and-rollback',
-			'D01-D02-D03-owner-decisions-and-publication-review',
+			'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
 			'privacy-intake-operator-reply-and-no-session-exception-contact',
 		],
 	}
@@ -346,7 +346,7 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			add(
 				'frontend.VITE_PRIVACY_INTAKE_ENABLED',
 				'INVALID_FIELD',
-				'Keep privacy intake disabled until operator reply, no-session exception contact, D02/D03 and public release gates are completed.',
+				'Keep privacy intake disabled until operator reply, no-session exception contact, D02 policy compliance, D03 public values and public release gates are completed.',
 			)
 		if (
 			analytics !== undefined &&

@@ -136,7 +136,7 @@ describe('offline public release configuration', () => {
 				'real-hosting-oauth-app-check-auth-e2e',
 			)
 			expect(result.pendingGates).toContain(
-				'D01-D02-D03-owner-decisions-and-publication-review',
+				'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
 			)
 		}
 		for (const value of Object.values(input.deployment))
@@ -167,7 +167,7 @@ describe('offline public release configuration', () => {
 		expect(result.checks.publicPolicy).toBe('consistent')
 		expect(result.releaseReady).toBe(false)
 		expect(result.pendingGates).toContain(
-			'D01-D02-D03-owner-decisions-and-publication-review',
+			'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
 		)
 		for (const value of Object.values(input.publicPolicy))
 			expect(JSON.stringify(result)).not.toContain(value)

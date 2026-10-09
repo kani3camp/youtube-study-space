@@ -1,11 +1,12 @@
 """Synthetic intake browser QA. Requires runtime-visual Vite on 127.0.0.1:18081."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import argparse, json
+import argparse, json, shutil
 from urllib.parse import urlencode
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', default='/tmp/mypage-privacy-intake-qa')
+parser.add_argument('--chromium', default=shutil.which('chromium') or shutil.which('google-chrome') or '/usr/bin/chromium')
 args = parser.parse_args()
 out = Path(args.output); out.mkdir(parents=True, exist_ok=True)
 errors = []; external = []; oauth_wakeups = []
@@ -13,7 +14,7 @@ origin = 'http://127.0.0.1:18081/'
 def synthetic_url(path):
  return origin + 'runtime-visual.html?' + urlencode({'mode': 'privacy-intake-authenticated', 'path': path})
 with sync_playwright() as p:
- browser = p.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
+ browser = p.chromium.launch(executable_path=args.chromium, headless=True, args=['--no-sandbox'])
  context = browser.new_context(viewport={'width': 390, 'height': 900})
  def route(request_route):
   url = request_route.request.url
@@ -31,7 +32,7 @@ with sync_playwright() as p:
  page.get_by_role('button', name='許可しない', exact=True).click()
  page.locator('#synthetic-restrict-moderation').click()
  assert page.get_by_role('heading', name='アプリ内で依頼する').count() == 1
- page.screenshot(path=str(out / 'intake-form-390.png'), full_page=True)
+ page.locator('main').screenshot(path=str(out / 'intake-form-390.png'))
  page.locator('#privacy-body').fill('Synthetic privacy request A')
  page.locator('#synthetic-hold').click()
  page.get_by_role('button', name='依頼を受け付ける').click()
@@ -69,7 +70,7 @@ with sync_playwright() as p:
  for width in [320, 390, 1440]:
   page.set_viewport_size({'width': width, 'height': 900})
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
-  page.screenshot(path=str(out / f'intake-{width}.png'), full_page=True)
+  page.locator('main').screenshot(path=str(out / f'intake-{width}.png'))
  page.locator('#synthetic-hold').click()
  page.get_by_role('button', name='状態を確認').click()
  assert page.locator('#privacy-ref').is_disabled()
@@ -83,6 +84,11 @@ with sync_playwright() as p:
  page.get_by_text('この端末に利用可能なログインがありません。', exact=False).wait_for()
  assert page.get_by_role('heading', name='アプリ内で依頼する').count() == 0
  assert page.get_by_role('link', name='個人情報・プライバシーに関する問い合わせ・請求').count() == 1
+ for width in [320, 390, 1440]:
+  page.set_viewport_size({'width': width, 'height': 900})
+  assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+  page.locator('main').screenshot(path=str(out / f'no-session-{width}.png'))
+ page.set_viewport_size({'width': 390, 'height': 900})
  page.goto(synthetic_url('/contact'))
  page.locator('#privacy-body').fill('Private request for synthetic A')
  page.locator('#privacy-ref').fill('a' * 64)
@@ -113,5 +119,5 @@ with sync_playwright() as p:
  assert page.locator('#privacy-ref').input_value() == ''
  assert not external and not errors, (len(external), errors)
  browser.close()
-(out / 'report.json').write_text(json.dumps({'cases': ['restricted existing session keeps intake; pending purpose/body/ref disabled; Back and retry preserve draft; synthetic OAuth redirect reload; proof ref distinct from status ref; verified reply; pending status and intake invalidated on UID change; same-page UID change, pagehide and signout clear private draft/ref; anonymous human contact; 320/390/1440 widths'], 'syntheticOAuthRedirects': len(oauth_wakeups), 'externalRequests': len(external), 'pageErrors': errors, 'realOperatorConnected': False}, indent=2))
+(out / 'report.json').write_text(json.dumps({'cases': ['restricted existing session keeps intake; pending purpose/body/ref disabled; Back and retry preserve draft; synthetic OAuth redirect reload; proof ref distinct from status ref; verified reply; pending status and intake invalidated on UID change; same-page UID change, pagehide and signout clear private draft/ref; anonymous human contact at 320/390/1440 widths; authenticated status at 320/390/1440 widths'], 'syntheticOAuthRedirects': len(oauth_wakeups), 'externalRequests': len(external), 'pageErrors': errors, 'realOperatorConnected': False}, indent=2))
 print('PASS: synthetic intake, OAuth redirect and reply browser QA')

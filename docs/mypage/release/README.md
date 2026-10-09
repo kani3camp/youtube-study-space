@@ -15,7 +15,7 @@
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
 | ServiceAccessControl | [MyPage guardとtrusted moderation CLI](../service-access-control.md)、独立reasonとtransaction/checkpoint、合成QA | 実environmentの権限・runtime・運用結線、全runtime drainと横断削除B |
 | support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go) | 実受付と返信運用、実environmentのCLI結線、横断削除/revoke/開示の実行・検証 |
-| public policy | anonymous routes、明示同意、公開情報差込とdraft文面 | 運営値・実送信/保持との照合、本文承認、D02 |
+| public policy | anonymous routes、明示同意、公開情報差込とdraft文面 | 運営値・実送信/保持との照合、本文承認、D02の規約適合性確認 |
 | GA4 | consent世代、同意前非送信、撤回/cross-tab、safe固定UTM、loader | Console/全tag inventory・実Network・保持設定 |
 | Hosting | [pure候補](../../../mypage/src/hosting.ts)、明示CSP inventory、API優先rewrite、asset検査 | 所有target、実SDKのinventory、callback/access-log、実security headers |
 | Bot入口 | 正本で `!app`/alias・固定public入口/UTMを決定済み。設定・受入条件は本runbookで準備 | runtimeコマンド接続は本PRに含めない。別の実装scope承認、Phase 1の実URL設定・live導線/流入確認 |
@@ -98,15 +98,15 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 | MyPage Ready Gate | [infra正本Phase6](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)のdev/prod基盤・ownership・Firebase境界・keyless CI | resource本実装/provisioningへ進まない |
 | Phase 0A準備 | exact commit/CI、設定preflight、公開文面とAPI前同意、対象/rollback/実試験計画 | local prepareは継続。target値を推測しない |
 | 0A実施承認 | 対象project/domain/revision、操作一覧、本人test accounts、infra/security証跡、秘密の供給方式 | live実行/公開/追加IAMを行わない |
-| 0B受入 | 0A実経路PASS、D01/D02/D03、返信窓口、7日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
+| 0B受入 | 0A実経路PASS、D01実装証跡、D02規約適合性確認、D03実値、返信窓口、7日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 
-Privacy受付の[アプリ内source package](../privacy-intake.md)はdefault off。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。返信担当/認可/監査とログイン不能時の人的例外窓口を成立させ、D02/D03と実経路を確認してから別の公開判断を行う。
+Privacy受付の[アプリ内source package](../privacy-intake.md)はdefault off。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。返信担当/認可/監査とログイン不能時の人的例外窓口を成立させ、D02の規約適合性・D03の実値と実経路を確認してから別の公開判断を行う。
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は2026-10-07 Canonの独立ServiceAccessControlに決定済み。AのguardとBの横断削除/drain完了を区別し、D02の新しい残余リスク受容は本人判断に残す。
+正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は2026-10-07 Canonの独立ServiceAccessControlに決定済み。AのguardとBの横断削除/drain完了を区別する。D02は2026-10-09に外部Google解除検知だけを目的とするrefresh token保存・定期pollingを採用しないと確定し、規約適合性と取消後の保持済みAPI dataの扱いをverification/complianceで確認する。
 
 ## 5. 証跡と停止条件
 
-[release record例](release-record.example.json)にfrontend commit/Hosting release、backend image digest/revision、rewrite/pinTag、schema/同意版、試験のscopeと参照、owner承認をひと組で記録する。例は全pendingのtemplateで、入力しただけではGateを閉じない。private target/個人data/credentialをpublic PRに載せない。
+[release record例](release-record.example.json)にfrontend commit/Hosting release、backend image digest/revision、rewrite/pinTag、schema/同意版、試験のscopeと参照、owner承認をひと組で記録する。例はD02設計選択のみ確定済みとし、残るGateはpendingのtemplateで、入力しただけではGateを閉じない。private target/個人data/credentialをpublic PRに載せない。
 
 認証/IDOR・誤channel・code/state漏えい・同意前GA4・古いdata復活・保持/削除期限違反・rollback互換不成立はSTOP。部分失敗はunknown/pendingとして記録し、再実行で失敗を消さない。CodeQLの既存OIDC custom-claim問題とGitHub CI Gateは区別し、解析未開始をsecurity scan PASSとは呼ばない。OIDC/IAM変更はこのrunbookのコマンドには含めない。
