@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"
 from prepare_user_activity_history_adoption import prepare, unique_object
 from prepare_user_activity_history_workflow import TABLE_PATH, PrivateArgumentParser
 from validate_user_activity_history_plan import TABLE
+from terraform_history_table_metadata import stable_table_metadata, volatile_table_metadata
 
 BASELINE = EXISTING | {CHANNEL, TOPIC, SCHEDULER, FUNCTION} | ADDRESSES
 ZERO_INSTANCE_CHECKS = frozenset({
@@ -392,7 +393,8 @@ def after(env, *, request=None, metadata_request=None):
     require(initial["git_sha"] == env["GITHUB_SHA"] and initial["cost"] == budget, "after-initial-evidence")
     # These reads execute even if Terraform init/plan/validation failed. Only
     # complete evidence plus a strict import1 summary can produce final PASS.
-    checks = {"Persistent state invariant": False, "Complete table metadata invariant": False, "Exact native lock absence": False}
+    checks = {"Persistent state invariant": False, "Stable table metadata invariant": False, "Exact native lock absence": False}
+    volatile_changed = None
     try:
         final = snapshot(env, "after", request=request)
         checks["Persistent state invariant"] = (final == initial["state"] and
@@ -407,8 +409,9 @@ def after(env, *, request=None, metadata_request=None):
         json.dumps(metadata, allow_nan=False)
         write_private(directory / "history-plan-table-after.json", metadata)
         original = private_json(str(directory / "user-history-before.json"))
-        checks["Complete table metadata invariant"] = (metadata == original and
+        checks["Stable table metadata invariant"] = (stable_table_metadata(metadata) == stable_table_metadata(original) and
             initial["metadata_sha256"] == hashlib.sha256(json.dumps(original, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+        volatile_changed = volatile_table_metadata(metadata) != volatile_table_metadata(original)
     except Exception:
         pass
     try:
@@ -423,6 +426,7 @@ def after(env, *, request=None, metadata_request=None):
         handle.write("History plan safety checks (final receipt still required):\n")
         for label, passed in checks.items():
             handle.write(f"- {label}: {'PASS' if passed else 'STOP'}\n")
+        handle.write("- Volatile table observations: " + ("changed" if volatile_changed else "unchanged" if volatile_changed is False else "unknown") + "\n")
     require(all(checks.values()), "after-safety")
     require(cost_policy(json.dumps(budget["profile"]), env["GITHUB_SHA"]) == budget, "after-cost-fresh")
     require(all(env.get(key) == "success" for key in ("BACKEND_INIT_OUTCOME", "TERRAFORM_PLAN_OUTCOME", "PLAN_VALIDATION_OUTCOME")), "after-outcomes")
@@ -443,7 +447,8 @@ def after(env, *, request=None, metadata_request=None):
     require({r.get("address") for r in resources} == BASELINE | {TABLE}, "after-plan-addresses")
     require(all(r.get("mode") == "managed" and r.get("action") == "no-op" and r.get("import") is (r["address"] == TABLE) for r in resources), "after-plan-actions")
     write_private(directory / "history-plan-after.json", {"git_sha": env["GITHUB_SHA"], "state": final,
-                  "complete_table_metadata_unchanged": True, "native_lock_absent": True, "import": 1, "existing_no_op": 11,
+                  "stable_table_metadata_unchanged": True, "volatile_table_observations_changed": volatile_changed,
+                  "native_lock_absent": True, "import": 1, "existing_no_op": 11,
                   "cost_upper_bound_usd": budget["upper_bound_usd"], "monthly_ledger_entry": budget["monthly_ledger_entry"]})
 
 
@@ -456,7 +461,7 @@ def main(argv=None):
         env = dict(os.environ)
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
-            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and complete table metadata unchanged; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and stable table metadata unchanged; volatile observations recorded privately; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
             # The value-free projection digest is the only plan artifact handle
             # a future one-shot approval may cite. The binary plan is deleted.
             digest = hashlib.sha256(private_bytes(Path(env["RUNNER_TEMP"]) / "sanitized-plan.json")).hexdigest()

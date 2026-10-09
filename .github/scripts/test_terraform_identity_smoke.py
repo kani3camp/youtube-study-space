@@ -227,7 +227,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
     def run_smoke(self, args=("plan-read-only",), *, legacy_denials=False, claims_override=None,
                   extra_permissions=(), missing_permission=None, account="PRIVATE_ACCOUNT",
                   state_key="youtube-study-space/dev/terraform.tfstate", service_account=None,
-                  fail_read=None):
+                  fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None):
         project = "test-youtube-study-space"
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
@@ -280,6 +280,10 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
             response.status = 200
             return response
 
+        state_body = [json.dumps(receipt_fixtures.state_fixture()).encode()]
+        current_version = ["DUMMY_VERSION_ID"]
+        lock_present = [False]
+
         def aws(*args):
             aws_calls.append(args)
             if args[:2] == ("sts", "get-caller-identity"):
@@ -287,9 +291,20 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                 return subprocess.CompletedProcess([], 0, json.dumps({"Account": account}), "")
             if args[:2] == ("s3api", "get-object"):
                 if fail_read == "state": return subprocess.CompletedProcess([], 1, "", "PRIVATE_READ_ERROR")
-                Path(args[-1]).write_text(json.dumps({"version": 4, "serial": 9, "lineage": "PRIVATE_LINEAGE", "outputs": {},
-                    "resources": [{"mode": "managed", "instances": [{"value": "PRIVATE_STATE"}] * 11}]}))
-                return subprocess.CompletedProcess([], 0, "{}", "")
+                Path(args[-1]).write_bytes(state_body[0])
+                return subprocess.CompletedProcess([], 0, json.dumps({"ContentLength": len(state_body[0]), "VersionId": current_version[0], "ETag": '"dummy-etag"'}), "")
+            if args[:2] == ("s3api", "head-object") and args[args.index("--key") + 1] == state_key:
+                return subprocess.CompletedProcess([], 0, json.dumps({"ContentLength": len(state_body[0]), "VersionId": current_version[0],
+                    "ETag": '"dummy-etag"', "ServerSideEncryption": "AES256", "Metadata": {}}), "")
+            if args[:2] == ("s3api", "list-objects-v2") and args[args.index("--prefix") + 1] == state_key + ".tflock":
+                return subprocess.CompletedProcess([], 0, json.dumps({"Name": "PRIVATE_BUCKET", "Prefix": state_key + ".tflock",
+                    "MaxKeys": 1, "KeyCount": int(lock_present[0]), "IsTruncated": False,
+                    **({"Contents": [{"Key": state_key + ".tflock", "Size": 1}]} if lock_present[0] else {})}), "")
+            if args[:2] == ("s3api", "put-object"):
+                if change_after_put == "version": current_version[0] = "DUMMY_NEW_VERSION_ID"
+                if change_after_put == "body": state_body[0] += b"\n"
+                if change_after_put == "lock": lock_present[0] = True
+                return subprocess.CompletedProcess([], 1 if put_error else 0, "", put_error)
             return subprocess.CompletedProcess([], 1 if legacy_denials else 0, "PRIVATE_APPLY_CREDENTIAL",
                                                "(AccessDenied) PRIVATE_SENTINEL" if legacy_denials else "")
 
@@ -391,14 +406,44 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         operations = [call[:2] for call in aws]
         self.assertEqual(operations.count(("sts", "assume-role-with-web-identity")), 1)
         self.assertEqual(operations.count(("s3api", "put-object")), 1)
-        self.assertEqual(operations.count(("s3api", "list-objects-v2")), 2)
-        self.assertEqual(operations.count(("s3api", "head-object")), 2)
+        self.assertEqual(operations.count(("s3api", "list-objects-v2")), 4)
+        self.assertEqual(operations.count(("s3api", "head-object")), 6)
+        put = next(call for call in aws if call[:2] == ("s3api", "put-object"))
+        self.assertIn("--if-match", put)
+        self.assertNotIn("--if-none-match", put)
+        self.assertRegex(put[put.index("--if-match") + 1], r'^"[0-9a-f]{32}"$')
+        self.assertNotEqual(put[put.index("--if-match") + 1], '"dummy-etag"')
+        self.assertEqual(put[put.index("--expected-bucket-owner") + 1], "PRIVATE_ACCOUNT")
         self.assertEqual(sum("generateAccessToken" in url for _, url, _ in http), 1)
         self.assertEqual(sum("/projects/youtube-study-space:" in url for _, url, _ in http), 3)
-        self.assertIn("PASS: AWS plan state PutObject denied", summary)
+        self.assertIn("PASS: AWS plan state PutObject denied for mismatched If-Match request", summary)
         self.assertNotIn("SKIPPED", summary)
         self.assertNotIn("PRIVATE", summary + output)
         self.assertEqual(self.run_smoke(args=())[0], 1)
+
+    def test_conditional_probe_accepts_only_explicit_deny_with_unchanged_private_snapshots(self):
+        for error in ("(412) PreconditionFailed", "(404) NoSuchKey", "(409) ConditionalRequestConflict",
+                      "timeout PRIVATE_SENTINEL", "(403) and (412) PRIVATE_SENTINEL", ""):
+            with self.subTest(error=error):
+                rc, _, calls, summary, output = self.run_smoke(args=("security-probe",), legacy_denials=True, put_error=error)
+                self.assertEqual(rc, 1)
+                self.assertEqual(sum(c[:2] == ("s3api", "get-object") for c in calls), 2)
+                self.assertEqual(summary, "")
+                self.assertNotIn("PRIVATE", output)
+        for mutation in ("version", "body", "lock"):
+            with self.subTest(mutation=mutation):
+                rc, _, _, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True,
+                    change_after_put=mutation)
+                self.assertEqual((rc, summary), (1, ""))
+        rc, _, calls, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True)
+        self.assertEqual(rc, 0)
+        self.assertIn("AWS plan state PutObject denied for mismatched If-Match request", summary)
+        self.assertIn("request/header only", summary)
+        self.assertEqual(sum(c[:2] == ("s3api", "get-object") for c in calls), 2)
+        with patch.object(smoke.secrets, "token_hex", return_value="dummy-etag"):
+            rc, _, calls, summary, _ = self.run_smoke(args=("security-probe",), legacy_denials=True)
+        self.assertEqual((rc, summary), (1, ""))
+        self.assertFalse(any(c[:2] == ("s3api", "put-object") for c in calls))
 
     def test_invalid_read_only_cli_does_not_fall_back_to_legacy(self):
         rc, http, aws, summary, _ = self.run_smoke(args=("plan-read-only", "apply"))

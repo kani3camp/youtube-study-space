@@ -24,6 +24,7 @@ from terraform_identity_smoke import google
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
 from prepare_user_activity_history_adoption import normalize_field, prepare
 from validate_user_activity_history_plan import TABLE, TABLE_ID
+from terraform_history_table_metadata import stable_table_metadata, volatile_table_metadata
 
 # plan_run_id and cost fields are reviewer references with shape checks only.
 # Only SHA, expiry, approved summary bytes and the local binary digest are
@@ -32,16 +33,6 @@ APPROVAL_KEYS = {"target", "git_sha", "plan_run_id", "summary_sha256", "cost_evi
                  "max_added_current_month_usd", "issued_utc", "expires_utc"}
 SUMMARY_COUNTS = {key: (1 if key == "import" else 12 if key == "no-op" else 0) for key in COUNT_KEYS}
 RECEIPT = "history-import-before.json"
-# BigQuery tables.get output-only observations that may change when an
-# independent writer appends rows. Everything else, including unknown future
-# fields, remains in the exact stable comparison. See REST Table resource.
-VOLATILE_TABLE_FIELDS = frozenset({
-    "etag", "lastModifiedTime", "streamingBuffer", "numRows", "numBytes",
-    "numLongTermBytes", "numTimeTravelPhysicalBytes", "numTotalLogicalBytes",
-    "numActiveLogicalBytes", "numLongTermLogicalBytes", "numTotalPhysicalBytes",
-    "numActivePhysicalBytes", "numLongTermPhysicalBytes", "numPartitions",
-})
-VOLATILE_METRICS = VOLATILE_TABLE_FIELDS - {"etag", "streamingBuffer"}
 
 
 def need(value):
@@ -84,25 +75,6 @@ def directory(env):
     path = Path(env["RUNNER_TEMP"])
     need(path.is_absolute() and path.is_dir() and not path.is_symlink())
     return path
-
-
-def stable_table_metadata(metadata):
-    """Reject any configuration/identity change while preserving write metrics privately."""
-    prepare(metadata)
-    need(type(metadata) is dict)
-    for key in VOLATILE_METRICS & metadata.keys():
-        need(type(metadata[key]) is str and re.fullmatch(r"[0-9]+", metadata[key]))
-    if "etag" in metadata:
-        need(type(metadata["etag"]) is str and bool(metadata["etag"]))
-    if "streamingBuffer" in metadata:
-        buffer = metadata["streamingBuffer"]
-        need(type(buffer) is dict and set(buffer) <= {"estimatedRows", "estimatedBytes", "oldestEntryTime"}
-             and all(type(value) is str and re.fullmatch(r"[0-9]+", value) for value in buffer.values()))
-    return {key: value for key, value in metadata.items() if key not in VOLATILE_TABLE_FIELDS}
-
-
-def volatile_table_metadata(metadata):
-    return {key: value for key, value in metadata.items() if key in VOLATILE_TABLE_FIELDS}
 
 
 def capture(env, path, *, request=None):

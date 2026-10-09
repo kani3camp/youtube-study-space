@@ -138,6 +138,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
+            "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false", "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED": "true", "DEV_EXPORT_FUNCTION_MANAGED_ENABLED": "true",
         }
         env.update(overrides)
@@ -295,11 +296,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         result = self.run_preflight(**gates)
         self.assertEqual(result.returncode, 0)
         self.assertIn("manage_user_activity_history=true", result.outputs)
-        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan"):
+        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan", "security-probe"):
             with self.subTest(mode=mode):
                 rejected = self.run_preflight(MODE=mode, **gates)
                 self.assertNotEqual(rejected.returncode, 0)
-                if mode != "quota-plan":
+                if mode not in ("quota-plan", "security-probe"):
                     self.assertIn("Development apply is disabled", rejected.stdout)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
@@ -365,7 +366,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.text.count("id-token: write"), 2)
+        self.assertEqual(self.text.count("id-token: write"), 3)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -404,7 +405,30 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.text.count("persist-credentials: false"), 2)
+        self.assertEqual(self.text.count("persist-credentials: false"), 3)
+
+    def test_disabled_security_probe_uses_plan_oidc_without_terraform_or_state_write_route(self) -> None:
+        self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
+        self.assertIn("          - security-probe\n", self.caller)
+        self.assertNotEqual(self.run_preflight(MODE="security-probe").returncode, 0)
+        enabled = self.run_preflight(MODE="security-probe", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true")
+        self.assertEqual(enabled.returncode, 0, enabled.stdout)
+        self.assertIn("manage_user_activity_history=false", enabled.outputs)
+        self.assertNotEqual(self.run_preflight(MODE="security-probe", TARGET="prod",
+            DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        self.assertIn("if: ${{ inputs.mode != 'security-probe' }}", plan)
+        probe = self.text.split("  security-probe:\n", 1)[1]
+        for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
+                         "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",
+                         "persist-credentials: false", "git rev-parse HEAD", "${GITHUB_SHA}",
+                         "AWS_TERRAFORM_BACKEND_ROLE_ARN", "GCP_TERRAFORM_WIF_PROVIDER",
+                         "terraform_identity_smoke.py security-probe"):
+            self.assertIn(required, probe)
+        for forbidden in ("setup-terraform", "terraform -chdir", "terraform init", "terraform plan",
+                          "terraform apply", "backend.hcl", "--if-none-match"):
+            self.assertNotIn(forbidden, probe)
 
     def test_import_only_policy_is_enforced_before_apply_and_post_apply(self) -> None:
         self.assertGreaterEqual(self.text.count("--policy import-only"), 3)

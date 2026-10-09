@@ -249,27 +249,34 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
    consumer/recoveryのowner factsをprivate packetで照合する。importだけのためにBigQuery writerを
    停止させない。Terraform stateへの他writer/操作は競合を避けるため停止・隔離する。
 2. plan-onlyはnegative security probesを実行せず、apply gate=falseのpreflightはmode=applyを
-   拒否する。このままの通常dispatchでgate変更前のfull smokeを実施できると想定しない。
-   既存full probeは現state keyに対するconditional S3 PutObject否定試験を含み、誤付与と同時削除が
-   重なると空versionを書き得る既知リスクがある。候補は同じtrusted ref、
-   `terraform-dev-plan` EnvironmentとGitHub OIDC claimsを保持し、apply/state書換を許さない
-   security-probe専用経路だが、現workflowにはそのmodeがない。手動外部probeでは同じOIDC境界を
-   証明できない。専用経路のsource/security reviewとlive実行の別承認までは使用しない。
+   拒否する。sourceに独立した`security-probe` mode/jobを追加したが、
+   `DEV_TERRAFORM_SECURITY_PROBE_ENABLED=false`で閉じたまま。同じtrusted ref、
+   `terraform-dev-plan` Environment、exact checkout/SHAとGitHub OIDC claimsを要求し、
+   backend init/plan/apply/state書換のTerraform経路へ入らない。probeが送る条件付きPutObject自体は
+   write API requestなので、live実行はsource/security reviewと本人の別承認が必要。
+   手動外部probeでは同じGitHub OIDC境界を証明できない。
    [S3 conditional write仕様](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)に
-   基づく、既存HEADと異なる予測不能な`If-Match`値を使うprobe案ならkey不存在時も新規作成しない。
-   ただし403だけをDENYとして前後versionを比較し、412/404/409を成功にしない実装・mock reviewが
-   先に必要。条件header付きrequestの拒否はそのrequestの証拠に限り、role/bucket/SCP/session policy
-   全体の権限証明とはしない。現unsafe probeの実行は承認されていない。
-   canaryや静的policy検査はその範囲の証拠に
-   限られ、正本stateでのfull probeと同等とは主張しない。今回は実probeもgate変更もしない。
-   IAM/credential/trust変更や新permissionが必要なら別reviewへ戻す。
+   基づき、fresh HEADと異なる暗号学的にランダムな128-bit ETagを`If-Match`に用いる。
+   keyが消えた場合は新規作成できず、403/AccessDeniedだけをDENYとし、412/404/409、通信失敗、
+   successはいずれもSTOP。前後でcurrent VersionId/ETag/HEADとbody SHA-256、exact lock absenceを
+   privateに比較し、0600の一時receiptに両HEAD/body digest/lock判定/条件headerと403判定を残す。
+   runner終了時に消去しpublic artifactにしない。万一予期せぬ書込みが可能だった場合の被害を抑えるためrequest bodyは直前に
+   読んだstateそのものを使うが、競合で将来ETagが偶然一致する可能性やS3の想定外動作は
+   数学的にゼロではない。成功または前後差分ならSTOPして部分状態として調査し、retryしない。
+   条件付きrequestの403はそのrequest/headerの拒否証拠に限り、無条件PutObjectや
+   role/bucket/SCP/session policy全体の権限証明ではない。ownerはexact role ARN/RoleId、
+   trustとpermission/permissions boundary、bucket policyとversioning、実session policyの有無、
+   Organizations SCPの適用範囲をread-onlyで別途照合する。canaryやsimulatorもこのlive OIDC/requestの
+   代替証拠にはならない。今回は実probe、gate変更、IAM/credential/trust変更を行わない。
 3. 次のplanとapplyが追加する当月UTC費用を別に見積る。AWS state GET/HEAD/LIST、native lock PUT/GET/DELETE、
    state新versionとlock version/delete markerの後月保管、暗号化/KMS、転送、GCP `tables.get`、
    provider refresh、logging/audit、別料金がある場合の上限をprivateなread証拠と単価で積算し、
    既存の月次台帳に過去分USD0.507609043と今回の予約額を区別して記録する。追加料金runは今回0。
+   probeのlive実行を別途承認するなら、前後state HEAD/GET/LIST、条件付きPutObject一回、
+   STS/GCP permission checks、KMS/監査/転送も別枠で見積る。
    値やbooleanだけで未知項目が解決したことにしない。
 4. 本人がexact target `dev / test-youtube-study-space.firestore_export.user-activity-history`、
-   state key、SHA、差分「tableのstate記録1件のみ・既存11 no-op」、private plan digest、
+   state key、SHA、差分「tableのstate記録1件のみ・既存11 no-op」、公開済みsanitized plan-summaryのSHA-256、
    期限、費用、状態不明時の停止をreviewする。planとapplyの両GitHub Environmentの本人review、
    gate変更とdispatchはそれぞれ別のlive承認が必要。
 
@@ -286,7 +293,8 @@ local saved binary digestである。`plan_run_id`は正の整数という形式
 public inputに証拠本文やbucket/account/role/SA名を貼らない。
 
 既存workflowは同SHAのapply jobで新しいplanを作り、approved summary digestと再plan summaryを
-比較する。[one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
+比較する。旧plan jobのbinaryはcleanup済みで、job間のbinary artifactもない。
+[one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
 beforeでstateに既存11件だけあること、preapplyでtable import **exact1**・既存11 no-op・他0、
 元state不変、stable table metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
 apply直前に同binary digestを再確認する。plan jobからbinaryをartifactで渡さない。
@@ -297,7 +305,9 @@ stable `tables.get`不変、native lock不在、post full-root import0/no-op12/�
 観測し、変化だけでSTOPしない。それ以外のfieldは未知のfieldも含めて完全一致を要求する。
 Terraformによるdata書込を許さない境界はexact saved planのimport1/他変更0、既存identity権限、
 state差分で検証する。metadata観測だけではrow本文の同一性を証明しない。独立BigQuery writerの
-通常書込をimportの失敗と混同しない。追加のbusiness-data queryが必要なら別承認。
+通常書込をimportの失敗と混同しない。plan receipt側も同じstable/volatile分類を使い、
+stableと未知fieldをstrict比較し、volatileの前後全値をprivateに保存する。
+過去run37925757786ではcomplete metadata不変を観測済み。追加のbusiness-data queryが必要なら別承認。
 runnerのprivate state/metadata/planは0600で
 扱い、publicには固定の分類だけを出し、always cleanupする。強制停止時のcleanupは保証しない。
 

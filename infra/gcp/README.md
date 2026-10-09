@@ -195,7 +195,7 @@ CIのRUNNER_TEMPはcleanupされ、永続台帳にはならない。実行operat
 
 既存identity smokeのinitial state GETをHEAD/GET/HEAD付きのprivate snapshotへ置き換える。exact既存11 managed instance、history未登録、正常なTerraform4 state envelope・pass状態の既知check結果、current VersionIdを確認する。provider定義のattributes/identity/privateは値を公開せず、全state bytesを前後完全一致で保持する。新しいstate envelope属性・taint/deposed・unknown checkは拒否する。既存のcanonical8 metadata helperとprivate varfileはそのまま使う。
 
-init/plan/sanitizer後は`always()`で再snapshot・完全なtables.get比較・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
+init/plan/sanitizer後は`always()`で再snapshot・stable/未知fieldのstrict tables.get比較（output-only volatile観測値はprivate保存）・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
 
 public Summaryは固定のPASS/STOPラベルとsanitized action数、当月のみの追加費用枠・後月の保管費継続・削除期限を仮定しない旨の固定文だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のprivateファイルで扱い、CIのRUNNER_TEMPは常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
 

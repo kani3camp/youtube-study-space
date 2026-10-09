@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: Import-only plan/apply or separately approved Email adoption
+        description: Import-only plan/apply, disabled security probe, or separately approved Email adoption
         required: true
         type: string
       plan_cost_evidence:
@@ -52,6 +52,7 @@ env:
   STATE_AWS_REGION: ap-northeast-1
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
+  DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
@@ -126,7 +127,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
+            plan|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
@@ -139,7 +140,11 @@ jobs:
                 echo "::error::Development authenticated Terraform is disabled until its trust is configured."
                 exit 1
               }
-              if [[ "${MODE}" != "plan" && "${MODE}" != "quota-plan" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
+              if [[ "${MODE}" == "security-probe" && "${DEV_TERRAFORM_SECURITY_PROBE_ENABLED}" != "true" ]]; then
+                echo "::error::Development security probe is disabled pending separate approval."
+                exit 1
+              fi
+              if [[ "${MODE}" != "plan" && "${MODE}" != "quota-plan" && "${MODE}" != "security-probe" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
                 echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
                 exit 1
               fi
@@ -176,7 +181,7 @@ jobs:
                 exit 1
               }
               if [[ "${history_enabled}" == "true" ]]; then
-                [[ "${MODE}" == "plan" || "${MODE}" == "apply" ]] || {
+                [[ "${MODE}" == "plan" || "${MODE}" == "apply" || "${MODE}" == "security-probe" ]] || {
                   echo "::error::History adoption cannot share an exceptional wave."
                   exit 1
                 }
@@ -216,6 +221,7 @@ jobs:
   plan:
     name: Authenticated protected plan
     needs: preflight
+    if: ${{ inputs.mode != 'security-probe' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -886,3 +892,80 @@ jobs:
             "${RUNNER_TEMP}/post-sanitizer.out" \
             "${RUNNER_TEMP}/post-sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+  security-probe:
+    name: Disabled-by-default development identity probe
+    needs: preflight
+    if: ${{ inputs.mode == 'security-probe' && inputs.target == 'dev' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: terraform-dev-plan
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+    steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
+      - name: Checkout exact trusted commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checked out commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]] || exit 1
+
+      - name: Configure AWS plan credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+
+      - name: Configure GCP plan credential
+        id: probe_gcp_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: false
+          export_environment_variables: false
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify exact identity and conditional denial with private snapshots
+        env:
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
+          EXPORT_TOPIC_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
+          EXPORT_SCHEDULER_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' }}
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.probe_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+        run: python3 .github/scripts/terraform_identity_smoke.py security-probe

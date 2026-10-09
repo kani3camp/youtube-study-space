@@ -24,6 +24,7 @@ on:
         type: choice
         options:
           - plan
+          - security-probe
           - apply
           - email-adoption
           - quota-plan
