@@ -11,7 +11,7 @@
   "privacyVersion": "pending",
   "termsVersion": "pending",
   "ownerExecutionApprovalReference": "pending",
-  "gates": {"infrastructure": "pending", "D01": "pending", "D02": "pending", "D03": "pending", "liveE2E": "pending", "oauthVerification": "pending"},
+  "gates": {"infrastructure": "pending", "D01Implementation": "pending", "D02Design": "decided-2026-10-09", "D02PolicyCompliance": "pending", "D03PublicValues": "pending", "liveE2E": "pending", "oauthVerification": "pending"},
   "checks": [],
   "rollbackPairReference": "pending",
   "releaseReady": false

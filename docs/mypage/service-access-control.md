@@ -38,4 +38,4 @@ reportは固定status/code/state、generationと検証済み固定reasonだけ�
 
 Aはcontrol削除・TTL・保持期限を追加せず、unblock後のinactive checkpointを維持する。これは保持期限のpolicy決定ではない。不存在→block→外部delete→不存在のABAを防ぐ世代非再利用、全revision/instance/SDKのdrain、legacy再開後の新しい利用とのcutoff、実行時fresh proofの許容ageはBの判断事項。MyPage budgetの時間待ちだけでdrain完了を主張しない。
 
-Bはsupport受付完了と関連OAuth cleanup、Bot/座席整理/定時・手動runner/BQ import、作業名派生・vendor/log/backupsを含む横断inventoryと閉路検証を要する。vendor/logの実保持・権限は未確認。D02/D03、CodeQL/securityと実環境release gateも残る。
+Bはsupport受付完了と関連OAuth cleanup、Bot/座席整理/定時・手動runner/BQ import、作業名派生・vendor/log/backupsを含む横断inventoryと閉路検証を要する。vendor/logの実保持・権限は未確認。D02の設計選択は2026-10-09確定済みで規約適合性確認が残る。D03の実値、CodeQL/securityと実環境release gateも残る。

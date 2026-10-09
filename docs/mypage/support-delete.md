@@ -49,7 +49,7 @@ Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複
 
 [synthetic BigQuery adapter](support-delete-bigquery-adapter.md) adds frozen main/tmp/job/result-copy inventory, stable job reconciliation, temporary Firestore state and target-only synthetic deletion. It does not connect a live Registry/CLI or close backup/vendor/log gates.
 
-[synthetic derived/vendor adapter](support-delete-derived-adapter.md) adds exact object/owner/disposition inventory, temporary execution-bound state, stable mutation identity and synthetic readback. The actual OpenAI response and Discord message IDs are not stored by the inspected writers, so live attribution and disposal remain blocked. D02 and D03 are explicit 0B owner-decision gates; this package supplies no proxy decision or public value.
+[synthetic derived/vendor adapter](support-delete-derived-adapter.md) adds exact object/owner/disposition inventory, temporary execution-bound state, stable mutation identity and synthetic readback. The actual OpenAI response and Discord message IDs are not stored by the inspected writers, so live attribution and disposal remain blocked. D02's no-refresh-token/no-polling design choice was settled on 2026-10-09, while its policy compliance and treatment of retained API data after cancellation remain unconfirmed. D03 public values remain undecided; this package supplies no proxy decision or public value.
 
 ## offline CLI
 

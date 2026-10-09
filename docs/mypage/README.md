@@ -110,7 +110,7 @@ python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
 
 確認→session complete→MyPage→logout、anonymous route guard、既存session、fresh login、support誤用途防止、期限切れtransaction、uid変更/遅延response、pagehide/pageshow、logout再試行、初期折り畳み、404、設定なしpublic pageを確認する。外部requestは遮断し、合成dataだけを使う。
 
-support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01/D02/D03判断、infrastructure Ready Gate、実provider/verifier/server結線は別の未完了条件。production deploymentはしていない。
+support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01実装証跡・D02規約適合性確認・D03実値、infrastructure Ready Gate、実provider/verifier/server結線は別の未完了条件。production deploymentはしていない。
 
 
 ## Support record boundary
@@ -128,7 +128,7 @@ startの任意supportChallengeをserver recordへ解決し、同じFirestore tra
 
 support confirmは同じtransactionでOAuth status/ref/同意版、record status/environment/request ID/purpose/旧challenge無効化/対象channel/期限を検証し、SupportRequestへproofを一度記録してOAuthとchallengeをconsumeする。独立した二つのfresh OAuth transactionからも同一依頼のproofは一回のみ。成功responseは`purpose=support`とopaque requestRefであり、Custom Token mint、WebAccount作成、Firebase session completion、ユーザーデータ削除は実行しない。normal consumeへの迂回もstoreで拒否する。OAuth内のchannel metadata/state/refはconsume時にclearする。
 
-通常responseもpurpose=loginを明示する。OpenAPIはchannel/confirmのdiscriminated unionを検証する。frontendの通常login adapterはsupport responseを受け付けず、support目的を通常login画面で確認してしまう経路を閉じる。支援用UIは次slice、完了後のrecord/関連OAuth cleanupとoperator CLIは後続。D01/D02/D03/Ready Gateは継続して未完了。
+通常responseもpurpose=loginを明示する。OpenAPIはchannel/confirmのdiscriminated unionを検証する。frontendの通常login adapterはsupport responseを受け付けず、support目的を通常login画面で確認してしまう経路を閉じる。支援用UIは次slice、完了後のrecord/関連OAuth cleanupとoperator CLIは後続。D01実装証跡・D02規約適合性確認・D03実値・Ready Gateは継続して未完了。
 
 
 ## Support browser flow
@@ -144,7 +144,7 @@ product HTMLにno-referrerを指定し、support challenge等のqueryを外部�
 
 AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしない。固定route/titleと完全一致した公開UTM組合せだけを渡し、callback、code/state/error/supportChallenge、任意query/fragment、referrer/title入力や本人dataを渡すAPIを持たない。通常loginの4 eventだけをparameterなしで扱う。GA4実sender/script/identifierは未接続であり、公開済みGA4 Network/console設定を検証したとは扱わない。mandatory Firebase/App Check/reCAPTCHA通信とは別の同意である。
 
-public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01/D02/D03と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
+public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01実装・D02規約適合性・D03実値と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
 
 `privacy-qa.py`は設定なしlocalhostのpublic pageと同意UIを実Chromiumで確認する。storageには選択flagだけ、外部requestは遮断・0件。Cookie modalのTab/Escape/focus復帰、実same-origin別tab変更、320/390/1440pxのdraft policyを検証する。実Firebase必須通信/GA4 senderの証拠ではない。
 
