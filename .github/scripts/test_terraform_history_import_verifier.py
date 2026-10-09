@@ -111,6 +111,24 @@ class ImportVerifierTest(unittest.TestCase):
             self.assertNotIn("DUMMY_TOKEN", result.stdout + result.stderr)
             self.assertNotIn(str(self.root), result.stdout + result.stderr)
 
+    def test_oversized_dummy_plan_stops_before_approval_and_apply_without_public_values(self):
+        binary = self.root / "tfplan"
+        binary.write_bytes(b"PRIVATE_DUMMY_PLAN" + b"x" * receipt.MAX_BYTES)
+        binary.chmod(0o600)
+        script = Path(gate.__file__)
+        result = subprocess.run(["python3", str(script), "--phase", "size"],
+            env=os.environ | self.env | {"MODE": "plan"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("STOP", result.stderr)
+        self.assertNotIn("PRIVATE_DUMMY_PLAN", result.stdout + result.stderr)
+        self.assertNotIn(str(self.root), result.stdout + result.stderr)
+        self.before()
+        receipt.write_private(self.root / "sanitized-replan.json", json.loads(self.summary_raw))
+        with self.assertRaises(Exception):
+            gate.preapply(self.env, request=self.aws)
+        self.assertFalse((self.root / "history-import-preapply.json").exists())
+        self.assertEqual((self.root / "output").read_text(), "")
+
     def test_preapply_requires_unimported_state_exact_one_and_same_plan_digest(self):
         self.aws.body = json.dumps(self.imported_state()).encode()
         with self.assertRaises(Exception):

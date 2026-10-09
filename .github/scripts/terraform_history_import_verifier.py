@@ -77,6 +77,14 @@ def directory(env):
     return path
 
 
+def size_bound(env):
+    """No cloud call or digest output; reject an oversized saved plan before approval."""
+    need(env.get("MODE") in {"plan", "apply"} and env.get("HISTORY_TARGET") == "dev"
+         and env.get("TF_VAR_manage_user_activity_history") == "true"
+         and re.fullmatch(r"[0-9a-f]{40}", env.get("GITHUB_SHA", "")))
+    receipt.private_bytes(directory(env) / "tfplan")
+
+
 def capture(env, path, *, request=None):
     before = receipt.head(env, receipt.MAX_BYTES, request=request)
     raw_target = directory(env) / path
@@ -216,11 +224,13 @@ def post(env, *, request=None, metadata_request=None):
 def main():
     try:
         parser = argparse.ArgumentParser()
-        parser.add_argument("--phase", required=True, choices=("authorization", "before", "preapply", "post"))
+        parser.add_argument("--phase", required=True, choices=("authorization", "size", "before", "preapply", "post"))
         args = parser.parse_args()
         env = dict(os.environ)
         if args.phase == "authorization":
             approval(env)
+        elif args.phase == "size":
+            size_bound(env)
         else:
             {"before": before, "preapply": preapply, "post": post}[args.phase](env)
     except Exception:

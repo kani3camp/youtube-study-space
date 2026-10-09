@@ -72,7 +72,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("history_import_approval: ${{ inputs.terraform_history_import_approval }}", self.caller)
         self.assertLess(plan.index("Check one-shot history import authorization"), plan.index("Configure AWS backend credential"))
         ordered = ["Re-read canonical history metadata", "Capture exact pre-import state",
-                   "Re-plan at the exact", "Verify re-plan matches", "Seal the one-shot history saved plan",
+                   "Re-plan at the exact", "Check one-shot re-plan size", "Verify re-plan matches", "Seal the one-shot history saved plan",
                    "Apply the locally", "Verify post-import canonical metadata", "Require post-apply no-op",
                    "Verify one-shot history state and table receipt", "Cleanup sensitive temporary files"]
         self.assertEqual([apply.index(step) for step in ordered], sorted(apply.index(step) for step in ordered))
@@ -81,6 +81,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('"${RUNNER_TEMP}/history-import-table-after.json"', apply)
         self.assertNotIn("force-unlock", apply)
         self.assertIn("test_terraform_history_import_verifier.py", self.caller)
+        self.assertLess(plan.index("Create saved plan without public output"), plan.index("Check one-shot history saved plan size"))
+        self.assertLess(plan.index("Check one-shot history saved plan size"), plan.index("Sanitize and enforce"))
+        self.assertEqual(self.text.count("terraform_history_import_verifier.py --phase size"), 2)
 
     def test_job_level_env_does_not_use_unavailable_env_context(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -310,7 +313,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertNotEqual(self.run_preflight(**(gates | {key: value})).returncode, 0)
 
-    def test_only_plan_dispatch_uses_read_only_smoke_and_other_modes_keep_legacy_checks(self):
+    def test_all_plan_job_routes_use_explicit_read_only_smoke(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
         step = plan.split("      - name: Verify development identity boundaries without public identifiers\n", 1)[1].split("      - name: ", 1)[0]
         self.assertIn("MODE: ${{ inputs.mode }}", step)
@@ -324,9 +327,24 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     result = subprocess.run(["bash", "-c", script], env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode},
                                             capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py"] + (["plan-read-only"] if mode == "plan" else []))
+                    expected = "plan-read-only" if mode in ("plan", "quota-plan") else "apply-read-only"
+                    self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py", expected])
         apply = self.text.split("  apply:\n", 1)[1]
         self.assertNotIn("plan-read-only", apply)
+        self.assertNotIn("terraform_identity_smoke.py\n", plan)
+        function = apply.split("      - name: Verify Function identity exact read permissions\n", 1)[1].split("      - name: ", 1)[0]
+        script = textwrap.dedent(function.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = Path(directory) / "python3"
+            recorder.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+            recorder.chmod(0o700)
+            for mode, expected in (("apply", "export-function-apply-read-only"),
+                                   ("quota-create", "export-function")):
+                result = subprocess.run(["bash", "-c", script],
+                    env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode},
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py", expected])
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {

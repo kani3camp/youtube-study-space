@@ -248,8 +248,14 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
    dev tableの8列、nested schema、既存description、stable table設定とvolatile統計値の観測、
    consumer/recoveryのowner factsをprivate packetで照合する。importだけのためにBigQuery writerを
    停止させない。Terraform stateへの他writer/操作は競合を避けるため停止・隔離する。
-2. plan-onlyはnegative security probesを実行せず、apply gate=falseのpreflightはmode=applyを
-   拒否する。sourceに独立した`security-probe` mode/jobを追加したが、
+2. plan-onlyと将来の`mode=apply` plan jobはnegative security probesを実行しない。
+   `mode=apply`は専用`apply-read-only` identity checkでexact OIDC、dev GCP/STS、
+   bounded HEAD/GET/HEADとlock LISTを確認する。apply jobのFunction checkもdev-onlyとし、
+   このhistory apply経路から条件付きPutObject、wrong-role AssumeRole、prod/他product probe、
+   prod permission/別SA impersonationへ到達しない。既存`plan-read-only`は
+   `MODE=plan`のcost-policy/private receiptを要求するためapplyへ流用しない。
+   apply gate=falseのpreflightはmode=applyを拒否する。
+   full negativeは独立した`security-probe` mode/jobだけで、
    `DEV_TERRAFORM_SECURITY_PROBE_ENABLED=false`で閉じたまま。同じtrusted ref、
    `terraform-dev-plan` Environment、exact checkout/SHAとGitHub OIDC claimsを要求し、
    backend init/plan/apply/state書換のTerraform経路へ入らない。probeが送る条件付きPutObject自体は
@@ -260,14 +266,18 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
    keyが消えた場合は新規作成できず、403/AccessDeniedだけをDENYとし、412/404/409、通信失敗、
    successはいずれもSTOP。前後でcurrent VersionId/ETag/HEADとbody SHA-256、exact lock absenceを
    privateに比較し、0600の一時receiptに両HEAD/body digest/lock判定/条件headerと403判定を残す。
-   runner終了時に消去しpublic artifactにしない。万一予期せぬ書込みが可能だった場合の被害を抑えるためrequest bodyは直前に
+   runner終了時に消去しpublic artifactにしない。失敗・timeout・強制停止ではこの一時receiptの
+   残存を事故解析の前提にできない。固定STOP分類を起点に、安全な権限でcurrent snapshotと
+   必要ならCloudTrail等を別途確認し、秘密をpublic artifactへ移さない。
+   万一予期せぬ書込みが可能だった場合の被害を抑えるためrequest bodyは直前に
    読んだstateそのものを使うが、競合で将来ETagが偶然一致する可能性やS3の想定外動作は
    数学的にゼロではない。成功または前後差分ならSTOPして部分状態として調査し、retryしない。
    条件付きrequestの403はそのrequest/headerの拒否証拠に限り、無条件PutObjectや
    role/bucket/SCP/session policy全体の権限証明ではない。ownerはexact role ARN/RoleId、
    trustとpermission/permissions boundary、bucket policyとversioning、実session policyの有無、
    Organizations SCPの適用範囲をread-onlyで別途照合する。canaryやsimulatorもこのlive OIDC/requestの
-   代替証拠にはならない。今回は実probe、gate変更、IAM/credential/trust変更を行わない。
+   代替証拠にはならない。apply gateを開く前に、別承認のstandalone live probe結果と
+   private policy reviewの両方を照合する。今回は実probe、gate変更、IAM/credential/trust変更を行わない。
 3. 次のplanとapplyが追加する当月UTC費用を別に見積る。AWS state GET/HEAD/LIST、native lock PUT/GET/DELETE、
    state新versionとlock version/delete markerの後月保管、暗号化/KMS、転送、GCP `tables.get`、
    provider refresh、logging/audit、別料金がある場合の上限をprivateなread証拠と単価で積算し、
@@ -297,7 +307,11 @@ public inputに証拠本文やbucket/account/role/SA名を貼らない。
 [one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
 beforeでstateに既存11件だけあること、preapplyでtable import **exact1**・既存11 no-op・他0、
 元state不変、stable table metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
-apply直前に同binary digestを再確認する。plan jobからbinaryをartifactで渡さない。
+saved-plan binaryにはprivate read由来の4 MiB上限がある。旧runのbinaryはcleanup済みでサイズ未実測。
+次のfresh planでは作成直後、sanitizer/承認前に固定PASS/STOPだけのsize checkを行い、
+apply jobでも再plan直後に再確認する。巨大binaryはpreapplyとapply前でSTOPし、値やbytesを
+公開せず、上限を黙って引き上げない。apply直前に同binary digestを再確認する。
+plan jobからbinaryをartifactで渡さない。
 postは同じlineage、増加serial、既存11の完全state値とoutputs/checks不変、追加table1件とschema、
 stable `tables.get`不変、native lock不在、post full-root import0/no-op12/他0を要求する。
 列descriptionはnestedを含めて比較する。[BigQuery REST Table](https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#Table)のoutput-onlyな`etag`、

@@ -364,11 +364,12 @@ jobs:
           MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
-          if [[ "${MODE}" == "plan" ]]; then
-            python3 .github/scripts/terraform_identity_smoke.py plan-read-only
-          else
-            python3 .github/scripts/terraform_identity_smoke.py
-          fi
+          case "${MODE}" in
+            plan|quota-plan) python3 .github/scripts/terraform_identity_smoke.py plan-read-only ;;
+            apply|email-adoption|quota-create|quota-refresh)
+              python3 .github/scripts/terraform_identity_smoke.py apply-read-only ;;
+            *) echo "::error::Unsupported identity route."; exit 1 ;;
+          esac
 
       - name: Read canonical history metadata privately
         id: history_metadata
@@ -437,6 +438,10 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Check one-shot history saved plan size before approval
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase size
 
       - name: Sanitize and enforce the selected protected contract
         id: sanitize
@@ -645,10 +650,18 @@ jobs:
 
       - name: Verify Function identity exact read permissions
         if: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+        shell: bash
         env:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-        run: python3 .github/scripts/terraform_identity_smoke.py export-function
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "${MODE}" == "apply" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py export-function-apply-read-only
+          else
+            python3 .github/scripts/terraform_identity_smoke.py export-function
+          fi
 
       - name: Verify Scheduler identity exact read permissions
         if: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' && needs.preflight.outputs.manage_export_function != 'true' }}
@@ -728,6 +741,10 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Check one-shot re-plan size before apply
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase size
 
       - name: Verify re-plan matches the sanitized approved projection
         shell: bash
@@ -904,6 +921,7 @@ jobs:
       contents: read
       id-token: write
     env:
+      MODE: ${{ inputs.mode }}
       STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
       STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       STATE_KEY: ${{ needs.preflight.outputs.state_key }}

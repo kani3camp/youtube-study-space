@@ -68,7 +68,7 @@ class IdentitySmokeTest(unittest.TestCase):
     def test_unexpected_dependency_error_does_not_leak_publicly(self):
         output = io.StringIO()
         with patch.object(smoke, "verify_oidc", side_effect=RuntimeError("PRIVATE_TOKEN_AND_IDENTIFIER")), contextlib.redirect_stderr(output):
-            self.assertEqual(smoke.main([]), 1)
+            self.assertEqual(smoke.main(["plan-read-only"]), 1)
         self.assertNotIn("PRIVATE", output.getvalue())
         self.assertIn("stage=oidc; category=dependency-error", output.getvalue())
 
@@ -196,6 +196,15 @@ class IdentitySmokeTest(unittest.TestCase):
             with self.assertRaises(smoke.SmokeFailure):
                 smoke.verify_export_topic_google("PRIVATE_TOKEN", account, request_for(allowed), project="fixture", function=True)
 
+        calls = []
+        def dev_only_request(path, token, body=None, **kwargs):
+            calls.append(path)
+            return 200, {"permissions": sorted(allowed)}
+        labels = smoke.verify_export_topic_google("PRIVATE_TOKEN", "terraform-dev-apply@fixture.iam.gserviceaccount.com",
+            dev_only_request, project="fixture", scheduler=True, function=True, dev_only=True)
+        self.assertEqual(calls, ["v3/projects/fixture:testIamPermissions"])
+        self.assertFalse(any("production" in label for label in labels))
+
     def test_function_execution_input_comes_from_exact_metadata_get_after_mask(self):
         import contextlib
         import io
@@ -220,6 +229,35 @@ class IdentitySmokeTest(unittest.TestCase):
                 with self.assertRaises(smoke.SmokeFailure): smoke.configure_function_execution_identity("PRIVATE_TOKEN", env, request)
                 metadata[field] = old
 
+    def test_apply_function_cli_uses_only_dev_permission_and_function_reads(self):
+        project = "test-youtube-study-space"
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"MODE": "apply", "GCP_SMOKE_ACCESS_TOKEN": "DUMMY_TOKEN",
+                   "GCP_SMOKE_SERVICE_ACCOUNT": f"terraform-dev-apply@{project}.iam.gserviceaccount.com",
+                   "GITHUB_STEP_SUMMARY": str(Path(directory) / "summary"), "GITHUB_ENV": str(Path(directory) / "env")}
+            calls = []
+            def verify(*args, **kwargs):
+                calls.append(("dev-permissions", kwargs))
+                self.assertTrue(kwargs["scheduler"] and kwargs["function"] and kwargs["dev_only"])
+                return ["Dev function permissions checked"]
+            def function(*args):
+                calls.append(("function-get", {}))
+                return ["Dev Function metadata checked"]
+            with patch.dict(os.environ, env, clear=True), patch.object(smoke, "verify_export_topic_google", side_effect=verify), \
+                    patch.object(smoke, "configure_function_execution_identity", side_effect=function), \
+                    patch.object(smoke, "aws", side_effect=AssertionError("AWS must not be called")), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(smoke.main(["export-function-apply-read-only"]), 0)
+            self.assertEqual([call[0] for call in calls], ["dev-permissions", "function-get"])
+            for change in ({"MODE": "security-probe"},
+                           {"GCP_SMOKE_SERVICE_ACCOUNT": f"terraform-dev-plan@{project}.iam.gserviceaccount.com"}):
+                calls.clear()
+                with patch.dict(os.environ, env | change, clear=True), \
+                        patch.object(smoke, "verify_export_topic_google", side_effect=verify), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(smoke.main(["export-function-apply-read-only"]), 1)
+                self.assertEqual(calls, [])
+
 
 class PlanReadOnlySmokeTest(unittest.TestCase):
     """Exercise the CLI entrypoint with synthetic HTTP/CLI dependencies only."""
@@ -227,7 +265,8 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
     def run_smoke(self, args=("plan-read-only",), *, legacy_denials=False, claims_override=None,
                   extra_permissions=(), missing_permission=None, account="PRIVATE_ACCOUNT",
                   state_key="youtube-study-space/dev/terraform.tfstate", service_account=None,
-                  fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None):
+                  fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None,
+                  mode=None, probe_gate=None, history_enabled=False):
         project = "test-youtube-study-space"
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
@@ -309,7 +348,12 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                                                "(AccessDenied) PRIVATE_SENTINEL" if legacy_denials else "")
 
         with tempfile.TemporaryDirectory() as directory:
+            selected_mode = mode or ({"plan-read-only": "plan", "apply-read-only": "apply",
+                                      "security-probe": "security-probe"}.get(args[0], "apply") if args else "apply")
             env = {"RUNNER_TEMP": directory, "GITHUB_STEP_SUMMARY": directory + "/summary", "GITHUB_ENV": directory + "/env",
+                   "MODE": selected_mode,
+                   "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": probe_gate if probe_gate is not None else ("true" if args == ("security-probe",) else "false"),
+                   "TF_VAR_manage_user_activity_history": "true" if history_enabled else "false",
                    "GITHUB_SHA": "a" * 40, "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "PRIVATE_GITHUB_TOKEN", "BACKEND_ROLE_ARN": "arn:aws:iam::PRIVATE_ACCOUNT:role/fixture-plan",
                    "STATE_ACCOUNT_ID": "PRIVATE_ACCOUNT", "STATE_BUCKET": "PRIVATE_BUCKET", "STATE_KEY": state_key,
@@ -400,8 +444,8 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                 self.assertIn(f"stage={stage}; category={category}", output)
                 self.assertNotIn("PRIVATE", output)
 
-    def test_legacy_default_keeps_all_existing_security_probes_and_reports_actual_denials(self):
-        rc, http, aws, summary, output = self.run_smoke(args=(), legacy_denials=True)
+    def test_explicit_security_probe_keeps_all_negative_checks_and_reports_actual_denials(self):
+        rc, http, aws, summary, output = self.run_smoke(args=("security-probe",), legacy_denials=True)
         self.assertEqual(rc, 0, output)
         operations = [call[:2] for call in aws]
         self.assertEqual(operations.count(("sts", "assume-role-with-web-identity")), 1)
@@ -420,6 +464,31 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         self.assertNotIn("SKIPPED", summary)
         self.assertNotIn("PRIVATE", summary + output)
         self.assertEqual(self.run_smoke(args=())[0], 1)
+
+    def test_apply_read_only_uses_exact_dev_state_and_lock_reads_without_any_negative_request(self):
+        for probe_gate in ("false", "true"):
+            with self.subTest(probe_gate=probe_gate):
+                rc, http, calls, summary, output = self.run_smoke(args=("apply-read-only",),
+                    probe_gate=probe_gate, history_enabled=True)
+                self.assertEqual(rc, 0, output)
+                self.assertEqual([c[:2] for c in calls], [
+                    ("sts", "get-caller-identity"), ("s3api", "head-object"),
+                    ("s3api", "get-object"), ("s3api", "head-object"),
+                    ("s3api", "list-objects-v2")])
+                self.assertFalse(any("generateAccessToken" in url or "/projects/youtube-study-space:" in url
+                                     for _, url, _ in http))
+                self.assertIn("Full security gate: NOT VERIFIED", summary)
+                self.assertFalse(any("PutObject denied" in line for line in summary.splitlines() if line.startswith("- PASS")))
+                self.assertNotIn("PRIVATE", summary + output)
+        for mode, gate in (("plan", "true"), ("security-probe", "true")):
+            rc, http, calls, summary, _ = self.run_smoke(args=("apply-read-only",), mode=mode, probe_gate=gate)
+            self.assertEqual((rc, http, calls, summary), (1, [], [], ""))
+
+    def test_full_negative_probe_requires_explicit_cli_mode_and_independent_gate(self):
+        for args, mode, gate in (((), "security-probe", "true"), (("security-probe",), "apply", "true"),
+                                 (("security-probe",), "security-probe", "false")):
+            rc, http, calls, summary, _ = self.run_smoke(args=args, mode=mode, probe_gate=gate, legacy_denials=True)
+            self.assertEqual((rc, http, calls, summary), (1, [], [], ""))
 
     def test_conditional_probe_accepts_only_explicit_deny_with_unchanged_private_snapshots(self):
         for error in ("(412) PreconditionFailed", "(404) NoSuchKey", "(409) ConditionalRequestConflict",
