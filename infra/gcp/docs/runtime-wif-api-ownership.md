@@ -405,6 +405,12 @@ countだけ、historical JSON、run ID、post-import plan-job summaryはexecutio
 | apply | 保存済planのsealを直前再確認。pool → provider → individual grant1件ずつ → explicit Own API1件ずつ。import-only/global mutation guardsを保持し、native lockを省略しない |
 | post / emitter | import0/all-noop、fresh selected full-state、以前の各instance/container/outputs/checks不変、lineage/version不変・serial増加（既存state-only契約の `>`、+1と推測しない）、full metadata/inventory不変、lock/workspace absence。noop waveはfull state不変。実apply/post outcome成功とpost exit0の後だけmachine receiptを作る |
 
+baseline/runtime の射影前に全 resource container の envelope・managed/google provider・非空 instances・
+`(module,type,name)` の一意性と各 instance の schema/index/address を検証する。空の未知 container、
+同一 grant container の分割、重複 instance は、flatten 後の件数や HMAC が一致しても STOP。
+第二 grant/API の追加は既存の一意 container 内へ1 instanceを追加できるが、以前の header/membership は保持する。
+emitter も保存済み before/post full-state と差分を再検証し、誤った旧 success record の matching commitment を発行根拠にしない。
+
 fresh metadataは既存read interfaces（project GET、exact pool/provider GET、`:listAttestationRules`、
 SA `getIamPolicy` requestedPolicyVersion3、enabled services list、canonical table GET）で取得する。
 complete enabled inventoryはbounded pagination・重複/loop/unknown response拒否を使い、unrelated SA bindings/conditions・

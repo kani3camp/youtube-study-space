@@ -60,6 +60,50 @@ def full_state(plan, selected=None):
     return state
 
 
+def malformed_containers(source):
+    """Public dummy mutations, including equal flattened-address attacks."""
+    def grant(state):
+        return next(r for r in state['resources'] if r['type'] == 'google_service_account_iam_member')
+    def split(state):
+        original = grant(state)
+        duplicate = copy.deepcopy(original)
+        duplicate['instances'] = [original['instances'].pop()]
+        state['resources'].append(duplicate)
+    mutations = [
+        ('hidden-empty-unapproved', lambda s: s['resources'].append(dict(module='module.runtime_wif', mode='data',
+            type='unapproved_resource', name='hidden', provider='unapproved-provider', instances=[]))),
+        ('hidden-empty-managed-runtime', lambda s: s['resources'].append(dict(module='module.runtime_wif', mode='managed',
+            type='unapproved_resource', name='hidden', provider='provider["registry.terraform.io/hashicorp/google"]', instances=[]))),
+        ('hidden-empty-managed-api', lambda s: s['resources'].append(dict(module='module.owned_apis', mode='managed',
+            type='unapproved_resource', name='hidden', provider='provider["registry.terraform.io/hashicorp/google"]', instances=[]))),
+        ('empty-expected', lambda s: grant(s).update(instances=[])),
+        ('split-grant-container', split),
+        ('duplicate-instance', lambda s: grant(s)['instances'].append(copy.deepcopy(grant(s)['instances'][0]))),
+        ('unknown-header', lambda s: grant(s).update(unapproved=True)),
+        ('data-mode', lambda s: grant(s).update(mode='data')),
+        ('foreign-provider', lambda s: grant(s).update(provider='unapproved-provider')),
+        ('foreign-type', lambda s: grant(s).update(type='unapproved_resource')),
+        ('foreign-name', lambda s: grant(s).update(name='unapproved')),
+        ('invalid-module', lambda s: grant(s).update(module=None)),
+        ('invalid-type', lambda s: grant(s).update(type=[])),
+        ('invalid-name', lambda s: grant(s).update(name={})),
+        ('non-list-instances', lambda s: grant(s).update(instances={})),
+        ('non-object-instance', lambda s: grant(s)['instances'].__setitem__(0, None)),
+        ('missing-schema', lambda s: grant(s)['instances'][0].pop('schema_version')),
+        ('wrong-schema', lambda s: grant(s)['instances'][0].update(schema_version=1)),
+        ('boolean-schema', lambda s: grant(s)['instances'][0].update(schema_version=True)),
+        ('invalid-attributes', lambda s: grant(s)['instances'][0].update(attributes=[])),
+        ('null-index', lambda s: grant(s)['instances'][0].update(index_key=None)),
+        ('boolean-index', lambda s: grant(s)['instances'][0].update(index_key=True)),
+        ('compound-index', lambda s: grant(s)['instances'][0].update(index_key=[])),
+        ('wrong-index', lambda s: grant(s)['instances'][0].update(index_key='unapproved')),
+    ]
+    for case, mutate in mutations:
+        state = copy.deepcopy(source)
+        mutate(state)
+        yield case, state
+
+
 class WaveFixture:
     def __init__(self, index=0, *, previous=None):
         self.index = index
@@ -253,6 +297,64 @@ class RuntimeExecutionTest(unittest.TestCase):
             state=copy.deepcopy(f.old);mutate(state)
             with self.subTest(index=index),self.assertRaises(Exception):
                 runtime.state_shape(json.dumps(state),f.packet,f.metadata,env,selection='adopted')
+
+    def test_malformed_pre_containers_reject_even_matching_authenticated_state_commitment(self):
+        # An authenticated dummy predecessor commits the malformed body:
+        # rejection must be semantic, rather than an incidental HMAC mismatch.
+        for job in ('plan', 'apply'):
+            for case, state in malformed_containers(WaveFixture(5).old):
+                with self.subTest(job=job, case=case), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(5)
+                    predecessor = copy.deepcopy(f.fakes[-1].value)
+                    predecessor['state_after_commitment'] = receipt.state_commitment(f.packet['receipt_binding'], state)
+                    f.fakes[-1] = GitHubFixture(predecessor, minute=25)
+                    f.packet['adoption_receipts'][-1]['reference'] = f.fakes[-1].ref
+                    f.aws.body = json.dumps(state).encode()
+                    env, catalog = f.stage(directory, job=job)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        self.assertEqual(private.private_json(Path(directory)/provenance.VERIFIED)['last_state_after_commitment'],
+                                         receipt.state_commitment(f.packet['receipt_binding'], state))
+                        with self.assertRaises(Exception): f.begin(env)
+                        with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception): receipt.emit_runtime(env)
+                        self.assertEqual(out.getvalue(), '')
+                    self.assertFalse((Path(directory)/runtime.BEFORE).exists())
+                    self.assertFalse((Path(directory)/runtime.RECORD).exists())
+
+    def test_malformed_post_containers_never_create_or_emit_authentic_receipt(self):
+        for case, state in malformed_containers(WaveFixture(3).new):
+            with self.subTest(case=case):
+                f, env = self.run_wave(3)
+                f.new = state
+                with self.assertRaises(Exception): f.finish(env)
+                root = Path(env['RUNNER_TEMP'])
+                ledger = private.private_json(root/'runtime-execution-after.json')
+                self.assertEqual(ledger['checks'], dict(state=False, metadata=True, lock=True, workspace=True))
+                self.assertFalse((root/runtime.RECORD).exists())
+                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception): receipt.emit_runtime(env)
+                self.assertEqual(out.getvalue(), '')
+                # The real log consumer cannot authenticate a failed emitter.
+                fake = GitHubFixture(dummy_receipt(run_id=int(env['GITHUB_RUN_ID']), wave='grant', count=16), minute=20)
+                fake.responses[fake.log_path] = out.getvalue().encode()
+                with self.assertRaises(ValueError): receipt.authenticate(fake.ref, dummy_catalog(), request=fake)
+
+    def test_emitter_revalidates_malformed_post_even_when_private_receipt_hmac_matches(self):
+        for case, state in malformed_containers(WaveFixture(3).new):
+            with self.subTest(case=case):
+                f, env = self.run_wave(3)
+                f.finish(env)
+                root = Path(env['RUNNER_TEMP'])
+                machine = private.private_json(root/runtime.RECORD)
+                machine['state_after_commitment'] = receipt.state_commitment(f.packet['receipt_binding'], state)
+                # Model a legacy erroneous success record, with a matching body
+                # and commitment. It cannot become a new source-pinned marker.
+                (root/'runtime-state-after.json').unlink(); (root/runtime.RECORD).unlink()
+                private.write_private(root/'runtime-state-after.json', state)
+                private.write_private(root/runtime.RECORD, machine)
+                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception): receipt.emit_runtime(env)
+                self.assertEqual(out.getvalue(), '')
+                fake = GitHubFixture(machine, minute=20)
+                fake.responses[fake.log_path] = out.getvalue().encode()
+                with self.assertRaises(ValueError): receipt.authenticate(fake.ref, dummy_catalog(), request=fake)
 
     def test_stale_full_state_and_wrong_nonce_prior_receipt_fail_before_plan(self):
         for field,value in [('serial',29),('lineage','bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee')]:

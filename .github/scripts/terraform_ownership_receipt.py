@@ -409,14 +409,16 @@ def emit(env):
 
 
 def emit_runtime(env):
-    from terraform_runtime_execution import context as runtime_context, require_fresh_inputs, check_seal, RECORD as runtime_record
-    from terraform_history_plan_receipt import private_bytes, decode as state_decode
-    root, packet, _ = runtime_context(env)
+    from terraform_runtime_execution import context as runtime_context, require_fresh_inputs, check_seal, state_shape, state_delta, RECORD as runtime_record
+    from terraform_history_plan_receipt import private_bytes
+    root, packet, metadata = runtime_context(env)
     need(env.get("GITHUB_JOB") == "apply" and env.get("MODE") == "apply")
     require_fresh_inputs(env, packet)
     check_seal(env)
     value = validate_receipt(private_json(str(root / runtime_record)))
-    state = state_decode(private_bytes(root / "runtime-state-after.json"))
+    old = state_shape(private_bytes(root / "runtime-state-before.json"), packet, metadata, env, selection='adopted')
+    state = state_shape(private_bytes(root / "runtime-state-after.json"), packet, metadata, env, selection='selected')
+    state_delta(old, state, packet)
     need(value["source_sha"] == env["GITHUB_SHA"] and value["run_id"] == int(env["GITHUB_RUN_ID"])
          and value["wave"] == packet["wave"] and value["state_after_commitment"] == state_commitment(packet["receipt_binding"], state))
     print(MARKER + canonical(value).decode())

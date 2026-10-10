@@ -78,12 +78,37 @@ def output(env, key, value):
         handle.write(key + '=' + value + '\n')
 
 
-def instances(state):
+def containers(state):
+    """Validate every native container before baseline/runtime projection."""
+    receipt.need(type(state.get('resources')) is list)
     result = {}
     for resource in state['resources']:
+        receipt.need(type(resource) is dict and {'mode', 'type', 'name', 'provider', 'instances'} <= set(resource)
+                     <= {'module', 'mode', 'type', 'name', 'provider', 'instances'}
+                     and resource['mode'] == 'managed'
+                     and resource['provider'] == 'provider["registry.terraform.io/hashicorp/google"]')
+        receipt.need(all(type(resource[k]) is str and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_-]*', resource[k])
+                         for k in ('type', 'name'))
+                     and ('module' not in resource or type(resource['module']) is str
+                          and re.fullmatch(r'module\.[A-Za-z_][A-Za-z0-9_-]*(?:\[(?:\d+|"[^"]*")\])?', resource['module'])))
+        key = (resource.get('module', ''), resource['type'], resource['name'])
+        receipt.need(key not in result and type(resource['instances']) is list and bool(resource['instances']))
+        result[key] = resource
+    return result
+
+
+def instances(state):
+    result = {}
+    for resource in containers(state).values():
         base = (resource.get('module', '') + '.' if 'module' in resource else '') + resource['type'] + '.' + resource['name']
         header = {k: v for k, v in resource.items() if k != 'instances'}
         for instance in resource['instances']:
+            receipt.need(type(instance) is dict and {'schema_version', 'attributes'} <= set(instance) <= {
+                             'schema_version', 'attributes', 'sensitive_attributes', 'private', 'dependencies', 'index_key',
+                             'identity_schema_version', 'identity', 'create_before_destroy'}
+                         and type(instance['schema_version']) is int and instance['schema_version'] >= 0
+                         and type(instance['attributes']) is dict
+                         and ('index_key' not in instance or type(instance['index_key']) in (int, str)))
             address = base + ('[' + receipt.canonical(instance['index_key']).decode() + ']' if 'index_key' in instance else '')
             receipt.need(address not in result)
             result[address] = (header, instance)
@@ -94,6 +119,9 @@ def state_shape(raw, packet, metadata, env, *, selection):
     """Independent cumulative full-state graph; baseline11 guard is unchanged."""
     state = private.decode(raw)
     receipt.need(type(state) is dict and state.get('terraform_version') == '1.16.4')
+    # Empty/duplicate containers must not disappear when projecting baseline12
+    # or flattening the cumulative runtime graph into instance addresses.
+    flattened = instances(state)
     candidate = validate_packet(packet, wave=packet['wave'], git_sha=env['GITHUB_SHA'])
     chosen = packet[selection]
     candidate.update(own_runtime_wif_pool=chosen['pool'], own_runtime_wif_provider=chosen['provider'],
@@ -120,7 +148,6 @@ def state_shape(raw, packet, metadata, env, *, selection):
                              and re.sub(r'\[(?:\d+|"[^"]*")\]', '', obj['object_addr']) == check['config_addr'])
                 objects.add(obj['object_addr'])
     private.state_shape(receipt.canonical(baseline), imported=True)
-    flattened = instances(state)
     receipt.need(set(flattened) == private.BASELINE | {TABLE} | set(runtime))
     changes, planned = [], []
     for address, (header, instance) in flattened.items():
@@ -248,15 +275,16 @@ def before(env, *, request=None, metadata_request=None):
 
 
 def require_fresh_inputs(env, packet):
-    root, current, _ = context(env)
+    root, current, metadata = context(env)
     receipt.need(current == packet)
     saved = private.private_json(root / BEFORE)
     receipt.need(saved['inputs'] == bundle(env, root, packet)
                  and saved['provenance'] == private.private_json(root / provenance.VERIFIED)
                  and saved['input_commitment'] == receipt.commitment(packet['receipt_binding'], saved['inputs']))
     raw = private.private_bytes(root / 'runtime-state-before.json')
+    state = state_shape(raw, packet, metadata, env, selection='adopted')
     receipt.need(hashlib.sha256(raw).hexdigest() == saved['state_sha256']
-                 and receipt.state_commitment(packet['receipt_binding'], private.decode(raw)) == saved['provenance']['last_state_after_commitment'])
+                 and receipt.state_commitment(packet['receipt_binding'], state) == saved['provenance']['last_state_after_commitment'])
     return root, saved
 
 
@@ -301,6 +329,13 @@ def check_seal(env):
 
 
 def state_delta(old, new, packet):
+    prior_containers, current_containers = containers(old), containers(new)
+    # A second grant/API instance extends its existing unique container; it
+    # never splits or replaces any prior container/header/membership.
+    receipt.need(set(prior_containers) <= set(current_containers)
+                 and all({k: v for k, v in current_containers[key].items() if k != 'instances'} ==
+                         {k: v for k, v in value.items() if k != 'instances'}
+                         for key, value in prior_containers.items()))
     receipt.need(all(new[k] == old[k] for k in ('lineage', 'version', 'terraform_version', 'outputs')))
     if packet['wave'] == 'noop':
         receipt.need(new == old)
