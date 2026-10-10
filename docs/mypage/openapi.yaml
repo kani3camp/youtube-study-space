@@ -1,0 +1,919 @@
+openapi: 3.1.0
+info:
+  title: MyPage internal API
+  version: 0.2.0
+servers:
+- url: /
+paths:
+  /api/auth/youtube/start:
+    post:
+      operationId: startYouTubeLogin
+      security:
+      - AppCheck: []
+      responses:
+        '400': &id001
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401': &id002
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403': &id003
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404': &id004
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405': &id005
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409': &id006
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410': &id007
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413': &id008
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429': &id009
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500': &id010
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503': &id011
+          description: Safe error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
+      description: Optional supportChallenge resolves a server-owned request; browser
+        cannot choose target or purpose. Fresh OAuth transaction expires after 10
+        minutes.
+  /api/auth/youtube/callback:
+    get:
+      operationId: completeYouTubeOAuth
+      security: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '302':
+          description: Fixed allowlisted frontend redirect
+      parameters:
+      - in: query
+        name: code
+        schema:
+          type: string
+        description: No duplicates. code and error are mutually exclusive.
+      - in: query
+        name: state
+        schema:
+          type: string
+        description: No duplicates. code and error are mutually exclusive.
+      - in: query
+        name: error
+        schema:
+          type: string
+        description: No duplicates. code and error are mutually exclusive.
+      description: Atomically claim pending transaction before one-time code exchange
+        outside the Firestore callback. Accept bounded provider extras. Redirects
+        never expose credentials or channel ID.
+  /api/auth/youtube/channel:
+    get:
+      operationId: getVerifiedChannel
+      security:
+      - AppCheck: []
+        OAuthTransaction: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+      description: Purpose and public channel metadata bind to confirmationRef. Support
+        purpose comes only from the server record; no internal target channel ID is
+        exposed.
+  /api/auth/youtube/confirm:
+    post:
+      operationId: confirmChannel
+      security:
+      - AppCheck: []
+        OAuthTransaction: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+      description: Atomically consumes the transaction. Login mints once outside the
+        transaction. Support verifies the fresh channel and server purpose once, returns
+        an opaque requestRef, never mints a Firebase token or changes WebAccount.
+  /api/auth/session/complete:
+    post:
+      operationId: completeFirebaseSession
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '204':
+          description: Idempotent session completion
+      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
+        parameters; authenticated identity is verified custom-provider uid only.
+        Fresh ServiceAccessControl is checked before account/cache reads; active
+        reasons return stable 403 codes, read/decode failures return 503.
+  /api/mypage:
+    get:
+      operationId: getMyPage
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPage'
+      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
+        parameters; authenticated identity is verified custom-provider uid only.
+        Fresh ServiceAccessControl is checked before account/cache reads; active
+        reasons return stable 403 codes, read/decode failures return 503.
+  /api/privacy/requests:
+    post:
+      operationId: submitPrivacyRequest
+      description: Feature disabled by default. Existing verified Firebase custom uid is the target.
+        ServiceAccessControl does not block this narrow intake. Receipt is committed before
+        fresh purpose-bound support OAuth; no deletion, disclosure or revoke occurs here.
+        Exact retries preserve acceptedAt and deleteBy; changed input with the same key is 409.
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivacyIntakeRequest'
+      responses:
+        '200':
+          description: Committed receipt, including a challenge only while still awaiting proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyIntakeReceipt'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id006
+        '413': *id008
+        '429': *id009
+        '503': *id011
+  /api/privacy/requests/status:
+    post:
+      operationId: getPrivacyRequestStatus
+      description: Requires matching Firebase uid and completed fresh support OAuth proof.
+        Opaque ref alone cannot reveal a reply. Available during ordinary service restriction.
+        Completed/anonymized requests use the configured human exception contact.
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestRef]
+              properties:
+                requestRef:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+      responses:
+        '200':
+          description: Verified status and optional operator response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyRequestStatus'
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '429': *id009
+        '503': *id011
+components:
+  securitySchemes:
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+    AppCheck:
+      type: apiKey
+      in: header
+      name: X-Firebase-AppCheck
+    OAuthTransaction:
+      type: apiKey
+      in: cookie
+      name: __session
+      description: Opaque ID; HttpOnly; Secure; SameSite=Lax; Path=/; no Domain; Max-Age=600.
+  schemas:
+    PrivacyIntakeRequest:
+      type: object
+      additionalProperties: false
+      required: [submissionKey, purpose, body]
+      properties:
+        submissionKey:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{16,128}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        body:
+          type: string
+          minLength: 0
+          maxLength: 2000
+          description: At most 2000 UTF-8 bytes; leading/trailing whitespace and controls are rejected.
+    PrivacyIntakeReceipt:
+      type: object
+      additionalProperties: false
+      required: [requestRef, purpose, status, acceptedAt, deleteBy]
+      properties:
+        requestRef:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        supportChallenge:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        status:
+          type: string
+          enum: [awaiting_proof, verified]
+        acceptedAt:
+          type: string
+          format: date-time
+        deleteBy:
+          type: [string, 'null']
+          format: date-time
+    PrivacyRequestStatus:
+      type: object
+      additionalProperties: false
+      required: [requestRef, purpose, status, acceptedAt, deleteBy, verifiedAt]
+      properties:
+        requestRef:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        purpose:
+          type: string
+          enum: [delete, revoke, disclosure]
+        status:
+          const: verified
+        acceptedAt:
+          type: string
+          format: date-time
+        deleteBy:
+          type: [string, 'null']
+          format: date-time
+        verifiedAt:
+          type: string
+          format: date-time
+        reply:
+          type: string
+          maxLength: 2000
+        replyAt:
+          type: string
+          format: date-time
+    ReasonCode:
+      type:
+      - string
+      - 'null'
+      enum:
+      - null
+      - SOURCE_UNAVAILABLE
+      - HISTORY_INCOMPLETE
+      - HISTORY_LIMIT_EXCEEDED
+      - METADATA_REFRESH_FAILED
+      - METADATA_TOO_OLD
+      - DATA_INCONSISTENT
+    Metric:
+      type: object
+      additionalProperties: false
+      properties:
+        availability: &id012
+          type: string
+          enum:
+          - available
+          - unavailable
+        workSec: &id013
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        reasonCode: &id014
+          $ref: '#/components/schemas/ReasonCode'
+      required:
+      - availability
+      - workSec
+      - reasonCode
+      allOf: &id015
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            workSec:
+              type: integer
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            workSec:
+              type: 'null'
+            reasonCode:
+              type: string
+    Current:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum:
+          - work
+          - break
+          - not_seated
+          - unregistered
+        workName:
+          type:
+          - string
+          - 'null'
+        roomType:
+          type:
+          - string
+          - 'null'
+          enum:
+          - standard
+          - member
+          - null
+        seatNumber:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        stateStartedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          pattern: Z$
+        expectedEndAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          pattern: Z$
+      required:
+      - state
+      - workName
+      - roomType
+      - seatNumber
+      - stateStartedAt
+      - expectedEndAt
+    Summary:
+      type: object
+      additionalProperties: false
+      properties:
+        today:
+          $ref: '#/components/schemas/Metric'
+        week:
+          $ref: '#/components/schemas/Metric'
+        lifetime:
+          $ref: '#/components/schemas/Metric'
+      required:
+      - today
+      - week
+      - lifetime
+    Day:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+        availability: *id012
+        workSec: *id013
+        reasonCode: *id014
+      required:
+      - date
+      - availability
+      - workSec
+      - reasonCode
+      allOf: *id015
+    Account:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: &id016
+          type: string
+          minLength: 1
+        handle: &id017
+          type:
+          - string
+          - 'null'
+        avatarUrl: &id018
+          type:
+          - string
+          - 'null'
+          format: uri
+      required:
+      - displayName
+      - handle
+      - avatarUrl
+    CurrentSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Current'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Current'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    SummarySection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Summary'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Summary'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    AccountSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Account'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Account'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    RecentSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/Day'
+      required:
+      - availability
+      - reasonCode
+      - data
+    MyPage:
+      type: object
+      additionalProperties: false
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        timezone:
+          const: Asia/Tokyo
+        partial:
+          type: boolean
+        current:
+          $ref: '#/components/schemas/CurrentSection'
+        summary:
+          $ref: '#/components/schemas/SummarySection'
+        recent7Days:
+          $ref: '#/components/schemas/RecentSection'
+        account:
+          $ref: '#/components/schemas/AccountSection'
+      required:
+      - generatedAt
+      - timezone
+      - partial
+      - current
+      - summary
+      - recent7Days
+      - account
+    StartRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        privacyPolicyVersion:
+          type: string
+          minLength: 1
+        privacyAccepted:
+          const: true
+        termsVersion:
+          type: string
+          minLength: 1
+        termsAccepted:
+          const: true
+        supportChallenge:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+      required:
+      - privacyPolicyVersion
+      - privacyAccepted
+      - termsVersion
+      - termsAccepted
+    StartResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+          pattern: Z$
+      required:
+      - authorizationUrl
+      - expiresAt
+    ChannelResponse:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: &id019
+            type: string
+            minLength: 1
+          purpose:
+            const: login
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: *id019
+          purpose:
+            const: support
+          supportPurpose:
+            type: string
+            enum:
+            - delete
+            - revoke
+            - disclosure
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+        - supportPurpose
+      discriminator:
+        propertyName: purpose
+    ConfirmRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        confirmationRef:
+          type: string
+          minLength: 1
+      required:
+      - confirmationRef
+    ConfirmResponse:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - customToken
+        properties:
+          purpose:
+            const: login
+          customToken:
+            type: string
+            minLength: 1
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - requestRef
+        properties:
+          purpose:
+            const: support
+          requestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: Existing one-time support proof reference, not a status request identifier.
+          supportRequestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: Server-bound SupportRequest record reference for authenticated status lookup. Additive during rollout; the proof reference remains separate.
+      discriminator:
+        propertyName: purpose
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              enum:
+              - INVALID_REQUEST
+              - PAYLOAD_TOO_LARGE
+              - PRIVACY_CONSENT_REQUIRED
+              - POLICY_VERSION_OUTDATED
+              - AUTH_REQUIRED
+              - APP_CHECK_REQUIRED
+              - OAUTH_TRANSACTION_REQUIRED
+              - OAUTH_TRANSACTION_PENDING
+              - OAUTH_TRANSACTION_EXPIRED
+              - OAUTH_TRANSACTION_CONSUMED
+              - OAUTH_TRANSACTION_CHANGED
+              - PRIVACY_RECONSENT_REQUIRED
+              - SERVICE_ACCESS_RESTRICTED
+              - DATA_DELETION_IN_PROGRESS
+              - SUPPORT_CHALLENGE_INVALID
+              - SUPPORT_CHANNEL_MISMATCH
+              - INTAKE_KEY_CONFLICT
+              - OAUTH_FAILED
+              - OAUTH_SCOPE_INSUFFICIENT
+              - CHANNEL_UNAVAILABLE
+              - CHANNEL_AMBIGUOUS
+              - WEB_ACCOUNT_REQUIRED
+              - RATE_LIMITED
+              - TEMPORARY_UNAVAILABLE
+              - INTERNAL_ERROR
+            message:
+              type: string
+            requestId:
+              type: string
+              minLength: 1
+          required:
+          - code
+          - message
+          - requestId
+      required:
+      - error

@@ -1,0 +1,2873 @@
+{
+  "schemaVersion": 1,
+  "catalogType": "static-source-inventory",
+  "preparedAt": "2026-10-07",
+  "repository": "youtube-study-space",
+  "suppliedBaseRevision": "9f3a1ec0bf3a1996bf4097652f4e051274f71ad8",
+  "sourceVersionNote": "Repository sources reviewed in the shared B implementation checkout. Supplied base is task context, not a verified deployed revision; line anchors are source pointers and do not identify live resources.",
+  "inventoryComplete": false,
+  "executionAuthorizedByThisCatalog": false,
+  "liveDataAccessed": false,
+  "sdkOrNetworkOperationsExecuted": false,
+  "liveEvidenceCollected": false,
+  "language": "en",
+  "purpose": "Concrete B source catalog for reviewing runtime quiescence and cross-store target deletion coverage. This catalog is not a live target manifest, pause API, authorization grant or completed deletion proof.",
+  "contract": {
+    "goal": "Map every reviewed B writer/store to fixed workflow scope IDs, attribution limits, required pause/drain/verify evidence and source/live implementation boundaries.",
+    "invariants": [
+      "Bind live execution/evidence to environment, project/database/tenant, verified target, request, purpose, proof and SAC generation; static counts cannot authorize execution.",
+      "SAC remains initially MyPage-only. Legacy Bot, !block and YouTube Ban semantics are preserved; legacy writers require separate pause/drain evidence.",
+      "Canon 05: no pre-cutoff queued/admitted work, captured snapshots, old token/mint/result, export/import/restore job or retry may restore old data after resume. Fresh legitimate post-resume use may create new data.",
+      "Preserve the complete inactive service-access-controls document and both reason states/generation/revision after privacy clear. No delete, TTL, subset tombstone or generation reset; restore/migration must preserve that checkpoint.",
+      "Preserve independent active moderation; an older request/generation cannot clear a newer privacy request or complete its receipt.",
+      "Unknown attribution/resources/permissions, overflow, failure, timeout or lost acknowledgement are unresolved evidence, never absent/zero/completed.",
+      "Current support receipt/proof dependencies are completed/cleaned by the separate completion stage after all runtime/store/resume postconditions. Other receipts are ownership-checked before cleanup.",
+      "No new retention/freshness duration, business rule or production authorization is established by this inventory."
+    ],
+    "nonGoals": [
+      "No live SDK/inventory/pause/revoke/delete/notification/deploy/IAM operations.",
+      "No credentials, raw target IDs, user content, proof/challenge values or private operator contacts.",
+      "No changes to A authorization code or legacy Bot behavior."
+    ],
+    "acceptance": [
+      "All fixed runtime/deletion scope IDs appear once.",
+      "Every writer has checked source anchors, launch/recreation routes and required evidence.",
+      "Every store distinguishes direct identity lookup from query/relationship/derived attribution.",
+      "Live gaps stay explicit and completion remains blocked until an authorized workflow obtains matching evidence."
+    ],
+    "verification": [
+      "Local strict JSON parse, fixed ID uniqueness, writer/scope references and source anchor checks; no service tools invoked."
+    ]
+  },
+  "scopeIds": {
+    "runtime": [
+      "runtime-my-page",
+      "runtime-legacy"
+    ],
+    "deletion": [
+      "seat-state",
+      "firestore-primary",
+      "firestore-web",
+      "firestore-oauth",
+      "firestore-support-relations",
+      "legacy-mappings",
+      "firebase-auth",
+      "bigquery",
+      "backups-exports",
+      "derived-vendor",
+      "platform-logs"
+    ]
+  },
+  "runtimeScopes": [
+    {
+      "id": "runtime-my-page",
+      "kind": "runtime",
+      "writerIds": [
+        "mypage-oauth-start-callback",
+        "mypage-account-consume-session-mint",
+        "mypage-bff-cache-flight",
+        "mypage-metadata-refresh",
+        "mypage-metadata-cleanup",
+        "mypage-support-proof-indices"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/mypage-server/main.go",
+          "symbol": "MyPage runtime entrypoint",
+          "line": 72,
+          "anchor": "func run("
+        },
+        {
+          "path": "system/core/mypage/server.go",
+          "symbol": "MyPage handler wiring",
+          "line": 94,
+          "anchor": "func NewMyPageServer("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "HTTP start/callback/confirm/session/GET, detached BFF work, metadata refresh, support operations and independently invoked metadata cleanup."
+      ],
+      "deletionAttribution": {
+        "method": "environment/request/verified channel/generation plus runtime admission identity",
+        "limits": [
+          "Channel-only operation counts miss unresolved callback and detached/direct callers."
+        ]
+      },
+      "sourceKnown": [
+        "A protects MyPage through fresh SAC checks and transactional checkpoints; no shared multi-instance pause/drain service is inferred."
+      ],
+      "liveUnknown": [
+        "Complete deployed revision/instance/service/job/runner set, direct callers, runtime ownership and capability acknowledgements."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Target-bound admission stop for all runtime instances/revisions and direct runners; proof flow is separately controlled."
+        ],
+        "drain": [
+          "Acknowledged drain or externally verified stop of every admitted operation/SDK call, detached flight, callback/mint/delivery and cleanup transaction."
+        ],
+        "verify": [
+          "Stale generation/cache/response writes remain fenced through privacy clear; old revisions cannot restart uncontrolled."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "SAC guards/local bounds exist; inventory records source routes.",
+        "requiredExecutionCapabilities": [
+          "Real shared pause/drain/verify adapter and authorized live evidence remain release gates."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "runtime-legacy",
+      "kind": "runtime",
+      "writerIds": [
+        "legacy-bot-chat-commands",
+        "legacy-force-move-long-sitting",
+        "legacy-seat-organizer",
+        "legacy-capacity-control",
+        "legacy-daily-manual-batch",
+        "legacy-bigquery-import",
+        "legacy-work-name-trend",
+        "legacy-admin-and-local-export",
+        "legacy-raw-chat-helper-and-old-binary",
+        "legacy-notification-log-forwarding",
+        "external-export-backup-restore"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "Bot",
+          "line": 73,
+          "anchor": "func Bot("
+        },
+        {
+          "path": "system/cmd/batch/main.go",
+          "symbol": "Fargate/local batch",
+          "line": 18,
+          "anchor": "func main()"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "daily/manual schedule definitions",
+          "line": 412,
+          "anchor": "const dailyBatchStateMachine"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot and independent force-move loop; organizer/capacity paths; daily/manual/local SFN/Fargate/batches; BQ load/query; trend; export/restore producers; admin/notification/replay tools."
+      ],
+      "deletionAttribution": {
+        "method": "target-bound runtime/task/job/source manifest with admission cutoff",
+        "limits": [
+          "Legacy writers are not SAC consumers; target control alone does not stop them."
+        ]
+      },
+      "sourceKnown": [
+        "Canon 05 allows fresh legitimate post-resume use; queued work read/admitted before the deletion cutoff must not restore old data.",
+        "New Bot SAC guards or !block/YouTube Ban changes are outside this source inventory."
+      ],
+      "liveUnknown": [
+        "PC/supervisor/old binaries, Lambda rules/retries/aliases, SFN/ECS running and manual jobs, cloud export/restore paths and operator ownership."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause all listed scheduled/manual/direct launch routes and suppress restart/redrive/replay."
+        ],
+        "drain": [
+          "Record terminal/fenced state for every existing process/invocation/task/job, discard old queues/snapshots and reconcile SDK uncertainty."
+        ],
+        "verify": [
+          "Verify target absence before resume and barrier ack on resume; pre-cutoff work cannot replay, while fresh post-resume work remains valid."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Existing legacy semantics and source launch routes are documented.",
+        "requiredExecutionCapabilities": [
+          "Real pause/drain/discard/resume APIs and live proof are not asserted by this catalog."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    }
+  ],
+  "deletionScopes": [
+    {
+      "id": "seat-state",
+      "kind": "deletion",
+      "stores": [
+        "seats/{seatNumber}",
+        "member-seats/{seatNumber}"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "ReadSeatWithUserID",
+          "line": 266,
+          "anchor": "func (c *FirestoreControllerImplements) ReadSeatWithUserID("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateSeat/UpdateSeat/DeleteSeat",
+          "line": 496,
+          "anchor": "func (c *FirestoreControllerImplements) UpdateSeat("
+        },
+        {
+          "path": "system/core/repository/models.go",
+          "symbol": "SeatDoc",
+          "line": 103,
+          "anchor": "type SeatDoc struct"
+        }
+      ],
+      "writerIds": [
+        "legacy-bot-chat-commands",
+        "legacy-force-move-long-sitting",
+        "legacy-seat-organizer",
+        "legacy-capacity-control",
+        "legacy-admin-and-local-export"
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot polls messages, registers missing users before command parsing, then runs seat/history/preference/order operations.",
+        "Normal post-resume new messages can legitimately create a new users document.",
+        "Pending fetched messages, old command retries and seat/session snapshots can write old data if replayed after resume.",
+        "Bot starts independent long-sitting goroutine/application that reads seat snapshots, adds temporary limits and force-moves users.",
+        "One-minute rule and direct Lambda/manual callers invoke both rooms; organizer closes sessions, resumes breaks and deletes expired seat limits.",
+        "Monitor or manual/API caller writes desired capacities; Bot observes them and runs capacity adjustment.",
+        "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications.",
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint."
+      ],
+      "deletionAttribution": {
+        "method": "query user-id == verified target channel in both room collections; verify document ownership/revision in transaction",
+        "limits": [
+          "Document ID is a seat number, not channel; reallocated seat must never be deleted from an old candidate snapshot.",
+          "Current ongoing session/work text exists here even when no closed segment exists."
+        ],
+        "deletionBoundary": "Dedicated target seat deletion, without ordinary Out/Block/session close/history/RP/notification/Ban side effects."
+      },
+      "sourceKnown": [
+        "Both seat collections contain channel ID, public name/image, work text, session state and timing.",
+        "Normal Out/Block would generate additional history/totals/vendor copies."
+      ],
+      "liveUnknown": [
+        "All matching seats, malformed/duplicate ownership data, permissions and live writer cutoff."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Require runtime-legacy pause; stop capacity/force/organizer/manual mutations."
+        ],
+        "drain": [
+          "Drain all seat/session snapshots and transaction commits; recheck candidate user-id/revision before delete."
+        ],
+        "verify": [
+          "Full paginated lookup in both collections proves target absence, unrelated users are unchanged, no deletion side effects are created."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Seat read/create/update/delete helpers exist; current dryrun queries both rooms.",
+        "requiredExecutionCapabilities": [
+          "Request-bound side-effect-free delete/inventory adapter and live verification are separate requirements."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "firestore-primary",
+      "kind": "deletion",
+      "stores": [
+        "users/{channel}",
+        "work-segments/*",
+        "user-activities/*",
+        "order-history/*",
+        "seat-limits-black-list/*",
+        "seat-limits-white-list/*",
+        "member-seat-limits-black-list/*",
+        "member-seat-limits-white-list/*",
+        "live-chat-history/* (legacy raw history)"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/repository/constants.go",
+          "symbol": "primary collection/field constants",
+          "line": 7,
+          "anchor": "USERS "
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateUser and user updates",
+          "line": 373,
+          "anchor": "func (c *FirestoreControllerImplements) CreateUser("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateWorkSegmentDoc",
+          "line": 577,
+          "anchor": "func (c *FirestoreControllerImplements) CreateWorkSegmentDoc("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateUserActivityDoc",
+          "line": 520,
+          "anchor": "func (c *FirestoreControllerImplements) CreateUserActivityDoc("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateOrderHistoryDoc",
+          "line": 745,
+          "anchor": "func (c *FirestoreControllerImplements) CreateOrderHistoryDoc("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "createSeatLimit",
+          "line": 660,
+          "anchor": "func (c *FirestoreControllerImplements) createSeatLimit("
+        },
+        {
+          "path": "system/core/mypage/operator_dryrun_store.go",
+          "symbol": "primary dryrun lookups",
+          "line": 21,
+          "anchor": "var dryRunLookups"
+        }
+      ],
+      "writerIds": [
+        "legacy-bot-chat-commands",
+        "legacy-force-move-long-sitting",
+        "legacy-seat-organizer",
+        "legacy-capacity-control",
+        "legacy-daily-manual-batch",
+        "legacy-bigquery-import",
+        "legacy-admin-and-local-export",
+        "legacy-raw-chat-helper-and-old-binary",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot polls messages, registers missing users before command parsing, then runs seat/history/preference/order operations.",
+        "Normal post-resume new messages can legitimately create a new users document.",
+        "Pending fetched messages, old command retries and seat/session snapshots can write old data if replayed after resume.",
+        "Bot starts independent long-sitting goroutine/application that reads seat snapshots, adds temporary limits and force-moves users.",
+        "One-minute rule and direct Lambda/manual callers invoke both rooms; organizer closes sessions, resumes breaks and deletes expired seat limits.",
+        "Monitor or manual/API caller writes desired capacities; Bot observes them and runs capacity adjustment.",
+        "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications.",
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
+        "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
+        "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint.",
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
+        "Current Bot polling source no longer invokes raw-message persistence; retained helper or old deployed binary can still write raw history.",
+        "Old imports/restores can bring historical raw rows back even when current source excludes imports.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "users direct channel document; all history/limits query user-id equality; raw history author-channel-id equality",
+        "limits": [
+          "Use exhaustive stable pagination with fresh ownership/revision checks; counts and capped MyPage history read are insufficient.",
+          "No blanket collection/dataset deletion; config/constants is shared runtime checkpoint/config, not user data."
+        ],
+        "protectedExclusion": "service-access-controls/{channel} retains the full inactive checkpoint, both reason states, generation and revision; no delete/TTL/reset."
+      },
+      "sourceKnown": [
+        "Current dryrun caps at 1001 document IDs and reports at_least, not exhaustive manifest.",
+        "Old raw history may remain although current producer/import is retired.",
+        "Bot may create a fresh user on legitimate post-resume new use; this does not permit old queued work revival."
+      ],
+      "liveUnknown": [
+        "Live document set/subcollections/schema variants/indexes, legacy producer versions, B-specific read/delete permissions and restored copies."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Require full legacy pause and prohibit old import/restore/admin replay."
+        ],
+        "drain": [
+          "Settle admitted writes and source restoration routes; snapshot deletion candidates with target attribution."
+        ],
+        "verify": [
+          "Exhaust all direct/query scopes and re-scan after delete; missing/index/permission/overflow/timeout errors remain unknown, never zero or completed."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Repository writers and bounded read-only diagnostic/legacy counter exist.",
+        "requiredExecutionCapabilities": [
+          "Exhaustive request-bound delete/postcondition adapter and live coverage are required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "firestore-web",
+      "kind": "deletion",
+      "stores": [
+        "web-accounts/{verified channel uid}",
+        "BFF per-process cache/flight copies; browser private display memory"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "Consume/ReadAccount/CompleteSession",
+          "line": 170,
+          "anchor": "func (s *FirestoreAuthStore) Consume("
+        },
+        {
+          "path": "system/core/mypage/metadata_store.go",
+          "symbol": "metadata writers",
+          "line": 15,
+          "anchor": "func (s *FirestoreAuthStore) SaveMetadata("
+        },
+        {
+          "path": "system/core/mypage/metadata_cleanup_store.go",
+          "symbol": "cleanup writer",
+          "line": 60,
+          "anchor": "func (s *FirestoreMetadataCleanupStore) Clear("
+        },
+        {
+          "path": "mypage/src/features/mypage/memory.ts",
+          "symbol": "MyPageMemory private display invalidation",
+          "line": 241,
+          "anchor": "pagehide clears pixels"
+        }
+      ],
+      "writerIds": [
+        "mypage-account-consume-session-mint",
+        "mypage-bff-cache-flight",
+        "mypage-metadata-refresh",
+        "mypage-metadata-cleanup",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "Normal confirm commits WebAccount upsert and consumed OAuth in one transaction, then mints Custom Token externally.",
+        "Session completion sets firstWebLoginAt if absent; browser exchanges delivered Custom Token for Firebase sign-in.",
+        "GET admits shared snapshot/metadata work, fills per-process response cache and returns per-caller results.",
+        "Caller cancellation can leave a context.WithoutCancel shared flight running; joiners share its result/verdict.",
+        "BFF invokes public YouTube metadata lookup outside transaction, then revision/SAC-fenced existing-account update or clear.",
+        "Independent trusted metadata cleanup scans and clears expired metadata at exact account revision; future scheduler or manual runner can call it.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "verified target channel UID direct WebAccount; runtime cache/flight keyed environment/uid/checkpoint and account revision",
+        "limits": [
+          "Deleting WebAccount alone leaves OAuth/mint, other processes and already delivered browser/vendor copies unresolved.",
+          "Server cannot claim synchronous deletion from every offline browser from frontend epoch/abort behavior."
+        ]
+      },
+      "sourceKnown": [
+        "WebAccount contains identity/consent/lifecycle/public metadata; only consume can recreate missing account among these writers.",
+        "Per-process cache invalidation is not distributed drain; browser private data uses in-memory lifecycle cleanup."
+      ],
+      "liveUnknown": [
+        "All process caches, deployed revisions/browser sessions and cleanup runners."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Require runtime-my-page admission pause including refresh/cleanup and mint."
+        ],
+        "drain": [
+          "Fence/ack all detached work and exact-revision commits; invalidate every relevant process cache."
+        ],
+        "verify": [
+          "Direct account absence and stale-cache/result rejection under preserved SAC generation; newly admitted post-resume login remains distinct."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Account/revision/SAC guards and local/browser invalidation exist.",
+        "requiredExecutionCapabilities": [
+          "B cross-runtime drain/eviction and target delete proof require separate implementation/live evidence."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "firestore-oauth",
+      "kind": "deletion",
+      "stores": [
+        "oauth-transactions/{opaque transaction id}; login and support purposes"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/auth.go",
+          "symbol": "OAuthTransaction schema",
+          "line": 44,
+          "anchor": "type OAuthTransaction struct"
+        },
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "Claim/Verify/Fail/Consume",
+          "line": 121,
+          "anchor": "func (s *FirestoreAuthStore) Verify("
+        },
+        {
+          "path": "system/core/mypage/support_auth_store.go",
+          "symbol": "support consume channel clearing",
+          "line": 99,
+          "anchor": "value.Channel = Channel{}"
+        },
+        {
+          "path": "system/core/mypage/operator_dryrun_store.go",
+          "symbol": "channel and receipt OAuth lookups",
+          "line": 34,
+          "anchor": "\"channel-oauth-transactions\""
+        },
+        {
+          "path": "infra/mypage-oauth-ttl/modules/oauth-transaction-ttl/main.tf",
+          "symbol": "expiresAt TTL source configuration",
+          "line": 19,
+          "anchor": "resource \"google_firestore_field\""
+        }
+      ],
+      "writerIds": [
+        "mypage-oauth-start-callback",
+        "mypage-account-consume-session-mint",
+        "mypage-support-proof-indices",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "HTTP start creates opaque login/support OAuth record; superseding start changes prior pending/verified status.",
+        "Callback atomically claims pending record, resolves provider outside transaction, then verifies or fails the OAuth record.",
+        "Normal confirm commits WebAccount upsert and consumed OAuth in one transaction, then mints Custom Token externally.",
+        "Session completion sets firstWebLoginAt if absent; browser exchanges delivered Custom Token for Firebase sign-in.",
+        "Operator/server Create writes receipt, challenge hash index and environment/requestId hash index atomically.",
+        "Reissue replaces challenge index on same receipt; support Start/Callback/Confirm binds OAuth to receipt.",
+        "ConsumeSupport records proof, deletes challenge and consumes OAuth atomically, clearing OAuth channel metadata/state/confirmation.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "channel.channelId equality plus every attributable receipt support.requestRef and explicit transaction references; pre-resolution normal callbacks require runtime admission manifest",
+        "limits": [
+          "Consumed support OAuth clears Channel; pending normal OAuth has no channel attribution.",
+          "TTL or a missing proof trace means unknown until workflow proof/drain conditions are independently resolved; TTL is not immediate deletion."
+        ]
+      },
+      "sourceKnown": [
+        "OAuth retains public channel metadata/state/consent/times in normal consumed path; support consumed path clears metadata but retains support binding.",
+        "TTL exists as MyPage-specific Terraform source, while actual ACTIVE state/natural deletion are unverified."
+      ],
+      "liveUnknown": [
+        "All target normal and support transactions, pending resolved-later callbacks, other receipt relations, actual TTL/index/IAM state."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Require callback/start/support mutation admission control and mint drain."
+        ],
+        "drain": [
+          "Resolve provider/Verify/consume transactions and current request proof dependencies before cleanup."
+        ],
+        "verify": [
+          "Exhaust channel plus receipt/reference relations; confirm no old unidentified callback can attach metadata later; preserve current proof until separate completion stage."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Atomic OAuth and bounded read-only lookups exist; TTL deployment is not proven.",
+        "requiredExecutionCapabilities": [
+          "Target-wide exhaustive OAuth cleanup and callback quarantine evidence are required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "firestore-support-relations",
+      "kind": "deletion",
+      "stores": [
+        "support-requests/{opaque receipt}",
+        "support-challenges/{challenge hash}",
+        "support-request-ids/{hash(environment:requestId)}",
+        "oauth-transactions.support bindings"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/support.go",
+          "symbol": "SupportRequest/SupportBinding/new/verify/reissue/complete",
+          "line": 29,
+          "anchor": "type SupportRequest struct"
+        },
+        {
+          "path": "system/core/mypage/support_store.go",
+          "symbol": "Create/Resolve/Reissue/CheckBinding",
+          "line": 49,
+          "anchor": "func (s *FirestoreSupportStore) Create("
+        },
+        {
+          "path": "system/core/mypage/support_auth_store.go",
+          "symbol": "ConsumeSupport",
+          "line": 58,
+          "anchor": "func (s *FirestoreAuthStore) ConsumeSupport("
+        },
+        {
+          "path": "system/core/mypage/operator_dryrun_store.go",
+          "symbol": "channel/receipt relation lookup scopes",
+          "line": 35,
+          "anchor": "\"channel-support-requests\""
+        }
+      ],
+      "writerIds": [
+        "mypage-oauth-start-callback",
+        "mypage-support-proof-indices",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "HTTP start creates opaque login/support OAuth record; superseding start changes prior pending/verified status.",
+        "Callback atomically claims pending record, resolves provider outside transaction, then verifies or fails the OAuth record.",
+        "Operator/server Create writes receipt, challenge hash index and environment/requestId hash index atomically.",
+        "Reissue replaces challenge index on same receipt; support Start/Callback/Confirm binds OAuth to receipt.",
+        "ConsumeSupport records proof, deletes challenge and consumes OAuth atomically, clearing OAuth channel metadata/state/confirmation.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "query support-requests.targetChannel for all target receipts, then traverse each requestRef/OAuthTransactionID to OAuth/challenge/request indexes; validate environment/purpose/ownership",
+        "limits": [
+          "Current-receipt queries do not cover other target receipts; hash indexes are not channel document IDs.",
+          "Keep current workflow receipt/proof/index dependencies until the separate durable completion transition; never invalidate unrelated in-progress requests by blanket purge."
+        ],
+        "separateCompletion": "Receipt completion and anonymous durable audit are handled by workflow/completion adapter, outside this static inventory."
+      },
+      "sourceKnown": [
+        "Receipt/index/proof are linkable data even after OAuth channel metadata is cleared.",
+        "Existing completeSupportRecord is a pure field-clearing transition; durable completion integration is separately owned.",
+        "AcceptedAt/DeleteBy must survive reissue/retry; no new retention duration is defined here."
+      ],
+      "liveUnknown": [
+        "All related receipts/indices/challenges/OAuth paths including migrated/partially failed operations, current proof binding and cleanup ownership."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Fence only conflicting request mutations; keep intended fresh proof path available and independent receipt state safe."
+        ],
+        "drain": [
+          "Drain admitted proof/index mutations and capture stable relation ownership manifest."
+        ],
+        "verify": [
+          "Every attributable relation is absent or resolved by separate completion; current receipt completes only after all scope/guard/resume postconditions."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Atomic proof/index transitions exist; bounded diagnostic covers current receipt and channel receipt count.",
+        "requiredExecutionCapabilities": [
+          "Exhaustive multi-receipt cleanup and durable completion require dedicated B implementation and live proof."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "legacy-mappings",
+      "kind": "deletion",
+      "stores": [
+        "mypage-youtube-channel-owners/{channel}",
+        "mypage-users/{legacy firebase uid}",
+        "linked legacy Firebase Auth UID"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/internal/privacyops/inventory.go",
+          "symbol": "inspectMyPageMappings/InspectFirestore",
+          "line": 129,
+          "anchor": "func inspectMyPageMappings("
+        },
+        {
+          "path": "system/cmd/privacy-admin/main.go",
+          "symbol": "legacy privacy-admin entrypoint",
+          "line": 33,
+          "anchor": "func run("
+        }
+      ],
+      "writerIds": [
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "read channel owner document, verify firebase-uid relation and linked account/Auth ownership before targeting legacy UID",
+        "limits": [
+          "Current channel-as-UID convention is not proof that old firebase-uid is identical.",
+          "Legacy inspector only follows one forward mapping; reverse/duplicate/migrated relations and old writers require live investigation."
+        ]
+      },
+      "sourceKnown": [
+        "Read-only legacy mapping inspector exists; source reviewed here does not establish active writer/restore ownership for these collections.",
+        "Legacy privacy-admin credential-file/CLI/output boundary is not the support-bound B operator and was not run."
+      ],
+      "liveUnknown": [
+        "Mapping/account/Auth existence, reverse aliases/migration history, active old MyPage writers/restores and permissions."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Inventory/pause old mapping/account migration/restore writers; unknown writer means incomplete barrier."
+        ],
+        "drain": [
+          "Settle old operations and bind linked UID ownership without guessing."
+        ],
+        "verify": [
+          "Channel mapping and every attributable linked account/Auth record are absent; ambiguous/missing linkage stays unknown."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Legacy forward mapping reader exists.",
+        "requiredExecutionCapabilities": [
+          "B-safe exhaustive relation/delete/Auth adapter and legacy writer evidence are required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "firebase-auth",
+      "kind": "deletion",
+      "stores": [
+        "Firebase Auth user for verified current channel uid",
+        "verified linked legacy Firebase Auth UIDs",
+        "issued Custom Tokens, refresh/session and browserLocalPersistence state"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/firebase_boundary.go",
+          "symbol": "FirebaseAuthClient/FirebaseBoundary",
+          "line": 13,
+          "anchor": "type FirebaseAuthClient interface"
+        },
+        {
+          "path": "system/core/mypage/firebase_boundary.go",
+          "symbol": "FirebaseBoundary.Mint",
+          "line": 49,
+          "anchor": "func (v *FirebaseBoundary) Mint("
+        },
+        {
+          "path": "mypage/src/firebase.ts",
+          "symbol": "Firebase browserLocalPersistence/signIn",
+          "line": 40,
+          "anchor": "persistence: browserLocalPersistence"
+        },
+        {
+          "path": "system/cmd/service-access-control/command.go",
+          "symbol": "A supplementary Auth revoke operation",
+          "line": 95,
+          "anchor": "p.Revoke(ctx, r.Target.ChannelID)"
+        }
+      ],
+      "writerIds": [
+        "mypage-account-consume-session-mint"
+      ],
+      "creationAndRecreationRoutes": [
+        "Normal confirm commits WebAccount upsert and consumed OAuth in one transaction, then mints Custom Token externally.",
+        "Session completion sets firstWebLoginAt if absent; browser exchanges delivered Custom Token for Firebase sign-in."
+      ],
+      "deletionAttribution": {
+        "method": "explicit project/tenant and current verified channel UID; linked legacy UID requires independently verified mapping",
+        "limits": [
+          "Supplementary revoke is not user deletion or runtime drain.",
+          "Mint/revoke/delete can race; an already issued token exchange must be accounted for, without assuming token revocation semantics.",
+          "Browser persisted Auth session is distinct from MyPage in-memory statistics display."
+        ]
+      },
+      "sourceKnown": [
+        "MyPage Firebase boundary supports verification/custom mint; A moderation CLI has supplementary session revoke capability.",
+        "FirebaseBoundary rejects tenant other than empty and requires custom-provider channel UID, but B must verify the actual environment/tenant."
+      ],
+      "liveUnknown": [
+        "Auth user and legacy UID existence/ownership, signer/delete/revoke/check permissions, issued tokens, persistent browser sessions and live SDK behavior."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause all mint/sign-in-capable old work under MyPage barrier; bind project/tenant/UID."
+        ],
+        "drain": [
+          "Drain mint/delivery/consume; revoke and delete side effects need idempotent attempts and readback after timeout/ack loss."
+        ],
+        "verify": [
+          "Verified Auth user absence and supplementary session outcome, plus no pre-cutoff mint/delivery recreation; missing permissions/unknown acknowledgement remain incomplete."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "A supplementary revoke and MyPage verify/mint exist.",
+        "requiredExecutionCapabilities": [
+          "B target-bound Auth delete/existence/readback adapter and live ownership/permission evidence remain required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "bigquery",
+      "kind": "deletion",
+      "stores": [
+        "firestore_export.user-activity-history",
+        "firestore_export.order-history",
+        "firestore_export.live-chat-history (historical/retired)",
+        "firestore_export.tmp",
+        "running/pending/completed load/query/copy/export jobs and temporary result copies"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mybigquery/constants.go",
+          "symbol": "BQ dataset/main/tmp names",
+          "line": 4,
+          "anchor": "DatasetName"
+        },
+        {
+          "path": "system/core/mybigquery/bigquery_controller.go",
+          "symbol": "ReadCollectionsFromGcs",
+          "line": 53,
+          "anchor": "func (c *BigqueryController) ReadCollectionsFromGcs("
+        },
+        {
+          "path": "system/core/mybigquery/user_inventory.go",
+          "symbol": "InspectUserData/countRowsByField",
+          "line": 23,
+          "anchor": "func (c *BigqueryController) InspectUserData("
+        },
+        {
+          "path": "system/core/mypage/support_delete_bigquery.go",
+          "symbol": "BigQueryDeletionEffects",
+          "line": 214,
+          "anchor": "type BigQueryDeletionEffects struct {"
+        },
+        {
+          "path": "system/core/mypage/support_delete_bigquery_store.go",
+          "symbol": "CaptureBigQueryInventory",
+          "line": 125,
+          "anchor": "func (s *FirestoreDeletionStore) CaptureBigQueryInventory("
+        },
+        {
+          "path": "system/core/mybigquery/target_query.go",
+          "symbol": "pure TargetDeletionSQL planner",
+          "line": 14,
+          "anchor": "func TargetDeletionSQL("
+        }
+      ],
+      "writerIds": [
+        "legacy-daily-manual-batch",
+        "legacy-bigquery-import",
+        "legacy-raw-chat-helper-and-old-binary",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
+        "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
+        "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint.",
+        "Current Bot polling source no longer invokes raw-message persistence; retained helper or old deployed binary can still write raw history.",
+        "Old imports/restores can bring historical raw rows back even when current source excludes imports.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "explicit project/dataset/location/table and parameterized user_id equality; raw main author_channel_id equality; tmp schema determines matching field",
+        "limits": [
+          "Main-table counts omit tmp/job/result/export copies; absent retired table is only known after actual metadata verification.",
+          "Do not drop whole retained dataset/table for one target; static raw-retirement purge is a different operation."
+        ]
+      },
+      "sourceKnown": [
+        "User inventory uses parameterized values for three main-table counts only.",
+        "tmp is shared and loaded with WriteTruncate from whole GCS collection; main queries WriteAppend; raw import skipped in current source.",
+        "Synthetic-only BigQueryDeletionEffects pins complete table/job/copy inventory, stable target job plans and definitive readback; temporary Firestore state moves atomically with Auth/checkpoints. No live executor/bootstrap is provided."
+      ],
+      "liveUnknown": [
+        "Live tables/schema/location, alternate jobs/copies/results, IAM/deletion ownership, historical imports and retained snapshots."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause every daily/manual/direct import/copy/export path and quarantine old source snapshots."
+        ],
+        "drain": [
+          "Settle every BQ job independently of Fargate/SFN/caller lifecycle and reconcile ambiguous job acknowledgements."
+        ],
+        "verify": [
+          "Parameter-bound main/tmp absence after full scope inventory; no active or resumable old job can reinsert rows; result/copy/export disposition evidenced."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Importer/read-only main counters and synthetic target deletion/reconciliation adapter exist; live capabilities and completeness remain unverified.",
+        "requiredExecutionCapabilities": [
+          "Live main/tmp/job/result-copy executor, complete resource/schema/location inventory, pause/replay exclusion, copy disposition, SQL/API guarantees and permission evidence remain required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "backups-exports",
+      "kind": "deletion",
+      "stores": [
+        "GCS mixed Firestore export top-level snapshot prefixes",
+        "noncurrent object generations/versioning and soft-deleted copies",
+        "Firestore managed backups/PITR/restore/export jobs if present",
+        "manual/local dated user-total-study-sec-list.json and later copies",
+        "BQ exports and external backup copies if present"
+      ],
+      "sourceReferences": [
+        {
+          "path": "docs/privacy/gcs-raw-chat-cleanup.md",
+          "symbol": "mixed snapshot integrity boundary",
+          "line": 39,
+          "anchor": "Do not delete only"
+        },
+        {
+          "path": "docs/privacy/gcs-raw-chat-cleanup.md",
+          "symbol": "historical development soft-delete observation",
+          "line": 113,
+          "anchor": "The audited development bucket had"
+        },
+        {
+          "path": "system/core/repository/models.go",
+          "symbol": "configured export bucket",
+          "line": 44,
+          "anchor": "GcsFirestoreExportBucketName"
+        },
+        {
+          "path": "system/core/mystorage/storage_controller.go",
+          "symbol": "export consumer",
+          "line": 44,
+          "anchor": "func (controller *StorageController) GetGcsYesterdayExportFolderName("
+        },
+        {
+          "path": "system/internal/adminops/operations.go",
+          "symbol": "local JSON export producer",
+          "line": 63,
+          "anchor": "func ExportUsersCollectionJSON("
+        },
+        {
+          "path": "docs/privacy/raw-live-chat-archive-retirement-runbook.md",
+          "symbol": "external export/restore resource discovery boundary",
+          "line": 66,
+          "anchor": "Review Cloud Asset Inventory"
+        }
+      ],
+      "writerIds": [
+        "legacy-daily-manual-batch",
+        "legacy-bigquery-import",
+        "legacy-admin-and-local-export",
+        "legacy-raw-chat-helper-and-old-binary",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
+        "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
+        "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint.",
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
+        "Current Bot polling source no longer invokes raw-message persistence; retained helper or old deployed binary can still write raw history.",
+        "Old imports/restores can bring historical raw rows back even when current source excludes imports.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "private target/source provenance manifest across complete mixed snapshots, generations, managed backups and exported files; per-user field equality alone is insufficient",
+        "limits": [
+          "Never partially remove a kind_ fragment/row from a recoverable mixed Firestore export.",
+          "Never infer hard deletion from live-namespace removal; versioned/soft-deleted/retained/held copies and restores are separate residual scopes.",
+          "Existing raw-retirement whole-prefix gates do not authorize general per-user mixed-snapshot deletion or define new retention."
+        ]
+      },
+      "sourceKnown": [
+        "Source consumer reads mixed GCS Firestore snapshots; actual cloud export producer is not defined by this importer.",
+        "Privacy runbook records a historical development seven-day soft-delete audit; that is not a current production/development finding.",
+        "Source-known local JSON export route adds workstation/copy scope."
+      ],
+      "liveUnknown": [
+        "Current buckets/objects/generations/lifecycle/soft delete/holds, managed backup/PITR/export/restore jobs, local files/copies and delete/restore ownership.",
+        "Approved existing backup disposition compatible with the current request SLA; no new retention policy is invented."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause/fence exports/restores/replication/imports and manual replay for old target-bearing snapshots."
+        ],
+        "drain": [
+          "Settle in-progress export/restore/copy jobs and seal old source snapshots against later replay."
+        ],
+        "verify": [
+          "Prove attributable backup/export disposition with integrity preserved, live and recoverable copies distinguished, restore cannot reset SAC checkpoint or restore old target data; unknown residuals block completion."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Consumer/local export and raw-specific guarded whole-prefix tooling/runbooks exist.",
+        "requiredExecutionCapabilities": [
+          "General B backup/export/restore inventory and approved target-copy disposition are external ownership/live gates."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "derived-vendor",
+      "kind": "deletion",
+      "stores": [
+        "work-name-trend/work-name-trend global ranking/examples",
+        "OpenAI stored Responses (Store=true)",
+        "Discord owner/moderator/log channel messages",
+        "YouTube live chat responses and independent legacy Ban state"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "stored OpenAI Responses",
+          "line": 106,
+          "anchor": "Store: openai.Bool(true)"
+        },
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "global derived ranking/examples",
+          "line": 186,
+          "anchor": "func (app *WorkspaceApp) saveWorkNameTrend("
+        },
+        {
+          "path": "system/core/repository/models.go",
+          "symbol": "WorkNameTrendRanking attribution schema",
+          "line": 248,
+          "anchor": "type WorkNameTrendRanking struct"
+        },
+        {
+          "path": "system/core/moderatorbot/discord.go",
+          "symbol": "Discord delivery",
+          "line": 41,
+          "anchor": "func (bot *DiscordBot) SendMessage("
+        },
+        {
+          "path": "system/core/workspaceapp/command_moderation.go",
+          "symbol": "independent legacy Block",
+          "line": 171,
+          "anchor": "func (app *WorkspaceApp) Block("
+        }
+      ],
+      "writerIds": [
+        "legacy-bot-chat-commands",
+        "legacy-force-move-long-sitting",
+        "legacy-seat-organizer",
+        "legacy-capacity-control",
+        "legacy-daily-manual-batch",
+        "legacy-work-name-trend",
+        "legacy-admin-and-local-export",
+        "legacy-notification-log-forwarding"
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot polls messages, registers missing users before command parsing, then runs seat/history/preference/order operations.",
+        "Normal post-resume new messages can legitimately create a new users document.",
+        "Pending fetched messages, old command retries and seat/session snapshots can write old data if replayed after resume.",
+        "Bot starts independent long-sitting goroutine/application that reads seat snapshots, adds temporary limits and force-moves users.",
+        "One-minute rule and direct Lambda/manual callers invoke both rooms; organizer closes sessions, resumes breaks and deletes expired seat limits.",
+        "Monitor or manual/API caller writes desired capacities; Bot observes them and runs capacity adjustment.",
+        "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications.",
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output.",
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
+        "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
+        "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord."
+      ],
+      "deletionAttribution": {
+        "method": "source-time task/job/message/request provenance plus verified content/identity relation; operator-private manifest only",
+        "limits": [
+          "Global trend/examples and stored Responses lack target channel/response-ID index in this path; channel equality cannot prove absence.",
+          "Do not automatically clear independent moderation/YouTube Ban or invoke Block/Out as privacy cleanup.",
+          "OpenAI/Discord/YouTube ownership, residual retention and deletion rights must be evidenced; service-owned copy and platform-retained copy are distinguished."
+        ]
+      },
+      "sourceKnown": [
+        "Trend reads full work text, logs counts/status without request or response body, stores OpenAI Response and saves public examples without channel attribution.",
+        "Discord messages can contain target name/text/IDs/raw errors; legacy notifications are independent external copies."
+      ],
+      "liveUnknown": [
+        "Vendor response/message inventory, trace ownership, deletion capability, residual data, pending notification copies and actual target attribution."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause/fence trend and notification/forwarding routes reading old target data."
+        ],
+        "drain": [
+          "Drain pending vendor requests and delayed ranking saves/message sends; reconcile uncertain external success."
+        ],
+        "verify": [
+          "Attributable derived/vendor copies removed or disposition proven; provenance failure remains unknown; any regenerated ranking uses fresh permitted data after drain."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Synthetic derived/vendor inventory and readback adapter exists. Production OpenAI response IDs and Discord message IDs are not persisted; global trend examples lack channel attribution.",
+        "requiredExecutionCapabilities": [
+          "Exact live vendor object and channel ownership inventory, supported target-only disposition and external readback are required; synthetic fixture is not live evidence."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    },
+    {
+      "id": "platform-logs",
+      "kind": "deletion",
+      "stores": [
+        "Bot/local runtime stdout/stderr/log files",
+        "CloudWatch ECS/Lambda/SFN and API Gateway access logs",
+        "SNS/subscription/retry/destination payload copies",
+        "Cloud Run/Firebase Hosting/CDN/GCP application/access/audit logs if present",
+        "vendor request logs and copied operational artifacts"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "trend payload-safe request status log",
+          "line": 75,
+          "anchor": "slog.InfoContext(ctx, \"work name trend request started\""
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "RP payload-safe status log",
+          "line": 389,
+          "anchor": "slog.InfoContext(ctx, \"RP update started\""
+        },
+        {
+          "path": "system/cmd/lambda/error_log_notify_discord/main.go",
+          "symbol": "error log forwarding",
+          "line": 105,
+          "anchor": "func buildDiscordMessageChunks("
+        },
+        {
+          "path": "system/cmd/lambda/error_log_notify_discord/main.go",
+          "symbol": "sanitized notifier source error with original error identity",
+          "line": 49,
+          "anchor": "type notifierSourceError struct"
+        },
+        {
+          "path": "system/cmd/lambda/sns_notify_discord/main.go",
+          "symbol": "SNS payload-safe dispatch log",
+          "line": 84,
+          "anchor": "slog.InfoContext(gracefulCtx, \"sns notification dispatch\""
+        },
+        {
+          "path": "system/cmd/lambda/youtube_organize_database/main.go",
+          "symbol": "organizer handler safe error class",
+          "line": 91,
+          "anchor": "\"error_class\", \"organize_failed\""
+        },
+        {
+          "path": "system/cmd/batch/main.go",
+          "symbol": "batch init safe error class",
+          "line": 25,
+          "anchor": "slog.Error(\"failed to get Firestore client option\", \"error_class\""
+        },
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "legacy bot init safe error class",
+          "line": 60,
+          "anchor": "slog.ErrorContext(ctx, \"failed core.NewWorkspaceApp()\", \"error_class\""
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "ECS BatchLogGroup INFINITE source retention",
+          "line": 158,
+          "anchor": "'BatchLogGroup'"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "daily/manual SFN logs INFINITE source retention",
+          "line": 419,
+          "anchor": "'DailyBatchSfnLogs'"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "API Gateway access log INFINITE source retention",
+          "line": 754,
+          "anchor": "'RestApiLogAccessLogGroup'"
+        },
+        {
+          "path": "docs/mypage/release/README.md",
+          "symbol": "MyPage release logging gate",
+          "line": 20,
+          "anchor": "callback/access-log"
+        }
+      ],
+      "writerIds": [
+        "mypage-oauth-start-callback",
+        "legacy-bot-chat-commands",
+        "legacy-force-move-long-sitting",
+        "legacy-seat-organizer",
+        "legacy-capacity-control",
+        "legacy-daily-manual-batch",
+        "legacy-bigquery-import",
+        "legacy-work-name-trend",
+        "legacy-admin-and-local-export",
+        "legacy-raw-chat-helper-and-old-binary",
+        "legacy-notification-log-forwarding",
+        "external-export-backup-restore"
+      ],
+      "creationAndRecreationRoutes": [
+        "HTTP start creates opaque login/support OAuth record; superseding start changes prior pending/verified status.",
+        "Callback atomically claims pending record, resolves provider outside transaction, then verifies or fails the OAuth record.",
+        "Bot polls messages, registers missing users before command parsing, then runs seat/history/preference/order operations.",
+        "Normal post-resume new messages can legitimately create a new users document.",
+        "Pending fetched messages, old command retries and seat/session snapshots can write old data if replayed after resume.",
+        "Bot starts independent long-sitting goroutine/application that reads seat snapshots, adds temporary limits and force-moves users.",
+        "One-minute rule and direct Lambda/manual callers invoke both rooms; organizer closes sessions, resumes breaks and deletes expired seat limits.",
+        "Monitor or manual/API caller writes desired capacities; Bot observes them and runs capacity adjustment.",
+        "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications.",
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path.",
+        "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
+        "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint.",
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output.",
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint.",
+        "Current Bot polling source no longer invokes raw-message persistence; retained helper or old deployed binary can still write raw history.",
+        "Old imports/restores can bring historical raw rows back even when current source excludes imports.",
+        "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
+        "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord.",
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "deletionAttribution": {
+        "method": "private channel/name/work/proof/request/runtime provenance mapping into each owned log/copy sink; no raw identity/content in public result",
+        "limits": [
+          "Anonymous MyPage recorder schema does not prove legacy/access/vendor logs are clean.",
+          "Sensitive callback query/code/supportChallenge or raw dependency errors can be copied by hosting/access/error routes; redact and verify actual config.",
+          "Source INFINITE retention is a CDK setting, not a live configuration or a new policy decision."
+        ]
+      },
+      "sourceKnown": [
+        "Current RP, seat-limit and exit paths log fixed events/counts without channel IDs or work text; related organizer/batch/Bot entrypoints and trend/SNS handlers omit raw dependency/payload logs; CloudWatch notifier parse/init logs and returned error strings use fixed classes. Owner/Discord content forwarding and historical log copies remain separate.",
+        "CDK defines INFINITE retention for batch/SFN/API access logs and error subscription forwarding.",
+        "MyPage server discards HTTP error log and uses sanitized API codes, but hosting/edge/cloud log configuration remains a release gate."
+      ],
+      "liveUnknown": [
+        "Actual log groups/sinks/export subscriptions/retention/holds, operator artifacts, target search attribution and deletion/redaction capabilities."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause/fence late target-bearing logging/forwarding/export operations and prevent queued copies reaching new sinks."
+        ],
+        "drain": [
+          "Drain SNS/subscription/notification jobs and reconcile delivery; inventory archived/exported/local log copies."
+        ],
+        "verify": [
+          "Verify each owned log/copy disposition and live redaction; unknown search/ownership/residuals prevent declaring completed; telemetry failure is not success."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Bounded RP/seat/exit and related entrypoint/trend/SNS/notifier process-log hardening exists. Original notifier parse/init causes remain available through errors.Is; historical logs and other producer paths are not proven clean.",
+        "requiredExecutionCapabilities": [
+          "B log inventory/disposition adapters, permissions and actual redaction/retention evidence remain required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      }
+    }
+  ],
+  "writers": [
+    {
+      "id": "mypage-oauth-start-callback",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-oauth",
+        "firestore-support-relations",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/auth.go",
+          "symbol": "AuthService.Start",
+          "line": 146,
+          "anchor": "func (s *AuthService) Start("
+        },
+        {
+          "path": "system/core/mypage/auth.go",
+          "symbol": "AuthService.Callback",
+          "line": 191,
+          "anchor": "func (s *AuthService) Callback("
+        },
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "FirestoreAuthStore.Create",
+          "line": 48,
+          "anchor": "func (s *FirestoreAuthStore) Create("
+        },
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "FirestoreAuthStore.change/Claim/Verify/Fail",
+          "line": 83,
+          "anchor": "func (s *FirestoreAuthStore) change("
+        },
+        {
+          "path": "system/core/mypage/support_auth_store.go",
+          "symbol": "FirestoreAuthStore.CreateSupport",
+          "line": 12,
+          "anchor": "func (s *FirestoreAuthStore) CreateSupport("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "HTTP start creates opaque login/support OAuth record; superseding start changes prior pending/verified status.",
+        "Callback atomically claims pending record, resolves provider outside transaction, then verifies or fails the OAuth record."
+      ],
+      "sourceKnown": [
+        "pending/processing login records have no verified channel; channel.channelId equality cannot locate all callbacks.",
+        "Support OAuth has support.requestRef before channel resolution; normal login has no receipt relation.",
+        "OAuth persistence stores hashes, metadata and timestamps rather than raw code/OAuth token/Custom Token."
+      ],
+      "liveUnknown": [
+        "All serving revisions/instances and direct AuthService callers; provider requests and Firestore commits in progress."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Block new callback/start admission across all revisions and non-HTTP callers; target-only channel filtering is insufficient before resolution."
+        ],
+        "drain": [
+          "Resolve or fence each admitted provider lookup and Claim/Verify/Fail/Create commit; include lost acknowledgements and handler disconnects."
+        ],
+        "verify": [
+          "No pre-cutoff callback can write channel metadata or deliver an old confirmation after deletion/resume; unknown attribution is unresolved evidence."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Atomic OAuth state transitions exist; callback channel attribution occurs after provider resolution.",
+        "requiredExecutionCapabilities": [
+          "Distributed admission/drain and old-callback quarantine evidence are not provided by these methods."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-oauth",
+          "firestore-support-relations",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "mypage-account-consume-session-mint",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-web",
+        "firestore-oauth",
+        "firebase-auth"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/auth.go",
+          "symbol": "AuthService.Confirm/ConfirmResult",
+          "line": 254,
+          "anchor": "func (s *AuthService) Confirm("
+        },
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "FirestoreAuthStore.Consume",
+          "line": 170,
+          "anchor": "func (s *FirestoreAuthStore) Consume("
+        },
+        {
+          "path": "system/core/mypage/auth_store.go",
+          "symbol": "FirestoreAuthStore.CompleteSession",
+          "line": 256,
+          "anchor": "func (s *FirestoreAuthStore) CompleteSession("
+        },
+        {
+          "path": "system/core/mypage/firebase_boundary.go",
+          "symbol": "FirebaseBoundary.Mint",
+          "line": 49,
+          "anchor": "func (v *FirebaseBoundary) Mint("
+        },
+        {
+          "path": "mypage/src/firebase.ts",
+          "symbol": "BrowserSession.signIn/signInWithCustomToken",
+          "line": 69,
+          "anchor": "signIn: async (token)"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Normal confirm commits WebAccount upsert and consumed OAuth in one transaction, then mints Custom Token externally.",
+        "Session completion sets firstWebLoginAt if absent; browser exchanges delivered Custom Token for Firebase sign-in."
+      ],
+      "sourceKnown": [
+        "Consume can create a missing web-accounts document.",
+        "SAC checkpoint is checked in the account transaction and before/after mint; external mint is outside retryable transaction.",
+        "A mint failure/timeout does not reopen the consumed transaction; provider-side issue status can be uncertain."
+      ],
+      "liveUnknown": [
+        "Mint operations issued before supplementary revoke; delivery/exchange of tokens issued earlier; Auth user/tenant existence."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop new normal confirm/session/mint admission on every instance and direct caller."
+        ],
+        "drain": [
+          "Include account consume, session commits, SDK mint calls, response delivery and unresolved mint acknowledgements; revoke alone is insufficient."
+        ],
+        "verify": [
+          "Old generation cannot create WebAccount, publish token or regain access after privacy clear; Auth postconditions are verified separately."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "SAC-fenced consume/session and mint rechecks exist; FirebaseBoundary port supports VerifyIDToken/CustomToken.",
+        "requiredExecutionCapabilities": [
+          "B-targeted revoke/delete/existence, distributed mint drain and token-delivery evidence are separately required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-web",
+          "firestore-oauth",
+          "firebase-auth"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "mypage-bff-cache-flight",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-web"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/bff.go",
+          "symbol": "BFF.Get/cacheHit/acquireFlight",
+          "line": 74,
+          "anchor": "func (b *BFF) Get("
+        },
+        {
+          "path": "system/core/mypage/bff.go",
+          "symbol": "detached shared flight",
+          "line": 133,
+          "anchor": "context.WithoutCancel(ctx)"
+        },
+        {
+          "path": "system/core/mypage/bff.go",
+          "symbol": "BFF.Invalidate",
+          "line": 280,
+          "anchor": "func (b *BFF) Invalidate("
+        },
+        {
+          "path": "system/core/mypage/http.go",
+          "symbol": "HTTPHandler.ServeHTTP route budgets",
+          "line": 89,
+          "anchor": "budget := 5 * time.Second"
+        },
+        {
+          "path": "system/cmd/mypage-server/main.go",
+          "symbol": "MyPage server/run/shutdown",
+          "line": 107,
+          "anchor": "server := &http.Server"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "GET admits shared snapshot/metadata work, fills per-process response cache and returns per-caller results.",
+        "Caller cancellation can leave a context.WithoutCancel shared flight running; joiners share its result/verdict."
+      ],
+      "sourceKnown": [
+        "Cache is process memory with environment/uid, account revision and SAC checkpoint checks; 30-second/JST limits do not prove drain.",
+        "Invalidate deletes a process cache entry; it does not stop detached flights or invalidate all instances.",
+        "Flight budget is at most 8 seconds and bounded by remaining request budget; HTTP defaults 5 seconds, callback 15, confirm 8, MyPage 10.",
+        "HTTP WriteTimeout 25 seconds and Shutdown budget 10 seconds are runtime limits, not distributed deletion barriers."
+      ],
+      "liveUnknown": [
+        "Old/new/autoscaled instances, background flight count/acknowledgements and external SDK completion; existing browser copies."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop new requests/flight admission across serving instances and old revisions."
+        ],
+        "drain": [
+          "Count and fence detached flights, joined callers, metadata/snapshot commits, cache publication and late fallback/response paths."
+        ],
+        "verify": [
+          "Every runtime acknowledges stale cache removal and no old result can publish after resume; elapsed TTL/HTTP shutdown alone is insufficient."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Local cache/flight bounds and SAC freshness guards exist.",
+        "requiredExecutionCapabilities": [
+          "No distributed stop/drain/cache-eviction API is established by these local methods."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-web"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "mypage-metadata-refresh",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-web"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/metadata.go",
+          "symbol": "AccountMetadataRefresh.Refresh",
+          "line": 81,
+          "anchor": "func (r *AccountMetadataRefresh) Refresh("
+        },
+        {
+          "path": "system/core/mypage/metadata_store.go",
+          "symbol": "SaveMetadata/ExpireMetadata/ClearMissingMetadata",
+          "line": 15,
+          "anchor": "func (s *FirestoreAuthStore) SaveMetadata("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "BFF invokes public YouTube metadata lookup outside transaction, then revision/SAC-fenced existing-account update or clear."
+      ],
+      "sourceKnown": [
+        "SaveMetadata and clear methods require existing exact WebAccount revision and never recreate a missing account.",
+        "Lookup, transaction and response readback are distinct stages; delayed lookup is still old work."
+      ],
+      "liveUnknown": [
+        "Direct refresh callers, provider lookups/Firestore commit acknowledgements across all deployed instances."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop request and direct refresh admission under the runtime barrier."
+        ],
+        "drain": [
+          "Drain lookup, SaveMetadata/clear transactions and readback/publication; checkpoint mismatch must remain rejected after resume."
+        ],
+        "verify": [
+          "Old metadata cannot overwrite a new post-resume account; clear/readback uncertainty is reconciled."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Exact-revision and SAC transaction guards exist.",
+        "requiredExecutionCapabilities": [
+          "Distributed refresh drain evidence remains required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-web"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "mypage-metadata-cleanup",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-web"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/metadata_cleanup.go",
+          "symbol": "MetadataCleanupJob.Run",
+          "line": 70,
+          "anchor": "func (j *MetadataCleanupJob) Run("
+        },
+        {
+          "path": "system/core/mypage/metadata_cleanup_store.go",
+          "symbol": "FirestoreMetadataCleanupStore.Scan/Clear",
+          "line": 26,
+          "anchor": "func (s *FirestoreMetadataCleanupStore) Scan("
+        },
+        {
+          "path": "docs/mypage/README.md",
+          "symbol": "cleanup deployment boundary",
+          "line": 278,
+          "anchor": "## Inactive-account metadata cleanup and monitoring"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Independent trusted metadata cleanup scans and clears expired metadata at exact account revision; future scheduler or manual runner can call it."
+      ],
+      "sourceKnown": [
+        "Cleanup only deletes four metadata fields and updates updatedAt; it does not recreate accounts or perform OAuth/provider refresh.",
+        "Cleanup is independent of SAC active status; trusted cleanup can continue retention deletion.",
+        "Injectable job/adapter/telemetry exist; real scheduler, sink and alert setup are not evidenced by the implementation docs."
+      ],
+      "liveUnknown": [
+        "Any actual scheduler/manual runner, revision/instance identity, outstanding Scan/Clear transactions and monitor sink delivery."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Inventory and stop or prove safe fencing for each scheduled/manual cleanup runner, including future deployment."
+        ],
+        "drain": [
+          "Drain Scan/Clear transactions and reconcile exact-revision outcomes/acknowledgement loss; include detached telemetry completion."
+        ],
+        "verify": [
+          "No pending cleanup affects a new account revision; all deployed writers are accounted for rather than inferred absent."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Bounded injectable job, exact-revision clear and anonymous health recording exist.",
+        "requiredExecutionCapabilities": [
+          "Real runner ownership, stop/drain/verify capabilities and deployment evidence remain unknown."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-web"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "mypage-support-proof-indices",
+      "runtimeScopeId": "runtime-my-page",
+      "affectedScopeIds": [
+        "firestore-oauth",
+        "firestore-support-relations"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/mypage/support_store.go",
+          "symbol": "FirestoreSupportStore.Create/Reissue",
+          "line": 49,
+          "anchor": "func (s *FirestoreSupportStore) Create("
+        },
+        {
+          "path": "system/core/mypage/support_auth_store.go",
+          "symbol": "FirestoreAuthStore.ConsumeSupport",
+          "line": 58,
+          "anchor": "func (s *FirestoreAuthStore) ConsumeSupport("
+        },
+        {
+          "path": "system/core/mypage/auth.go",
+          "symbol": "AuthService.ConfirmResult support branch",
+          "line": 323,
+          "anchor": "func (s *AuthService) ConfirmResult("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Operator/server Create writes receipt, challenge hash index and environment/requestId hash index atomically.",
+        "Reissue replaces challenge index on same receipt; support Start/Callback/Confirm binds OAuth to receipt.",
+        "ConsumeSupport records proof, deletes challenge and consumes OAuth atomically, clearing OAuth channel metadata/state/confirmation."
+      ],
+      "sourceKnown": [
+        "Support proof creates no WebAccount, Firebase token or completed session; fresh support proof remains available under SAC restrictions.",
+        "Consumed support OAuth loses channel.channelId; support.requestRef traversal is therefore mandatory.",
+        "Receipt DeleteBy is acceptedAt plus existing seven-day SLA; reissue does not extend it."
+      ],
+      "liveUnknown": [
+        "Concurrent receipt/proof/reissue operations, other active support requests and their OAuth/index relations."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Prevent conflicting target receipt mutations while preserving authorized fresh proof flow and independent requests."
+        ],
+        "drain": [
+          "Drain/categorize admitted Create/Reissue/CreateSupport/ConsumeSupport; freeze owned receipt relation manifest before cleanup."
+        ],
+        "verify": [
+          "Clean channel and every attributable receipt relation; preserve current completion dependencies and unrelated request proofs."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Atomic proof/challenge/request index operations exist.",
+        "requiredExecutionCapabilities": [
+          "Target-wide relation cleanup and durable completion are separate B capabilities; this inventory does not complete receipts."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-oauth",
+          "firestore-support-relations"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-bot-chat-commands",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "seat-state",
+        "firestore-primary",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "Bot message polling loop",
+          "line": 73,
+          "anchor": "func Bot("
+        },
+        {
+          "path": "system/core/workspaceapp/workspace_app.go",
+          "symbol": "WorkspaceApp.ProcessMessage/executeCommand",
+          "line": 269,
+          "anchor": "func (app *WorkspaceApp) ProcessMessage("
+        },
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "WorkspaceApp.CreateUser",
+          "line": 93,
+          "anchor": "func (app *WorkspaceApp) CreateUser("
+        },
+        {
+          "path": "system/core/workspaceapp/command_seat.go",
+          "symbol": "In/Out/Change/More/Break/Resume/Order/Clear",
+          "line": 21,
+          "anchor": "func (app *WorkspaceApp) In("
+        },
+        {
+          "path": "system/core/workspaceapp/command_user.go",
+          "symbol": "My/Rank preference/rank writes",
+          "line": 73,
+          "anchor": "func (app *WorkspaceApp) My("
+        },
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "enterRoom/exitRoomAt/moveSeat",
+          "line": 833,
+          "anchor": "func (app *WorkspaceApp) exitRoomAt("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot polls messages, registers missing users before command parsing, then runs seat/history/preference/order operations.",
+        "Normal post-resume new messages can legitimately create a new users document.",
+        "Pending fetched messages, old command retries and seat/session snapshots can write old data if replayed after resume."
+      ],
+      "sourceKnown": [
+        "Initial SAC scope is MyPage; legacy Bot normal writers and !block/YouTube Ban semantics are unchanged.",
+        "Command writes create users, seats, segments, activities, orders and seat limits; UpdateSeat uses full Set."
+      ],
+      "liveUnknown": [
+        "All PCs/process supervisors/old binaries, polling cursor/in-memory batches, retries and alternate manual startup routes."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop every Bot polling/command admission route and supervise restarts; record target-bound process/revision ownership."
+        ],
+        "drain": [
+          "Drain every admitted message/transaction and external notification; discard/quarantine pre-cutoff batches, retries and source cursors on resume."
+        ],
+        "verify": [
+          "No old message/session snapshot restores deleted data; Canon 05 permits fresh legitimate use after verified resume."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Legacy Bot writes exist without SAC integration.",
+        "requiredExecutionCapabilities": [
+          "B pause/drain/discard/resume acknowledgements must be supplied by operator/runtime adapter; no pause API is asserted here."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "seat-state",
+          "firestore-primary",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-force-move-long-sitting",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "seat-state",
+        "firestore-primary",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "CheckLongTimeSitting separate WorkspaceApp",
+          "line": 57,
+          "anchor": "func CheckLongTimeSitting("
+        },
+        {
+          "path": "system/core/workspaceapp/workspace_app.go",
+          "symbol": "GoroutineCheckLongTimeSitting",
+          "line": 180,
+          "anchor": "func (app *WorkspaceApp) GoroutineCheckLongTimeSitting("
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "OrganizeDBForceMove",
+          "line": 227,
+          "anchor": "func (app *WorkspaceApp) OrganizeDBForceMove("
+        },
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "CheckIfUserSittingTooMuchForSeat",
+          "line": 515,
+          "anchor": "func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot starts independent long-sitting goroutine/application that reads seat snapshots, adds temporary limits and force-moves users."
+      ],
+      "sourceKnown": [
+        "Separate WorkspaceApp and transactions must be inventoried independently from message handler count.",
+        "OrganizeDBForceMove invokes movement outside its first transaction, so nested-stage completion is part of drain."
+      ],
+      "liveUnknown": [
+        "Running loop/snapshot state, manual callers and old processes."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop independent long-sitting loop and manual force-move callers."
+        ],
+        "drain": [
+          "Drain snapshot iteration, seat-limit writes, later Out/In/move operations and notifications; discard pre-cutoff snapshots."
+        ],
+        "verify": [
+          "No force move reconstitutes seat/history/limits after targeted deletion or touches a new session."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Independent loop and force-move paths exist.",
+        "requiredExecutionCapabilities": [
+          "No request-bound runtime drain API is established by this source."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "seat-state",
+          "firestore-primary",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-seat-organizer",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "seat-state",
+        "firestore-primary",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/lambda/youtube_organize_database/main.go",
+          "symbol": "OrganizeDatabase/runOrganizeDBRoom",
+          "line": 45,
+          "anchor": "func OrganizeDatabase("
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "OrganizeDB/AutoExit/Resume/DeleteExpiredSeatLimits",
+          "line": 31,
+          "anchor": "func (app *WorkspaceApp) OrganizeDB("
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "EventBridge 1minute rule",
+          "line": 828,
+          "anchor": "'1minute'"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "organizer Lambda timeout/concurrency",
+          "line": 637,
+          "anchor": "const youtubeOrganizeDatabaseFunction"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "One-minute rule and direct Lambda/manual callers invoke both rooms; organizer closes sessions, resumes breaks and deletes expired seat limits."
+      ],
+      "sourceKnown": [
+        "Source Lambda timeout is 50 seconds with reserved concurrency 1; graceful context is not a pause acknowledgement.",
+        "Candidate snapshots are rechecked per transaction; old invocation and notifications can outlive disabling the scheduler."
+      ],
+      "liveUnknown": [
+        "Actual rules/aliases/versions/retries/destinations, running invocations and manual invoke permissions."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Disable/admit-stop all rules, retries and direct/manual invoke paths with deployment/revision acknowledgement."
+        ],
+        "drain": [
+          "Enumerate and settle running invocations, room iterations/transactions and SDK commit uncertainty; discard old candidate snapshots."
+        ],
+        "verify": [
+          "No admitted old organizer recreates segment/activity or user totals after deletion; nominal Lambda success is not enough."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Scheduled organizer and candidate rechecks exist.",
+        "requiredExecutionCapabilities": [
+          "B-controlled pause/drain/resume evidence remains required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "seat-state",
+          "firestore-primary",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-capacity-control",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "seat-state",
+        "firestore-primary",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "youtube-monitor/src/components/MainContent.tsx",
+          "symbol": "Monitor.requestMaxSeatsUpdate",
+          "line": 360,
+          "anchor": "const requestMaxSeatsUpdate"
+        },
+        {
+          "path": "system/cmd/lambda/set_desired_max_seats/main.go",
+          "symbol": "SetDesiredMaxSeats",
+          "line": 34,
+          "anchor": "func SetDesiredMaxSeats("
+        },
+        {
+          "path": "system/core/workspaceapp/max_seats_adjustment.go",
+          "symbol": "AdjustMaxSeats/adjustGeneralSeats/adjustMemberSeats",
+          "line": 14,
+          "anchor": "func (app *WorkspaceApp) AdjustMaxSeats("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Monitor or manual/API caller writes desired capacities; Bot observes them and runs capacity adjustment.",
+        "Capacity shrink invokes Out/In for affected seats, writing user totals, history, replacement seats and notifications."
+      ],
+      "sourceKnown": [
+        "Desired/max capacity config is shared control data, not a target-user deletion unit.",
+        "Monitor is a control participant; stopping only target commands does not stop capacity-driven user writes."
+      ],
+      "liveUnknown": [
+        "All monitor variants, manual API callers, configured endpoint, pending desired values and adjustment loops."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause capacity-triggered user mutation and fence all API/manual sources that can trigger it."
+        ],
+        "drain": [
+          "Drain in-progress shrink/Out/In transactions and pending capacity requests; fresh re-evaluation after resume rather than old seat snapshot replay."
+        ],
+        "verify": [
+          "Target seat/history stays absent through resume; unrelated shared capacity/config remains valid."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Monitor desired-capacity route and Bot adjustment writer exist.",
+        "requiredExecutionCapabilities": [
+          "B barrier must cover the full producer/consumer chain."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "seat-state",
+          "firestore-primary",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-daily-manual-batch",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "firestore-primary",
+        "bigquery",
+        "backups-exports",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/batch/main.go",
+          "symbol": "batch main/JOB/runAll/doResetDailyTotal/doUpdateRP/doTransferBQ",
+          "line": 70,
+          "anchor": "func runAll("
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "ResetDailyTotalStudyTime",
+          "line": 326,
+          "anchor": "func (app *WorkspaceApp) ResetDailyTotalStudyTime("
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "UpdateUserRP/UpdateUserRPBatch",
+          "line": 388,
+          "anchor": "func (app *WorkspaceApp) UpdateUserRP("
+        },
+        {
+          "path": "system/cmd/lambda/start_daily_batch/main.go",
+          "symbol": "start_daily_batch.handler/StartExecution",
+          "line": 41,
+          "anchor": "func handler("
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "dailyBatchStateMachine",
+          "line": 412,
+          "anchor": "const dailyBatchStateMachine"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "manualResetDailyTotalSfn",
+          "line": 469,
+          "anchor": "const manualResetDailyTotalSfn"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "manualUpdateRpSfn",
+          "line": 509,
+          "anchor": "const manualUpdateRpSfn"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "manualTransferBqSfn",
+          "line": 551,
+          "anchor": "const manualTransferBqSfn"
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "DailyBatchScheduler",
+          "line": 596,
+          "anchor": "'DailyBatchScheduler'"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Daily Scheduler invokes start_daily_batch Lambda and sequential SFN/Fargate reset-daily-total -> update-rp -> transfer-bq.",
+        "Three independent manual SFNs run reset/RP/transfer; manual ECS task/local batch JOB=all or individual job is another path."
+      ],
+      "sourceKnown": [
+        "Source schedule is UTC 15:00/JST 00:00 with 15-second SFN wait; all source SFNs have 3-hour timeout.",
+        "Reset performs per-document Update outside transaction; RP performs per-user transactions.",
+        "Daily execution name/checkpoints are not deletion-request idempotency or a drain barrier."
+      ],
+      "liveUnknown": [
+        "Actual scheduler/retry state, Lambda starts, every running SFN/execution/task/container image, manual task/StartExecution permissions and local batch callers."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop daily and manual SFN/ECS/local admission and pending scheduler/Lambda starts; prevent restart/redrive."
+        ],
+        "drain": [
+          "Record terminal state of every started SFN and actual ECS task; SFN stop acknowledgement alone does not prove the task/SDK stopped."
+        ],
+        "verify": [
+          "Resolve reset/RP/BQ operations and old user iterators/import sources before resume; no old job restores target data."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Daily and manual runner definitions and job selector exist.",
+        "requiredExecutionCapabilities": [
+          "B-specific stop/drain/resume operations and live ownership evidence are required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-primary",
+          "bigquery",
+          "backups-exports",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-bigquery-import",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "bigquery",
+        "backups-exports",
+        "firestore-primary",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "BackupCollectionHistoryFromGcsToBigquery",
+          "line": 434,
+          "anchor": "func (app *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery("
+        },
+        {
+          "path": "system/core/mystorage/storage_controller.go",
+          "symbol": "GetGcsYesterdayExportFolderName",
+          "line": 44,
+          "anchor": "func (controller *StorageController) GetGcsYesterdayExportFolderName("
+        },
+        {
+          "path": "system/core/mybigquery/bigquery_controller.go",
+          "symbol": "ReadCollectionsFromGcs",
+          "line": 53,
+          "anchor": "func (c *BigqueryController) ReadCollectionsFromGcs("
+        },
+        {
+          "path": "system/core/mybigquery/bigquery_controller.go",
+          "symbol": "tmp load job",
+          "line": 71,
+          "anchor": "loader.WriteDisposition = bigquery.WriteTruncate"
+        },
+        {
+          "path": "system/core/mybigquery/bigquery_controller.go",
+          "symbol": "main-table append query job",
+          "line": 133,
+          "anchor": "query.WriteDisposition = bigquery.WriteAppend"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Daily/manual/local transfer loads yesterday GCS snapshot collection into shared firestore_export.tmp, then appends yesterday rows to main table.",
+        "After transfers it applies existing Firestore history retention and updates config/constants transfer checkpoint."
+      ],
+      "sourceKnown": [
+        "Raw live-chat-history import is skipped by shouldArchiveCollectionToBigQuery; user activities/order imports remain.",
+        "tmp holds a whole exported collection before day-filtered append, so its target coverage can exceed the appended day.",
+        "Load/query jobs execute outside Firestore transactions; partial success/retry can append duplicates or reintroduce deleted target rows."
+      ],
+      "liveUnknown": [
+        "BQ location, all load/query jobs, tmp contents/schema, alternate import/copy/export consumers and historical snapshot accessibility."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop all transfer/import/copy admission and lock out old source snapshots from future replay."
+        ],
+        "drain": [
+          "Settle loader, preview/read query and append jobs independently of caller task termination; record SDK acknowledgement reconciliation."
+        ],
+        "verify": [
+          "Parameter-bound target absence from every main/tmp table and no active/pending job or authorized restore/import can replay old target rows."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "GCS->tmp->append importer and parameterized read-only user counter exist.",
+        "requiredExecutionCapabilities": [
+          "Target-bound delete/job inventory/stop and old-source quarantine are required B adapters."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "bigquery",
+          "backups-exports",
+          "firestore-primary",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-work-name-trend",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "UpdateWorkNameTrend/readActiveWorkNames",
+          "line": 21,
+          "anchor": "func (app *WorkspaceApp) UpdateWorkNameTrend("
+        },
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "generateWorkNameTrendRankings",
+          "line": 64,
+          "anchor": "func (app *WorkspaceApp) generateWorkNameTrendRankings("
+        },
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "newWorkNameTrendResponseParams Store=true",
+          "line": 106,
+          "anchor": "Store: openai.Bool(true)"
+        },
+        {
+          "path": "system/core/workspaceapp/work_name_trend.go",
+          "symbol": "saveWorkNameTrend",
+          "line": 186,
+          "anchor": "func (app *WorkspaceApp) saveWorkNameTrend("
+        },
+        {
+          "path": "system/cmd/lambda/update_work_name_trend/main.go",
+          "symbol": "trend Lambda entrypoint",
+          "line": 36,
+          "anchor": "func UpdateWorkNameTrend("
+        },
+        {
+          "path": "aws-cdk/lib/aws-cdk-stack.ts",
+          "symbol": "EventBridge trend rule",
+          "line": 840,
+          "anchor": "'15minutes'"
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "15-minute rule, direct/manual Lambda or direct app caller reads all active work names, sends stored OpenAI Response and writes global ranking; current source logs counts/status without work text or model output."
+      ],
+      "sourceKnown": [
+        "OpenAI request sets Store=true; returned response ID is not persisted as a deletion index in this path.",
+        "work-name-trend ranking contains examples without user/channel attribution; source deletion alone cannot prove derived/vendor absence.",
+        "Source trend Lambda timeout is 5 minutes and reserved concurrency 1."
+      ],
+      "liveUnknown": [
+        "Stored Responses inventory/organization/project ownership, queued requests/vendor retention/delete rights, log copies and old running trend snapshots."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop rule, retries, direct/manual trend invocations and any caller reading pre-cutoff seats."
+        ],
+        "drain": [
+          "Drain read names, Responses.New, response parse/save and log forwarding; settle vendor-side request acknowledgement."
+        ],
+        "verify": [
+          "Assess/remove attributable old global ranking/examples and vendor copies using verified provenance; regenerate only from permitted fresh source after drain."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Derived ranking writer and stored vendor response request exist; current source logs count/status rather than input/output payload.",
+        "requiredExecutionCapabilities": [
+          "Target attribution, derived cleanup and vendor deletion/proof adapters are absent from this path."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-admin-and-local-export",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "seat-state",
+        "firestore-primary",
+        "backups-exports",
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/internal/adminops/operations.go",
+          "symbol": "adminops.ExitAllUsersInRoom/ExitSpecificUser",
+          "line": 20,
+          "anchor": "func ExitAllUsersInRoom("
+        },
+        {
+          "path": "system/internal/adminops/operations.go",
+          "symbol": "adminops.UpdateUsersRP",
+          "line": 104,
+          "anchor": "func UpdateUsersRP("
+        },
+        {
+          "path": "system/internal/adminops/operations.go",
+          "symbol": "adminops.ExportUsersCollectionJSON",
+          "line": 63,
+          "anchor": "func ExportUsersCollectionJSON("
+        },
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "WorkspaceApp.ExitAllUsersInRoom",
+          "line": 193,
+          "anchor": "func (app *WorkspaceApp) ExitAllUsersInRoom("
+        },
+        {
+          "path": "system/core/workspaceapp/batch.go",
+          "symbol": "legacy DailyOrganizeDB callable helper",
+          "line": 302,
+          "anchor": "func (app *WorkspaceApp) DailyOrganizeDB("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Manual/internal admin exit-all, target Out and RP calls share legacy mutation routes.",
+        "ExportUsersCollectionJSON writes dated local JSON containing user IDs and total study seconds; later copies/restore tools are external to this function.",
+        "Callable legacy DailyOrganizeDB helper can invoke reset and collect RP work outside modern SFN entrypoint."
+      ],
+      "sourceKnown": [
+        "Internal admin helpers are not a target deletion adapter and can create history/notifications as a side effect.",
+        "A source-known local export route exists in addition to GCS exports; where past files/copies exist is unknown."
+      ],
+      "liveUnknown": [
+        "Manual operators, deployed tool versions, direct helper callers, workstation/local/export copies and undocumented restore/import tooling."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Stop direct administrative mutation/export callers and inventory local/remote execution paths."
+        ],
+        "drain": [
+          "Drain existing Out/RP/export jobs and invalidate captured old user/seat lists."
+        ],
+        "verify": [
+          "No old admin/export replay restores target data; local/export copies are accounted for without exposing user data in public inventory."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Manual mutation and local JSON export helpers exist.",
+        "requiredExecutionCapabilities": [
+          "Target-bound pause/drain and exported-copy inventory/cleanup are not established by these helpers."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "seat-state",
+          "firestore-primary",
+          "backups-exports",
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-raw-chat-helper-and-old-binary",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "firestore-primary",
+        "bigquery",
+        "backups-exports",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "AddLiveChatHistoryDoc retained helper",
+          "line": 419,
+          "anchor": "func (app *WorkspaceApp) AddLiveChatHistoryDoc("
+        },
+        {
+          "path": "system/core/repository/firestore_controller.go",
+          "symbol": "CreateLiveChatHistoryDoc",
+          "line": 506,
+          "anchor": "func (c *FirestoreControllerImplements) CreateLiveChatHistoryDoc("
+        },
+        {
+          "path": "docs/privacy/raw-live-chat-archive-retirement-runbook.md",
+          "symbol": "raw producer retirement",
+          "line": 37,
+          "anchor": "#1028 stops"
+        },
+        {
+          "path": "system/core/mybigquery/bigquery_controller.go",
+          "symbol": "raw archive exclusion",
+          "line": 46,
+          "anchor": "func shouldArchiveCollectionToBigQuery("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Current Bot polling source no longer invokes raw-message persistence; retained helper or old deployed binary can still write raw history.",
+        "Old imports/restores can bring historical raw rows back even when current source excludes imports."
+      ],
+      "sourceKnown": [
+        "Retired writer/import source is not proof that legacy Firestore/BQ/export data or old binaries are absent."
+      ],
+      "liveUnknown": [
+        "Actual old binary/process inventory, retired table/resources, snapshot versions and direct helper callers."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Verify every deployed writer/import version and disable stale producer/replay paths."
+        ],
+        "drain": [
+          "Settle historical producer/import operations rather than infer drain from current source."
+        ],
+        "verify": [
+          "Target author-channel-id rows and every related archived copy remain a verified deletion scope until absence is proven."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "Raw helper remains; current Bot raw write and BQ import are retired in source.",
+        "requiredExecutionCapabilities": [
+          "Live producer/resource retirement must be independently evidenced."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-primary",
+          "bigquery",
+          "backups-exports",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "legacy-notification-log-forwarding",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/core/workspaceapp/utils.go",
+          "symbol": "LogToModerators/MessageToOwnerWithError",
+          "line": 293,
+          "anchor": "func (app *WorkspaceApp) LogToModerators("
+        },
+        {
+          "path": "system/core/workspaceapp/command_moderation.go",
+          "symbol": "Block/Kick/Check/Report",
+          "line": 171,
+          "anchor": "func (app *WorkspaceApp) Block("
+        },
+        {
+          "path": "system/core/youtubebot/live_chat.go",
+          "symbol": "BanUser/tryBanUser/PostMessage",
+          "line": 327,
+          "anchor": "func (b *YoutubeLiveChatBot) BanUser("
+        },
+        {
+          "path": "system/core/moderatorbot/discord.go",
+          "symbol": "DiscordBot.SendMessage/SendMessageWithError",
+          "line": 41,
+          "anchor": "func (bot *DiscordBot) SendMessage("
+        },
+        {
+          "path": "system/cmd/lambda/error_log_notify_discord/main.go",
+          "symbol": "CloudWatch error forwarding handler",
+          "line": 58,
+          "anchor": "func handler("
+        },
+        {
+          "path": "system/cmd/lambda/sns_notify_discord/main.go",
+          "symbol": "SNS notify handler",
+          "line": 43,
+          "anchor": "func handler("
+        },
+        {
+          "path": "system/cmd/lambda/sns_notify_discord/main.go",
+          "symbol": "SNS payload-safe dispatch log",
+          "line": 84,
+          "anchor": "slog.InfoContext(gracefulCtx, \"sns notification dispatch\""
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Bot moderation/session/error paths send names/work text/IDs/dependency details to YouTube/Discord; CloudWatch filters and SNS can forward copies.",
+        "Discord send receives context but ChannelMessageSend itself has a client timeout rather than per-call context.",
+        "SNS handler logs delivery status/error class without subject or body and sends the notification to Discord."
+      ],
+      "sourceKnown": [
+        "!block exits target seat then performs YouTube Ban/Discord log; it is not SAC moderation or a safe privacy deletion operation.",
+        "Discord send logging omits message body locally, but SendMessageWithError sends formatted raw error to Discord."
+      ],
+      "liveUnknown": [
+        "Actual channels/messages/log sinks, pending notification events/retries/dead letters and vendor ownership/delete/search permissions."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Pause/fence target-copy-producing and forwarding paths where old data can still be delivered."
+        ],
+        "drain": [
+          "Settle already queued SNS/subscription events and external sends, including provider acknowledgement loss."
+        ],
+        "verify": [
+          "Vendor/log relation searches and removal/proven disposition use verified attribution; preserve independent moderation/Ban semantics."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "External copy/forwarding paths exist.",
+        "requiredExecutionCapabilities": [
+          "No request-bound vendor/log purge or cross-forwarder drain proof exists in these paths."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "derived-vendor",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    },
+    {
+      "id": "external-export-backup-restore",
+      "runtimeScopeId": "runtime-legacy",
+      "affectedScopeIds": [
+        "firestore-primary",
+        "firestore-web",
+        "firestore-oauth",
+        "firestore-support-relations",
+        "legacy-mappings",
+        "bigquery",
+        "backups-exports",
+        "platform-logs"
+      ],
+      "sourceReferences": [
+        {
+          "path": "docs/privacy/raw-live-chat-archive-retirement-runbook.md",
+          "symbol": "external scheduler/export/restore discovery requirement",
+          "line": 66,
+          "anchor": "Review Cloud Asset Inventory"
+        },
+        {
+          "path": "system/core/repository/models.go",
+          "symbol": "export bucket configuration consumed by app",
+          "line": 44,
+          "anchor": "GcsFirestoreExportBucketName"
+        },
+        {
+          "path": "system/core/mystorage/storage_controller.go",
+          "symbol": "source-known export consumer",
+          "line": 44,
+          "anchor": "func (controller *StorageController) GetGcsYesterdayExportFolderName("
+        }
+      ],
+      "creationAndRecreationRoutes": [
+        "Source-known import consumer requires exported Firestore snapshots; actual export producer implementation/launch path is not established in reviewed source.",
+        "Cloud/manual export, backup, replication, restore/PITR/import/migration and old mapping writers are candidate live routes to enumerate, not claims that a particular live resource exists."
+      ],
+      "sourceKnown": [
+        "No reviewed source function defines complete cloud export/managed-backup/restore ownership.",
+        "Runbook requires cloud resource discovery; mixed snapshot restore can recreate multiple user stores and must preserve the full SAC checkpoint."
+      ],
+      "liveUnknown": [
+        "Actual external scheduler/function/Cloud Run/PubSub/Eventarc/export/restore/backup/manual/migration resources, their target collections, retained copies and operators."
+      ],
+      "requiredEvidence": {
+        "pause": [
+          "Inventory every candidate producer/restore/manual route and pause or fence relevant ones; absence must be evidenced."
+        ],
+        "drain": [
+          "Settle in-progress cloud jobs/replication/migration and revoke old snapshot replay capability as required by the approved operation."
+        ],
+        "verify": [
+          "Old target data and SAC generation cannot be restored after resume; no source-known consumer implies external producers are drained."
+        ],
+        "observedLiveEvidence": null,
+        "state": "required-not-collected"
+      },
+      "implementationStatus": {
+        "sourceObservation": "External writer implementations are unknown; cited source establishes consumer/config and discovery requirement only.",
+        "requiredExecutionCapabilities": [
+          "B external resource inventory/stop/restore-fence capabilities and live ownership proof are required."
+        ],
+        "liveOperationsExecuted": false,
+        "liveReadiness": "unknown"
+      },
+      "deletionAttribution": {
+        "scopeIds": [
+          "firestore-primary",
+          "firestore-web",
+          "firestore-oauth",
+          "firestore-support-relations",
+          "legacy-mappings",
+          "bigquery",
+          "backups-exports",
+          "platform-logs"
+        ],
+        "method": "Use the explicit direct/query/relation/provenance selector in each referenced deletionScope, bound to runtime admission cutoff and target/request/checkpoint.",
+        "limits": [
+          "A source writer relationship is not proof of live target attribution or resource existence; unassigned callbacks/derived copies/restore sources require their scope-specific evidence."
+        ]
+      }
+    }
+  ],
+  "executionIdentityBoundaries": [
+    {
+      "id": "mypage-keyless-runtime",
+      "scopeIds": [
+        "runtime-my-page"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/mypage-server/main.go",
+          "symbol": "MyPage ADC bootstrap",
+          "line": 79,
+          "anchor": "google.FindDefaultCredentials"
+        },
+        {
+          "path": "system/core/mypage/server.go",
+          "symbol": "keyless Firebase signer constructor",
+          "line": 22,
+          "anchor": "func NewKeylessFirebaseClient("
+        }
+      ],
+      "sourceKnown": "MyPage fixes selected project and keyless IAM signer, rejects emulator/credential-file runtime configuration.",
+      "liveUnknown": "Actual workload principal/signer ownership, project binding and authorized B read/delete/revoke capabilities."
+    },
+    {
+      "id": "legacy-local-credential-file",
+      "scopeIds": [
+        "runtime-legacy"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/cmd/youtube-bot/main.go",
+          "symbol": "Bot credential boundary",
+          "line": 38,
+          "anchor": "option.WithCredentialsFile"
+        },
+        {
+          "path": "system/cmd/privacy-admin/main.go",
+          "symbol": "legacy inspector credential boundary",
+          "line": 48,
+          "anchor": "option.WithCredentialsFile"
+        }
+      ],
+      "sourceKnown": "Bot/legacy privacy-admin use a credential-file boundary; no file or credential content was read for this inventory.",
+      "liveUnknown": "Actual process/principal/operator ownership, old binaries and permission scope; legacy tool output is not B sanitized proof."
+    },
+    {
+      "id": "aws-wif-batch-lambda",
+      "scopeIds": [
+        "runtime-legacy"
+      ],
+      "sourceReferences": [
+        {
+          "path": "system/internal/awsruntime/credential.go",
+          "symbol": "AWS WIF GoogleClientOption",
+          "line": 62,
+          "anchor": "func GoogleClientOption("
+        },
+        {
+          "path": "system/internal/awsruntime/credential.go",
+          "symbol": "AWS role to GCP service-account impersonation",
+          "line": 97,
+          "anchor": "ServiceAccountImpersonationURL:"
+        }
+      ],
+      "sourceKnown": "AWS runtime role credentials are federated through WIF and an existing GCP service-account impersonation target.",
+      "liveUnknown": "Actual AWS role/GCP identity/resource binding and runtime-stop/read/delete privileges; no identity was authenticated or inspected."
+    }
+  ],
+  "requiredLiveEvidenceBinding": {
+    "identity": [
+      "environment",
+      "project",
+      "database",
+      "tenant if applicable",
+      "verified target",
+      "request",
+      "purpose",
+      "proof",
+      "SAC generation/checkpoint"
+    ],
+    "runtime": [
+      "owner/operator capability",
+      "all resource/revision/instance/process/task/job identities",
+      "admission cutoff",
+      "pause acknowledgement",
+      "drain or verified terminal/fence evidence",
+      "old-work discard/quarantine",
+      "resume acknowledgement"
+    ],
+    "store": [
+      "complete ownership/attribution manifest",
+      "observed resource/schema/retention state",
+      "operation idempotency/attempt",
+      "side-effect known/unknown result",
+      "readback/postcondition",
+      "residual and restore/replay disposition"
+    ],
+    "publication": "Keep target/resource/proof/content detail in restricted operational evidence; public progress/output uses anonymous stable scope IDs/states/counts only."
+  },
+  "criticalLiveGaps": [
+    {
+      "id": "distributed-runtime-closure",
+      "scopeIds": [
+        "runtime-my-page",
+        "runtime-legacy"
+      ],
+      "unknown": "Complete runtime/launch inventory and supported admission/pause/drain/discard/resume ownership; all revisions, SDK commits, detached work and manual paths must acknowledge."
+    },
+    {
+      "id": "pre-resolution-and-mint-closure",
+      "scopeIds": [
+        "runtime-my-page",
+        "firestore-oauth",
+        "firebase-auth"
+      ],
+      "unknown": "Unattributed callback and issued/late token closure; supplementary revoke does not replace mint/delivery drain."
+    },
+    {
+      "id": "cross-receipt-legacy-identity",
+      "scopeIds": [
+        "firestore-support-relations",
+        "firestore-oauth",
+        "legacy-mappings",
+        "firebase-auth"
+      ],
+      "unknown": "Multi-receipt proof/index/OAuth linkage and mapped legacy UID ownership; trace missing under TTL is unknown."
+    },
+    {
+      "id": "restore-import-and-recoverable-copy",
+      "scopeIds": [
+        "bigquery",
+        "backups-exports"
+      ],
+      "unknown": "BQ tmp/jobs/results and mixed snapshot/version/soft-delete/managed backup/PITR/local export/restore resources, ownership, approved existing disposition and no replay/reset proof."
+    },
+    {
+      "id": "unattributed-derived-vendor-log",
+      "scopeIds": [
+        "derived-vendor",
+        "platform-logs"
+      ],
+      "unknown": "Trend examples and stored OpenAI Responses lack target index; vendor/log copies require actual attribution/search/deletion ownership and residual evidence."
+    },
+    {
+      "id": "permissions-and-live-release",
+      "scopeIds": [
+        "firebase-auth",
+        "firestore-primary",
+        "bigquery",
+        "backups-exports",
+        "platform-logs"
+      ],
+      "unknown": "Explicit environment/resource identities, minimal read/delete/revoke/stop privileges, index/TTL/deployed revision state, hosting log redaction and actual authorized rehearsal."
+    }
+  ],
+  "validation": {
+    "mode": "local-source-only",
+    "checks": [
+      "JSON parsed with duplicate keys rejected",
+      "Fixed scope IDs and writer IDs unique",
+      "Writer/scope relationships valid",
+      "Every referenced file exists and cited source anchor matches line"
+    ],
+    "liveValidation": "not-performed",
+    "limitation": "Source pointers describe code/runbook facts, not deployed state, real target existence, complete permissions or successful service operation."
+  }
+}

@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:oklch(97% 0.008 75);}
+*{box-sizing:border-box;}
+a{color:oklch(40% 0.07 190);}
+a:hover{color:oklch(30% 0.06 190);}
+button,input,textarea,select{font-family:inherit;}
+:focus-visible{outline:2.5px solid oklch(48% 0.09 190);outline-offset:2px;border-radius:6px;}
+@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important;scroll-behavior:auto !important;}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="min-height:100vh;display:flex;flex-direction:column;font-family:'M PLUS Rounded 1c',sans-serif;color:oklch(25% 0.02 55);background:radial-gradient(1100px 560px at 12% -8%, oklch(98.8% 0.018 85 / 0.9), transparent 62%), radial-gradient(900px 520px at 100% 0%, oklch(96.5% 0.026 65 / 0.55), transparent 60%), oklch(97% 0.008 75);overflow-x:hidden;line-height:1.6;">
+
+  <header style="width:100%;max-width:1120px;margin:0 auto;padding:16px {{ padX }};display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+      <sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ goBack }}" style="min-height:44px;padding:0 14px 0 10px;border-radius:999px;border:1px solid oklch(89% 0.012 70);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);font-size:14px;font-weight:700;cursor:pointer;" style-hover="background:oklch(95% 0.01 70);">← 戻る</button>
+      </sc-if>
+      <div style="width:34px;height:34px;border-radius:11px;background:oklch(46% 0.08 55);color:oklch(98% 0.01 80);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0;">作</div>
+      <div style="min-width:0;">
+        <div style="font-weight:800;font-size:15px;line-height:1.25;">オンライン作業部屋</div>
+        <div style="font-size:11px;color:oklch(46% 0.018 55);line-height:1.25;">マイページ</div>
+      </div>
+    </div>
+    <sc-if value="{{ showAvatar }}" hint-placeholder-val="{{ true }}">
+      <button ref="{{ avatarRef }}" onClick="{{ openPanel }}" aria-expanded="{{ panelOpen }}" aria-label="アカウント" aria-haspopup="dialog" style="position:relative;width:44px;height:44px;border-radius:50%;border:1px solid oklch(89% 0.012 70);background:oklch(90% 0.03 60);cursor:pointer;padding:0;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:oklch(40% 0.07 55);" style-hover="border-color:oklch(70% 0.04 60);">み
+        <sc-if value="{{ isReauth }}" hint-placeholder-val="{{ false }}">
+          <span style="position:absolute;top:0;right:0;width:12px;height:12px;border-radius:50%;background:oklch(55% 0.13 35);border:2px solid oklch(97% 0.008 75);"></span>
+        </sc-if>
+      </button>
+    </sc-if>
+  </header>
+
+  <main ref="{{ mainRef }}" tabIndex="-1" aria-label="{{ mainLabel }}" style="outline:none;flex:1;width:100%;max-width:1120px;margin:0 auto;padding:4px {{ padX }} 40px;">
+
+    <!-- MAIN -->
+    <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="メイン" style="display:flex;flex-direction:column;gap:18px;">
+        <sc-if value="{{ isRefreshError }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:12px 16px;border-radius:16px;background:oklch(95.5% 0.026 65);border:1px solid oklch(86% 0.04 65);">
+            <div style="min-width:0;flex:1 1 220px;color:oklch(32% 0.03 55);line-height:1.6;">
+              <div style="font-size:14px;font-weight:800;">最新の情報に更新できませんでした</div>
+              <div style="font-size:13px;">19:20時点の情報を表示しています。</div>
+            </div>
+            <button onClick="{{ retryRefresh }}" disabled="{{ refreshing }}" style="min-height:44px;padding:0 18px;border-radius:999px;border:1px solid oklch(80% 0.04 60);background:oklch(99.2% 0.004 80);color:oklch(30% 0.03 55);font-size:14px;font-weight:700;cursor:pointer;">{{ refreshLabel }}</button>
+          </div>
+        </sc-if>
+
+        <div style="display:grid;gap:{{ gridGap }};align-items:start;grid-template-columns:{{ gridCols }};grid-template-areas:{{ gridAreas }};">
+
+          <!-- Current work -->
+          <section aria-label="現在の作業" style="grid-area:current;min-width:0;">
+            <sc-if value="{{ heroIsActive }}" hint-placeholder-val="{{ true }}">
+              <div style="border-radius:26px;padding:{{ heroPad }};background:{{ heroBg }};border:1px solid {{ heroLine }};box-shadow:{{ heroShadow }};">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:{{ heroRowGap }};">
+                  <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 12px;border-radius:999px;background:oklch(99.2% 0.004 80 / 0.75);font-size:14px;font-weight:800;color:{{ heroInk }};flex-shrink:0;">
+                    <span style="width:9px;height:9px;border-radius:{{ heroDotRadius }};background:{{ heroDot }};"></span>{{ heroStatus }}</span>
+                  <div data-room-type="{{ cur.roomType }}" style="display:flex;flex-direction:{{ seatDir }};align-items:{{ seatAlign }};justify-content:flex-end;gap:{{ seatGap }};margin-left:auto;text-align:right;min-width:0;padding-top:5px;line-height:1.35;">
+                    <span style="font-size:14px;font-weight:700;color:oklch(32% 0.02 55);white-space:nowrap;">{{ roomLabel }}</span>
+                    <sc-if value="{{ seatInline }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="font-size:14px;color:oklch(55% 0.02 55);">·</span></sc-if>
+                    <span style="font-size:14px;color:oklch(38% 0.02 55);white-space:nowrap;">席 <b style="font-size:17px;color:oklch(25% 0.02 55);font-variant-numeric:tabular-nums;">{{ cur.seatNumber }}</b></span>
+                  </div>
+                </div>
+                <div style="font-size:13px;font-weight:700;color:oklch(42% 0.02 55);margin-bottom:4px;">{{ heroTaskLabel }}</div>
+                <div style="font-size:{{ taskSize }};font-weight:800;line-height:1.4;overflow-wrap:anywhere;word-break:normal;text-wrap:pretty;margin-bottom:{{ taskGap }};">{{ cur.task }}</div>
+                <div style="background:oklch(99.2% 0.004 80 / 0.72);border-radius:18px;padding:{{ metaPad }};">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;">
+                    <div style="min-width:0;">
+                      <div style="font-size:12px;color:oklch(42% 0.02 55);">{{ tStartLabel }}</div>
+                      <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.3;">{{ cur.a }}</div>
+                    </div>
+                    <div style="min-width:0;text-align:right;">
+                      <div style="font-size:12px;color:oklch(42% 0.02 55);">{{ tEndLabel }}</div>
+                      <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.3;">{{ cur.b }}</div>
+                    </div>
+                  </div>
+                  <sc-if value="{{ showTimeline }}" hint-placeholder-val="{{ true }}">
+                    <div aria-hidden="true" style="position:relative;height:40px;margin:2px 0 0;">
+                      <span style="position:absolute;left:6px;right:6px;top:29px;height:2px;border-radius:1px;background:{{ heroTrack }};"></span>
+                      <span style="position:absolute;left:0;top:24px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid {{ heroDot }};background:oklch(99.2% 0.004 80);"></span>
+                      <span style="position:absolute;right:0;top:24px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;border:2px solid {{ heroTrack }};background:oklch(99.2% 0.004 80);"></span>
+                      <span style="position:absolute;left:{{ tLeft }};top:22px;width:16px;height:16px;margin-left:-8px;box-sizing:border-box;border-radius:50%;background:{{ heroDot }};border:3px solid oklch(99.2% 0.004 80);box-shadow:0 0 0 1px {{ heroTrack }};"></span>
+                      <span style="position:absolute;left:{{ tLeft }};top:0;transform:translateX({{ tShift }});font-size:12px;font-weight:800;color:{{ heroInk }};white-space:nowrap;font-variant-numeric:tabular-nums;">いま {{ nowLabel }}</span>
+                    </div>
+                    <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">現在時刻 {{ nowLabel }}（日本時間）</span>
+                    <sc-if value="{{ tOverdue }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:12px;color:oklch(40% 0.02 55);text-align:right;margin-top:2px;">終了予定を過ぎています</div>
+                    </sc-if>
+                  </sc-if>
+                </div>
+                <div style="margin-top:{{ liveGap }};display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:0 18px;">
+                  <a href="https://kani3camp.github.io/youtube-study-space/docs/essential" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;min-height:44px;padding:0 6px;color:oklch(38% 0.02 55);font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(72% 0.02 60);">使い方・コマンド<span aria-hidden="true">&nbsp;↗</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">（別タブで開く）</span></a>
+                  <button onClick="{{ openLive }}" style="min-height:44px;padding:0 6px;border:none;background:transparent;color:{{ heroLive }};font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;">YouTubeライブを開く ↗</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ heroIsOut }}" hint-placeholder-val="{{ false }}">
+              <div style="border-radius:26px;padding:{{ heroPad }};background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);">
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 12px;border-radius:999px;background:oklch(94% 0.008 70);font-size:14px;font-weight:800;color:oklch(42% 0.02 55);margin-bottom:16px;"><span style="width:9px;height:9px;border-radius:50%;border:2px solid oklch(55% 0.02 55);"></span>未入室</span>
+                <div style="font-size:{{ taskSize }};font-weight:800;line-height:1.4;margin-bottom:8px;">現在は入室していません</div>
+                <div style="font-size:14px;color:oklch(42% 0.02 55);margin-bottom:18px;max-width:520px;">入室・休憩・退室は、YouTubeライブチャットで操作します。入室すると、ここに現在の作業が表示されます。</div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;">
+                  <button onClick="{{ openLive }}" style="min-height:48px;padding:0 22px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;" style-hover="background:oklch(40% 0.075 55);">YouTubeライブを開く ↗</button>
+                  <a href="https://kani3camp.github.io/youtube-study-space/docs/essential" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;min-height:44px;padding:0 4px;color:oklch(38% 0.02 55);font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(72% 0.02 60);">使い方・コマンド<span aria-hidden="true">&nbsp;↗</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">（別タブで開く）</span></a>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ heroIsUnreg }}" hint-placeholder-val="{{ false }}">
+              <div style="border-radius:26px;padding:{{ heroPad }};background:oklch(94.5% 0.028 65);border:1px solid oklch(88% 0.035 65);">
+                <div style="font-size:{{ taskSize }};font-weight:800;line-height:1.4;margin-bottom:8px;">まだ作業記録がありません</div>
+                <div style="font-size:15px;color:oklch(38% 0.02 55);margin-bottom:18px;max-width:540px;">入室・休憩・退室は、YouTubeライブチャットで操作します。参加すると、ここに作業時間が記録されます。連携はこのままで大丈夫です。</div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;">
+                  <button onClick="{{ openLive }}" style="min-height:48px;padding:0 22px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;" style-hover="background:oklch(40% 0.075 55);">YouTubeライブを開く ↗</button>
+                  <a href="https://kani3camp.github.io/youtube-study-space/docs/essential" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;min-height:44px;padding:0 4px;color:oklch(36% 0.02 55);font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(68% 0.02 60);">使い方・コマンド<span aria-hidden="true">&nbsp;↗</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">（別タブで開く）</span></a>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ heroIsError }}" hint-placeholder-val="{{ false }}">
+              <div role="alert" style="border-radius:26px;padding:{{ heroPad }};background:oklch(99.2% 0.004 80);border:1px solid oklch(86% 0.04 65);">
+                <h2 style="font-size:20px;font-weight:800;line-height:1.45;margin:0 0 6px;">情報を取得できませんでした</h2>
+                <div style="font-size:14px;color:oklch(36% 0.02 55);margin-bottom:18px;max-width:540px;">作業時間と現在の状態を読み込めませんでした。記録が消えたわけではありません。少し待ってから、もう一度お試しください。</div>
+                <button onClick="{{ retry }}" style="min-height:48px;padding:0 22px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">再試行</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ heroIsReauth }}" hint-placeholder-val="{{ false }}">
+              <div role="alert" style="border-radius:26px;padding:{{ heroPad }};background:oklch(95.5% 0.026 65);border:1px solid oklch(86% 0.04 65);">
+                <h2 style="font-size:20px;font-weight:800;line-height:1.45;margin:0 0 6px;">YouTubeとの連携が切れています</h2>
+                <div style="font-size:14px;color:oklch(34% 0.02 55);margin-bottom:18px;max-width:540px;">YouTubeのアクセス許可を確認できないため、チャンネル情報を表示できません。もう一度連携してください。</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button onClick="{{ reconnect }}" style="min-height:48px;padding:0 22px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">再連携する</button>
+                  <button onClick="{{ logout }}" style="min-height:48px;padding:0 20px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">ログアウト</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+              <div aria-busy="true" aria-label="読み込み中" style="border-radius:26px;padding:{{ heroPad }};background:oklch(99.2% 0.004 80);border:1px solid oklch(91% 0.01 70);">
+                <div style="width:96px;height:30px;border-radius:999px;background:oklch(93% 0.01 70);margin-bottom:22px;"></div>
+                <div style="width:30%;height:14px;border-radius:7px;background:oklch(93% 0.01 70);margin-bottom:10px;"></div>
+                <div style="width:75%;height:30px;border-radius:10px;background:oklch(93% 0.01 70);margin-bottom:26px;"></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;">
+                  <div style="height:68px;border-radius:16px;background:oklch(95% 0.008 70);"></div>
+                  <div style="height:68px;border-radius:16px;background:oklch(95% 0.008 70);"></div>
+                </div>
+              </div>
+            </sc-if>
+          </section>
+
+          <!-- Summary -->
+          <sc-if value="{{ showSummary }}" hint-placeholder-val="{{ true }}">
+            <section aria-label="作業サマリー" style="grid-area:summary;min-width:0;border-radius:24px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);box-shadow:0 1px 2px oklch(40% 0.03 60 / 0.05), 0 12px 28px -18px oklch(40% 0.05 60 / 0.22);padding:22px 22px 18px;">
+              <div style="font-size:14px;font-weight:800;margin-bottom:16px;">積み重ね</div>
+              <div style="padding-bottom:18px;border-bottom:1px dashed oklch(86% 0.015 70);margin-bottom:16px;">
+                <div style="font-size:13px;color:oklch(40% 0.02 55);font-weight:700;margin-bottom:2px;">今日</div>
+                <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;">
+                  <sc-for list="{{ todayParts }}" as="p" hint-placeholder-count="2">
+                    <span style="white-space:nowrap;"><span style="font-size:48px;font-weight:800;line-height:1.1;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;color:oklch(30% 0.05 55);">{{ p.n }}</span><span style="font-size:16px;font-weight:700;margin-left:3px;color:oklch(36% 0.03 55);">{{ p.u }}</span></span>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ todayIsZero }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:13px;color:oklch(42% 0.02 55);margin-top:2px;">今日はまだ記録がありません。自分のペースでどうぞ。</div>
+                </sc-if>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;">
+                <div>
+                  <div style="font-size:13px;color:oklch(42% 0.02 55);font-weight:700;">今週<span style="font-weight:500;font-size:12px;">（月曜から）</span></div>
+                  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px;">
+                    <sc-for list="{{ weekParts }}" as="p" hint-placeholder-count="2">
+                      <span style="white-space:nowrap;"><span style="font-size:24px;font-weight:800;line-height:1.3;font-variant-numeric:tabular-nums;color:oklch(30% 0.025 55);">{{ p.n }}</span><span style="font-size:13px;font-weight:700;margin-left:2px;color:oklch(38% 0.02 55);">{{ p.u }}</span></span>
+                    </sc-for>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:13px;color:oklch(42% 0.02 55);font-weight:700;">累計</div>
+                  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px;">
+                    <sc-for list="{{ totalParts }}" as="p" hint-placeholder-count="2">
+                      <span style="white-space:nowrap;"><span style="font-size:24px;font-weight:800;line-height:1.3;font-variant-numeric:tabular-nums;color:oklch(30% 0.025 55);">{{ p.n }}</span><span style="font-size:13px;font-weight:700;margin-left:2px;color:oklch(38% 0.02 55);">{{ p.u }}</span></span>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+              <div style="font-size:12px;color:oklch(44% 0.018 55);margin-top:16px;line-height:1.6;">日本時間（JST）で集計しています。休憩時間は含みません。{{ updatedAt }}時点</div>
+            </section>
+          </sc-if>
+          <sc-if value="{{ summarySkeleton }}" hint-placeholder-val="{{ false }}">
+            <div aria-hidden="true" style="grid-area:summary;border-radius:24px;background:oklch(99.2% 0.004 80);border:1px solid oklch(91% 0.01 70);padding:22px;">
+              <div style="width:60px;height:14px;border-radius:7px;background:oklch(93% 0.01 70);margin-bottom:18px;"></div>
+              <div style="width:65%;height:48px;border-radius:12px;background:oklch(93% 0.01 70);margin-bottom:22px;"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;"><div style="height:44px;border-radius:10px;background:oklch(95% 0.008 70);"></div><div style="height:44px;border-radius:10px;background:oklch(95% 0.008 70);"></div></div>
+            </div>
+          </sc-if>
+
+          <!-- Last 7 days -->
+          <sc-if value="{{ showSummary }}" hint-placeholder-val="{{ true }}">
+            <section aria-label="直近7日の作業時間" style="grid-area:week;min-width:0;border-radius:24px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);box-shadow:0 1px 2px oklch(40% 0.03 60 / 0.05), 0 12px 28px -18px oklch(40% 0.05 60 / 0.22);padding:22px 20px 16px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                <div style="font-size:14px;font-weight:800;">直近7日</div>
+                <div style="font-size:12px;color:oklch(44% 0.018 55);">9月27日〜10月3日</div>
+              </div>
+              <div aria-live="polite" aria-atomic="true" style="min-height:30px;font-size:14px;margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px;"><span style="color:oklch(40% 0.02 55);">{{ selLabel }}</span><span aria-hidden="true" style="color:oklch(55% 0.02 55);">・</span><b style="font-size:17px;font-variant-numeric:tabular-nums;">{{ selValue }}</b></div>
+              <div role="group" aria-label="日別の作業時間" style="display:flex;gap:4px;height:170px;">
+                <sc-for list="{{ bars }}" as="b" hint-placeholder-count="7">
+                  <button onClick="{{ b.onSelect }}" onFocus="{{ b.onSelect }}" onMouseEnter="{{ b.onSelect }}" aria-label="{{ b.aria }}" aria-pressed="{{ b.isSel }}" style="flex:1 1 0;min-width:32px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;border:none;background:{{ b.colBg }};border-radius:12px;padding:6px 2px;cursor:pointer;">
+                    <span style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;">
+                      <span style="width:min(70%,30px);height:{{ b.h }};min-height:4px;border-radius:8px 8px 4px 4px;background:{{ b.color }};"></span>
+                    </span>
+                    <span style="font-size:12px;line-height:1.2;color:{{ b.labelColor }};font-weight:{{ b.labelWeight }};text-align:center;">{{ b.w }}<br/>{{ b.d }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </section>
+          </sc-if>
+          <sc-if value="{{ summarySkeleton }}" hint-placeholder-val="{{ false }}">
+            <div aria-hidden="true" style="grid-area:week;border-radius:24px;background:oklch(99.2% 0.004 80);border:1px solid oklch(91% 0.01 70);padding:22px;height:262px;display:flex;flex-direction:column;justify-content:space-between;">
+              <div style="width:80px;height:14px;border-radius:7px;background:oklch(93% 0.01 70);"></div>
+              <div style="display:flex;gap:10px;align-items:flex-end;height:140px;"><div style="flex:1;height:40%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:60%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:20%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:75%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:35%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:85%;border-radius:8px;background:oklch(95% 0.008 70);"></div><div style="flex:1;height:50%;border-radius:8px;background:oklch(95% 0.008 70);"></div></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- LOGIN -->
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="ログイン" style="max-width:480px;margin:12px auto 0;display:flex;flex-direction:column;gap:18px;">
+        <div style="padding:8px 4px 0;">
+          <h1 style="font-size:clamp(24px,6vw,30px);font-weight:800;line-height:1.35;margin:0 0 10px;text-wrap:pretty;">積み上げた作業時間に、静かに戻ってこられる場所。</h1>
+          <div style="font-size:15px;color:oklch(38% 0.02 55);text-wrap:pretty;">YouTubeの作業部屋で積み重ねた時間を、ここで確認できます。</div>
+        </div>
+        <div style="border-radius:22px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);padding:18px 20px;">
+          <div style="font-size:14px;font-weight:800;margin-bottom:6px;">YouTube連携について</div>
+          <div style="font-size:14px;color:oklch(32% 0.02 55);line-height:1.75;">作業記録と照合するため、本人のYouTubeチャンネル名・アイコン・チャンネルIDを読み取ります。</div>
+          <div style="font-size:14px;color:oklch(32% 0.02 55);line-height:1.75;font-weight:700;">動画の投稿やコメントは行いません。</div>
+        </div>
+        <label style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;background:oklch(94.5% 0.028 65);cursor:pointer;">
+          <input id="api-consent" type="checkbox" checked="{{ consent }}" onChange="{{ toggleConsent }}" style="width:22px;height:22px;margin:1px 0 0;accent-color:oklch(46% 0.08 55);flex-shrink:0;"/>
+          <span style="font-size:14px;line-height:1.7;"><a href="#" onClick="{{ goPrivacy }}" style="font-weight:700;">Privacy Policy</a>と<a href="#" onClick="{{ goTerms }}" style="font-weight:700;">利用規約</a>を確認し、YouTube APIを通じたチャンネル情報の読み取りに同意します。</span>
+        </label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button onClick="{{ startOauth }}" disabled="{{ loginDisabled }}" aria-describedby="login-reason" style="min-height:52px;border-radius:999px;border:none;background:{{ loginBg }};color:{{ loginInk }};font-size:16px;font-weight:800;cursor:{{ loginCursor }};">Googleでログイン</button>
+          <div id="login-reason" aria-live="polite" style="font-size:13px;color:oklch(40% 0.02 55);text-align:center;">{{ loginReason }}</div>
+        </div>
+        <div style="font-size:12px;color:oklch(44% 0.018 55);text-align:center;line-height:1.7;">Cookie（Analytics）の設定は、この同意とは別にフッターから選べます。</div>
+      </div>
+    </sc-if>
+
+    <!-- OAUTH mock -->
+    <sc-if value="{{ isOauth }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Google認可（サンプル）" style="max-width:440px;margin:24px auto 0;border-radius:22px;border:2px dashed oklch(82% 0.02 70);padding:26px 24px;background:oklch(99.2% 0.004 80);">
+        <div style="font-size:12px;font-weight:700;color:oklch(44% 0.018 55);margin-bottom:8px;">サンプル表示</div>
+        <div style="font-size:18px;font-weight:800;margin-bottom:8px;">ここでGoogleの認可画面が開きます</div>
+        <div style="font-size:14px;color:oklch(38% 0.02 55);margin-bottom:22px;">実際の製品ではGoogleのページに移動し、YouTubeチャンネル情報の読み取りを許可します。この確認用プロトタイプでは外部へ移動しません。</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button onClick="{{ oauthOk }}" style="min-height:48px;padding:0 22px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">許可して戻る</button>
+          <button onClick="{{ goLogin }}" style="min-height:48px;padding:0 20px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:transparent;color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">キャンセル</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- CONFIRM channel -->
+    <sc-if value="{{ isConfirm }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="チャンネル確認" style="max-width:440px;margin:{{ authTop }} auto 0;display:flex;flex-direction:column;gap:18px;text-align:center;">
+        <div>
+          <h1 style="font-size:clamp(21px,5vw,24px);font-weight:800;line-height:1.45;margin:0 0 6px;">このチャンネルを連携しますか？</h1>
+          <div style="font-size:14px;color:oklch(38% 0.02 55);">作業部屋で使っているチャンネルか確認してください。</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 20px 24px;border-radius:26px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);">
+          <div aria-hidden="true" style="width:88px;height:88px;border-radius:50%;background:oklch(90% 0.03 60);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:34px;color:oklch(40% 0.07 55);">み</div>
+          <div style="min-width:0;max-width:100%;">
+            <div style="font-size:20px;font-weight:800;line-height:1.4;overflow-wrap:anywhere;">みどりの作業机</div>
+            <div style="font-size:14px;color:oklch(40% 0.02 55);overflow-wrap:anywhere;">@midori_desk</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button onClick="{{ confirmLink }}" style="min-height:52px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:16px;font-weight:800;cursor:pointer;" style-hover="background:oklch(40% 0.075 55);">このチャンネルを連携</button>
+          <button onClick="{{ startOauth }}" style="min-height:48px;padding:0 16px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:transparent;color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">別のアカウント／チャンネルでやり直す</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- CONFLICT -->
+    <sc-if value="{{ isConflict }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="紐付け競合" style="max-width:480px;margin:{{ authTop }} auto 0;border-radius:26px;background:oklch(99.2% 0.004 80);border:1px solid oklch(86% 0.04 65);padding:{{ heroPad }};">
+        <h1 style="font-size:clamp(19px,4.6vw,22px);font-weight:800;line-height:1.5;margin:0 0 8px;text-wrap:pretty;">このチャンネルは別のGoogleアカウントで連携されています</h1>
+        <div style="font-size:14px;color:oklch(36% 0.02 55);line-height:1.8;margin-bottom:18px;">「みどりの作業机」の記録は、最初に連携したGoogleアカウントに結び付いています。記録を守るため、別のアカウントへ自動で移すことはしません。元のアカウントでログインし直すか、心当たりがない場合はお問い合わせください。</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <button onClick="{{ startOauth }}" style="flex:1 1 220px;min-height:48px;padding:0 20px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">元のアカウントでログイン</button>
+          <button onClick="{{ goContact }}" style="flex:1 1 160px;min-height:48px;padding:0 20px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:transparent;color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">お問い合わせ</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- DOC (privacy / terms) -->
+    <sc-if value="{{ isDoc }}" hint-placeholder-val="{{ false }}">
+      <article data-screen-label="{{ docTitle }}" style="max-width:680px;margin:8px auto 0;">
+        <span style="display:inline-block;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:oklch(94% 0.008 70);color:oklch(42% 0.02 55);margin-bottom:10px;">Draft ・ 公開前の下書きです</span>
+        <h1 style="font-size:clamp(24px,5vw,30px);font-weight:800;margin:0 0 6px;">{{ docTitle }}</h1>
+        <div style="font-size:13px;color:oklch(44% 0.018 55);margin-bottom:26px;">最終更新日：確定後に記載</div>
+        <sc-for list="{{ docSections }}" as="sec" hint-placeholder-count="5">
+          <section style="padding:18px 0;border-top:1px solid oklch(89% 0.012 70);">
+            <h2 style="font-size:17px;font-weight:800;margin:0 0 8px;">{{ sec.h }}</h2>
+            <p style="font-size:15px;line-height:1.9;margin:0;color:oklch(32% 0.02 55);text-wrap:pretty;">{{ sec.p }}</p>
+            <sc-if value="{{ sec.hasLink }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ sec.onLink }}" style="margin-top:4px;min-height:44px;padding:0 2px;border:none;background:transparent;color:oklch(38% 0.07 190);font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;">{{ sec.linkLabel }}</button>
+            </sc-if>
+          </section>
+        </sc-for>
+      </article>
+    </sc-if>
+
+    <!-- COOKIES -->
+    <sc-if value="{{ isCookies }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cookie設定" style="max-width:600px;margin:8px auto 0;display:flex;flex-direction:column;gap:14px;">
+        <h1 style="font-size:26px;font-weight:800;margin:0;">Cookie設定</h1>
+        <div style="font-size:14px;color:oklch(38% 0.02 55);">分析用Cookieは任意です。拒否しても、マイページはすべてご利用いただけます。設定はいつでも変更できます。</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;border-radius:20px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);">
+          <div style="min-width:0;"><div style="font-size:15px;font-weight:800;">必須</div><div style="font-size:13px;color:oklch(42% 0.02 55);">ログイン状態の保持など、サービスの動作に必要です。</div></div>
+          <span style="font-size:13px;font-weight:700;color:oklch(42% 0.02 55);white-space:nowrap;">常に有効</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;border-radius:20px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);">
+          <div style="min-width:0;"><div style="font-size:15px;font-weight:800;">Analytics</div><div style="font-size:13px;color:oklch(42% 0.02 55);">利用状況を匿名で集計し、改善に役立てます。</div></div>
+          <button role="switch" aria-checked="{{ analytics }}" aria-label="Analytics" onClick="{{ toggleAnalytics }}" style="width:56px;height:32px;border-radius:999px;border:none;padding:3px;background:{{ swBg }};cursor:pointer;flex-shrink:0;display:flex;justify-content:{{ swJustify }};transition:background .2s;">
+            <span style="width:26px;height:26px;border-radius:50%;background:oklch(99.5% 0.003 80);box-shadow:0 1px 2px oklch(20% 0 0 / .2);"></span>
+          </button>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button onClick="{{ saveCookies }}" style="min-height:48px;padding:0 24px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">この設定で保存</button>
+        </div>
+        <div style="font-size:13px;color:oklch(44% 0.018 55);">現在の状態：{{ cookieStatus }}</div>
+      </div>
+    </sc-if>
+
+    <!-- CONTACT -->
+    <sc-if value="{{ isContact }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="お問い合わせ" style="max-width:600px;margin:8px auto 0;display:flex;flex-direction:column;gap:16px;">
+        <span style="align-self:flex-start;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:oklch(94% 0.008 70);color:oklch(42% 0.02 55);">Draft ・ 受付方法は確定前です</span>
+        <h1 style="font-size:26px;font-weight:800;margin:0;">お問い合わせ</h1>
+        <div style="font-size:14px;color:oklch(38% 0.02 55);">作業記録の表示やログインについて、気になることがあればお知らせください。</div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;">内容
+          <textarea rows="5" placeholder="ご用件をお書きください" style="font-size:15px;padding:12px 14px;border-radius:14px;border:1px solid oklch(85% 0.015 70);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);resize:vertical;width:100%;"></textarea>
+        </label>
+        <sc-if value="{{ contactNotSent }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ sendContact }}" style="align-self:flex-start;min-height:48px;padding:0 24px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">送信内容を確認</button>
+        </sc-if>
+        <sc-if value="{{ contactSent }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="font-size:14px;padding:14px 18px;border-radius:16px;background:oklch(94.5% 0.022 190);color:oklch(32% 0.06 190);">デザイン確認用のため、送信は行われません。</div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ACCOUNT MANAGE -->
+    <sc-if value="{{ isManage }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="アカウント管理" style="max-width:560px;margin:8px auto 0;display:flex;flex-direction:column;gap:14px;">
+        <h1 style="font-size:26px;font-weight:800;margin:0;">アカウント管理</h1>
+        <div style="font-size:14px;color:oklch(38% 0.02 55);">ふだんのログアウトは、アカウントパネルから行えます。ここではGoogle連携と保存データの扱いを確認できます。</div>
+        <div style="border-radius:20px;background:oklch(99.2% 0.004 80);border:1px solid oklch(89% 0.012 70);overflow:hidden;">
+          <h2 style="margin:0;font-size:inherit;">
+            <button id="acc-google-btn" onClick="{{ toggleG }}" aria-expanded="{{ gOpen }}" aria-controls="acc-google" style="width:100%;min-height:56px;display:flex;justify-content:space-between;align-items:center;gap:12px;border:none;background:transparent;color:oklch(25% 0.02 55);font-size:15px;font-weight:800;cursor:pointer;padding:0 20px;text-align:left;">Google連携の管理<span aria-hidden="true" style="color:oklch(44% 0.018 55);font-size:16px;">{{ gMark }}</span></button>
+          </h2>
+          <sc-if value="{{ gOpen }}" hint-placeholder-val="{{ false }}">
+            <div id="acc-google" role="region" aria-labelledby="acc-google-btn" style="padding:0 20px 18px;font-size:14px;line-height:1.8;color:oklch(32% 0.02 55);display:flex;flex-direction:column;gap:10px;">
+              <div>連携を解除するには、Googleアカウントの「サードパーティ製のアプリとサービス」から、このサービスへのアクセスを取り消します。</div>
+              <div style="padding:12px 14px;border-radius:14px;background:oklch(96% 0.01 70);font-size:13px;line-height:1.8;">
+                <b>ログアウト</b>：この端末でのログインを終えます。連携と記録はそのままです。<br/>
+                <b>Google連携の解除</b>：このサービスがチャンネルを確認できなくなります。作業記録は削除されません。<br/>
+                <b>保存データの削除</b>：作業記録そのものの削除を依頼します。
+              </div>
+            </div>
+          </sc-if>
+          <div style="border-top:1px solid oklch(91% 0.01 70);"></div>
+          <h2 style="margin:0;font-size:inherit;">
+            <button id="acc-data-btn" onClick="{{ toggleD }}" aria-expanded="{{ dOpen }}" aria-controls="acc-data" style="width:100%;min-height:56px;display:flex;justify-content:space-between;align-items:center;gap:12px;border:none;background:transparent;color:oklch(25% 0.02 55);font-size:15px;font-weight:800;cursor:pointer;padding:0 20px;text-align:left;">保存データについて<span aria-hidden="true" style="color:oklch(44% 0.018 55);font-size:16px;">{{ dMark }}</span></button>
+          </h2>
+          <sc-if value="{{ dOpen }}" hint-placeholder-val="{{ false }}">
+            <div id="acc-data" role="region" aria-labelledby="acc-data-btn" style="padding:0 20px 14px;font-size:14px;line-height:1.8;color:oklch(32% 0.02 55);">
+              <div>作業部屋での入室・退室・休憩の記録と、チャンネルの識別情報を保存しています。ログアウトやGoogle連携の解除では削除されません。</div>
+              <button onClick="{{ goDelete }}" style="margin-top:4px;min-height:44px;padding:0 2px;border:none;background:transparent;color:oklch(38% 0.07 190);font-size:14px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;">保存データの削除を依頼</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- DELETE REQUEST -->
+    <sc-if value="{{ isDeleteView }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="保存データの削除依頼" style="max-width:600px;margin:8px auto 0;display:flex;flex-direction:column;gap:14px;">
+        <span style="align-self:flex-start;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:oklch(94% 0.008 70);color:oklch(42% 0.02 55);">Draft ・ 受付方法と削除範囲は確定前です</span>
+        <h1 style="font-size:26px;font-weight:800;margin:0;">保存データの削除依頼</h1>
+        <div style="font-size:14px;line-height:1.8;color:oklch(32% 0.02 55);">あなたのチャンネルに結び付いた作業記録の削除を依頼できます。削除の範囲・手順・受付方法は確定後にここへ記載します。</div>
+        <div style="font-size:13px;line-height:1.8;color:oklch(38% 0.02 55);padding:12px 14px;border-radius:14px;background:oklch(96% 0.01 70);">ログアウトやGoogle連携の解除だけでは、作業記録は削除されません。</div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;">補足（任意）
+          <textarea rows="4" placeholder="対象のチャンネル名など" style="font-size:15px;padding:12px 14px;border-radius:14px;border:1px solid oklch(85% 0.015 70);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);resize:vertical;width:100%;"></textarea>
+        </label>
+        <sc-if value="{{ contactNotSent }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ sendContact }}" style="align-self:flex-start;min-height:48px;padding:0 24px;border-radius:999px;border:none;background:oklch(46% 0.08 55);color:oklch(99% 0.005 80);font-size:15px;font-weight:800;cursor:pointer;">依頼内容を確認</button>
+        </sc-if>
+        <sc-if value="{{ contactSent }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="font-size:14px;padding:14px 18px;border-radius:16px;background:oklch(94.5% 0.022 190);color:oklch(32% 0.06 190);">デザイン確認用のため、送信や削除は行われません。</div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+
+  <footer style="width:100%;max-width:1120px;margin:0 auto;padding:20px {{ padX }} 28px;border-top:1px solid oklch(89% 0.012 70);display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center;">
+    <a href="https://kani3camp.github.io/youtube-study-space/docs/essential" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;min-height:44px;padding:0 2px;color:oklch(38% 0.02 55);font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(78% 0.015 70);">使い方・コマンド<span aria-hidden="true">&nbsp;↗</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">（別タブで開く）</span></a>
+    <sc-for list="{{ footerLinks }}" as="f" hint-placeholder-count="4">
+      <button onClick="{{ f.on }}" style="min-height:44px;padding:0 2px;border:none;background:transparent;color:oklch(38% 0.02 55);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(78% 0.015 70);">{{ f.label }}</button>
+    </sc-for>
+  </footer>
+
+  <!-- Account panel -->
+  <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+    <div ref="{{ panelWrapRef }}">
+    <div onClick="{{ closePanel }}" aria-hidden="true" style="position:fixed;inset:0;background:oklch(22% 0.02 55 / 0.28);z-index:50;"></div>
+    <div ref="{{ dialogRef }}" role="dialog" aria-modal="true" aria-label="アカウント" style="position:fixed;z-index:51;top:{{ pTop }};right:{{ pRight }};bottom:{{ pBottom }};left:{{ pLeft }};width:{{ pWidth }};max-height:{{ pMaxH }};overflow-y:auto;background:oklch(99.2% 0.004 80);border-radius:{{ pRadius }};border:1px solid oklch(89% 0.012 70);box-shadow:0 12px 40px oklch(25% 0.03 55 / 0.18);padding:{{ pPad }};">
+      <sc-if value="{{ isSheet }}" hint-placeholder-val="{{ false }}">
+        <div style="width:40px;height:5px;border-radius:3px;background:oklch(86% 0.012 70);margin:0 auto 14px;"></div>
+      </sc-if>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <div style="width:52px;height:52px;border-radius:50%;background:oklch(90% 0.03 60);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:oklch(40% 0.07 55);flex-shrink:0;">み</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:16px;font-weight:800;overflow-wrap:anywhere;">みどりの作業机</div>
+          <div style="font-size:13px;color:oklch(42% 0.02 55);">@midori_desk</div>
+        </div>
+        <button ref="{{ closeRef }}" onClick="{{ closePanel }}" aria-label="閉じる" style="width:44px;height:44px;border-radius:50%;border:none;background:oklch(95% 0.01 70);color:oklch(30% 0.02 55);font-size:20px;cursor:pointer;flex-shrink:0;">×</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:{{ linkBg }};color:{{ linkInk }};font-size:14px;font-weight:700;margin-bottom:14px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:{{ linkInk }};"></span>{{ linkText }}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <button onClick="{{ reconnect }}" style="min-height:48px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:{{ reBg }};color:{{ reInk }};font-size:14px;font-weight:700;cursor:pointer;">再連携</button>
+        <button onClick="{{ logout }}" style="min-height:48px;border-radius:999px;border:1px solid oklch(85% 0.02 60);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);font-size:14px;font-weight:700;cursor:pointer;">ログアウト</button>
+      </div>
+      <div style="display:flex;justify-content:flex-end;">
+        <button onClick="{{ goManage }}" style="min-height:44px;padding:0 4px;border:none;background:transparent;color:oklch(40% 0.02 55);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:oklch(75% 0.015 70);">アカウント管理</button>
+      </div>
+    </div>
+    </div>
+  </sc-if>
+
+  <!-- Cookie banner -->
+  <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ false }}">
+    <div role="region" aria-label="Cookieの同意" style="position:fixed;z-index:40;left:12px;right:12px;bottom:{{ bannerBottom }};max-width:560px;margin:0 auto;background:oklch(99.2% 0.004 80);border:1px solid oklch(87% 0.015 70);border-radius:22px;box-shadow:0 10px 32px oklch(25% 0.03 55 / 0.16);padding:18px 20px;">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px;">Cookieの利用について</div>
+      <div style="font-size:13px;color:oklch(38% 0.02 55);margin-bottom:14px;line-height:1.7;">サービスの動作に必要なCookieに加え、利用状況を分析するCookieを使ってよいかお選びください。拒否してもすべて利用できます。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button onClick="{{ rejectCookies }}" style="min-height:48px;border-radius:999px;border:1px solid oklch(80% 0.02 60);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">拒否する</button>
+        <button onClick="{{ acceptCookies }}" style="min-height:48px;border-radius:999px;border:1px solid oklch(80% 0.02 60);background:oklch(99.2% 0.004 80);color:oklch(25% 0.02 55);font-size:15px;font-weight:700;cursor:pointer;">承諾する</button>
+      </div>
+      <button onClick="{{ goCookies }}" style="margin-top:6px;min-height:44px;border:none;background:transparent;color:oklch(38% 0.07 190);font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0;">詳しく設定する</button>
+    </div>
+  </sc-if>
+
+  <!-- Toast -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:fixed;z-index:60;left:50%;top:16px;transform:translateX(-50%);max-width:calc(100% - 24px);background:oklch(28% 0.02 55);color:oklch(97% 0.008 75);font-size:14px;font-weight:600;padding:12px 18px;border-radius:14px;">{{ toast }}</div>
+  </sc-if>
+
+  <!-- Verification switcher (not part of product) -->
+  <sc-if value="{{ showDemo }}" hint-placeholder-val="{{ true }}">
+    <div style="position:fixed;z-index:70;left:12px;bottom:12px;font-family:ui-monospace,Menlo,monospace;">
+      <sc-if value="{{ demoOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:8px;width:236px;max-height:70vh;overflow-y:auto;background:oklch(22% 0.01 250);color:oklch(95% 0.005 250);border-radius:12px;padding:10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);">
+          <div style="opacity:.7;padding:2px 6px 8px;">検証用・製品には表示されません</div>
+          <sc-for list="{{ demoItems }}" as="d" hint-placeholder-count="14">
+            <button onClick="{{ d.on }}" style="display:block;width:100%;text-align:left;border:none;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;cursor:pointer;background:{{ d.bg }};color:inherit;">{{ d.label }}</button>
+          </sc-for>
+          <div style="border-top:1px solid rgba(255,255,255,.15);margin-top:6px;padding-top:6px;">
+            <button onClick="{{ toggleRoom }}" style="display:block;width:100%;text-align:left;border:none;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;cursor:pointer;background:transparent;color:inherit;">ルーム: {{ roomLabel }}（タップで切替）</button>
+            <button onClick="{{ toggleRegion }}" style="display:block;width:100%;text-align:left;border:none;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;cursor:pointer;background:transparent;color:inherit;">地域: {{ regionLabel }}（タップで切替）</button>
+          </div>
+        </div>
+      </sc-if>
+      <button onClick="{{ toggleDemo }}" style="border:1px dashed oklch(55% 0.02 250);background:oklch(97% 0.005 250);color:oklch(30% 0.02 250);border-radius:999px;padding:8px 14px;font-family:inherit;font-size:12px;cursor:pointer;">検証: {{ demoLabel }}</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = (() => {
+    let q; try { q = new URLSearchParams(location.search); } catch (e) { q = new URLSearchParams(''); }
+    return {
+      view: q.get('view') || 'main', st: q.get('state') || 'working', panel: q.get('panel') === '1',
+      w: typeof window !== 'undefined' ? window.innerWidth : 1200, sel: q.get('sel') != null ? (+q.get('sel') || 0) : 6,
+      region: q.get('region') || 'jp', roomType: q.get('room') === 'member' ? 'member' : 'normal', cookie: null, analytics: false, consent: false,
+      demoOpen: false, showDemo: q.get('demo') !== '0', toast: '', contactSent: false,
+      hist: [], gOpen: q.get('open') === 'google', dOpen: q.get('open') === 'data',
+    };
+  })();
+  rootRef = React.createRef();
+  closeRef = React.createRef();
+  dialogRef = React.createRef();
+  panelWrapRef = React.createRef();
+  avatarRef = React.createRef();
+  mainRef = React.createRef();
+
+  focusables() {
+    const d = this.dialogRef.current;
+    if (!d) return [];
+    return Array.from(d.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter(x => x.offsetParent !== null || x === document.activeElement);
+  }
+  setInert(on) {
+    const root = this.rootRef.current;
+    if (!root) return;
+    Array.from(root.children).forEach(c => {
+      if (on && c === this.panelWrapRef.current) return;
+      if (on) { c.inert = true; c.setAttribute('aria-hidden', 'true'); c.dataset.mpInert = '1'; }
+      else if (c.dataset.mpInert) { c.inert = false; c.removeAttribute('aria-hidden'); delete c.dataset.mpInert; }
+    });
+  }
+  focusIntoPanel = () => {
+    const el = this.closeRef.current || this.focusables()[0] || this.dialogRef.current;
+    if (el) el.focus();
+  };
+  after(fn, tries) {
+    tries = tries == null ? 10 : tries;
+    clearTimeout(this._ft);
+    this._ft = setTimeout(() => { if (fn() === false && tries > 0) this.after(fn, tries - 1); }, 16);
+  }
+  openPanelFrom = (el) => {
+    this._opener = el;
+    this.setState({ panel: true, demoOpen: false });
+    this.after(() => { if (!this.dialogRef.current) return false; this.setInert(true); this.focusIntoPanel(); });
+  };
+  closePanelRestore = () => {
+    this.setInert(false);
+    this.setState({ panel: false });
+    this.after(() => { const a = this.avatarRef.current || this._opener; if (!a) return false; a.focus(); });
+  };
+  focusMainSoon(prevView) {
+    this.after(() => {
+      const m = this.mainRef.current;
+      if (!m || this.state.view === prevView) return false;
+      const h = m.querySelector('h1');
+      if (!h && ['privacy', 'terms', 'cookies', 'contact', 'manage', 'delete'].includes(this.state.view)) return false;
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus(); } else m.focus();
+      if (!m.contains(document.activeElement) && document.activeElement !== m) return false;
+    });
+  }
+
+  componentDidMount() {
+    const el = this.rootRef.current;
+    if (el && window.ResizeObserver) {
+      this._ro = new ResizeObserver(es => { const w = Math.round(es[0].contentRect.width); if (w && w !== this.state.w) this.setState({ w }); });
+      this._ro.observe(el);
+    }
+    this._key = e => {
+      if (this.state.panel && this.state.view === 'main') {
+        if (e.key === 'Escape') { e.preventDefault(); this.closePanelRestore(); return; }
+        if (e.key === 'Tab') {
+          const f = this.focusables();
+          if (!f.length) { e.preventDefault(); return; }
+          const first = f[0], last = f[f.length - 1], a = document.activeElement;
+          const inside = this.dialogRef.current && this.dialogRef.current.contains(a);
+          if (e.shiftKey && (a === first || !inside)) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && (a === last || !inside)) { e.preventDefault(); first.focus(); }
+        }
+        return;
+      }
+      if (e.key === 'Escape' && this.state.demoOpen) this.setState({ demoOpen: false });
+    };
+    this._focusIn = e => {
+      if (this.state.panel && this.dialogRef.current && !this.dialogRef.current.contains(e.target)) this.focusIntoPanel();
+    };
+    window.addEventListener('keydown', this._key, true);
+    document.addEventListener('focusin', this._focusIn);
+    if (this.state.panel && this.state.view === 'main') this.after(() => { if (!this.dialogRef.current) return false; this.setInert(true); this.focusIntoPanel(); });
+  }
+  componentWillUnmount() {
+    this._ro && this._ro.disconnect(); window.removeEventListener('keydown', this._key, true); document.removeEventListener('focusin', this._focusIn);
+    clearTimeout(this._ft); clearTimeout(this._t); clearTimeout(this._tt); this.setInert(false);
+  }
+
+  go = (view, extra) => {
+    const sub = ['privacy', 'terms', 'cookies', 'contact', 'manage', 'delete'];
+    this.setInert(false);
+    if (view !== this.state.view) this.focusMainSoon(this.state.view);
+    else if (this.state.panel) this.after(() => { const m = this.mainRef.current; if (!m) return false; m.focus(); });
+    const s = Object.assign({ view, panel: false, contactSent: false }, extra || {});
+    if (view === 'manage' && this.state.view !== 'manage' && !(extra && 'gOpen' in extra)) { s.gOpen = false; s.dOpen = false; }
+    if (!s.hist) s.hist = sub.includes(view) ? (view === this.state.view ? this.state.hist : this.state.hist.concat([this.state.view])) : [];
+    this.setState(s);
+    try { window.scrollTo(0, 0); } catch (e) {}
+  };
+  showToast = (msg) => { clearTimeout(this._tt); this.setState({ toast: msg }); this._tt = setTimeout(() => this.setState({ toast: '' }), 2800); };
+  retry = () => {
+    clearTimeout(this._t); this.setState({ st: 'loading' });
+    this.after(() => { const m = this.mainRef.current; if (!m) return false; m.focus(); });
+    this._t = setTimeout(() => this.setState({ st: 'working' }), 1200);
+  };
+  retryRefresh = () => {
+    clearTimeout(this._t); this.setState({ refreshing: true });
+    this._t = setTimeout(() => {
+      this.setState({ st: 'working', refreshing: false });
+      this.after(() => { const m = this.mainRef.current; if (!m) return false; m.focus(); });
+      this.showToast('最新の情報に更新しました');
+    }, 1200);
+  };
+
+  fmt(m) {
+    const h = Math.floor(m / 60), mm = m % 60;
+    const parts = h > 0 ? [{ n: h.toLocaleString(), u: '時間' }].concat(mm > 0 ? [{ n: mm, u: '分' }] : []) : [{ n: mm, u: '分' }];
+    return { parts, text: parts.map(p => p.n + p.u).join('') };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const wide = s.w >= 880, narrow = s.w < 560, sheet = s.w < 640;
+    const st = s.st;
+    const zero = st === 'zero';
+    const raw = [['9月27日', '日', 95], ['9月28日', '月', 140], ['9月29日', '火', 0], ['9月30日', '水', 185], ['10月1日', '木', 75], ['10月2日', '金', 210], ['10月3日', '土', zero ? 0 : 125]];
+    const todayM = raw[6][2];
+    const weekM = raw.slice(1).reduce((a, r) => a + r[2], 0);
+    const totalM = 18760 - (zero ? 125 : 0);
+    const max = Math.max.apply(null, raw.map(r => r[2]).concat([60]));
+    const sel = Math.min(6, Math.max(0, s.sel));
+    const bars = raw.map((r, i) => {
+      const isToday = i === 6, isSel = i === sel, v = this.fmt(r[2]).text;
+      return {
+        w: isToday ? '今日' : r[1], d: r[0].replace(/^\d+月/, ''),
+        h: r[2] === 0 ? '4px' : (r[2] / max * 100) + '%',
+        color: r[2] === 0 ? 'oklch(86% 0.012 70)' : isToday ? 'oklch(52% 0.09 55)' : isSel ? 'oklch(66% 0.07 55)' : 'oklch(80% 0.045 60)',
+        colBg: isSel ? 'oklch(95.5% 0.015 65)' : 'transparent',
+        labelColor: isSel || isToday ? 'oklch(25% 0.02 55)' : 'oklch(42% 0.02 55)', labelWeight: isSel || isToday ? 800 : 500,
+        isSel, aria: r[0] + '（' + r[1] + '）' + (isToday ? '今日 ' : ' ') + v,
+        onSelect: () => { if (this.state.sel !== i) this.setState({ sel: i }); },
+      };
+    });
+    const sr = raw[sel];
+
+    // roomType and seatNumber are kept as separate sample fields; seat numbering is per room type.
+    const curMap = {
+      working: { task: 'アプリのログイン画面を実装する', seatNumber: 12, a: '19:00', b: '21:00' },
+      refreshError: { task: 'アプリのログイン画面を実装する', seatNumber: 12, a: '19:00', b: '21:00' },
+      longName: { task: 'TOEIC公式問題集 Vol.10 のリスニング Part 3・4 を解き直して、間違えた設問のスクリプトを音読する（30分×2セット、終わったら単語帳アプリで復習）', seatNumber: 7, a: '18:30', b: '20:30' },
+      break: { task: 'アプリのログイン画面を実装する', seatNumber: 12, a: '19:40', b: '19:55' },
+      overdue: { task: 'アプリのログイン画面を実装する', seatNumber: 12, a: '18:00', b: '19:30' },
+    };
+    const cur = Object.assign({ roomType: s.roomType }, curMap[st] || curMap.working);
+    const roomLabel = cur.roomType === 'member' ? 'メンバールーム' : '通常ルーム';
+    const isBreak = st === 'break';
+    const heroIsActive = ['working', 'refreshError', 'longName', 'break', 'overdue'].includes(st);
+    // Fixed verification clock: JST 19:47
+    const toMin = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+    const nowM = 19 * 60 + 47;
+    const tA = toMin(cur.a); let tB = toMin(cur.b);
+    if (tA != null && tB != null && tB <= tA) tB += 1440;
+    const showTimeline = heroIsActive && tA != null && tB != null;
+    const tPct = showTimeline ? Math.min(1, Math.max(0, (nowM - tA) / (tB - tA))) : 0;
+    const tOverdue = showTimeline && nowM > tB;
+    const hasData = heroIsActive || st === 'out' || zero;
+    const isLoading = st === 'loading';
+    const showGrid2 = hasData || isLoading;
+
+    const docs = {
+      privacy: { t: 'Privacy Policy', s: [
+        { h: '1. 取得する情報', p: 'YouTubeチャンネルの名前、アイコン、チャンネルID、および作業部屋での入室・退室・休憩の記録を取得します。（下書き）' },
+        { h: '2. 利用目的', p: 'ご本人のチャンネルを識別し、マイページに作業時間と現在の状態を表示するために利用します。（下書き）' },
+        { h: '3. YouTube APIサービスの利用', p: '本サービスはYouTube APIサービスを利用します。チャンネル情報の読み取りのみを行い、YouTube上での投稿や操作は行いません。（下書き）' },
+        { h: '4. Cookieと分析', p: '必須のCookieと、任意の分析用Cookie（Analytics）を使用します。分析用Cookieはいつでも拒否・撤回できます。（下書き）' },
+        { h: '5. 保存と削除の方法', p: '作業記録の保存期間と削除の手順は確定後に記載します。保存データの削除は、削除依頼のページから依頼できます。ログアウトやGoogle連携の解除では削除されません。（下書き）', hasLink: true, linkLabel: '保存データの削除依頼について', onLink: () => this.go('delete') },
+        { h: '6. Google連携の解除（アクセス権の取り消し）', p: 'Googleアカウントの「サードパーティ製のアプリとサービス」から、本サービスへのアクセス権をいつでも取り消せます。取り消しによって作業記録は削除されません。（下書き）' },
+        { h: '7. お問い合わせ先', p: '問い合わせ先は確定後に記載します。' },
+      ] },
+      terms: { t: '利用規約', s: [
+        { h: '1. 適用', p: 'この規約は、オンライン作業部屋のマイページの利用に適用されます。（下書き）' },
+        { h: '2. アカウント連携', p: 'マイページの利用には、Googleアカウントを通じたYouTubeチャンネルの連携が必要です。（下書き）' },
+        { h: '3. 禁止事項', p: '他者のチャンネルへのなりすましや、サービスの運営を妨げる行為を禁止します。（下書き）' },
+        { h: '4. 表示内容について', p: '表示される作業時間は配信上の記録にもとづくもので、反映に時間がかかる場合があります。（下書き）' },
+        { h: '5. 変更', p: '規約を変更する場合は、このページでお知らせします。（下書き）' },
+      ] },
+    };
+    const doc = docs[s.view] || docs.privacy;
+
+    const reauth = st === 'reauth';
+    const footerLinks = [
+      { label: 'Privacy Policy', on: () => this.go('privacy') },
+      { label: '利用規約', on: () => this.go('terms') },
+      { label: 'Cookie設定', on: () => this.go('cookies') },
+      { label: 'お問い合わせ', on: () => this.go('contact') },
+    ];
+
+    const demoDefs = [
+      ['working', '作業中'], ['break', '休憩中'], ['out', '未入室'], ['zero', '正常な0時間'], ['unregistered', '作業記録なし（未登録）'],
+      ['longName', '長い作業名'], ['overdue', '終了予定を過ぎた作業中'], ['loading', '初回読み込み'], ['initError', '初回取得失敗'], ['refreshError', '更新失敗'], ['reauth', '権限不足／連携切れ'],
+      ['v:login', 'ログイン画面'], ['v:confirm', 'チャンネル確認'], ['v:conflict', 'チャンネル紐付け競合'], ['p:panel', 'アカウントパネル'],
+      ['v:manage', 'アカウント管理'], ['v:delete', '削除依頼ビュー'],
+    ];
+    const curKey = s.view === 'main' ? st : 'v:' + s.view;
+    const demoItems = demoDefs.map(([k, label]) => ({
+      label, bg: k === curKey ? 'oklch(40% 0.03 250)' : 'transparent',
+      on: () => {
+        if (k === 'p:panel') { this.setState({ view: 'main' }); this.openPanelFrom(null); return; }
+        if (k.startsWith('v:')) { this.go(k.slice(2), { demoOpen: false }); return; }
+        clearTimeout(this._t); this.go('main', { st: k, demoOpen: false, sel: 6 });
+      },
+    }));
+    const demoLabel = (demoDefs.find(d => d[0] === curKey) || [0, s.view])[1];
+
+    const isMain = s.view === 'main';
+    const authViews = ['login', 'oauth', 'confirm', 'conflict'];
+    const docViews = ['privacy', 'terms', 'cookies', 'contact', 'manage', 'delete'];
+    const showBanner = s.region === 'eu' && s.cookie === null && s.view !== 'cookies';
+    const pRight = Math.max(12, Math.round((s.w - 1120) / 2) + 16) + 'px';
+
+    return {
+      rootRef: this.rootRef, closeRef: this.closeRef, dialogRef: this.dialogRef, panelWrapRef: this.panelWrapRef, avatarRef: this.avatarRef, mainRef: this.mainRef,
+      mainLabel: ({ manage: 'アカウント管理', delete: '保存データの削除依頼', main: 'マイページ', login: 'ログイン', oauth: 'Google認可（サンプル）', confirm: 'チャンネル確認', conflict: 'チャンネル紐付け競合', privacy: 'Privacy Policy', terms: '利用規約', cookies: 'Cookie設定', contact: 'お問い合わせ' })[s.view] || 'マイページ',
+      padX: narrow ? '16px' : '28px',
+      showBack: docViews.includes(s.view), goBack: () => { const h = s.hist.slice(); const prev = h.pop() || 'main'; this.go(prev, { hist: h }); },
+      showAvatar: isMain, openPanel: (e) => this.openPanelFrom(e.currentTarget),
+      isReauth: reauth,
+
+      isMain, isRefreshError: st === 'refreshError', retry: this.retry,
+      retryRefresh: this.retryRefresh, refreshing: !!s.refreshing, refreshLabel: s.refreshing ? '更新中…' : '再試行',
+      authTop: narrow ? '8px' : '32px',
+      loginReason: s.consent ? 'Googleのページで、チャンネル情報の読み取りを許可します。' : '上の同意にチェックすると、ログインできるようになります。',
+      gridCols: showGrid2 ? (wide ? 'minmax(0,1.7fr) minmax(280px,1fr)' : 'minmax(0,1fr)') : 'minmax(0,1fr)',
+      gridAreas: showGrid2 ? (wide ? '"current summary" "week summary"' : '"current" "summary" "week"') : '"current"',
+      heroPad: narrow ? '16px 18px 10px' : '28px 30px',
+      heroRowGap: narrow ? '12px' : '18px', taskGap: narrow ? '14px' : '22px', metaGap: narrow ? '8px' : '10px',
+      metaPad: narrow ? '9px 14px' : '12px 16px', liveGap: narrow ? '4px' : '16px', gridGap: narrow ? '14px' : '18px',
+      roomLabel, seatInline: !narrow, seatDir: narrow ? 'column' : 'row', seatAlign: narrow ? 'flex-end' : 'baseline', seatGap: narrow ? '0' : '6px',
+      toggleRoom: () => this.setState({ roomType: this.state.roomType === 'member' ? 'normal' : 'member' }),
+      taskSize: narrow ? '22px' : wide ? '30px' : '26px',
+      heroIsActive, heroIsOut: st === 'out' || zero, heroIsUnreg: st === 'unregistered', heroIsError: st === 'initError', heroIsReauth: reauth, isLoading,
+      heroBg: isBreak ? 'oklch(94.5% 0.026 130)' : 'oklch(94.5% 0.028 65)',
+      heroLine: isBreak ? 'oklch(87.5% 0.035 130)' : 'oklch(88% 0.035 65)',
+      heroInk: isBreak ? 'oklch(38% 0.06 135)' : 'oklch(38% 0.08 55)',
+      heroDot: isBreak ? 'oklch(54% 0.075 135)' : 'oklch(55% 0.11 55)',
+      heroLive: isBreak ? 'oklch(38% 0.06 140)' : 'oklch(38% 0.07 190)',
+      heroDotRadius: isBreak ? '2px' : '50%',
+      heroStatus: isBreak ? '休憩中' : '作業中',
+      heroTaskLabel: 'いまの作業',
+      tStartLabel: isBreak ? '休憩開始' : '開始時刻', tEndLabel: isBreak ? '休憩終了予定' : '終了予定',
+      showTimeline, tOverdue, nowLabel: '19:47',
+      tLeft: 'calc(6px + (100% - 12px) * ' + tPct.toFixed(4) + ')',
+      tShift: tPct < 0.14 ? '-6px' : tPct > 0.86 ? 'calc(-100% + 6px)' : '-50%',
+      heroTrack: isBreak ? 'oklch(82% 0.04 130)' : 'oklch(83% 0.045 65)',
+      heroShadow: isBreak ? '0 1px 2px oklch(45% 0.04 135 / 0.06), 0 14px 30px -18px oklch(48% 0.06 135 / 0.32)' : '0 1px 2px oklch(45% 0.05 60 / 0.06), 0 14px 30px -18px oklch(50% 0.08 60 / 0.32)',
+      cur,
+      openLive: () => this.showToast('デザイン確認用のため、YouTubeライブは開きません'),
+
+      showSummary: hasData, summarySkeleton: isLoading,
+      todayParts: this.fmt(todayM).parts, weekParts: this.fmt(weekM).parts, totalParts: this.fmt(totalM).parts,
+      todayIsZero: todayM === 0,
+      updatedAt: st === 'refreshError' ? '19:20' : '19:40',
+      bars, selLabel: sr[0] + '（' + sr[1] + (sel === 6 ? '・今日' : '') + '）', selValue: this.fmt(sr[2]).text,
+
+      isLogin: s.view === 'login', consent: s.consent,
+      toggleConsent: () => this.setState({ consent: !this.state.consent }),
+      goPrivacy: (e) => { e.preventDefault(); this.go('privacy'); }, goTerms: (e) => { e.preventDefault(); this.go('terms'); },
+      loginDisabled: !s.consent, loginBg: s.consent ? 'oklch(46% 0.08 55)' : 'oklch(90% 0.01 70)', loginInk: s.consent ? 'oklch(99% 0.005 80)' : 'oklch(45% 0.015 55)', loginCursor: s.consent ? 'pointer' : 'not-allowed',
+      startOauth: () => this.go('oauth'), goLogin: () => this.go('login'),
+      isOauth: s.view === 'oauth', oauthOk: () => this.go('confirm'),
+      isConfirm: s.view === 'confirm', confirmLink: () => { this.go('main', { st: 'loading' }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ st: 'working' }), 1000); },
+      isConflict: s.view === 'conflict', goContact: () => this.go('contact'),
+
+      isDoc: s.view === 'privacy' || s.view === 'terms', docTitle: doc.t, docSections: doc.s,
+
+      isCookies: s.view === 'cookies', analytics: s.analytics,
+      toggleAnalytics: () => this.setState({ analytics: !this.state.analytics }),
+      swBg: s.analytics ? 'oklch(46% 0.08 190)' : 'oklch(80% 0.012 70)', swJustify: s.analytics ? 'flex-end' : 'flex-start',
+      saveCookies: () => { this.setState({ cookie: s.analytics ? 'accepted' : 'rejected' }); this.showToast('Cookie設定を保存しました'); },
+      cookieStatus: s.cookie === null ? '未選択（分析用Cookieは無効）' : s.cookie === 'accepted' ? 'Analyticsを許可' : 'Analyticsを拒否',
+
+      isContact: s.view === 'contact', isManage: s.view === 'manage', isDeleteView: s.view === 'delete',
+      gOpen: s.gOpen, dOpen: s.dOpen, gMark: s.gOpen ? '－' : '＋', dMark: s.dOpen ? '－' : '＋',
+      toggleG: () => this.setState({ gOpen: !this.state.gOpen }), toggleD: () => this.setState({ dOpen: !this.state.dOpen }),
+      goManage: () => this.go('manage'),
+      contactSent: s.contactSent, contactNotSent: !s.contactSent, sendContact: () => this.setState({ contactSent: true }),
+
+      footerLinks,
+
+      panelOpen: s.panel && isMain, closePanel: this.closePanelRestore, isSheet: sheet,
+      pTop: sheet ? 'auto' : '72px', pBottom: sheet ? '0' : 'auto', pLeft: sheet ? '0' : 'auto', pRight: sheet ? '0' : pRight,
+      pWidth: sheet ? 'auto' : '360px', pMaxH: sheet ? '88vh' : 'calc(100vh - 96px)', pRadius: sheet ? '24px 24px 0 0' : '22px', pPad: sheet ? '12px 20px 28px' : '20px',
+      linkBg: reauth ? 'oklch(95% 0.028 45)' : 'oklch(94.5% 0.022 190)', linkInk: reauth ? 'oklch(42% 0.11 38)' : 'oklch(36% 0.07 190)',
+      linkText: reauth ? '再連携が必要です' : 'YouTubeと連携中',
+      reBg: reauth ? 'oklch(46% 0.08 55)' : 'oklch(99.2% 0.004 80)', reInk: reauth ? 'oklch(99% 0.005 80)' : 'oklch(25% 0.02 55)',
+      reconnect: () => this.go('oauth'),
+      logout: () => this.go('login', { consent: false, st: 'working' }),
+      goDelete: () => this.go('delete'),
+
+      showBanner, bannerBottom: s.showDemo ? '60px' : '12px',
+      rejectCookies: () => { this.setState({ cookie: 'rejected', analytics: false }); this.after(() => { if (!this.mainRef.current) return false; this.mainRef.current.focus(); }); },
+      acceptCookies: () => { this.setState({ cookie: 'accepted', analytics: true }); this.after(() => { if (!this.mainRef.current) return false; this.mainRef.current.focus(); }); },
+      goCookies: () => this.go('cookies'),
+
+      hasToast: !!s.toast, toast: s.toast,
+
+      showDemo: s.showDemo, demoOpen: s.demoOpen, toggleDemo: () => this.setState({ demoOpen: !this.state.demoOpen }),
+      demoItems, demoLabel,
+      regionLabel: s.region === 'eu' ? '同意が必要／地域不明' : '日本',
+      toggleRegion: () => this.setState({ region: this.state.region === 'eu' ? 'jp' : 'eu', cookie: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>
