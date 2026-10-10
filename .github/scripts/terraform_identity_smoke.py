@@ -256,21 +256,23 @@ def capture_exact_state_and_lock(env: dict[str, str], path: Path) -> tuple[dict,
     return first, hashlib.sha256(raw).hexdigest()
 
 
+def verify_aws_identity(env: dict[str, str], *, require_role_id: bool = False) -> None:
+    identity = aws("sts", "get-caller-identity")
+    if identity.returncode:
+        raise SmokeFailure("aws-dedicated-state-account")
+    caller = json.loads(identity.stdout)
+    if caller.get("Account") != env["STATE_ACCOUNT_ID"]:
+        raise SmokeFailure("aws-dedicated-state-account")
+    if require_role_id:
+        role_id = env.get("BACKEND_ROLE_ID", "")
+        if not role_id or caller.get("UserId", "").split(":", 1)[0] != role_id:
+            raise SmokeFailure("aws-plan-role-id")
+
+
 def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_only: bool = False) -> list[str]:
     if plan_read_only and apply_read_only:
         raise SmokeFailure("aws-identity-mode")
-    def check_sts():
-        identity = aws("sts", "get-caller-identity")
-        if identity.returncode:
-            raise SmokeFailure("aws-dedicated-state-account")
-        caller = json.loads(identity.stdout)
-        if caller.get("Account") != env["STATE_ACCOUNT_ID"]:
-            raise SmokeFailure("aws-dedicated-state-account")
-        if not (plan_read_only or apply_read_only):
-            role_id = env.get("BACKEND_ROLE_ID", "")
-            if not role_id or caller.get("UserId", "").split(":", 1)[0] != role_id:
-                raise SmokeFailure("aws-plan-role-id")
-    at_stage("aws-sts", check_sts)
+    at_stage("aws-sts", lambda: verify_aws_identity(env, require_role_id=not (plan_read_only or apply_read_only)))
     bucket, key = env["STATE_BUCKET"], env["STATE_KEY"]
     if key != "youtube-study-space/dev/terraform.tfstate":
         raise StageFailure("aws-state-read", "check-failed")
@@ -366,6 +368,9 @@ def main(argv: list[str] | None = None) -> int:
             plan_read_only = args == ["plan-read-only"]
             apply_read_only = args == ["apply-read-only"]
             positive_only = plan_read_only or apply_read_only
+            if args == ["security-probe"]:
+                # Verify the live role before any negative STS or Google request.
+                at_stage("aws-sts", lambda: verify_aws_identity(env, require_role_id=True))
             checks = at_stage("oidc", lambda: verify_oidc(env, plan_read_only=positive_only))
             checks += at_stage("gcp-project", lambda: verify_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], plan_read_only=positive_only))
             if env.get("QUOTA_IDENTITY_REQUIRED") == "true":
