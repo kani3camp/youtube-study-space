@@ -30,6 +30,10 @@ source準備や過去のno-op記録を、fresh実環境検証・実行承認・I
 
 Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / productionともPASSし、#1173はcompletedでclose済みです。developmentのPub/Sub topic / Cloud Scheduler / Gen1 Functionもそれぞれprotected import-only waveでownership移行済みで、post-planはno-op11 / drift0です。generated subscription / build artifact / source deploymentはownership外を維持します。
 
+runtime WIF/APIの後続source-only配線と累積graph validatorは
+[`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
+history import/post-noop12は未完了で、新runtime live gateはfalse。runtime applyには追加のexecution receipt実装と独立reviewが必要です。
+
 ## Directory
 
 ```text

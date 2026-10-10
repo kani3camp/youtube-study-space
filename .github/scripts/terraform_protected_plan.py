@@ -23,6 +23,8 @@ from terraform_export_function_gate import validate as validate_export_function
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
 from prepare_user_activity_history_adoption import prepare, private_json, unique_object
 from validate_user_activity_history_plan import validate as validate_history
+from runtime_ownership_packet import validate_packet
+from validate_runtime_ownership_plan import validate as validate_runtime
 
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
@@ -68,6 +70,17 @@ def main():
     try:
         plan = json.load(sys.stdin, object_pairs_hook=unique_object)
         history = os.environ.get("TF_VAR_manage_user_activity_history", "false")
+        wave = os.environ.get("OWNERSHIP_WAVE", "none")
+        if wave not in {"none", "pool", "provider", "grant", "api", "noop"}:
+            raise ValueError("Unsupported ownership wave")
+        if wave != "none" and (history != "true" or args.environment != "dev" or args.operation != "plan"):
+            raise ValueError("Cumulative ownership source supports development history plan only")
+        if any(os.environ.get(key, default) != default for key, default in {
+            "TF_VAR_own_runtime_wif_pool": "false", "TF_VAR_own_runtime_wif_provider": "false",
+            "TF_VAR_runtime_wif_grant_keys": "[]", "TF_VAR_owned_api_keys": "[]",
+            "TF_VAR_runtime_wif_inventory": "null", "TF_VAR_api_classification": "{}",
+        }.items()):
+            raise ValueError("Runtime ownership requires the reviewed private var-file")
         if history not in {"false", "true"}:
             raise ValueError("History ownership flag required")
         if history == "true":
@@ -84,9 +97,18 @@ def main():
                                if key != "manage_user_activity_history"}
             if type(inputs) is not dict or inputs != expected_inputs:
                 raise ValueError("Fresh history field order and descriptions required")
-            validate_history(plan, metadata=metadata, phase=args.phase,
-                             execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
-            summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
+            if wave == "none":
+                validate_history(plan, metadata=metadata, phase=args.phase,
+                                 execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
+                summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
+            else:
+                packet = private_json(str(directory / "runtime-ownership-packet.json"))
+                candidate = validate_packet(packet, wave=wave, git_sha=args.git_sha)
+                if private_json(str(directory / "runtime-ownership.tfvars.json")) != candidate:
+                    raise ValueError("Reviewed cumulative ownership inputs required")
+                summary = validate_runtime(plan, packet=packet, wave=wave, git_sha=args.git_sha,
+                                           metadata=metadata, phase=args.phase,
+                                           execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
         elif args.operation == "email-adoption":
             summary = adoption_summary(plan, environment=args.environment, git_sha=args.git_sha, phase=args.phase,
                                        email=os.environ.get("TF_VAR_primary_email_address"),
