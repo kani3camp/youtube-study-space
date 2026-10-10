@@ -299,12 +299,15 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         result = self.run_preflight(**gates)
         self.assertEqual(result.returncode, 0)
         self.assertIn("manage_user_activity_history=true", result.outputs)
-        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan", "security-probe"):
+        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan"):
             with self.subTest(mode=mode):
                 rejected = self.run_preflight(MODE=mode, **gates)
                 self.assertNotEqual(rejected.returncode, 0)
-                if mode not in ("quota-plan", "security-probe"):
+                if mode != "quota-plan":
                     self.assertIn("Development apply is disabled", rejected.stdout)
+        probe = self.run_preflight(MODE="security-probe", **gates)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertIn("Development security probe is disabled", probe.stdout)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
             "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
@@ -425,7 +428,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_checkout_does_not_persist_github_token(self) -> None:
         self.assertEqual(self.text.count("persist-credentials: false"), 3)
 
-    def test_disabled_security_probe_uses_plan_oidc_without_terraform_or_state_write_route(self) -> None:
+    def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
         self.assertIn("          - security-probe\n", self.caller)
         self.assertNotEqual(self.run_preflight(MODE="security-probe").returncode, 0)
@@ -441,7 +444,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",
                          "persist-credentials: false", "git rev-parse HEAD", "${GITHUB_SHA}",
-                         "AWS_TERRAFORM_BACKEND_ROLE_ARN", "GCP_TERRAFORM_WIF_PROVIDER",
+                         "AWS_TERRAFORM_BACKEND_ROLE_ARN", "AWS_TERRAFORM_BACKEND_ROLE_ID", "GCP_TERRAFORM_WIF_PROVIDER",
                          "terraform_identity_smoke.py security-probe"):
             self.assertIn(required, probe)
         for forbidden in ("setup-terraform", "terraform -chdir", "terraform init", "terraform plan",

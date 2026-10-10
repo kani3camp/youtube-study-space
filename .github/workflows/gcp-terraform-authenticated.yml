@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: Import-only plan/apply, disabled security probe, or separately approved Email adoption
+        description: Import-only plan/apply, separately gated security probe, or separately approved Email adoption
         required: true
         type: string
       plan_cost_evidence:
@@ -954,7 +954,7 @@ jobs:
             "${RUNNER_TEMP}/post-sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
   security-probe:
-    name: Disabled-by-default development identity probe
+    name: Development identity probe
     needs: preflight
     if: ${{ inputs.mode == 'security-probe' && inputs.target == 'dev' }}
     runs-on: ubuntu-latest
@@ -1030,4 +1030,5 @@ jobs:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.probe_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
           BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
         run: python3 .github/scripts/terraform_identity_smoke.py security-probe
