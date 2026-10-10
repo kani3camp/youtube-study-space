@@ -1,0 +1,33 @@
+# Staged-disabled source. Enabling either analysis gate requires separate approval.
+name: CodeQL Advanced
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - feature/gcp-terraform-iac
+      - integration/mypage-canon-20261006
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+# No workflow-wide grant. Planned analysis permissions live only on the skipped job.
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL
+    # Applies to dispatch, push, PR, and schedule. No inputs can enable this job.
+    if: ${{ false }}
+    uses: ./.github/workflows/codeql-analyzer.yml
+    permissions:
+      contents: read
+      security-events: write
+      id-token: none

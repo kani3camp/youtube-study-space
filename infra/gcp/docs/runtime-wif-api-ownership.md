@@ -7,7 +7,7 @@ Issue [#1191](https://github.com/kani3camp/youtube-study-space/issues/1191) の�
 source preparation は development の existing runtime WIF と API ownership のみ。
 2026-10-07 の fresh operator inventory 成功は親から受領済み。本文は operator の private 領域に保持し、
 この worker は raw inventory を取得していない。live import-only plan / CI principal の read smoke / import は未実測。
-production root に定義を追加せず、共通 authenticated workflow / activation / validators は変更しない。
+production root に定義を追加しない。2026-10-10 の後続 source package は共通 authenticated workflow の無効な plan 選択と累積 validator を追加する。
 今夜の daily batch 成功は計画上の仮定であり、自然実行の証跡ではない。
 
 ## 受領済み inventory と未確認事項
@@ -215,7 +215,7 @@ API選別・destruction flags、global import-only guard が mock create を拒�
    raw plan / private tfvars は一時 private 領域だけ、credential/token/state は public 出力しない。
    unknown、sensitivity-only update、表現 drift も通常 guard を緩めず STOP。
 3. 親が共通 CI の read smoke・private input handoff・必要な cumulative resource validator と activation をレビュー。
-   この PR だけで既存 authenticated CI へ候補は供給されない。
+   無効な source 配線と累積 validator は下記の後続 package で用意した。実行 activation と receipts は未完了。
 4. reviewed integration SHA の既存 protected full-root route を使う。pool1 → provider1 → exact member1ずつ → Own API1ずつ。
    前 wave の flags / selected aliases を保持。`-target` や別 trust/entrypoint は使わない。
    runtime/API の live adoption は sibling history wave の post full-root no-op12 実測を待つ。
@@ -238,8 +238,77 @@ exact state-only ownership release を別承認で準備する。remote WIF/IAM/
 
 operator inventory と default-off private preparation は親 receipt で完了。残 gate は API候補の private join / ownership判断、
 AWS caller の現行 receipt 照合、CI principal の実 read smoke / 必要な exact read承認、
-親による共通 CI activation / cumulative validator、protected import と post no-op。
+親による共通 CI activation / execution receipts、protected import と post no-op。
 取得済み receipt を使う分類/caller照合と CI read smoke は概算30〜60分＋承認待ち、
 isolated read-only plan / 親の共通 CI handoff は概算1〜2時間（read 成立と history post no-op が前提）。
 protected adoption は各 wave 概算15〜30分＋人の approval/CI待ち。grant/API件数と read不足で変わる。
 history source/validator/activation、D01削除、実 cloud IAM/auth/API/import/apply/prod変更は本 source PR の範囲外。
+
+
+## 2026-10-10 後続 source package: protected 選択と累積 graph
+
+開始 base は `feature/gcp-terraform-iac` の `77e3c24c6fb9d82f48a59c9c587a5c323b622ffb`。
+open PR の確認時点では既存 module/helper が integration PR #1251 に含まれており、runtime配線の重複PRはない。
+history は plan-verified のみで **import/apply・post full-root no-op12 は未完了**。
+この package の dummy PASS はその prerequisite を完了にしない。
+
+`ci.yml` の `terraform_ownership_wave` は `none` がdefault。
+`pool` / `provider` / `grant` / `api` / `noop` はpublicのwave種別だけで、実member・project number・trustを受け取らない。
+既存trusted repository/immutable IDs/integration ref/dispatch、plan Environment/OIDC、raw output抑制を保持する。
+追加gate `DEV_HISTORY_POST_NOOP12_READY=false` / `DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false` は認証前STOP。
+Terraform module/rootのruntime flagsと選択はfalse/emptyのまま。既存history/baselineのgateと検証契約は変更しない。
+runtime selectionはdevelopment `plan` のみで、`apply`・security probe・exceptional wave・productionはgateを変えても拒否する。
+
+private handoffは明示secret `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` のみ。
+このsource変更はsecret/Environment/権限を作成・設定しない。packetをstep envから読むoffline helperは、
+認証前にRUNNER_TEMPの固定名 `runtime-ownership-packet.json` / `runtime-ownership.tfvars.json` を0600/exclusiveで作り、
+checkout内配置・重複JSON・symlink・既存fileの上書きを拒否する。private valuesはGITHUB_ENV/OUTPUTへ出さない。
+private tfvarsだけを通常full-root planの`-var-file`へ渡し、sanitizerが同じpacketから再導出して完全一致を要求する。
+常時cleanupで両fileを消す。plan artifact/uploadや`-target`を追加しない。
+
+packetの正確なschema（実値はprivateに保持する）:
+
+| Key | 必須値/役割 |
+| --- | --- |
+| `schema_version` | integer `1` |
+| `git_sha`, `wave` | reviewed integration SHA40、dispatchと同じwave種別 |
+| `reviewed_utc`, `expires_utc` | UTC `YYYY-MM-DDTHH:MM:SSZ`、review後24h以内かつ未失効 |
+| `history_post_noop_run_id` | 正のinteger、実history import/post-noop12の独立review参照 |
+| `inventory` | 上記helperのfresh REST inventory envelope、完全page・既存trust/member・分類を保持 |
+| `adopted` | 前waveの実stateとpost-noopをreviewした累積selection |
+| `selected` | 前selectionを保持し、今回の承認済み対象を1件だけ追加したselection |
+
+両selectionのkeyは `pool` / `provider` (bool)、`grants` / `apis` (重複なしstring list) の4件のみ。
+pool→provider→review済みgrantを1件ずつ→review済みOwn APIを1件ずつ。
+API waveはinventoryでreview済みのrequired grant selectionをすべて先行採用した場合のみ許可し、候補を自動選択しない。
+APIのdependency_addressesは今回のexact managed graphの既存addressへ解決済みであることを要求する。
+`noop` は同じ累積selectionを保持する。10 source候補とenabled inventory73は承認selectionではなく、件数/実scopeをcodeで補完しない。
+review日時・run ID・adopted宣言のshape検査は実provenance/authorizationの証明ではない。独立reviewと実receiptが別途必要。
+
+`validate_runtime_ownership_plan.py` は既存history validatorへbaseline12を渡して **post/import0** を要求する。
+そのvalidatorが既存11のexact identity/action/exclusionとhistory schema/order/descriptionを引き続き検証する。
+全graphはduplicate/moved/deposed/data/extra resource、非no-op、wrong import ID、unknown、drift、deferred/provider action、
+未完了plan/check、provider/schema version不一致、planned-values投影の不一致を拒否する。
+runtime pool/providerのstate/name/project/trust/empty attestationとunsupported federation、個別SA role/member/condition、
+APIの既存identityとdisable flagsをexact比較する。sensitivity-only updateも許可しない。
+preは新規対象import1＋全resource no-op、postはimport0＋全resource no-op。`noop`はpre/postともimport0。
+API enable/disable/recreate、whole-project IAM/SA policy/binding、service agent/key ownershipは許可しない。
+Google 8.5.0の実provider schemaをcredentiallessに確認し、既存bucket schema4・その他対象schema0を固定する。
+version更新時はこのvalidatorも独立reviewする。省略remote pool modeは既存helperのnull/emptyを保持し、既知federation-only表現のみ比較する。
+
+### Activation要件（すべて未実行）
+
+1. history actual importとpost full-root no-op12、released native lock、state/metadata不変のprivate receiptを独立review。
+2. AWS caller/required grantとAPI Own scopeのprivate join、同SHAの完全inventory/selectionを独立review。
+3. 既存plan/apply CI principalのexact-read成立と既存least privilegeを確認。新permission/auth/settingsは本packageで変更しない。
+4. runtime graphに対応するfresh state/metadata/lockとfactual execution accounting receiptsを実装・独立review。
+   現history receiptはpre-import11専用のためruntime waveでは流用しない。runtime plan gateはこの対応が完了するまでfalseを維持する。
+   新しいcost-only blocking machineryは追加しない。既存historyのaccounting/authorization契約はこのpackageでは維持する。
+5. runtime applyにはsame-SHA/private-input binding、independent plan/apply Environment approval、saved plan seal、
+   exact state-only delta、全unrelated SA bindings/API enabled inventory/trust不変、post-noop、lock release/leak auditのreceipt sourceを別途用意。
+   このpackageのpreflightはruntime applyを明示拒否する。plan gateだけを変更してapply可能とは扱わない。
+6. 最終dev full-root noopとintegration reviewの実証跡をそろえてから、dev-target #1251のmergeはユーザーが判断する。
+
+検証はpublic dummyのみで、`test_runtime_ownership_package.py` が順序・累積件数・schema/action/identity/unknown/driftの拒否、
+73/10でも明示API1件しか選ばれないこと、private staging/consumer/公開summary、閉じたworkflowと既存defaultの互換性を確認する。
+`test_runtime_ownership.py` のisolated mock Terraform検証も維持する。ここで実plan/import/probeは行わない。

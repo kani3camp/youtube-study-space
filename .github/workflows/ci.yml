@@ -50,6 +50,18 @@ on:
         required: false
         default: ""
         type: string
+      terraform_ownership_wave:
+        description: Disabled source-only cumulative runtime ownership plan selection
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - pool
+          - provider
+          - grant
+          - api
+          - noop
 
 permissions:
   contents: read
@@ -617,6 +629,7 @@ jobs:
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
+          python3 infra/gcp/tests/test_runtime_ownership_package.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
@@ -683,12 +696,14 @@ jobs:
       GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
       GCP_MONITORING_PRIMARY_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
       GCP_MONITORING_PRIMARY_EMAIL_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+      GCP_RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
       plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}
       history_import_approval: ${{ inputs.terraform_history_import_approval }}
       history_post_noop: ${{ inputs.terraform_history_post_noop }}
+      ownership_wave: ${{ inputs.terraform_ownership_wave }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit

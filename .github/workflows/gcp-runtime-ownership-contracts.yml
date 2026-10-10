@@ -5,6 +5,9 @@ on:
     paths:
       - 'infra/gcp/**'
       - '.github/scripts/terraform_plan_summary.py'
+      - '.github/scripts/terraform_protected_plan.py'
+      - '.github/workflows/gcp-terraform-authenticated.yml'
+      - '.github/workflows/ci.yml'
       - '.github/workflows/gcp-runtime-ownership-contracts.yml'
 
 permissions:
@@ -21,4 +24,6 @@ jobs:
           terraform_version: '1.16.4'
           terraform_wrapper: false
       - name: Verify dummy inventory and mock ownership plans
-        run: python3 infra/gcp/tests/test_runtime_ownership.py
+        run: |
+          python3 infra/gcp/tests/test_runtime_ownership.py
+          python3 infra/gcp/tests/test_runtime_ownership_package.py
