@@ -72,12 +72,14 @@ def verify_chain(packet, catalog, *, request, now=None):
 def record(packet, env, catalog, chain):
     receipt.context(env)
     return dict(schema_version=1, consumer_sha=env['GITHUB_SHA'], consumer_run_id=int(env['GITHUB_RUN_ID']),
-                consumer_attempt=1, packet_sha256=receipt.digest(packet), catalog_sha256=receipt.digest(catalog), **chain)
+                consumer_attempt=1, consumer_job=env['GITHUB_JOB'], consumer_operation=env['MODE'], packet_sha256=receipt.digest(packet), catalog_sha256=receipt.digest(catalog), **chain)
 
 
 def load_inputs(env):
     receipt.context(env)
-    receipt.need(env.get('GITHUB_JOB') == 'plan' and env.get('MODE') == 'plan' and env.get('OWNERSHIP_WAVE') in {'pool', 'provider', 'grant', 'api', 'noop'})
+    receipt.need(env.get('GITHUB_JOB') in {'plan', 'apply'} and env.get('MODE') in {'plan', 'apply'}
+                 and (env.get('GITHUB_JOB') != 'apply' or env.get('MODE') == 'apply')
+                 and env.get('HISTORY_POST_NOOP', 'false') == 'false' and env.get('OWNERSHIP_WAVE') in {'pool', 'provider', 'grant', 'api', 'noop'})
     root = Path(env['RUNNER_TEMP'])
     receipt.need(root.is_absolute() and root.is_dir() and not root.is_symlink() and not root.resolve().is_relative_to(ROOT))
     packet = private_json(str(root / 'runtime-ownership-packet.json'))
@@ -103,11 +105,11 @@ def verify_workflow(env, *, request=None, recheck=False, now=None):
     return verified
 
 
-def require_verified_inputs(env, packet, metadata):
+def require_verified_inputs(env, packet, metadata, *, now=None):
     """Consumer binding within this trusted job; never accepts packet-supplied proof."""
     root, staged, catalog = load_inputs(env)
     receipt.need(staged == packet)
-    validate_packet(packet, wave=packet['wave'], git_sha=env['GITHUB_SHA'])
+    validate_packet(packet, wave=packet['wave'], git_sha=env['GITHUB_SHA'], now=now)
     receipt.check_current_binding(packet['receipt_binding'], env, metadata)
     candidate = prepare(packet['inventory'])
     refs = [packet['history_receipt']] + [i['reference'] for i in packet['adoption_receipts']]

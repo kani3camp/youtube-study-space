@@ -628,6 +628,7 @@ jobs:
           python3 .github/scripts/test_terraform_history_post_noop_receipt.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_ownership_receipt.py
+          python3 .github/scripts/test_terraform_runtime_execution.py
           python3 infra/gcp/tests/test_runtime_ownership_provenance.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py

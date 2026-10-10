@@ -41,6 +41,12 @@ def dummy_catalog():
         *gate.HISTORY_STEPS[:6],
         'Apply the locally re-created saved plan', gate.HISTORY_STEPS[6], 'Require post-apply no-op',
         gate.HISTORY_STEPS[7], 'Emit verified ownership receipt', 'Cleanup sensitive temporary files']
+    for role in ('plan', 'apply'):
+        workflow = (Path(__file__).resolve().parents[1] / 'workflows/gcp-terraform-authenticated.yml').read_text()
+        section = workflow.split('  ' + role + ':\n', 1)[1].split('  ' + ('apply' if role == 'plan' else 'security-probe') + ':\n', 1)[0]
+        import re
+        selected = set(steps[role]) | set(gate.RUNTIME_STEPS[role])
+        steps[role] = [name for name in re.findall(r'^      - name: (.+)$', section, re.M) if name in selected]
     return dict(schema_version=1, issuers={SHA: dict(workflow_id=19,
         job_names=dict(plan='dummy protected plan', apply='dummy protected apply'),
         environments=dict(plan=dict(id=31, name='terraform-dev-plan'), apply=dict(id=32, name='terraform-dev-apply')),

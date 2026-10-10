@@ -3,7 +3,7 @@
 
 Version 1 remains an offline contract. Protected staging requires version 2;
 GitHub provenance is verified separately before cloud credentials. Gates remain
-closed and runtime apply is excluded.
+closed; apply uses the same private packet and separate protected approval.
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
 
 
 def prepare_workflow(env):
-    require(env.get("MODE") == "plan" and env.get("TF_VAR_project_id") == "test-youtube-study-space")
+    require(env.get("MODE") in {"plan", "apply"} and env.get("TF_VAR_project_id") == "test-youtube-study-space")
     require(env.get("TF_VAR_manage_user_activity_history") == "true")
     raw = env.get("RUNTIME_OWNERSHIP_PACKET_JSON", "")
     require(type(raw) is str and 0 < len(raw.encode()) <= 4 * 1024 * 1024)

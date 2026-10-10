@@ -216,39 +216,22 @@ class RuntimeProvenanceTest(unittest.TestCase):
 
 
     def test_authenticated_v2_chain_reaches_full_root_consumer_without_mocking_provenance(self):
-        import io
-        import terraform_protected_plan as protected
-        from test_runtime_ownership_package import fixture as graph_fixture, EMAIL
-        value, request, _, _ = fixture(4)
-        plan, metadata, _ = graph_fixture(4)
+        from test_terraform_runtime_execution import WaveFixture
+        import terraform_runtime_execution as runtime
+        value = WaveFixture(4)
         with tempfile.TemporaryDirectory() as root:
-            env = self.staged(root, value)
-            env.update(TF_VAR_manage_user_activity_history='true', TF_VAR_export_function_execution_service_account_email=EMAIL,
-                       **{'TF_VAR_manage_export_' + k: 'true' for k in ('function', 'scheduler', 'topic')})
-            inputs = protected.prepare(metadata)
-            inputs.pop('manage_user_activity_history')
-            for name, data in [('user-history-before.json', metadata), ('user-history-before.tfvars.json', inputs)]:
-                private.write_private(Path(root)/name, data)
-            catalog = Path(root)/'catalog.json'
-            catalog.write_text(json.dumps(dummy_catalog()))
-            args = ['protected', '--operation', 'plan', '--phase', 'before', '--environment', 'dev',
-                    '--git-sha', SHA, '--policy', 'import-only', '--json-output', str(Path(root)/'summary.json'),
-                    '--markdown-output', str(Path(root)/'summary.md')]
+            env, catalog = value.stage(root, job='plan')
             with patch.object(gate, 'CATALOG', catalog):
-                gate.verify_workflow(env, request=request)
-                gate.verify_workflow(env, request=request, recheck=True)
-                with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))):
-                    self.assertEqual(protected.main(), 0)
-                public = (Path(root)/'summary.json').read_text()+(Path(root)/'summary.md').read_text()
-                for sentinel in [value['receipt_binding']['nonce'], 'dummy private sentinel', '222222222222', 'DummyLambda']:
+                value.begin(env)
+                value.approve(env)
+                public = (Path(root)/'sanitized-replan.json.md').read_text()
+                for sentinel in [value.packet['receipt_binding']['nonce'], 'dummy private sentinel', '222222222222', 'pubsub.googleapis.com']:
                     self.assertNotIn(sentinel, public)
                 saved = private.private_json(str(Path(root)/gate.VERIFIED))
                 saved['packet_sha256'] = 'b'*64
                 (Path(root)/gate.VERIFIED).write_text(json.dumps(saved))
-                with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))), \
-                     patch('sys.stderr', io.StringIO()) as error:
-                    self.assertEqual(protected.main(), 3)
-                self.assertNotIn(value['receipt_binding']['nonce'], error.getvalue())
+                with self.assertRaises(ValueError):
+                    runtime.require_fresh_inputs(env, value.packet)
 
 
 if __name__ == '__main__':

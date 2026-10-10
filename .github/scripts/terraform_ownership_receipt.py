@@ -44,6 +44,22 @@ MINIMUM_STEPS = {
 HISTORY_STEPS = ["Check private history receipt binding before credentials", "Check fresh history receipt metadata binding", "Capture exact pre-import state and approved history plan", "Re-plan at the exact approved commit",
                  "Verify re-plan matches the sanitized approved projection", "Seal the one-shot history saved plan before apply",
                  "Verify post-import canonical metadata privately", "Verify one-shot history state and table receipt"]
+RUNTIME_STEPS = {
+    "plan": ["Stage reviewed private cumulative ownership inputs before credentials",
+             "Verify authentic prior ownership receipts before cloud credentials",
+             "Verify development identity boundaries without public identifiers", "Read canonical history metadata privately",
+             "Bind fresh runtime state to authenticated predecessor", "Initialize remote backend without public output",
+             "Recheck exact ownership receipts before protected validation",
+             "Verify runtime plan safety and unchanged fresh state"],
+    "apply": ["Stage reviewed private cumulative ownership inputs before credentials",
+              "Verify authentic prior ownership receipts before cloud credentials",
+              "Verify Function identity exact read permissions", "Re-read canonical history metadata privately",
+              "Bind fresh runtime state to authenticated predecessor", "Initialize remote backend without public output",
+              "Re-plan at the exact approved commit",
+              "Recheck exact ownership receipts before protected validation", "Verify re-plan matches the sanitized approved projection",
+              "Seal the runtime saved plan and fresh private inputs", "Verify post-import canonical metadata privately",
+              "Verify runtime state-only delta and full-root post no-op"],
+}
 REFERENCE_KEYS = {"run_id", "attempt", "job_id", "source_sha", "receipt_sha256"}
 
 
@@ -187,6 +203,8 @@ def load_catalog(value):
         if "history12" in item["waves"]:
             need(set(HISTORY_STEPS) <= set(item["required_steps"]["apply"])
                  and set(HISTORY_STEPS[:2]) <= set(item["required_steps"]["plan"]))
+        if set(item["waves"]) - {"history12"}:
+            need(all(set(RUNTIME_STEPS[role]) <= set(item["required_steps"][role]) for role in ("plan", "apply")))
     return value
 
 
@@ -241,6 +259,34 @@ def authenticate(ref, catalog, *, request):
     need(len(jobs) == total and all(type(j) is dict and positive(j.get("id")) and positive(j.get("run_id"))
              and j["run_id"] == ref["run_id"] and j.get("head_sha") == ref["source_sha"] for j in jobs)
          and len({j["id"] for j in jobs}) == len(jobs))
+    emitted_jobs = [j for j in jobs if j.get("name") == issuer["job_names"]["apply"]]
+    need(len(emitted_jobs) == 1)
+    job = emitted_jobs[0]
+    need(job.get("id") == ref["job_id"])
+    for role in ('plan', 'apply'):
+        selected_jobs = [j for j in jobs if j.get('name') == issuer['job_names'][role]]
+        need(len(selected_jobs) == 1)
+        positions = []
+        for name in MINIMUM_STEPS[role]:
+            matches = [step for step in selected_jobs[0].get('steps', []) if step.get('name') == name]
+            need(len(matches) == 1 and positive(matches[0].get('number'))
+                 and matches[0].get('status') == 'completed' and matches[0].get('conclusion') == 'success')
+            positions.append(matches[0]['number'])
+        need(positions == sorted(positions))
+    emitted_steps = [step for step in job.get("steps", []) if step.get("name") == issuer["receipt_step"]]
+    need(len(emitted_steps) == 1 and positive(emitted_steps[0].get("number"))
+         and emitted_steps[0].get("status") == "completed" and emitted_steps[0].get("conclusion") == "success")
+    step = emitted_steps[0]
+    # Job steps are numbered from 1; selective step-log endpoint uses index 0.
+    raw = request(f"/repos/{REPOSITORY}/actions/jobs/{job['id']}/steps/{step['number'] - 1}/logs", log=True)
+    need(type(raw) is bytes and 0 < len(raw) <= 1024 * 1024 and raw.endswith(b"\n"))
+    lines = [re.sub(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z ", "", line)
+             for line in raw.decode("utf-8").splitlines()]
+    markers = [line[len(MARKER):] for line in lines if line.startswith(MARKER)]
+    need(len(markers) == 1 and len(markers[0]) <= 16384)
+    value = validate_receipt(decode(markers[0]))
+    need(value["wave"] in issuer["waves"] and digest(value) == ref["receipt_sha256"] and value["run_id"] == ref["run_id"]
+         and value["source_sha"] == ref["source_sha"])
     protected = {}
     for role, name in issuer["job_names"].items():
         matches = [j for j in jobs if j.get("name") == name]
@@ -252,7 +298,9 @@ def authenticate(ref, catalog, *, request):
         need(type(steps) is list and all(type(s) is dict and positive(s.get("number")) for s in steps)
              and len({s["number"] for s in steps}) == len(steps))
         positions = []
-        for name in issuer["required_steps"][role]:
+        inactive = (set(RUNTIME_STEPS[role]) - set(HISTORY_STEPS)) if value["wave"] == "history12" else (
+            set(HISTORY_STEPS if role == "apply" else HISTORY_STEPS[:2]) - set(RUNTIME_STEPS[role]))
+        for name in [name for name in issuer["required_steps"][role] if name not in inactive]:
             matches = [s for s in steps if s.get("name") == name]
             need(len(matches) == 1 and matches[0].get("status") == "completed" and matches[0].get("conclusion") == "success")
             positions.append(matches[0]["number"])
@@ -273,17 +321,6 @@ def authenticate(ref, catalog, *, request):
                     matches.append(review)
         need(matches and all(r.get("state") == "approved" and type(r.get("user")) is dict
                              and positive(r["user"].get("id")) and r["user"].get("id") in issuer["reviewer_ids"] for r in matches))
-    step = next(s for s in job["steps"] if s.get("name") == issuer["receipt_step"])
-    # Job steps are numbered from 1; selective step-log endpoint uses index 0.
-    raw = request(f"/repos/{REPOSITORY}/actions/jobs/{job['id']}/steps/{step['number'] - 1}/logs", log=True)
-    need(type(raw) is bytes and 0 < len(raw) <= 1024 * 1024 and raw.endswith(b"\n"))
-    lines = [re.sub(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z ", "", line)
-             for line in raw.decode("utf-8").splitlines()]
-    markers = [line[len(MARKER):] for line in lines if line.startswith(MARKER)]
-    need(len(markers) == 1 and len(markers[0]) <= 16384)
-    value = validate_receipt(decode(markers[0]))
-    need(value["wave"] in issuer["waves"] and digest(value) == ref["receipt_sha256"] and value["run_id"] == ref["run_id"]
-         and value["source_sha"] == ref["source_sha"])
     final = request(base)
     check_run(final, ref, issuer)
     need(final == initial)
@@ -371,6 +408,20 @@ def emit(env):
     print(MARKER + canonical(value).decode())
 
 
+def emit_runtime(env):
+    from terraform_runtime_execution import context as runtime_context, require_fresh_inputs, check_seal, RECORD as runtime_record
+    from terraform_history_plan_receipt import private_bytes, decode as state_decode
+    root, packet, _ = runtime_context(env)
+    need(env.get("GITHUB_JOB") == "apply" and env.get("MODE") == "apply")
+    require_fresh_inputs(env, packet)
+    check_seal(env)
+    value = validate_receipt(private_json(str(root / runtime_record)))
+    state = state_decode(private_bytes(root / "runtime-state-after.json"))
+    need(value["source_sha"] == env["GITHUB_SHA"] and value["run_id"] == int(env["GITHUB_RUN_ID"])
+         and value["wave"] == packet["wave"] and value["state_after_commitment"] == state_commitment(packet["receipt_binding"], state))
+    print(MARKER + canonical(value).decode())
+
+
 def main():
     try:
         if sys.argv[1:] in (["check-history-binding"], ["check-history-binding", "--fresh"]):
@@ -379,6 +430,8 @@ def main():
         elif sys.argv[1:] == ["new-nonce"]:
             new_nonce(dict(os.environ))
             print("Private receipt binding nonce created; value suppressed.")
+        elif sys.argv[1:] == ["emit-runtime"]:
+            emit_runtime(dict(os.environ))
         else:
             need(sys.argv[1:] == ["emit-history"])
             emit(dict(os.environ))

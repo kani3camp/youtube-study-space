@@ -130,3 +130,6 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_import_
 assert_exact_groups gcp_terraform .github/terraform/runtime-receipt-sources.json
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
