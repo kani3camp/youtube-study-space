@@ -1,0 +1,1308 @@
+name: GCP Terraform Authenticated
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: Terraform target environment
+        required: true
+        type: string
+      mode:
+        description: Import-only plan/apply, separately gated security probe, or separately approved Email adoption
+        required: true
+        type: string
+      plan_cost_evidence:
+        description: Legacy cost input; rejected by history safety admission
+        required: false
+        default: ""
+        type: string
+      history_plan_safety_evidence:
+        description: Nonsecret same-SHA short-lived state-size and state-writer quiet-window admission
+        required: false
+        default: ""
+        type: string
+      history_import_approval:
+        description: Public one-shot dev import approval binding exact SHA, prior plan digest and UTC expiry
+        required: false
+        default: ""
+        type: string
+      history_post_noop:
+        description: Separately gated independent full-root no-op after history import
+        required: false
+        default: false
+        type: boolean
+      ownership_wave:
+        description: Disabled source-only cumulative runtime ownership plan/apply selection
+        required: false
+        default: none
+        type: string
+    # Explicit names allow Environment secret resolution in called jobs without
+    # inheriting unrelated repository secrets. Values come from each job's gate.
+    secrets:
+      AWS_TERRAFORM_BACKEND_ROLE_ARN:
+        required: false
+      AWS_TERRAFORM_BACKEND_ROLE_ID:
+        required: false
+      AWS_TERRAFORM_STATE_BUCKET:
+        required: false
+      AWS_TERRAFORM_STATE_ACCOUNT_ID:
+        required: false
+      GCP_TERRAFORM_WIF_PROVIDER:
+        required: false
+      GCP_TERRAFORM_SERVICE_ACCOUNT:
+        required: false
+      GCP_MONITORING_PRIMARY_EMAIL:
+        required: false
+      GCP_MONITORING_PRIMARY_EMAIL_CHANNEL:
+        required: false
+
+      GCP_RUNTIME_OWNERSHIP_PACKET_JSON:
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: gcp-terraform-authenticated-${{ inputs.target }}
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.16.4"
+  STATE_AWS_REGION: ap-northeast-1
+  DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
+  # Bounded history execution window; exact fresh plan and Environment approvals
+  # are still mandatory. Close all four execution gates after independent no-op12.
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
+  DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
+  DEV_HISTORY_POST_NOOP_ENABLED: "true"
+  PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  # Email adoption completed with five-resource post-plan no-op. Ordinary modes
+  # keep its ownership; exceptional modes have separate validators and gates.
+  DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"
+  # Three policies were created. Keep ownership so ordinary plans cannot propose
+  # removal; close the one-time create gate even while state reconciliation waits.
+  DEV_QUOTA_MANAGED_ENABLED: "true"
+  DEV_QUOTA_CREATE_ENABLED: "false"
+  # State correction completed: keep the exception closed.
+  DEV_QUOTA_STATE_REFRESH_ENABLED: "false"
+  # Issue #1162 comment5998188927: existing development topic import only.
+  DEV_EXPORT_TOPIC_MANAGED_ENABLED: "true"
+  DEV_EXPORT_SCHEDULER_MANAGED_ENABLED: "true"
+  # Issue #1162 comment6005988785: Function GET1, exact import1 + existing10 no-op only.
+  DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
+  # Retain the repaired history table; apply still requires exact one-shot approval.
+  DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
+  # History is plan-verified only. Runtime activation requires actual import/post
+  # no-op12, independent review, CI exact reads and execution accounting receipts.
+  DEV_HISTORY_POST_NOOP12_READY: "false"
+  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
+  # Initial history import requires its authentic root receipt in the same apply.
+  DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
+  # Owner-approved sanitized history receipt only; upload follows verified success.
+  DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "true"
+
+jobs:
+  preflight:
+    name: Trust boundary preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      terraform_root: ${{ steps.guard.outputs.terraform_root }}
+      state_key: ${{ steps.guard.outputs.state_key }}
+      project_id: ${{ steps.guard.outputs.project_id }}
+      manage_primary_email: ${{ steps.guard.outputs.manage_primary_email }}
+      manage_quota: ${{ steps.guard.outputs.manage_quota }}
+      manage_export_topic: ${{ steps.guard.outputs.manage_export_topic }}
+      manage_export_scheduler: ${{ steps.guard.outputs.manage_export_scheduler }}
+      manage_export_function: ${{ steps.guard.outputs.manage_export_function }}
+      manage_user_activity_history: ${{ steps.guard.outputs.manage_user_activity_history }}
+      ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
+    steps:
+      - name: Enforce trusted execution surface
+        id: guard
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          MODE: ${{ inputs.mode }}
+          HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
+          OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
+          PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+        run: |
+          set -euo pipefail
+
+          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || {
+            echo "::error::Authenticated Terraform only supports workflow_dispatch."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY}" == "kani3camp/youtube-study-space" ]] || {
+            echo "::error::Unexpected repository."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_ID}" == "340900071" ]] || {
+            echo "::error::Unexpected immutable repository ID."
+            exit 1
+          }
+          [[ "${GITHUB_REPOSITORY_OWNER_ID}" == "54093651" ]] || {
+            echo "::error::Unexpected immutable repository owner ID."
+            exit 1
+          }
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Authenticated Terraform must be called from ci.yml at the trusted integration ref."
+            exit 1
+          }
+          [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
+            echo "::error::Authenticated Terraform is restricted to the current integration branch."
+            exit 1
+          }
+          [[ "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Invalid Git SHA."
+            exit 1
+          }
+          case "${MODE}" in
+            plan|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
+            *)
+              echo "::error::Unsupported mode."
+              exit 1
+              ;;
+          esac
+          [[ "${HISTORY_POST_NOOP}" == "true" || "${HISTORY_POST_NOOP}" == "false" ]] || {
+            echo "::error::Invalid history post-import check input."
+            exit 1
+          }
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            [[ "${TARGET}" == "dev" && "${MODE}" == "plan" && "${OWNERSHIP_WAVE:-none}" == "none" && "${DEV_HISTORY_POST_NOOP_ENABLED}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED}" == "true" ]] || {
+              echo "::error::Independent history post-import no-op is disabled or has the wrong target/mode."
+              exit 1
+            }
+          fi
+
+          ownership_wave="${OWNERSHIP_WAVE:-none}"
+          case "${ownership_wave}" in
+            none|pool|provider|grant|api|noop) ;;
+            *) echo "::error::Unsupported ownership selection."; exit 1 ;;
+          esac
+          if [[ "${ownership_wave}" != "none" ]]; then
+            [[ "${TARGET}" == "dev" && ( "${MODE}" == "plan" || "${MODE}" == "apply" ) && "${HISTORY_POST_NOOP}" == "false" ]] || {
+              echo "::error::Runtime ownership requires development plan/apply and a separate history selector."
+              exit 1
+            }
+            [[ "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" && "${DEV_HISTORY_POST_NOOP12_READY:-false}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}" == "true" ]] || {
+              echo "::error::Runtime ownership disabled; history import/post no-op12 and activation review remain pending."
+              exit 1
+            }
+            if [[ "${MODE}" == "apply" && ( "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED}" != "true" || "${DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED}" != "true" ) ]]; then
+              echo "::error::Runtime apply receipt emission/publication is disabled."
+              exit 1
+            fi
+          fi
+          case "${TARGET}" in
+            dev)
+              [[ "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
+                echo "::error::Development authenticated Terraform is disabled until its trust is configured."
+                exit 1
+              }
+              if [[ "${MODE}" == "security-probe" && "${DEV_TERRAFORM_SECURITY_PROBE_ENABLED}" != "true" ]]; then
+                echo "::error::Development security probe is disabled pending separate approval."
+                exit 1
+              fi
+              if [[ "${MODE}" != "plan" && "${MODE}" != "quota-plan" && "${MODE}" != "security-probe" && "${DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED}" != "true" ]]; then
+                echo "::error::Development apply is disabled until authenticated plan and negative tests pass."
+                exit 1
+              fi
+              if [[ "${MODE}" == "quota-create" && "${DEV_QUOTA_CREATE_ENABLED}" != "true" ]]; then
+                echo "::error::Development quota create is disabled."
+                exit 1
+              fi
+              if [[ "${MODE}" == "quota-refresh" && "${DEV_QUOTA_STATE_REFRESH_ENABLED}" != "true" ]]; then
+                echo "::error::Development quota state refresh is disabled pending approval."
+                exit 1
+              fi
+              if [[ "${MODE}" == "quota-plan" || "${MODE}" == "quota-create" || "${MODE}" == "quota-refresh" || "${DEV_QUOTA_MANAGED_ENABLED}" == "true" ]]; then
+                [[ "${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" == "true" ]] || { echo "::error::Adopt Email first."; exit 1; }
+                echo "manage_quota=true" >> "${GITHUB_OUTPUT}"
+              else
+                echo "manage_quota=false" >> "${GITHUB_OUTPUT}"
+              fi
+              if [[ "${MODE}" == "email-adoption" ]]; then
+                echo "manage_primary_email=true" >> "${GITHUB_OUTPUT}"
+              else
+                echo "manage_primary_email=${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" >> "${GITHUB_OUTPUT}"
+              fi
+              if [[ "${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" == "true" && "${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" != "true" ]]; then
+                echo "::error::Scheduler requires adopted topic ownership."
+                exit 1
+              fi
+              if [[ "${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" == "true" && ( "${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" != "true" || "${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" != "true" ) ]]; then
+                echo "::error::Function requires adopted topic and Scheduler ownership."
+                exit 1
+              fi
+              history_enabled="${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}"
+              [[ "${history_enabled}" == "true" || "${history_enabled}" == "false" ]] || {
+                echo "::error::Invalid history ownership gate."
+                exit 1
+              }
+              if [[ "${history_enabled}" == "true" ]]; then
+                [[ "${GITHUB_RUN_ATTEMPT:-}" == "1" && -z "${PLAN_COST_EVIDENCE:-}" ]] || {
+                  echo "::error::History requires a new initial attempt and safety admission; legacy cost input is rejected."
+                  exit 1
+                }
+                if [[ "${MODE}" == "apply" && "${ownership_wave}" == "none" ]]; then
+                  [[ "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED:-false}" == "true" && "${DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED:-false}" == "true" ]] || {
+                    echo "::error::First history import requires its root receipt emitter/publication and no runtime wave."
+                    exit 1
+                  }
+                fi
+                [[ "${MODE}" == "plan" || "${MODE}" == "apply" || "${MODE}" == "security-probe" ]] || {
+                  echo "::error::History adoption cannot share an exceptional wave."
+                  exit 1
+                }
+                [[ "${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" == "true" && "${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" == "true" && "${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" == "true" && "${DEV_PRIMARY_EMAIL_IMPORT_ENABLED}" == "true" && "${DEV_QUOTA_MANAGED_ENABLED}" == "true" ]] || {
+                  echo "::error::History adoption requires the unchanged eleven-resource baseline."
+                  exit 1
+                }
+              fi
+              echo "manage_user_activity_history=${history_enabled}" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_function=${DEV_EXPORT_FUNCTION_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_scheduler=${DEV_EXPORT_SCHEDULER_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_topic=${DEV_EXPORT_TOPIC_MANAGED_ENABLED}" >> "${GITHUB_OUTPUT}"
+              echo "terraform_root=infra/gcp/environments/dev" >> "${GITHUB_OUTPUT}"
+              echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
+              echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
+              ;;
+            prod)
+              [[ "${PROD_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
+                echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
+                exit 1
+              }
+              echo "manage_user_activity_history=false" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_function=false" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_scheduler=false" >> "${GITHUB_OUTPUT}"
+              echo "manage_export_topic=false" >> "${GITHUB_OUTPUT}"
+              echo "manage_primary_email=false" >> "${GITHUB_OUTPUT}"
+              echo "terraform_root=infra/gcp/environments/prod" >> "${GITHUB_OUTPUT}"
+              echo "state_key=youtube-study-space/prod/terraform.tfstate" >> "${GITHUB_OUTPUT}"
+              echo "project_id=youtube-study-space" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unsupported target."
+              exit 1
+              ;;
+          esac
+          echo "ownership_wave=${ownership_wave}" >> "${GITHUB_OUTPUT}"
+
+  plan:
+    name: Authenticated protected plan
+    needs: preflight
+    if: ${{ inputs.mode != 'security-probe' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: terraform-${{ inputs.target }}-plan
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    outputs:
+      summary_digest: ${{ steps.sanitize.outputs.summary_digest }}
+      history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}
+      history_receipt_scope: ${{ steps.history_receipt_binding.outputs.history_receipt_scope }}
+      runtime_input_commitment: ${{ steps.runtime_before.outputs.runtime_input_commitment }}
+    env:
+      MODE: ${{ inputs.mode }}
+      HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_WORKSPACE: default
+      TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+      TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
+      TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
+      TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
+      TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
+      TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}
+      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+      HISTORY_TARGET: ${{ inputs.target }}
+      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
+      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+      OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
+    steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          PRIVATE_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+          PRIVATE_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          if [[ -n "${PRIVATE_EMAIL}" || -n "${PRIVATE_CHANNEL}" ]]; then
+            : "${PRIVATE_EMAIL:?missing private primary email}"
+            : "${PRIVATE_CHANNEL:?missing private primary channel}"
+            for value in "${PRIVATE_EMAIL}" "${PRIVATE_EMAIL%%@*}" "${PRIVATE_CHANNEL}" "${PRIVATE_CHANNEL##*/}"; do
+              echo "::add-mask::${value}"
+            done
+          fi
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
+      - name: Checkout trusted commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Check one-shot history import authorization before cloud credentials
+        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
+
+      - name: Check bounded history execution evidence before authentication or locks
+        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase policy
+
+      - name: Stage reviewed private cumulative ownership inputs before credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 infra/gcp/scripts/runtime_ownership_packet.py
+
+      - name: Verify authentic prior ownership receipts before cloud credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py
+
+      - name: Check private history receipt binding before credentials
+        id: history_receipt_binding
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding
+
+      - name: Configure AWS backend credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+
+      - name: Verify exact AWS execution identity before GCP authentication
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+        run: python3 .github/scripts/terraform_identity_smoke.py backend-role-read-only
+
+      - name: Create private backend config
+        shell: bash
+        env:
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+        run: |
+          set -euo pipefail
+          : "${STATE_BUCKET:?missing AWS_TERRAFORM_STATE_BUCKET}"
+          : "${STATE_ACCOUNT_ID:?missing AWS_TERRAFORM_STATE_ACCOUNT_ID}"
+          : "${STATE_KEY:?missing state key}"
+          umask 077
+          cat > "${RUNNER_TEMP}/backend.hcl" <<EOF
+          bucket              = "${STATE_BUCKET}"
+          key                 = "${STATE_KEY}"
+          region              = "${STATE_AWS_REGION}"
+          encrypt             = true
+          use_lockfile        = true
+          max_retries         = 1
+          workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
+          allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
+          EOF
+
+      - name: Configure GCP provider credential
+        id: plan_gcp_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify development identity boundaries without public identifiers
+        id: identity_smoke
+        if: ${{ inputs.target == 'dev' }}
+        shell: bash
+        env:
+          EXPORT_TOPIC_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
+          EXPORT_SCHEDULER_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' }}
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py post-noop-read-only
+          else
+            case "${MODE}" in
+              plan|quota-plan) python3 .github/scripts/terraform_identity_smoke.py plan-read-only ;;
+              apply|email-adoption|quota-create|quota-refresh)
+                python3 .github/scripts/terraform_identity_smoke.py apply-read-only ;;
+              *) echo "::error::Unsupported identity route."; exit 1 ;;
+            esac
+          fi
+
+      - name: Read canonical history metadata privately
+        id: history_metadata
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: plan
+        run: |
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase post
+          else
+            python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+          fi
+
+      - name: Check fresh history receipt metadata binding
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding --fresh
+
+      - name: Bind the private history plan baseline
+        id: history_plan_before
+        if: ${{ inputs.mode == 'plan' && !inputs.history_post_noop && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase before
+
+      - name: Bind the independently adopted history state baseline
+        id: history_post_noop_before
+        if: ${{ inputs.history_post_noop && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase before
+
+      - name: Bind fresh runtime state to authenticated predecessor
+        id: runtime_before
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase before
+
+      - name: Initialize remote backend without public output
+        id: backend_init
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Create saved plan without public output
+        id: plan
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          plan_args=()
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_phase=before
+            if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then history_phase=post; fi
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-${history_phase}.tfvars.json")
+          fi
+          if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            ${plan_args[@]+"${plan_args[@]}"} \
+            ${history_args[@]+"${history_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
+            -input=false \
+            -lock-timeout=0s \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
+          rc=$?
+          set -e
+          case "${rc}" in
+            0|2)
+              echo "plan_exit_code=${rc}" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Terraform plan failed. Raw output is intentionally not printed."
+              exit 1
+              ;;
+          esac
+
+      - name: Check one-shot history saved plan size before approval
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase size
+
+      - name: Recheck exact ownership receipts before protected validation
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py --recheck
+
+      - name: Sanitize and enforce the selected protected contract
+        id: sanitize
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          history_phase=before
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then history_phase=post; fi
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-plan.log" \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase "${history_phase}" \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/sanitized-plan.json" \
+                --markdown-output "${RUNNER_TEMP}/sanitized-plan.md" \
+            >"${RUNNER_TEMP}/sanitizer.out" 2>"${RUNNER_TEMP}/sanitizer.err"
+          rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/sanitized-plan.md" ]]; then
+            cat "${RUNNER_TEMP}/sanitized-plan.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -f "${RUNNER_TEMP}/sanitized-plan.json" ]]; then
+            digest="$(sha256sum "${RUNNER_TEMP}/sanitized-plan.json" | awk '{print $1}')"
+            echo "summary_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          fi
+          if [[ "${rc}" -ne 0 ]]; then
+            echo "::error::Terraform plan violated the protected policy. See the sanitized Job Summary."
+            exit "${rc}"
+          fi
+
+      - name: Verify private history plan invariants and released native lock
+        if: ${{ always() && !inputs.history_post_noop && steps.history_plan_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
+        run: python3 .github/scripts/terraform_history_plan_receipt.py --phase after
+
+      - name: Verify independent post-import no-op and unchanged state
+        if: ${{ always() && inputs.history_post_noop && steps.history_post_noop_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
+        run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase after
+
+      - name: Verify runtime plan safety and unchanged fresh state
+        if: ${{ always() && steps.runtime_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase after
+
+      - name: Cleanup sensitive temporary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            "${RUNNER_TEMP}/runtime-execution-before.json" \
+            "${RUNNER_TEMP}/runtime-execution-sealed.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipt.json" \
+            "${RUNNER_TEMP}/runtime-state-before.json" \
+            "${RUNNER_TEMP}/runtime-state-preapply.json" \
+            "${RUNNER_TEMP}/runtime-state-after.json" \
+            "${RUNNER_TEMP}/runtime-metadata-before.json" \
+            "${RUNNER_TEMP}/runtime-metadata-after.json" \
+            "${RUNNER_TEMP}/runtime-execution-after.json" \
+            "${RUNNER_TEMP}/runtime-approved-plan.json" \
+            "${RUNNER_TEMP}/runtime-approved-post.json" \
+            "${RUNNER_TEMP}/runtime-ownership-packet.json" \
+            "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
+            "${RUNNER_TEMP}/history-plan-admission.json" \
+            "${RUNNER_TEMP}/history-plan-state-before.json" \
+            "${RUNNER_TEMP}/history-plan-state-after.json" \
+            "${RUNNER_TEMP}/history-plan-state-before-receipt.json" \
+            "${RUNNER_TEMP}/history-plan-before.json" \
+            "${RUNNER_TEMP}/history-plan-table-after.json" \
+            "${RUNNER_TEMP}/history-plan-after.json" \
+            "${RUNNER_TEMP}/history-post-noop-before.json" \
+            "${RUNNER_TEMP}/history-post-noop-state-before.json" \
+            "${RUNNER_TEMP}/history-post-noop-state-after.json" \
+            "${RUNNER_TEMP}/history-post-noop-table-after.json" \
+            "${RUNNER_TEMP}/user-history-before.json" \
+            "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
+            "${RUNNER_TEMP}/backend.hcl" \
+            "${RUNNER_TEMP}/terraform-init.log" \
+            "${RUNNER_TEMP}/terraform-plan.log" \
+            "${RUNNER_TEMP}/tfplan" \
+            "${RUNNER_TEMP}/sanitized-plan.json" \
+            "${RUNNER_TEMP}/sanitized-plan.md" \
+            "${RUNNER_TEMP}/sanitizer.out" \
+            "${RUNNER_TEMP}/sanitizer.err"
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+  apply:
+    name: Protected validated apply
+    if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
+    needs:
+      - preflight
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: terraform-${{ inputs.target }}-apply
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      MODE: ${{ inputs.mode }}
+      OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
+      EXPECTED_RUNTIME_INPUT_COMMITMENT: ${{ needs.plan.outputs.runtime_input_commitment }}
+      APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
+      HISTORY_TARGET: ${{ inputs.target }}
+      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
+      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+      EXPECTED_HISTORY_RECEIPT_SCOPE: ${{ needs.plan.outputs.history_receipt_scope }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_WORKSPACE: default
+      TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+      TF_VAR_manage_primary_email: ${{ needs.preflight.outputs.manage_primary_email }}
+      TF_VAR_manage_youtube_quota_alerts: ${{ needs.preflight.outputs.manage_quota }}
+      TF_VAR_manage_export_topic: ${{ needs.preflight.outputs.manage_export_topic }}
+      TF_VAR_manage_export_scheduler: ${{ needs.preflight.outputs.manage_export_scheduler }}
+      TF_VAR_manage_export_function: ${{ needs.preflight.outputs.manage_export_function }}
+      TF_VAR_manage_user_activity_history: ${{ needs.preflight.outputs.manage_user_activity_history }}
+      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+    steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          PRIVATE_EMAIL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
+          PRIVATE_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          if [[ -n "${PRIVATE_EMAIL}" || -n "${PRIVATE_CHANNEL}" ]]; then
+            : "${PRIVATE_EMAIL:?missing private primary email}"
+            : "${PRIVATE_CHANNEL:?missing private primary channel}"
+            for value in "${PRIVATE_EMAIL}" "${PRIVATE_EMAIL%%@*}" "${PRIVATE_CHANNEL}" "${PRIVATE_CHANNEL##*/}"; do
+              echo "::add-mask::${value}"
+            done
+          fi
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
+      - name: Checkout the exact planned commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Assert plan/apply commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]] || {
+            echo "::error::Checked out commit does not match github.sha."
+            exit 1
+          }
+
+      - name: Check one-shot history import authorization before cloud credentials
+        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Check private history receipt binding before credentials
+        id: history_receipt_binding
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding
+
+      - name: Stage reviewed private cumulative ownership inputs before credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 infra/gcp/scripts/runtime_ownership_packet.py
+
+      - name: Verify authentic prior ownership receipts before cloud credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py
+
+      - name: Configure AWS backend credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+
+      - name: Verify exact AWS execution identity before GCP authentication
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+        run: python3 .github/scripts/terraform_identity_smoke.py backend-role-read-only
+
+      - name: Create private backend config
+        shell: bash
+        env:
+          STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+          STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+          STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+        run: |
+          set -euo pipefail
+          : "${STATE_BUCKET:?missing AWS_TERRAFORM_STATE_BUCKET}"
+          : "${STATE_ACCOUNT_ID:?missing AWS_TERRAFORM_STATE_ACCOUNT_ID}"
+          : "${STATE_KEY:?missing state key}"
+          umask 077
+          cat > "${RUNNER_TEMP}/backend.hcl" <<EOF
+          bucket              = "${STATE_BUCKET}"
+          key                 = "${STATE_KEY}"
+          region              = "${STATE_AWS_REGION}"
+          encrypt             = true
+          use_lockfile        = true
+          max_retries         = 1
+          workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"
+          allowed_account_ids = ["${STATE_ACCOUNT_ID}"]
+          EOF
+
+      - name: Configure GCP provider credential
+        id: apply_gcp_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify quota apply identity least privilege
+        if: ${{ inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py quota-apply
+
+      - name: Verify Function identity exact read permissions
+        if: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+        shell: bash
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          MODE: ${{ inputs.mode }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          EXPORT_TOPIC_IDENTITY_REQUIRED: "true"
+          EXPORT_SCHEDULER_IDENTITY_REQUIRED: "true"
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: "true"
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
+        run: |
+          set -euo pipefail
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py apply-read-only
+          elif [[ "${MODE}" == "apply" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py export-function-apply-read-only
+          else
+            python3 .github/scripts/terraform_identity_smoke.py export-function
+          fi
+
+      - name: Verify Scheduler identity exact read permissions
+        if: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' && needs.preflight.outputs.manage_export_function != 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py export-scheduler
+
+      - name: Verify topic identity exact read permissions
+        if: ${{ needs.preflight.outputs.manage_export_topic == 'true' && needs.preflight.outputs.manage_export_scheduler != 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py export-topic
+
+      - name: Re-read canonical history metadata privately
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: apply
+          HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}
+        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+
+      - name: Check fresh history receipt metadata binding
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding --fresh
+
+      - name: Capture exact pre-import state and approved history plan
+        id: history_import_before
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        env:
+          APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase before
+
+      - name: Bind fresh runtime state to authenticated predecessor
+        id: runtime_before
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase before
+
+      - name: Initialize remote backend without public output
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! terraform -chdir="${TF_ROOT}" init \
+            -reconfigure \
+            -backend-config="${RUNNER_TEMP}/backend.hcl" \
+            -input=false \
+            -lockfile=readonly \
+            >"${RUNNER_TEMP}/terraform-init.log" 2>&1; then
+            echo "::error::Terraform init failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Re-plan at the exact approved commit
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          umask 077
+          plan_args=()
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+          fi
+          if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            ${plan_args[@]+"${plan_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
+            ${history_args[@]+"${history_args[@]}"} \
+            -input=false \
+            -lock-timeout=0s \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
+          rc=$?
+          set -e
+          case "${rc}" in
+            0|2) ;;
+            *)
+              echo "::error::Terraform re-plan failed. Raw output is intentionally not printed."
+              exit 1
+              ;;
+          esac
+
+      - name: Check one-shot re-plan size before apply
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase size
+
+      - name: Recheck exact ownership receipts before protected validation
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py --recheck
+
+      - name: Verify re-plan matches the sanitized approved projection
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          APPROVED_DIGEST: ${{ needs.plan.outputs.summary_digest }}
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-plan.log" \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase before \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/sanitized-replan.json" \
+                --markdown-output "${RUNNER_TEMP}/sanitized-replan.md" \
+            >"${RUNNER_TEMP}/sanitizer.out" 2>"${RUNNER_TEMP}/sanitizer.err"
+          rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/sanitized-replan.md" ]]; then
+            cat "${RUNNER_TEMP}/sanitized-replan.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          [[ "${rc}" -eq 0 ]] || {
+            echo "::error::Re-plan violated the protected policy."
+            exit "${rc}"
+          }
+
+          actual_digest="$(sha256sum "${RUNNER_TEMP}/sanitized-replan.json" | awk '{print $1}')"
+          [[ -n "${APPROVED_DIGEST}" && "${actual_digest}" == "${APPROVED_DIGEST}" ]] || {
+            echo "::error::Re-plan does not match the approved sanitized projection. Run plan again and re-approve."
+            exit 1
+          }
+
+      - name: Seal the one-shot history saved plan before apply
+        id: history_import_preapply
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase preapply
+
+      - name: Seal the runtime saved plan and fresh private inputs
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase preapply
+
+      - name: Apply the locally re-created saved plan
+        id: apply_saved
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+          HISTORY_PLAN_SHA256: ${{ steps.history_import_preapply.outputs.history_plan_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            python3 .github/scripts/terraform_runtime_execution.py --phase check-seal
+          elif [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            [[ -n "${HISTORY_PLAN_SHA256}" && "$(sha256sum "${RUNNER_TEMP}/tfplan" | awk '{print $1}')" == "${HISTORY_PLAN_SHA256}" ]] || {
+              echo "::error::Sealed history plan changed before apply."
+              exit 1
+            }
+          fi
+          if ! terraform -chdir="${TF_ROOT}" apply \
+            -input=false \
+            "${RUNNER_TEMP}/tfplan" \
+            >"${RUNNER_TEMP}/terraform-apply.log" 2>&1; then
+            echo "::error::Terraform apply failed. Raw output is intentionally not printed."
+            exit 1
+          fi
+
+      - name: Verify post-import canonical metadata privately
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          HISTORY_OPERATION: ${{ inputs.mode }}
+          HISTORY_STAGE: apply
+          HISTORY_APPROVED_METADATA_DIGEST: ${{ needs.plan.outputs.history_metadata_digest }}
+        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase post
+
+      - name: Require post-apply no-op
+        id: post_plan
+        shell: bash
+        env:
+          TF_ROOT: ${{ needs.preflight.outputs.terraform_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
+          history_args=()
+          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-post.tfvars.json")
+          fi
+          set +e
+          terraform -chdir="${TF_ROOT}" plan \
+            ${history_args[@]+"${history_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
+            -input=false \
+            -lock-timeout=0s \
+            -detailed-exitcode \
+            -out="${RUNNER_TEMP}/post-apply.tfplan" \
+            >"${RUNNER_TEMP}/terraform-post-apply.log" 2>&1
+          plan_rc=$?
+          set -e
+          echo "post_plan_exit_code=${plan_rc}" >> "${GITHUB_OUTPUT}"
+
+          set +e
+          terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/post-apply.tfplan" \
+            2>>"${RUNNER_TEMP}/terraform-post-apply.log" \
+            | python3 .github/scripts/terraform_protected_plan.py \
+                --operation "${{ inputs.mode }}" \
+                --phase post \
+                --environment "${{ inputs.target }}" \
+                --git-sha "${GITHUB_SHA}" \
+                --policy import-only \
+                --json-output "${RUNNER_TEMP}/post-apply-summary.json" \
+                --markdown-output "${RUNNER_TEMP}/post-apply-summary.md" \
+            >"${RUNNER_TEMP}/post-sanitizer.out" 2>"${RUNNER_TEMP}/post-sanitizer.err"
+          sanitizer_rc=$?
+          set -e
+
+          if [[ -f "${RUNNER_TEMP}/post-apply-summary.md" ]]; then
+            cat "${RUNNER_TEMP}/post-apply-summary.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          [[ "${sanitizer_rc}" -eq 0 ]] || {
+            echo "::error::Post-apply plan violated the protected policy."
+            exit "${sanitizer_rc}"
+          }
+          [[ "${plan_rc}" -eq 0 ]] || {
+            echo "::error::Post-apply Terraform plan is not no-op."
+            exit 1
+          }
+
+      - name: Verify one-shot history state and table receipt
+        id: history_post_verify
+        if: ${{ always() && steps.history_import_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          APPLY_OUTCOME: ${{ steps.apply_saved.outcome }}
+          POST_PLAN_OUTCOME: ${{ steps.post_plan.outcome }}
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON || '' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase post
+
+      - name: Verify runtime state-only delta and full-root post no-op
+        id: runtime_post_verify
+        if: ${{ always() && steps.runtime_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          APPLY_OUTCOME: ${{ steps.apply_saved.outcome }}
+          POST_PLAN_OUTCOME: ${{ steps.post_plan.outcome }}
+          POST_PLAN_EXIT_CODE: ${{ steps.post_plan.outputs.post_plan_exit_code }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase after
+
+      - name: Emit verified ownership receipt
+        id: ownership_receipt
+        if: ${{ (steps.history_post_verify.outcome == 'success' || steps.runtime_post_verify.outcome == 'success') && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        run: |
+          if [[ "${OWNERSHIP_WAVE:-none}" == "none" ]]; then
+            python3 .github/scripts/terraform_ownership_receipt.py emit-history
+          else
+            python3 .github/scripts/terraform_ownership_receipt.py emit-runtime
+          fi
+
+      - name: Publish sanitized ownership receipt
+        if: ${{ steps.ownership_receipt.outcome == 'success' && env.DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ownership-receipt-v1-${{ github.run_id }}-1-${{ github.sha }}
+          path: ${{ runner.temp }}/ownership-public/ownership-receipt.json
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Cleanup sensitive temporary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${RUNNER_TEMP}/ownership-public/ownership-receipt.json"
+          if [[ -d "${RUNNER_TEMP}/ownership-public" ]]; then rmdir "${RUNNER_TEMP}/ownership-public"; fi
+          rm -f \
+            "${RUNNER_TEMP}/runtime-execution-before.json" \
+            "${RUNNER_TEMP}/runtime-execution-sealed.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipt.json" \
+            "${RUNNER_TEMP}/runtime-state-before.json" \
+            "${RUNNER_TEMP}/runtime-state-preapply.json" \
+            "${RUNNER_TEMP}/runtime-state-after.json" \
+            "${RUNNER_TEMP}/runtime-metadata-before.json" \
+            "${RUNNER_TEMP}/runtime-metadata-after.json" \
+            "${RUNNER_TEMP}/runtime-execution-after.json" \
+            "${RUNNER_TEMP}/runtime-approved-plan.json" \
+            "${RUNNER_TEMP}/runtime-approved-post.json" \
+            "${RUNNER_TEMP}/runtime-ownership-packet.json" \
+            "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
+            "${RUNNER_TEMP}/history-ownership-receipt.json" \
+            "${RUNNER_TEMP}/history-import-before.json" \
+            "${RUNNER_TEMP}/history-import-preapply.json" \
+            "${RUNNER_TEMP}/history-import-state-before.json" \
+            "${RUNNER_TEMP}/history-import-state-preapply.json" \
+            "${RUNNER_TEMP}/history-import-state-after.json" \
+            "${RUNNER_TEMP}/history-import-table-after.json" \
+            "${RUNNER_TEMP}/user-history-before.json" \
+            "${RUNNER_TEMP}/user-history-post.json" \
+            "${RUNNER_TEMP}/user-history-before.tfvars.json" \
+            "${RUNNER_TEMP}/user-history-post.tfvars.json" \
+            "${RUNNER_TEMP}/backend.hcl" \
+            "${RUNNER_TEMP}/terraform-init.log" \
+            "${RUNNER_TEMP}/terraform-plan.log" \
+            "${RUNNER_TEMP}/terraform-apply.log" \
+            "${RUNNER_TEMP}/terraform-post-apply.log" \
+            "${RUNNER_TEMP}/tfplan" \
+            "${RUNNER_TEMP}/post-apply.tfplan" \
+            "${RUNNER_TEMP}/sanitized-replan.json" \
+            "${RUNNER_TEMP}/sanitized-replan.md" \
+            "${RUNNER_TEMP}/post-apply-summary.json" \
+            "${RUNNER_TEMP}/post-apply-summary.md" \
+            "${RUNNER_TEMP}/sanitizer.out" \
+            "${RUNNER_TEMP}/sanitizer.err" \
+            "${RUNNER_TEMP}/post-sanitizer.out" \
+            "${RUNNER_TEMP}/post-sanitizer.err"
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+  security-probe:
+    name: Development identity probe
+    needs: preflight
+    if: ${{ inputs.mode == 'security-probe' && inputs.target == 'dev' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: terraform-dev-plan
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MODE: ${{ inputs.mode }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+    steps:
+      - name: Mask private identity fragments before authentication
+        shell: bash
+        env:
+          PRIVATE_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+          PRIVATE_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          : "${PRIVATE_ROLE_ID:?missing AWS_TERRAFORM_BACKEND_ROLE_ID}"
+          for value in "${PRIVATE_ROLE_ID}" "${PRIVATE_ROLE_ARN##*/}" "${PRIVATE_GCP_SA%%@*}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
+      - name: Checkout exact trusted commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Assert exact checked out commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]] || exit 1
+
+      - name: Configure AWS plan credential
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+
+      - name: Configure GCP plan credential
+        id: probe_gcp_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: false
+          export_environment_variables: false
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Verify exact identity and conditional denial with private snapshots
+        env:
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
+          EXPORT_TOPIC_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_topic == 'true' }}
+          EXPORT_SCHEDULER_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_scheduler == 'true' }}
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_export_function == 'true' }}
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.probe_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+        run: python3 .github/scripts/terraform_identity_smoke.py security-probe

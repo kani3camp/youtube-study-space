@@ -11,6 +11,7 @@ readonly CI_GROUPS=(
 	youtube_monitor
 	docs_site
 	aws_cdk
+	gcp_terraform
 	node_projects
 	firestore_integration
 	formal_spec
@@ -25,6 +26,7 @@ figma_plugin=false
 youtube_monitor=false
 docs_site=false
 aws_cdk=false
+gcp_terraform=false
 node_projects=false
 firestore_integration=false
 formal_spec=false
@@ -54,6 +56,7 @@ set_all_groups() {
 	youtube_monitor=true
 	docs_site=true
 	aws_cdk=true
+	gcp_terraform=true
 	node_projects=true
 	firestore_integration=true
 	formal_spec=true
@@ -62,7 +65,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
+		.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -102,6 +105,10 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/terraform_ownership_receipt.py|.github/scripts/terraform_receipt_artifact_fixture.py|.github/scripts/test_terraform_ownership_receipt.py|.github/scripts/terraform_history_import_verifier.py|.github/scripts/test_terraform_history_import_verifier.py|.github/terraform/runtime-receipt-sources.json|.github/scripts/terraform_history_plan_receipt.py|.github/scripts/test_terraform_history_plan_receipt.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_runtime_execution.py|.github/scripts/test_terraform_runtime_execution.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py|.github/scripts/terraform_history_post_noop_receipt.py|.github/scripts/test_terraform_history_post_noop_receipt.py)
+			gcp_terraform=true
+			matched=true
+			;;
 		.agents/skills/room-art-direction/references/*|tools/room-image-prompt/*)
 			room_image_prompt=true
 			matched=true
@@ -132,6 +139,10 @@ classify_path() {
 			;;
 		aws-cdk/*)
 			aws_cdk=true
+			matched=true
+			;;
+		infra/gcp/*)
+			gcp_terraform=true
 			matched=true
 			;;
 		.node-version|.nvmrc)
@@ -204,6 +215,7 @@ group_value() {
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
+		gcp_terraform) printf '%s' "$gcp_terraform" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
 		formal_spec) printf '%s' "$formal_spec" ;;

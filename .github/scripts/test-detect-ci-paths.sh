@@ -13,12 +13,12 @@ assert_exact_groups() {
 	local expected
 
 	output="$($detector --paths "$@")"
-	for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all; do
+	for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
 		expected=false
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
 		esac
-		if ! printf '%s\n' "$output" | grep -Fxq "$group=$expected"; then
+		if ! grep -Fxq "$group=$expected" <<< "$output"; then
 			echo "Expected $group=$expected for paths: $*" >&2
 			exit 1
 		fi
@@ -44,6 +44,37 @@ assert_exact_groups "system firestore_integration formal_spec" system/core/timeu
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
+assert_exact_groups gcp_terraform infra/gcp/README.md
+assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
+assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
+assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_authenticated_workflow.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_identity_diagnostics.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_plan_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_plan_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_post_noop_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_post_noop_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/test_youtube_quota_alerts.py
+assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
+assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
+assert_exact_groups gcp_terraform .github/scripts/test_export_scheduler.py
+assert_exact_groups gcp_terraform .github/scripts/test_export_function.py
+assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-function.tf
+assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-function/main.tf
+assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-scheduler.tf
+assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-scheduler/main.tf
+assert_exact_groups gcp_terraform .github/scripts/terraform_export_topic_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_topic_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_notification_channels.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_quota_create_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_create_gate.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_protected_plan.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_protected_plan.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_email_adoption_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_email_adoption_gate.py
 assert_exact_groups docs_site docs-site/docs/intro.md
 assert_exact_groups room_image_prompt tools/room-image-prompt/cmd/room-image-prompt/main.go
 assert_exact_groups room_image_prompt .agents/skills/room-art-direction/references/direction-a-clean-vivid-digital.md
@@ -52,17 +83,20 @@ assert_exact_groups video_maker_simulator tools/video-maker/1000-minutes-simulat
 assert_exact_groups figma_plugin tools/figma-plugin/room-layout-analyzer/code.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/run-firestore-integration-tests.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.mjs
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.test.mjs
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
+for codeql_path in .github/codeql/.gitignore .github/codeql/README.md .github/codeql/analysis-config.yml .github/codeql/build-go.sh .github/codeql/install-actionlint.sh .github/codeql/lint-workflows.py .github/codeql/requirements.txt .github/codeql/test_source_contracts.py .github/codeql/tooling.json .github/codeql/validate-source.py .github/scripts/detect-ci-paths.sh .github/scripts/test-detect-ci-paths.sh .github/workflows/codeql-advanced.yml .github/workflows/codeql-analyzer.yml .github/workflows/codeql-source-contracts.yml; do
+	assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" "$codeql_path"
+done
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/run-firestore-integration-tests.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.mjs
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.test.mjs
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all; do
+for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
 	if ! printf '%s\n' "$manual_output" | grep -Fxq "$group=true"; then
 		echo "Expected workflow_dispatch to select $group" >&2
 		exit 1
@@ -81,3 +115,22 @@ if GITHUB_EVENT_NAME=pull_request BASE_SHA=missing HEAD_SHA=missing "$detector" 
 fi
 
 echo "detect-ci-paths.sh tests passed"
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_quota_refresh_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_gate.py
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_export_scheduler_gate.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_scheduler_gate.py
+
+# Protected receipt source, catalog and dummy checks must route to Terraform CI.
+assert_exact_groups gcp_terraform .github/scripts/terraform_ownership_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_receipt_artifact_fixture.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_ownership_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_import_verifier.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_import_verifier.py
+assert_exact_groups gcp_terraform .github/terraform/runtime-receipt-sources.json
+assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
+
+assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py

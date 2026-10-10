@@ -1,0 +1,38 @@
+name: GCP Production Readiness
+
+on:
+  pull_request:
+    paths:
+      - infra/gcp/**
+      - .github/workflows/gcp-production-readiness.yml
+      - .github/workflows/gcp-terraform-authenticated.yml
+      - .github/workflows/ci.yml
+      - .github/scripts/terraform_plan_summary.py
+      - .github/scripts/terraform_identity_diagnostics.py
+      - .github/scripts/terraform_identity_smoke.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gcp-production-readiness-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  production-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+
+      - name: Verify production defaults and preflight denial with mocked plans
+        run: python3 infra/gcp/tests/test_production_readiness.py
