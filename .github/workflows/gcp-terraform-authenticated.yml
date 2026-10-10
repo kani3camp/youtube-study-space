@@ -69,9 +69,11 @@ env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
-  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
+  # Bounded history execution window; exact fresh plan and Environment approvals
+  # are still mandatory. Close all four execution gates after independent no-op12.
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
-  DEV_HISTORY_POST_NOOP_ENABLED: "false"
+  DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
@@ -87,16 +89,16 @@ env:
   DEV_EXPORT_SCHEDULER_MANAGED_ENABLED: "true"
   # Issue #1162 comment6005988785: Function GET1, exact import1 + existing10 no-op only.
   DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
-  # Protected plan only after canonical repair; actual import/apply needs separate approval.
+  # Retain the repaired history table; apply still requires exact one-shot approval.
   DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
   # History is plan-verified only. Runtime activation requires actual import/post
   # no-op12, independent review, CI exact reads and execution accounting receipts.
   DEV_HISTORY_POST_NOOP12_READY: "false"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
-  # Receipt code alone is not authorization for a history apply.
-  DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "false"
-  # Real receipt publication needs separate owner execution approval.
-  DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "false"
+  # Initial history import requires its authentic root receipt in the same apply.
+  DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
+  # Owner-approved sanitized history receipt only; upload follows verified success.
+  DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "true"
 
 jobs:
   preflight:

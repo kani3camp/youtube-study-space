@@ -10,6 +10,14 @@ IAM inventory、raw plan/state、実集計値はprivate operator packetへ保存
 入口は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。
 [auditの意味とschema修復方針](user-activity-history-canonicalization.md)は維持する。
 
+## Current bounded history execution window
+
+Owner-approved history-only activation is staged in the
+[execution window contract](development-history-execution-window.md). This permits a fresh
+protected plan and, only after exact plan/run and Environment reviews, one state-only
+import with its sanitized root receipt and independent no-op12. Earlier false-gate
+records below are historical preparation evidence; runtime/probe/production stay closed.
+
 ## Evidence needed for a decision
 
 | Decision | Evidence and acceptance | Insufficient evidence |
