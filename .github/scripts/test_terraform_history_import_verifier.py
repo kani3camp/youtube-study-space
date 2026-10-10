@@ -191,5 +191,128 @@ class ImportVerifierTest(unittest.TestCase):
                     child.doCleanups()
 
 
+class HistoryEmitterTest(unittest.TestCase):
+    def setUp(self):
+        from test_terraform_ownership_receipt import dummy_binding, dummy_context
+        self.case = ImportVerifierTest()
+        self.case.setUp()
+        self.addCleanup(self.case.doCleanups)
+        self.case.env.update(dummy_context())
+        self.binding = dummy_binding()
+        self.case.env['EXPECTED_HISTORY_RECEIPT_SCOPE'] = gate.ownership.commitment(self.binding, gate.ownership.history_scope(self.binding))
+        self.case.env['RUNTIME_OWNERSHIP_PACKET_JSON'] = json.dumps(dict(schema_version=1, receipt_binding=self.binding))
+        self.case.before()
+        self.case.preapply()
+        self.case.aws.body = json.dumps(self.case.imported_state()).encode()
+        post_summary = json.loads(self.case.summary_raw)
+        post_summary['counts']['import'] = 0
+        for resource in post_summary['resources']:
+            resource['import'] = False
+        receipt.write_private(self.case.root / 'post-apply-summary.json', post_summary)
+
+    def run_post(self):
+        gate.post(self.case.env, request=self.case.aws, metadata_request=self.case.google)
+
+    def test_success_creates_private_sanitized_receipt_only_after_all_checks(self):
+        from io import StringIO
+        import terraform_ownership_receipt as ownership
+        self.run_post()
+        path = self.case.root / ownership.RECORD
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        value = receipt.private_json(str(path))
+        self.assertEqual(value['wave'], 'history12')
+        self.assertEqual(value['state_after_commitment'], ownership.state_commitment(self.binding, self.case.imported_state()))
+        self.assertEqual(value['accounting']['post_state_reads'], 4)
+        self.assertEqual(value['accounting']['post_metadata_reads'], 1)
+        with patch('sys.stdout', StringIO()) as output:
+            ownership.emit(self.case.env)
+        self.assertEqual(output.getvalue().count(ownership.MARKER), 1)
+        for sentinel in ['DUMMY_TOKEN', 'DUMMY_ETAG', '111111111111', 'dummy-state-bucket', self.binding['nonce']]:
+            self.assertNotIn(sentinel, output.getvalue())
+
+    def test_disabled_emitter_preserves_existing_history_behavior_without_secret(self):
+        self.case.env['DEV_HISTORY_RECEIPT_EMITTER_ENABLED'] = 'false'
+        self.case.env.pop('RUNTIME_OWNERSHIP_PACKET_JSON')
+        (self.case.root / 'post-apply-summary.json').unlink()
+        self.run_post()
+        self.assertFalse((self.case.root / gate.ownership.RECORD).exists())
+
+    def test_failed_apply_post_state_metadata_lock_never_issue_receipt(self):
+        mutations = [lambda c: c.env.update(APPLY_OUTCOME='failure'), lambda c: c.env.update(POST_PLAN_OUTCOME='failure'),
+            lambda c: setattr(c.aws, 'body', json.dumps(state_fixtures.state_fixture()).encode()),
+            lambda c: c.metadata['schema']['fields'].reverse(), lambda c: setattr(c.aws, 'lock', True)]
+        for mutate in mutations:
+            child = HistoryEmitterTest()
+            child.setUp()
+            try:
+                mutate(child.case)
+                with self.subTest(case=mutations.index(mutate)), self.assertRaises(Exception):
+                    child.run_post()
+                self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+            finally:
+                child.doCleanups()
+
+    def test_post_import_marker_wrong_graph_or_missing_summary_rejects(self):
+        mutations = [lambda s: s['counts'].update(**{'import': 1}), lambda s: s['resources'][0].update(**{'import': True}),
+                     lambda s: s['resources'].pop(), lambda s: s.update(git_sha='b'*40), lambda s: s.update(drift=['dummy'])]
+        for mutate in mutations:
+            child = HistoryEmitterTest()
+            child.setUp()
+            try:
+                path = child.case.root / 'post-apply-summary.json'
+                summary = json.loads(path.read_text())
+                mutate(summary)
+                path.write_text(json.dumps(summary))
+                with self.subTest(case=mutations.index(mutate)), self.assertRaises(Exception):
+                    child.run_post()
+                self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+            finally:
+                child.doCleanups()
+        (self.case.root / 'post-apply-summary.json').unlink()
+        with self.assertRaises(Exception):
+            self.run_post()
+        self.assertFalse((self.case.root / gate.ownership.RECORD).exists())
+
+    def test_private_binding_scope_context_nonce_and_envelope_are_exact(self):
+        changes = [lambda b: b['backend'].update(bucket='dummy-other-bucket'),
+                   lambda b: b['history_metadata']['schema']['fields'].reverse(), lambda b: b.update(nonce='x'*64),
+                   lambda b: b.update(private_extra='DUMMY_PRIVATE_SENTINEL')]
+        for mutate in changes:
+            child = HistoryEmitterTest()
+            child.setUp()
+            try:
+                mutate(child.binding)
+                child.case.env['RUNTIME_OWNERSHIP_PACKET_JSON'] = json.dumps(dict(schema_version=1, receipt_binding=child.binding))
+                with self.subTest(case=changes.index(mutate)), self.assertRaises(Exception):
+                    child.run_post()
+                self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+            finally:
+                child.doCleanups()
+        self.case.env['GITHUB_RUN_ATTEMPT'] = '2'
+        with self.assertRaises(Exception):
+            self.run_post()
+        self.assertFalse((self.case.root / gate.ownership.RECORD).exists())
+
+    def test_issuer_file_overwrite_and_symlink_are_rejected(self):
+        target = self.case.root / gate.ownership.RECORD
+        target.symlink_to(self.case.root / 'DUMMY_PRIVATE_TARGET')
+        with self.assertRaises(Exception):
+            self.run_post()
+        self.assertFalse((self.case.root / 'DUMMY_PRIVATE_TARGET').exists())
+
+    def test_failure_cli_suppresses_private_values_and_does_not_emit_marker(self):
+        from io import StringIO
+        self.case.env['RUNTIME_OWNERSHIP_PACKET_JSON'] = '{"DUMMY_PRIVATE_SENTINEL":1}'
+        original = gate.post
+        with patch.dict(os.environ, self.case.env, clear=True), patch('sys.argv', ['history', '--phase', 'post']), \
+             patch.object(gate, 'post', side_effect=lambda env: original(env, request=self.case.aws, metadata_request=self.case.google)), \
+             patch('sys.stdout', StringIO()) as out, patch('sys.stderr', StringIO()) as err:
+            self.assertEqual(gate.main(), 3)
+        public = out.getvalue()+err.getvalue()
+        self.assertNotIn('DUMMY_PRIVATE_SENTINEL', public)
+        self.assertNotIn(self.binding['nonce'], public)
+        self.assertNotIn(gate.ownership.MARKER, public)
+
+
 if __name__ == "__main__":
     unittest.main()

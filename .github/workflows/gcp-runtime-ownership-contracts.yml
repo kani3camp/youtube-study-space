@@ -6,6 +6,9 @@ on:
       - 'infra/gcp/**'
       - '.github/scripts/terraform_plan_summary.py'
       - '.github/scripts/terraform_protected_plan.py'
+      - '.github/scripts/*terraform*receipt*.py'
+      - '.github/scripts/*terraform*history_import*.py'
+      - '.github/terraform/runtime-receipt-sources.json'
       - '.github/workflows/gcp-terraform-authenticated.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/gcp-runtime-ownership-contracts.yml'
@@ -27,3 +30,6 @@ jobs:
         run: |
           python3 infra/gcp/tests/test_runtime_ownership.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
+          python3 infra/gcp/tests/test_runtime_ownership_provenance.py
+          python3 .github/scripts/test_terraform_ownership_receipt.py
+          python3 .github/scripts/test_terraform_history_import_verifier.py

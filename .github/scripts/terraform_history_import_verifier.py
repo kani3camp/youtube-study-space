@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"
 from prepare_user_activity_history_adoption import normalize_field, prepare
 from validate_user_activity_history_plan import TABLE, TABLE_ID
 from terraform_history_table_metadata import stable_table_metadata, volatile_table_metadata
+import terraform_ownership_receipt as ownership
 
 # plan_run_id and cost fields are reviewer references with shape checks only.
 # Only SHA, expiry, approved summary bytes and the local binary digest are
@@ -132,16 +133,18 @@ def state_delta(before, after, metadata):
     need(old_checks(new) == old_checks(old))
 
 
-def exact_summary(summary, sha):
+def exact_summary(summary, sha, *, phase="before"):
+    need(phase in {"before", "post"})
+    counts = dict(SUMMARY_COUNTS, **({"import": 0} if phase == "post" else {}))
     need(type(summary) is dict and summary.get("environment") == "dev" and summary.get("git_sha") == sha
          and summary.get("terraform_version") == "1.16.4" and summary.get("policy") == "import-only"
          and summary.get("policy_passed") is True and summary.get("violations") == []
-         and summary.get("drift") == [] and summary.get("counts") == SUMMARY_COUNTS)
+         and summary.get("drift") == [] and summary.get("counts") == counts)
     resources = summary.get("resources")
     need(type(resources) is list and len(resources) == 12
          and {r.get("address") for r in resources} == receipt.BASELINE | {TABLE}
          and all(type(r) is dict and r.get("mode") == "managed" and r.get("action") == "no-op"
-                 and r.get("import") is (r.get("address") == TABLE) for r in resources))
+                 and r.get("import") is (phase == "before" and r.get("address") == TABLE) for r in resources))
 
 
 def before(env, *, request=None):
@@ -189,8 +192,15 @@ def post(env, *, request=None, metadata_request=None):
     need(hashlib.sha256(original).hexdigest() == saved["state_sha256"])
     checks = {"state": "unknown", "metadata": False, "lock": False}
     volatile_changed = None
+    reads = {"state": 0, "metadata": 0}
+    def counted_state(*args):
+        reads["state"] += 1
+        return (request or receipt.aws)(*args)
+    def counted_metadata(*args, **kwargs):
+        reads["metadata"] += 1
+        return (metadata_request or google)(*args, **kwargs)
     try:
-        raw = capture(env, "history-import-state-after.json", request=request)
+        raw = capture(env, "history-import-state-after.json", request=counted_state)
         if raw == original:
             checks["state"] = "unchanged"
         else:
@@ -199,12 +209,12 @@ def post(env, *, request=None, metadata_request=None):
         checks["lock"] = True
     except Exception:
         try:
-            receipt.absent(env, receipt.STATE_KEY + ".tflock", request=request)
+            receipt.absent(env, receipt.STATE_KEY + ".tflock", request=counted_state)
             checks["lock"] = True
         except Exception:
             pass
     try:
-        status, metadata = (metadata_request or google)(receipt.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], host="bigquery.googleapis.com")
+        status, metadata = counted_metadata(receipt.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], host="bigquery.googleapis.com")
         need(status == 200)
         checks["metadata"] = stable_table_metadata(metadata) == stable_table_metadata(saved["metadata"])
         volatile_changed = volatile_table_metadata(metadata) != volatile_table_metadata(saved["metadata"])
@@ -219,6 +229,23 @@ def post(env, *, request=None, metadata_request=None):
                      "; lock=" + ("absent" if checks["lock"] else "unknown") + "\n")
     need(checks == {"state": "imported", "metadata": True, "lock": True}
          and env.get("APPLY_OUTCOME") == "success" and env.get("POST_PLAN_OUTCOME") == "success")
+    if env.get("DEV_HISTORY_RECEIPT_EMITTER_ENABLED", "false") == "true":
+        ownership.context(env)
+        need(env.get("GITHUB_JOB") == "apply")
+        exact_summary(receipt.private_json(str(root / "post-apply-summary.json")), env["GITHUB_SHA"], phase="post")
+        value = ownership.history_binding(env, metadata=metadata)
+        machine = dict(schema_version=1, repository_id=ownership.REPOSITORY_ID, source_sha=env["GITHUB_SHA"],
+                       run_id=int(env["GITHUB_RUN_ID"]), run_attempt=1, job_role="apply", environment="terraform-dev-apply",
+                       target="dev", root_contract="gcp-dev-default", operation="apply", wave="history12", phase="post",
+                       prior_receipt_sha256=None, prior_scope_commitment=None, prior_state_commitment=None,
+                       state_after_commitment=ownership.state_commitment(value, receipt.decode(raw)),
+                       scope_commitment=ownership.commitment(value, ownership.history_scope(value)),
+                       resource_count=12, import_before_count=1, import_post_count=0,
+                       checks={key: True for key in ownership.CHECKS},
+                       accounting={"terraform_outcomes": {"apply": env["APPLY_OUTCOME"], "post_plan": env["POST_PLAN_OUTCOME"]},
+                                   "post_state_reads": reads["state"], "post_metadata_reads": reads["metadata"],
+                                   "provider_requests": "unknown", "actual_cost": "unknown"})
+        receipt.write_private(root / ownership.RECORD, ownership.validate_receipt(machine))
 
 
 def main():

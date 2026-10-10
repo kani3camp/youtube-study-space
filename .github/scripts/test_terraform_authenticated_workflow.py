@@ -468,5 +468,56 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertIn(f"secrets.{name}", self.text)
 
 
+    def test_receipt_provenance_is_mandatory_before_auth_and_before_sanitization(self) -> None:
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        ordered = ["Stage reviewed private cumulative", "Verify authentic prior ownership receipts before cloud credentials",
+                   "Configure AWS backend credential", "Create saved plan without public output",
+                   "Recheck exact ownership receipts before protected validation", "Sanitize and enforce"]
+        self.assertEqual([plan.index(name) for name in ordered], sorted(plan.index(name) for name in ordered))
+        self.assertIn("runtime_ownership_provenance.py --recheck", plan)
+        for name in ordered[1:2] + ordered[4:5]:
+            step = plan.split("      - name: " + name, 1)[1].split("      - name:", 1)[0]
+            self.assertIn("ownership_wave != 'none'", step)
+            self.assertIn("GH_TOKEN: ${{ github.token }}", step)
+            self.assertNotIn("access_token", step)
+        self.assertIn('"${RUNNER_TEMP}/runtime-ownership-receipts.json"', plan.split("Cleanup sensitive temporary files")[1])
+
+    def test_history_machine_receipt_gate_post_success_and_cleanup_are_explicit(self) -> None:
+        apply = self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]
+        self.assertIn('DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "false"', self.text)
+        ordered = ["Require post-apply no-op", "Verify one-shot history state and table receipt",
+                   "Emit verified ownership receipt", "Cleanup sensitive temporary files"]
+        self.assertEqual([apply.index(name) for name in ordered], sorted(apply.index(name) for name in ordered))
+        emit = apply.split("      - name: Emit verified ownership receipt", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("steps.history_post_verify.outcome == 'success'", emit)
+        self.assertIn("env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true'", emit)
+        self.assertNotIn("RUNTIME_OWNERSHIP_PACKET_JSON", emit)
+        self.assertIn('"${RUNNER_TEMP}/history-ownership-receipt.json"', apply.split("Cleanup sensitive temporary files")[1])
+        post = apply.split("      - name: Verify one-shot history state", 1)[1].split("      - name:", 1)[0]
+        self.assertIn("secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON || ''", post)
+
+    def test_actions_read_is_scoped_and_no_new_credential_or_secret_interface(self) -> None:
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        apply = self.text.split("  apply:\n", 1)[1]
+        caller = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split("  gcp-user-activity-schema-audit:", 1)[0]
+        self.assertIn("      actions: read", plan)
+        self.assertIn("      actions: read", caller)
+        self.assertNotIn("      actions: read", apply)
+        self.assertNotIn("actions: write", self.text)
+        self.assertNotIn("upload-artifact", self.text)
+        self.assertIn("test_terraform_ownership_receipt.py", self.caller)
+        self.assertIn("test_runtime_ownership_provenance.py", self.caller)
+
+
+    def test_history_private_binding_is_checked_before_auth_and_import_in_both_jobs(self) -> None:
+        for block in [self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0],
+                      self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]]:
+            self.assertLess(block.index("Check private history receipt binding before credentials"), block.index("Configure AWS backend credential"))
+            self.assertLess(block.index("Check fresh history receipt metadata binding"), block.index("Create saved plan") if "Create saved plan" in block else block.index("Capture exact pre-import state"))
+            self.assertIn("terraform_ownership_receipt.py check-history-binding --fresh", block)
+        self.assertIn("EXPECTED_HISTORY_RECEIPT_SCOPE: ${{ needs.plan.outputs.history_receipt_scope }}", self.text)
+        self.assertIn("history_receipt_scope: ${{ steps.history_receipt_binding.outputs.history_receipt_scope }}", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
