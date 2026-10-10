@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,34 @@ import test_terraform_history_plan_receipt as receipt_fixtures
 
 
 class IdentitySmokeTest(unittest.TestCase):
+    def test_runtime_apply_composed_workflow_env_retains_exact_backend_role(self):
+        workflow = (Path(__file__).parents[1] / 'workflows/gcp-terraform-authenticated.yml').read_text()
+        job = workflow.split('  apply:\n', 1)[1].split('  security-probe:\n', 1)[0]
+        job_env = job.split('    env:\n', 1)[1].split('    steps:\n', 1)[0]
+        step = job.split('      - name: Verify Function identity exact read permissions\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('terraform_identity_smoke.py apply-read-only', step)
+        values = dict(re.findall(r'^\s+(\w+): (.+)$', job_env + '\n' + step.split('        env:\n', 1)[1].split('        run:', 1)[0], re.M))
+        substitutions = {'${{ inputs.mode }}': 'apply', '${{ needs.preflight.outputs.ownership_wave }}': 'pool',
+            '${{ needs.preflight.outputs.manage_user_activity_history }}': 'true',
+            '${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}': '111111111111',
+            '${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}': 'dummy-state-bucket',
+            '${{ needs.preflight.outputs.state_key }}': receipt.STATE_KEY,
+            '${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}': 'DUMMY_EXPECTED'}
+        keys = ('MODE', 'OWNERSHIP_WAVE', 'TF_VAR_manage_user_activity_history', 'STATE_ACCOUNT_ID',
+                'STATE_BUCKET', 'STATE_KEY', 'BACKEND_ROLE_ID')
+        env = {key: substitutions[values[key]] for key in keys}
+        answer = subprocess.CompletedProcess([], 0, json.dumps(dict(Account='111111111111', UserId='DUMMY_EXPECTED:s')), '')
+        with patch.object(smoke, 'aws', return_value=answer) as aws, \
+             patch('runtime_ownership_provenance.load_inputs', return_value=(None, None, None)) as inputs:
+            self.assertIn('Runtime state verification follows fresh private metadata', smoke.verify_aws(env, apply_read_only=True))
+            aws.assert_called_once_with('sts', 'get-caller-identity')
+            inputs.assert_called_once_with(env)
+        for bad in ('DUMMY_WRONG', ''):
+            with self.subTest(role=bad), patch.object(smoke, 'aws', return_value=answer), \
+                 patch('runtime_ownership_provenance.load_inputs') as inputs, self.assertRaises(smoke.StageFailure):
+                smoke.verify_aws(env | {'BACKEND_ROLE_ID': bad}, apply_read_only=True)
+            inputs.assert_not_called()
+
     def test_early_backend_role_requires_exact_identity_in_plan_and_apply_without_gcp_or_s3(self):
         for mode in ("plan", "apply"):
             env = {"MODE": mode, "HISTORY_TARGET": "dev", "TF_VAR_project_id": "test-youtube-study-space",

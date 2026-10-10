@@ -346,10 +346,13 @@ source trustは [`runtime-receipt-sources.json`](../../../.github/terraform/runt
 GitHub metadata interfaceのdummy testで実env/reviewer IDsやactual sourceを発明しない。
 workflow-run RESTのcaller `path`はexact `.github/workflows/ci.yml` または同pathの
 `@feature/gcp-terraform-iac` 形を受理する。reusable `path`はexact repository/workflowの
-`@feature/gcp-terraform-iac` または既存 `@refs/heads/feature/gcp-terraform-iac` 形のみで、
+`@feature/gcp-terraform-iac`、既存 `@refs/heads/feature/gcp-terraform-iac` または `@<exact issuer SHA>` 形のみで、
 別field `ref` は常にexact `refs/heads/feature/gcp-terraform-iac`、`sha` はreviewed issuer SHAと一致必須。
 任意suffixの除去やref推定はしない。[公式REST例](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10#get-a-workflow-run)
-に合わせたdummy互換性検査であり、このrepositoryのactual metadata/step-log interface確認はactivation前の未完了条件として残る。
+に加え、このrepositoryの既存成功runのactual `@SHA` 形と、同callerのexact schema-audit companion
+(`gcp-user-activity-schema-audit.yml`) を扱う。companionは同じrepo/source/ref/suffix条件を必須とし、
+authenticated reusableは必ず1件、companionは最大1件。欠落、重複、未知workflow、余分fieldはSTOP。
+actual selective step-log GETは既存非秘密CI stepで404のため、receipt transportの成立確認はactivation前の未完了条件として残る。
 critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/postと両jobのearly exact AWS RoleId checkも必須。
 actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
 API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と
