@@ -613,6 +613,7 @@ jobs:
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
+          python3 .github/scripts/test_terraform_history_post_noop_receipt.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py

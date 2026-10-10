@@ -45,6 +45,7 @@ RECEIPT_REASONS = frozenset({
     "post-noop-table-identity", "post-noop-table-schema", "post-noop-summary",
     "post-noop-resources", "post-noop-sha", "post-noop-state-unchanged",
     "post-noop-metadata-unchanged", "post-noop-plan-outcome",
+    "post-noop-after-safety",
 })
 
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Synthetic independent post-import no-op checks; no live cloud credentials."""
 import copy
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import terraform_history_plan_receipt as receipt
 import terraform_history_post_noop_receipt as gate
@@ -106,6 +108,64 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
                         gate.after(child.env, request=child.aws, metadata_request=child.table_get)
                     self.assertNotIn("import0/no-op12", (child.root / "summary").read_text()
                                      if (child.root / "summary").exists() else "")
+                finally:
+                    child.doCleanups()
+
+    def test_expiry_and_state_failures_still_attempt_independent_post_safety_reads(self):
+        for failure in ("expired-policy", "state-get-denied", "malformed-state", "version-change",
+                        "metadata-denied", "lock-denied", "failed-init"):
+            with self.subTest(failure=failure):
+                child = IndependentHistoryPostNoopTest()
+                child.setUp()
+                try:
+                    gate.before(child.env, request=child.aws)
+                    if failure == "state-get-denied":
+                        child.aws.denied = "get-object"
+                    elif failure == "malformed-state":
+                        child.aws.body = b"{"
+                    elif failure == "version-change":
+                        child.aws.version = "DUMMY_NEW_VERSION"
+                    elif failure == "lock-denied":
+                        child.aws.denied = "list-objects-v2"
+                    elif failure == "failed-init":
+                        child.env["BACKEND_INIT_OUTCOME"] = "failure"
+                    calls_before = len(child.aws.calls)
+                    metadata_calls = []
+
+                    def read_metadata(path, token, *, host):
+                        metadata_calls.append((path, host))
+                        if failure == "metadata-denied":
+                            return 403, {}
+                        return child.table_get(path, token, host=host)
+
+                    def run_after():
+                        gate.after(child.env, request=child.aws, metadata_request=read_metadata)
+
+                    if failure == "expired-policy":
+                        expired = datetime(2026, 10, 8, 14, tzinfo=timezone.utc)
+                        with patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None:
+                                          state_fixtures.ACTUAL_COST_POLICY(raw, sha, now=now or expired)):
+                            with self.assertRaises(Exception):
+                                run_after()
+                    else:
+                        with self.assertRaises(Exception):
+                            run_after()
+                    operations = [args[1] for args in child.aws.calls[calls_before:]]
+                    self.assertEqual(len(metadata_calls), 1)
+                    self.assertEqual(operations.count("list-objects-v2"), 2)
+                    self.assertEqual(operations[-2:], ["list-objects-v2", "list-objects-v2"])
+                    summary = (child.root / "summary").read_text()
+                    self.assertIn("Exact native lock absence: " +
+                                  ("STOP" if failure == "lock-denied" else "PASS"), summary)
+                    self.assertIn("Workspace absence: " +
+                                  ("STOP" if failure == "lock-denied" else "PASS"), summary)
+                    self.assertNotIn("Independent history post-import no-op: PASS", summary)
+                    self.assertNotIn("DUMMY_", summary)
+                    if failure == "expired-policy":
+                        self.assertEqual(operations[:3], ["head-object", "get-object", "head-object"])
+                        self.assertIn("Fresh cost evidence: STOP", summary)
+                    elif failure in {"state-get-denied", "malformed-state", "version-change"}:
+                        self.assertIn("Persistent state invariant: STOP", summary)
                 finally:
                     child.doCleanups()
 

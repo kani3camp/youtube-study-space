@@ -65,6 +65,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for name in ("cost", "state-before", "state-after", "state-before-receipt", "before", "table-after", "after"):
             self.assertIn(f'"${{RUNNER_TEMP}}/history-plan-{name}.json"', cleanup)
         self.assertIn("test_terraform_history_plan_receipt.py", self.caller)
+        self.assertIn("python3 .github/scripts/test_terraform_history_post_noop_receipt.py", self.caller)
 
     def test_one_shot_history_import_has_separate_approval_and_state_receipts(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]

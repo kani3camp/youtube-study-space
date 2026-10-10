@@ -55,6 +55,8 @@ assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_history_plan_receipt.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_plan_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_post_noop_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_post_noop_receipt.py
 assert_exact_groups gcp_terraform .github/scripts/test_youtube_quota_alerts.py
 assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py

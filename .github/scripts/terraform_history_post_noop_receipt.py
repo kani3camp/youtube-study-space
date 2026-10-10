@@ -24,16 +24,16 @@ STATE_AFTER = "history-post-noop-state-after.json"
 EXPECTED_COUNTS = {key: (12 if key == "no-op" else 0) for key in COUNT_KEYS}
 
 
-def context(env):
+def context(env, *, fresh=True):
     receipt.require(env.get("HISTORY_POST_NOOP") == "true"
                     and env.get("DEV_HISTORY_POST_NOOP_ENABLED") == "true"
                     and env.get("HISTORY_TARGET") == "dev"
                     and env.get("GITHUB_REF") == "refs/heads/feature/gcp-terraform-iac",
                     "post-noop-context")
-    return receipt.load_policy(env)
+    return receipt.load_policy(env, fresh=fresh)
 
 
-def snapshot(env, root, filename, metadata, maximum, *, request=None):
+def snapshot(env, root, filename, metadata, maximum, *, request=None, check_absence=True):
     first = receipt.head(env, maximum, request=request)
     path = root / filename
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -59,8 +59,9 @@ def snapshot(env, root, filename, metadata, maximum, *, request=None):
     receipt.require(type(fields) is list and [normalize_field(field) for field in fields] ==
                     [normalize_field(field) for field in metadata["schema"]["fields"]],
                     "post-noop-table-schema")
-    receipt.absent(env, receipt.STATE_KEY + ".tflock", request=request)
-    receipt.absent(env, receipt.STATE_KEY.rsplit("/", 1)[0] + "/workspaces/", request=request)
+    if check_absence:
+        receipt.absent(env, receipt.STATE_KEY + ".tflock", request=request)
+        receipt.absent(env, receipt.STATE_KEY.rsplit("/", 1)[0] + "/workspaces/", request=request)
     return first, raw
 
 
@@ -90,29 +91,63 @@ def before(env, *, request=None):
 
 
 def after(env, *, request=None, metadata_request=None):
-    root, cost = context(env)
-    initial = receipt.private_json(str(root / BEFORE))
-    receipt.require(initial["git_sha"] == env["GITHUB_SHA"], "post-noop-sha")
-    head, raw = snapshot(env, root, STATE_AFTER,
-                         receipt.private_json(str(root / "user-history-post.json")),
-                         cost["profile"]["max_state_bytes"], request=request)
-    receipt.require(head == initial["head"]
-                    and hashlib.sha256(raw).hexdigest() == initial["state_sha256"]
-                    and raw == receipt.private_bytes(root / STATE_BEFORE),
-                    "post-noop-state-unchanged")
-    status, metadata = (metadata_request or google)(TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"],
-                                                    host="bigquery.googleapis.com")
-    receipt.require(status == 200
-                    and stable_table_metadata(metadata) == initial["stable_metadata"],
-                    "post-noop-metadata-unchanged")
-    receipt.write_private(root / "history-post-noop-table-after.json", metadata)
-    exact_noop_summary(receipt.private_json(str(root / "sanitized-plan.json")), env["GITHUB_SHA"])
-    receipt.require(env.get("BACKEND_INIT_OUTCOME") == "success"
-                    and env.get("TERRAFORM_PLAN_OUTCOME") == "success"
-                    and env.get("PLAN_VALIDATION_OUTCOME") == "success"
-                    and env.get("PLAN_EXIT_CODE") == "0", "post-noop-plan-outcome")
-    # Recheck the cost evidence's expiry after all read-only post checks.
-    receipt.load_policy(env)
+    # The saved cost record still bounds safety reads if its short expiry has
+    # passed during plan. A fresh policy check is required for final PASS.
+    root, cost = context(env, fresh=False)
+    checks = {"Persistent state invariant": False, "Stable table metadata invariant": False,
+              "Exact native lock absence": False, "Workspace absence": False,
+              "Full-root no-op12 and job outcomes": False, "Fresh cost evidence": False}
+    initial = None
+    try:
+        initial = receipt.private_json(str(root / BEFORE))
+        receipt.require(initial["git_sha"] == env["GITHUB_SHA"], "post-noop-sha")
+    except Exception:
+        initial = None
+    try:
+        head, raw = snapshot(env, root, STATE_AFTER,
+                             receipt.private_json(str(root / "user-history-post.json")),
+                             cost["profile"]["max_state_bytes"], request=request,
+                             check_absence=False)
+        checks["Persistent state invariant"] = (initial is not None
+            and head == initial["head"]
+            and hashlib.sha256(raw).hexdigest() == initial["state_sha256"]
+            and raw == receipt.private_bytes(root / STATE_BEFORE))
+    except Exception:
+        pass
+    try:
+        status, metadata = (metadata_request or google)(TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"],
+                                                        host="bigquery.googleapis.com")
+        receipt.require(status == 200, "post-noop-metadata-unchanged")
+        receipt.write_private(root / "history-post-noop-table-after.json", metadata)
+        checks["Stable table metadata invariant"] = (initial is not None
+            and stable_table_metadata(metadata) == initial["stable_metadata"])
+    except Exception:
+        pass
+    for label, prefix in (("Exact native lock absence", receipt.STATE_KEY + ".tflock"),
+                          ("Workspace absence", receipt.STATE_KEY.rsplit("/", 1)[0] + "/workspaces/")):
+        try:
+            receipt.absent(env, prefix, request=request)
+            checks[label] = True
+        except Exception:
+            pass
+    try:
+        exact_noop_summary(receipt.private_json(str(root / "sanitized-plan.json")), env["GITHUB_SHA"])
+        receipt.require(env.get("BACKEND_INIT_OUTCOME") == "success"
+                        and env.get("TERRAFORM_PLAN_OUTCOME") == "success"
+                        and env.get("PLAN_VALIDATION_OUTCOME") == "success"
+                        and env.get("PLAN_EXIT_CODE") == "0", "post-noop-plan-outcome")
+        checks["Full-root no-op12 and job outcomes"] = True
+    except Exception:
+        pass
+    try:
+        checks["Fresh cost evidence"] = receipt.load_policy(env) == (root, cost)
+    except Exception:
+        pass
+    with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+        output.write("Independent history post-import safety checks (final receipt still required):\n")
+        for label, passed in checks.items():
+            output.write(f"- {label}: {'PASS' if passed else 'STOP'}\n")
+    receipt.require(all(checks.values()), "post-noop-after-safety")
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
         output.write("Independent history post-import no-op: PASS; import0/no-op12; "
                      "state and stable table metadata unchanged; native lock/workspaces absent; "
