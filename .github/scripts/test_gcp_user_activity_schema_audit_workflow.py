@@ -762,6 +762,26 @@ class UserActivityProtectedPreparationTest(unittest.TestCase):
             self.assertEqual(handoff, "")
             self.assertNotIn("manage_user_activity_history=true", handoff)
 
+    def test_independent_post_noop_metadata_requires_explicit_gate(self):
+        from unittest.mock import Mock
+        _, metadata = self.fixture_source.fixture(False)
+        with tempfile.TemporaryDirectory() as directory:
+            env = dict(self.env(directory), HISTORY_OPERATION="plan", HISTORY_STAGE="plan",
+                       HISTORY_POST_NOOP="true", DEV_HISTORY_POST_NOOP_ENABLED="false")
+            request = Mock(return_value=(200, metadata))
+            with self.assertRaises(ValueError):
+                self.preparation.prepare_workflow(env, phase="post", request=request)
+            request.assert_not_called()
+            env["DEV_HISTORY_POST_NOOP_ENABLED"] = "true"
+            self.preparation.prepare_workflow(env, phase="post", request=request)
+            request.assert_called_once_with(self.preparation.TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"],
+                                            host="bigquery.googleapis.com")
+            target = Path(directory) / "user-history-post.json"
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(adoption_module.private_json(str(target)), metadata)
+            self.assertFalse((Path(directory) / "user-history-before.json").exists())
+            self.assertEqual(Path(env["GITHUB_ENV"]).read_text(), "")
+
     def test_private_order_and_metadata_paths_never_enter_runner_env_headers_or_outputs(self):
         from unittest.mock import Mock
         _, metadata = self.fixture_source.fixture()

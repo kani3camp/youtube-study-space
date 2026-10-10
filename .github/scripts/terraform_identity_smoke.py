@@ -353,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], scheduler=True))
         elif args == ["export-topic"]:
             checks = at_stage("gcp-export", lambda: verify_export_topic_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"]))
-        elif args in (["plan-read-only"], ["apply-read-only"], ["security-probe"]):
+        elif args in (["plan-read-only"], ["apply-read-only"], ["post-noop-read-only"], ["security-probe"]):
             if (args == ["security-probe"] and
                     (env.get("MODE") != "security-probe" or env.get("DEV_TERRAFORM_SECURITY_PROBE_ENABLED") != "true")):
                 raise StageFailure("identity-mode", "check-failed")
@@ -365,8 +365,13 @@ def main(argv: list[str] | None = None) -> int:
             if (args == ["apply-read-only"] and
                     env.get("MODE") not in {"apply", "email-adoption", "quota-create", "quota-refresh"}):
                 raise StageFailure("identity-mode", "check-failed")
+            if (args == ["post-noop-read-only"] and
+                    (env.get("MODE") != "plan" or env.get("HISTORY_POST_NOOP") != "true"
+                     or env.get("DEV_HISTORY_POST_NOOP_ENABLED") != "true"
+                     or env.get("TF_VAR_manage_user_activity_history") != "true")):
+                raise StageFailure("identity-mode", "check-failed")
             plan_read_only = args == ["plan-read-only"]
-            apply_read_only = args == ["apply-read-only"]
+            apply_read_only = args in (["apply-read-only"], ["post-noop-read-only"])
             positive_only = plan_read_only or apply_read_only
             if args == ["security-probe"]:
                 # Verify the live role before any negative STS or Google request.
@@ -386,9 +391,10 @@ def main(argv: list[str] | None = None) -> int:
             raise StageFailure("identity-mode", "check-failed")
         title = ("Development plan read-only checks" if args == ["plan-read-only"] else
                  "Development apply read-only checks" if args == ["apply-read-only"] else
+                 "Development post-import read-only checks" if args == ["post-noop-read-only"] else
                  "Development conditional security probe" if args == ["security-probe"] else "Development identity smoke")
         summary = f"### {title}\n\n" + "".join(f"- PASS: {label}\n" for label in checks)
-        if args in (["plan-read-only"], ["apply-read-only"]):
+        if args in (["plan-read-only"], ["apply-read-only"], ["post-noop-read-only"]):
             mode = args[0]
             summary += "".join(f"- SKIPPED ({mode}): {label}\n" for label in (
                 "AWS apply-role AssumeRole DENY probe",
@@ -408,6 +414,8 @@ def main(argv: list[str] | None = None) -> int:
               if args == ["plan-read-only"] else
               "Development apply read-only checks: PASS; full security gate: NOT VERIFIED"
               if args == ["apply-read-only"] else
+              "Development post-import read-only checks: PASS; full security gate: NOT VERIFIED"
+              if args == ["post-noop-read-only"] else
               "Development conditional security probe: PASS; request/header only"
               if args == ["security-probe"] else "Development identity smoke: PASS")
         return 0

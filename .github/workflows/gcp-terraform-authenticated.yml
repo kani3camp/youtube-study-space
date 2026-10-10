@@ -21,6 +21,11 @@ on:
         required: false
         default: ""
         type: string
+      history_post_noop:
+        description: Separately gated independent full-root no-op after history import
+        required: false
+        default: false
+        type: boolean
       ownership_wave:
         description: Disabled source-only cumulative runtime ownership plan selection
         required: false
@@ -61,6 +66,7 @@ env:
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
+  DEV_HISTORY_POST_NOOP_ENABLED: "false"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
@@ -110,6 +116,7 @@ jobs:
         env:
           TARGET: ${{ inputs.target }}
           MODE: ${{ inputs.mode }}
+          HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
           OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
         run: |
           set -euo pipefail
@@ -149,6 +156,16 @@ jobs:
               exit 1
               ;;
           esac
+          [[ "${HISTORY_POST_NOOP}" == "true" || "${HISTORY_POST_NOOP}" == "false" ]] || {
+            echo "::error::Invalid history post-import check input."
+            exit 1
+          }
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            [[ "${TARGET}" == "dev" && "${MODE}" == "plan" && "${OWNERSHIP_WAVE:-none}" == "none" && "${DEV_HISTORY_POST_NOOP_ENABLED}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED}" == "true" ]] || {
+              echo "::error::Independent history post-import no-op is disabled or has the wrong target/mode."
+              exit 1
+            }
+          fi
 
           ownership_wave="${OWNERSHIP_WAVE:-none}"
           case "${ownership_wave}" in
@@ -268,6 +285,7 @@ jobs:
       history_receipt_scope: ${{ steps.history_receipt_binding.outputs.history_receipt_scope }}
     env:
       MODE: ${{ inputs.mode }}
+      HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
       STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
       STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       STATE_KEY: ${{ needs.preflight.outputs.state_key }}
@@ -418,12 +436,16 @@ jobs:
           MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
-          case "${MODE}" in
-            plan|quota-plan) python3 .github/scripts/terraform_identity_smoke.py plan-read-only ;;
-            apply|email-adoption|quota-create|quota-refresh)
-              python3 .github/scripts/terraform_identity_smoke.py apply-read-only ;;
-            *) echo "::error::Unsupported identity route."; exit 1 ;;
-          esac
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py post-noop-read-only
+          else
+            case "${MODE}" in
+              plan|quota-plan) python3 .github/scripts/terraform_identity_smoke.py plan-read-only ;;
+              apply|email-adoption|quota-create|quota-refresh)
+                python3 .github/scripts/terraform_identity_smoke.py apply-read-only ;;
+              *) echo "::error::Unsupported identity route."; exit 1 ;;
+            esac
+          fi
 
       - name: Read canonical history metadata privately
         id: history_metadata
@@ -432,7 +454,12 @@ jobs:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           HISTORY_OPERATION: ${{ inputs.mode }}
           HISTORY_STAGE: plan
-        run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+        run: |
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then
+            python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase post
+          else
+            python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
+          fi
 
       - name: Check fresh history receipt metadata binding
         if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
@@ -442,8 +469,13 @@ jobs:
 
       - name: Bind the private history plan baseline
         id: history_plan_before
-        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        if: ${{ inputs.mode == 'plan' && !inputs.history_post_noop && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase before
+
+      - name: Bind the independently adopted history state baseline
+        id: history_post_noop_before
+        if: ${{ inputs.history_post_noop && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase before
 
       - name: Initialize remote backend without public output
         id: backend_init
@@ -479,7 +511,9 @@ jobs:
           fi
           history_args=()
           if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
-            history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
+            history_phase=before
+            if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then history_phase=post; fi
+            history_args=(-var-file="${RUNNER_TEMP}/user-history-${history_phase}.tfvars.json")
           fi
           if [[ "${MODE}" == "quota-refresh" ]]; then plan_args=(-refresh-only); fi
           set +e
@@ -522,12 +556,14 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          history_phase=before
+          if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then history_phase=post; fi
           set +e
           terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/tfplan" \
             2>>"${RUNNER_TEMP}/terraform-plan.log" \
             | python3 .github/scripts/terraform_protected_plan.py \
                 --operation "${{ inputs.mode }}" \
-                --phase before \
+                --phase "${history_phase}" \
                 --environment "${{ inputs.target }}" \
                 --git-sha "${GITHUB_SHA}" \
                 --policy import-only \
@@ -550,7 +586,7 @@ jobs:
           fi
 
       - name: Verify private history plan invariants and released native lock
-        if: ${{ always() && steps.history_plan_before.outcome == 'success' }}
+        if: ${{ always() && !inputs.history_post_noop && steps.history_plan_before.outcome == 'success' }}
         env:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
@@ -558,6 +594,16 @@ jobs:
           PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
           PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase after
+
+      - name: Verify independent post-import no-op and unchanged state
+        if: ${{ always() && inputs.history_post_noop && steps.history_post_noop_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
+        run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase after
 
       - name: Cleanup sensitive temporary files
         if: always()
@@ -575,6 +621,10 @@ jobs:
             "${RUNNER_TEMP}/history-plan-before.json" \
             "${RUNNER_TEMP}/history-plan-table-after.json" \
             "${RUNNER_TEMP}/history-plan-after.json" \
+            "${RUNNER_TEMP}/history-post-noop-before.json" \
+            "${RUNNER_TEMP}/history-post-noop-state-before.json" \
+            "${RUNNER_TEMP}/history-post-noop-state-after.json" \
+            "${RUNNER_TEMP}/history-post-noop-table-after.json" \
             "${RUNNER_TEMP}/user-history-before.json" \
             "${RUNNER_TEMP}/user-history-post.json" \
             "${RUNNER_TEMP}/user-history-before.tfvars.json" \
