@@ -354,7 +354,7 @@ class WorkflowContracts(unittest.TestCase):
     def test_test_only_activation_still_rejects_apply_prod_probes_exceptions_and_missing_history(self):
         activated = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true')
         self.assertEqual(self.preflight(**activated).returncode, 0)
-        apply_gates=activated | dict(DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true',DEV_HISTORY_RECEIPT_EMITTER_ENABLED='true')
+        apply_gates=activated | dict(DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true',DEV_HISTORY_RECEIPT_EMITTER_ENABLED='true',DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true')
         self.assertEqual(self.preflight(**apply_gates,MODE='apply').returncode,0)
         self.assertNotEqual(self.preflight(**apply_gates,MODE='apply',HISTORY_POST_NOOP='true',DEV_HISTORY_POST_NOOP_ENABLED='true').returncode,0)
         for overrides in [dict(MODE=mode) for mode in ['apply', 'security-probe', 'email-adoption', 'quota-create', 'quota-plan', 'quota-refresh']] + [
@@ -370,7 +370,8 @@ class WorkflowContracts(unittest.TestCase):
         self.assertIn('ownership_wave: ${{ inputs.terraform_ownership_wave }}', self.caller)
         self.assertIn('test_runtime_ownership_package.py', self.caller)
         self.assertNotIn('-target=', plan)
-        self.assertNotIn('upload-artifact', self.text)
+        self.assertEqual(self.text.count('uses: actions/upload-artifact@'), 1)
+        self.assertIn('path: ${{ runner.temp }}/ownership-public/ownership-receipt.json', self.text)
         for name in ['runtime-ownership-packet.json', 'runtime-ownership.tfvars.json']:
             self.assertIn('"${RUNNER_TEMP}/' + name + '"', plan.split('Cleanup sensitive temporary files')[1])
         for name in ['DEV_HISTORY_POST_NOOP12_READY', 'DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED']:

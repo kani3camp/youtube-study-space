@@ -278,7 +278,7 @@ before/preapplyはstateに既存11件のみ、exact table import1/既存11 no-op
 
 postは同lineage・増加serial、既存11の全state値とoutputs/既知checks不変、追加table1件/schema、stable tables.get不変、positive lock absence、post full-root import0/no-op12/他0を要求する。列descriptionはnestedも比較する。output-only `etag`/`lastModifiedTime`/`streamingBuffer`/row・bytes・partition統計はprivate観測し、通常BigQuery writerの変化だけでSTOPしない。他fieldは未知fieldもstrict一致。metadataだけでrow本文の同一性を証明せず、business-data query/DDL/table overwriteはこのscope外。
 
-authentic root receiptは、review済みissuer Sの実GitHub run/attempt1、成功したexact plan/apply jobs、両Environment approval、required stepsとcleanup、exact emitter step-logのmarker一件/digest、private bindingをconsumerが再照合して初めて受理する。copy JSON、PASS prose、old probe/planはroot proofにならない。issuer catalogは現在空。actual GitHub metadata/selective step-log interfaceの確認はactivation前の残るsource gapで、dummy testsを実interface成功と見なさない。詳細は[runtime receipt contract](runtime-wif-api-ownership.md)を参照する。
+authentic root receiptは、review済みissuer Sの実GitHub run/attempt1、成功したexact plan/apply jobs、両Environment approval、required emitter/publish/cleanup steps、専用sanitized artifactのexact identity/ZIP digest/receipt digest、private bindingをconsumerが再照合して初めて受理する。初回applyはemitter/publication gates両方を必須とするが、現在はfalse。copy JSON、PASS prose、old probe/plan、public dummy artifactはroot proofにならない。issuer catalogは現在空。selective step-log GET404を受けて専用artifactへ移行し、source独立reviewとbounded public dummy roundtripの成立をactivation前に確認する。real publicationは別のowner execution approvalが必要。詳細は[runtime receipt contract](runtime-wif-api-ownership.md)を参照する。
 
 ### Failure classification and recovery
 

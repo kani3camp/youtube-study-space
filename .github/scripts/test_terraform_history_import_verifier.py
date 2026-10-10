@@ -260,7 +260,9 @@ class HistoryEmitterTest(unittest.TestCase):
         self.assertEqual(value['accounting']['post_state_reads'], 4)
         self.assertEqual(value['accounting']['post_metadata_reads'], 1)
         with patch('sys.stdout', StringIO()) as output:
-            ownership.emit(self.case.env)
+            ownership.emit(self.case.env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
+        public = self.case.root / ownership.PUBLIC_DIRECTORY / ownership.PUBLIC_FILE
+        self.assertEqual(public.read_bytes(), ownership.canonical(value)+b'\n')
         self.assertEqual(output.getvalue().count(ownership.MARKER), 1)
         for sentinel in ['DUMMY_TOKEN', 'DUMMY_ETAG', '111111111111', 'dummy-state-bucket', self.binding['nonce']]:
             self.assertNotIn(sentinel, output.getvalue())

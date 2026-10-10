@@ -95,6 +95,8 @@ env:
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Receipt code alone is not authorization for a history apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "false"
+  # Real receipt publication needs separate owner execution approval.
+  DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "false"
 
 jobs:
   preflight:
@@ -187,8 +189,8 @@ jobs:
               echo "::error::Runtime ownership disabled; history import/post no-op12 and activation review remain pending."
               exit 1
             }
-            if [[ "${MODE}" == "apply" && "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED}" != "true" ]]; then
-              echo "::error::Runtime apply receipt emission is disabled."
+            if [[ "${MODE}" == "apply" && ( "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED}" != "true" || "${DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED}" != "true" ) ]]; then
+              echo "::error::Runtime apply receipt emission/publication is disabled."
               exit 1
             fi
           fi
@@ -244,8 +246,8 @@ jobs:
                   exit 1
                 }
                 if [[ "${MODE}" == "apply" && "${ownership_wave}" == "none" ]]; then
-                  [[ "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED:-false}" == "true" ]] || {
-                    echo "::error::First history import requires its root receipt emitter and no runtime wave."
+                  [[ "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED:-false}" == "true" && "${DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED:-false}" == "true" ]] || {
+                    echo "::error::First history import requires its root receipt emitter/publication and no runtime wave."
                     exit 1
                   }
                 fi
@@ -1152,6 +1154,7 @@ jobs:
         run: python3 .github/scripts/terraform_runtime_execution.py --phase after
 
       - name: Emit verified ownership receipt
+        id: ownership_receipt
         if: ${{ (steps.history_post_verify.outcome == 'success' || steps.runtime_post_verify.outcome == 'success') && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
         run: |
           if [[ "${OWNERSHIP_WAVE:-none}" == "none" ]]; then
@@ -1160,11 +1163,26 @@ jobs:
             python3 .github/scripts/terraform_ownership_receipt.py emit-runtime
           fi
 
+      - name: Publish sanitized ownership receipt
+        if: ${{ steps.ownership_receipt.outcome == 'success' && env.DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ownership-receipt-v1-${{ github.run_id }}-1-${{ github.sha }}
+          path: ${{ runner.temp }}/ownership-public/ownership-receipt.json
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
       - name: Cleanup sensitive temporary files
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+          rm -f "${RUNNER_TEMP}/ownership-public/ownership-receipt.json"
+          if [[ -d "${RUNNER_TEMP}/ownership-public" ]]; then rmdir "${RUNNER_TEMP}/ownership-public"; fi
           rm -f \
             "${RUNNER_TEMP}/runtime-execution-before.json" \
             "${RUNNER_TEMP}/runtime-execution-sealed.json" \
