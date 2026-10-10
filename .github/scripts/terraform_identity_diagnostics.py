@@ -7,7 +7,7 @@ STAGES = frozenset({
     "aws-state-probe-invariant", "aws-state-probe-deny", "aws-state-probe-receipt",
     "history-policy", "history-head",
     "history-get", "history-re-head", "history-lock-list",
-    "history-workspace-list", "identity-mode", "identity-output",
+    "history-workspace-list", "identity-mode", "identity-output", "gcp-plan-service-account-target",
 })
 CATEGORIES = frozenset({"check-failed", "invalid-evidence", "dependency-error"})
 RECEIPT_REASONS = frozenset({
