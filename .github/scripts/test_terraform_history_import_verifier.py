@@ -32,8 +32,7 @@ class ImportVerifierTest(unittest.TestCase):
         self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789")
         self.aws = state_fixtures.FakeS3()
         now = datetime.now(timezone.utc)
-        self.approved = {"target": "dev", "git_sha": SHA, "plan_run_id": 123456,
-                         "cost_evidence_sha256": "b" * 64, "max_added_current_month_usd": "0.25",
+        self.approved = {"schema_version": 2, "target": "dev", "git_sha": SHA, "plan_run_id": 123456,
                          "issued_utc": (now - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                          "expires_utc": (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")}
         summary = build_summary(self.plan, environment="dev", git_sha=SHA, policy="import-only")
@@ -48,9 +47,23 @@ class ImportVerifierTest(unittest.TestCase):
                     "GITHUB_OUTPUT": str(self.root / "output"), "GITHUB_STEP_SUMMARY": str(self.root / "summary"),
                     "GCP_SMOKE_ACCESS_TOKEN": "DUMMY_TOKEN", "APPLY_OUTCOME": "success", "POST_PLAN_OUTCOME": "success",
                     "APPROVED_SUMMARY_DIGEST": self.approved["summary_sha256"]}
+        from test_terraform_ownership_receipt import dummy_context
+        self.env.update(dummy_context())
+        self.env["PLAN_SAFETY_EVIDENCE"] = json.dumps({"schema_version": 1, "git_sha": SHA,
+            "issued_utc": self.approved["issued_utc"], "expires_utc": self.approved["expires_utc"],
+            "max_state_bytes": receipt.MAX_BYTES, "state_writers_quiescent": True})
+        binding = {"nonce": "ab" * 32, "backend": {"account_id": "111111111111", "bucket": "dummy-state-bucket",
+            "key": receipt.STATE_KEY, "region": "ap-northeast-1", "workspace": "default"}, "history_metadata": self.metadata}
+        self.env["RUNTIME_OWNERSHIP_PACKET_JSON"] = json.dumps({"schema_version": 1, "receipt_binding": binding})
+        self.env["EXPECTED_HISTORY_RECEIPT_SCOPE"] = gate.ownership.commitment(binding, gate.ownership.history_scope(binding))
         self.env["HISTORY_IMPORT_APPROVAL"] = json.dumps(self.approved)
         (self.root / "output").write_text("")
         receipt.write_private(self.root / "user-history-before.json", self.metadata)
+        post_summary = json.loads(self.summary_raw)
+        post_summary["counts"]["import"] = 0
+        for resource in post_summary["resources"]:
+            resource["import"] = False
+        receipt.write_private(self.root / "post-apply-summary.json", post_summary)
 
     def before(self):
         gate.before(self.env, request=self.aws)
@@ -92,13 +105,34 @@ class ImportVerifierTest(unittest.TestCase):
     def test_approval_fails_closed_on_target_sha_digest_time_and_mode(self):
         for change in ({"target": "prod"}, {"git_sha": "b" * 40}, {"summary_sha256": "x" * 64},
                        {"expires_utc": "2020-01-01T00:00:00Z"}, {"issued_utc": "2090-01-01T00:00:00Z"},
-                       {"plan_run_id": 0}):
+                       {"plan_run_id": 0}, {"plan_run_id": True}, {"schema_version": 1},
+                       {"schema_version": True}, {"cost_evidence_sha256": "c" * 64},
+                       {"max_added_current_month_usd": "0.25"}):
             with self.subTest(change=change), self.assertRaises(Exception):
                 gate.approval(dict(self.env, HISTORY_IMPORT_APPROVAL=json.dumps(self.approved | change)))
         with self.assertRaises(Exception):
             gate.approval(dict(self.env, MODE="plan"))
         with self.assertRaises(Exception):
             gate.approval(dict(self.env, HISTORY_IMPORT_APPROVAL=self.env["HISTORY_IMPORT_APPROVAL"][:-1] + ',"target":"dev"}'))
+
+    def test_approval_requires_first_attempt_emitter_and_fresh_safety_before_cloud(self):
+        safety = json.loads(self.env["PLAN_SAFETY_EVIDENCE"])
+        changes = [{"DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "false"}, {"GITHUB_RUN_ATTEMPT": "2"},
+                   {"GITHUB_JOB": "other"}, {"PLAN_COST_EVIDENCE": "legacy"},
+                   {"PLAN_SAFETY_EVIDENCE": json.dumps(safety | {"state_writers_quiescent": False})},
+                   {"PLAN_SAFETY_EVIDENCE": json.dumps(safety | {"expires_utc": "2020-01-01T00:00:00Z"})}]
+        for change in changes:
+            with self.subTest(change=change), self.assertRaises(Exception):
+                gate.before(self.env | change, request=lambda *_: self.fail("no cloud before admission"))
+        for job in ("plan", "apply"):
+            self.assertEqual(gate.approval(self.env | {"GITHUB_JOB": job}), self.approved)
+
+    def test_apply_state_snapshot_honors_owner_size_bound_before_download(self):
+        safety = json.loads(self.env["PLAN_SAFETY_EVIDENCE"])
+        safety["max_state_bytes"] = len(self.aws.body) - 1
+        with self.assertRaises(Exception):
+            gate.before(self.env | {"PLAN_SAFETY_EVIDENCE": json.dumps(safety)}, request=self.aws)
+        self.assertEqual([call[:2] for call in self.aws.calls], [("s3api", "head-object")])
 
     def test_actual_cli_with_dummy_approval_is_value_free(self):
         script = Path(gate.__file__)
@@ -208,6 +242,7 @@ class HistoryEmitterTest(unittest.TestCase):
         post_summary['counts']['import'] = 0
         for resource in post_summary['resources']:
             resource['import'] = False
+        (self.case.root / 'post-apply-summary.json').unlink()
         receipt.write_private(self.case.root / 'post-apply-summary.json', post_summary)
 
     def run_post(self):
@@ -230,11 +265,14 @@ class HistoryEmitterTest(unittest.TestCase):
         for sentinel in ['DUMMY_TOKEN', 'DUMMY_ETAG', '111111111111', 'dummy-state-bucket', self.binding['nonce']]:
             self.assertNotIn(sentinel, output.getvalue())
 
-    def test_disabled_emitter_preserves_existing_history_behavior_without_secret(self):
+    def test_disabled_emitter_rejects_history_import_without_any_post_reads(self):
         self.case.env['DEV_HISTORY_RECEIPT_EMITTER_ENABLED'] = 'false'
         self.case.env.pop('RUNTIME_OWNERSHIP_PACKET_JSON')
         (self.case.root / 'post-apply-summary.json').unlink()
-        self.run_post()
+        calls = len(self.case.aws.calls)
+        with self.assertRaises(Exception):
+            self.run_post()
+        self.assertEqual(len(self.case.aws.calls), calls)
         self.assertFalse((self.case.root / gate.ownership.RECORD).exists())
 
     def test_failed_apply_post_state_metadata_lock_never_issue_receipt(self):

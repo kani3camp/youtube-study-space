@@ -26,6 +26,7 @@ REPOSITORY_ID, OWNER_ID = 340900071, 54093651
 BRANCH = "feature/gcp-terraform-iac"
 CALLER = ".github/workflows/ci.yml"
 REUSABLE = ".github/workflows/gcp-terraform-authenticated.yml"
+COMPANION = ".github/workflows/gcp-user-activity-schema-audit.yml"
 WORKFLOW_REF = f"{REPOSITORY}/{CALLER}@refs/heads/{BRANCH}"
 MARKER = "OWNERSHIP_RECEIPT_V1 "
 RECORD = "history-ownership-receipt.json"
@@ -60,6 +61,7 @@ RUNTIME_STEPS = {
               "Seal the runtime saved plan and fresh private inputs", "Verify post-import canonical metadata privately",
               "Verify runtime state-only delta and full-root post no-op"],
 }
+HISTORY_IDENTITY_STEP = "Verify exact AWS execution identity before GCP authentication"
 REFERENCE_KEYS = {"run_id", "attempt", "job_id", "source_sha", "receipt_sha256"}
 
 
@@ -203,6 +205,7 @@ def load_catalog(value):
         if "history12" in item["waves"]:
             need(set(HISTORY_STEPS) <= set(item["required_steps"]["apply"])
                  and set(HISTORY_STEPS[:2]) <= set(item["required_steps"]["plan"]))
+            need(all(HISTORY_IDENTITY_STEP in item["required_steps"][role] for role in ("plan", "apply")))
         if set(item["waves"]) - {"history12"}:
             need(all(set(RUNTIME_STEPS[role]) <= set(item["required_steps"][role]) for role in ("plan", "apply")))
     return value
@@ -226,11 +229,21 @@ def check_run(run, ref, issuer):
         repo = run.get(key)
         need(type(repo) is dict and type(repo.get("id")) is int and repo.get("id") == REPOSITORY_ID and repo.get("full_name") == REPOSITORY
              and type(repo.get("owner")) is dict and type(repo["owner"].get("id")) is int and repo["owner"].get("id") == OWNER_ID)
-    # REST documents @branch in path and a separate fully qualified ref. Keep
-    # the prior full-ref form too; never strip or normalize an arbitrary suffix.
-    need(any(run.get("referenced_workflows") == [{"path": f"{REPOSITORY}/{REUSABLE}@{suffix}",
-             "sha": ref["source_sha"], "ref": "refs/heads/" + BRANCH}]
-             for suffix in (BRANCH, "refs/heads/" + BRANCH)))
+    # GitHub also reports @exact-SHA and the reviewed caller's schema-audit
+    # companion, including when that job was skipped. Match every field and
+    # each allowlisted path; never infer a ref or discard unknown references.
+    workflows = run.get("referenced_workflows")
+    need(type(workflows) is list and 1 <= len(workflows) <= 2)
+    seen = set()
+    for item in workflows:
+        need(type(item) is dict and set(item) == {"path", "sha", "ref"} and type(item["path"]) is str
+             and item["sha"] == ref["source_sha"] and item["ref"] == "refs/heads/" + BRANCH)
+        matches = [workflow for workflow in (REUSABLE, COMPANION)
+                   if item["path"] in {f"{REPOSITORY}/{workflow}@{suffix}" for suffix in
+                                        (BRANCH, "refs/heads/" + BRANCH, ref["source_sha"])}]
+        need(len(matches) == 1 and matches[0] not in seen)
+        seen.add(matches[0])
+    need(REUSABLE in seen)
 
 
 def authenticate(ref, catalog, *, request):

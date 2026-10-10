@@ -346,11 +346,14 @@ source trustは [`runtime-receipt-sources.json`](../../../.github/terraform/runt
 GitHub metadata interfaceのdummy testで実env/reviewer IDsやactual sourceを発明しない。
 workflow-run RESTのcaller `path`はexact `.github/workflows/ci.yml` または同pathの
 `@feature/gcp-terraform-iac` 形を受理する。reusable `path`はexact repository/workflowの
-`@feature/gcp-terraform-iac` または既存 `@refs/heads/feature/gcp-terraform-iac` 形のみで、
+`@feature/gcp-terraform-iac`、既存 `@refs/heads/feature/gcp-terraform-iac` または `@<exact issuer SHA>` 形のみで、
 別field `ref` は常にexact `refs/heads/feature/gcp-terraform-iac`、`sha` はreviewed issuer SHAと一致必須。
 任意suffixの除去やref推定はしない。[公式REST例](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10#get-a-workflow-run)
-に合わせたdummy互換性検査であり、このrepositoryのactual metadata/step-log interface確認はactivation前の未完了条件として残る。
-critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/post stepsも必須。
+に加え、このrepositoryの既存成功runのactual `@SHA` 形と、同callerのexact schema-audit companion
+(`gcp-user-activity-schema-audit.yml`) を扱う。companionは同じrepo/source/ref/suffix条件を必須とし、
+authenticated reusableは必ず1件、companionは最大1件。欠落、重複、未知workflow、余分fieldはSTOP。
+actual selective step-log GETは既存非秘密CI stepで404のため、receipt transportの成立確認はactivation前の未完了条件として残る。
+critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/postと両jobのearly exact AWS RoleId checkも必須。
 actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
 API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と
 [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28)。selective step-log indexはzero-based。
@@ -375,7 +378,7 @@ exact post/import0/no-op12 summaryも検査してからprivate machine recordを
 専用emit stepはpost成功＋closed issuance gateの条件だけで出力する。cleanup失敗/run失敗のreceiptはconsumerが拒否する。
 public accountingは観測したapply/post-plan outcomesとpost verifierのexplicit readsだけ。
 provider内部request数・workflow全体総数・実請求額はunknownとして残し、推計をactualにしない。新cost-only blockingはない。
-通常history routeはemitter falseならsecret/追加post summaryを必要とせず既存挙動を保持する。
+初回history applyはemitter true、exact trusted context、attempt1を認証前に必須とし、falseの経路ではimportしない。root emission後のcatalog admissionは別closure sourceでhistorical issuer SHAをpinし、catalog準備のためにimportを再実行しない。
 
 sourceで閉じる範囲はissuer success emission、GitHub authenticity、private scope/ordered predecessor joins、protected mandatory wiringとdummy denial tests。
 **未完了**: actual history import/post-noop12、real receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、

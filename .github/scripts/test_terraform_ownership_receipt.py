@@ -36,9 +36,10 @@ def dummy_context():
 
 def dummy_catalog():
     steps = copy.deepcopy(gate.MINIMUM_STEPS)
-    steps['plan'] = ['Checkout trusted commit'] + gate.HISTORY_STEPS[:2] + gate.MINIMUM_STEPS['plan'][1:]
+    steps['plan'] = ['Checkout trusted commit', gate.HISTORY_STEPS[0], gate.HISTORY_IDENTITY_STEP,
+                     gate.HISTORY_STEPS[1]] + gate.MINIMUM_STEPS['plan'][1:]
     steps['apply'] = ['Checkout the exact planned commit', 'Assert plan/apply commit identity',
-        *gate.HISTORY_STEPS[:6],
+        gate.HISTORY_STEPS[0], gate.HISTORY_IDENTITY_STEP, *gate.HISTORY_STEPS[1:6],
         'Apply the locally re-created saved plan', gate.HISTORY_STEPS[6], 'Require post-apply no-op',
         gate.HISTORY_STEPS[7], 'Emit verified ownership receipt', 'Cleanup sensitive temporary files']
     for role in ('plan', 'apply'):
@@ -139,6 +140,67 @@ class OwnershipReceiptTest(unittest.TestCase):
         self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
             'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
 
+    def test_actual_exact_sha_and_reviewed_companion_metadata_authenticate(self):
+        for suffix in (SHA, gate.BRANCH, 'refs/heads/' + gate.BRANCH):
+            for companion in (False, True):
+                for reverse in (False, True):
+                    fake = GitHubFixture()
+                    items = [dict(path=f'{gate.REPOSITORY}/{gate.REUSABLE}@{suffix}',
+                                  sha=SHA, ref='refs/heads/' + gate.BRANCH)]
+                    if companion:
+                        items.append(dict(path=f'{gate.REPOSITORY}/{gate.COMPANION}@{suffix}',
+                                          sha=SHA, ref='refs/heads/' + gate.BRANCH))
+                    if reverse:
+                        items.reverse()
+                    for key in (fake.base, fake.base + '/attempts/1'):
+                        fake.responses[key]['referenced_workflows'] = copy.deepcopy(items)
+                    with self.subTest(suffix=suffix, companion=companion, reverse=reverse):
+                        value, _ = gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+                        self.assertEqual(value, fake.value)
+                        self.assertEqual(fake.calls[0], fake.calls[-1])
+
+    def test_companion_requires_exact_schema_repository_source_and_ref(self):
+        good = dict(path=f'{gate.REPOSITORY}/{gate.COMPANION}@{SHA}', sha=SHA, ref='refs/heads/' + gate.BRANCH)
+        changes = [dict(path=good['path'].replace(SHA, 'b'*40)), dict(sha='b'*40),
+            dict(ref='refs/heads/dev'), dict(path=good['path'].replace('kani3camp/', 'other-owner/')),
+            dict(path=good['path'].replace('youtube-study-space/', 'other-repo/')),
+            dict(path=good['path'].replace('gcp-user-activity-schema-audit.yml', 'other.yml')),
+            dict(path=good['path'] + '/'), dict(path=good['path'] + '?ref=dev'), dict(extra=True)]
+        for changeset in changes:
+            fake = GitHubFixture()
+            fake.responses[fake.base]['referenced_workflows'].append(good | changeset)
+            with self.subTest(changes=changeset), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+            self.assertEqual(fake.calls, [(fake.base, False)])
+        for shape in ('duplicate-companion', 'duplicate-authenticated', 'companion-only', 'missing-ref'):
+            fake = GitHubFixture()
+            items = fake.responses[fake.base]['referenced_workflows']
+            if shape == 'duplicate-companion':
+                items.extend([copy.deepcopy(good), copy.deepcopy(good)])
+            elif shape == 'duplicate-authenticated':
+                items.append(dict(items[0], path=f'{gate.REPOSITORY}/{gate.REUSABLE}@{SHA}'))
+            elif shape == 'companion-only':
+                items[:] = [good]
+            else:
+                items.append({k: v for k, v in good.items() if k != 'ref'})
+            with self.subTest(shape=shape), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+
+    def test_companion_attempt_or_final_metadata_changes_stop(self):
+        for endpoint in ('attempt', 'final'):
+            fake = GitHubFixture()
+            companion = dict(path=f'{gate.REPOSITORY}/{gate.COMPANION}@{SHA}', sha=SHA, ref='refs/heads/' + gate.BRANCH)
+            for key in (fake.base, fake.base + '/attempts/1'):
+                fake.responses[key]['referenced_workflows'].append(copy.deepcopy(companion))
+            def request(path, **kwargs):
+                value = fake(path, **kwargs)
+                if ((endpoint == 'attempt' and path == fake.base + '/attempts/1')
+                        or (endpoint == 'final' and path == fake.base and len(fake.calls) > 1)):
+                    value['referenced_workflows'][1]['sha'] = 'b'*40
+                return value
+            with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=request)
+
     def test_caller_path_suffix_and_file_mismatches_rejected_before_jobs(self):
         caller = '.github/workflows/ci.yml'
         branch = 'feature/gcp-terraform-iac'
@@ -158,7 +220,7 @@ class OwnershipReceiptTest(unittest.TestCase):
         path = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml'
         branch = 'feature/gcp-terraform-iac'
         expected = dict(path=path + '@' + branch, sha=SHA, ref='refs/heads/' + branch)
-        bad_paths = [path, path + '@dev', path + '@refs/tags/' + branch, path + '@' + SHA,
+        bad_paths = [path, path + '@dev', path + '@refs/tags/' + branch, path + '@' + 'b'*40,
             path + '@dev@' + branch, path + '@' + branch + '?ref=dev',
             path + '@' + branch + '#dev', path + '@' + branch + '/',
             path.replace('kani3camp/', 'other-owner/') + '@' + branch,
@@ -324,6 +386,13 @@ class OwnershipReceiptTest(unittest.TestCase):
         catalog['issuers'][SHA]['waves'] = ['pool']
         with self.assertRaises(ValueError):
             gate.authenticate(fake.ref, catalog, request=fake)
+
+    def test_history_issuer_requires_exact_role_step_in_both_protected_jobs(self):
+        for role in ("plan", "apply"):
+            catalog = dummy_catalog()
+            catalog['issuers'][SHA]['required_steps'][role].remove(gate.HISTORY_IDENTITY_STEP)
+            with self.subTest(role=role), self.assertRaises(ValueError):
+                gate.load_catalog(catalog)
 
     def test_selective_log_transport_strips_auth_and_limits_redirects(self):
         from urllib.error import HTTPError

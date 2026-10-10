@@ -336,7 +336,7 @@ class WorkflowContracts(unittest.TestCase):
                    GITHUB_REPOSITORY_ID='340900071', GITHUB_REPOSITORY_OWNER_ID='54093651',
                    GITHUB_REF='refs/heads/feature/gcp-terraform-iac',
                    GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
-                   GITHUB_SHA=SHA, TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool',
+                   GITHUB_SHA=SHA, GITHUB_RUN_ATTEMPT='1', TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool',
                    HISTORY_POST_NOOP='false')
         env.update(re.findall(r'^  ([A-Z_]+): "([^"]*)"$', self.text, re.M))
         env.update(overrides)

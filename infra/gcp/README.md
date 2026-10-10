@@ -154,7 +154,7 @@ development planとapplyは独立gateを持ちます。planの有効化はtrust�
 - backendのworkspace discovery prefixは対象environment配下に固定し、`TF_WORKSPACE=default` を使用する
 - development planは空resource graphでもGCP WIF token交換とplan SA impersonationを強制し、project metadataのharmless readで認証を証明する
 - `mode=plan`のidentity smokeは`plan-read-only`を使用し、同一SHA OIDC claim、plan identity、exact dev state read、dev project/Function metadata GETとdevの必要GET・mutation permission不在だけを確認する。state本体PUT、apply role/SA credential発行試験、prod / 他productのread/listとprod permission検査は実行せず、Summaryに`SKIPPED`と`Full security gate: NOT VERIFIED`を記録する。Terraform native dev `.tflock`の通常PUT/GET/DELETEはplanに必要な一時操作として別に扱う
-- historyの`mode=apply` plan jobは専用`apply-read-only` checkを使う。`plan-read-only`のMODE=plan/cost-policy receiptへ流用せず、exact OIDC、dev GCP/STS、state HEAD/GET/HEADとlock LISTを確認する。apply jobのFunction checkもこのmodeではdev-only。条件付きPut、wrong-role STS、prod/他product、別SAのnegative requestをapply経路から呼ばない
+- historyの`mode=apply` plan jobは専用`apply-read-only` checkを使う。`plan-read-only`のMODE=plan/safety admissionへ流用せず、exact OIDC、dev GCP/STS、state HEAD/GET/HEADとlock LISTを確認する。apply jobのFunction checkもこのmodeではdev-only。条件付きPut、wrong-role STS、prod/他product、別SAのnegative requestをapply経路から呼ばない
 - full negative smokeは別gate `DEV_TERRAFORM_SECURITY_PROBE_ENABLED=false`の`security-probe` job/modeに限定する。fresh HEADと異なるrandom ETagの`If-Match`による条件付きPutObject拒否は403のみ合格で、前後version/body/lock差分や412/404/409はSTOP。条件付きrequest/headerの結果だけでrole/bucket/session/SCP全体を証明しない。別のlive承認・private policy review・probe結果がapply gateを開く前に必要
 - raw init / plan / apply出力はpublic logへ流さない
 - saved planはrunner一時領域だけで扱い、artifact / cacheへ保存しない
@@ -173,58 +173,27 @@ production backendは未bootstrapのため、production authenticated plan / app
 
 ### Single development history plan receipt
 
-history=true / mode=plan の検証は、apply=false のまま既存 protected identity と8個の既存 secretを使用する。追加の grant・credential・billing API・query は使わない。`terraform_plan_cost_evidence` は秘密情報を含まない手動 dispatch inputで、欠落時は認証・remote init・native lock の前に停止する。2026-10-09の承認に従い、上限USD0.25はこのrunが追加する当月UTCの費用を対象にする。lifecycle設定や永久削除期限を要求せず、残るlock version/delete markerの保管費は後月の累積費用に継続計上する。Environment承認者は実設定のread証拠に対応する入力をreviewする。既存operator/toolが取得した証拠を使え、所有者本人だけの新しい確認gateを設けない。booleanや金額だけを、未知の課金項目が解決した証拠として扱わない。
+history executionは既存protected identityとsecretを使い、routine Terraform cost blockingのwaiverを安全条件から分離する。新しいbilling API、料金照合、月次予約を実行条件にしない。過去の見積・台帳は履歴であり、実請求額はunknownのまま。新resourceやbulk processingの承認はこのwaiverに含めない。
 
-JSON input は次のキーだけを許可する。実state・table metadata・bucket/account/role/SA名・privateな証拠本文を入力に貼らない。
+caller input `terraform_history_plan_safety_evidence`（reusableでは`history_plan_safety_evidence`）は以下のキーだけを許可する。旧`terraform_plan_cost_evidence`をhistory executionに渡すと認証前にSTOPする。state/metadata、bucket/account/role/SA名、privateな証拠本文を公開inputへ貼らない。
 
 | Key | Required evidence |
 | --- | --- |
-| `model` | `dev-history-plan-monthly-2026-10-09-v1`。旧USD0.01モデルの入力は拒否する。この価格モデルは2026-10-15 UTCに失効する |
+| `schema_version` | 整数`1` |
 | `git_sha` | review・公開された実行対象の完全なSHA |
-| `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、期限は発行後24時間以内かつモデル失効前。15分のplan jobと取消・post readの余裕を確保し、期限はUTC月末の30分前以前 |
-| `max_state_bytes` | 非秘密の保守的サイズ上限（正整数、4 MiB以下）。実サイズはCIのexact current object HEADでprivateに確認する |
-| `budget_month` | `YYYY-MM`。発行日時・実行時の現在UTC月と一致。旧lifetimeモデル・`lock_retention_days`は受け付けない |
-| `cloud_side_cost_usd` | 小数の文字列。下記AWS費用に加算する、このrunの当月追加付随費用の正の上限。実設定のread証拠と保守的な数量・単価に基づく |
-| `cloud_side_evidence_reviewed` | 全GCP/provider retry・OIDC/STS・CloudTrail/Cloud Logging・既存sink/replication等の追加課金を含むprivateな数量・単価・保持条件が確認できた場合だけtrue |
-| `rates_verified` | 実行時の公開単価が下記ceiling以下であることを確認した場合だけtrue |
-| `state_writers_quiescent` | 指定オペレーターだけが実行し、state/workspace prefixの並行writerがないことを確認した場合だけtrue |
+| `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、発行後最大24時間。planとpost safety readの余裕を確保する |
+| `max_state_bytes` | 正整数、4 MiB以下。exact current object HEADで上限をprivateに確認する |
+| `state_writers_quiescent` | 対象state/workspace prefixの並行Terraform writerがないと確認した場合だけ`true`。BigQueryの通常writer停止は要求しない |
 
-費用計算はDecimalで各成分を上方丸めし、当月追加合計USD0.25以下だけを許可する。無料枠・GitHub runnerの所在は仮定しない。256件のAWSリクエストを一律USD0.00001/件、128件の対称KMS処理をUSD0.00001/件、64回分のstate downloadと各リクエスト16 KiB分の応答をUSD0.25/GiB、さらに`cloud_side_cost_usd`を単発・当月費用として予約する。追加するlock bodyとdelete markerを各32 KiBの保守的上限で見積り、USD0.10/GiB/月で丸一月分を予約する。月末のrunでも日割りによる値引きをしない。実サイズは後続HEADでprivateに確認し、上限・STANDARD class・既知の暗号化・有効なcurrent VersionIdを証明できなければstate downloadやremote initへ進まない。UIの丸められたサイズをexact bytesと見なさない。未知の付随費用から確認済みflagを生成せず停止する。
+認証前に0600/exclusiveの`history-plan-admission.json`を生成する。AWS認証後、GCP認証やstate GET/native backend initの前に、既存Environment secretのRoleIdとSTS `UserId` prefix、exact accountを照合する。history plan/applyの両jobで必須。追加grantやnegative probeを使わない。
 
-`history-plan-cost.json`には、当月、profileのdigestであるentry ID、単発・当月side費用上限、当月保管費上限、当月合計、追加保管bytes上限、現行単価による翌月以降一月分の保管費推定、削除期限なしを明記したprivateな`monthly_ledger_entry`を含む。すべて保守的推定で、実測費用や永久費用上限ではない。通常unlockのpositive absenceはcurrent lockが無い証拠であり、過去version/delete markerの永久削除や将来保管費0の証拠ではない。[S3 delete markers](https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html)も保管費を生じる。
+initial stateはHEAD/GET/HEADとpositive lock/workspace LIST absenceで取得する。exact既存11 managed instance、history未登録、既知Terraform state/check envelope、current VersionIdと全bytesをprivateに検証する。STANDARD class・既知暗号化・exact sizeを確認できなければdownload/initへ進まない。403/通信失敗/欠落/truncated responseを不在と見なさない。
 
-CIのRUNNER_TEMPはcleanupされ、永続台帳にはならない。実行operator/toolは同じreview済みsourceとinputで認証不要の`--phase policy`をローカル実行し、privateなcost receiptの予約行を実行前に月次台帳へ保存する。実run ID/attemptを予約entry IDと結び付け、receipt失敗・取消・lock absenceによって予約を勝手に取り消さない。後月は保管bytesを繰り越し、単価を再確認して既存支出・新しい単発費用と累積する。既存state/lock versionsは別のbaselineであり、このrunの追加上限に含めたと見なさない。旧versionの消失や減額は既存権限のread証拠がある場合だけ反映し、削除操作は行わない。監査/logging等の後月費用も0と仮定せず実設定・月次証拠で照合する。台帳にraw state/metadata/private descriptionを保存・公開しない。
+init/plan/sanitizer後は`always()`で再snapshot、stable/未知fieldのstrict tables.get比較、volatile観測値のprivate記録、exact native lockのpositive LIST absenceを行う。期限切れや失敗でも保存済みadmissionの上限でpost safety readを試みるが、fresh evidence・全step成功・strict import1/既存11 no-op/他action0だけが成功receiptを作れる。独立post-noop routeも同じ安全入力を使い、import0/no-op12/他0を要求する。
 
-価格根拠は[AWS S3 pricing](https://aws.amazon.com/s3/pricing/)、[KMS pricing](https://aws.amazon.com/kms/pricing/)、[CloudTrail pricing](https://aws.amazon.com/cloudtrail/pricing/)、[Cloud Logging pricing](https://cloud.google.com/products/observability/pricing)。許可されたAPI envelopeとprice ceilingを広げる場合は再reviewが必要。Terraform1.16.4の[backend](https://github.com/hashicorp/terraform/blob/v1.16.4/internal/backend/remote-state/s3/client.go)と固定依存[aws-sdk-go-base beta.72](https://github.com/hashicorp/aws-sdk-go-base/blob/v2.0.0-beta.72/aws_config.go)、[S3 downloader1.17.22](https://github.com/aws/aws-sdk-go-v2/blob/feature/s3/manager/v1.17.22/feature/s3/manager/download.go)を根拠に、小さい単一part state・空のworkspace discovery prefix・native lock一回分に余裕を含む。backendの`max_retries=1`はこの固定AWS v2依存で`WithRetryMaxAttempts(1)`となる。CLIは[AWS_MAX_ATTEMPTS=1](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-retries.html)、認証Actionも1 attempt、planのlock timeoutは0s。native downloader自身のbody attemptを費用に含め、run/plan再実行やforce-unlockは行わない。
+public Summaryは固定PASS/STOP、sanitized action数、waiverとactual cost unknownだけ。raw state、VersionId/serial/lineage、complete metadata、binary planは0600のprivateファイルで扱い、artifact/cacheへ保存せずalways cleanupする。強制停止・権限不足等で完全receiptが得られなければclosureしない。初回history applyではauthentic root emitterを必須にする。具体的な承認v2、source freeze、独立post-noopとSTOP/recoveryは[history packet](docs/development-history-ready-packet.md#one-shot-import-source-contract-not-execution-approval)を参照する。
 
-既存identity smokeのinitial state GETをHEAD/GET/HEAD付きのprivate snapshotへ置き換える。exact既存11 managed instance、history未登録、正常なTerraform4 state envelope・pass状態の既知check結果、current VersionIdを確認する。provider定義のattributes/identity/privateは値を公開せず、全state bytesを前後完全一致で保持する。新しいstate envelope属性・taint/deposed・unknown checkは拒否する。既存のcanonical8 metadata helperとprivate varfileはそのまま使う。
-
-init/plan/sanitizer後は`always()`で再snapshot・stable/未知fieldのstrict tables.get比較（output-only volatile観測値はprivate保存）・exact native `.tflock` prefixのpositive LIST absence確認を行う。通常のnative unlock以外の削除は行わない。403/通信失敗/欠落/不正/truncated responseは不在の証拠にしない。失敗または期限切れのjobでも可能なbounded safety readを行うが、成功receiptには全step成功・strict import1/既存11 no-op/他action0を要求する。import0はこの検証経路を通過できない。
-
-public Summaryは固定のPASS/STOPラベルとsanitized action数、当月のみの追加費用枠・後月の保管費継続・削除期限を仮定しない旨の固定文だけ。raw state・VersionId/serial/lineage・完全metadata・費用計算明細はowned0600のprivateファイルで扱い、CIのRUNNER_TEMPは常時cleanupする。artifact/cacheへの保存は禁止する。runner強制停止・権限不足等で完全receiptが得られなければclosureしない。全条件が成立した場合だけ、review済みclosureでhistory=false/apply=falseへ閉じる。
-
-### Existing development backend
-
-Issue #1154で作成したdevelopment GCS state backendは、empty state / inactive lockであることを再確認した後、2026-10-05の承認済みcleanupで退役しました。
-
-- 旧operatorのGCS backend設定 / `.terraform` cacheを無効化
-- empty stateと旧lock generationをprecondition付きで削除
-- bucketを条件付き削除
-- 7日soft deleteを維持
-- recovery authorityはVersioning済みAWS S3 stateへ一本化
-- 旧GCS backendへ再接続しない
-- production GCS state bucketは作成しない
-
-### Local backend configuration
-
-各rootでexampleをcopyしてgitignoredな `backend.hcl` を作成します。
-
-```bash
-cp infra/gcp/environments/dev/backend.hcl.example infra/gcp/environments/dev/backend.hcl
-terraform -chdir=infra/gcp/environments/dev init -reconfigure -backend-config=backend.hcl
-```
-
-backend credentialはbackend configへ直接書かず、ローカルではAWS SSO等のcredential chain、CIではGitHub OIDCによる短期credentialを使います。
+旧`cost_policy()`と`dev-history-plan-monthly-2026-10-09-v1`は過去のoffline ledger解釈用だけに保持する。live admissionから呼ばない。S3 lock version/delete markerの残存や後月保管費は0・削除済みと見なさない。
 
 ## State recovery
 

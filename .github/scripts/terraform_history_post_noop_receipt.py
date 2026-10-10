@@ -80,23 +80,23 @@ def exact_noop_summary(summary, sha):
 
 
 def before(env, *, request=None):
-    root, cost = context(env)
+    root, admission = context(env)
     metadata = receipt.private_json(str(root / "user-history-post.json"))
     stable = stable_table_metadata(metadata)
     head, raw = snapshot(env, root, STATE_BEFORE, metadata,
-                         cost["profile"]["max_state_bytes"], request=request)
+                         admission["profile"]["max_state_bytes"], request=request)
     receipt.write_private(root / BEFORE, {"git_sha": env["GITHUB_SHA"], "head": head,
                                          "state_sha256": hashlib.sha256(raw).hexdigest(),
                                          "stable_metadata": stable})
 
 
 def after(env, *, request=None, metadata_request=None):
-    # The saved cost record still bounds safety reads if its short expiry has
+    # The saved admission record still bounds safety reads if its short expiry has
     # passed during plan. A fresh policy check is required for final PASS.
-    root, cost = context(env, fresh=False)
+    root, admission = context(env, fresh=False)
     checks = {"Persistent state invariant": False, "Stable table metadata invariant": False,
               "Exact native lock absence": False, "Workspace absence": False,
-              "Full-root no-op12 and job outcomes": False, "Fresh cost evidence": False}
+              "Full-root no-op12 and job outcomes": False, "Fresh execution evidence": False}
     initial = None
     try:
         initial = receipt.private_json(str(root / BEFORE))
@@ -106,7 +106,7 @@ def after(env, *, request=None, metadata_request=None):
     try:
         head, raw = snapshot(env, root, STATE_AFTER,
                              receipt.private_json(str(root / "user-history-post.json")),
-                             cost["profile"]["max_state_bytes"], request=request,
+                             admission["profile"]["max_state_bytes"], request=request,
                              check_absence=False)
         checks["Persistent state invariant"] = (initial is not None
             and head == initial["head"]
@@ -140,7 +140,7 @@ def after(env, *, request=None, metadata_request=None):
     except Exception:
         pass
     try:
-        checks["Fresh cost evidence"] = receipt.load_policy(env) == (root, cost)
+        checks["Fresh execution evidence"] = receipt.load_policy(env) == (root, admission)
     except Exception:
         pass
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:

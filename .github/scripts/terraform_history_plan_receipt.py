@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""One protected history plan: bounded cost and private before/after evidence.
+"""One protected history plan: bounded safety and private before/after evidence.
 
 Only existing AWS/GCP read interfaces are used. No unlock, mutation, credential
-minting or execution is provided. Cloud-side billing bounds are owner-reviewed
-evidence, not a claim that this identity can inspect account billing settings.
+minting or execution is provided. Routine Terraform monetary checks are waived;
+the historical cost helper is retained for offline ledger interpretation only.
 """
 from __future__ import annotations
 
@@ -51,6 +51,8 @@ LIMIT = Decimal("0.25")
 COST_KEYS = {"model", "git_sha", "issued_utc", "expires_utc", "max_state_bytes",
              "budget_month", "cloud_side_cost_usd", "cloud_side_evidence_reviewed",
              "rates_verified", "state_writers_quiescent"}
+SAFETY_KEYS = {"schema_version", "git_sha", "issued_utc", "expires_utc",
+               "max_state_bytes", "state_writers_quiescent"}
 
 
 def require(value, reason):
@@ -125,6 +127,7 @@ def timestamp(value):
 
 
 def cost_policy(raw, sha, *, now=None):
+    """Historical offline cost model; never admits a new protected execution."""
     require(type(raw) is str and len(raw) <= 4096, "cost-json-size")
     profile = decode(raw)
     require(type(profile) is dict and set(profile) == COST_KEYS, "cost-profile-shape")
@@ -173,20 +176,37 @@ def cost_policy(raw, sha, *, now=None):
     return {"profile": profile, "upper_bound_usd": str(total), "monthly_ledger_entry": ledger}
 
 
+def execution_policy(raw, sha, *, now=None):
+    require(type(raw) is str and len(raw) <= 4096, "safety-json-size")
+    profile = decode(raw)
+    require(type(profile) is dict and set(profile) == SAFETY_KEYS
+            and type(profile["schema_version"]) is int and profile["schema_version"] == 1,
+            "safety-profile-shape")
+    require(profile["git_sha"] == sha, "safety-sha")
+    now = now or datetime.now(timezone.utc)
+    issued, expires = timestamp(profile["issued_utc"]), timestamp(profile["expires_utc"])
+    require(issued <= now < expires <= issued + timedelta(hours=24), "safety-time-window")
+    require(type(profile["max_state_bytes"]) is int
+            and 0 < profile["max_state_bytes"] <= MAX_BYTES, "safety-state-size")
+    require(profile["state_writers_quiescent"] is True, "safety-quiescence")
+    return {"profile": profile, "cost_policy": "routine-terraform-waived", "actual_cost": "unknown"}
+
+
 def policy(env):
     directory = context(env)
-    value = cost_policy(env.get("PLAN_COST_EVIDENCE", ""), env["GITHUB_SHA"])
-    write_private(directory / "history-plan-cost.json", value)
+    require(not env.get("PLAN_COST_EVIDENCE", ""), "legacy-cost-input")
+    value = execution_policy(env.get("PLAN_SAFETY_EVIDENCE", ""), env["GITHUB_SHA"])
+    write_private(directory / "history-plan-admission.json", value)
 
 
 def load_policy(env, *, fresh=True):
     directory = context(env)
-    stored = private_json(str(directory / "history-plan-cost.json"))
-    require(type(stored) is dict and set(stored) == {"profile", "upper_bound_usd", "monthly_ledger_entry"}, "policy-record-shape")
-    # A late/failed job must still collect bounded safety reads. Expired evidence
-    # can never produce PASS; validate freshness again after the post checks.
+    stored = private_json(str(directory / "history-plan-admission.json"))
+    require(type(stored) is dict and set(stored) == {"profile", "cost_policy", "actual_cost"}, "policy-record-shape")
+    # Expiry must not suppress the bounded post-safety reads of a late/failed
+    # job. Freshness is required again before a final PASS.
     check_time = None if fresh else timestamp(stored["profile"]["issued_utc"])
-    require(cost_policy(json.dumps(stored["profile"]), env["GITHUB_SHA"], now=check_time) == stored, "policy-record-match")
+    require(execution_policy(json.dumps(stored["profile"]), env["GITHUB_SHA"], now=check_time) == stored, "policy-record-match")
     require(env.get("STATE_KEY") == STATE_KEY and env.get("STATE_AWS_REGION") == "ap-northeast-1", "policy-state-target")
     require(re.fullmatch(r"\d{12}", env.get("STATE_ACCOUNT_ID", "")), "policy-account-shape")
     require(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", env.get("STATE_BUCKET", "")), "policy-bucket-shape")
@@ -342,9 +362,9 @@ def checks_pass(checks, *, imported=False):
 
 def snapshot(env, phase, *, request=None):
     staged = phase == "before"
-    directory, budget = (at_stage("history-policy", lambda: load_policy(env)) if staged
+    directory, admission = (at_stage("history-policy", lambda: load_policy(env)) if staged
                          else load_policy(env, fresh=False))
-    maximum = budget["profile"]["max_state_bytes"]
+    maximum = admission["profile"]["max_state_bytes"]
     before = (at_stage("history-head", lambda: head(env, maximum, request=request)) if staged
               else head(env, maximum, request=request))
     target = directory / f"history-plan-state-{phase}.json"
@@ -377,20 +397,20 @@ def snapshot_before(env, *, request=None):
 
 
 def before(env):
-    directory, budget = load_policy(env)
+    directory, admission = load_policy(env)
     state = private_json(str(directory / "history-plan-state-before-receipt.json"))
     require(state["sha256"] == hashlib.sha256(private_bytes(directory / "history-plan-state-before.json")).hexdigest(), "before-state-hash")
     metadata = private_json(str(directory / "user-history-before.json"))
     prepare(metadata)
     json.dumps(metadata, allow_nan=False)
-    write_private(directory / "history-plan-before.json", {"git_sha": env["GITHUB_SHA"], "state": state, "cost": budget,
+    write_private(directory / "history-plan-before.json", {"git_sha": env["GITHUB_SHA"], "state": state, "admission": admission,
                   "metadata_sha256": hashlib.sha256(json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()).hexdigest()})
 
 
 def after(env, *, request=None, metadata_request=None):
-    directory, budget = load_policy(env, fresh=False)
+    directory, admission = load_policy(env, fresh=False)
     initial = private_json(str(directory / "history-plan-before.json"))
-    require(initial["git_sha"] == env["GITHUB_SHA"] and initial["cost"] == budget, "after-initial-evidence")
+    require(initial["git_sha"] == env["GITHUB_SHA"] and initial["admission"] == admission, "after-initial-evidence")
     # These reads execute even if Terraform init/plan/validation failed. Only
     # complete evidence plus a strict import1 summary can produce final PASS.
     checks = {"Persistent state invariant": False, "Stable table metadata invariant": False, "Exact native lock absence": False}
@@ -421,14 +441,14 @@ def after(env, *, request=None, metadata_request=None):
         pass
     # Independent safety reads are each attempted once, even if another fails.
     # Only fixed labels and booleans may be reported. A partial PASS is not a
-    # successful run receipt; all checks, cost and selected plan must pass.
+    # successful run receipt; safety admission and the selected plan must pass.
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
         handle.write("History plan safety checks (final receipt still required):\n")
         for label, passed in checks.items():
             handle.write(f"- {label}: {'PASS' if passed else 'STOP'}\n")
         handle.write("- Volatile table observations: " + ("changed" if volatile_changed else "unchanged" if volatile_changed is False else "unknown") + "\n")
     require(all(checks.values()), "after-safety")
-    require(cost_policy(json.dumps(budget["profile"]), env["GITHUB_SHA"]) == budget, "after-cost-fresh")
+    require(execution_policy(json.dumps(admission["profile"]), env["GITHUB_SHA"]) == admission, "after-safety-fresh")
     require(all(env.get(key) == "success" for key in ("BACKEND_INIT_OUTCOME", "TERRAFORM_PLAN_OUTCOME", "PLAN_VALIDATION_OUTCOME")), "after-outcomes")
     require(env.get("PLAN_EXIT_CODE") in {"0", "2"}, "after-plan-exit")
     summary = private_json(str(directory / "sanitized-plan.json"))
@@ -449,7 +469,7 @@ def after(env, *, request=None, metadata_request=None):
     write_private(directory / "history-plan-after.json", {"git_sha": env["GITHUB_SHA"], "state": final,
                   "stable_table_metadata_unchanged": True, "volatile_table_observations_changed": volatile_changed,
                   "native_lock_absent": True, "import": 1, "existing_no_op": 11,
-                  "cost_upper_bound_usd": budget["upper_bound_usd"], "monthly_ledger_entry": budget["monthly_ledger_entry"]})
+                  "cost_policy": admission["cost_policy"], "actual_cost": "unknown"})
 
 
 def main(argv=None):
@@ -461,7 +481,7 @@ def main(argv=None):
         env = dict(os.environ)
         {"policy": policy, "before": before, "after": after}[args.phase](env)
         if args.phase == "after":
-            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and stable table metadata unchanged; volatile observations recorded privately; native lock absent; added current UTC month cost bound <= USD0.25. Retained lock storage must carry into later monthly cumulative costs; no deletion deadline assumed.\n"
+            message = "Protected history plan receipt: PASS; import1; existing11 no-op; state and stable table metadata unchanged; volatile observations recorded privately; native lock absent; bounded execution evidence fresh; routine Terraform monetary checks waived; actual cost unknown.\n"
             # The value-free projection digest is the only plan artifact handle
             # a future one-shot approval may cite. The binary plan is deleted.
             digest = hashlib.sha256(private_bytes(Path(env["RUNNER_TEMP"]) / "sanitized-plan.json")).hexdigest()

@@ -265,14 +265,17 @@ def verify_aws_identity(env: dict[str, str], *, require_role_id: bool = False) -
         raise SmokeFailure("aws-dedicated-state-account")
     if require_role_id:
         role_id = env.get("BACKEND_ROLE_ID", "")
-        if not role_id or caller.get("UserId", "").split(":", 1)[0] != role_id:
+        user_id = caller.get("UserId")
+        if (type(role_id) is not str or not role_id or type(user_id) is not str
+                or user_id.partition(":")[0] != role_id or not user_id.partition(":")[2]):
             raise SmokeFailure("aws-plan-role-id")
 
 
 def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_only: bool = False) -> list[str]:
     if plan_read_only and apply_read_only:
         raise SmokeFailure("aws-identity-mode")
-    at_stage("aws-sts", lambda: verify_aws_identity(env, require_role_id=not (plan_read_only or apply_read_only)))
+    at_stage("aws-sts", lambda: verify_aws_identity(env, require_role_id=
+             env.get("TF_VAR_manage_user_activity_history") == "true" or not (plan_read_only or apply_read_only)))
     bucket, key = env["STATE_BUCKET"], env["STATE_KEY"]
     if key != "youtube-study-space/dev/terraform.tfstate":
         raise StageFailure("aws-state-read", "check-failed")
@@ -284,15 +287,15 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_
         load_inputs(env)
         return ["AWS OIDC + dedicated STS identity", "Runtime state verification follows fresh private metadata"]
     if plan_read_only and env.get("TF_VAR_manage_user_activity_history") == "true":
-        # Reuse this initial read for the complete private receipt. The cost
-        # policy is validated before authentication and before any native lock.
+        # Reuse this initial read for the complete private receipt. Safety
+        # admission is validated before authentication and before any native lock.
         from terraform_history_plan_receipt import snapshot_before
         snapshot_before(env, request=aws)
         return ["AWS OIDC + dedicated STS identity", "AWS exact persistent eleven-resource state verified privately",
-                "Owner-evidenced cost bound and native lock/workspace absence prechecks"]
+                "Fresh bounded execution evidence and native lock/workspace absence prechecks"]
     with tempfile.TemporaryDirectory(dir=env["RUNNER_TEMP"]) as directory:
         if apply_read_only:
-            # MODE=apply has no history plan-cost receipt. The one-shot verifier
+            # MODE=apply has no history plan baseline receipt. The one-shot verifier
             # separately checks exact eleven-resource state before any apply.
             at_stage("aws-state-read", lambda: capture_exact_state_and_lock(env, Path(directory) / "apply-state.json"))
             return ["AWS OIDC + dedicated STS identity", "AWS exact state and native lock read privately"]
@@ -346,6 +349,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         env = os.environ
         args = sys.argv[1:] if argv is None else argv
+        if args == ["backend-role-read-only"]:
+            if (env.get("MODE") not in {"plan", "apply"} or env.get("HISTORY_TARGET") != "dev"
+                    or env.get("TF_VAR_project_id") != "test-youtube-study-space"
+                    or env.get("TF_VAR_manage_user_activity_history") != "true"):
+                raise StageFailure("identity-mode", "check-failed")
+            at_stage("aws-sts", lambda: verify_aws_identity(env, require_role_id=True))
+            print("Development exact backend role identity: PASS; private values suppressed.")
+            return 0
         if args == ["quota-apply"]:
             checks = at_stage("gcp-quota", lambda: verify_quota_google(env["GCP_SMOKE_ACCESS_TOKEN"], env["GCP_SMOKE_SERVICE_ACCOUNT"], identity="apply"))
         elif args in (["export-function"], ["export-function-apply-read-only"]):

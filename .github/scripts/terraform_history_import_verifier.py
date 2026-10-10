@@ -27,11 +27,11 @@ from validate_user_activity_history_plan import TABLE, TABLE_ID
 from terraform_history_table_metadata import stable_table_metadata, volatile_table_metadata
 import terraform_ownership_receipt as ownership
 
-# plan_run_id and cost fields are reviewer references with shape checks only.
+# plan_run_id is a reviewer reference with shape checks only.
 # Only SHA, expiry, approved summary bytes and the local binary digest are
 # enforced against execution evidence in this source path.
-APPROVAL_KEYS = {"target", "git_sha", "plan_run_id", "summary_sha256", "cost_evidence_sha256",
-                 "max_added_current_month_usd", "issued_utc", "expires_utc"}
+APPROVAL_KEYS = {"schema_version", "target", "git_sha", "plan_run_id", "summary_sha256",
+                 "issued_utc", "expires_utc"}
 SUMMARY_COUNTS = {key: (1 if key == "import" else 12 if key == "no-op" else 0) for key in COUNT_KEYS}
 RECEIPT = "history-import-before.json"
 
@@ -42,6 +42,9 @@ def need(value):
 
 
 def approval(env, *, now=None):
+    ownership.context(env)
+    need(env.get("DEV_HISTORY_RECEIPT_EMITTER_ENABLED") == "true"
+         and env.get("GITHUB_JOB") in {"plan", "apply"})
     need(env.get("MODE") == "apply" and env.get("HISTORY_TARGET") == "dev"
          and env.get("TF_VAR_project_id") == "test-youtube-study-space"
          and env.get("TF_VAR_manage_user_activity_history") == "true"
@@ -56,19 +59,17 @@ def approval(env, *, now=None):
     raw = env.get("HISTORY_IMPORT_APPROVAL", "")
     need(type(raw) is str and 0 < len(raw) <= 2048)
     value = receipt.decode(raw)
-    need(type(value) is dict and set(value) == APPROVAL_KEYS)
+    need(type(value) is dict and set(value) == APPROVAL_KEYS
+         and type(value["schema_version"]) is int and value["schema_version"] == 2)
     need(value["target"] == "dev" and value["git_sha"] == sha
          and type(value["plan_run_id"]) is int and value["plan_run_id"] > 0
          and type(value["summary_sha256"]) is str
-         and re.fullmatch(r"[0-9a-f]{64}", value["summary_sha256"])
-         and type(value["cost_evidence_sha256"]) is str
-         and re.fullmatch(r"[0-9a-f]{64}", value["cost_evidence_sha256"])
-         and type(value["max_added_current_month_usd"]) is str
-         and re.fullmatch(r"0\.\d{1,9}", value["max_added_current_month_usd"])
-         and float(value["max_added_current_month_usd"]) > 0)
+         and re.fullmatch(r"[0-9a-f]{64}", value["summary_sha256"]))
     issued, expires = receipt.timestamp(value["issued_utc"]), receipt.timestamp(value["expires_utc"])
     now = now or datetime.now(timezone.utc)
     need(issued <= now < expires <= issued + timedelta(hours=24))
+    need(not env.get("PLAN_COST_EVIDENCE", ""))
+    receipt.execution_policy(env.get("PLAN_SAFETY_EVIDENCE", ""), sha, now=now)
     return value
 
 
@@ -87,18 +88,19 @@ def size_bound(env):
 
 
 def capture(env, path, *, request=None):
-    before = receipt.head(env, receipt.MAX_BYTES, request=request)
+    maximum = receipt.execution_policy(env.get("PLAN_SAFETY_EVIDENCE", ""), env["GITHUB_SHA"])["profile"]["max_state_bytes"]
+    before = receipt.head(env, maximum, request=request)
     raw_target = directory(env) / path
     # The S3 helper creates this file and verifies version/ETag/length through
     # the response; it never accepts a short, stale or replaced body.
     fd = os.open(raw_target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     os.close(fd)
     result = receipt.s3(env, "get-object", "--key", receipt.STATE_KEY,
-                        "--range", f"bytes=0-{receipt.MAX_BYTES}", str(raw_target), request=request)
+                        "--range", f"bytes=0-{maximum}", str(raw_target), request=request)
     raw = receipt.private_bytes(raw_target)
     need(result.get("VersionId") == before["VersionId"] and result.get("ETag") == before["ETag"]
          and result.get("ContentLength") == before["ContentLength"] == len(raw))
-    need(receipt.head(env, receipt.MAX_BYTES, request=request) == before)
+    need(receipt.head(env, maximum, request=request) == before)
     receipt.absent(env, receipt.STATE_KEY + ".tflock", request=request)
     return raw
 
@@ -229,23 +231,22 @@ def post(env, *, request=None, metadata_request=None):
                      "; lock=" + ("absent" if checks["lock"] else "unknown") + "\n")
     need(checks == {"state": "imported", "metadata": True, "lock": True}
          and env.get("APPLY_OUTCOME") == "success" and env.get("POST_PLAN_OUTCOME") == "success")
-    if env.get("DEV_HISTORY_RECEIPT_EMITTER_ENABLED", "false") == "true":
-        ownership.context(env)
-        need(env.get("GITHUB_JOB") == "apply")
-        exact_summary(receipt.private_json(str(root / "post-apply-summary.json")), env["GITHUB_SHA"], phase="post")
-        value = ownership.history_binding(env, metadata=metadata)
-        machine = dict(schema_version=1, repository_id=ownership.REPOSITORY_ID, source_sha=env["GITHUB_SHA"],
-                       run_id=int(env["GITHUB_RUN_ID"]), run_attempt=1, job_role="apply", environment="terraform-dev-apply",
-                       target="dev", root_contract="gcp-dev-default", operation="apply", wave="history12", phase="post",
-                       prior_receipt_sha256=None, prior_scope_commitment=None, prior_state_commitment=None,
-                       state_after_commitment=ownership.state_commitment(value, receipt.decode(raw)),
-                       scope_commitment=ownership.commitment(value, ownership.history_scope(value)),
-                       resource_count=12, import_before_count=1, import_post_count=0,
-                       checks={key: True for key in ownership.CHECKS},
-                       accounting={"terraform_outcomes": {"apply": env["APPLY_OUTCOME"], "post_plan": env["POST_PLAN_OUTCOME"]},
-                                   "post_state_reads": reads["state"], "post_metadata_reads": reads["metadata"],
-                                   "provider_requests": "unknown", "actual_cost": "unknown"})
-        receipt.write_private(root / ownership.RECORD, ownership.validate_receipt(machine))
+    ownership.context(env)
+    need(env.get("GITHUB_JOB") == "apply")
+    exact_summary(receipt.private_json(str(root / "post-apply-summary.json")), env["GITHUB_SHA"], phase="post")
+    value = ownership.history_binding(env, metadata=metadata)
+    machine = dict(schema_version=1, repository_id=ownership.REPOSITORY_ID, source_sha=env["GITHUB_SHA"],
+                   run_id=int(env["GITHUB_RUN_ID"]), run_attempt=1, job_role="apply", environment="terraform-dev-apply",
+                   target="dev", root_contract="gcp-dev-default", operation="apply", wave="history12", phase="post",
+                   prior_receipt_sha256=None, prior_scope_commitment=None, prior_state_commitment=None,
+                   state_after_commitment=ownership.state_commitment(value, receipt.decode(raw)),
+                   scope_commitment=ownership.commitment(value, ownership.history_scope(value)),
+                   resource_count=12, import_before_count=1, import_post_count=0,
+                   checks={key: True for key in ownership.CHECKS},
+                   accounting={"terraform_outcomes": {"apply": env["APPLY_OUTCOME"], "post_plan": env["POST_PLAN_OUTCOME"]},
+                               "post_state_reads": reads["state"], "post_metadata_reads": reads["metadata"],
+                               "provider_requests": "unknown", "actual_cost": "unknown"})
+    receipt.write_private(root / ownership.RECORD, ownership.validate_receipt(machine))
 
 
 def main():

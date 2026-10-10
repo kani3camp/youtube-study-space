@@ -12,7 +12,12 @@ on:
         required: true
         type: string
       plan_cost_evidence:
-        description: Nonsecret read-backed added current UTC month bounds with continuing retained-storage accounting
+        description: Legacy cost input; rejected by history safety admission
+        required: false
+        default: ""
+        type: string
+      history_plan_safety_evidence:
+        description: Nonsecret same-SHA short-lived state-size and state-writer quiet-window admission
         required: false
         default: ""
         type: string
@@ -118,6 +123,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
           OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
+          PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
         run: |
           set -euo pipefail
 
@@ -233,6 +239,16 @@ jobs:
                 exit 1
               }
               if [[ "${history_enabled}" == "true" ]]; then
+                [[ "${GITHUB_RUN_ATTEMPT:-}" == "1" && -z "${PLAN_COST_EVIDENCE:-}" ]] || {
+                  echo "::error::History requires a new initial attempt and safety admission; legacy cost input is rejected."
+                  exit 1
+                }
+                if [[ "${MODE}" == "apply" && "${ownership_wave}" == "none" ]]; then
+                  [[ "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED:-false}" == "true" ]] || {
+                    echo "::error::First history import requires its root receipt emitter and no runtime wave."
+                    exit 1
+                  }
+                fi
                 [[ "${MODE}" == "plan" || "${MODE}" == "apply" || "${MODE}" == "security-probe" ]] || {
                   echo "::error::History adoption cannot share an exceptional wave."
                   exit 1
@@ -310,6 +326,8 @@ jobs:
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
       HISTORY_TARGET: ${{ inputs.target }}
       HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
+      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
       OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
     steps:
       - name: Mask private identity fragments before authentication
@@ -353,10 +371,8 @@ jobs:
         if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
 
-      - name: Bound the single history plan cost before authentication or locks
+      - name: Check bounded history execution evidence before authentication or locks
         if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
-        env:
-          PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase policy
 
       - name: Stage reviewed private cumulative ownership inputs before credentials
@@ -386,6 +402,12 @@ jobs:
           mask-aws-account-id: true
           unset-current-credentials: true
           retry-max-attempts: 1
+
+      - name: Verify exact AWS execution identity before GCP authentication
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+        run: python3 .github/scripts/terraform_identity_smoke.py backend-role-read-only
 
       - name: Create private backend config
         shell: bash
@@ -437,6 +459,7 @@ jobs:
           STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
           STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
           BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
           STATE_KEY: ${{ needs.preflight.outputs.state_key }}
           MODE: ${{ inputs.mode }}
         run: |
@@ -646,7 +669,7 @@ jobs:
             "${RUNNER_TEMP}/runtime-ownership-packet.json" \
             "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
             "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
-            "${RUNNER_TEMP}/history-plan-cost.json" \
+            "${RUNNER_TEMP}/history-plan-admission.json" \
             "${RUNNER_TEMP}/history-plan-state-before.json" \
             "${RUNNER_TEMP}/history-plan-state-after.json" \
             "${RUNNER_TEMP}/history-plan-state-before-receipt.json" \
@@ -691,6 +714,8 @@ jobs:
       APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
       HISTORY_TARGET: ${{ inputs.target }}
       HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
+      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
       EXPECTED_HISTORY_RECEIPT_SCOPE: ${{ needs.plan.outputs.history_receipt_scope }}
       STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
       STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
@@ -750,6 +775,10 @@ jobs:
             exit 1
           }
 
+      - name: Check one-shot history import authorization before cloud credentials
+        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
+        run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
@@ -783,6 +812,12 @@ jobs:
           mask-aws-account-id: true
           unset-current-credentials: true
           retry-max-attempts: 1
+
+      - name: Verify exact AWS execution identity before GCP authentication
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        env:
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+        run: python3 .github/scripts/terraform_identity_smoke.py backend-role-read-only
 
       - name: Create private backend config
         shell: bash
@@ -835,6 +870,7 @@ jobs:
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
           MODE: ${{ inputs.mode }}
           BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
           EXPORT_TOPIC_IDENTITY_REQUIRED: "true"
           EXPORT_SCHEDULER_IDENTITY_REQUIRED: "true"
           EXPORT_FUNCTION_IDENTITY_REQUIRED: "true"
