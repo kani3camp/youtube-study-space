@@ -29,7 +29,10 @@ def prepare_workflow(env: dict[str, str], *, phase: str, request=google) -> None
     require(env.get("TF_VAR_manage_user_activity_history") == "true")
     require(env.get("HISTORY_OPERATION") in {"plan", "apply"})
     require(env.get("HISTORY_STAGE") in {"plan", "apply"})
-    require(phase != "post" or env["HISTORY_STAGE"] == "apply")
+    independent_post_noop = env.get("HISTORY_POST_NOOP") == "true"
+    require(not independent_post_noop or (phase == "post" and env["HISTORY_OPERATION"] == "plan"
+            and env["HISTORY_STAGE"] == "plan" and env.get("DEV_HISTORY_POST_NOOP_ENABLED") == "true"))
+    require(phase != "post" or env["HISTORY_STAGE"] == "apply" or independent_post_noop)
     require(all(env.get("TF_VAR_manage_export_" + kind) == "true" for kind in ("topic", "scheduler", "function")))
     require(bool(env.get("GCP_SMOKE_ACCESS_TOKEN")))
     status, metadata = request(TABLE_PATH, env["GCP_SMOKE_ACCESS_TOKEN"], host="bigquery.googleapis.com")
@@ -40,7 +43,7 @@ def prepare_workflow(env: dict[str, str], *, phase: str, request=google) -> None
         require(env.get("HISTORY_APPROVED_METADATA_DIGEST") == digest)
     directory = Path(env["RUNNER_TEMP"])
     require(directory.is_absolute())
-    if phase == "post":
+    if phase == "post" and not independent_post_noop:
         # State-only adoption must not silently accept concurrent field-order
         # or description changes by feeding different inputs to the post-plan.
         require(candidate == prepare(private_json(str(directory / "user-history-before.json"))))

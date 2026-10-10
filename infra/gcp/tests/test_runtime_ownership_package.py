@@ -324,7 +324,8 @@ class WorkflowContracts(unittest.TestCase):
                    GITHUB_REPOSITORY_ID='340900071', GITHUB_REPOSITORY_OWNER_ID='54093651',
                    GITHUB_REF='refs/heads/feature/gcp-terraform-iac',
                    GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
-                   GITHUB_SHA=SHA, TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool')
+                   GITHUB_SHA=SHA, TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool',
+                   HISTORY_POST_NOOP='false')
         env.update(re.findall(r'^  ([A-Z_]+): "([^"]*)"$', self.text, re.M))
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
@@ -372,7 +373,8 @@ class WorkflowContracts(unittest.TestCase):
                 fake.chmod(0o700)
                 env = dict(PATH=directory + ':' + os.environ['PATH'], RUNNER_TEMP=directory,
                            TF_ROOT='dummy-root', MODE='plan', TF_VAR_manage_user_activity_history='true',
-                           OWNERSHIP_WAVE=wave, GITHUB_OUTPUT=str(root / 'output'), ARGUMENT_RECORD=str(root / 'arguments'))
+                           OWNERSHIP_WAVE=wave, HISTORY_POST_NOOP='false',
+                           GITHUB_OUTPUT=str(root / 'output'), ARGUMENT_RECORD=str(root / 'arguments'))
                 result = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 arguments = (root / 'arguments').read_text().splitlines()

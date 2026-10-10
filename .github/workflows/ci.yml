@@ -30,6 +30,11 @@ on:
           - quota-plan
           - quota-create
           - quota-refresh
+      terraform_history_post_noop:
+        description: Independently verify the adopted development history table is a full-root no-op
+        required: false
+        default: false
+        type: boolean
       gcp_user_activity_schema_audit:
         description: Run the fail-closed development user-activity schema audit
         required: false
@@ -620,6 +625,7 @@ jobs:
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
+          python3 .github/scripts/test_terraform_history_post_noop_receipt.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
@@ -696,6 +702,7 @@ jobs:
       mode: ${{ inputs.terraform_mode }}
       plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}
       history_import_approval: ${{ inputs.terraform_history_import_approval }}
+      history_post_noop: ${{ inputs.terraform_history_post_noop }}
       ownership_wave: ${{ inputs.terraform_ownership_wave }}
 
   gcp-user-activity-schema-audit:
