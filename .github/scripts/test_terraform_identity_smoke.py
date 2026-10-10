@@ -266,7 +266,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                   extra_permissions=(), missing_permission=None, account="PRIVATE_ACCOUNT",
                   state_key="youtube-study-space/dev/terraform.tfstate", service_account=None,
                   fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None,
-                  mode=None, probe_gate=None, history_enabled=False):
+                  mode=None, probe_gate=None, history_enabled=False, expected_role_id="PRIVATE_ROLE_ID"):
         project = "test-youtube-study-space"
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
@@ -327,7 +327,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
             aws_calls.append(args)
             if args[:2] == ("sts", "get-caller-identity"):
                 if fail_read == "sts": raise RuntimeError("PRIVATE_STS_ID")
-                return subprocess.CompletedProcess([], 0, json.dumps({"Account": account}), "")
+                return subprocess.CompletedProcess([], 0, json.dumps({"Account": account, "UserId": "PRIVATE_ROLE_ID:GitHubActions"}), "")
             if args[:2] == ("s3api", "get-object"):
                 if fail_read == "state": return subprocess.CompletedProcess([], 1, "", "PRIVATE_READ_ERROR")
                 Path(args[-1]).write_bytes(state_body[0])
@@ -357,6 +357,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                    "TF_VAR_manage_user_activity_history": "true" if history_enabled else "false",
                    "GITHUB_SHA": "a" * 40, "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "PRIVATE_GITHUB_TOKEN", "BACKEND_ROLE_ARN": "arn:aws:iam::PRIVATE_ACCOUNT:role/fixture-plan",
+                   "BACKEND_ROLE_ID": expected_role_id,
                    "STATE_ACCOUNT_ID": "PRIVATE_ACCOUNT", "STATE_BUCKET": "PRIVATE_BUCKET", "STATE_KEY": state_key,
                    "GCP_SMOKE_ACCESS_TOKEN": "PRIVATE_PLAN_TOKEN", "GCP_SMOKE_SERVICE_ACCOUNT": service_account or f"terraform-dev-plan@{project}.iam.gserviceaccount.com",
                    "QUOTA_IDENTITY_REQUIRED": "true", "EXPORT_TOPIC_IDENTITY_REQUIRED": "true",
@@ -465,6 +466,23 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         self.assertNotIn("SKIPPED", summary)
         self.assertNotIn("PRIVATE", summary + output)
         self.assertEqual(self.run_smoke(args=())[0], 1)
+
+    def test_security_probe_rejects_wrong_runtime_identity_before_state_write(self):
+        rc, http, aws, summary, output = self.run_smoke(
+            args=("security-probe",), service_account="terraform-dev-apply@" + "test-youtube-study-space.iam.gserviceaccount.com")
+        self.assertEqual(rc, 1)
+        self.assertEqual(http, [])
+        self.assertEqual(aws, [])
+        self.assertEqual(summary, "")
+        self.assertNotIn("PRIVATE", output)
+
+        rc, _, aws, summary, output = self.run_smoke(
+            args=("security-probe",), legacy_denials=True, expected_role_id="WRONG_ROLE_ID")
+        self.assertEqual(rc, 1)
+        self.assertIn(("sts", "get-caller-identity"), [call[:2] for call in aws])
+        self.assertNotIn(("s3api", "put-object"), [call[:2] for call in aws])
+        self.assertEqual(summary, "")
+        self.assertNotIn("PRIVATE", output)
 
     def test_apply_read_only_uses_exact_dev_state_and_lock_reads_without_any_negative_request(self):
         for probe_gate in ("false", "true"):

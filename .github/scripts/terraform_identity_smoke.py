@@ -261,8 +261,15 @@ def verify_aws(env: dict[str, str], *, plan_read_only: bool = False, apply_read_
         raise SmokeFailure("aws-identity-mode")
     def check_sts():
         identity = aws("sts", "get-caller-identity")
-        if identity.returncode or json.loads(identity.stdout).get("Account") != env["STATE_ACCOUNT_ID"]:
+        if identity.returncode:
             raise SmokeFailure("aws-dedicated-state-account")
+        caller = json.loads(identity.stdout)
+        if caller.get("Account") != env["STATE_ACCOUNT_ID"]:
+            raise SmokeFailure("aws-dedicated-state-account")
+        if not (plan_read_only or apply_read_only):
+            role_id = env.get("BACKEND_ROLE_ID", "")
+            if not role_id or caller.get("UserId", "").split(":", 1)[0] != role_id:
+                raise SmokeFailure("aws-plan-role-id")
     at_stage("aws-sts", check_sts)
     bucket, key = env["STATE_BUCKET"], env["STATE_KEY"]
     if key != "youtube-study-space/dev/terraform.tfstate":
@@ -348,6 +355,11 @@ def main(argv: list[str] | None = None) -> int:
             if (args == ["security-probe"] and
                     (env.get("MODE") != "security-probe" or env.get("DEV_TERRAFORM_SECURITY_PROBE_ENABLED") != "true")):
                 raise StageFailure("identity-mode", "check-failed")
+            project = "test-youtube-study-space"
+            if (args == ["security-probe"] and
+                    env.get("GCP_SMOKE_SERVICE_ACCOUNT") !=
+                    f"terraform-dev-plan@{project}.iam.gserviceaccount.com"):
+                raise StageFailure("gcp-plan-service-account-target", "check-failed")
             if (args == ["apply-read-only"] and
                     env.get("MODE") not in {"apply", "email-adoption", "quota-create", "quota-refresh"}):
                 raise StageFailure("identity-mode", "check-failed")
