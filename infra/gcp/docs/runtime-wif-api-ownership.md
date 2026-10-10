@@ -344,6 +344,12 @@ source trustは [`runtime-receipt-sources.json`](../../../.github/terraform/runt
 **現在は空**なのでactual receiptを一つも承認しない。issuer entryはexact SHA→`workflow_id`, `job_names` (plan/apply),
 `environments` (plan/applyのid/name), `reviewer_ids`, `receipt_step`, ordered `required_steps`, approved `waves`。
 GitHub metadata interfaceのdummy testで実env/reviewer IDsやactual sourceを発明しない。
+workflow-run RESTのcaller `path`はexact `.github/workflows/ci.yml` または同pathの
+`@feature/gcp-terraform-iac` 形を受理する。reusable `path`はexact repository/workflowの
+`@feature/gcp-terraform-iac` または既存 `@refs/heads/feature/gcp-terraform-iac` 形のみで、
+別field `ref` は常にexact `refs/heads/feature/gcp-terraform-iac`、`sha` はreviewed issuer SHAと一致必須。
+任意suffixの除去やref推定はしない。[公式REST例](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10#get-a-workflow-run)
+に合わせたdummy互換性検査であり、このrepositoryのactual metadata/step-log interface確認はactivation前の未完了条件として残る。
 critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/post stepsも必須。
 actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
 API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と

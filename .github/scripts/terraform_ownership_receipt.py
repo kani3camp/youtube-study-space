@@ -202,14 +202,17 @@ def check_run(run, ref, issuer):
          and run.get("run_attempt") == 1 and type(run.get("run_attempt")) is int
          and run.get("status") == "completed" and run.get("conclusion") == "success"
          and run.get("event") == "workflow_dispatch" and run.get("head_sha") == ref["source_sha"]
-         and run.get("head_branch") == BRANCH and run.get("path") == CALLER
+         and run.get("head_branch") == BRANCH and run.get("path") in (CALLER, f"{CALLER}@{BRANCH}")
          and type(run.get("workflow_id")) is int and run.get("workflow_id") == issuer["workflow_id"])
     for key in ("repository", "head_repository"):
         repo = run.get(key)
         need(type(repo) is dict and type(repo.get("id")) is int and repo.get("id") == REPOSITORY_ID and repo.get("full_name") == REPOSITORY
              and type(repo.get("owner")) is dict and type(repo["owner"].get("id")) is int and repo["owner"].get("id") == OWNER_ID)
-    expected = {"path": f"{REPOSITORY}/{REUSABLE}@refs/heads/{BRANCH}", "sha": ref["source_sha"], "ref": "refs/heads/" + BRANCH}
-    need(run.get("referenced_workflows") == [expected])
+    # REST documents @branch in path and a separate fully qualified ref. Keep
+    # the prior full-ref form too; never strip or normalize an arbitrary suffix.
+    need(any(run.get("referenced_workflows") == [{"path": f"{REPOSITORY}/{REUSABLE}@{suffix}",
+             "sha": ref["source_sha"], "ref": "refs/heads/" + BRANCH}]
+             for suffix in (BRANCH, "refs/heads/" + BRANCH)))
 
 
 def authenticate(ref, catalog, *, request):

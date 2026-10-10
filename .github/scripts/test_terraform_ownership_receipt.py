@@ -110,6 +110,93 @@ class OwnershipReceiptTest(unittest.TestCase):
         self.assertIn('/attempts/1/jobs?', fake.calls[2][0])
         self.assertEqual(len(fake.calls), 6)
 
+    def assert_authenticated_paths(self, caller, reusable):
+        fake = GitHubFixture()
+        for key in (fake.base, fake.base + '/attempts/1'):
+            fake.responses[key]['path'] = caller
+            fake.responses[key]['referenced_workflows'][0]['path'] = reusable
+        value, timing = gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+        self.assertEqual(value, fake.value)
+        self.assertEqual(timing['completed_at'], '2026-10-10T01:03:00Z')
+        self.assertEqual(fake.calls[0], fake.calls[-1])
+        self.assertEqual(len(fake.calls), 6)
+
+    def test_documented_caller_path_at_branch_authenticates(self):
+        self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac')
+
+    def test_documented_reusable_path_at_branch_with_exact_ref_and_sha_authenticates(self):
+        self.assert_authenticated_paths('.github/workflows/ci.yml',
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+
+    def test_both_documented_path_at_branch_forms_authenticate(self):
+        self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+
+    def test_caller_path_suffix_and_file_mismatches_rejected_before_jobs(self):
+        caller = '.github/workflows/ci.yml'
+        branch = 'feature/gcp-terraform-iac'
+        paths = [caller + '@dev', caller + '@refs/tags/' + branch, caller + '@' + SHA,
+            caller + '@dev@' + branch, caller + '@' + branch + '?ref=dev',
+            caller + '@' + branch + '#dev', caller + '@' + branch + '/',
+            '.github/workflows/other.yml@' + branch, '../' + caller + '@' + branch,
+            'kani3camp/youtube-study-space/' + caller + '@' + branch, None, [caller]]
+        for path in paths:
+            fake = GitHubFixture()
+            fake.responses[fake.base]['path'] = path
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+            self.assertEqual(fake.calls, [(fake.base, False)])
+
+    def test_documented_reusable_path_ref_sha_and_schema_mismatches_rejected_before_jobs(self):
+        path = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml'
+        branch = 'feature/gcp-terraform-iac'
+        expected = dict(path=path + '@' + branch, sha=SHA, ref='refs/heads/' + branch)
+        bad_paths = [path, path + '@dev', path + '@refs/tags/' + branch, path + '@' + SHA,
+            path + '@dev@' + branch, path + '@' + branch + '?ref=dev',
+            path + '@' + branch + '#dev', path + '@' + branch + '/',
+            path.replace('kani3camp/', 'other-owner/') + '@' + branch,
+            path.replace('youtube-study-space/', 'other-repo/') + '@' + branch,
+            path.replace('gcp-terraform-authenticated.yml', 'other.yml') + '@' + branch]
+        mutations = [[dict(expected, path=p)] for p in bad_paths]
+        mutations += [[dict(expected, ref=ref)] for ref in ('refs/heads/dev', 'refs/tags/' + branch, branch, None)]
+        mutations += [[dict(expected, sha='b'*40)], [dict(expected, sha=SHA.upper())],
+            [dict(expected, unreviewed='value')], [{k: v for k, v in expected.items() if k != 'ref'}],
+            [expected, expected], expected, None]
+        for workflows in mutations:
+            fake = GitHubFixture()
+            fake.responses[fake.base]['path'] = '.github/workflows/ci.yml@' + branch
+            fake.responses[fake.base]['referenced_workflows'] = workflows
+            with self.subTest(workflows=workflows), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+            self.assertEqual(fake.calls, [(fake.base, False)])
+
+    def test_documented_paths_do_not_allow_attempt_or_final_run_ref_changes(self):
+        for endpoint in ('attempt', 'final'):
+            for field in ('caller', 'reusable_path', 'reusable_ref', 'source_sha', 'reusable_sha'):
+                fake = GitHubFixture()
+                for key in (fake.base, fake.base + '/attempts/1'):
+                    fake.responses[key]['path'] = '.github/workflows/ci.yml@feature/gcp-terraform-iac'
+                    fake.responses[key]['referenced_workflows'][0]['path'] = (
+                        'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+                def request(path, **kwargs):
+                    value = fake(path, **kwargs)
+                    if ((endpoint == 'attempt' and path == fake.base + '/attempts/1')
+                            or (endpoint == 'final' and path == fake.base and len(fake.calls) > 1)):
+                        if field == 'caller':
+                            value['path'] = '.github/workflows/ci.yml@dev'
+                        elif field == 'reusable_path':
+                            value['referenced_workflows'][0]['path'] = value['referenced_workflows'][0]['path'].replace('@feature/gcp-terraform-iac', '@dev')
+                        elif field == 'reusable_ref':
+                            value['referenced_workflows'][0]['ref'] = 'refs/heads/dev'
+                        elif field == 'source_sha':
+                            value['head_sha'] = 'b'*40
+                        else:
+                            value['referenced_workflows'][0]['sha'] = 'b'*40
+                    return value
+                with self.subTest(endpoint=endpoint, field=field), self.assertRaises(ValueError):
+                    gate.authenticate(fake.ref, dummy_catalog(), request=request)
+
     def test_empty_catalog_rejects_before_transport(self):
         fake = GitHubFixture()
         with self.assertRaises(ValueError):
