@@ -559,7 +559,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         caller = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split("  gcp-user-activity-schema-audit:", 1)[0]
         self.assertIn("      actions: read", plan)
         self.assertIn("      actions: read", caller)
-        self.assertNotIn("      actions: read", apply)
+        self.assertIn("      actions: read", apply)
         self.assertNotIn("actions: write", self.text)
         self.assertNotIn("upload-artifact", self.text)
         self.assertIn("test_terraform_ownership_receipt.py", self.caller)

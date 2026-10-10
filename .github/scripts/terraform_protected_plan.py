@@ -74,8 +74,8 @@ def main():
         wave = os.environ.get("OWNERSHIP_WAVE", "none")
         if wave not in {"none", "pool", "provider", "grant", "api", "noop"}:
             raise ValueError("Unsupported ownership wave")
-        if wave != "none" and (history != "true" or args.environment != "dev" or args.operation != "plan"):
-            raise ValueError("Cumulative ownership source supports development history plan only")
+        if wave != "none" and (history != "true" or args.environment != "dev" or args.operation not in {"plan", "apply"}):
+            raise ValueError("Cumulative ownership requires development history plan/apply")
         if any(os.environ.get(key, default) != default for key, default in {
             "TF_VAR_own_runtime_wif_pool": "false", "TF_VAR_own_runtime_wif_provider": "false",
             "TF_VAR_runtime_wif_grant_keys": "[]", "TF_VAR_owned_api_keys": "[]",
@@ -105,6 +105,8 @@ def main():
             else:
                 packet = private_json(str(directory / "runtime-ownership-packet.json"))
                 require_verified_inputs(dict(os.environ), packet, metadata)
+                from terraform_runtime_execution import require_fresh_inputs
+                require_fresh_inputs(dict(os.environ), packet)
                 candidate = validate_packet(packet, wave=wave, git_sha=args.git_sha)
                 if private_json(str(directory / "runtime-ownership.tfvars.json")) != candidate:
                     raise ValueError("Reviewed cumulative ownership inputs required")
@@ -144,8 +146,15 @@ def main():
             elif os.environ.get("TF_VAR_manage_export_topic") == "true":
                 if args.environment != "dev": raise ValueError("Development topic only")
                 validate_export_topic(plan, phase=args.phase)
+        if wave != "none":
+            # Exact graph/value checks already passed. Runtime approval also
+            # binds the full private packet with a nonce-keyed commitment;
+            # published projection digests must not enumerate aliases/APIs.
+            summary = dict(summary, resources=[])
+            from terraform_runtime_execution import approve_plan
+            approve_plan(dict(os.environ), plan, summary, phase=args.phase)
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")
-        write_private(args.markdown_output, render_markdown(summary))
+        write_private(args.markdown_output, render_markdown(dict(summary, resources=[]) if wave != "none" else summary))
         return 0 if summary["policy_passed"] else 3
     except Exception:
         print("Protected Terraform plan STOP; private diagnostic suppressed.", file=sys.stderr)

@@ -27,7 +27,7 @@ on:
         default: false
         type: boolean
       ownership_wave:
-        description: Disabled source-only cumulative runtime ownership plan selection
+        description: Disabled source-only cumulative runtime ownership plan/apply selection
         required: false
         default: none
         type: string
@@ -173,14 +173,18 @@ jobs:
             *) echo "::error::Unsupported ownership selection."; exit 1 ;;
           esac
           if [[ "${ownership_wave}" != "none" ]]; then
-            [[ "${TARGET}" == "dev" && "${MODE}" == "plan" ]] || {
-              echo "::error::Runtime source package supports development plan only; apply needs separate execution receipts."
+            [[ "${TARGET}" == "dev" && ( "${MODE}" == "plan" || "${MODE}" == "apply" ) && "${HISTORY_POST_NOOP}" == "false" ]] || {
+              echo "::error::Runtime ownership requires development plan/apply and a separate history selector."
               exit 1
             }
             [[ "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" && "${DEV_HISTORY_POST_NOOP12_READY:-false}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}" == "true" ]] || {
               echo "::error::Runtime ownership disabled; history import/post no-op12 and activation review remain pending."
               exit 1
             }
+            if [[ "${MODE}" == "apply" && "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED}" != "true" ]]; then
+              echo "::error::Runtime apply receipt emission is disabled."
+              exit 1
+            fi
           fi
           case "${TARGET}" in
             dev)
@@ -283,6 +287,7 @@ jobs:
       summary_digest: ${{ steps.sanitize.outputs.summary_digest }}
       history_metadata_digest: ${{ steps.history_metadata.outputs.history_metadata_digest }}
       history_receipt_scope: ${{ steps.history_receipt_binding.outputs.history_receipt_scope }}
+      runtime_input_commitment: ${{ steps.runtime_before.outputs.runtime_input_commitment }}
     env:
       MODE: ${{ inputs.mode }}
       HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
@@ -345,7 +350,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check one-shot history import authorization before cloud credentials
-        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        if: ${{ inputs.mode == 'apply' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
 
       - name: Bound the single history plan cost before authentication or locks
@@ -368,7 +373,7 @@ jobs:
 
       - name: Check private history receipt binding before credentials
         id: history_receipt_binding
-        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding
@@ -462,7 +467,7 @@ jobs:
           fi
 
       - name: Check fresh history receipt metadata binding
-        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding --fresh
@@ -476,6 +481,13 @@ jobs:
         id: history_post_noop_before
         if: ${{ inputs.history_post_noop && needs.preflight.outputs.manage_user_activity_history == 'true' }}
         run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase before
+
+      - name: Bind fresh runtime state to authenticated predecessor
+        id: runtime_before
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase before
 
       - name: Initialize remote backend without public output
         id: backend_init
@@ -605,15 +617,35 @@ jobs:
           PLAN_EXIT_CODE: ${{ steps.plan.outputs.plan_exit_code }}
         run: python3 .github/scripts/terraform_history_post_noop_receipt.py --phase after
 
+      - name: Verify runtime plan safety and unchanged fresh state
+        if: ${{ always() && steps.runtime_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
+          TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase after
+
       - name: Cleanup sensitive temporary files
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           rm -f \
-            "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
+            "${RUNNER_TEMP}/runtime-execution-before.json" \
+            "${RUNNER_TEMP}/runtime-execution-sealed.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipt.json" \
+            "${RUNNER_TEMP}/runtime-state-before.json" \
+            "${RUNNER_TEMP}/runtime-state-preapply.json" \
+            "${RUNNER_TEMP}/runtime-state-after.json" \
+            "${RUNNER_TEMP}/runtime-metadata-before.json" \
+            "${RUNNER_TEMP}/runtime-metadata-after.json" \
+            "${RUNNER_TEMP}/runtime-execution-after.json" \
+            "${RUNNER_TEMP}/runtime-approved-plan.json" \
+            "${RUNNER_TEMP}/runtime-approved-post.json" \
             "${RUNNER_TEMP}/runtime-ownership-packet.json" \
             "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
             "${RUNNER_TEMP}/history-plan-cost.json" \
             "${RUNNER_TEMP}/history-plan-state-before.json" \
             "${RUNNER_TEMP}/history-plan-state-after.json" \
@@ -638,7 +670,6 @@ jobs:
             "${RUNNER_TEMP}/sanitizer.out" \
             "${RUNNER_TEMP}/sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
-
   apply:
     name: Protected validated apply
     if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
@@ -651,9 +682,13 @@ jobs:
       name: terraform-${{ inputs.target }}-apply
     permissions:
       contents: read
+      actions: read
       id-token: write
     env:
       MODE: ${{ inputs.mode }}
+      OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
+      EXPECTED_RUNTIME_INPUT_COMMITMENT: ${{ needs.plan.outputs.runtime_input_commitment }}
+      APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
       HISTORY_TARGET: ${{ inputs.target }}
       HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
       EXPECTED_HISTORY_RECEIPT_SCOPE: ${{ needs.plan.outputs.history_receipt_scope }}
@@ -723,10 +758,22 @@ jobs:
 
       - name: Check private history receipt binding before credentials
         id: history_receipt_binding
-        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding
+
+      - name: Stage reviewed private cumulative ownership inputs before credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 infra/gcp/scripts/runtime_ownership_packet.py
+
+      - name: Verify authentic prior ownership receipts before cloud credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py
 
       - name: Configure AWS backend credential
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -787,9 +834,16 @@ jobs:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
           GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
           MODE: ${{ inputs.mode }}
+          BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          EXPORT_TOPIC_IDENTITY_REQUIRED: "true"
+          EXPORT_SCHEDULER_IDENTITY_REQUIRED: "true"
+          EXPORT_FUNCTION_IDENTITY_REQUIRED: "true"
+          QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
         run: |
           set -euo pipefail
-          if [[ "${MODE}" == "apply" ]]; then
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            python3 .github/scripts/terraform_identity_smoke.py apply-read-only
+          elif [[ "${MODE}" == "apply" ]]; then
             python3 .github/scripts/terraform_identity_smoke.py export-function-apply-read-only
           else
             python3 .github/scripts/terraform_identity_smoke.py export-function
@@ -819,17 +873,24 @@ jobs:
         run: python3 infra/gcp/scripts/prepare_user_activity_history_workflow.py --phase before
 
       - name: Check fresh history receipt metadata binding
-        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        if: ${{ inputs.mode == 'apply' && inputs.target == 'dev' && needs.preflight.outputs.manage_user_activity_history == 'true' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding --fresh
 
       - name: Capture exact pre-import state and approved history plan
         id: history_import_before
-        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase before
+
+      - name: Bind fresh runtime state to authenticated predecessor
+        id: runtime_before
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase before
 
       - name: Initialize remote backend without public output
         shell: bash
@@ -857,6 +918,10 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
           history_args=()
           if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
             history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
@@ -865,8 +930,10 @@ jobs:
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             ${plan_args[@]+"${plan_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
             ${history_args[@]+"${history_args[@]}"} \
             -input=false \
+            -lock-timeout=0s \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/tfplan" \
             >"${RUNNER_TEMP}/terraform-plan.log" 2>&1
@@ -883,6 +950,12 @@ jobs:
       - name: Check one-shot re-plan size before apply
         if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase size
+
+      - name: Recheck exact ownership receipts before protected validation
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 infra/gcp/scripts/runtime_ownership_provenance.py --recheck
 
       - name: Verify re-plan matches the sanitized approved projection
         shell: bash
@@ -923,8 +996,14 @@ jobs:
 
       - name: Seal the one-shot history saved plan before apply
         id: history_import_preapply
-        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        if: ${{ needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase preapply
+
+      - name: Seal the runtime saved plan and fresh private inputs
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase preapply
 
       - name: Apply the locally re-created saved plan
         id: apply_saved
@@ -935,7 +1014,9 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            python3 .github/scripts/terraform_runtime_execution.py --phase check-seal
+          elif [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
             [[ -n "${HISTORY_PLAN_SHA256}" && "$(sha256sum "${RUNNER_TEMP}/tfplan" | awk '{print $1}')" == "${HISTORY_PLAN_SHA256}" ]] || {
               echo "::error::Sealed history plan changed before apply."
               exit 1
@@ -966,6 +1047,10 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
           history_args=()
           if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
             history_args=(-var-file="${RUNNER_TEMP}/user-history-post.tfvars.json")
@@ -973,12 +1058,15 @@ jobs:
           set +e
           terraform -chdir="${TF_ROOT}" plan \
             ${history_args[@]+"${history_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
             -input=false \
+            -lock-timeout=0s \
             -detailed-exitcode \
             -out="${RUNNER_TEMP}/post-apply.tfplan" \
             >"${RUNNER_TEMP}/terraform-post-apply.log" 2>&1
           plan_rc=$?
           set -e
+          echo "post_plan_exit_code=${plan_rc}" >> "${GITHUB_OUTPUT}"
 
           set +e
           terraform -chdir="${TF_ROOT}" show -json "${RUNNER_TEMP}/post-apply.tfplan" \
@@ -1017,9 +1105,24 @@ jobs:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' && secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON || '' }}
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase post
 
+      - name: Verify runtime state-only delta and full-root post no-op
+        id: runtime_post_verify
+        if: ${{ always() && steps.runtime_before.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          APPLY_OUTCOME: ${{ steps.apply_saved.outcome }}
+          POST_PLAN_OUTCOME: ${{ steps.post_plan.outcome }}
+          POST_PLAN_EXIT_CODE: ${{ steps.post_plan.outputs.post_plan_exit_code }}
+        run: python3 .github/scripts/terraform_runtime_execution.py --phase after
+
       - name: Emit verified ownership receipt
-        if: ${{ steps.history_post_verify.outcome == 'success' && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
-        run: python3 .github/scripts/terraform_ownership_receipt.py emit-history
+        if: ${{ (steps.history_post_verify.outcome == 'success' || steps.runtime_post_verify.outcome == 'success') && env.DEV_HISTORY_RECEIPT_EMITTER_ENABLED == 'true' }}
+        run: |
+          if [[ "${OWNERSHIP_WAVE:-none}" == "none" ]]; then
+            python3 .github/scripts/terraform_ownership_receipt.py emit-history
+          else
+            python3 .github/scripts/terraform_ownership_receipt.py emit-runtime
+          fi
 
       - name: Cleanup sensitive temporary files
         if: always()
@@ -1027,6 +1130,20 @@ jobs:
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/runtime-execution-before.json" \
+            "${RUNNER_TEMP}/runtime-execution-sealed.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipt.json" \
+            "${RUNNER_TEMP}/runtime-state-before.json" \
+            "${RUNNER_TEMP}/runtime-state-preapply.json" \
+            "${RUNNER_TEMP}/runtime-state-after.json" \
+            "${RUNNER_TEMP}/runtime-metadata-before.json" \
+            "${RUNNER_TEMP}/runtime-metadata-after.json" \
+            "${RUNNER_TEMP}/runtime-execution-after.json" \
+            "${RUNNER_TEMP}/runtime-approved-plan.json" \
+            "${RUNNER_TEMP}/runtime-approved-post.json" \
+            "${RUNNER_TEMP}/runtime-ownership-packet.json" \
+            "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
+            "${RUNNER_TEMP}/runtime-ownership-receipts.json" \
             "${RUNNER_TEMP}/history-ownership-receipt.json" \
             "${RUNNER_TEMP}/history-import-before.json" \
             "${RUNNER_TEMP}/history-import-preapply.json" \

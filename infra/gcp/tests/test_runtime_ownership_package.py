@@ -296,6 +296,7 @@ class PackageContracts(unittest.TestCase):
                        **{'TF_VAR_manage_export_' + kind: 'true' for kind in ['function', 'scheduler', 'topic']})
             with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))), \
                  patch.object(protected, 'require_verified_inputs'), \
+                 patch('terraform_runtime_execution.require_fresh_inputs'), patch('terraform_runtime_execution.approve_plan'), \
                  patch.object(protected, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), \
                  patch.object(protected, 'validate_runtime', side_effect=lambda p, **kw: gate_validate(p, now=NOW, **kw)):
                 self.assertEqual(protected.main(), 0)
@@ -306,6 +307,7 @@ class PackageContracts(unittest.TestCase):
             (root / 'runtime-ownership.tfvars.json').write_text(json.dumps(candidate))
             with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))), \
                  patch.object(protected, 'require_verified_inputs'), \
+                 patch('terraform_runtime_execution.require_fresh_inputs'), patch('terraform_runtime_execution.approve_plan'), \
                  patch.object(protected, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), patch('sys.stderr', io.StringIO()):
                 self.assertEqual(protected.main(), 3)
 
@@ -352,6 +354,9 @@ class WorkflowContracts(unittest.TestCase):
     def test_test_only_activation_still_rejects_apply_prod_probes_exceptions_and_missing_history(self):
         activated = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true')
         self.assertEqual(self.preflight(**activated).returncode, 0)
+        apply_gates=activated | dict(DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true',DEV_HISTORY_RECEIPT_EMITTER_ENABLED='true')
+        self.assertEqual(self.preflight(**apply_gates,MODE='apply').returncode,0)
+        self.assertNotEqual(self.preflight(**apply_gates,MODE='apply',HISTORY_POST_NOOP='true',DEV_HISTORY_POST_NOOP_ENABLED='true').returncode,0)
         for overrides in [dict(MODE=mode) for mode in ['apply', 'security-probe', 'email-adoption', 'quota-create', 'quota-plan', 'quota-refresh']] + [
             dict(TARGET='prod'), dict(DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED='false'),
             dict(OWNERSHIP_WAVE='wrong'), dict(GITHUB_EVENT_NAME='pull_request')]:

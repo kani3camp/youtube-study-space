@@ -62,9 +62,17 @@ def identities(candidate):
     return result
 
 
-def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, now=None):
+def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, now=None, state_phase=None):
     require(phase in {"before", "post"} and type(plan) is dict)
     candidate = validate_packet(packet, wave=wave, git_sha=git_sha, now=now)
+    # The independent full-state verifier reuses these exact value/schema
+    # guards for the adopted or selected graph, always with import0.
+    require(state_phase in {None, "adopted", "selected"})
+    if state_phase is not None:
+        require(phase == "post")
+        chosen = packet[state_phase]
+        candidate.update(own_runtime_wif_pool=chosen["pool"], own_runtime_wif_provider=chosen["provider"],
+                         runtime_wif_grant_keys=chosen["grants"], owned_api_keys=chosen["apis"])
     expected = identities(candidate)
     adopted_candidate = dict(candidate, own_runtime_wif_pool=packet["adopted"]["pool"],
                              own_runtime_wif_provider=packet["adopted"]["provider"],

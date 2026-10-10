@@ -301,12 +301,12 @@ version更新時はこのvalidatorも独立reviewする。省略remote pool mode
 1. history actual importとpost full-root no-op12、released native lock、state/metadata不変のprivate receiptを独立review。
 2. AWS caller/required grantとAPI Own scopeのprivate join、同SHAの完全inventory/selectionを独立review。
 3. 既存plan/apply CI principalのexact-read成立と既存least privilegeを確認。新permission/auth/settingsは本packageで変更しない。
-4. runtime graphに対応するfresh state/metadata/lockとfactual execution accounting receiptsを実装・独立review。
+4. runtime graphに対応するfresh state/metadata/lockとfactual execution accounting sourceを独立reviewし、実receiptを取得。
    現history receiptはpre-import11専用のためruntime waveでは流用しない。runtime plan gateはこの対応が完了するまでfalseを維持する。
    新しいcost-only blocking machineryは追加しない。既存historyのaccounting/authorization契約はこのpackageでは維持する。
-5. runtime applyにはsame-SHA/private-input binding、independent plan/apply Environment approval、saved plan seal、
-   exact state-only delta、全unrelated SA bindings/API enabled inventory/trust不変、post-noop、lock release/leak auditのreceipt sourceを別途用意。
-   このpackageのpreflightはruntime applyを明示拒否する。plan gateだけを変更してapply可能とは扱わない。
+5. runtime applyのsame-SHA/private-input binding、independent plan/apply Environment approval、saved plan seal、
+   exact state-only delta、全unrelated SA bindings/API enabled inventory/trust不変、post-noop、lock release/leak auditを実証跡で確認。
+   disabled sourceはplan/applyの配線を備えるが、既存apply/emitter/runtime/history gateはfalseで実行を許可しない。
 6. 最終dev full-root noopとintegration reviewの実証跡をそろえてから、dev-target #1251のmergeはユーザーが判断する。
 
 検証はpublic dummyのみで、`test_runtime_ownership_package.py` が順序・累積件数・schema/action/identity/unknown/driftの拒否、
@@ -354,12 +354,12 @@ critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略でき�
 actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
 API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と
 [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28)。selective step-log indexはzero-based。
-GitHub tokenのActions readをcallerとconsumer plan jobだけにsource宣言し、write/PAT/new credentialは追加しない。
+GitHub tokenのActions readを既存callerとconsumer plan/apply jobにsource宣言し、write/PAT/new credentialは追加しない。
 log redirectでtokenを別hostへ送らず、GETはbounded/timeout/no retry。log URL/error body/private valuesをpublicへ出さない。
 
 public receiptは固定context/result/counts、prior receipt digest、opaque scope/state commitmentsだけ。
 state commitmentは別HMAC domainで検証済みfull stateのlineage/serial/resources/outputsを結び、各waveのprior state commitmentも前receiptと一致させる。
-GitHub provenanceの一致だけでは現在のstate一致を証明しない。future fresh state verifierがこのcommitmentと実readを照合する必要がある。
+GitHub provenanceの一致だけでは現在のstate一致を証明しない。runtime専用fresh state verifierがこのcommitmentとcurrent remote full-state readを照合する。
 HMAC-SHA256のprivate nonceでbackend/history stable metadataとadopted runtime identity/trust/member/condition、required grants、selected Own dependenciesを結ぶ。
 actual grant aliases/API inventory、account/provider/member/CEL、state/plan/schema/metadata、nonceとその無塩hashを公開しない。
 nonceはauth credential/signing trustではなくprivate scope binding。helperの`new-nonce`は暗号学的乱数を
@@ -379,10 +379,60 @@ provider内部request数・workflow全体総数・実請求額はunknownとし�
 
 sourceで閉じる範囲はissuer success emission、GitHub authenticity、private scope/ordered predecessor joins、protected mandatory wiringとdummy denial tests。
 **未完了**: actual history import/post-noop12、real receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、
-fresh cloud exact readsとruntime before/after state/metadata/lock/accounting issuer、別runtime apply source、最終full-rootdevnoop。
-このsourceにはruntime receipt emitter/apply pathを実装していない。runtimeのsynthetic receipt positiveはその実装や実adoptionの証明ではない。
+fresh cloud exact readsとruntime before/after state/metadata/lock/accountingの実receipt、最終full-rootdevnoop。
+runtime receipt emitter/apply pathのdummy PASSは実adoptionの証明ではない。
 issuer導入前に実history adoptionが終わった場合、元traceとfresh noop/state proofの別承認契約が必要で、blind import/applyを再実行しない。
 rollbackは未有効化sourceのrevertとfalse gates維持。実adoption後にmodule flagsをfalseへ戻さない。
 
 local testsはpublic dummy GitHub JSON/logsのinjected transportだけを使い、GitHub/AWS/GCPに接続しない。
 実activation前はofficial interfaceへのactual metadata readsとsource/stateの独立reviewも必要。
+
+
+## Runtime fresh-state / apply receipt package（disabled）
+
+[`terraform_runtime_execution.py`](../../../.github/scripts/terraform_runtime_execution.py) は既存strict v2 packet、
+provenance、canonical HMAC state domain、history/full-root graph guardsを使う。baseline11 readerは変更せず、
+runtime専用readerでbaseline11 + exact canonical history12 + reviewed adopted graphを検証する。
+lineage/serial/outputs/checks、provider/schema、resource containers/instances/dependencies/private fieldsを保持し、
+最後のauthenticated receiptの `last_state_after_commitment` とfresh before full-stateを必ず一致させる。
+countだけ、historical JSON、run ID、post-import plan-job summaryはexecution proofにならない。
+
+| Phase | Required private evidence |
+| --- | --- |
+| before (plan/apply) | Exact HEAD→bounded GET→HEAD/version/ETag/length、native lock/workspace absence、full-state semantics、last historical commitment、fresh history + full WIF pool/provider/attestation/SA IAM policy/enabled API inventory |
+| plan handoff | Same SHA/packet/nonce/backend/history inputs/runtime vars/existing private environment inputsのHMAC commitmentだけを既存job outputsで渡す。plan jobはstate/version・metadata不変と実init/plan/validation outcomesを確認 |
+| apply preapply | 独立apply Environment approval後に同packetを再staging/authenticate。既存same-SHA full-root replan/projection equality、fresh state/version・metadataの再一致、exclusive0600 binary/input/summary seal |
+| apply | 保存済planのsealを直前再確認。pool → provider → individual grant1件ずつ → explicit Own API1件ずつ。import-only/global mutation guardsを保持し、native lockを省略しない |
+| post / emitter | import0/all-noop、fresh selected full-state、以前の各instance/container/outputs/checks不変、lineage/version不変・serial増加（既存state-only契約の `>`、+1と推測しない）、full metadata/inventory不変、lock/workspace absence。noop waveはfull state不変。実apply/post outcome成功とpost exit0の後だけmachine receiptを作る |
+
+baseline/runtime の射影前に全 resource container の envelope・managed/google provider・非空 instances・
+`(module,type,name)` の一意性と各 instance の schema/index/address を検証する。空の未知 container、
+同一 grant container の分割、重複 instance は、flatten 後の件数や HMAC が一致しても STOP。
+第二 grant/API の追加は既存の一意 container 内へ1 instanceを追加できるが、以前の header/membership は保持する。
+emitter も保存済み before/post full-state と差分を再検証し、誤った旧 success record の matching commitment を発行根拠にしない。
+
+fresh metadataは既存read interfaces（project GET、exact pool/provider GET、`:listAttestationRules`、
+SA `getIamPolicy` requestedPolicyVersion3、enabled services list、canonical table GET）で取得する。
+complete enabled inventoryはbounded pagination・重複/loop/unknown response拒否を使い、unrelated SA bindings/conditions・
+all enabled services・WIF trustを比較する。既存runtime config/caller→required grants/API dependenciesはreviewed packetを使い、
+そのreviewの代わりにcandidate数からscopeを決めない。CI exact reads/least privilegeの実成立はowner側の未完了条件。
+
+before/preapply/postのobserved helper read countsと実outcomesはprivate evidenceに保持する。公開はcounts/outcomesとopaque
+commitmentsだけで、runtime JSON/Markdown projectionにはgrant aliases/API addressesも含めない。provider内部requests/actual costはunknown。
+post failure/expiryはscope-bound independent state/lock/workspace/history/runtime metadata safety readsを試行し、false successを発行しない。
+owned0600/exclusive filesとexisting always cleanupを使い、artifact/cacheは追加しない。cleanup/job/run失敗はconsumerが拒否する。
+issuer catalogのexisting ordered step pinsはhistory/runtime conditional branchesを同source SHAに含められる。
+選択されたwaveの全critical stepsと共通checkout/apply/noop/emitter/cleanupがsuccessfulかつ順序一致であることが必須。
+
+追加gate/secret/PAT/serviceはない。既存 `DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`, `DEV_HISTORY_POST_NOOP12_READY`,
+`DEV_HISTORY_RECEIPT_EMITTER_ENABLED`, apply/history-postnoop/probe gatesはfalse、issuer catalogは空。
+history independent post-noop selectorとruntime waveの混在は認証前に拒否する。
+[`test_terraform_runtime_execution.py`](../../../.github/scripts/test_terraform_runtime_execution.py) はpublic dummy transport/full stateで
+全waveのfreshness→saved seal→one-object delta→実emitter→実consumer、private input/nonce/receipt/state race、
+same-count IAM/API/trust交換、metadata/network/lock/cleanup failure、公開漏出拒否を検査する。
+
+historyは未import。ownerのexecution approval後の**初回history import**で既存history emitterのauthentic root receiptを取得し、
+独立post-noop12も保持する。receipt導入前にadoption済みだった場合の別bootstrap契約はこのpackageに追加しない。
+source integration/reviewはactivation承認ではなく、final issuer SHA/CI、actual workflow/job/Environment/reviewer pinsとprotection/step-log
+interface、private nonce/backend/history binding、actual scope/CI exact reads、実history import/postnoop12・ordered runtime receipts・
+final dev noop/owner merge判断が必要。既存security probe証拠は再利用し、追加live probe/query/DDL/deployを自動要求しない。

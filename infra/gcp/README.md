@@ -32,7 +32,7 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-history import/post-noop12は未完了で、新runtime live gateはfalse。後続receipt sourceはexact GitHub provenanceとprivate scope/前waveを照合し、history成功時のみsanitized receiptを発行できますが、issuer catalogとemitter gateは閉じています。runtime applyには実before/after execution receipt sourceと独立reviewが引き続き必要です。
+history import/post-noop12は未完了で、新runtime live gateはfalse。後続receipt sourceはexact GitHub provenanceとprivate scope/前waveを照合し、検証済みhistory/runtime成功時にsanitized receiptを発行するdisabled配線を備えますが、issuer catalogとemitter gateは閉じています。runtime freshness/apply receipt sourceの独立reviewと実before/after execution receiptsは引き続き必要です。
 
 ## Directory
 
@@ -414,3 +414,12 @@ Scheduler activation #1188 completed on integration SHA `eb46cb9603f320dbf2a729c
 [#1162 comment6005988785](https://github.com/kani3camp/youtube-study-space/issues/1162#issuecomment-6005988785) approves only `cloudfunctions.functions.get` in the existing development CI read role. Principals/bindings remain unchanged; no list/mutation/call/invoke/sourceCode/IAM/API/broad-role/production additions. The workflow enables the previously reviewed default-off Function definition only for development, after adopted topic and Scheduler dependencies. A harmless exact Function metadata GET supplies the preserved execution identity privately to both jobs.
 
 The unchanged global import-only policy plus `terraform_export_function_gate.py` require Function import1 + existing10 no-op, drift/unknown/unexpected action0, then post import0 / no-op11 / drift0. Independent Environment approvals, same-SHA re-plan/projection equality and saved-plan apply remain mandatory. Runtime Node22/ACTIVE/version8, trigger/retry, environment, execution identity and limits are fixed. Source/redeployment and Google-managed generated resources stay outside ownership; no manual trigger is permitted. See the [Function contract](modules/firestore-export-function/README.md) for provenance and state-only rollback.
+
+
+### Disabled runtime wave execution receipts
+
+Runtime ownership のfresh-state/apply/per-wave receipt sourceは
+[runtime ownership contract](docs/runtime-wif-api-ownership.md)を参照。
+既存11/history12のexact guard、same-SHA/private packet/plan seal、one-object state delta、full-root post-noopと
+complete unrelated IAM/API/WIF metadata保存を検査する。gateはfalse・issuer catalogは空。
+history未importのため、承認後の初回importでauthentic root receiptを取得する。dummy resultsは実receiptやactivation approvalではない。
