@@ -62,7 +62,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
+		.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
