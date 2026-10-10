@@ -266,7 +266,7 @@ checkout内配置・重複JSON・symlink・既存fileの上書きを拒否する
 private tfvarsだけを通常full-root planの`-var-file`へ渡し、sanitizerが同じpacketから再導出して完全一致を要求する。
 常時cleanupで両fileを消す。plan artifact/uploadや`-target`を追加しない。
 
-packetの正確なschema（実値はprivateに保持する）:
+PR #1274 のoffline legacy v1 schema（後続protected stagingでは拒否、実値はprivateに保持する）:
 
 | Key | 必須値/役割 |
 | --- | --- |
@@ -312,3 +312,77 @@ version更新時はこのvalidatorも独立reviewする。省略remote pool mode
 検証はpublic dummyのみで、`test_runtime_ownership_package.py` が順序・累積件数・schema/action/identity/unknown/driftの拒否、
 73/10でも明示API1件しか選ばれないこと、private staging/consumer/公開summary、閉じたworkflowと既存defaultの互換性を確認する。
 `test_runtime_ownership.py` のisolated mock Terraform検証も維持する。ここで実plan/import/probeは行わない。
+
+
+## Receipt provenance source（disabled、実 execution は未完了）
+
+後続 source は [`terraform_ownership_receipt.py`](../../../.github/scripts/terraform_ownership_receipt.py) と
+[`runtime_ownership_provenance.py`](../scripts/runtime_ownership_provenance.py) を使い、submitted run ID の型検査から
+source-pinned GitHub run/attempt/job/Environment/step-log の照合へ進める。history は plan-verified のままで、
+actual import/post-noop12 は未完了。runtime/apply gates はfalse、追加 `DEV_HISTORY_RECEIPT_EMITTER_ENABLED=false`。
+source の追加は execution approval や activation ready を意味しない。
+
+protected staging はstrict v2のみ。v1は既存offline graph fixturesに残し、実provenanceとして昇格しない。
+v2はv1から `history_post_noop_run_id` を除き、次の3 fieldsを加える。
+
+| Field | Private contract |
+| --- | --- |
+| `receipt_binding` | `nonce` (private random32 bytesのhex64)、`backend` (account_id/bucket/key/region/workspace)、`history_metadata` (reviewed full table snapshot) |
+| `history_receipt` | exact `run_id`, `attempt=1`, `job_id`, `source_sha`, `receipt_sha256` |
+| `adoption_receipts` | ordered `reference`, `wave`, `selected`。actual pool→provider→individual grants→Own APIsのpost receiptsだけ。noopはadoption件数を増やさない |
+
+すべてのreferenceをcanonical repoから独立にGETし、approved exact issuer source、CI caller/reusable workflow、
+completed/successのinitial attempt、plan/apply job/critical steps/cleanup、actual approved Environment IDsと
+reviewer IDsを照合する。probe/通常CI/pre-plan/コピーJSON/PASS proseはproofとして受理しない。
+exact successful emitter stepのlogからmarker1件だけを取り、digest/action/root/wave/counts/results/private scopeを比較する。
+全jobs pagination、API errors、rerun/race、未承認source、欠落/重複/truncated logはSTOP。
+現在のconsumer run/SHA/packet/catalogにboundした0600/exclusiveのrecordを同じtrusted job内に作り、
+cloud credentials前とsanitization直前にGitHubを再照合する。caller提供recordやcached approval booleanは受理しない。
+このephemeral recordはsource-pinned jobが生成する内部handoffであり、外部attestation/signatureではない。
+
+source trustは [`runtime-receipt-sources.json`](../../../.github/terraform/runtime-receipt-sources.json) のreviewed issuer catalog。
+**現在は空**なのでactual receiptを一つも承認しない。issuer entryはexact SHA→`workflow_id`, `job_names` (plan/apply),
+`environments` (plan/applyのid/name), `reviewer_ids`, `receipt_step`, ordered `required_steps`, approved `waves`。
+GitHub metadata interfaceのdummy testで実env/reviewer IDsやactual sourceを発明しない。
+workflow-run RESTのcaller `path`はexact `.github/workflows/ci.yml` または同pathの
+`@feature/gcp-terraform-iac` 形を受理する。reusable `path`はexact repository/workflowの
+`@feature/gcp-terraform-iac` または既存 `@refs/heads/feature/gcp-terraform-iac` 形のみで、
+別field `ref` は常にexact `refs/heads/feature/gcp-terraform-iac`、`sha` はreviewed issuer SHAと一致必須。
+任意suffixの除去やref推定はしない。[公式REST例](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10#get-a-workflow-run)
+に合わせたdummy互換性検査であり、このrepositoryのactual metadata/step-log interface確認はactivation前の未完了条件として残る。
+critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/post stepsも必須。
+actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
+API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と
+[workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28)。selective step-log indexはzero-based。
+GitHub tokenのActions readをcallerとconsumer plan jobだけにsource宣言し、write/PAT/new credentialは追加しない。
+log redirectでtokenを別hostへ送らず、GETはbounded/timeout/no retry。log URL/error body/private valuesをpublicへ出さない。
+
+public receiptは固定context/result/counts、prior receipt digest、opaque scope/state commitmentsだけ。
+state commitmentは別HMAC domainで検証済みfull stateのlineage/serial/resources/outputsを結び、各waveのprior state commitmentも前receiptと一致させる。
+GitHub provenanceの一致だけでは現在のstate一致を証明しない。future fresh state verifierがこのcommitmentと実readを照合する必要がある。
+HMAC-SHA256のprivate nonceでbackend/history stable metadataとadopted runtime identity/trust/member/condition、required grants、selected Own dependenciesを結ぶ。
+actual grant aliases/API inventory、account/provider/member/CEL、state/plan/schema/metadata、nonceとその無塩hashを公開しない。
+nonceはauth credential/signing trustではなくprivate scope binding。helperの`new-nonce`は暗号学的乱数を
+RUNNER_TEMPの固定private fileに0600/exclusiveで作る (valueをstdoutへ出さない)。chainで同じnonceを保持する。
+nonce喪失/変更、alias入替え、同count別member/API、前scope削減/skip/batchはSTOP。actual scopeはprivateレビュー入力で決める。
+API candidates10/enabled73をselectionに補完しない。
+
+history issuerは別のstrict private envelope `{schema_version:1, receipt_binding}` を既存packet secretから読む。
+plan/applyの両jobでformat/context/backend/nonceをcloud credentials前に検査し、fresh metadataとの一致をimport前にも検査する。
+plan jobから渡すsanitized `history_receipt_scope` commitmentで両Environmentのprivate bindingを一致させる。実値やnonceをjob outputへ出さない。
+既存state11→12/unrelated11不変/lineage/serial/metadata/native-lock/実applyとpost-plan outcome checksの後、
+exact post/import0/no-op12 summaryも検査してからprivate machine recordを作る。
+専用emit stepはpost成功＋closed issuance gateの条件だけで出力する。cleanup失敗/run失敗のreceiptはconsumerが拒否する。
+public accountingは観測したapply/post-plan outcomesとpost verifierのexplicit readsだけ。
+provider内部request数・workflow全体総数・実請求額はunknownとして残し、推計をactualにしない。新cost-only blockingはない。
+通常history routeはemitter falseならsecret/追加post summaryを必要とせず既存挙動を保持する。
+
+sourceで閉じる範囲はissuer success emission、GitHub authenticity、private scope/ordered predecessor joins、protected mandatory wiringとdummy denial tests。
+**未完了**: actual history import/post-noop12、real receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、
+fresh cloud exact readsとruntime before/after state/metadata/lock/accounting issuer、別runtime apply source、最終full-rootdevnoop。
+このsourceにはruntime receipt emitter/apply pathを実装していない。runtimeのsynthetic receipt positiveはその実装や実adoptionの証明ではない。
+issuer導入前に実history adoptionが終わった場合、元traceとfresh noop/state proofの別承認契約が必要で、blind import/applyを再実行しない。
+rollbackは未有効化sourceのrevertとfalse gates維持。実adoption後にmodule flagsをfalseへ戻さない。
+
+local testsはpublic dummy GitHub JSON/logsのinjected transportだけを使い、GitHub/AWS/GCPに接続しない。
+実activation前はofficial interfaceへのactual metadata readsとsource/stateの独立reviewも必要。

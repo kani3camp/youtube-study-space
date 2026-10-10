@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Offline, SHA-bound private inputs for a single cumulative ownership wave.
 
-Review references are assertions for independent review, not cloud receipts or
-authorization. The workflow's source gates remain closed and apply is excluded.
+Version 1 remains an offline contract. Protected staging requires version 2;
+GitHub provenance is verified separately before cloud credentials. Gates remain
+closed and runtime apply is excluded.
 """
 from __future__ import annotations
 
@@ -18,6 +19,10 @@ from prepare_user_activity_history_adoption import private_json
 
 WAVES = {"pool", "provider", "grant", "api", "noop"}
 SELECTION_KEYS = {"pool", "provider", "grants", "apis"}
+
+
+def invalid_constant(_):
+    raise ValueError("ownership packet STOP")
 
 
 def timestamp(value):
@@ -43,18 +48,37 @@ def selection(value, candidate):
     return value
 
 
-def validate_packet(packet, *, wave, git_sha, now=None):
-    require(wave in WAVES and type(packet) is dict and set(packet) == {
-        "schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc",
-        "history_post_noop_run_id", "inventory", "adopted", "selected"})
-    require(type(packet["schema_version"]) is int and packet["schema_version"] == 1)
+def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
+    require(wave in WAVES and type(packet) is dict)
+    version = packet.get("schema_version")
+    require(type(version) is int and version in {1, 2})
+    base = {"schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc", "inventory", "adopted", "selected"}
+    require(set(packet) == base | ({"history_post_noop_run_id"} if version == 1 else
+            {"receipt_binding", "history_receipt", "adoption_receipts"}))
     require(type(git_sha) is str and re.fullmatch(r"[0-9a-f]{40}", git_sha))
     require(packet["git_sha"] == git_sha and packet["wave"] == wave)
     reviewed, expires = timestamp(packet["reviewed_utc"]), timestamp(packet["expires_utc"])
     require(reviewed <= (now or datetime.now(timezone.utc)) < expires <= reviewed + timedelta(hours=24))
-    require(type(packet["history_post_noop_run_id"]) is int and packet["history_post_noop_run_id"] > 0)
+    if version == 1:
+        require(type(packet["history_post_noop_run_id"]) is int and packet["history_post_noop_run_id"] > 0)
+    else:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / ".github/scripts"))
+        import terraform_ownership_receipt as receipt
+        receipt.binding(packet["receipt_binding"])
+        receipt.reference(packet["history_receipt"])
+        chain = packet["adoption_receipts"]
+        require(type(chain) is list and len(chain) <= 256)
+        for item in chain:
+            require(type(item) is dict and set(item) == {"reference", "wave", "selected"} and item["wave"] in WAVES - {"noop"})
+            receipt.reference(item["reference"])
     candidate = prepare(packet["inventory"])
     old, new = (selection(packet[k], candidate) for k in ("adopted", "selected"))
+    if version == 2 and check_chain_shape:
+        require(len(chain) == int(old["pool"]) + int(old["provider"]) + len(old["grants"]) + len(old["apis"]))
+        for item in chain:
+            selection(item["selected"], candidate)
+        ids = [packet["history_receipt"]["run_id"]] + [i["reference"]["run_id"] for i in chain]
+        require(len(ids) == len(set(ids)))
     # Preserve all previously adopted flags and keys; exactly one new object.
     require(not old["pool"] or new["pool"])
     require(not old["provider"] or new["provider"])
@@ -82,7 +106,8 @@ def prepare_workflow(env):
     require(env.get("TF_VAR_manage_user_activity_history") == "true")
     raw = env.get("RUNTIME_OWNERSHIP_PACKET_JSON", "")
     require(type(raw) is str and 0 < len(raw.encode()) <= 4 * 1024 * 1024)
-    packet = json.loads(raw, object_pairs_hook=unique_object)
+    packet = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    require(packet.get("schema_version") == 2)
     candidate = validate_packet(packet, wave=env.get("OWNERSHIP_WAVE"), git_sha=env.get("GITHUB_SHA"))
     root = Path(env["RUNNER_TEMP"])
     repository = Path(__file__).resolve().parents[3]
@@ -95,7 +120,7 @@ def prepare_workflow(env):
             fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
             created.append(target)
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(value, handle, separators=(",", ":"))
+                json.dump(value, handle, separators=(",", ":"), allow_nan=False)
                 handle.write("\n")
         # Verify the same private-file policy used by the consumer.
         require(private_json(str(root / "runtime-ownership.tfvars.json")) == candidate)

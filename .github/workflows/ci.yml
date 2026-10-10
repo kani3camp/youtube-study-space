@@ -627,6 +627,8 @@ jobs:
           python3 .github/scripts/test_terraform_history_plan_receipt.py
           python3 .github/scripts/test_terraform_history_post_noop_receipt.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
+          python3 .github/scripts/test_terraform_ownership_receipt.py
+          python3 infra/gcp/tests/test_runtime_ownership_provenance.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
@@ -685,6 +687,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
     permissions:
       contents: read
+      actions: read
       id-token: write
     uses: ./.github/workflows/gcp-terraform-authenticated.yml
     secrets:

@@ -265,7 +265,7 @@ class PackageContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(MODE='plan', TF_VAR_project_id='test-youtube-study-space',
                        TF_VAR_manage_user_activity_history='true', OWNERSHIP_WAVE='pool',
-                       GITHUB_SHA=SHA, RUNNER_TEMP=directory, RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(packet()))
+                       GITHUB_SHA=SHA, RUNNER_TEMP=directory, RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(staging_packet()))
             with patch.object(packet_module, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)):
                 packet_module.prepare_workflow(env)
                 for name in ['runtime-ownership-packet.json', 'runtime-ownership.tfvars.json']:
@@ -295,6 +295,7 @@ class PackageContracts(unittest.TestCase):
                        TF_VAR_export_function_execution_service_account_email=EMAIL,
                        **{'TF_VAR_manage_export_' + kind: 'true' for kind in ['function', 'scheduler', 'topic']})
             with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))), \
+                 patch.object(protected, 'require_verified_inputs'), \
                  patch.object(protected, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), \
                  patch.object(protected, 'validate_runtime', side_effect=lambda p, **kw: gate_validate(p, now=NOW, **kw)):
                 self.assertEqual(protected.main(), 0)
@@ -304,8 +305,17 @@ class PackageContracts(unittest.TestCase):
             candidate['owned_api_keys'] = ['firebase.googleapis.com']
             (root / 'runtime-ownership.tfvars.json').write_text(json.dumps(candidate))
             with patch.dict(os.environ, env, clear=True), patch('sys.argv', args), patch('sys.stdin', io.StringIO(json.dumps(plan))), \
+                 patch.object(protected, 'require_verified_inputs'), \
                  patch.object(protected, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), patch('sys.stderr', io.StringIO()):
                 self.assertEqual(protected.main(), 3)
+
+
+def staging_packet():
+    from test_terraform_ownership_receipt import dummy_binding, GitHubFixture
+    value = packet()
+    value.pop('history_post_noop_run_id')
+    value.update(schema_version=2, receipt_binding=dummy_binding(), history_receipt=GitHubFixture().ref, adoption_receipts=[])
+    return value
 
 
 packet_module_validate = packet_module.validate_packet

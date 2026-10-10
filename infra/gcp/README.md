@@ -32,7 +32,7 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-history import/post-noop12は未完了で、新runtime live gateはfalse。runtime applyには追加のexecution receipt実装と独立reviewが必要です。
+history import/post-noop12は未完了で、新runtime live gateはfalse。後続receipt sourceはexact GitHub provenanceとprivate scope/前waveを照合し、history成功時のみsanitized receiptを発行できますが、issuer catalogとemitter gateは閉じています。runtime applyには実before/after execution receipt sourceと独立reviewが引き続き必要です。
 
 ## Directory
 

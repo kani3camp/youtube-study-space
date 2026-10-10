@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"
 from prepare_user_activity_history_adoption import prepare, private_json, unique_object
 from validate_user_activity_history_plan import validate as validate_history
 from runtime_ownership_packet import validate_packet
+from runtime_ownership_provenance import require_verified_inputs
 from validate_runtime_ownership_plan import validate as validate_runtime
 
 
@@ -103,6 +104,7 @@ def main():
                 summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
             else:
                 packet = private_json(str(directory / "runtime-ownership-packet.json"))
+                require_verified_inputs(dict(os.environ), packet, metadata)
                 candidate = validate_packet(packet, wave=wave, git_sha=args.git_sha)
                 if private_json(str(directory / "runtime-ownership.tfvars.json")) != candidate:
                     raise ValueError("Reviewed cumulative ownership inputs required")
