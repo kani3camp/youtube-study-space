@@ -21,6 +21,11 @@ on:
         required: false
         default: ""
         type: string
+      ownership_wave:
+        description: Disabled source-only cumulative runtime ownership plan selection
+        required: false
+        default: none
+        type: string
     # Explicit names allow Environment secret resolution in called jobs without
     # inheriting unrelated repository secrets. Values come from each job's gate.
     secrets:
@@ -39,6 +44,9 @@ on:
       GCP_MONITORING_PRIMARY_EMAIL:
         required: false
       GCP_MONITORING_PRIMARY_EMAIL_CHANNEL:
+        required: false
+
+      GCP_RUNTIME_OWNERSHIP_PACKET_JSON:
         required: false
 
 permissions: {}
@@ -70,6 +78,10 @@ env:
   DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
   # Protected plan only after canonical repair; actual import/apply needs separate approval.
   DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
+  # History is plan-verified only. Runtime activation requires actual import/post
+  # no-op12, independent review, CI exact reads and execution accounting receipts.
+  DEV_HISTORY_POST_NOOP12_READY: "false"
+  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
 
 jobs:
   preflight:
@@ -88,6 +100,7 @@ jobs:
       manage_export_scheduler: ${{ steps.guard.outputs.manage_export_scheduler }}
       manage_export_function: ${{ steps.guard.outputs.manage_export_function }}
       manage_user_activity_history: ${{ steps.guard.outputs.manage_user_activity_history }}
+      ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
     steps:
       - name: Enforce trusted execution surface
         id: guard
@@ -95,6 +108,7 @@ jobs:
         env:
           TARGET: ${{ inputs.target }}
           MODE: ${{ inputs.mode }}
+          OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
         run: |
           set -euo pipefail
 
@@ -134,6 +148,21 @@ jobs:
               ;;
           esac
 
+          ownership_wave="${OWNERSHIP_WAVE:-none}"
+          case "${ownership_wave}" in
+            none|pool|provider|grant|api|noop) ;;
+            *) echo "::error::Unsupported ownership selection."; exit 1 ;;
+          esac
+          if [[ "${ownership_wave}" != "none" ]]; then
+            [[ "${TARGET}" == "dev" && "${MODE}" == "plan" ]] || {
+              echo "::error::Runtime source package supports development plan only; apply needs separate execution receipts."
+              exit 1
+            }
+            [[ "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" && "${DEV_HISTORY_POST_NOOP12_READY:-false}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}" == "true" ]] || {
+              echo "::error::Runtime ownership disabled; history import/post no-op12 and activation review remain pending."
+              exit 1
+            }
+          fi
           case "${TARGET}" in
             dev)
               [[ "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" ]] || {
@@ -217,6 +246,7 @@ jobs:
               exit 1
               ;;
           esac
+          echo "ownership_wave=${ownership_wave}" >> "${GITHUB_OUTPUT}"
 
   plan:
     name: Authenticated protected plan
@@ -253,6 +283,7 @@ jobs:
       TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
       HISTORY_TARGET: ${{ inputs.target }}
       HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
     steps:
       - name: Mask private identity fragments before authentication
         shell: bash
@@ -296,10 +327,16 @@ jobs:
         run: python3 .github/scripts/terraform_history_import_verifier.py --phase authorization
 
       - name: Bound the single history plan cost before authentication or locks
-        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         env:
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase policy
+
+      - name: Stage reviewed private cumulative ownership inputs before credentials
+        if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 infra/gcp/scripts/runtime_ownership_packet.py
 
       - name: Configure AWS backend credential
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -382,7 +419,7 @@ jobs:
 
       - name: Bind the private history plan baseline
         id: history_plan_before
-        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' }}
+        if: ${{ inputs.mode == 'plan' && needs.preflight.outputs.manage_user_activity_history == 'true' && needs.preflight.outputs.ownership_wave == 'none' }}
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase before
 
       - name: Initialize remote backend without public output
@@ -413,6 +450,10 @@ jobs:
           set -euo pipefail
           umask 077
           plan_args=()
+          ownership_args=()
+          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
+            ownership_args=(-var-file="${RUNNER_TEMP}/runtime-ownership.tfvars.json")
+          fi
           history_args=()
           if [[ "${TF_VAR_manage_user_activity_history}" == "true" ]]; then
             history_args=(-var-file="${RUNNER_TEMP}/user-history-before.tfvars.json")
@@ -422,6 +463,7 @@ jobs:
           terraform -chdir="${TF_ROOT}" plan \
             ${plan_args[@]+"${plan_args[@]}"} \
             ${history_args[@]+"${history_args[@]}"} \
+            ${ownership_args[@]+"${ownership_args[@]}"} \
             -input=false \
             -lock-timeout=0s \
             -detailed-exitcode \
@@ -494,6 +536,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f \
+            "${RUNNER_TEMP}/runtime-ownership-packet.json" \
+            "${RUNNER_TEMP}/runtime-ownership.tfvars.json" \
             "${RUNNER_TEMP}/history-plan-cost.json" \
             "${RUNNER_TEMP}/history-plan-state-before.json" \
             "${RUNNER_TEMP}/history-plan-state-after.json" \

@@ -122,8 +122,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         declared = set(re.findall(r"(?m)^      ([A-Z_]+):$", interface))
         used = set(re.findall(r"secrets\.([A-Z_]+)", self.text))
         self.assertEqual(declared, used)
-        self.assertEqual(len(declared), 8)
-        self.assertEqual(interface.count("required: false"), 8)
+        self.assertEqual(len(declared), 9)
+        self.assertEqual(interface.count("required: false"), 9)
         call = re.split(r"\n  [a-zA-Z0-9_-]+:\n",
                         self.caller.split("  gcp-terraform-authenticated:\n", 1)[1], maxsplit=1)[0]
         forwarded = re.findall(r"(?m)^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call)
