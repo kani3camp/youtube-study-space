@@ -306,7 +306,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 if mode != "quota-plan":
                     self.assertIn("Development apply is disabled", rejected.stdout)
         probe = self.run_preflight(MODE="security-probe", **gates)
-        self.assertEqual(probe.returncode, 0, probe.stdout)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertIn("Development security probe is disabled", probe.stdout)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
             "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
@@ -427,8 +428,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_checkout_does_not_persist_github_token(self) -> None:
         self.assertEqual(self.text.count("persist-credentials: false"), 3)
 
-    def test_enabled_security_probe_uses_plan_oidc_without_terraform_or_state_write_route(self) -> None:
-        self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "true"', self.text)
+    def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
+        self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
         self.assertIn("          - security-probe\n", self.caller)
         self.assertNotEqual(self.run_preflight(MODE="security-probe").returncode, 0)
         enabled = self.run_preflight(MODE="security-probe", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true")
