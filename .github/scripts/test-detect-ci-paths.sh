@@ -53,6 +53,9 @@ assert_exact_groups figma_plugin tools/figma-plugin/room-layout-analyzer/code.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
+for codeql_path in .github/codeql/.gitignore .github/codeql/README.md .github/codeql/analysis-config.yml .github/codeql/build-go.sh .github/codeql/install-actionlint.sh .github/codeql/lint-workflows.py .github/codeql/requirements.txt .github/codeql/test_source_contracts.py .github/codeql/tooling.json .github/codeql/validate-source.py .github/scripts/detect-ci-paths.sh .github/scripts/test-detect-ci-paths.sh .github/workflows/codeql-advanced.yml .github/workflows/codeql-analyzer.yml .github/workflows/codeql-source-contracts.yml; do
+	assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" "$codeql_path"
+done
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
