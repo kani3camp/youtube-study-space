@@ -58,6 +58,7 @@ class ProductionReadinessTest(unittest.TestCase):
                     "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
                     "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac", "GITHUB_SHA": "a" * 40,
                     "GITHUB_OUTPUT": str(output), "TARGET": "prod", "MODE": mode,
+                    "HISTORY_POST_NOOP": "false",
                     "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
                 }
                 result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
