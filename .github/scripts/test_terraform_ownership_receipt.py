@@ -36,9 +36,10 @@ def dummy_context():
 
 def dummy_catalog():
     steps = copy.deepcopy(gate.MINIMUM_STEPS)
-    steps['plan'] = ['Checkout trusted commit'] + gate.HISTORY_STEPS[:2] + gate.MINIMUM_STEPS['plan'][1:]
+    steps['plan'] = ['Checkout trusted commit', gate.HISTORY_STEPS[0], gate.HISTORY_IDENTITY_STEP,
+                     gate.HISTORY_STEPS[1]] + gate.MINIMUM_STEPS['plan'][1:]
     steps['apply'] = ['Checkout the exact planned commit', 'Assert plan/apply commit identity',
-        *gate.HISTORY_STEPS[:6],
+        gate.HISTORY_STEPS[0], gate.HISTORY_IDENTITY_STEP, *gate.HISTORY_STEPS[1:6],
         'Apply the locally re-created saved plan', gate.HISTORY_STEPS[6], 'Require post-apply no-op',
         gate.HISTORY_STEPS[7], 'Emit verified ownership receipt', 'Cleanup sensitive temporary files']
     for role in ('plan', 'apply'):
@@ -324,6 +325,13 @@ class OwnershipReceiptTest(unittest.TestCase):
         catalog['issuers'][SHA]['waves'] = ['pool']
         with self.assertRaises(ValueError):
             gate.authenticate(fake.ref, catalog, request=fake)
+
+    def test_history_issuer_requires_exact_role_step_in_both_protected_jobs(self):
+        for role in ("plan", "apply"):
+            catalog = dummy_catalog()
+            catalog['issuers'][SHA]['required_steps'][role].remove(gate.HISTORY_IDENTITY_STEP)
+            with self.subTest(role=role), self.assertRaises(ValueError):
+                gate.load_catalog(catalog)
 
     def test_selective_log_transport_strips_auth_and_limits_redirects(self):
         from urllib.error import HTTPError

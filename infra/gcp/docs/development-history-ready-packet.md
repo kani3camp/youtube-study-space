@@ -243,96 +243,42 @@ apply gateはfalseのまま。月内累積保守見積USD0.507609043は過去run
 
 ### Before an owner could authorize one apply
 
-1. 新しいreview済みsourceをtrusted `feature/gcp-terraform-iac`へ取り込み、exact SHAのcredentialless
-   CIと、同SHAのprotected full-root planを通す。旧runのplan/metadata/digestを新SHAの承認へ流用しない。
-   dev tableの8列、nested schema、既存description、stable table設定とvolatile統計値の観測、
-   consumer/recoveryのowner factsをprivate packetで照合する。importだけのためにBigQuery writerを
-   停止させない。Terraform stateへの他writer/操作は競合を避けるため停止・隔離する。
-2. plan-onlyと将来の`mode=apply` plan jobはnegative security probesを実行しない。
-   `mode=apply`は専用`apply-read-only` identity checkでexact OIDC、dev GCP/STS、
-   bounded HEAD/GET/HEADとlock LISTを確認する。apply jobのFunction checkもdev-onlyとし、
-   このhistory apply経路から条件付きPutObject、wrong-role AssumeRole、prod/他product probe、
-   prod permission/別SA impersonationへ到達しない。既存`plan-read-only`は
-   `MODE=plan`のcost-policy/private receiptを要求するためapplyへ流用しない。
-   apply gate=falseのpreflightはmode=applyを拒否する。
-   full negativeは独立した`security-probe` mode/jobだけで、
-   `DEV_TERRAFORM_SECURITY_PROBE_ENABLED=false`で閉じたまま。同じtrusted ref、
-   `terraform-dev-plan` Environment、exact checkout/SHAとGitHub OIDC claimsを要求し、
-   backend init/plan/apply/state書換のTerraform経路へ入らない。probeが送る条件付きPutObject自体は
-   write API requestなので、live実行はsource/security reviewと本人の別承認が必要。
-   手動外部probeでは同じGitHub OIDC境界を証明できない。
-   [S3 conditional write仕様](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)に
-   基づき、fresh HEADと異なる暗号学的にランダムな128-bit ETagを`If-Match`に用いる。
-   keyが消えた場合は新規作成できず、403/AccessDeniedだけをDENYとし、412/404/409、通信失敗、
-   successはいずれもSTOP。前後でcurrent VersionId/ETag/HEADとbody SHA-256、exact lock absenceを
-   privateに比較し、0600の一時receiptに両HEAD/body digest/lock判定/条件headerと403判定を残す。
-   runner終了時に消去しpublic artifactにしない。失敗・timeout・強制停止ではこの一時receiptの
-   残存を事故解析の前提にできない。公開するのは固定stageの
-   `aws-state-probe-request/post/invariant/deny/receipt`と固定categoryだけ。
-   `request`は送信結果不明も含み、`post`は再取得不成立、`invariant`は前後差分、
-   `deny`は403以外、`receipt`は一時記録失敗として全てSTOPする。
-   固定STOP分類を起点に、安全な権限でcurrent snapshotと
-   必要ならCloudTrail等を別途確認し、秘密をpublic artifactへ移さない。
-   万一予期せぬ書込みが可能だった場合の被害を抑えるためrequest bodyは直前に
-   読んだstateそのものを使うが、競合で将来ETagが偶然一致する可能性やS3の想定外動作は
-   数学的にゼロではない。成功または前後差分ならSTOPして部分状態として調査し、retryしない。
-   条件付きrequestの403はそのrequest/headerの拒否証拠に限り、無条件PutObjectや
-   role/bucket/SCP/session policy全体の権限証明ではない。ownerはexact role ARN/RoleId、
-   trustとpermission/permissions boundary、bucket policyとversioning、実session policyの有無、
-   Organizations SCPの適用範囲をread-onlyで別途照合する。canaryやsimulatorもこのlive OIDC/requestの
-   代替証拠にはならない。apply gateを開く前に、別承認のstandalone live probe結果と
-   private policy reviewの両方を照合する。今回は実probe、gate変更、IAM/credential/trust変更を行わない。
-3. 次のplanとapplyが追加する当月UTC費用を別に見積る。AWS state GET/HEAD/LIST、native lock PUT/GET/DELETE、
-   state新versionとlock version/delete markerの後月保管、暗号化/KMS、転送、GCP `tables.get`、
-   provider refresh、logging/audit、別料金がある場合の上限をprivateなread証拠と単価で積算し、
-   既存の月次台帳に過去分USD0.507609043と今回の予約額を区別して記録する。追加料金runは今回0。
-   probeのlive実行を別途承認するなら、前後state HEAD/GET/LIST、条件付きPutObject一回、
-   STS/GCP permission checks、KMS/監査/転送も別枠で見積る。
-   値やbooleanだけで未知項目が解決したことにしない。
-4. 本人がexact target `dev / test-youtube-study-space.firestore_export.user-activity-history`、
-   state key、SHA、差分「tableのstate記録1件のみ・既存11 no-op」、公開済みsanitized plan-summaryのSHA-256、
-   期限、費用、状態不明時の停止をreviewする。planとapplyの両GitHub Environmentの本人review、
-   gate変更とdispatchはそれぞれ別のlive承認が必要。
+source準備・live設定・protected executionを一つのgoalとしてreviewする。今回のapply/emitter/post-noop/runtime/probe/production activation gateとissuer catalogは現在閉じたまま。source準備のPRだけでは以下の実行を承認しない。
 
-`terraform_history_import_approval` は公開可能な小さなJSONで、キーを
-`target=dev`、`git_sha`、正の`plan_run_id`、`summary_sha256`、`cost_evidence_sha256`、
-`max_added_current_month_usd`（正の小数文字列）、`issued_utc`、`expires_utc`だけに限定する。
-発行から最大24時間で失効し、実行時刻も範囲内とする。`plan_run_id`は新しいapproved planの
-run IDで、37925757786を使わない。`summary_sha256`はそのrunのsanitized summary bytesのdigest。
-自動照合するのはtarget/SHA/期限、plan jobとapply再planのsanitized summary digest、apply直前の
-local saved binary digestである。`plan_run_id`は正の整数という形式のみ、
-`cost_evidence_sha256`はhex形式のみ、`max_added_current_month_usd`は正の小数形式のみを検証する。
-実GitHub runとprivate itemized estimateの本文/請求設定/台帳との一致や予算内であることは
-自動検証しない。これらはEnvironment reviewerがprivate packetと照合する参照情報であり、
-public inputに証拠本文やbucket/account/role/SA名を貼らない。
+1. disabled sourceの3前提を先に揃える: routine cost waiverと安全入力の分離、両jobのearly exact AWS RoleId照合、初回importのmandatory root emitter。review済みruntime sourceが同時期に入る場合も、historyのためのruntime executionを要求しない。
+2. 既存private inputからbackend値・既存identity secret名・canonical table metadataを回収する。実行承認後、必要なfresh exact table metadata GET一回とprivate nonceでhistory envelope `{schema_version:1, receipt_binding}` を作り、既存`GCP_RUNTIME_OWNERSHIP_PACKET_JSON`へ両development Environment同一内容を準備する。raw state/metadata/nonceをpublicへ出さない。新grant、API enable、credential/trust変更を含めない。
+3. apply/emitter/independent post-noopに必要なhistory source activationをまとめてstageし、review後にcombined source SHA **S**を固定する。runtime-ready/runtime-plan/security-probe/production gateはfalseを維持する。旧plan/sourceは流用せず、全source準備を終えてから新protected full-root planを一回作る。
+4. `terraform-dev-plan` reviewerがS、fresh safety input、exact history import1/既存11 no-op/他0とsanitized summaryをreviewする。新plan run **P**とsummary digest **D**にboundした承認v2を準備し、apply dispatchのplan/apply両Environment review後、同Sの再plan/projection/binary digestでstate-only saved-plan applyを一回実行する。
+5. 初回apply内post import0/no-op12/他0、state11→12/unrelated11不変、lineage/serial、stable metadata、native lock absence、actual apply/post-plan outcomeを照合してroot receiptをemitする。同Sの別protected planで独立post-noop12を一回確認する。成功後にexecution gatesを閉じるが、adopted history resourceをrootから落とさない。
+6. root receiptのconsumer admissionは別のclosure/catalog source **C**で、historical issuer Sと`waves=["history12"]`だけをpinする。S自身のcatalog entryは初回emissionに不要。catalogを作るための再import/replanは行わない。新runtime waveのissuerはそれぞれ別review・実receiptが必要。
 
-既存workflowは同SHAのapply jobで新しいplanを作り、approved summary digestと再plan summaryを
-比較する。旧plan jobのbinaryはcleanup済みで、job間のbinary artifactもない。
-[one-shot verifier](../../../.github/scripts/terraform_history_import_verifier.py)はさらに
-beforeでstateに既存11件だけあること、preapplyでtable import **exact1**・既存11 no-op・他0、
-元state不変、stable table metadata/description一致、lock不在、local saved-plan binary SHA-256を検査する。
-saved-plan binaryにはprivate read由来の4 MiB上限がある。旧runのbinaryはcleanup済みでサイズ未実測。
-次のfresh planでは作成直後、sanitizer/承認前に固定PASS/STOPだけのsize checkを行い、
-apply jobでも再plan直後に再確認する。巨大binaryはpreapplyとapply前でSTOPし、値やbytesを
-公開せず、上限を黙って引き上げない。apply直前に同binary digestを再確認する。
-plan jobからbinaryをartifactで渡さない。
-postは同じlineage、増加serial、既存11の完全state値とoutputs/checks不変、追加table1件とschema、
-stable `tables.get`不変、native lock不在、post full-root import0/no-op12/他0を要求する。
-列descriptionはnestedを含めて比較する。[BigQuery REST Table](https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#Table)のoutput-onlyな`etag`、
-`lastModifiedTime`、`streamingBuffer`、`numRows`/各bytes/`numPartitions`は前後値をprivateに
-観測し、変化だけでSTOPしない。それ以外のfieldは未知のfieldも含めて完全一致を要求する。
-Terraformによるdata書込を許さない境界はexact saved planのimport1/他変更0、既存identity権限、
-state差分で検証する。metadata観測だけではrow本文の同一性を証明しない。独立BigQuery writerの
-通常書込をimportの失敗と混同しない。plan receipt側も同じstable/volatile分類を使い、
-stableと未知fieldをstrict比較し、volatileの前後全値をprivateに保存する。
-過去run37925757786ではcomplete metadata不変を観測済み。追加のbusiness-data queryが必要なら別承認。
-runnerのprivate state/metadata/planは0600で
-扱い、publicには固定の分類だけを出し、always cleanupする。強制停止時のcleanupは保証しない。
+既存Environment protectionのread証拠でname/id、reviewer id、branch policy、self-review/admin-bypass設定をpacketに回収する。所有者に既存値を再入力させない。所有者の残る判断は、このbounded live scopeの承認とstate writerのquiet window、fresh P/D/SのEnvironment review。private canonical inputの不足はexact path/keyとして挙げ、dummy値で補完しない。
 
-最小の`terraform state import`経路もtable state記録を加えるが、full-rootのimport1/no-op11、
-same-SHA再plan、provider値、post-plan、既存Environment/security boundaryを一体で検証できない。
-推奨は既存protected saved-plan applyに上記verifierを足す経路。gateを単にtrueへ変えるだけでは
-未実施のsecurity gateやowner factsを満たさない。
+routine Terraform cost blockingはwaived。新しいcost-only checks、月次上限や確認済みbooleanを要求しない。actual invoice、provider/auth/native-backendの全request数はunknownと記録する。過去probe [38029011597](https://github.com/kani3camp/youtube-study-space/actions/runs/38029011597)のconditional PUT403/state不変/lock PASSはそのrequestだけの証拠。再probeせず、SCP/session/inherited IAMの未確認範囲をfull security proofへ読み替えない。権限不足やidentity不一致ならSTOPし、新grantで迂回しない。
+
+### Bounded execution and one-shot approval v2
+
+`terraform_history_import_approval` は次のキーだけ: `schema_version=2`、`target=dev`、`git_sha=S`、正整数`plan_run_id=P`、`summary_sha256=D`、`issued_utc`、`expires_utc`。発行から最大24時間、実行時刻も範囲内。費用digest/金額/旧schemaを拒否する。public inputにprivateな証拠本文やbucket/account/role/SA名を貼らない。
+
+自動照合はtarget/SHA/期限、plan jobとapply再planのsanitized summary digest、apply直前のlocal saved binary digest。`plan_run_id`は正整数形式のreview参照であり、それだけで実runをauthenticateしない。Environment reviewerが実Pのsource/結果/summaryと照合する。両jobでfirst attempt、exact trusted caller/ref/repository、mandatory emitterを認証前に要求し、AWS認証直後にexact RoleId/accountを要求する。same-account別roleを受理しない。
+
+正常成功経路のsource helperが明示するrequest数は以下。実観測値やworkflow全体のrequest ceilingではない。
+
+| Protected stage | S3 helper | STS identity | GCP helper | GitHub OIDC claim GET |
+| --- | ---: | ---: | ---: | ---: |
+| Fresh plan | 9 | 2 | 7 | 1 |
+| Apply dispatch: plan job | 4 | 2 | 6 | 1 |
+| Apply job | 13 | 1 | 5 | 0 |
+| Independent post-noop plan | 14 | 2 | 7 | 1 |
+| Total explicit helpers | 40 | 7 | 25 | 3 |
+
+このほかprivate binding用exact table metadata GET一回。credential ActionsのOIDC/STS/token exchange、Terraform provider refresh、native backend state/lock処理、内部retry、logging/billingはこの表に含めずunknownのまま。workflow dispatchは最大3、Terraform planは最大5、init4、apply1。plan job15分/apply20分。scriptのAWS attemptとcredential Action retryは1、backend `max_retries=1`も維持するが、全内部retryゼロの証明とはしない。失敗経路のbounded post-safety readは追加され得る。自動rerun・force-unlock・scope拡張をしない。
+
+before/preapplyはstateに既存11件のみ、exact table import1/既存11 no-op/他0、元state不変、stable table metadata/description一致、positive lock absenceを要求する。binaryは4 MiB以下でsanitizer/承認前とapply再plan直後に確認し、local saved-plan digestをapply直前にも照合する。旧plan binaryはcleanup済み、job間artifactで渡さない。
+
+postは同lineage・増加serial、既存11の全state値とoutputs/既知checks不変、追加table1件/schema、stable tables.get不変、positive lock absence、post full-root import0/no-op12/他0を要求する。列descriptionはnestedも比較する。output-only `etag`/`lastModifiedTime`/`streamingBuffer`/row・bytes・partition統計はprivate観測し、通常BigQuery writerの変化だけでSTOPしない。他fieldは未知fieldもstrict一致。metadataだけでrow本文の同一性を証明せず、business-data query/DDL/table overwriteはこのscope外。
+
+authentic root receiptは、review済みissuer Sの実GitHub run/attempt1、成功したexact plan/apply jobs、両Environment approval、required stepsとcleanup、exact emitter step-logのmarker一件/digest、private bindingをconsumerが再照合して初めて受理する。copy JSON、PASS prose、old probe/planはroot proofにならない。issuer catalogは現在空。actual GitHub metadata/selective step-log interfaceの確認はactivation前の残るsource gapで、dummy testsを実interface成功と見なさない。詳細は[runtime receipt contract](runtime-wif-api-ownership.md)を参照する。
 
 ### Failure classification and recovery
 
@@ -342,6 +288,6 @@ post receiptの`state=unchanged`はimport未記録、`state=imported`は許容st
 行わず、Terraform state writerの競合を隔離してprivateにcurrent S3 version/serial/lineage、exact table metadata、
 lock holder、Terraform apply logとstate差分を照合する。stateだけimport済みならdata/tableは
 そのままで通常full-root no-opを独立確認し、同一importの再applyは拒否する。state未変更なら
-失敗原因と費用/期限/identityを再評価して新planと新承認を得る。state異常またはtable metadata
+失敗原因と期限/identityを再評価して新planと新承認を得る。state異常またはtable metadata
 変化時は別scopeのstate-only修復またはdata recoveryを候補にし、新writeとprivacy retention、
 復元先と費用をreviewしてから別承認する。古いsnapshotを後続writeの上へ戻さない。

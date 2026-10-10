@@ -143,8 +143,8 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
 
                     if failure == "expired-policy":
                         expired = datetime(2026, 10, 8, 14, tzinfo=timezone.utc)
-                        with patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None:
-                                          state_fixtures.ACTUAL_COST_POLICY(raw, sha, now=now or expired)):
+                        with patch.object(receipt, "execution_policy", side_effect=lambda raw, sha, now=None:
+                                          state_fixtures.ACTUAL_EXECUTION_POLICY(raw, sha, now=now or expired)):
                             with self.assertRaises(Exception):
                                 run_after()
                     else:
@@ -163,7 +163,7 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
                     self.assertNotIn("DUMMY_", summary)
                     if failure == "expired-policy":
                         self.assertEqual(operations[:3], ["head-object", "get-object", "head-object"])
-                        self.assertIn("Fresh cost evidence: STOP", summary)
+                        self.assertIn("Fresh execution evidence: STOP", summary)
                     elif failure in {"state-get-denied", "malformed-state", "version-change"}:
                         self.assertIn("Persistent state invariant: STOP", summary)
                 finally:

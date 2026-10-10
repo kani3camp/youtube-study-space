@@ -24,6 +24,7 @@ import test_gcp_user_activity_schema_audit_workflow as fixtures
 NOW = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
 SHA = "a" * 40
 ACTUAL_COST_POLICY = receipt.cost_policy
+ACTUAL_EXECUTION_POLICY = receipt.execution_policy
 
 
 def profile(**changes):
@@ -31,6 +32,12 @@ def profile(**changes):
             "expires_utc": "2026-10-08T13:00:00Z", "max_state_bytes": 16384,
             "budget_month": "2026-10", "cloud_side_cost_usd": "0.003",
             "cloud_side_evidence_reviewed": True, "rates_verified": True,
+            "state_writers_quiescent": True} | changes
+
+
+def safety_profile(**changes):
+    return {"schema_version": 1, "git_sha": SHA, "issued_utc": "2026-10-08T11:00:00Z",
+            "expires_utc": "2026-10-08T13:00:00Z", "max_state_bytes": 16384,
             "state_writers_quiescent": True} | changes
 
 
@@ -88,7 +95,7 @@ class FakeS3:
         if operation == self.denied:
             return subprocess.CompletedProcess([], 1, "", "(403) DUMMY_PRIVATE_ACCOUNT_ERROR")
         if service == "sts":
-            value = {"Account": "111111111111"}
+            value = {"Account": "111111111111", "UserId": "DUMMY_ROLE_ID:session"}
         elif operation == "head-object":
             value = {"ContentLength": len(self.body), "VersionId": self.version, "ETag": '"dummy-etag"',
                      "ServerSideEncryption": "AES256", "Metadata": {}}
@@ -123,7 +130,7 @@ class ReceiptTests(unittest.TestCase):
                     "STATE_BUCKET": "dummy-state-bucket", "AWS_MAX_ATTEMPTS": "1", "AWS_RETRY_MODE": "standard",
                     "GCP_SMOKE_ACCESS_TOKEN": "DUMMY_TOKEN", "GITHUB_STEP_SUMMARY": str(self.root / "summary"),
                     "BACKEND_INIT_OUTCOME": "success", "TERRAFORM_PLAN_OUTCOME": "success", "PLAN_VALIDATION_OUTCOME": "success", "PLAN_EXIT_CODE": "2",
-                    "PLAN_COST_EVIDENCE": json.dumps(profile())}
+                    "PLAN_SAFETY_EVIDENCE": json.dumps(safety_profile()), "BACKEND_ROLE_ID": "DUMMY_ROLE_ID"}
         self.aws = FakeS3()
         source = fixtures.UserActivityHistoryPlanTest()
         source.setUp()
@@ -131,7 +138,7 @@ class ReceiptTests(unittest.TestCase):
         self.plan["terraform_version"] = "1.16.4"
         self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789")
         self.google_calls = []
-        self.policy_patch = patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None: self.actual_policy(raw, sha, now=now or NOW))
+        self.policy_patch = patch.object(receipt, "execution_policy", side_effect=lambda raw, sha, now=None: ACTUAL_EXECUTION_POLICY(raw, sha, now=now or NOW))
         self.actual_policy = ACTUAL_COST_POLICY
         self.policy_patch.start()
         self.addCleanup(self.policy_patch.stop)
@@ -170,20 +177,30 @@ class ReceiptTests(unittest.TestCase):
         for path in self.root.glob("*.json"):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
-    def test_cost_missing_or_malformed_stops_without_aws_or_metadata_reads(self):
-        bad = ["", "{}", '{"model":1,"model":2}', "NaN", "[]", json.dumps(profile(unapproved=True)),
-               *[json.dumps(profile(**{key: value})) for key, value in [
-                   ("git_sha", "b" * 40), ("model", "unknown"), ("max_state_bytes", True), ("max_state_bytes", receipt.MAX_BYTES + 1),
-                   ("max_state_bytes", 0), ("budget_month", "2026-09"), ("cloud_side_cost_usd", "NaN"),
-                   ("cloud_side_cost_usd", "0"), ("cloud_side_cost_usd", "0.25"), ("cloud_side_cost_usd", "0.249"), ("cloud_side_cost_usd", "-0.01"),
-                   ("cloud_side_cost_usd", 0.001), ("expires_utc", "2026-10-08T11:59:59Z"),
-                   ("issued_utc", "2026-10-08T12:00:01Z"), ("expires_utc", "2026-10-10T12:00:00Z"),
-                   ("rates_verified", False), ("cloud_side_evidence_reviewed", "true"), ("state_writers_quiescent", False)]]]
+    def test_safety_missing_malformed_false_stale_or_legacy_cost_stops_before_reads(self):
+        bad = ["", "{}", '{"schema_version":1,"schema_version":1}', "NaN", "[]", json.dumps(profile()),
+               *[json.dumps(safety_profile(**{key: value})) for key, value in [
+                   ("schema_version", True), ("schema_version", 2), ("git_sha", "b" * 40),
+                   ("max_state_bytes", True), ("max_state_bytes", receipt.MAX_BYTES + 1), ("max_state_bytes", 0),
+                   ("expires_utc", "2026-10-08T11:59:59Z"), ("issued_utc", "2026-10-08T12:00:01Z"),
+                   ("expires_utc", "2026-10-10T12:00:00Z"), ("state_writers_quiescent", False),
+                   ("state_writers_quiescent", "true"), ("cost_evidence_reviewed", True)]]]
         for raw in bad:
             with self.subTest(raw=raw), self.assertRaises((ValueError, TypeError)):
-                receipt.policy(dict(self.env, PLAN_COST_EVIDENCE=raw))
-            self.assertFalse((self.root / "history-plan-cost.json").exists())
+                receipt.policy(dict(self.env, PLAN_SAFETY_EVIDENCE=raw))
+            self.assertFalse((self.root / "history-plan-admission.json").exists())
+        with self.assertRaises(ValueError):
+            receipt.policy(dict(self.env, PLAN_COST_EVIDENCE=json.dumps(profile())))
         self.assertEqual((self.aws.calls, self.google_calls), ([], []))
+
+    def test_safety_waiver_has_no_month_or_price_expiry_but_retains_size_and_time_bounds(self):
+        late = datetime(2028, 1, 1, 12, tzinfo=timezone.utc)
+        v = ACTUAL_EXECUTION_POLICY(json.dumps(safety_profile(issued_utc="2028-01-01T11:00:00Z",
+            expires_utc="2028-01-02T11:00:00Z", max_state_bytes=receipt.MAX_BYTES)), SHA, now=late)
+        self.assertEqual(v["cost_policy"], "routine-terraform-waived")
+        self.assertEqual(v["actual_cost"], "unknown")
+        self.assertNotIn("upper_bound_usd", v)
+        self.assertNotIn("monthly_ledger_entry", v)
 
     def test_cost_bound_accounts_for_size_full_month_storage_and_all_ceiling_components(self):
         value = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
@@ -254,34 +271,28 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.actual_policy(json.dumps(profile(cloud_side_cost_usd=format(remaining + Decimal("0.000000001"), ".9f"))), SHA, now=NOW)
 
-    def test_monthly_reservation_is_stable_and_ledger_tampering_stops_before_reads(self):
-        early = self.actual_policy(json.dumps(profile()), SHA, now=NOW)
-        late = self.actual_policy(json.dumps(profile()), SHA, now=datetime(2026, 10, 8, 12, 30, tzinfo=timezone.utc))
-        self.assertEqual(early, late)
+    def test_admission_record_tampering_stops_before_reads(self):
         receipt.policy(self.env)
-        path = self.root / "history-plan-cost.json"
-        for changes in ({"retention_end_utc": "2026-10-31T00:00:00Z"},
-                        {"added_retained_bytes_upper_bound": 0}, {"unapproved": True}):
-            changed = copy.deepcopy(early); changed["monthly_ledger_entry"].update(changes)
-            path.write_text(json.dumps(changed))
-            with self.assertRaises(smoke.StageFailure) as caught: receipt.snapshot_before(self.env, request=self.aws)
+        path = self.root / "history-plan-admission.json"
+        original = receipt.private_json(str(path))
+        for changes in ({"cost_policy": "free"}, {"actual_cost": "0"}, {"unapproved": True}):
+            path.write_text(json.dumps(original | changes))
+            with self.assertRaises(smoke.StageFailure) as caught:
+                receipt.snapshot_before(self.env, request=self.aws)
             self.assertEqual((caught.exception.stage, caught.exception.category), ("history-policy", "invalid-evidence"))
         self.assertEqual(self.aws.calls, [])
 
-    def test_normal_unlock_or_failed_receipt_never_cancels_recurring_storage_reservation(self):
+    def test_success_or_failure_does_not_change_safety_admission_or_invent_cost(self):
         for failed in (False, True):
             child = ReceiptTests("runTest"); child.setUp(); self.addCleanup(child.doCleanups); child.baseline()
-            before = receipt.private_json(str(child.root / "history-plan-cost.json"))["monthly_ledger_entry"]
+            before = receipt.private_json(str(child.root / "history-plan-admission.json"))
             if failed:
                 child.env["TERRAFORM_PLAN_OUTCOME"] = "failure"
                 with self.assertRaises(ValueError): child.after_check()
             else:
                 child.after_check()
-                self.assertEqual(receipt.private_json(str(child.root / "history-plan-after.json"))["monthly_ledger_entry"], before)
-            reserved = receipt.private_json(str(child.root / "history-plan-cost.json"))["monthly_ledger_entry"]
-            self.assertEqual(reserved, before)
-            self.assertEqual(reserved["added_retained_bytes_upper_bound"], 2 * receipt.LOCK_BYTES)
-            self.assertIsNone(reserved["retention_end_utc"])
+                self.assertEqual(receipt.private_json(str(child.root / "history-plan-after.json"))["actual_cost"], "unknown")
+            self.assertEqual(receipt.private_json(str(child.root / "history-plan-admission.json")), before)
             self.assertEqual(child.aws.calls[-1][1], "list-objects-v2")
 
     def test_exact_state_eleven_rejects_history_missing_extra_duplicate_tainted_and_unknown(self):
@@ -471,10 +482,10 @@ class ReceiptTests(unittest.TestCase):
                 self.assertEqual(child.aws.calls[-1][1], "list-objects-v2")
                 self.assertFalse((child.root / "history-plan-after.json").exists())
 
-    def test_expired_cost_evidence_still_gets_bounded_post_safety_reads_but_cannot_pass(self):
+    def test_expired_safety_evidence_still_gets_bounded_post_safety_reads_but_cannot_pass(self):
         self.baseline()
         expired = datetime(2026, 10, 8, 14, tzinfo=timezone.utc)
-        with patch.object(receipt, "cost_policy", side_effect=lambda raw, sha, now=None: ACTUAL_COST_POLICY(raw, sha, now=now or expired)):
+        with patch.object(receipt, "execution_policy", side_effect=lambda raw, sha, now=None: ACTUAL_EXECUTION_POLICY(raw, sha, now=now or expired)):
             with self.assertRaises(ValueError): self.after_check()
         self.assertEqual(self.aws.calls[-1][1], "list-objects-v2")
         self.assertEqual(len(self.google_calls), 1)
@@ -519,17 +530,16 @@ class ReceiptTests(unittest.TestCase):
         self.assertIn("receipt: PASS", exposed)
         self.assertIn("History sanitized summary SHA-256: `" +
                       receipt.hashlib.sha256(receipt.private_bytes(self.root / "sanitized-plan.json")).hexdigest() + "`", exposed)
-        self.assertIn("added current UTC month cost bound", exposed)
-        self.assertIn("cost bound <= USD0.25.", exposed)
-        self.assertNotIn("cost bound <= USD0.01.", exposed)
-        self.assertIn("carry into later monthly cumulative costs", exposed)
-        self.assertIn("no deletion deadline assumed", exposed)
+        self.assertIn("bounded execution evidence fresh", exposed)
+        self.assertIn("routine Terraform monetary checks waived", exposed)
+        self.assertIn("actual cost unknown", exposed)
+        self.assertNotIn("USD", exposed)
         self.assertNotIn("monthly_ledger_entry", exposed)
         for secret in ("DUMMY", self.env["STATE_BUCKET"], str(self.root), "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"):
             self.assertNotIn(secret, exposed)
 
     def test_private_symlink_public_permissions_collision_and_bad_context_stop(self):
-        path = self.root / "history-plan-cost.json"
+        path = self.root / "history-plan-admission.json"
         target = self.root / "unrelated"; target.write_text("DUMMY_KEEP")
         path.symlink_to(target)
         with self.assertRaises(ReceiptDependencyError) as caught: receipt.policy(self.env)

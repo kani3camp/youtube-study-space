@@ -17,6 +17,34 @@ import test_terraform_history_plan_receipt as receipt_fixtures
 
 
 class IdentitySmokeTest(unittest.TestCase):
+    def test_early_backend_role_requires_exact_identity_in_plan_and_apply_without_gcp_or_s3(self):
+        for mode in ("plan", "apply"):
+            env = {"MODE": mode, "HISTORY_TARGET": "dev", "TF_VAR_project_id": "test-youtube-study-space",
+                   "TF_VAR_manage_user_activity_history": "true", "STATE_ACCOUNT_ID": "111111111111",
+                   "BACKEND_ROLE_ID": "DUMMY_EXPECTED"}
+            cases = [("111111111111", "DUMMY_EXPECTED:session", 0, 0),
+                     ("111111111111", "DUMMY_WRONG:session", 0, 1),
+                     ("222222222222", "DUMMY_EXPECTED:session", 0, 1),
+                     ("111111111111", None, 0, 1), ("111111111111", "DUMMY_EXPECTED", 0, 1),
+                     ("111111111111", "DUMMY_EXPECTED:session", 1, 1)]
+            for account, user_id, code, expected in cases:
+                result = subprocess.CompletedProcess([], code, json.dumps({"Account": account, "UserId": user_id}), "")
+                out, err = io.StringIO(), io.StringIO()
+                with self.subTest(mode=mode, user_id=user_id, code=code), patch.dict(os.environ, env, clear=True), \
+                     patch.object(smoke, "aws", return_value=result) as aws, \
+                     patch.object(smoke.urllib.request, "urlopen") as http, \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    self.assertEqual(smoke.main(["backend-role-read-only"]), expected)
+                    aws.assert_called_once_with("sts", "get-caller-identity")
+                    http.assert_not_called()
+                    self.assertNotIn("DUMMY", out.getvalue() + err.getvalue())
+
+    def test_early_backend_role_wrong_route_stops_without_credentials_or_requests(self):
+        with patch.dict(os.environ, {"MODE": "security-probe"}, clear=True), \
+             patch.object(smoke, "aws") as aws, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(smoke.main(["backend-role-read-only"]), 1)
+            aws.assert_not_called()
+
     def test_state_integrity_summary_exposes_only_counts(self):
         state = {"version": 4, "serial": 9, "lineage": "PRIVATE_LINEAGE", "outputs": {"private": "PRIVATE_VALUE"},
                  "resources": [{"mode": "managed", "instances": [{"labels": "PRIVATE_EMAIL"}]},
@@ -680,7 +708,7 @@ class HistoryPlanCliTest(unittest.TestCase):
                 child.env["GCP_SMOKE_SERVICE_ACCOUNT"] = "terraform-dev-plan@" + "test-youtube-study-space.iam.gserviceaccount.com"
                 receipt.policy(child.env)
                 if stage == "history-policy":
-                    (child.root / "history-plan-cost.json").write_text(json.dumps(change))
+                    (child.root / "history-plan-admission.json").write_text(json.dumps(change))
                 calls = 0
                 def corrupted_request(*args):
                     nonlocal calls
@@ -811,10 +839,10 @@ urllib.request.urlopen = fake_urlopen
             with self.subTest(stage=stage, mutation=mutation):
                 fixture = receipt_fixtures.ReceiptTests("runTest")
                 fixture.setUp(); self.addCleanup(fixture.doCleanups)
-                evidence = receipt_fixtures.profile()
+                evidence = receipt_fixtures.safety_profile()
                 if stage != "history-policy":
-                    budget = fixture.actual_policy(json.dumps(evidence), fixture.env["GITHUB_SHA"], now=receipt_fixtures.NOW)
-                    receipt.write_private(fixture.root / "history-plan-cost.json", budget)
+                    budget = receipt_fixtures.ACTUAL_EXECUTION_POLICY(json.dumps(evidence), fixture.env["GITHUB_SHA"], now=receipt_fixtures.NOW)
+                    receipt.write_private(fixture.root / "history-plan-admission.json", budget)
                 fixture.env.update({
                     "GCP_SMOKE_SERVICE_ACCOUNT": "terraform-dev-plan@" + "test-youtube-study-space.iam.gserviceaccount.com",
                     "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",

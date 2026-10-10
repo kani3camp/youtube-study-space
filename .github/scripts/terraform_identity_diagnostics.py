@@ -19,6 +19,8 @@ RECEIPT_REASONS = frozenset({
     "cost-json-size", "cost-profile-shape", "cost-model-sha", "cost-time-window",
     "cost-month", "cost-month-margin", "cost-attestation", "cost-state-size",
     "cost-overhead-shape", "cost-overhead-range", "cost-cap",
+    "safety-json-size", "safety-profile-shape", "safety-sha", "safety-time-window",
+    "safety-state-size", "safety-quiescence", "legacy-cost-input", "after-safety-fresh",
     "policy-record-shape", "policy-record-match", "policy-state-target",
     "policy-account-shape", "policy-bucket-shape", "policy-retry",
     "s3-response-bound", "s3-json-envelope", "list-fields", "list-encoding",

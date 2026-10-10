@@ -60,6 +60,7 @@ RUNTIME_STEPS = {
               "Seal the runtime saved plan and fresh private inputs", "Verify post-import canonical metadata privately",
               "Verify runtime state-only delta and full-root post no-op"],
 }
+HISTORY_IDENTITY_STEP = "Verify exact AWS execution identity before GCP authentication"
 REFERENCE_KEYS = {"run_id", "attempt", "job_id", "source_sha", "receipt_sha256"}
 
 
@@ -203,6 +204,7 @@ def load_catalog(value):
         if "history12" in item["waves"]:
             need(set(HISTORY_STEPS) <= set(item["required_steps"]["apply"])
                  and set(HISTORY_STEPS[:2]) <= set(item["required_steps"]["plan"]))
+            need(all(HISTORY_IDENTITY_STEP in item["required_steps"][role] for role in ("plan", "apply")))
         if set(item["waves"]) - {"history12"}:
             need(all(set(RUNTIME_STEPS[role]) <= set(item["required_steps"][role]) for role in ("plan", "apply")))
     return value

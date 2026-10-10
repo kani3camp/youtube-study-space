@@ -33,9 +33,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             root = GITHUB_DIR.parent / "infra/gcp/environments" / env
             self.assertIn("sensitive = true", (root / "notification-channels.tf").read_text())
 
-    def test_single_history_plan_cost_and_baseline_precede_all_native_lock_operations(self):
+    def test_single_history_safety_and_baseline_precede_all_native_lock_operations(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        ordered = ["Bound the single history plan cost", "Configure AWS backend credential", "Configure GCP provider credential",
+        ordered = ["Check bounded history execution evidence", "Configure AWS backend credential", "Configure GCP provider credential",
                    "Verify development identity", "Read canonical history metadata privately", "Bind the private history plan baseline",
                    "Initialize remote backend", "Create saved plan", "Sanitize and enforce", "Verify private history plan invariants", "Cleanup sensitive"]
         positions = [plan.index(name) for name in ordered]
@@ -45,8 +45,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('retry-max-attempts: 1', plan)
         self.assertIn('max_retries         = 1', plan)
         self.assertIn('-lock-timeout=0s', plan)
-        self.assertIn("PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}", plan)
-        self.assertIn("plan_cost_evidence: ${{ inputs.terraform_plan_cost_evidence }}", self.caller)
+        self.assertIn("PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}", plan)
+        self.assertIn("history_plan_safety_evidence: ${{ inputs.terraform_history_plan_safety_evidence }}", self.caller)
         self.assertIn("!(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true)", self.caller)
         self.assertNotIn("continue-on-error", plan)
         self.assertNotIn("force-unlock", plan)
@@ -62,7 +62,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertNotIn(f"steps.{phase}.outcome == 'success'", post)
         cleanup = plan.split("      - name: Cleanup sensitive temporary files", 1)[1]
         self.assertIn("if: always()", cleanup)
-        for name in ("cost", "state-before", "state-after", "state-before-receipt", "before", "table-after", "after"):
+        for name in ("admission", "state-before", "state-after", "state-before-receipt", "before", "table-after", "after"):
             self.assertIn(f'"${{RUNNER_TEMP}}/history-plan-{name}.json"', cleanup)
         self.assertIn("test_terraform_history_plan_receipt.py", self.caller)
         self.assertIn("python3 .github/scripts/test_terraform_history_post_noop_receipt.py", self.caller)
@@ -141,7 +141,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_REPOSITORY": "kani3camp/youtube-study-space", "GITHUB_REPOSITORY_ID": "340900071",
             "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
+            "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ATTEMPT": "1", "TARGET": "dev", "MODE": "plan",
             "HISTORY_POST_NOOP": "false", "DEV_HISTORY_POST_NOOP_ENABLED": "false",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
@@ -569,11 +569,33 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_history_private_binding_is_checked_before_auth_and_import_in_both_jobs(self) -> None:
         for block in [self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0],
                       self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]]:
+            self.assertLess(block.index("Check one-shot history import authorization before cloud credentials"), block.index("Configure AWS backend credential"))
             self.assertLess(block.index("Check private history receipt binding before credentials"), block.index("Configure AWS backend credential"))
             self.assertLess(block.index("Check fresh history receipt metadata binding"), block.index("Create saved plan") if "Create saved plan" in block else block.index("Capture exact pre-import state"))
             self.assertIn("terraform_ownership_receipt.py check-history-binding --fresh", block)
         self.assertIn("EXPECTED_HISTORY_RECEIPT_SCOPE: ${{ needs.plan.outputs.history_receipt_scope }}", self.text)
         self.assertIn("history_receipt_scope: ${{ steps.history_receipt_binding.outputs.history_receipt_scope }}", self.text)
+
+    def test_exact_backend_role_is_mandatory_between_aws_and_gcp_in_both_history_jobs(self):
+        for block in [self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0],
+                      self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]]:
+            names = ["Configure AWS backend credential", "Verify exact AWS execution identity before GCP authentication",
+                     "Configure GCP provider credential"]
+            self.assertEqual([block.index(name) for name in names], sorted(block.index(name) for name in names))
+            early = block.split("      - name: " + names[1], 1)[1].split("      - name:", 1)[0]
+            self.assertIn("BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}", early)
+            self.assertIn("backend-role-read-only", early)
+            self.assertNotIn("continue-on-error", early)
+
+    def test_history_first_import_requires_emitter_initial_attempt_and_no_legacy_cost(self):
+        gates = {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true", "DEV_QUOTA_MANAGED_ENABLED": "true",
+                 "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true"}
+        self.assertNotEqual(self.run_preflight(MODE="apply", **gates).returncode, 0)
+        gates["DEV_HISTORY_RECEIPT_EMITTER_ENABLED"] = "true"
+        self.assertEqual(self.run_preflight(MODE="apply", **gates).returncode, 0)
+        for mode in ("plan", "apply"):
+            for change in ({"GITHUB_RUN_ATTEMPT": "2"}, {"PLAN_COST_EVIDENCE": "{}"}):
+                self.assertNotEqual(self.run_preflight(MODE=mode, **(gates | change)).returncode, 0)
 
 
 if __name__ == "__main__":
