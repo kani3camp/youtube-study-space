@@ -224,7 +224,7 @@ API選別・destruction flags、global import-only guard が mock create を拒�
    pre-plan は exact expected imports + その他 managed resources no-op。create/update/delete/replace/drift/unknown/other0。
    saved import-only apply で state ownership のみ採用。API enable/disable や IAM/WIF config mutation は別 wave / 別承認。
 6. post は import0 / full-root all no-op / drift0。GCP metadata / 全 SA bindings / enabled APIs 不変、
-   S3 lineage / serial / version差分 / lock release を private 確認。公開は address/actions/counts のみ、artifact0・leak audit。
+   S3 lineage / serial / version差分 / lock release を private 確認。公開はsanitized counts/outcomes/opaque commitmentsだけ、専用receipt以外artifact0・leak audit。
 7. runtime regression は自然 Lambda / daily batch の既存 read-only証跡で確認。
    今夜成功の計画仮定を PASS 記録にしない。production は dev 完了後に fresh inventory から別設計。
 
