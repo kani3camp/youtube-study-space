@@ -338,7 +338,7 @@ class WorkflowContracts(unittest.TestCase):
                    GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
                    GITHUB_SHA=SHA, GITHUB_RUN_ATTEMPT='1', TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool',
                    HISTORY_POST_NOOP='false')
-        env.update(re.findall(r'^  ([A-Z_]+): "([^"]*)"$', self.text, re.M))
+        env.update(re.findall(r'^  ([A-Z0-9_]+): "([^"]*)"$', self.text, re.M))
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
             env['GITHUB_OUTPUT'] = str(Path(directory) / 'output')
@@ -352,7 +352,9 @@ class WorkflowContracts(unittest.TestCase):
         self.assertEqual(self.preflight(OWNERSHIP_WAVE='none').returncode, 0)
 
     def test_test_only_activation_still_rejects_apply_prod_probes_exceptions_and_missing_history(self):
-        activated = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true')
+        activated = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true',
+                         DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='false',
+                         DEV_HISTORY_RECEIPT_EMITTER_ENABLED='false', DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='false')
         self.assertEqual(self.preflight(**activated).returncode, 0)
         apply_gates=activated | dict(DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true',DEV_HISTORY_RECEIPT_EMITTER_ENABLED='true',DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true')
         self.assertEqual(self.preflight(**apply_gates,MODE='apply').returncode,0)

@@ -70,7 +70,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_one_shot_history_import_has_separate_approval_and_state_receipts(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
         apply = self.text.split("  apply:\n", 1)[1]
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', self.text)
         self.assertIn("history_import_approval: ${{ inputs.terraform_history_import_approval }}", self.caller)
         self.assertLess(plan.index("Check one-shot history import authorization"), plan.index("Configure AWS backend credential"))
         ordered = ["Re-read canonical history metadata", "Capture exact pre-import state",
@@ -188,9 +188,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("needs.preflight.outputs.manage_export_function != 'true'", apply)
         self.assertNotIn("TF_VAR_export_function_execution_service_account_email:", self.text)
 
-    def test_history_plan_only_activation_requires_complete_dev_baseline(self):
+    def test_history_activation_requires_complete_dev_baseline(self):
         self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"', self.text)
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', self.text)
         gates = {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true", "DEV_QUOTA_MANAGED_ENABLED": "true"}
         enabled = self.run_preflight(**gates)
         self.assertEqual(enabled.returncode, 0)
@@ -310,32 +310,63 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn('-refresh-only', post)
         self.assertIn("inputs.mode == 'quota-refresh'", self.text.split('  apply:', 1)[1])
 
-    def test_source_history_activation_permits_only_protected_plan(self) -> None:
-        gates = dict(re.findall(r'(?m)^  ([A-Z_]+): "(true|false)"$', self.text))
-        self.assertEqual(gates["DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED"], "true")
-        self.assertEqual(gates["DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED"], "false")
-        result = self.run_preflight(**gates)
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("manage_user_activity_history=true", result.outputs)
-        for mode in ("apply", "email-adoption", "quota-create", "quota-refresh", "quota-plan"):
+    def source_gates(self):
+        return dict(re.findall(r'(?m)^  ([A-Z0-9_]+): "(true|false)"$', self.text))
+
+    def test_source_history_window_preserves_baseline_and_denies_other_waves(self) -> None:
+        gates = self.source_gates()
+        self.assertEqual(gates, {
+            "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
+            "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true",
+            "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
+            "DEV_HISTORY_POST_NOOP_ENABLED": "true",
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+            "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true",
+            "DEV_QUOTA_MANAGED_ENABLED": "true",
+            "DEV_QUOTA_CREATE_ENABLED": "false",
+            "DEV_QUOTA_STATE_REFRESH_ENABLED": "false",
+            "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true",
+            "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED": "true",
+            "DEV_EXPORT_FUNCTION_MANAGED_ENABLED": "true",
+            "DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true",
+            "DEV_HISTORY_POST_NOOP12_READY": "false",
+            "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
+            "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
+            "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "true",
+        })
+        for mode, post_noop in (("plan", "false"), ("apply", "false"), ("plan", "true")):
+            with self.subTest(mode=mode, post_noop=post_noop):
+                allowed = self.run_preflight(**(gates | {"MODE": mode, "HISTORY_POST_NOOP": post_noop}))
+                self.assertEqual(allowed.returncode, 0)
+                self.assertIn("manage_user_activity_history=true", allowed.outputs)
+        for mode in ("email-adoption", "quota-create", "quota-refresh", "quota-plan", "security-probe"):
             with self.subTest(mode=mode):
-                rejected = self.run_preflight(MODE=mode, **gates)
-                self.assertNotEqual(rejected.returncode, 0)
-                if mode != "quota-plan":
-                    self.assertIn("Development apply is disabled", rejected.stdout)
-        probe = self.run_preflight(MODE="security-probe", **gates)
-        self.assertNotEqual(probe.returncode, 0)
-        self.assertIn("Development security probe is disabled", probe.stdout)
+                self.assertNotEqual(self.run_preflight(**(gates | {"MODE": mode})).returncode, 0)
+        for wave in ("pool", "provider", "grant", "api", "noop"):
+            with self.subTest(wave=wave):
+                self.assertNotEqual(self.run_preflight(**(gates | {"OWNERSHIP_WAVE": wave})).returncode, 0)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
             "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
             "TARGET": "prod", "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+            "GITHUB_RUN_ATTEMPT": "2", "PLAN_COST_EVIDENCE": "legacy",
         }.items():
             with self.subTest(key=key):
                 self.assertNotEqual(self.run_preflight(**(gates | {key: value})).returncode, 0)
 
+    def test_source_history_gate_closure_denies_apply_and_independent_post_noop(self):
+        gates = self.source_gates()
+        for gate in ("DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED", "DEV_HISTORY_RECEIPT_EMITTER_ENABLED",
+                     "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED"):
+            with self.subTest(gate=gate):
+                denied = self.run_preflight(**(gates | {"MODE": "apply", gate: "false"}))
+                self.assertNotEqual(denied.returncode, 0)
+                self.assertNotIn("manage_user_activity_history=true", denied.outputs)
+        self.assertNotEqual(self.run_preflight(**(gates | {"HISTORY_POST_NOOP": "true",
+            "DEV_HISTORY_POST_NOOP_ENABLED": "false"})).returncode, 0)
+
     def test_independent_history_post_noop_requires_its_closed_gate(self) -> None:
-        self.assertIn('DEV_HISTORY_POST_NOOP_ENABLED: "false"', self.text)
+        self.assertIn('DEV_HISTORY_POST_NOOP_ENABLED: "true"', self.text)
         self.assertIn('terraform_history_post_noop:', self.caller)
         self.assertIn('history_post_noop: ${{ inputs.terraform_history_post_noop }}', self.caller)
         closed = self.run_preflight(HISTORY_POST_NOOP="true")
@@ -473,7 +504,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertIn(line, publish)
         self.assertIn("env.DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED == 'true'", publish)
         self.assertIn("steps.ownership_receipt.outcome == 'success'", publish)
-        self.assertIn('DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "false"', self.text)
+        self.assertIn('DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "true"', self.text)
         apply = self.text.split('  apply:\n', 1)[1].split('  security-probe:\n', 1)[0]
         self.assertLess(apply.index('Emit verified ownership receipt'), apply.index('Publish sanitized ownership receipt'))
         self.assertLess(apply.index('Publish sanitized ownership receipt'), apply.index('Cleanup sensitive temporary files'))
@@ -556,7 +587,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_history_machine_receipt_gate_post_success_and_cleanup_are_explicit(self) -> None:
         apply = self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]
-        self.assertIn('DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "false"', self.text)
+        self.assertIn('DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"', self.text)
         ordered = ["Require post-apply no-op", "Verify one-shot history state and table receipt",
                    "Emit verified ownership receipt", "Cleanup sensitive temporary files"]
         self.assertEqual([apply.index(name) for name in ordered], sorted(apply.index(name) for name in ordered))
