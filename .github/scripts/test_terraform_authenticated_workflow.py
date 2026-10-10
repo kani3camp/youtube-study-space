@@ -54,7 +54,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_history_post_receipt_runs_on_failed_init_plan_or_validation_before_private_cleanup(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
         post = plan.split("      - name: Verify private history plan invariants", 1)[1].split("      - name: Cleanup sensitive", 1)[0]
-        self.assertIn("if: ${{ always() && steps.history_plan_before.outcome == 'success' }}", post)
+        self.assertIn("if: ${{ always() && !inputs.history_post_noop && steps.history_plan_before.outcome == 'success' }}", post)
+        self.assertIn("if: ${{ always() && inputs.history_post_noop && steps.history_post_noop_before.outcome == 'success' }}", post)
         self.assertIn("steps.plan_gcp_auth.outputs.access_token", post)
         self.assertIn("--phase after", post)
         for phase in ("plan", "sanitize", "backend_init"):
@@ -140,6 +141,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
             "GITHUB_SHA": "a" * 40, "TARGET": "dev", "MODE": "plan",
+            "HISTORY_POST_NOOP": "false", "DEV_HISTORY_POST_NOOP_ENABLED": "false",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false", "DEV_PRIMARY_EMAIL_IMPORT_ENABLED": "true", "DEV_QUOTA_CREATE_ENABLED": "false", "DEV_QUOTA_MANAGED_ENABLED": "false", "DEV_QUOTA_STATE_REFRESH_ENABLED": "false", "DEV_EXPORT_TOPIC_MANAGED_ENABLED": "true", "DEV_EXPORT_SCHEDULER_MANAGED_ENABLED": "true", "DEV_EXPORT_FUNCTION_MANAGED_ENABLED": "true",
@@ -239,7 +241,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     fake.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$ARGUMENT_RECORD"\nexit 0\n')
                     fake.chmod(0o700)
                     env = {"PATH": directory + ":" + os.environ["PATH"], "RUNNER_TEMP": directory,
-                           "TF_ROOT": "synthetic-root", "MODE": "apply", "TF_VAR_manage_user_activity_history": enabled,
+                           "TF_ROOT": "synthetic-root", "MODE": "apply", "HISTORY_POST_NOOP": "false",
+                           "TF_VAR_manage_user_activity_history": enabled,
                            "GITHUB_OUTPUT": str(root / "runner-output"), "ARGUMENT_RECORD": str(root / "arguments")}
                     result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -248,6 +251,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     expected = f"-var-file={directory}/user-history-{phase}.tfvars.json"
                     self.assertEqual(expected in arguments, enabled == "true")
                     self.assertNotIn(directory, result.stdout + result.stderr)
+            if name == "Create saved plan without public output":
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    fake = root / "terraform"
+                    fake.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$ARGUMENT_RECORD"\nexit 0\n')
+                    fake.chmod(0o700)
+                    env = {"PATH": directory + ":" + os.environ["PATH"], "RUNNER_TEMP": directory,
+                           "TF_ROOT": "synthetic-root", "MODE": "plan", "HISTORY_POST_NOOP": "true",
+                           "TF_VAR_manage_user_activity_history": "true", "GITHUB_OUTPUT": str(root / "runner-output"),
+                           "ARGUMENT_RECORD": str(root / "arguments")}
+                    result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f"-var-file={directory}/user-history-post.tfvars.json",
+                                  (root / "arguments").read_text().splitlines())
     def test_enabled_development_plan_does_not_enable_apply(self) -> None:
         self.assertEqual(self.run_preflight().returncode, 0)
         rejected = self.run_preflight(MODE="apply")
@@ -316,6 +333,33 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertNotEqual(self.run_preflight(**(gates | {key: value})).returncode, 0)
 
+    def test_independent_history_post_noop_requires_its_closed_gate(self) -> None:
+        self.assertIn('DEV_HISTORY_POST_NOOP_ENABLED: "false"', self.text)
+        self.assertIn('terraform_history_post_noop:', self.caller)
+        self.assertIn('history_post_noop: ${{ inputs.terraform_history_post_noop }}', self.caller)
+        closed = self.run_preflight(HISTORY_POST_NOOP="true")
+        self.assertNotEqual(closed.returncode, 0)
+        self.assertIn("Independent history post-import no-op is disabled", closed.stdout)
+        self.assertEqual(self.run_preflight(HISTORY_POST_NOOP="true",
+            DEV_HISTORY_POST_NOOP_ENABLED="true",
+            DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED="true",
+            DEV_QUOTA_MANAGED_ENABLED="true").returncode, 0)
+        for extra in ({"MODE": "apply"}, {"TARGET": "prod"},
+                      {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "false"}):
+            with self.subTest(extra=extra):
+                self.assertNotEqual(self.run_preflight(HISTORY_POST_NOOP="true",
+                    DEV_HISTORY_POST_NOOP_ENABLED="true",
+                    **({"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true",
+                        "DEV_QUOTA_MANAGED_ENABLED": "true"} | extra)).returncode, 0)
+        plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
+        self.assertIn('name: terraform-${{ inputs.target }}-plan', plan)
+        self.assertIn('terraform_history_post_noop_receipt.py --phase before', plan)
+        self.assertIn('terraform_history_post_noop_receipt.py --phase after', plan)
+        self.assertIn('if [[ "${HISTORY_POST_NOOP}" == "true" ]]; then history_phase=post', plan)
+        self.assertIn('--phase "${history_phase}"', plan)
+        apply = self.text.split("  apply:\n", 1)[1].split("  security-probe:\n", 1)[0]
+        self.assertNotIn('inputs.history_post_noop', apply)
+
     def test_all_plan_job_routes_use_explicit_read_only_smoke(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
         step = plan.split("      - name: Verify development identity boundaries without public identifiers\n", 1)[1].split("      - name: ", 1)[0]
@@ -327,11 +371,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             recorder.chmod(0o700)
             for mode in ("plan", "apply", "email-adoption", "quota-plan", "quota-create", "quota-refresh"):
                 with self.subTest(mode=mode):
-                    result = subprocess.run(["bash", "-c", script], env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode},
+                    result = subprocess.run(["bash", "-c", script], env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode, "HISTORY_POST_NOOP": "false"},
                                             capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     expected = "plan-read-only" if mode in ("plan", "quota-plan") else "apply-read-only"
                     self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py", expected])
+            independent = subprocess.run(["bash", "-c", script],
+                env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": "plan", "HISTORY_POST_NOOP": "true"},
+                capture_output=True, text=True)
+            self.assertEqual(independent.returncode, 0, independent.stderr)
+            self.assertEqual(independent.stdout.splitlines(),
+                             [".github/scripts/terraform_identity_smoke.py", "post-noop-read-only"])
         apply = self.text.split("  apply:\n", 1)[1]
         self.assertNotIn("plan-read-only", apply)
         self.assertNotIn("terraform_identity_smoke.py\n", plan)

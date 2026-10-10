@@ -266,7 +266,8 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                   extra_permissions=(), missing_permission=None, account="PRIVATE_ACCOUNT",
                   state_key="youtube-study-space/dev/terraform.tfstate", service_account=None,
                   fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None,
-                  mode=None, probe_gate=None, history_enabled=False, expected_role_id="PRIVATE_ROLE_ID",
+                  mode=None, probe_gate=None, post_noop_gate=None, history_enabled=False,
+                  expected_role_id="PRIVATE_ROLE_ID",
                   returned_user_id="PRIVATE_ROLE_ID:GitHubActions", sts_returncode=0):
         project = "test-youtube-study-space"
         claims = {
@@ -354,10 +355,13 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             selected_mode = mode or ({"plan-read-only": "plan", "apply-read-only": "apply",
+                                      "post-noop-read-only": "plan",
                                       "security-probe": "security-probe"}.get(args[0], "apply") if args else "apply")
             env = {"RUNNER_TEMP": directory, "GITHUB_STEP_SUMMARY": directory + "/summary", "GITHUB_ENV": directory + "/env",
                    "MODE": selected_mode,
                    "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": probe_gate if probe_gate is not None else ("true" if args == ("security-probe",) else "false"),
+                   "HISTORY_POST_NOOP": "true" if args == ("post-noop-read-only",) else "false",
+                   "DEV_HISTORY_POST_NOOP_ENABLED": post_noop_gate if post_noop_gate is not None else "false",
                    "TF_VAR_manage_user_activity_history": "true" if history_enabled else "false",
                    "GITHUB_SHA": "a" * 40, "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "PRIVATE_GITHUB_TOKEN", "BACKEND_ROLE_ARN": "arn:aws:iam::PRIVATE_ACCOUNT:role/fixture-plan",
@@ -519,6 +523,23 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         for mode, gate in (("plan", "true"), ("security-probe", "true")):
             rc, http, calls, summary, _ = self.run_smoke(args=("apply-read-only",), mode=mode, probe_gate=gate)
             self.assertEqual((rc, http, calls, summary), (1, [], [], ""))
+
+    def test_post_noop_read_only_requires_separate_gate_and_uses_positive_reads(self):
+        rc, http, calls, summary, output = self.run_smoke(
+            args=("post-noop-read-only",), post_noop_gate="true", history_enabled=True)
+        self.assertEqual(rc, 0, output)
+        self.assertEqual([call[:2] for call in calls], [
+            ("sts", "get-caller-identity"), ("s3api", "head-object"),
+            ("s3api", "get-object"), ("s3api", "head-object"),
+            ("s3api", "list-objects-v2")])
+        self.assertFalse(any("generateAccessToken" in url for _, url, _ in http))
+        self.assertIn("Full security gate: NOT VERIFIED", summary)
+        for options in ({"post_noop_gate": "false", "history_enabled": True},
+                        {"post_noop_gate": "true", "history_enabled": False},
+                        {"post_noop_gate": "true", "history_enabled": True, "mode": "apply"}):
+            with self.subTest(options=options):
+                rc, http, calls, summary, _ = self.run_smoke(args=("post-noop-read-only",), **options)
+                self.assertEqual((rc, http, calls, summary), (1, [], [], ""))
 
     def test_full_negative_probe_requires_explicit_cli_mode_and_independent_gate(self):
         for args, mode, gate in (((), "security-probe", "true"), (("security-probe",), "apply", "true"),

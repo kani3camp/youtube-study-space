@@ -41,6 +41,10 @@ RECEIPT_REASONS = frozenset({
     "after-plan-version", "after-plan-target", "after-plan-count-types",
     "after-plan-counts", "after-plan-resources-list", "after-plan-resources-envelope",
     "after-plan-addresses", "after-plan-actions",
+    "post-noop-context", "post-noop-state-snapshot", "post-noop-table-owner",
+    "post-noop-table-identity", "post-noop-table-schema", "post-noop-summary",
+    "post-noop-resources", "post-noop-sha", "post-noop-state-unchanged",
+    "post-noop-metadata-unchanged", "post-noop-plan-outcome",
 })
 
 
