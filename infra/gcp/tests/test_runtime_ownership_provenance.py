@@ -48,8 +48,8 @@ def fixture(index=0):
         previous = current
     responses = {path: response for fake in fakes for path, response in fake.responses.items()}
     calls = []
-    def request(path, *, log=False):
-        calls.append((path, log))
+    def request(path, *, archive=False):
+        calls.append((path, archive))
         response = responses[path]
         if isinstance(response, Exception):
             raise response
@@ -71,7 +71,7 @@ class RuntimeProvenanceTest(unittest.TestCase):
                 result = gate.verify_chain(value, dummy_catalog(), request=request)
                 refs = [value['history_receipt']] + [i['reference'] for i in value['adoption_receipts']]
                 self.assertEqual(result['last_receipt_sha256'], refs[-1]['receipt_sha256'])
-                self.assertEqual(len(calls), 6 * len(refs))
+                self.assertEqual(len(calls), 10 * len(refs))
 
     def test_history_reference_plan_only_wrong_scope_and_nonce_rejected(self):
         for mutate in [lambda p: p.update(schema_version=1),
@@ -114,11 +114,13 @@ class RuntimeProvenanceTest(unittest.TestCase):
                          dict(resource_count=99), dict(wave='api'), dict(prior_state_commitment='b'*64)]:
             value, request, responses, _ = fixture(1)
             edge = value['adoption_receipts'][0]
-            path = next(path for path in responses if '/jobs/' in path and '/1201/' in path)
-            line = responses[path].decode().split(receipt.MARKER, 1)[1]
-            machine = receipt.decode(line) | mutation
-            edge['reference']['receipt_sha256'] = receipt.digest(machine)
-            responses[path] = (receipt.MARKER + receipt.canonical(machine).decode() + '\n').encode()
+            ref = edge['reference']
+            artifact_path = f"/repos/{receipt.REPOSITORY}/actions/artifacts/{ref['artifact_id']}"
+            machine = receipt.archive_receipt(responses[artifact_path+'/zip'], ref['artifact_sha256'], ref['receipt_sha256']) | mutation
+            changed = GitHubFixture(machine, minute=5)
+            edge['reference'].update(changed.ref)
+            for path in (artifact_path, artifact_path+'/zip', changed.base+'/artifacts?per_page=100&page=1'):
+                responses[path] = changed.responses[path]
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 gate.verify_chain(value, dummy_catalog(), request=request)
         value, request, responses, _ = fixture(1)
@@ -145,7 +147,7 @@ class RuntimeProvenanceTest(unittest.TestCase):
                 first = gate.verify_workflow(env, request=request)
                 self.assertEqual((Path(root)/gate.VERIFIED).stat().st_mode & 0o777, 0o600)
                 self.assertEqual(gate.verify_workflow(env, request=request, recheck=True), first)
-                self.assertEqual(len(calls), 72)
+                self.assertEqual(len(calls), 120)
                 gate.require_verified_inputs(env, value, value['receipt_binding']['history_metadata'])
                 responses[f'/repos/{receipt.REPOSITORY}/actions/runs/201']['run_attempt'] = 2
                 with self.assertRaises(ValueError):

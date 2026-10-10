@@ -6,14 +6,17 @@ Public receipts contain commitments, never private scope/state/identity values.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+from io import BytesIO
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
+import zipfile
 from urllib.parse import urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
@@ -30,6 +33,12 @@ COMPANION = ".github/workflows/gcp-user-activity-schema-audit.yml"
 WORKFLOW_REF = f"{REPOSITORY}/{CALLER}@refs/heads/{BRANCH}"
 MARKER = "OWNERSHIP_RECEIPT_V1 "
 RECORD = "history-ownership-receipt.json"
+PUBLIC_DIRECTORY = "ownership-public"
+PUBLIC_FILE = "ownership-receipt.json"
+MAX_RECEIPT_BYTES = 16384
+MAX_ARCHIVE_BYTES = 65536
+TRANSPORT = "artifact-v1"
+PUBLISH_STEP = "Publish sanitized ownership receipt"
 CHECKS = {"full_root_noop", "exact_state_delta", "metadata_unchanged", "lock_absent", "exact_guards"}
 KEYS = {"schema_version", "repository_id", "source_sha", "run_id", "run_attempt", "job_role", "environment",
         "target", "root_contract", "operation", "wave", "phase", "prior_receipt_sha256",
@@ -40,7 +49,7 @@ MINIMUM_STEPS = {
              "Sanitize and enforce the selected protected contract", "Cleanup sensitive temporary files"],
     "apply": ["Checkout the exact planned commit", "Assert plan/apply commit identity",
               "Apply the locally re-created saved plan", "Require post-apply no-op",
-              "Emit verified ownership receipt", "Cleanup sensitive temporary files"],
+              "Emit verified ownership receipt", PUBLISH_STEP, "Cleanup sensitive temporary files"],
 }
 HISTORY_STEPS = ["Check private history receipt binding before credentials", "Check fresh history receipt metadata binding", "Capture exact pre-import state and approved history plan", "Re-plan at the exact approved commit",
                  "Verify re-plan matches the sanitized approved projection", "Seal the one-shot history saved plan before apply",
@@ -62,7 +71,7 @@ RUNTIME_STEPS = {
               "Verify runtime state-only delta and full-root post no-op"],
 }
 HISTORY_IDENTITY_STEP = "Verify exact AWS execution identity before GCP authentication"
-REFERENCE_KEYS = {"run_id", "attempt", "job_id", "source_sha", "receipt_sha256"}
+REFERENCE_KEYS = {"run_id", "attempt", "job_id", "source_sha", "receipt_sha256", "transport", "artifact_id", "artifact_sha256"}
 
 
 def need(value):
@@ -135,6 +144,7 @@ def reference(value):
     need(type(value) is dict and set(value) == REFERENCE_KEYS)
     need(all(positive(value[k]) for k in ("run_id", "attempt", "job_id")) and value["attempt"] == 1)
     need(hex_value(value["source_sha"], 40) and hex_value(value["receipt_sha256"], 64))
+    need(value["transport"] == TRANSPORT and positive(value["artifact_id"]) and hex_value(value["artifact_sha256"], 64))
     return value
 
 
@@ -166,6 +176,49 @@ def validate_receipt(value):
     if value["wave"] == "history12":
         need(value["resource_count"] == 12 and accounting["post_state_reads"] == 4 and accounting["post_metadata_reads"] == 1)
     need(len(canonical(value)) <= 16384)
+    return value
+
+
+def artifact_name(run_id, source_sha):
+    need(positive(run_id) and hex_value(source_sha, 40))
+    return f"ownership-receipt-v1-{run_id}-1-{source_sha}"
+
+
+def archive_receipt(raw, archive_sha256, receipt_sha256):
+    """Validate a bounded one-file ZIP in memory. Never extract an archive."""
+    need(type(raw) is bytes and 0 < len(raw) <= MAX_ARCHIVE_BYTES
+         and hex_value(archive_sha256, 64) and hashlib.sha256(raw).hexdigest() == archive_sha256)
+    with zipfile.ZipFile(BytesIO(raw)) as archive:
+        entries = archive.infolist()
+        need(len(entries) == 1)
+        entry = entries[0]
+        mode = entry.external_attr >> 16
+        need(entry.filename == PUBLIC_FILE and entry.orig_filename == PUBLIC_FILE and not entry.is_dir()
+             and not (entry.flag_bits & 1) and not (entry.external_attr & 0x10) and stat.S_IFMT(mode) in {0, stat.S_IFREG}
+             and 0 < entry.file_size <= MAX_RECEIPT_BYTES and 0 < entry.compress_size <= MAX_ARCHIVE_BYTES
+             and entry.compress_type in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED})
+        with archive.open(entry) as stream:
+            body = stream.read(MAX_RECEIPT_BYTES + 1)
+        need(len(body) == entry.file_size and len(body) <= MAX_RECEIPT_BYTES)
+    value = validate_receipt(decode(body))
+    need(body == canonical(value) + b"\n" and digest(value) == receipt_sha256)
+    return value
+
+
+def artifact_metadata(value, ref, job, *, now=None):
+    now = now or datetime.now(timezone.utc)
+    need(type(value) is dict and type(value.get("id")) is int and value["id"] == ref["artifact_id"]
+         and value.get("name") == artifact_name(ref["run_id"], ref["source_sha"])
+         and value.get("expired") is False and positive(value.get("size_in_bytes"))
+         and value["size_in_bytes"] <= MAX_ARCHIVE_BYTES and value.get("digest") == "sha256:" + ref["artifact_sha256"])
+    run = value.get("workflow_run")
+    need(type(run) is dict and all(type(run.get(k)) is int for k in ("id", "repository_id", "head_repository_id"))
+         and run["id"] == ref["run_id"] and run["repository_id"] == REPOSITORY_ID
+         and run["head_repository_id"] == REPOSITORY_ID and run.get("head_sha") == ref["source_sha"]
+         and run.get("head_branch") == BRANCH)
+    created, updated, expires = (timestamp(value.get(k)) for k in ("created_at", "updated_at", "expires_at"))
+    need(timestamp(job["started_at"]) <= created <= updated <= timestamp(job["completed_at"])
+         and now < expires <= created + timedelta(days=90, minutes=5))
     return value
 
 
@@ -247,7 +300,7 @@ def check_run(run, ref, issuer):
 
 
 def authenticate(ref, catalog, *, request):
-    """GET exact run/attempt/jobs/reviews/step log, never operator-submitted logs."""
+    """GET exact run/attempt/jobs/reviews and receipt-only artifact; no logs."""
     reference(ref)
     issuer = load_catalog(catalog)["issuers"].get(ref["source_sha"])
     need(issuer is not None)
@@ -289,15 +342,16 @@ def authenticate(ref, catalog, *, request):
     emitted_steps = [step for step in job.get("steps", []) if step.get("name") == issuer["receipt_step"]]
     need(len(emitted_steps) == 1 and positive(emitted_steps[0].get("number"))
          and emitted_steps[0].get("status") == "completed" and emitted_steps[0].get("conclusion") == "success")
-    step = emitted_steps[0]
-    # Job steps are numbered from 1; selective step-log endpoint uses index 0.
-    raw = request(f"/repos/{REPOSITORY}/actions/jobs/{job['id']}/steps/{step['number'] - 1}/logs", log=True)
-    need(type(raw) is bytes and 0 < len(raw) <= 1024 * 1024 and raw.endswith(b"\n"))
-    lines = [re.sub(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+Z ", "", line)
-             for line in raw.decode("utf-8").splitlines()]
-    markers = [line[len(MARKER):] for line in lines if line.startswith(MARKER)]
-    need(len(markers) == 1 and len(markers[0]) <= 16384)
-    value = validate_receipt(decode(markers[0]))
+    listing = request(base + "/artifacts?per_page=100&page=1")
+    need(type(listing) is dict and set(listing) == {"total_count", "artifacts"}
+         and type(listing["total_count"]) is int and listing["total_count"] == 1
+         and type(listing["artifacts"]) is list and len(listing["artifacts"]) == 1)
+    artifact_path = f"/repos/{REPOSITORY}/actions/artifacts/{ref['artifact_id']}"
+    artifact = artifact_metadata(request(artifact_path), ref, job)
+    need(listing["artifacts"][0] == artifact)
+    raw = request(artifact_path + "/zip", archive=True)
+    need(type(raw) is bytes and len(raw) == artifact["size_in_bytes"])
+    value = archive_receipt(raw, ref["artifact_sha256"], ref["receipt_sha256"])
     need(value["wave"] in issuer["waves"] and digest(value) == ref["receipt_sha256"] and value["run_id"] == ref["run_id"]
          and value["source_sha"] == ref["source_sha"])
     protected = {}
@@ -334,6 +388,8 @@ def authenticate(ref, catalog, *, request):
                     matches.append(review)
         need(matches and all(r.get("state") == "approved" and type(r.get("user")) is dict
                              and positive(r["user"].get("id")) and r["user"].get("id") in issuer["reviewer_ids"] for r in matches))
+    need(artifact_metadata(request(artifact_path), ref, job) == artifact)
+    need(request(base + "/artifacts?per_page=100&page=1") == listing)
     final = request(base)
     check_run(final, ref, issuer)
     need(final == initial)
@@ -346,21 +402,22 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 class GitHubRead:
-    """Bounded GET only; strip credentials before a selective log redirect."""
+    """Bounded GET only; strip credentials before an artifact archive redirect."""
     def __init__(self, token):
         need(type(token) is str and token and "\n" not in token and "\r" not in token)
         self.token = token
         self.opener = build_opener(NoRedirect)
 
-    def __call__(self, path, *, log=False):
+    def __call__(self, path, *, archive=False):
         from urllib.error import HTTPError
         need(type(path) is str and path.startswith(f"/repos/{REPOSITORY}/actions/") and not any(c in path for c in "\r\n#"))
+        need("/logs" not in path and (not archive or re.fullmatch(f"/repos/{REPOSITORY}/actions/artifacts/[1-9][0-9]*/zip", path)))
         headers = {"Authorization": "Bearer " + self.token, "Accept": "application/vnd.github+json",
                    "X-GitHub-Api-Version": "2026-03-10"}
         try:
             response = self.opener.open(Request("https://api.github.com" + path, headers=headers), timeout=15)
         except HTTPError as error:
-            need(log and error.code == 302)
+            need(archive and error.code == 302)
             url = error.headers.get("Location", "")
             parsed = urlparse(url)
             need(parsed.scheme == "https" and parsed.hostname is not None and parsed.port in {None, 443}
@@ -369,9 +426,30 @@ class GitHubRead:
             response = self.opener.open(Request(url), timeout=15)
         with response:
             need(response.status == 200)
-            raw = response.read(1024 * 1024 + 1)
-        need(len(raw) <= 1024 * 1024)
-        return raw if log else decode(raw)
+            limit = MAX_ARCHIVE_BYTES if archive else 1024 * 1024
+            raw = response.read(limit + 1)
+        need(len(raw) <= limit)
+        return raw if archive else decode(raw)
+
+
+def export_receipt(value, env):
+    """Write only the strict public schema to an exclusive, isolated path."""
+    context(env)
+    need(env.get("GITHUB_JOB") == "apply" and env.get("MODE") == "apply"
+         and env.get("DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED") == "true")
+    validate_receipt(value)
+    need(value["run_id"] == int(env["GITHUB_RUN_ID"]) and value["source_sha"] == env["GITHUB_SHA"])
+    root = Path(env["RUNNER_TEMP"])
+    need(root.is_absolute() and root.is_dir() and not root.is_symlink()
+         and root.stat().st_uid == os.geteuid()
+         and not root.resolve().is_relative_to(Path(__file__).resolve().parents[2]))
+    body = canonical(value) + b"\n"
+    need(len(body) <= MAX_RECEIPT_BYTES)
+    directory = root / PUBLIC_DIRECTORY
+    directory.mkdir(mode=0o700)
+    fd = os.open(directory / PUBLIC_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(body)
 
 
 def new_nonce(env):
@@ -418,6 +496,8 @@ def emit(env):
     value = validate_receipt(private_json(str(Path(env["RUNNER_TEMP"]) / RECORD)))
     need(value["source_sha"] == env["GITHUB_SHA"] and value["run_id"] == int(env["GITHUB_RUN_ID"])
          and value["wave"] == "history12")
+    if env.get("DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED") == "true":
+        export_receipt(value, env)
     print(MARKER + canonical(value).decode())
 
 
@@ -434,6 +514,8 @@ def emit_runtime(env):
     state_delta(old, state, packet)
     need(value["source_sha"] == env["GITHUB_SHA"] and value["run_id"] == int(env["GITHUB_RUN_ID"])
          and value["wave"] == packet["wave"] and value["state_after_commitment"] == state_commitment(packet["receipt_binding"], state))
+    if env.get("DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED") == "true":
+        export_receipt(value, env)
     print(MARKER + canonical(value).decode())
 
 

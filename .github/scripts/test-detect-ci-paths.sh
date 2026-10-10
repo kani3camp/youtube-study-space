@@ -124,6 +124,7 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_schedule
 
 # Protected receipt source, catalog and dummy checks must route to Terraform CI.
 assert_exact_groups gcp_terraform .github/scripts/terraform_ownership_receipt.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_receipt_artifact_fixture.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_ownership_receipt.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_history_import_verifier.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_import_verifier.py

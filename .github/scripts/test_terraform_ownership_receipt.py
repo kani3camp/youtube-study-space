@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Public dummy GitHub metadata/logs; no token, network, state or cloud calls."""
+"""Public dummy GitHub metadata/archives; no token, network or cloud calls."""
 from __future__ import annotations
 
 import copy
-from io import StringIO
+import hashlib
+import zipfile
+from io import BytesIO, StringIO
 import json
 import os
+import stat
 from pathlib import Path
 import tempfile
 import unittest
@@ -41,7 +44,7 @@ def dummy_catalog():
     steps['apply'] = ['Checkout the exact planned commit', 'Assert plan/apply commit identity',
         gate.HISTORY_STEPS[0], gate.HISTORY_IDENTITY_STEP, *gate.HISTORY_STEPS[1:6],
         'Apply the locally re-created saved plan', gate.HISTORY_STEPS[6], 'Require post-apply no-op',
-        gate.HISTORY_STEPS[7], 'Emit verified ownership receipt', 'Cleanup sensitive temporary files']
+        gate.HISTORY_STEPS[7], 'Emit verified ownership receipt', gate.PUBLISH_STEP, 'Cleanup sensitive temporary files']
     for role in ('plan', 'apply'):
         workflow = (Path(__file__).resolve().parents[1] / 'workflows/gcp-terraform-authenticated.yml').read_text()
         section = workflow.split('  ' + role + ':\n', 1)[1].split('  ' + ('apply' if role == 'plan' else 'security-probe') + ':\n', 1)[0]
@@ -86,16 +89,34 @@ class GitHubFixture:
                 started_at=f'2026-10-10T01:{start:02d}:00Z', completed_at=f'2026-10-10T01:{end:02d}:00Z',
                 steps=[dict(name=name, number=i, status='completed', conclusion='success')
                        for i, name in enumerate(policy['required_steps'][role], 1)]))
-        emit_index = len(jobs[1]['steps']) - 2
-        self.log_path = f"/repos/{gate.REPOSITORY}/actions/jobs/{self.ref['job_id']}/steps/{emit_index}/logs"
         self.responses = {self.base: run, self.base + '/attempts/1': copy.deepcopy(run),
             self.base + '/attempts/1/jobs?per_page=100&page=1': dict(total_count=2, jobs=jobs),
             self.base + '/approvals': [dict(state='approved', user=dict(id=17), environments=list(policy['environments'].values()))],
-            self.log_path: b'2026-10-10T01:03:00.123Z ' + gate.MARKER.encode() + gate.canonical(self.value) + b'\n'}
+            }
+        self.install_archive(gate.canonical(self.value) + b'\n')
         self.calls = []
 
-    def __call__(self, path, *, log=False):
-        self.calls.append((path, log))
+    def install_archive(self, body):
+        stream = BytesIO()
+        with zipfile.ZipFile(stream, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(gate.PUBLIC_FILE, body)
+        raw = stream.getvalue()
+        self.ref.update(transport=gate.TRANSPORT, artifact_id=self.ref['run_id']+2000,
+                        artifact_sha256=hashlib.sha256(raw).hexdigest())
+        self.artifact_path = f"/repos/{gate.REPOSITORY}/actions/artifacts/{self.ref['artifact_id']}"
+        self.archive_path = self.artifact_path + '/zip'
+        job = self.jobs[1]
+        item = dict(id=self.ref['artifact_id'], name=gate.artifact_name(self.ref['run_id'], SHA),
+                    size_in_bytes=len(raw), expired=False, digest='sha256:'+self.ref['artifact_sha256'],
+                    created_at=job['started_at'], updated_at=job['completed_at'], expires_at='2027-01-08T00:00:00Z',
+                    workflow_run=dict(id=self.ref['run_id'], repository_id=gate.REPOSITORY_ID,
+                                      head_repository_id=gate.REPOSITORY_ID, head_branch=gate.BRANCH, head_sha=SHA))
+        self.responses[self.base+'/artifacts?per_page=100&page=1'] = dict(total_count=1, artifacts=[item])
+        self.responses[self.artifact_path] = item
+        self.responses[self.archive_path] = raw
+
+    def __call__(self, path, *, archive=False):
+        self.calls.append((path, archive))
         value = self.responses[path]
         if isinstance(value, Exception):
             raise value
@@ -107,15 +128,148 @@ class GitHubFixture:
 
 
 class OwnershipReceiptTest(unittest.TestCase):
-    def test_exact_authenticated_metadata_step_log_and_double_read(self):
+    def test_dummy_publication_has_no_cloud_or_protected_trigger_and_is_not_an_issuer(self):
+        import terraform_receipt_artifact_fixture as fixture
+        text = (Path(__file__).parents[1]/'workflows/gcp-receipt-artifact-fixture.yml').read_text()
+        self.assertIn('types: [opened, synchronize, reopened]', text)
+        self.assertIn('github.event.pull_request.head.repo.full_name == github.repository', text)
+        self.assertIn('github.run_attempt == 1', text)
+        for forbidden in ('workflow_dispatch:', 'pull_request_target', 'schedule:', 'environment:',
+                          'secrets.', 'id-token:', 'actions: write', 'actions: read', 'aws-actions/', 'google-github-actions/'):
+            self.assertNotIn(forbidden, text)
+        self.assertIn('persist-credentials: false', text)
+        self.assertIn('retention-days: 1', text)
+        self.assertIn('name: ownership-receipt-fixture-v1-', text)
+        self.assertIn('path: ${{ runner.temp }}/receipt-fixture-public/ownership-receipt.json', text)
+        self.assertIn('if: always()', text)
+        with tempfile.TemporaryDirectory() as root:
+            env = dict(GITHUB_EVENT_NAME='pull_request', GITHUB_REPOSITORY=gate.REPOSITORY,
+                       GITHUB_JOB='receipt-artifact-fixture', GITHUB_RUN_ATTEMPT='1', RUNNER_TEMP=root)
+            fixture.prepare(env)
+            path = Path(root)/'receipt-fixture-public'/gate.PUBLIC_FILE
+            self.assertEqual(path.read_bytes(), gate.canonical(dummy_receipt())+b'\n')
+            self.assertLessEqual(path.stat().st_size, gate.MAX_RECEIPT_BYTES)
+            self.assertFalse((Path(root)/gate.PUBLIC_DIRECTORY).exists())
+        fake = GitHubFixture()
+        fake.responses[fake.base]['event'] = 'pull_request'
+        with self.assertRaises(ValueError): gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+        self.assertEqual(fake.calls, [(fake.base, False)])
+
+    def test_artifact_identity_expiry_digest_size_and_job_timing_are_bound(self):
+        mutations = [dict(id=True), dict(id=99), dict(name='ownership-receipt-fixture-v1'),
+            dict(expired=True), dict(size_in_bytes=True), dict(size_in_bytes=0),
+            dict(size_in_bytes=gate.MAX_ARCHIVE_BYTES+1), dict(size_in_bytes=999),
+            dict(digest=None), dict(digest='sha256:'+'b'*64), dict(expires_at='2026-10-09T00:00:00Z'),
+            dict(expires_at='2030-10-10T00:00:00Z'), dict(created_at='2026-10-10T01:01:00Z'),
+            dict(updated_at='2026-10-10T01:04:00Z'), dict(created_at='2026-10-10T01:03:01Z')]
+        for mutation in mutations:
+            fake = GitHubFixture()
+            fake.responses[fake.artifact_path].update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+        for mutation in (dict(id=99), dict(repository_id=99), dict(head_repository_id=99),
+                         dict(id=True), dict(head_sha='b'*40), dict(head_branch='dev')):
+            fake = GitHubFixture()
+            fake.responses[fake.artifact_path]['workflow_run'].update(mutation)
+            with self.subTest(run=mutation), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+
+    def test_artifact_listing_duplicate_missing_and_metadata_races_stop(self):
+        for listing in (dict(total_count=0, artifacts=[]), dict(total_count=True, artifacts=[]),
+                        dict(total_count=2, artifacts=[{}, {}]), dict(total_count=1, artifacts=[])):
+            fake = GitHubFixture()
+            fake.responses[fake.base+'/artifacts?per_page=100&page=1'] = listing
+            with self.subTest(listing=listing), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+        for field in ('metadata', 'listing'):
+            fake = GitHubFixture()
+            endpoint = fake.artifact_path if field == 'metadata' else fake.base+'/artifacts?per_page=100&page=1'
+            def request(path, **kwargs):
+                value = fake(path, **kwargs)
+                if path == endpoint and sum(p == endpoint for p, _ in fake.calls) == 2:
+                    if field == 'metadata': value['expired'] = True
+                    else: value['total_count'] = 2
+                return value
+            with self.subTest(race=field), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=request)
+
+    def test_zip_extra_entries_paths_symlinks_oversize_and_wrong_digests_stop(self):
+        body = gate.canonical(dummy_receipt()) + b'\n'
+        for name, extra, mode in [(gate.PUBLIC_FILE, True, 0), ('../'+gate.PUBLIC_FILE, False, 0),
+                ('/'+gate.PUBLIC_FILE, False, 0), ('./'+gate.PUBLIC_FILE, False, 0),
+                ('hidden/.env', False, 0), (gate.PUBLIC_FILE, False, stat.S_IFLNK | 0o777),
+                (gate.PUBLIC_FILE, False, stat.S_IFDIR | 0o700)]:
+            stream = BytesIO()
+            with zipfile.ZipFile(stream, 'w') as archive:
+                entry = zipfile.ZipInfo(name); entry.external_attr = mode << 16
+                archive.writestr(entry, body)
+                if extra: archive.writestr('private-state.json', b'DUMMY_PRIVATE_STATE')
+            raw = stream.getvalue()
+            with self.subTest(name=name, extra=extra, mode=mode), self.assertRaises(ValueError):
+                gate.archive_receipt(raw, hashlib.sha256(raw).hexdigest(), gate.digest(dummy_receipt()))
+        fake = GitHubFixture()
+        raw = fake.responses[fake.archive_path]
+        for data, archive_digest, receipt_digest in [(raw, 'b'*64, fake.ref['receipt_sha256']),
+                (raw, fake.ref['artifact_sha256'], 'b'*64),
+                (raw+b'x', fake.ref['artifact_sha256'], fake.ref['receipt_sha256']),
+                (b'x'*(gate.MAX_ARCHIVE_BYTES+1), 'b'*64, fake.ref['receipt_sha256'])]:
+            with self.assertRaises(ValueError): gate.archive_receipt(data, archive_digest, receipt_digest)
+        encrypted = bytearray(raw)
+        central = encrypted.index(b'PK\x01\x02')
+        encrypted[6] |= 1
+        encrypted[central+8] |= 1
+        encrypted = bytes(encrypted)
+        with self.assertRaises(ValueError):
+            gate.archive_receipt(encrypted, hashlib.sha256(encrypted).hexdigest(), fake.ref['receipt_sha256'])
+
+    def test_publish_step_is_mandatory_and_no_log_fallback_exists(self):
+        for failure in ('skipped', 'failure', 'missing', 'duplicate'):
+            fake = GitHubFixture()
+            steps = fake.jobs[1]['steps']
+            step = next(s for s in steps if s['name'] == gate.PUBLISH_STEP)
+            if failure == 'missing': steps.remove(step)
+            elif failure == 'duplicate': steps.append(dict(step, number=99))
+            else: step['conclusion'] = failure
+            with self.subTest(failure=failure), self.assertRaises(ValueError):
+                gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+            self.assertFalse(any('/logs' in path for path, _ in fake.calls))
+        fake = GitHubFixture()
+        fake.responses[fake.archive_path] = RuntimeError('DUMMY_UNAVAILABLE_ARCHIVE')
+        with self.assertRaises(RuntimeError): gate.authenticate(fake.ref, dummy_catalog(), request=fake)
+        self.assertFalse(any('/logs' in path for path, _ in fake.calls))
+        catalog = dummy_catalog()
+        catalog['issuers'][SHA]['required_steps']['apply'].remove(gate.PUBLISH_STEP)
+        with self.assertRaises(ValueError): gate.load_catalog(catalog)
+
+    def test_exclusive_export_is_only_public_schema_and_requires_explicit_gate(self):
+        with tempfile.TemporaryDirectory() as root:
+            env = dummy_context() | dict(RUNNER_TEMP=root, DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true')
+            value = dummy_receipt()
+            for change in (dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='false'), dict(GITHUB_EVENT_NAME='pull_request'),
+                           dict(GITHUB_JOB='plan'), dict(GITHUB_SHA='b'*40)):
+                with self.subTest(change=change), self.assertRaises(ValueError): gate.export_receipt(value, env | change)
+                self.assertFalse((Path(root)/gate.PUBLIC_DIRECTORY).exists())
+            with self.assertRaises(ValueError): gate.export_receipt(value | dict(nonce=NONCE), env)
+            self.assertFalse((Path(root)/gate.PUBLIC_DIRECTORY).exists())
+            gate.export_receipt(value, env)
+            path = Path(root)/gate.PUBLIC_DIRECTORY/gate.PUBLIC_FILE
+            self.assertEqual(path.read_bytes(), gate.canonical(value)+b'\n')
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual([p.name for p in path.parent.iterdir()], [gate.PUBLIC_FILE])
+            for secret in (NONCE, 'dummy-state-bucket', '111111111111', 'DUMMY_PRIVATE_STATE'):
+                self.assertNotIn(secret.encode(), path.read_bytes())
+            with self.assertRaises(FileExistsError): gate.export_receipt(value, env)
+
+    def test_exact_authenticated_metadata_artifact_and_double_read(self):
         fake = GitHubFixture()
         value, timing = gate.authenticate(fake.ref, dummy_catalog(), request=fake)
         self.assertEqual(value, fake.value)
         self.assertEqual(timing['completed_at'], '2026-10-10T01:03:00Z')
         self.assertEqual(fake.calls[0], fake.calls[-1])
-        self.assertEqual(sum(log for _, log in fake.calls), 1)
+        self.assertEqual(sum(archive for _, archive in fake.calls), 1)
         self.assertIn('/attempts/1/jobs?', fake.calls[2][0])
-        self.assertEqual(len(fake.calls), 6)
+        self.assertEqual(len(fake.calls), 10)
 
     def assert_authenticated_paths(self, caller, reusable):
         fake = GitHubFixture()
@@ -126,7 +280,7 @@ class OwnershipReceiptTest(unittest.TestCase):
         self.assertEqual(value, fake.value)
         self.assertEqual(timing['completed_at'], '2026-10-10T01:03:00Z')
         self.assertEqual(fake.calls[0], fake.calls[-1])
-        self.assertEqual(len(fake.calls), 6)
+        self.assertEqual(len(fake.calls), 10)
 
     def test_documented_caller_path_at_branch_authenticates(self):
         self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
@@ -352,14 +506,13 @@ class OwnershipReceiptTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate.authenticate(fake.ref, dummy_catalog(), request=fake)
 
-    def test_log_duplicate_json_marker_truncation_and_oversize_rejected(self):
-        fake = GitHubFixture()
-        good = fake.responses[fake.log_path]
-        for raw in [good + good, good[:-1], b'PASS\n', b'x' * (1024*1024+1),
+    def test_archive_receipt_duplicate_json_truncation_and_oversize_rejected(self):
+        good = gate.canonical(dummy_receipt()) + b'\n'
+        for raw in [good+good, good[:-1], b'PASS\n', b'x'*(gate.MAX_RECEIPT_BYTES+1),
                     good.replace(b'"target":"dev"', b'"target":"dev","target":"dev"'),
                     good.replace(b'"import_post_count":0', b'"import_post_count":NaN')]:
             fake = GitHubFixture()
-            fake.responses[fake.log_path] = raw
+            fake.install_archive(raw)
             with self.subTest(length=len(raw)), self.assertRaises(ValueError):
                 gate.authenticate(fake.ref, dummy_catalog(), request=fake)
 
@@ -394,13 +547,13 @@ class OwnershipReceiptTest(unittest.TestCase):
             with self.subTest(role=role), self.assertRaises(ValueError):
                 gate.load_catalog(catalog)
 
-    def test_selective_log_transport_strips_auth_and_limits_redirects(self):
+    def test_archive_transport_strips_auth_and_limits_redirects(self):
         from urllib.error import HTTPError
         class Response:
             status = 200
             def __enter__(self): return self
             def __exit__(self, *args): pass
-            def read(self, limit): return b'DUMMY_LOG\n'
+            def read(self, limit): return b'DUMMY_ARCHIVE'
         for host, allowed in [('dummy.actions.githubusercontent.com', True), ('dummy.blob.core.windows.net', True),
                               ('attacker.invalid', False), ('actions.githubusercontent.com.attacker.invalid', False)]:
             calls = []
@@ -413,12 +566,34 @@ class OwnershipReceiptTest(unittest.TestCase):
             transport = gate.GitHubRead('DUMMY_GITHUB_TOKEN')
             transport.opener = Opener()
             if allowed:
-                self.assertEqual(transport(f'/repos/{gate.REPOSITORY}/actions/jobs/1101/steps/10/logs', log=True), b'DUMMY_LOG\n')
+                self.assertEqual(transport(f'/repos/{gate.REPOSITORY}/actions/artifacts/2101/zip', archive=True), b'DUMMY_ARCHIVE')
                 self.assertIsNone(calls[1].get_header('Authorization'))
             else:
                 with self.assertRaises(ValueError):
-                    transport(f'/repos/{gate.REPOSITORY}/actions/jobs/1101/steps/10/logs', log=True)
+                    transport(f'/repos/{gate.REPOSITORY}/actions/artifacts/2101/zip', archive=True)
                 self.assertEqual(len(calls), 1)
+
+    def test_archive_transport_has_exact_route_byte_bound_and_no_log_access(self):
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit):
+                self.limit = limit
+                return b'x' * limit
+        response = Response()
+        transport = gate.GitHubRead('DUMMY_GITHUB_TOKEN')
+        with patch.object(transport.opener, 'open', return_value=response) as opened:
+            with self.assertRaises(ValueError):
+                transport(f'/repos/{gate.REPOSITORY}/actions/artifacts/2101/zip', archive=True)
+            self.assertEqual(response.limit, gate.MAX_ARCHIVE_BYTES+1)
+            self.assertEqual(opened.call_count, 1)
+        for path, archive in [(f'/repos/{gate.REPOSITORY}/actions/jobs/1101/logs', False),
+                (f'/repos/{gate.REPOSITORY}/actions/jobs/1101/steps/2/logs', False),
+                (f'/repos/{gate.REPOSITORY}/actions/artifacts/2101/zip?unreviewed=1', True)]:
+            with patch.object(transport.opener, 'open') as opened, self.assertRaises(ValueError):
+                transport(path, archive=archive)
+            opened.assert_not_called()
 
     def test_nonce_generation_is_private_exclusive_and_value_free(self):
         with tempfile.TemporaryDirectory() as root:
@@ -450,7 +625,7 @@ class OwnershipReceiptTest(unittest.TestCase):
         fake.responses[fake.base + '/attempts/1/jobs?per_page=100&page=1'] = dict(total_count=102, jobs=fake.jobs+extras[:98])
         fake.responses[fake.base + '/attempts/1/jobs?per_page=100&page=2'] = dict(total_count=102, jobs=extras[98:])
         gate.authenticate(fake.ref, dummy_catalog(), request=fake)
-        self.assertEqual(len(fake.calls), 7)
+        self.assertEqual(len(fake.calls), 11)
         self.assertIn((fake.base + '/attempts/1/jobs?per_page=100&page=2', False), fake.calls)
 
 

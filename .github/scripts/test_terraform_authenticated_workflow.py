@@ -462,9 +462,24 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("name: terraform-${{ inputs.target }}-apply", self.text)
 
     def test_no_saved_plan_artifact_or_cache(self) -> None:
-        for value in ("actions/upload-artifact", "actions/download-artifact", "actions/cache", "-auto-approve"):
+        for value in ("actions/download-artifact", "actions/cache", "-auto-approve"):
             self.assertNotIn(value, self.text)
-        self.assertNotRegex(self.text, r"(?m)^\s*uses:\s*.*upload-artifact")
+        uploads = re.findall(r'(?m)^\s*uses: actions/upload-artifact@([0-9a-f]{40})', self.text)
+        self.assertEqual(len(uploads), 1)
+        publish = self.text.split('      - name: Publish sanitized ownership receipt\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('path: ${{ runner.temp }}/ownership-public/ownership-receipt.json', publish)
+        self.assertNotIn('*', publish)
+        for line in ('archive: true', 'overwrite: false', 'include-hidden-files: false', 'if-no-files-found: error'):
+            self.assertIn(line, publish)
+        self.assertIn("env.DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED == 'true'", publish)
+        self.assertIn("steps.ownership_receipt.outcome == 'success'", publish)
+        self.assertIn('DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED: "false"', self.text)
+        apply = self.text.split('  apply:\n', 1)[1].split('  security-probe:\n', 1)[0]
+        self.assertLess(apply.index('Emit verified ownership receipt'), apply.index('Publish sanitized ownership receipt'))
+        self.assertLess(apply.index('Publish sanitized ownership receipt'), apply.index('Cleanup sensitive temporary files'))
+        cleanup = apply.split('Cleanup sensitive temporary files', 1)[1]
+        self.assertIn('if: always()', cleanup)
+        self.assertIn('rm -f "${RUNNER_TEMP}/ownership-public/ownership-receipt.json"', cleanup)
 
     def test_raw_terraform_output_is_redirected(self) -> None:
         self.assertIn('>"${RUNNER_TEMP}/terraform-init.log" 2>&1', self.text)
@@ -561,7 +576,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("      actions: read", caller)
         self.assertIn("      actions: read", apply)
         self.assertNotIn("actions: write", self.text)
-        self.assertNotIn("upload-artifact", self.text)
+        self.assertEqual(self.text.count("uses: actions/upload-artifact@"), 1)
         self.assertIn("test_terraform_ownership_receipt.py", self.caller)
         self.assertIn("test_runtime_ownership_provenance.py", self.caller)
 
@@ -592,6 +607,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                  "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true"}
         self.assertNotEqual(self.run_preflight(MODE="apply", **gates).returncode, 0)
         gates["DEV_HISTORY_RECEIPT_EMITTER_ENABLED"] = "true"
+        self.assertNotEqual(self.run_preflight(MODE="apply", **gates).returncode, 0)
+        gates["DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED"] = "true"
         self.assertEqual(self.run_preflight(MODE="apply", **gates).returncode, 0)
         for mode in ("plan", "apply"):
             for change in ({"GITHUB_RUN_ATTEMPT": "2"}, {"PLAN_COST_EVIDENCE": "{}"}):

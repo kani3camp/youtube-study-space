@@ -151,7 +151,7 @@ class WaveFixture:
         self.metadata_calls = []
         self.metadata_mutation = None
 
-    def github(self, path, *, log=False):
+    def github(self, path, *, archive=False):
         responses = {k: v for fake in self.fakes for k, v in fake.responses.items()}
         return copy.deepcopy(responses[path])
 
@@ -266,8 +266,10 @@ class RuntimeExecutionTest(unittest.TestCase):
                 with patch.object(provenance,'CATALOG',catalog):
                     f.begin(env);f.approve(env);f.seal(env);f.finish(env)
                     with patch('sys.stdout',io.StringIO()) as out:
-                        receipt.emit_runtime(env)
+                        receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
                     machine=receipt.decode(out.getvalue()[len(receipt.MARKER):])
+                    self.assertEqual((Path(directory)/receipt.PUBLIC_DIRECTORY/receipt.PUBLIC_FILE).read_bytes(),
+                                     receipt.canonical(machine)+b'\n')
                     emitted=GitHubFixture(machine,minute=5*(index+1))
                     self.assertEqual(receipt.authenticate(emitted.ref,dummy_catalog(),request=emitted)[0],machine)
                     self.assertEqual(machine['resource_count'],min(13+index,17))
@@ -330,11 +332,13 @@ class RuntimeExecutionTest(unittest.TestCase):
                 ledger = private.private_json(root/'runtime-execution-after.json')
                 self.assertEqual(ledger['checks'], dict(state=False, metadata=True, lock=True, workspace=True))
                 self.assertFalse((root/runtime.RECORD).exists())
-                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception): receipt.emit_runtime(env)
+                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception):
+                    receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
                 self.assertEqual(out.getvalue(), '')
-                # The real log consumer cannot authenticate a failed emitter.
+                self.assertFalse((root/receipt.PUBLIC_DIRECTORY).exists())
+                # The real artifact consumer cannot authenticate a failed emitter.
                 fake = GitHubFixture(dummy_receipt(run_id=int(env['GITHUB_RUN_ID']), wave='grant', count=16), minute=20)
-                fake.responses[fake.log_path] = out.getvalue().encode()
+                fake.install_archive(out.getvalue().encode())
                 with self.assertRaises(ValueError): receipt.authenticate(fake.ref, dummy_catalog(), request=fake)
 
     def test_emitter_revalidates_malformed_post_even_when_private_receipt_hmac_matches(self):
@@ -350,10 +354,12 @@ class RuntimeExecutionTest(unittest.TestCase):
                 (root/'runtime-state-after.json').unlink(); (root/runtime.RECORD).unlink()
                 private.write_private(root/'runtime-state-after.json', state)
                 private.write_private(root/runtime.RECORD, machine)
-                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception): receipt.emit_runtime(env)
+                with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception):
+                    receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
                 self.assertEqual(out.getvalue(), '')
+                self.assertFalse((root/receipt.PUBLIC_DIRECTORY).exists())
                 fake = GitHubFixture(machine, minute=20)
-                fake.responses[fake.log_path] = out.getvalue().encode()
+                fake.install_archive(out.getvalue().encode())
                 with self.assertRaises(ValueError): receipt.authenticate(fake.ref, dummy_catalog(), request=fake)
 
     def test_stale_full_state_and_wrong_nonce_prior_receipt_fail_before_plan(self):

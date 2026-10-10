@@ -318,7 +318,7 @@ version更新時はこのvalidatorも独立reviewする。省略remote pool mode
 
 後続 source は [`terraform_ownership_receipt.py`](../../../.github/scripts/terraform_ownership_receipt.py) と
 [`runtime_ownership_provenance.py`](../scripts/runtime_ownership_provenance.py) を使い、submitted run ID の型検査から
-source-pinned GitHub run/attempt/job/Environment/step-log の照合へ進める。history は plan-verified のままで、
+source-pinned GitHub run/attempt/job/Environment/receipt artifact の照合へ進める。history は plan-verified のままで、
 actual import/post-noop12 は未完了。runtime/apply gates はfalse、追加 `DEV_HISTORY_RECEIPT_EMITTER_ENABLED=false`。
 source の追加は execution approval や activation ready を意味しない。
 
@@ -328,14 +328,14 @@ v2はv1から `history_post_noop_run_id` を除き、次の3 fieldsを加える�
 | Field | Private contract |
 | --- | --- |
 | `receipt_binding` | `nonce` (private random32 bytesのhex64)、`backend` (account_id/bucket/key/region/workspace)、`history_metadata` (reviewed full table snapshot) |
-| `history_receipt` | exact `run_id`, `attempt=1`, `job_id`, `source_sha`, `receipt_sha256` |
+| `history_receipt` | exact `run_id`, `attempt=1`, `job_id`, `source_sha`, `receipt_sha256`, `transport=artifact-v1`, `artifact_id`, `artifact_sha256` |
 | `adoption_receipts` | ordered `reference`, `wave`, `selected`。actual pool→provider→individual grants→Own APIsのpost receiptsだけ。noopはadoption件数を増やさない |
 
 すべてのreferenceをcanonical repoから独立にGETし、approved exact issuer source、CI caller/reusable workflow、
 completed/successのinitial attempt、plan/apply job/critical steps/cleanup、actual approved Environment IDsと
 reviewer IDsを照合する。probe/通常CI/pre-plan/コピーJSON/PASS proseはproofとして受理しない。
-exact successful emitter stepのlogからmarker1件だけを取り、digest/action/root/wave/counts/results/private scopeを比較する。
-全jobs pagination、API errors、rerun/race、未承認source、欠落/重複/truncated logはSTOP。
+成功emitter/publish stepが作った専用artifactだけをcanonical GitHub APIから取り、digest/action/root/wave/counts/results/private scopeを比較する。
+全jobs pagination、API errors、rerun/race、未承認source、欠落/重複/expired artifactはSTOP。step/job/run logsを取得するfallbackはない。
 現在のconsumer run/SHA/packet/catalogにboundした0600/exclusiveのrecordを同じtrusted job内に作り、
 cloud credentials前とsanitization直前にGitHubを再照合する。caller提供recordやcached approval booleanは受理しない。
 このephemeral recordはsource-pinned jobが生成する内部handoffであり、外部attestation/signatureではない。
@@ -352,13 +352,25 @@ workflow-run RESTのcaller `path`はexact `.github/workflows/ci.yml` または�
 に加え、このrepositoryの既存成功runのactual `@SHA` 形と、同callerのexact schema-audit companion
 (`gcp-user-activity-schema-audit.yml`) を扱う。companionは同じrepo/source/ref/suffix条件を必須とし、
 authenticated reusableは必ず1件、companionは最大1件。欠落、重複、未知workflow、余分fieldはSTOP。
-actual selective step-log GETは既存非秘密CI stepで404のため、receipt transportの成立確認はactivation前の未完了条件として残る。
-critical checkout/identity/apply/post-noop/emitter/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/postと両jobのearly exact AWS RoleId checkも必須。
+actual selective step-log GETは既存非秘密CI stepで404のため、receipt-only sanitized artifact transportへ移行する。
+critical checkout/identity/apply/post-noop/emitter/publish/cleanup stepsは省略できず、history issuerでは既存history before/seal/metadata/postと両jobのearly exact AWS RoleId checkも必須。
 actual protection policyのreviewer/bypass設定はowner確認が別途必要。APIに存在しないapproval timestamp/job.environment fieldへ依存しない。
 API根拠は [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28) と
-[workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2022-11-28)。selective step-log indexはzero-based。
+[workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs?apiVersion=2026-03-10) と
+[artifacts](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2026-03-10)。
 GitHub tokenのActions readを既存callerとconsumer plan/apply jobにsource宣言し、write/PAT/new credentialは追加しない。
-log redirectでtokenを別hostへ送らず、GETはbounded/timeout/no retry。log URL/error body/private valuesをpublicへ出さない。
+archive redirectでtokenを別hostへ送らず、GETはbounded/timeout/no retry。signed URL/error body/private valuesをpublicへ出さない。
+
+artifactは `ownership-receipt-v1-<run>-1-<S>`、payloadはstrict public schema1のcanonical JSON＋改行だけ。
+owned/exclusive `RUNNER_TEMP/ownership-public/ownership-receipt.json` を固定file pathでpinned upload Actionへ渡す。
+private nonce/backend/state/metadata/packet/binary plan/log/credentialは含めず、directory/glob uploadは禁止する。
+overwrite/hidden-filesはfalse、missing fileはerror、ZIP archive true、retention90日。既存Actions runtime-token uploadを使い、PAT/grant/new permissionは追加しない。
+consumerはrun artifact1件、exact id/name/repo/head SHA/branch/size/digest/expiryとapply job内のcreation/update時刻を確認する。
+attempt/jobの直接attestationはartifact APIにないため、attempt1・review済みissuer source内の唯一のapply uploader・成功publish/cleanup・両Environment approvalも必須。
+ZIP取得は64 KiB以下、展開はせず固定regular file1件/16 KiB以下、path/symlink/directory/extra files/encryptionを拒否する。
+archive SHA256とcanonical receipt SHA256を別々にhard検証し、artifact/list/runを最後に再読してraceを拒否する。
+1 receiptのsingle-page正常経路はGitHub API GET10（うちZIP1）＋allowlisted signed redirect GET1、JSON1 MiB/response以下。
+artifact expiry/deletionではSTOPし、永続保管やreceipt recoveryは別承認。同じimportを再実行しない。
 
 public receiptは固定context/result/counts、prior receipt digest、opaque scope/state commitmentsだけ。
 state commitmentは別HMAC domainで検証済みfull stateのlineage/serial/resources/outputsを結び、各waveのprior state commitmentも前receiptと一致させる。
@@ -378,7 +390,7 @@ exact post/import0/no-op12 summaryも検査してからprivate machine recordを
 専用emit stepはpost成功＋closed issuance gateの条件だけで出力する。cleanup失敗/run失敗のreceiptはconsumerが拒否する。
 public accountingは観測したapply/post-plan outcomesとpost verifierのexplicit readsだけ。
 provider内部request数・workflow全体総数・実請求額はunknownとして残し、推計をactualにしない。新cost-only blockingはない。
-初回history applyはemitter true、exact trusted context、attempt1を認証前に必須とし、falseの経路ではimportしない。root emission後のcatalog admissionは別closure sourceでhistorical issuer SHAをpinし、catalog準備のためにimportを再実行しない。
+初回history applyはemitter/publication gates両方true、exact trusted context、attempt1を認証前に必須とし、falseの経路ではimportしない。root emission後のcatalog admissionは別closure sourceでhistorical issuer SHAをpinし、catalog準備のためにimportを再実行しない。
 
 sourceで閉じる範囲はissuer success emission、GitHub authenticity、private scope/ordered predecessor joins、protected mandatory wiringとdummy denial tests。
 **未完了**: actual history import/post-noop12、real receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、
@@ -387,7 +399,11 @@ runtime receipt emitter/apply pathのdummy PASSは実adoptionの証明ではな�
 issuer導入前に実history adoptionが終わった場合、元traceとfresh noop/state proofの別承認契約が必要で、blind import/applyを再実行しない。
 rollbackは未有効化sourceのrevertとfalse gates維持。実adoption後にmodule flagsをfalseへ戻さない。
 
-local testsはpublic dummy GitHub JSON/logsのinjected transportだけを使い、GitHub/AWS/GCPに接続しない。
+local testsはpublic dummy GitHub JSON/ZIPのinjected transportだけを使い、GitHub/AWS/GCPに接続しない。
+[`gcp-receipt-artifact-fixture.yml`](../../../.github/workflows/gcp-receipt-artifact-fixture.yml) は同repo PRのopened/synchronize/reopenedだけで、
+fixed dummy run101/source `aaaaaaaa...` のpublic schema1 receipt1件をfixture専用名で1日保持する。
+Environment/cloud secrets/OIDCなし、checkout credential保存なし。upload後always cleanupし、既存GitHub read接続でbounded archive roundtripを確認する。
+PR event/fixture名/dummy sourceはtrusted issuer契約を満たさず、ownership proofへ昇格できない。real publicationは別のowner execution approvalが必要。
 実activation前はofficial interfaceへのactual metadata readsとsource/stateの独立reviewも必要。
 
 
@@ -423,11 +439,11 @@ all enabled services・WIF trustを比較する。既存runtime config/caller→
 before/preapply/postのobserved helper read countsと実outcomesはprivate evidenceに保持する。公開はcounts/outcomesとopaque
 commitmentsだけで、runtime JSON/Markdown projectionにはgrant aliases/API addressesも含めない。provider内部requests/actual costはunknown。
 post failure/expiryはscope-bound independent state/lock/workspace/history/runtime metadata safety readsを試行し、false successを発行しない。
-owned0600/exclusive filesとexisting always cleanupを使い、artifact/cacheは追加しない。cleanup/job/run失敗はconsumerが拒否する。
+owned0600/exclusive filesとexisting always cleanupを使い、public schemaのreceipt1件以外をartifact/cacheへ保存しない。cleanup/job/run失敗はconsumerが拒否する。
 issuer catalogのexisting ordered step pinsはhistory/runtime conditional branchesを同source SHAに含められる。
-選択されたwaveの全critical stepsと共通checkout/apply/noop/emitter/cleanupがsuccessfulかつ順序一致であることが必須。
+選択されたwaveの全critical stepsと共通checkout/apply/noop/emitter/publish/cleanupがsuccessfulかつ順序一致であることが必須。
 
-追加gate/secret/PAT/serviceはない。既存 `DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`, `DEV_HISTORY_POST_NOOP12_READY`,
+public receipt publication用 `DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED` をfalseで追加する。追加secret/PAT/serviceはない。既存 `DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`, `DEV_HISTORY_POST_NOOP12_READY`,
 `DEV_HISTORY_RECEIPT_EMITTER_ENABLED`, apply/history-postnoop/probe gatesはfalse、issuer catalogは空。
 history independent post-noop selectorとruntime waveの混在は認証前に拒否する。
 [`test_terraform_runtime_execution.py`](../../../.github/scripts/test_terraform_runtime_execution.py) はpublic dummy transport/full stateで
@@ -436,6 +452,6 @@ same-count IAM/API/trust交換、metadata/network/lock/cleanup failure、公開�
 
 historyは未import。ownerのexecution approval後の**初回history import**で既存history emitterのauthentic root receiptを取得し、
 独立post-noop12も保持する。receipt導入前にadoption済みだった場合の別bootstrap契約はこのpackageに追加しない。
-source integration/reviewはactivation承認ではなく、final issuer SHA/CI、actual workflow/job/Environment/reviewer pinsとprotection/step-log
+source integration/reviewはactivation承認ではなく、final issuer SHA/CI、actual workflow/job/Environment/reviewer pinsとprotection/artifact
 interface、private nonce/backend/history binding、actual scope/CI exact reads、実history import/postnoop12・ordered runtime receipts・
 final dev noop/owner merge判断が必要。既存security probe証拠は再利用し、追加live probe/query/DDL/deployを自動要求しない。
