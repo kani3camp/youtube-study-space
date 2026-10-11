@@ -446,6 +446,16 @@ class RuntimeExecutionTest(unittest.TestCase):
                     else:runtime.after(env,request=f.aws,metadata_request=f.google)
                     self.assertFalse((Path(directory)/runtime.RECORD).exists())
 
+    def test_current_physical_bytes_changes_preserve_runtime_metadata_and_receipt(self):
+        f,env=self.run_wave()
+        before=runtime.metadata_snapshot(env,f.packet,request=f.google)
+        f.metadata['numCurrentPhysicalBytes']='90'
+        after=runtime.metadata_snapshot(env,f.packet,request=f.google)
+        self.assertEqual(after,before)
+        f.finish(env)
+        machine=private.private_json(Path(env['RUNNER_TEMP'])/runtime.RECORD)
+        self.assertTrue(machine['checks']['metadata_unchanged'])
+
     def test_plan_and_apply_jobs_share_exact_packet_commitment(self):
         f=WaveFixture()
         with tempfile.TemporaryDirectory() as plan_dir, tempfile.TemporaryDirectory() as apply_dir:

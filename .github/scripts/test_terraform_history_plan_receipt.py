@@ -136,7 +136,8 @@ class ReceiptTests(unittest.TestCase):
         source.setUp()
         self.plan, self.metadata = source.fixture()
         self.plan["terraform_version"] = "1.16.4"
-        self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789")
+        self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789",
+                             numCurrentPhysicalBytes="84")
         self.google_calls = []
         self.policy_patch = patch.object(receipt, "execution_policy", side_effect=lambda raw, sha, now=None: ACTUAL_EXECUTION_POLICY(raw, sha, now=now or NOW))
         self.actual_policy = ACTUAL_COST_POLICY
@@ -407,7 +408,7 @@ class ReceiptTests(unittest.TestCase):
     def test_independent_writer_metrics_may_change_but_stable_unknown_fields_remain_strict(self):
         self.baseline()
         self.metadata.update(etag="DUMMY_ETAG_2", lastModifiedTime="123456790", numRows="43",
-                             numBytes="90", numActiveLogicalBytes="90",
+                             numBytes="90", numActiveLogicalBytes="90", numCurrentPhysicalBytes="90",
                              streamingBuffer={"estimatedRows": "1", "oldestEntryTime": "123456790"})
         receipt.after(self.env, request=self.aws, metadata_request=self.google)
         record = receipt.private_json(str(self.root / "history-plan-after.json"))
