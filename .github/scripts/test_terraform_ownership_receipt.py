@@ -671,6 +671,79 @@ class OwnershipReceiptTest(unittest.TestCase):
             self.assertNotIn(value['nonce'], path.read_text())
             self.assertNotIn('dummy-state-bucket', path.read_text())
 
+    def test_fresh_history_binding_allows_only_current_physical_bytes_changes(self):
+        import terraform_history_plan_receipt as private
+        from terraform_history_table_metadata import volatile_table_metadata
+        for saved_metric, fresh_metric in [('84', '90'), (None, '0'), ('84', None)]:
+            with self.subTest(saved=saved_metric, fresh=fresh_metric), tempfile.TemporaryDirectory() as root:
+                value = dummy_binding()
+                if saved_metric is not None:
+                    value['history_metadata']['numCurrentPhysicalBytes'] = saved_metric
+                fresh = copy.deepcopy(value['history_metadata'])
+                if fresh_metric is None:
+                    fresh.pop('numCurrentPhysicalBytes', None)
+                else:
+                    fresh['numCurrentPhysicalBytes'] = fresh_metric
+                private.write_private(Path(root)/'user-history-before.json', fresh)
+                path = Path(root)/'output'
+                path.write_text('')
+                backend = value['backend']
+                env = dummy_context() | dict(GITHUB_JOB='plan', RUNNER_TEMP=root, GITHUB_OUTPUT=str(path),
+                    TF_VAR_manage_user_activity_history='true', STATE_ACCOUNT_ID=backend['account_id'],
+                    STATE_BUCKET=backend['bucket'], STATE_KEY=backend['key'], STATE_AWS_REGION=backend['region'],
+                    TF_WORKSPACE=backend['workspace'],
+                    RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(dict(schema_version=1, receipt_binding=value)))
+                gate.check_history_binding(env)
+                scope = path.read_text().strip().split('=', 1)[1]
+                refreshed = value | dict(history_metadata=fresh)
+                self.assertEqual(scope, gate.commitment(refreshed, gate.history_scope(refreshed)))
+                self.assertEqual(volatile_table_metadata(fresh).get('numCurrentPhysicalBytes'), fresh_metric)
+                for role in ('plan', 'apply'):
+                    with self.subTest(role=role), patch.dict(os.environ,
+                            env | dict(GITHUB_JOB=role, EXPECTED_HISTORY_RECEIPT_SCOPE=scope), clear=True), \
+                            patch('sys.argv', ['receipt', 'check-history-binding', '--fresh']), \
+                            patch('sys.stdout', StringIO()) as out, patch('sys.stderr', StringIO()) as err:
+                        self.assertEqual(gate.main(), 0)
+                        self.assertEqual(err.getvalue(), '')
+                        self.assertEqual(out.getvalue(), 'Private history receipt binding checked; values suppressed.\n')
+
+    def test_current_physical_bytes_requires_unsigned_decimal_string_in_both_snapshots(self):
+        value = dummy_binding()
+        backend = value['backend']
+        env = dict(STATE_ACCOUNT_ID=backend['account_id'], STATE_BUCKET=backend['bucket'],
+                   STATE_KEY=backend['key'], STATE_AWS_REGION=backend['region'], TF_WORKSPACE=backend['workspace'])
+        for metric in (None, True, 90, -1, '', '-1', '1.5', '1e2', '90\n', {}, []):
+            changed = copy.deepcopy(value['history_metadata']) | dict(numCurrentPhysicalBytes=metric)
+            with self.subTest(metric=metric, snapshot='saved'), self.assertRaises(ValueError):
+                gate.history_scope(value | dict(history_metadata=changed))
+            with self.subTest(metric=metric, snapshot='fresh'), self.assertRaises(ValueError):
+                gate.check_current_binding(value, env, changed)
+
+    def test_current_physical_bytes_changes_cannot_mask_stable_metadata_drift(self):
+        value = dummy_binding()
+        value['history_metadata'].update(numCurrentPhysicalBytes='84', creationTime='123456789',
+                                        unknownSetting={'numCurrentPhysicalBytes': '84'})
+        backend = value['backend']
+        env = dict(STATE_ACCOUNT_ID=backend['account_id'], STATE_BUCKET=backend['bucket'],
+                   STATE_KEY=backend['key'], STATE_AWS_REGION=backend['region'], TF_WORKSPACE=backend['workspace'])
+        changes = {
+            'schema-order': lambda v: v['schema']['fields'].reverse(),
+            'field-description': lambda v: v['schema']['fields'][0].update(description='Public dummy changed description'),
+            'table-identity': lambda v: v['tableReference'].update(tableId='dummy-other-table'),
+            'location': lambda v: v.update(location='US'),
+            'type': lambda v: v.update(type='VIEW'),
+            'partition': lambda v: v.update(timePartitioning={'type': 'DAY'}),
+            'creation-time': lambda v: v.update(creationTime='123456790'),
+            'unknown-added': lambda v: v.update(numFuturePhysicalBytes='90'),
+            'unknown-changed': lambda v: v['unknownSetting'].update(numCurrentPhysicalBytes='90'),
+            'unknown-removed': lambda v: v.pop('unknownSetting'),
+        }
+        for name, mutate in changes.items():
+            changed = copy.deepcopy(value['history_metadata']) | dict(numCurrentPhysicalBytes='90')
+            mutate(changed)
+            with self.subTest(change=name), self.assertRaises(ValueError):
+                gate.check_current_binding(value, env, changed)
+
 
 if __name__ == '__main__':
     unittest.main()

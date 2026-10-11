@@ -25,7 +25,7 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
         self.plan, self.metadata = source.fixture(False)
         self.plan["terraform_version"] = "1.16.4"
         self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84",
-                             lastModifiedTime="123456789")
+                             lastModifiedTime="123456789", numCurrentPhysicalBytes="84")
         self.env = self.fixture.env | {
             "HISTORY_POST_NOOP": "true", "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "HISTORY_TARGET": "dev", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
@@ -56,7 +56,8 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
 
     def test_exact_imported_state_and_full_root_noop12_pass_without_mutation(self):
         gate.before(self.env, request=self.aws)
-        self.metadata.update(etag="DUMMY_ETAG_2", numRows="43", lastModifiedTime="123456790")
+        self.metadata.update(etag="DUMMY_ETAG_2", numRows="43", lastModifiedTime="123456790",
+                             numCurrentPhysicalBytes="90")
         gate.after(self.env, request=self.aws, metadata_request=self.table_get)
         self.assertIn("import0/no-op12", (self.root / "summary").read_text())
         self.assertEqual([call[:2] for call in self.aws.calls], [

@@ -12,6 +12,7 @@ VOLATILE_TABLE_FIELDS = frozenset({
     "numLongTermBytes", "numTimeTravelPhysicalBytes", "numTotalLogicalBytes",
     "numActiveLogicalBytes", "numLongTermLogicalBytes", "numTotalPhysicalBytes",
     "numActivePhysicalBytes", "numLongTermPhysicalBytes", "numPartitions",
+    "numCurrentPhysicalBytes",
 })
 VOLATILE_METRICS = VOLATILE_TABLE_FIELDS - {"etag", "streamingBuffer"}
 

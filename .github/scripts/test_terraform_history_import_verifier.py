@@ -29,7 +29,8 @@ class ImportVerifierTest(unittest.TestCase):
         fixture.setUp()
         self.plan, self.metadata = fixture.fixture()
         self.plan["terraform_version"] = "1.16.4"
-        self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789")
+        self.metadata.update(etag="DUMMY_ETAG", numRows="42", numBytes="84", lastModifiedTime="123456789",
+                             numCurrentPhysicalBytes="84")
         self.aws = state_fixtures.FakeS3()
         now = datetime.now(timezone.utc)
         self.approved = {"schema_version": 2, "target": "dev", "git_sha": SHA, "plan_run_id": 123456,
@@ -183,7 +184,8 @@ class ImportVerifierTest(unittest.TestCase):
         self.preapply()
         self.aws.body = json.dumps(self.imported_state()).encode()
         self.metadata.update(etag="DUMMY_ETAG_2", numRows="43", numBytes="90", numActiveLogicalBytes="90",
-                             lastModifiedTime="123456790", streamingBuffer={"estimatedRows": "1"})
+                             lastModifiedTime="123456790", numCurrentPhysicalBytes="90",
+                             streamingBuffer={"estimatedRows": "1"})
         gate.post(self.env, request=self.aws, metadata_request=self.google)
         self.assertIn("metadata=PASS; volatile=changed; lock=absent", (self.root / "summary").read_text())
         self.assertEqual(receipt.private_json(str(self.root / "history-import-table-after.json")), self.metadata)
