@@ -1,0 +1,31 @@
+@font-face {
+	font-family: "M PLUS Rounded 1c";
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url("./m-plus-rounded-1c-400.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "M PLUS Rounded 1c";
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url("./m-plus-rounded-1c-500.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "M PLUS Rounded 1c";
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url("./m-plus-rounded-1c-700.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "M PLUS Rounded 1c";
+	font-style: normal;
+	font-weight: 800;
+	font-display: swap;
+	src: url("./m-plus-rounded-1c-800.woff2") format("woff2");
+}

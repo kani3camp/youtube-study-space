@@ -23,6 +23,7 @@ jobs:
       video_maker_simulator: ${{ steps.detect.outputs.video_maker_simulator }}
       figma_plugin: ${{ steps.detect.outputs.figma_plugin }}
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
+      mypage: ${{ steps.detect.outputs.mypage }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       node_projects: ${{ steps.detect.outputs.node_projects }}
@@ -466,6 +467,47 @@ jobs:
       - name: Run build
         run: pnpm build:ci
 
+  mypage-check:
+    name: MyPage Check, Typecheck, Test & Build
+    needs: changes
+    if: ${{ needs.changes.outputs.mypage == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mypage
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mypage/package.json
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: mypage/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate public API contract and fixtures
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -m pip install -r docs/mypage/contract-requirements.txt
+          python .github/scripts/check-mypage-contract.py
+      - name: Check
+        run: pnpm check
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+
   docs-site-check:
     name: Docs Site Lint & Typecheck
     needs: changes
@@ -569,6 +611,7 @@ jobs:
       - biome-lint
       - youtube-monitor-test
       - youtube-monitor-build
+      - mypage-check
       - docs-site-check
       - docs-site-build
       - aws-cdk-test
@@ -578,6 +621,11 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
           echo "One or more CI jobs failed or were cancelled."
+          exit 1
+      - name: Require selected MyPage validation
+        if: ${{ (needs.changes.outputs.mypage == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true') && needs.mypage-check.result != 'success' }}
+        run: |
+          echo "Selected MyPage validation did not succeed."
           exit 1
       - name: Pass when all selected jobs succeeded or were skipped
         if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}

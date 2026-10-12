@@ -386,7 +386,7 @@ func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIDs []string
 }
 
 func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userID string, jstNow time.Time) error {
-	slog.Info("processing RP.", "userID", userID)
+	slog.InfoContext(ctx, "RP update started")
 	return app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		userDoc, err := app.Repository.ReadUser(ctx, tx, userID)
 		if err != nil {
@@ -395,7 +395,7 @@ func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userID string, jstNow
 
 		// 同日の重複処理防止チェック
 		if timeutil.DateEqualJST(userDoc.LastRPProcessed, jstNow) {
-			slog.Warn("user " + userID + " is already RP processed today, skipping.")
+			slog.WarnContext(ctx, "RP update skipped", "reason", "already_processed_today")
 			return nil
 		}
 
@@ -458,7 +458,7 @@ func (app *WorkspaceApp) BackupCollectionHistoryFromGcsToBigquery(ctx context.Co
 		if err != nil {
 			return fmt.Errorf("in GetGcsYesterdayExportFolderName(): %w", err)
 		}
-		slog.Info("GCS folder name: " + gcsTargetFolderName)
+		slog.InfoContext(ctx, "GCS export folder resolved")
 
 		if err := bqClient.ReadCollectionsFromGcs(
 			ctx,

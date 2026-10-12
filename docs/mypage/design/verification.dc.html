@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#ebe7df;font-family:system-ui,sans-serif;} a{color:#2f5f5c;} a:hover{color:#1f4442;}</style>
+</helmet>
+<div style="padding:36px 40px 60px;display:flex;flex-direction:column;gap:40px;">
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:18px;font-weight:700;color:#2a2622;">マイページ ・ レスポンシブ／状態確認</div>
+    <div style="font-size:13px;color:#5b544c;">各フレームは「マイページ.dc.html」をそのまま表示しています（操作可）。この目次は検証用ページだけの導線です。</div>
+    <nav aria-label="セクション" style="display:flex;flex-wrap:wrap;gap:8px;">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+        <a href="{{ g.href }}" style="font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.12);text-decoration:none;">{{ g.title }}</a>
+      </sc-for>
+    </nav>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+    <section id="{{ g.id }}" style="display:flex;flex-direction:column;gap:14px;scroll-margin-top:16px;">
+      <div style="font-size:14px;font-weight:700;color:#2a2622;">{{ g.title }}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;">
+        <sc-for list="{{ g.frames }}" as="f" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="font:600 11px ui-monospace,Menlo,monospace;color:#4a443d;">{{ f.label }}</div>
+            <div style="width:{{ f.boxW }};height:{{ f.boxH }};overflow:hidden;border-radius:14px;border:1px solid rgba(0,0,0,.12);background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+              <iframe src="{{ f.src }}" title="{{ f.label }}" style="width:{{ f.w }};height:{{ f.h }};border:0;transform:scale({{ f.scale }});transform-origin:0 0;"></iframe>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const F = (label, q, w, h, scale) => {
+      scale = scale || 1;
+      return { label, src: 'マイページ.dc.html?demo=0&' + q, w: w + 'px', h: h + 'px', scale, boxW: Math.round(w * scale) + 'px', boxH: Math.round(h * scale) + 'px' };
+    };
+    const groups = [
+      { id: 'widths', title: '幅別（通常ルーム・作業中）', frames: [
+        F('320px', 'state=working', 320, 900), F('390px', 'state=working', 390, 900),
+        F('768px タブレット縦', 'state=working', 768, 1000, 0.7), F('1024px タブレット横', 'state=working', 1024, 760, 0.6), F('1440px PC', 'state=working', 1440, 860, 0.5),
+      ] },
+      { id: 'rooms', title: 'ルーム別（同じ席番号 12）', frames: [
+        F('通常ルーム・作業中 390px', 'state=working&room=normal', 390, 860, 0.8), F('メンバールーム・作業中 390px', 'state=working&room=member', 390, 860, 0.8),
+        F('通常ルーム・休憩中 390px', 'state=break&room=normal', 390, 860, 0.8), F('メンバールーム・休憩中 390px', 'state=break&room=member', 390, 860, 0.8),
+        F('メンバールーム・作業中 320px', 'state=working&room=member', 320, 860), F('メンバールーム・長い作業名 320px', 'state=longName&room=member', 320, 980),
+        F('通常ルーム・作業中 1024px', 'state=working&room=normal', 1024, 760, 0.6), F('メンバールーム・休憩中 1024px', 'state=break&room=member', 1024, 760, 0.6),
+        F('メンバールーム・作業中 1440px', 'state=working&room=member', 1440, 860, 0.5),
+        F('未入室 320px', 'state=out', 320, 860), F('作業記録なし 320px', 'state=unregistered', 320, 760),
+        F('未入室 1024px', 'state=out', 1024, 760, 0.6), F('作業記録なし 1440px', 'state=unregistered', 1440, 760, 0.5),
+      ] },
+      { id: 'states', title: '状態別（390px）', frames: [
+        F('休憩中', 'state=break', 390, 860, 0.8), F('未入室', 'state=out', 390, 860, 0.8), F('正常な0時間', 'state=zero', 390, 860, 0.8),
+        F('作業記録なし', 'state=unregistered', 390, 640, 0.8), F('長い作業名', 'state=longName', 390, 980, 0.8), F('初回読み込み', 'state=loading', 390, 860, 0.8),
+        F('終了予定を過ぎた作業中', 'state=overdue', 390, 900, 0.8), F('終了予定超過 320px', 'state=overdue&room=member', 320, 900),
+        F('0分の日（9/29）を選択', 'state=working&sel=2', 390, 1100, 0.8), F('9/30を選択 1024px', 'state=working&sel=3', 1024, 800, 0.6),
+      ] },
+      { id: 'auth', title: 'ログイン・連携・異常状態（320px ／ 1024px）', frames: [
+        F('ログイン 320px', 'view=login', 320, 900), F('ログイン 1024px', 'view=login', 1024, 860, 0.6),
+        F('チャンネル確認 320px', 'view=confirm', 320, 760), F('チャンネル確認 1024px', 'view=confirm', 1024, 760, 0.6),
+        F('初回取得失敗 320px', 'state=initError', 320, 640), F('初回取得失敗 1024px', 'state=initError', 1024, 640, 0.6),
+        F('更新失敗 320px（メンバールーム）', 'state=refreshError&room=member', 320, 980), F('更新失敗 1024px', 'state=refreshError&room=member', 1024, 800, 0.6),
+        F('連携切れ 320px', 'state=reauth', 320, 640), F('連携切れ 1024px', 'state=reauth', 1024, 640, 0.6),
+        F('紐付け競合 320px', 'view=conflict', 320, 760), F('紐付け競合 1024px', 'view=conflict', 1024, 640, 0.6),
+      ] },
+      { id: 'account', title: 'アカウントパネル・管理', frames: [
+        F('初期パネル（モバイル）', 'state=working&panel=1', 390, 860, 0.8), F('初期パネル 320px', 'state=working&panel=1', 320, 760), F('初期パネル（PC）', 'state=working&panel=1', 1280, 800, 0.5),
+        F('初期パネル・連携切れ', 'state=reauth&panel=1', 390, 760, 0.8),
+        F('アカウント管理（閉）', 'view=manage', 390, 760, 0.8), F('Google連携の管理を開いた状態', 'view=manage&open=google', 390, 900, 0.8),
+        F('保存データについてを開いた状態', 'view=manage&open=data', 390, 860, 0.8), F('削除依頼ビュー（本人が選択後）', 'view=delete', 390, 900, 0.8),
+        F('アカウント管理（PC）', 'view=manage&open=google', 1280, 800, 0.5),
+      ] },
+      { id: 'flows', title: '補助ビュー', frames: [
+        F('Privacy Policy', 'view=privacy', 390, 900, 0.8), F('Cookie設定', 'view=cookies', 390, 860, 0.8), F('同意バナー（地域不明）', 'state=working&region=eu', 390, 860, 0.8),
+        F('お問い合わせ', 'view=contact', 390, 860, 0.8),
+      ] },
+    ];
+    return { groups: groups.map(g => Object.assign({ href: '#' + g.id }, g)) };
+  }
+}
+</script>
+</body>
+</html>

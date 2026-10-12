@@ -1,0 +1,57 @@
+name: CodeQL Source Contracts
+
+on:
+  pull_request:
+    paths:
+      - .github/codeql/**
+      - .github/workflows/**
+      - .github/scripts/detect-ci-paths.sh
+      - .github/scripts/test-detect-ci-paths.sh
+      - go.mod
+      - go.sum
+      - '**/go.mod'
+      - '**/go.sum'
+  push:
+    branches: [dev, main, feature/gcp-terraform-iac, integration/mypage-canon-20261006, feature/codeql-advanced-setup]
+    paths:
+      - .github/codeql/**
+      - .github/workflows/**
+      - .github/scripts/detect-ci-paths.sh
+      - .github/scripts/test-detect-ci-paths.sh
+      - go.mod
+      - go.sum
+      - '**/go.mod'
+      - '**/go.sum'
+
+permissions:
+  contents: read
+  security-events: none
+  id-token: none
+
+jobs:
+  source-contracts:
+    name: CodeQL Source Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+      - name: Install parser
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: -r .github/codeql/requirements.txt
+      - name: Check source contracts
+        run: python .github/codeql/validate-source.py && python -m unittest discover -s .github/codeql -p 'test_*.py' -v
+      - name: Install pinned actionlint
+        run: bash .github/codeql/install-actionlint.sh "$RUNNER_TEMP/codeql-source-tools"
+      - name: Lint staged workflows and local reusable reference
+        run: python .github/codeql/lint-workflows.py --actionlint "$RUNNER_TEMP/codeql-source-tools/actionlint"
+      - name: Check shell syntax and existing CI routing
+        run: |
+          bash -n .github/codeql/build-go.sh .github/codeql/install-actionlint.sh
+          bash .github/scripts/test-detect-ci-paths.sh

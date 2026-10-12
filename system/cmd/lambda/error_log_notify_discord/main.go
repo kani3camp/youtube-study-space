@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -36,21 +37,33 @@ type errorLogNotifyApp interface {
 
 var (
 	// Unit test で初期化失敗や通知失敗を差し替え検証できるようにしている。
+	parseCloudWatchLogs           = func(raw events.CloudwatchLogsRawData) (events.CloudwatchLogsData, error) { return raw.Parse() }
 	firestoreClientOptionErrorLog = awsruntime.FirestoreClientOption
 	newErrorLogWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (errorLogNotifyApp, error) {
 		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
 	}
 )
 
+// notifierSourceError keeps the original error available to errors.Is without
+// copying its potentially private text into Lambda's returned error message.
+type notifierSourceError struct {
+	operation string
+	class     string
+	cause     error
+}
+
+func (e notifierSourceError) Error() string { return e.operation + ": " + e.class }
+func (e notifierSourceError) Unwrap() error { return e.cause }
+
 func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
 	// この Lambda は通知経路そのものの故障を Errors Alarm + Email バックストップで拾いたいため、初期化や parse 失敗は return err を維持する。
-	data, err := ev.AWSLogs.Parse()
+	data, err := parseCloudWatchLogs(ev.AWSLogs)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to parse CloudWatch Logs payload", "err", err)
-		return fmt.Errorf("parse CloudWatch Logs: %w", err)
+		slog.ErrorContext(ctx, "failed to parse CloudWatch Logs payload", "error_class", "payload_parse_failed")
+		return notifierSourceError{operation: "parse CloudWatch Logs", class: "payload_parse_failed", cause: err}
 	}
 
 	chunks := buildDiscordMessageChunks(&data, notifierRequestIDFromContext(ctx))
@@ -61,21 +74,21 @@ func handler(ctx context.Context, ev events.CloudwatchLogsEvent) error {
 
 	clientOption, err := firestoreClientOptionErrorLog()
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get Firestore client option for error_log_notify_discord", "err", err)
-		return fmt.Errorf("get Firestore client option: %w", err)
+		slog.ErrorContext(ctx, "failed to get Firestore client option for error_log_notify_discord", "error_class", "firestore_option_failed")
+		return notifierSourceError{operation: "get Firestore client option", class: "firestore_option_failed", cause: err}
 	}
 
 	app, err := newErrorLogWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to init WorkspaceApp for error_log_notify_discord", "err", err)
-		return fmt.Errorf("init WorkspaceApp: %w", err)
+		slog.ErrorContext(ctx, "failed to init WorkspaceApp for error_log_notify_discord", "error_class", "workspace_init_failed")
+		return notifierSourceError{operation: "init WorkspaceApp", class: "workspace_init_failed", cause: err}
 	}
 	defer app.CloseFirestoreClient()
 
 	for _, chunk := range chunks {
 		if err := app.MessageToOwnerOrError(gracefulCtx, chunk); err != nil {
-			slog.ErrorContext(ctx, "failed to send log notification to owner", "err", err)
-			return fmt.Errorf("send log notification to owner: %w", err)
+			slog.ErrorContext(ctx, "failed to send log notification to owner", "error_class", "delivery_failed")
+			return errors.New("send log notification to owner: delivery_failed")
 		}
 	}
 

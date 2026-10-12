@@ -1,0 +1,70 @@
+{
+	"family": "M PLUS Rounded 1c",
+	"distribution": "Google Fonts CSS2 API / fonts.gstatic.com v22",
+	"cssSource": "https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap",
+	"license": "SIL Open Font License 1.1",
+	"licenseSource": "https://raw.githubusercontent.com/google/fonts/main/ofl/roundedmplus1c/OFL.txt",
+	"conversion": "TTF to WOFF2 only; no subsetting; glyph order/cmap/hmtx/name records verified",
+	"faces": [
+		{
+			"weight": 400,
+			"url": "https://fonts.gstatic.com/s/mplusrounded1c/v22/VdGEAYIAV6gnpUpoWwNkYvrugw9RuPWG.ttf",
+			"bytes": 3380464,
+			"sha256": "86f9847b02207adec9963476146b606c302b56906cb41336e7f759346c3e35b3",
+			"family": ["Rounded Mplus 1c"],
+			"style": ["Regular"],
+			"postScript": ["RoundedMplus1c-Regular"],
+			"glyphs": 8532,
+			"license": ["http://scripts.sil.org/OFL"],
+			"woff2File": "m-plus-rounded-1c-400.woff2",
+			"woff2Bytes": 1016084,
+			"woff2SHA256": "1386cac8d1f86cd111ed72606777a12810b304d83ff7b6812f8a01165870e748",
+			"glyphsAndMetricsPreserved": true
+		},
+		{
+			"weight": 500,
+			"url": "https://fonts.gstatic.com/s/mplusrounded1c/v22/VdGBAYIAV6gnpUpoWwNkYvrugw9RuM1y55sK.ttf",
+			"bytes": 3423112,
+			"sha256": "5fb38fb1d606b1942e590a00fb7c38fd9a8045e3a94c6a267d2a2a772ab6896e",
+			"family": ["Rounded Mplus 1c Medium"],
+			"style": ["Regular"],
+			"postScript": ["RoundedMplus1c-Medium"],
+			"glyphs": 8532,
+			"license": ["http://scripts.sil.org/OFL"],
+			"woff2File": "m-plus-rounded-1c-500.woff2",
+			"woff2Bytes": 1024132,
+			"woff2SHA256": "2fbace72e75e4fd56140b9ee1daac27bb192f409681e4b3e52e0efbb9dbabbbb",
+			"glyphsAndMetricsPreserved": true
+		},
+		{
+			"weight": 700,
+			"url": "https://fonts.gstatic.com/s/mplusrounded1c/v22/VdGBAYIAV6gnpUpoWwNkYvrugw9RuM064ZsK.ttf",
+			"bytes": 3532960,
+			"sha256": "d045dc991115f466e32b9e1460484814e01ef20621036904da214cdf6e12c740",
+			"family": ["Rounded Mplus 1c Bold"],
+			"style": ["Bold"],
+			"postScript": ["RoundedMplus1c-Bold"],
+			"glyphs": 8532,
+			"license": ["http://scripts.sil.org/OFL"],
+			"woff2File": "m-plus-rounded-1c-700.woff2",
+			"woff2Bytes": 1107744,
+			"woff2SHA256": "35750e4a464edfb95c4904633b03c9e502e03873f458c220e9b5e7337c78560d",
+			"glyphsAndMetricsPreserved": true
+		},
+		{
+			"weight": 800,
+			"url": "https://fonts.gstatic.com/s/mplusrounded1c/v22/VdGBAYIAV6gnpUpoWwNkYvrugw9RuM0m4psK.ttf",
+			"bytes": 3618576,
+			"sha256": "b239feed63f479929c584c4c297ae466253eac408d8748208bc69b9dd5ea81b6",
+			"family": ["Rounded Mplus 1c ExtraBold"],
+			"style": ["Regular"],
+			"postScript": ["RoundedMplus1c-ExtraBold"],
+			"glyphs": 8532,
+			"license": ["http://scripts.sil.org/OFL"],
+			"woff2File": "m-plus-rounded-1c-800.woff2",
+			"woff2Bytes": 1130468,
+			"woff2SHA256": "1c6525d34a4dbc1fd90ed4d297e84be9ffe7b381e63621ea497d635003e343e4",
+			"glyphsAndMetricsPreserved": true
+		}
+	]
+}

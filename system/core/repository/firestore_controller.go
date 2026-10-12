@@ -264,7 +264,7 @@ func (c *FirestoreControllerImplements) ReadSeat(ctx context.Context, tx *firest
 }
 
 func (c *FirestoreControllerImplements) ReadSeatWithUserID(ctx context.Context, userID string, isMemberSeat bool) (SeatDoc, error) {
-	docs, err := c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Documents(ctx).GetAll()
+	docs, err := queryDocuments(ctx, c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Limit(2)).GetAll()
 	if err != nil {
 		return SeatDoc{}, fmt.Errorf("query seat by user ID: %w", err)
 	}
@@ -581,10 +581,10 @@ func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context
 
 // ReadWorkStateSegmentsBySessionID returns work-state segments for the given session ID.
 func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionID(ctx context.Context, sessionID string) ([]WorkSegmentDoc, error) {
-	iter := c.workSegmentsCollection().
+	query := c.workSegmentsCollection().
 		Where(SessionIDDocProperty, "==", sessionID).
-		Where(SegmentTypeDocProperty, "==", WorkState).
-		Documents(ctx)
+		Where(SegmentTypeDocProperty, "==", WorkState)
+	iter := queryDocuments(ctx, query)
 	return getDocDataFromIterator[WorkSegmentDoc](iter)
 }
 

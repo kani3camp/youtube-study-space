@@ -1,0 +1,39 @@
+name: MyPage OAuth TTL
+
+on:
+  pull_request:
+    paths:
+      - 'infra/mypage-oauth-ttl/**'
+      - '.github/workflows/mypage-oauth-ttl.yml'
+      - '.github/scripts/detect-ci-paths.sh'
+      - '.github/scripts/test-detect-ci-paths.sh'
+      - '.github/scripts/check-doc-references.py'
+      - '.github/scripts/check-mypage-contract.py'
+      - 'docs/mypage/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  oauth-ttl-contract:
+    name: OAuth TTL Mock and Plan Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read Terraform version
+        id: terraform-version
+        run: echo "version=$(cat infra/mypage-oauth-ttl/.terraform-version)" >> "$GITHUB_OUTPUT"
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ steps.terraform-version.outputs.version }}
+          terraform_wrapper: false
+      - name: Offline cloud checks
+        run: bash infra/mypage-oauth-ttl/scripts/check-local.sh

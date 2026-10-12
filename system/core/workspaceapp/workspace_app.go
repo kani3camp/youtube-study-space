@@ -152,7 +152,9 @@ func (app *WorkspaceApp) currentTime() time.Time {
 }
 
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
-	if err := app.Repository.FirestoreClient().RunTransaction(ctx, f); err != nil {
+	if err := app.Repository.FirestoreClient().RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		return f(repository.WithReadTransaction(ctx, tx), tx)
+	}); err != nil {
 		return fmt.Errorf("run Firestore transaction: %w", err)
 	}
 	return nil

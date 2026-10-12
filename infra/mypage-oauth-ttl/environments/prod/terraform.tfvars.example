@@ -1,0 +1,3 @@
+# Synthetic test target only. Live values come from the owner-approved inventory.
+project_id  = "demo-mypage-ttl-production"
+database_id = "(default)"
