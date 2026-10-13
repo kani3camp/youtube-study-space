@@ -20,6 +20,7 @@ import sys
 import terraform_history_plan_receipt as receipt
 from terraform_plan_summary import COUNT_KEYS
 from terraform_identity_smoke import google
+from terraform_identity_diagnostics import StageFailure, at_stage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
 from prepare_user_activity_history_adoption import normalize_field, prepare
@@ -127,11 +128,15 @@ def state_delta(before, after, metadata):
     fields = receipt.decode(attrs.get("schema"))
     need(type(fields) is list and [normalize_field(f) for f in fields] ==
          [normalize_field(f) for f in metadata["schema"]["fields"]])
-    # Existing check results must remain identical. Only newly activated
-    # history module checks can differ, and state_shape requires each PASS.
+    # state_shape above rejects duplicate/unknown/malformed checks and objects
+    # before these maps are built. Terraform serializes both lists from Go maps;
+    # their order may change, but every existing field and object must match.
+    # Only history module checks can differ, and state_shape requires each PASS.
     def old_checks(state):
-        return [c for c in state.get("check_results", [])
-                if not c["config_addr"].startswith("module.user_activity_history.")]
+        return {(c["object_kind"], c["config_addr"]):
+                dict(c, objects={item["object_addr"]: item for item in c["objects"]})
+                for c in state.get("check_results", [])
+                if not c["config_addr"].startswith("module.user_activity_history.")}
     need(old_checks(new) == old_checks(old))
 
 
@@ -193,6 +198,7 @@ def post(env, *, request=None, metadata_request=None):
     original = receipt.private_bytes(root / "history-import-state-before.json")
     need(hashlib.sha256(original).hexdigest() == saved["state_sha256"])
     checks = {"state": "unknown", "metadata": False, "lock": False}
+    state_failure = None
     volatile_changed = None
     reads = {"state": 0, "metadata": 0}
     def counted_state(*args):
@@ -202,14 +208,16 @@ def post(env, *, request=None, metadata_request=None):
         reads["metadata"] += 1
         return (metadata_request or google)(*args, **kwargs)
     try:
-        raw = capture(env, "history-import-state-after.json", request=counted_state)
+        raw = at_stage("history-import-state-capture", lambda:
+                       capture(env, "history-import-state-after.json", request=counted_state))
         if raw == original:
             checks["state"] = "unchanged"
         else:
-            state_delta(original, raw, saved["metadata"])
+            at_stage("history-import-state-delta", lambda: state_delta(original, raw, saved["metadata"]))
             checks["state"] = "imported"
         checks["lock"] = True
-    except Exception:
+    except StageFailure as error:
+        state_failure = error
         try:
             receipt.absent(env, receipt.STATE_KEY + ".tflock", request=counted_state)
             checks["lock"] = True
@@ -229,6 +237,12 @@ def post(env, *, request=None, metadata_request=None):
                      "; volatile=" + ("unknown" if volatile_changed is None else
                                       "changed" if volatile_changed else "unchanged") +
                      "; lock=" + ("absent" if checks["lock"] else "unknown") + "\n")
+        if state_failure is not None:
+            reason = f"; reason={state_failure.reason}" if state_failure.reason else ""
+            output.write(f"History import state STOP; stage={state_failure.stage}; "
+                         f"category={state_failure.category}{reason}.\n")
+    if state_failure is not None:
+        raise state_failure
     need(checks == {"state": "imported", "metadata": True, "lock": True}
          and env.get("APPLY_OUTCOME") == "success" and env.get("POST_PLAN_OUTCOME") == "success")
     ownership.context(env)
@@ -261,6 +275,12 @@ def main():
             size_bound(env)
         else:
             {"before": before, "preapply": preapply, "post": post}[args.phase](env)
+    except StageFailure as error:
+        reason = f"; reason={error.reason}" if error.reason else ""
+        print(f"STOP: protected history import receipt rejected; stage={error.stage}; "
+              f"category={error.category}{reason}; private diagnostic suppressed; "
+              "never blindly retry or force unlock.", file=sys.stderr)
+        return 3
     except Exception:
         print("STOP: protected history import receipt rejected; inspect private evidence; never blindly retry or force unlock.", file=sys.stderr)
         return 3
