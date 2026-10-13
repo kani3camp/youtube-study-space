@@ -25,8 +25,10 @@ from test_terraform_ownership_receipt import dummy_binding, dummy_catalog, dummy
 from test_runtime_ownership_package import packet, stages, PROJECT
 
 
-def fixture(index=0):
+def fixture(index=0, *, noop=False):
     value = packet(index)
+    if noop:
+        value.update(wave='noop', selected=copy.deepcopy(value['adopted']))
     now = datetime.now(timezone.utc)
     value.update(schema_version=2, receipt_binding=dummy_binding(), adoption_receipts=[],
                  reviewed_utc=(now-timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -72,6 +74,43 @@ class RuntimeProvenanceTest(unittest.TestCase):
                 refs = [value['history_receipt']] + [i['reference'] for i in value['adoption_receipts']]
                 self.assertEqual(result['last_receipt_sha256'], refs[-1]['receipt_sha256'])
                 self.assertEqual(len(calls), 10 * len(refs))
+
+    def test_each_partial_noop_authenticates_exact_ordered_adoption_chain(self):
+        for index in range(1, 6):
+            value, request, _, calls = fixture(index, noop=True)
+            with self.subTest(index=index):
+                result = gate.verify_chain(value, dummy_catalog(), request=request)
+                self.assertEqual(result['last_receipt_sha256'], value['adoption_receipts'][-1]['reference']['receipt_sha256'])
+                self.assertEqual(len(calls), 10 * (index + 1))
+                self.assertEqual(len(value['adoption_receipts']), index)
+
+    def test_partial_noop_rejects_missing_duplicate_reordered_and_mismatched_proof(self):
+        mutations = [
+            lambda p: p.pop('history_receipt'),
+            lambda p: p['history_receipt'].update(receipt_sha256='b' * 64),
+            lambda p: p['adoption_receipts'].pop(),
+            lambda p: p['adoption_receipts'].reverse(),
+            lambda p: p['adoption_receipts'][1].update(reference=p['adoption_receipts'][0]['reference']),
+            lambda p: p['receipt_binding'].update(nonce='cd' * 32),
+            lambda p: p['adopted'].update(grants=['grant-02']),
+            lambda p: p.update(adopted=dict(p['adopted'], grants=['grant-02']),
+                               selected=dict(p['selected'], grants=['grant-02'])),
+            lambda p: p['adoption_receipts'][-1].update(wave='api'),
+        ]
+        for case, mutate in enumerate(mutations):
+            value, request, _, _ = fixture(3, noop=True)
+            mutate(value)
+            with self.subTest(case=case), self.assertRaises((ValueError, KeyError)):
+                gate.verify_chain(value, dummy_catalog(), request=request)
+
+    def test_fresh_runtime_noop_receipt_cannot_replace_authentic_history_root(self):
+        value, request, responses, _ = fixture(1, noop=True)
+        root = dummy_receipt(wave='noop', count=13)
+        fake = GitHubFixture(root)
+        value['history_receipt'] = fake.ref
+        responses.update(fake.responses)
+        with self.assertRaises(ValueError):
+            gate.verify_chain(value, dummy_catalog(), request=request)
 
     def test_history_reference_plan_only_wrong_scope_and_nonce_rejected(self):
         for mutate in [lambda p: p.update(schema_version=1),

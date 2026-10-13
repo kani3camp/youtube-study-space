@@ -108,9 +108,11 @@ def malformed_containers(source):
 
 
 class WaveFixture:
-    def __init__(self, index=0, *, previous=None):
+    def __init__(self, index=0, *, previous=None, noop=False):
         self.index = index
-        self.plan, self.metadata, self.packet = fixture(index)
+        # A noop after this stage must have a different run from its adoption.
+        self.run_id = 201 + index + int(noop)
+        self.plan, self.metadata, self.packet = fixture(index, noop=noop)
         now = datetime.now(timezone.utc)
         self.packet.pop('history_post_noop_run_id')
         self.packet.update(schema_version=2, receipt_binding=dummy_binding(), adoption_receipts=[],
@@ -123,14 +125,14 @@ class WaveFixture:
             runtime_wif_grant_keys=chosen['grants'], owned_api_keys=chosen['apis'])
         self.old = full_state(self.plan, graph.identities(candidate))
         self.new = full_state(self.plan)
-        self.new['serial'] = self.old['serial'] + int(index != 5)
+        self.new['serial'] = self.old['serial'] + int(p['wave'] != 'noop')
         if previous is None:
             # Shape/authenticated dummy root is explicit, never actual adoption proof.
             baseline = full_state(self.plan, {})
             history = dummy_receipt()
             history['state_after_commitment'] = receipt.state_commitment(p['receipt_binding'], baseline)
             self.fakes = [GitHubFixture(history)]
-            for step, (wave, _, selected) in enumerate(stages()[:index]):
+            for step, (wave, _, selected) in enumerate(stages()[:index + int(noop)]):
                 prior = self.fakes[-1].value
                 current = dummy_receipt(run_id=201+step, wave=wave, count=12+step+1,
                     scope=receipt.commitment(p['receipt_binding'], provenance.scope(p['receipt_binding'], preparer.prepare(p['inventory']), selected)),
@@ -148,7 +150,7 @@ class WaveFixture:
         # Chain test chooses actual state carried by preceding runtime emitter.
         if previous is not None and len(previous)>1:
             self.old['serial'] = 27 + index
-            self.new['serial'] = self.old['serial'] + int(index != 5)
+            self.new['serial'] = self.old['serial'] + int(p['wave'] != 'noop')
         self.aws = FakeS3()
         self.aws.body = json.dumps(self.old).encode()
         self.metadata_calls = []
@@ -201,7 +203,7 @@ class WaveFixture:
     def stage(self, root, *, job='apply', mode=None, expected=None):
         root = Path(root)
         p = self.packet
-        env = dummy_context() | dict(RUNNER_TEMP=str(root), GITHUB_JOB=job, GITHUB_RUN_ID=str(201+self.index),
+        env = dummy_context() | dict(RUNNER_TEMP=str(root), GITHUB_JOB=job, GITHUB_RUN_ID=str(self.run_id),
             MODE=mode or ('apply' if job=='apply' else 'plan'), OWNERSHIP_WAVE=p['wave'], HISTORY_POST_NOOP='false',
             STATE_ACCOUNT_ID='111111111111', STATE_BUCKET='dummy-state-bucket', STATE_KEY=private.STATE_KEY,
             STATE_AWS_REGION='ap-northeast-1', AWS_MAX_ATTEMPTS='1', AWS_RETRY_MODE='standard', TF_WORKSPACE='default',
@@ -358,6 +360,148 @@ class RuntimeExecutionTest(unittest.TestCase):
                     if index<5:
                         previous=f.fakes+[GitHubFixture(machine,minute=5*(index+1))]
                 self.assertTrue(all(call[:2] in {('s3api','head-object'),('s3api','get-object'),('s3api','list-objects-v2')} for call in f.aws.calls))
+
+    def test_each_partial_noop_uses_authentic_proof_fresh_full_state_and_zero_delta(self):
+        for index in range(5):
+            for job in ['plan', 'apply']:
+                with self.subTest(index=index, job=job), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory, job=job)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        f.begin(env)
+                        summary = f.approve(env)
+                        self.assertEqual(summary['counts']['import'], 0)
+                        self.assertEqual(summary['counts']['no-op'], 13 + index)
+                        self.assertEqual(f.old, f.new)
+                        if job == 'plan':
+                            env.update(BACKEND_INIT_OUTCOME='success', TERRAFORM_PLAN_OUTCOME='success',
+                                       PLAN_VALIDATION_OUTCOME='success')
+                            runtime.after(env, request=f.aws, metadata_request=f.google)
+                            self.assertFalse((Path(directory) / runtime.RECORD).exists())
+                        else:
+                            f.seal(env)
+                            f.finish(env)
+                            with patch('sys.stdout', io.StringIO()) as out:
+                                receipt.emit_runtime(env)
+                            machine = receipt.decode(out.getvalue()[len(receipt.MARKER):])
+                            emitted = GitHubFixture(machine, minute=5 * (index + 2))
+                            self.assertEqual(receipt.authenticate(emitted.ref, dummy_catalog(), request=emitted)[0], machine)
+                            self.assertEqual(machine['wave'], 'noop')
+                            self.assertEqual(machine['resource_count'], 13 + index)
+                            self.assertEqual(machine['import_before_count'], 0)
+                            self.assertEqual(machine['prior_state_commitment'], machine['state_after_commitment'])
+                            self.assertEqual(machine['prior_scope_commitment'], machine['scope_commitment'])
+                            self.assertEqual(len(f.packet['adoption_receipts']), index + 1)
+                        self.assertTrue(private.private_json(Path(directory) / 'runtime-execution-after.json')['checks']['state'])
+                    self.assertTrue(all(call[:2] in {('s3api', 'head-object'), ('s3api', 'get-object'),
+                                                   ('s3api', 'list-objects-v2')} for call in f.aws.calls))
+
+    def test_partial_noop_rejects_fresh_state_scope_and_zero_delta_mismatches(self):
+        for index in range(5):
+            for point in ['before', 'post']:
+                with self.subTest(index=index, point=point), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        if point == 'before':
+                            # Graph is valid but the predecessor's exact state
+                            # commitment cannot attest a different serial.
+                            changed = copy.deepcopy(f.old)
+                            changed['serial'] += 1
+                            f.aws.body = json.dumps(changed).encode()
+                            with self.assertRaises(ValueError):
+                                f.begin(env)
+                            self.assertFalse((Path(directory) / runtime.BEFORE).exists())
+                        else:
+                            f.begin(env)
+                            f.approve(env)
+                            f.seal(env)
+                            f.new['serial'] += 1
+                            with self.assertRaises(ValueError):
+                                f.finish(env)
+                        self.assertFalse((Path(directory) / runtime.RECORD).exists())
+
+    def test_each_partial_noop_rejects_equal_data_with_changed_bytes_or_storage_headers(self):
+        cases = ['whitespace', 'key-order', 'indentation', 'version', 'etag', 'metadata',
+                 'encryption', 'format-and-version']
+        for index in range(5):
+            for case in cases:
+                with self.subTest(index=index, case=case), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory)
+                    root = Path(directory)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        f.begin(env); f.approve(env); f.seal(env)
+                        f.approve(env, phase='post')
+                        env.update(APPLY_OUTCOME='success', POST_PLAN_OUTCOME='success', POST_PLAN_EXIT_CODE='0')
+                        old_raw = private.private_bytes(root / 'runtime-state-before.json')
+                        raw = old_raw
+                        if case == 'whitespace':
+                            raw = old_raw.replace(b': ', b':\t', 1)
+                        elif case == 'key-order':
+                            raw = json.dumps(dict(reversed(list(f.old.items())))).encode()
+                        elif case in ['indentation', 'format-and-version']:
+                            raw = json.dumps(f.old, indent=2).encode()
+                        if case in ['version', 'format-and-version']:
+                            f.aws.version = 'DUMMY_CHANGED_VERSION'
+                        elif case == 'etag':
+                            f.aws.overrides = {operation: {'ETag': '"dummy-changed-etag"'}
+                                               for operation in ['head-object', 'get-object']}
+                        elif case == 'metadata':
+                            f.aws.overrides = {'head-object': {'Metadata': {'dummy': 'DUMMY_PRIVATE_HEADER'}}}
+                        elif case == 'encryption':
+                            f.aws.overrides = {'head-object': {'ServerSideEncryption': 'aws:kms'}}
+                        self.assertEqual(private.decode(raw), private.decode(old_raw))
+                        if case in ['whitespace', 'key-order']:
+                            self.assertNotEqual(raw, old_raw)
+                            self.assertEqual(len(raw), len(old_raw))
+                        f.aws.body = raw
+                        f.aws.calls.clear(); f.metadata_calls.clear()
+                        with self.assertRaises(ValueError):
+                            runtime.after(env, request=f.aws, metadata_request=f.google)
+                        observed = private.private_json(root / 'runtime-execution-after.json')
+                        self.assertEqual(observed['checks'], dict(state=False, metadata=True, lock=True, workspace=True))
+                        self.assertEqual(observed['observed_reads'], dict(state=7, metadata=7))
+                        self.assertTrue(any(':getIamPolicy' in path for _, path in f.metadata_calls))
+                        self.assertTrue(any(host == 'bigquery.googleapis.com' for host, _ in f.metadata_calls))
+                        self.assertEqual([call[call.index('--prefix') + 1] for call in f.aws.calls[-2:]],
+                                         [private.STATE_KEY + '.tflock', private.STATE_KEY.rsplit('/', 1)[0] + '/workspaces/'])
+                        self.assertFalse((root / runtime.RECORD).exists())
+                        with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception):
+                            receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
+                        self.assertEqual(out.getvalue(), '')
+                        self.assertFalse((root / receipt.PUBLIC_DIRECTORY).exists())
+                        public = (root / 'summary').read_text()
+                        self.assertIn('state=STOP', public)
+                        for sentinel in ['DUMMY_PRIVATE_HEADER', 'DUMMY_CHANGED_VERSION', 'dummy-changed-etag']:
+                            self.assertNotIn(sentinel, public)
+                    self.assertTrue(all(call[:2] in {('s3api', 'head-object'), ('s3api', 'get-object'),
+                                                   ('s3api', 'list-objects-v2')} for call in f.aws.calls))
+
+    def test_noop_emitter_rechecks_raw_bytes_even_with_matching_canonical_success_record(self):
+        for index in range(5):
+            for case in ['whitespace', 'key-order']:
+                with self.subTest(index=index, case=case), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory)
+                    root = Path(directory)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        f.begin(env); f.approve(env); f.seal(env); f.finish(env)
+                        record = private.private_json(root / runtime.RECORD)
+                        target = root / 'runtime-state-after.json'
+                        old_raw = private.private_bytes(target)
+                        changed = (old_raw.replace(b': ', b':\t', 1) if case == 'whitespace'
+                                   else json.dumps(dict(reversed(list(f.new.items())))).encode())
+                        self.assertNotEqual(changed, old_raw)
+                        target.write_bytes(changed)
+                        # A canonical HMAC cannot detect representation changes;
+                        # an old success record alone must never publish them.
+                        self.assertEqual(record['state_after_commitment'],
+                                         receipt.state_commitment(f.packet['receipt_binding'], private.decode(changed)))
+                        with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(ValueError):
+                            receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
+                        self.assertEqual(out.getvalue(), '')
+                        self.assertFalse((root / receipt.PUBLIC_DIRECTORY).exists())
 
     def test_full_state_same_count_identity_trust_api_checks_schema_deposed_denied(self):
         f=WaveFixture(5)
