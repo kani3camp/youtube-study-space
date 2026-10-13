@@ -424,13 +424,15 @@ countだけ、historical JSON、run ID、post-import plan-job summaryはexecutio
 | plan handoff | Same SHA/packet/nonce/backend/history inputs/runtime vars/existing private environment inputsのHMAC commitmentだけを既存job outputsで渡す。plan jobはstate/version・metadata不変と実init/plan/validation outcomesを確認 |
 | apply preapply | 独立apply Environment approval後に同packetを再staging/authenticate。既存same-SHA full-root replan/projection equality、fresh state/version・metadataの再一致、exclusive0600 binary/input/summary seal |
 | apply | 保存済planのsealを直前再確認。pool → provider → individual grant1件ずつ → explicit Own API1件ずつ。import-only/global mutation guardsを保持し、native lockを省略しない |
-| post / emitter | import0/all-noop、fresh selected full-state、以前の各instance/container/outputs/checks不変、lineage/version不変・serial増加（既存state-only契約の `>`、+1と推測しない）、full metadata/inventory不変、lock/workspace absence。noop waveはfull state不変。実apply/post outcome成功とpost exit0の後だけmachine receiptを作る |
+| post / emitter | import0/all-noop、fresh selected full-state、以前の各instance/container/outputs/checks不変、lineage/version不変・serial増加（既存state-only契約の `>`、+1と推測しない）、full metadata/inventory不変、lock/workspace absence。noop waveはraw state bytesとS3 HEAD応答（VersionId/ETag/length/metadata等）がbeforeと完全一致。実apply/post outcome成功とpost exit0の後だけmachine receiptを作る |
 
 baseline/runtime の射影前に全 resource container の envelope・managed/google provider・非空 instances・
 `(module,type,name)` の一意性と各 instance の schema/index/address を検証する。空の未知 container、
 同一 grant container の分割、重複 instance は、flatten 後の件数や HMAC が一致しても STOP。
 第二 grant/API の追加は既存の一意 container 内へ1 instanceを追加できるが、以前の header/membership は保持する。
 emitter も保存済み before/post full-state と差分を再検証し、誤った旧 success record の matching commitment を発行根拠にしない。
+noop emitterは保存済みraw bytesも再比較する。canonical state HMACやdecoded JSONの一致だけではformat/key order変更を検出できないため、
+同じ意味のstateでもbytesやstorage headerが変わればSTOPし、独立safety observationsを続けてsuccess receiptを発行しない。
 
 fresh metadataは既存read interfaces（project GET、exact pool/provider GET、`:listAttestationRules`、
 SA `getIamPolicy` requestedPolicyVersion3、enabled services list、canonical table GET）で取得する。
@@ -479,7 +481,7 @@ exceptional modeからruntime tfvarsを省略する経路も使わず、部分�
 3. SHA／期限／nonce／backend／history metadataを結び、認証前に0600／exclusiveのprivate stagingとGitHub provenance検証を行う。
    両jobのpacket／tfvars、fresh complete-state／metadata、最後の採用receiptのstate commitmentを一致させる。
 4. full-rootのpre／postはimport0／全resource no-op。既存saved-plan sealとfresh state／metadata／lock／workspace検証を維持し、
-   `noop`ではfull stateを不変として検証する。APIの新規採用は引き続き全required grantの先行採用を要求する。
+   `noop`ではfull stateのraw bytesと完全なS3 HEAD応答を不変として検証する。APIの新規採用は引き続き全required grantの先行採用を要求する。
 
 dummyで各段階のpacket→provenance→fresh state→plan／seal→post→public receipt／consumerを検証しても、実採用の証明にはならない。
 既存のfresh history no-opは元importのhistorical root receiptの代替ではない。元root receiptが欠落／取得不能なら

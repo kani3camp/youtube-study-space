@@ -421,6 +421,88 @@ class RuntimeExecutionTest(unittest.TestCase):
                                 f.finish(env)
                         self.assertFalse((Path(directory) / runtime.RECORD).exists())
 
+    def test_each_partial_noop_rejects_equal_data_with_changed_bytes_or_storage_headers(self):
+        cases = ['whitespace', 'key-order', 'indentation', 'version', 'etag', 'metadata',
+                 'encryption', 'format-and-version']
+        for index in range(5):
+            for case in cases:
+                with self.subTest(index=index, case=case), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory)
+                    root = Path(directory)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        f.begin(env); f.approve(env); f.seal(env)
+                        f.approve(env, phase='post')
+                        env.update(APPLY_OUTCOME='success', POST_PLAN_OUTCOME='success', POST_PLAN_EXIT_CODE='0')
+                        old_raw = private.private_bytes(root / 'runtime-state-before.json')
+                        raw = old_raw
+                        if case == 'whitespace':
+                            raw = old_raw.replace(b': ', b':\t', 1)
+                        elif case == 'key-order':
+                            raw = json.dumps(dict(reversed(list(f.old.items())))).encode()
+                        elif case in ['indentation', 'format-and-version']:
+                            raw = json.dumps(f.old, indent=2).encode()
+                        if case in ['version', 'format-and-version']:
+                            f.aws.version = 'DUMMY_CHANGED_VERSION'
+                        elif case == 'etag':
+                            f.aws.overrides = {operation: {'ETag': '"dummy-changed-etag"'}
+                                               for operation in ['head-object', 'get-object']}
+                        elif case == 'metadata':
+                            f.aws.overrides = {'head-object': {'Metadata': {'dummy': 'DUMMY_PRIVATE_HEADER'}}}
+                        elif case == 'encryption':
+                            f.aws.overrides = {'head-object': {'ServerSideEncryption': 'aws:kms'}}
+                        self.assertEqual(private.decode(raw), private.decode(old_raw))
+                        if case in ['whitespace', 'key-order']:
+                            self.assertNotEqual(raw, old_raw)
+                            self.assertEqual(len(raw), len(old_raw))
+                        f.aws.body = raw
+                        f.aws.calls.clear(); f.metadata_calls.clear()
+                        with self.assertRaises(ValueError):
+                            runtime.after(env, request=f.aws, metadata_request=f.google)
+                        observed = private.private_json(root / 'runtime-execution-after.json')
+                        self.assertEqual(observed['checks'], dict(state=False, metadata=True, lock=True, workspace=True))
+                        self.assertEqual(observed['observed_reads'], dict(state=7, metadata=7))
+                        self.assertTrue(any(':getIamPolicy' in path for _, path in f.metadata_calls))
+                        self.assertTrue(any(host == 'bigquery.googleapis.com' for host, _ in f.metadata_calls))
+                        self.assertEqual([call[call.index('--prefix') + 1] for call in f.aws.calls[-2:]],
+                                         [private.STATE_KEY + '.tflock', private.STATE_KEY.rsplit('/', 1)[0] + '/workspaces/'])
+                        self.assertFalse((root / runtime.RECORD).exists())
+                        with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(Exception):
+                            receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
+                        self.assertEqual(out.getvalue(), '')
+                        self.assertFalse((root / receipt.PUBLIC_DIRECTORY).exists())
+                        public = (root / 'summary').read_text()
+                        self.assertIn('state=STOP', public)
+                        for sentinel in ['DUMMY_PRIVATE_HEADER', 'DUMMY_CHANGED_VERSION', 'dummy-changed-etag']:
+                            self.assertNotIn(sentinel, public)
+                    self.assertTrue(all(call[:2] in {('s3api', 'head-object'), ('s3api', 'get-object'),
+                                                   ('s3api', 'list-objects-v2')} for call in f.aws.calls))
+
+    def test_noop_emitter_rechecks_raw_bytes_even_with_matching_canonical_success_record(self):
+        for index in range(5):
+            for case in ['whitespace', 'key-order']:
+                with self.subTest(index=index, case=case), tempfile.TemporaryDirectory() as directory:
+                    f = WaveFixture(index, noop=True)
+                    env, catalog = f.stage(directory)
+                    root = Path(directory)
+                    with patch.object(provenance, 'CATALOG', catalog):
+                        f.begin(env); f.approve(env); f.seal(env); f.finish(env)
+                        record = private.private_json(root / runtime.RECORD)
+                        target = root / 'runtime-state-after.json'
+                        old_raw = private.private_bytes(target)
+                        changed = (old_raw.replace(b': ', b':\t', 1) if case == 'whitespace'
+                                   else json.dumps(dict(reversed(list(f.new.items())))).encode())
+                        self.assertNotEqual(changed, old_raw)
+                        target.write_bytes(changed)
+                        # A canonical HMAC cannot detect representation changes;
+                        # an old success record alone must never publish them.
+                        self.assertEqual(record['state_after_commitment'],
+                                         receipt.state_commitment(f.packet['receipt_binding'], private.decode(changed)))
+                        with patch('sys.stdout', io.StringIO()) as out, self.assertRaises(ValueError):
+                            receipt.emit_runtime(env | dict(DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED='true'))
+                        self.assertEqual(out.getvalue(), '')
+                        self.assertFalse((root / receipt.PUBLIC_DIRECTORY).exists())
+
     def test_full_state_same_count_identity_trust_api_checks_schema_deposed_denied(self):
         f=WaveFixture(5)
         changes=[lambda s:s.update(serial=True),lambda s:s.update(lineage='bad'),lambda s:s.update(terraform_version='1.0.0'),

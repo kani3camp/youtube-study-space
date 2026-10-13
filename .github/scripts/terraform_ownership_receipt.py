@@ -509,9 +509,13 @@ def emit_runtime(env):
     require_fresh_inputs(env, packet)
     check_seal(env)
     value = validate_receipt(private_json(str(root / runtime_record)))
-    old = state_shape(private_bytes(root / "runtime-state-before.json"), packet, metadata, env, selection='adopted')
-    state = state_shape(private_bytes(root / "runtime-state-after.json"), packet, metadata, env, selection='selected')
+    old_raw = private_bytes(root / "runtime-state-before.json")
+    raw = private_bytes(root / "runtime-state-after.json")
+    old = state_shape(old_raw, packet, metadata, env, selection='adopted')
+    state = state_shape(raw, packet, metadata, env, selection='selected')
     state_delta(old, state, packet)
+    if packet['wave'] == 'noop':
+        need(raw == old_raw)
     need(value["source_sha"] == env["GITHUB_SHA"] and value["run_id"] == int(env["GITHUB_RUN_ID"])
          and value["wave"] == packet["wave"] and value["state_after_commitment"] == state_commitment(packet["receipt_binding"], state))
     if env.get("DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED") == "true":

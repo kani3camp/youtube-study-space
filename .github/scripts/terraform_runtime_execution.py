@@ -377,7 +377,8 @@ def after(env, *, request=None, metadata_request=None):
         new = state_shape(raw, packet, metadata, env, selection='selected' if applied else 'adopted')
         if applied:
             state_delta(state_shape(old_raw, packet, metadata, env, selection='adopted'), new, packet)
-        else:
+        if not applied or packet['wave'] == 'noop':
+            # Canonical state equality does not prove unchanged bytes/storage.
             receipt.need(head == saved['head'] and raw == old_raw)
         checks['state'] = checks['lock'] = checks['workspace'] = True
     except Exception:
