@@ -69,7 +69,7 @@ def planned_values(plan):
              values=copy.deepcopy(r['change']['after'])) for r in plan['resource_changes']]}}
 
 
-def fixture(index=0, phase='before'):
+def fixture(index=0, phase='before', *, noop=False):
     history = history_tests.UserActivityHistoryPlanTest()
     history.setUp()
     plan, metadata = history.fixture(False)
@@ -80,6 +80,8 @@ def fixture(index=0, phase='before'):
         r['change'].setdefault('after', {})
         r.setdefault('type', re.search(r'(google_[a-z_]+)\.', r['address']).group(1))
     p = packet(index)
+    if noop:
+        p.update(wave='noop', adopted=copy.deepcopy(p['selected']))
     old, new = p['adopted'], p['selected']
     inv = p['inventory']
     pool_id = f'projects/{PROJECT}/locations/global/workloadIdentityPools/aws-runtime'
@@ -143,6 +145,57 @@ class PackageContracts(unittest.TestCase):
                     self.assertEqual(result['counts']['import'], int(phase == 'before' and index < 5))
                     self.assertNotIn('dummy private sentinel', json.dumps(result))
                     self.assertNotIn('222222222222', json.dumps(result))
+
+    def test_noop_accepts_each_nonempty_adopted_stage_without_imports(self):
+        for index, count in enumerate([13, 14, 15, 16, 17]):
+            for phase in ['before', 'post']:
+                with self.subTest(index=index, phase=phase):
+                    plan, metadata, p = fixture(index, phase, noop=True)
+                    result = self.review(plan, metadata, p, phase)
+                    self.assertEqual(p['selected'], p['adopted'])
+                    self.assertEqual(result['counts']['no-op'], count)
+                    self.assertEqual(result['counts']['import'], 0)
+
+    def test_noop_rejects_empty_invalid_duplicate_or_changed_selection(self):
+        mutations = [
+            lambda p: p.update(adopted=selection(), selected=selection()),
+            lambda p: p['selected'].update(grants=[]),
+            lambda p: p['selected'].update(grants=['grant-01', 'grant-02']),
+            lambda p: p['selected'].update(grants=['grant-02']),
+            lambda p: p['selected'].update(grants=['grant-01', 'grant-01']),
+            lambda p: p['selected'].update(pool=False),
+            lambda p: p['selected'].update(apis=['pubsub.googleapis.com']),
+        ]
+        for index, mutate in enumerate(mutations):
+            _, _, p = fixture(2, noop=True)
+            mutate(p)
+            with self.subTest(case=index), self.assertRaises(ValueError):
+                packet_module.validate_packet(p, wave='noop', git_sha=SHA, now=NOW)
+
+    def test_api_adoption_still_requires_provider_and_all_required_grants(self):
+        for index in range(3):
+            _, _, p = fixture(index, noop=True)
+            p.update(wave='api', selected=dict(p['selected'], apis=['pubsub.googleapis.com']))
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                packet_module.validate_packet(p, wave='api', git_sha=SHA, now=NOW)
+
+    def test_partial_noop_rejects_imports_actions_and_mismatched_complete_graphs(self):
+        mutations = [
+            lambda plan: plan['resource_changes'][-1]['change'].update(importing={'id': 'dummy'}),
+            lambda plan: plan['resource_changes'][-1]['change'].update(actions=['create']),
+            lambda plan: plan['resource_changes'].pop(),
+            lambda plan: plan['resource_changes'].append(copy.deepcopy(plan['resource_changes'][-1])),
+            lambda plan: plan['resource_changes'][12]['change']['after'].update(name='dummy swapped pool'),
+            lambda plan: plan['resource_changes'].append(dict(copy.deepcopy(plan['resource_changes'][-1]),
+                address='module.unapproved.google_project_service.owned["dummy.googleapis.com"]')),
+        ]
+        for index in range(5):
+            for case, mutate in enumerate(mutations):
+                plan, metadata, p = fixture(index, noop=True)
+                mutate(plan)
+                planned_values(plan)
+                with self.subTest(index=index, case=case), self.assertRaises(ValueError):
+                    self.review(plan, metadata, p)
 
     def test_selection_rejects_skips_shrinks_batches_unknown_or_unreviewed_apis(self):
         changes = [
@@ -342,7 +395,9 @@ class WorkflowContracts(unittest.TestCase):
         env.update(overrides)
         with tempfile.TemporaryDirectory() as directory:
             env['GITHUB_OUTPUT'] = str(Path(directory) / 'output')
-            return subprocess.run(['bash', '-c', textwrap.dedent(script)], env=env, capture_output=True, text=True)
+            result = subprocess.run(['bash', '-c', textwrap.dedent(script)], env=env, capture_output=True, text=True)
+            result.outputs = Path(env['GITHUB_OUTPUT']).read_text() if Path(env['GITHUB_OUTPUT']).exists() else ''
+            return result
 
     def test_new_live_gates_closed_before_any_auth_all_selections(self):
         for wave in ['pool', 'provider', 'grant', 'api', 'noop']:
@@ -350,6 +405,31 @@ class WorkflowContracts(unittest.TestCase):
                 self.assertNotEqual(self.preflight(OWNERSHIP_WAVE=wave).returncode, 0)
                 self.assertNotEqual(self.preflight(OWNERSHIP_WAVE=wave, DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true').returncode, 0)
         self.assertEqual(self.preflight(OWNERSHIP_WAVE='none').returncode, 0)
+
+    def test_none_preserves_baseline_and_history_routes_only_while_runtime_is_disabled(self):
+        for managed in ['false', 'true']:
+            for mode in ['plan', 'apply']:
+                with self.subTest(managed=managed, mode=mode):
+                    result = self.preflight(OWNERSHIP_WAVE='none', MODE=mode,
+                        DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=managed)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.preflight(OWNERSHIP_WAVE='none', HISTORY_POST_NOOP='true').returncode, 0)
+
+    def test_activated_runtime_none_stops_preflight_before_credential_jobs(self):
+        for ready in ['false', 'true']:
+            for mode, history_noop in [('plan', 'false'), ('apply', 'false'), ('plan', 'true')]:
+                with self.subTest(ready=ready, mode=mode, history_noop=history_noop):
+                    result = self.preflight(OWNERSHIP_WAVE='none', MODE=mode, HISTORY_POST_NOOP=history_noop,
+                        DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY=ready)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('ownership_wave=noop', result.stdout)
+                    self.assertEqual(result.outputs, '')
+        for section in [self.text.split('  plan:\n', 1)[1].split('  apply:\n', 1)[0],
+                        self.text.split('  apply:\n', 1)[1]]:
+            self.assertIn('needs:', section.split('    steps:\n', 1)[0])
+            self.assertIn('preflight', section.split('    steps:\n', 1)[0])
+            self.assertIn('Configure AWS backend credential', section)
+            self.assertIn('Configure GCP provider credential', section)
 
     def test_test_only_activation_still_rejects_apply_prod_probes_exceptions_and_missing_history(self):
         activated = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true',

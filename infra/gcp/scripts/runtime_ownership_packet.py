@@ -79,7 +79,7 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
             selection(item["selected"], candidate)
         ids = [packet["history_receipt"]["run_id"]] + [i["reference"]["run_id"] for i in chain]
         require(len(ids) == len(set(ids)))
-    # Preserve all previously adopted flags and keys; exactly one new object.
+    # Preserve all adopted flags and keys; adoption adds one object, noop none.
     require(not old["pool"] or new["pool"])
     require(not old["provider"] or new["provider"])
     require(set(old["grants"]) <= set(new["grants"]) and set(old["apis"]) <= set(new["apis"]))
@@ -94,8 +94,12 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
         require(old["pool"] and not old["grants"] and not old["apis"])
     elif wave == "grant":
         require(old["provider"] and not old["apis"])
-    elif wave in {"api", "noop"}:
+    elif wave == "api":
         require(old["provider"] and set(old["grants"]) == set(candidate["runtime_wif_inventory"]["grants"]))
+    elif wave == "noop":
+        # Every valid nonempty runtime selection includes the pool. The same
+        # authenticated adoption chain and fresh full-state checks still apply.
+        require(old["pool"])
     candidate.update(own_runtime_wif_pool=new["pool"], own_runtime_wif_provider=new["provider"],
                      runtime_wif_grant_keys=sorted(new["grants"]), owned_api_keys=sorted(new["apis"]))
     return candidate

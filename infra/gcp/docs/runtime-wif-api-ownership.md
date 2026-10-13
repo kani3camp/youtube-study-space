@@ -276,13 +276,15 @@ PR #1274 のoffline legacy v1 schema（後続protected stagingでは拒否、実
 | `history_post_noop_run_id` | 正のinteger、実history import/post-noop12の独立review参照 |
 | `inventory` | 上記helperのfresh REST inventory envelope、完全page・既存trust/member・分類を保持 |
 | `adopted` | 前waveの実stateとpost-noopをreviewした累積selection |
-| `selected` | 前selectionを保持し、今回の承認済み対象を1件だけ追加したselection |
+| `selected` | 前selectionを保持し、採用waveは承認済み対象を1件追加、`noop` は追加0件のselection |
 
 両selectionのkeyは `pool` / `provider` (bool)、`grants` / `apis` (重複なしstring list) の4件のみ。
 pool→provider→review済みgrantを1件ずつ→review済みOwn APIを1件ずつ。
 API waveはinventoryでreview済みのrequired grant selectionをすべて先行採用した場合のみ許可し、候補を自動選択しない。
 APIのdependency_addressesは今回のexact managed graphの既存addressへ解決済みであることを要求する。
-`noop` は同じ累積selectionを保持する。10 source候補とenabled inventory73は承認selectionではなく、件数/実scopeをcodeで補完しない。
+`noop` は空でない同じ累積selectionを保持する。poolのみ、pool＋provider、grantの部分採用、全required grant、API採用後の各段階で使える。
+providerや全required grantを`noop`のために追加しない。API採用の全required grant prerequisiteは維持する。
+10 source候補とenabled inventory73は承認selectionではなく、件数/実scopeをcodeで補完しない。
 review日時・run ID・adopted宣言のshape検査は実provenance/authorizationの証明ではない。独立reviewと実receiptが別途必要。
 
 `validate_runtime_ownership_plan.py` は既存history validatorへbaseline12を渡して **post/import0** を要求する。
@@ -455,3 +457,30 @@ historyは未import。ownerのexecution approval後の**初回history import**�
 source integration/reviewはactivation承認ではなく、final issuer SHA/CI、actual workflow/job/Environment/reviewer pinsとprotection/artifact
 interface、private nonce/backend/history binding、actual scope/CI exact reads、実history import/postnoop12・ordered runtime receipts・
 final dev noop/owner merge判断が必要。既存security probe証拠は再利用し、追加live probe/query/DDL/deployを自動要求しない。
+
+## 2026-10-13 部分採用の proof-bound no-op（source-only）
+
+PR #1289後の専用branch `82b363eaf19207162b090cee6bd647e9a0e26779` をbaseとする。
+上記の過去packageのgate／実行状況は当時の記録であり、現在のgate値の正本はauthenticated workflow。
+この変更はgate値、空issuer catalog、receipt schema／commitment、権限、Environment、運用承認を変更しない。
+`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false` と `DEV_HISTORY_POST_NOOP12_READY=false` のまま、実runtime実行は準備段階に留める。
+
+runtime activation gateがfalseの間は、通常の `ownership_wave=none` とbaseline／history-only経路を維持する。
+developmentでruntime activation gateがtrueの場合、`none` はpreflightで認証前STOPする。独立history post-noop selectorや
+exceptional modeからruntime tfvarsを省略する経路も使わず、部分採用の確認は明示的な `ownership_wave=noop` を使う。
+従来のbaseline／history readerと`prevent_destroy`はfail-closedであり、このrouting gapを実削除が起きた証拠とは扱わない。
+
+将来のactivationと必要な運用承認後も、`noop`のprivate v2 packetは次をすべて満たす必要がある:
+
+1. `adopted` と `selected` は同じ空でない有効selection。poolのみ（baseline12＋1）、providerまで（＋2）、
+   一部grant、全required grant、採用済みAPIを保持し、新規import／resource、selectionの縮小／拡張を許可しない。
+2. authentic `history12` root receiptと、pool→provider→個別grant→APIのexact ordered adoption receiptsを保持する。
+   `noop` receiptをadoption chainの1件に追加しない。欠落、重複、順序不一致、scope／state commitment不一致はSTOP。
+3. SHA／期限／nonce／backend／history metadataを結び、認証前に0600／exclusiveのprivate stagingとGitHub provenance検証を行う。
+   両jobのpacket／tfvars、fresh complete-state／metadata、最後の採用receiptのstate commitmentを一致させる。
+4. full-rootのpre／postはimport0／全resource no-op。既存saved-plan sealとfresh state／metadata／lock／workspace検証を維持し、
+   `noop`ではfull stateを不変として検証する。APIの新規採用は引き続き全required grantの先行採用を要求する。
+
+dummyで各段階のpacket→provenance→fresh state→plan／seal→post→public receipt／consumerを検証しても、実採用の証明にはならない。
+既存のfresh history no-opは元importのhistorical root receiptの代替ではない。元root receiptが欠落／取得不能なら
+この経路もSTOPし、recovery-rootの代替契約を追加せず、元importの再実行やauthenticated dispatchを行わない。

@@ -195,6 +195,9 @@ jobs:
               echo "::error::Runtime apply receipt emission/publication is disabled."
               exit 1
             fi
+          elif [[ "${TARGET}" == "dev" && "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" ]]; then
+            echo "::error::Runtime activation requires an explicit ownership selection; use ownership_wave=noop with authenticated history/adoption receipts and the unchanged adopted selection."
+            exit 1
           fi
           case "${TARGET}" in
             dev)
