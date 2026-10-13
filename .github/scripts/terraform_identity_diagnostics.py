@@ -8,6 +8,7 @@ STAGES = frozenset({
     "history-policy", "history-head",
     "history-get", "history-re-head", "history-lock-list",
     "history-workspace-list", "identity-mode", "identity-output", "gcp-plan-service-account-target",
+    "history-import-state-capture", "history-import-state-delta",
 })
 CATEGORIES = frozenset({"check-failed", "invalid-evidence", "dependency-error"})
 RECEIPT_REASONS = frozenset({

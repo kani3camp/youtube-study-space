@@ -3,6 +3,7 @@
 import copy
 from datetime import datetime, timedelta, timezone
 import hashlib
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -223,6 +224,251 @@ class ImportVerifierTest(unittest.TestCase):
                     with self.assertRaises(Exception):
                         gate.post(child.env, request=child.aws, metadata_request=child.google)
                     self.assertNotIn("DUMMY_STATE_PAYLOAD", (child.root / "summary").read_text())
+                finally:
+                    child.doCleanups()
+
+
+class CheckOrderTest(unittest.TestCase):
+    def setUp(self):
+        self.case = ImportVerifierTest()
+        self.case.setUp()
+        self.addCleanup(self.case.doCleanups)
+        # Every post path below injects public dummy interfaces. A missed
+        # injection must never fall back to the real cloud helpers.
+        self.enterContext(patch.object(receipt, "aws", side_effect=AssertionError("no real AWS calls")))
+        self.enterContext(patch.object(gate, "google", side_effect=AssertionError("no real GCP calls")))
+
+    def state(self, *, imported=False):
+        state = self.case.imported_state() if imported else state_fixtures.state_fixture()
+        from terraform_quota_create_gate import ADDRESSES
+        state["check_results"].append({
+            "object_kind": "resource", "config_addr": "module.youtube_quota_alerts.google_monitoring_alert_policy.quota",
+            "status": "pass", "objects": [{"object_addr": address, "status": "pass", "failure_messages": []}
+                                           for address in sorted(ADDRESSES)]})
+        return state
+
+    def run_post_cli(self, before, after):
+        self.case.aws.body = json.dumps(before).encode()
+        self.case.before()
+        self.case.preapply()
+        self.case.aws.body = after if type(after) is bytes else json.dumps(after).encode()
+        original = gate.post
+        with patch.dict(os.environ, self.case.env, clear=True), patch("sys.argv", ["history", "--phase", "post"]), \
+             patch.object(gate, "post", side_effect=lambda env: original(
+                 env, request=self.case.aws, metadata_request=self.case.google)), \
+             patch("sys.stdout", StringIO()) as out, patch("sys.stderr", StringIO()) as err:
+            result = gate.main()
+        summary = (self.case.root / "summary").read_text()
+        public = out.getvalue() + err.getvalue() + summary
+        binding = json.loads(self.case.env["RUNTIME_OWNERSHIP_PACKET_JSON"])["receipt_binding"]
+        for private in ("DUMMY_PRIVATE_SENTINEL", "DUMMY_NETWORK_PRIVATE_ERROR", "DUMMY_TOKEN", "DUMMY_ETAG",
+                        "DUMMY_STATE_PAYLOAD", "111111111111", "dummy-state-bucket", binding["nonce"], str(self.case.root)):
+            self.assertNotIn(private, public)
+        self.assertNotIn(gate.ownership.MARKER, public)
+        self.assertTrue(all(call[:2] in {("s3api", "head-object"), ("s3api", "get-object"),
+                                       ("s3api", "list-objects-v2")} for call in self.case.aws.calls))
+        return result, public
+
+    def assert_reorder(self, *, outer=False, nested=False):
+        before, after = self.state(), self.state(imported=True)
+        if nested:
+            for check in after["check_results"]:
+                if type(check["objects"]) is list:
+                    check["objects"].reverse()
+        if outer:
+            after["check_results"].reverse()
+        existing_before = [check for check in before["check_results"]
+                           if not check["config_addr"].startswith("module.user_activity_history.")]
+        existing_after = [check for check in after["check_results"]
+                          if not check["config_addr"].startswith("module.user_activity_history.")]
+        self.assertNotEqual(existing_before, existing_after)
+        gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), self.case.metadata)
+        result, public = self.run_post_cli(before, after)
+        self.assertEqual(result, 0, public)
+        self.assertIn("state=imported; metadata=PASS; volatile=unchanged; lock=absent", public)
+        machine = receipt.private_json(str(self.case.root / gate.ownership.RECORD))
+        self.assertEqual(gate.ownership.validate_receipt(machine), machine)
+        binding = json.loads(self.case.env["RUNTIME_OWNERSHIP_PACKET_JSON"])["receipt_binding"]
+        # Receipt schema and commitment still bind the observed state, including
+        # its original list order; normalization is confined to the delta guard.
+        self.assertEqual(machine["state_after_commitment"], gate.ownership.state_commitment(binding, after))
+        self.assertEqual(machine["accounting"]["post_state_reads"], 4)
+        self.assertEqual(machine["accounting"]["post_metadata_reads"], 1)
+
+    def test_outer_check_reorder_passes_delta_and_actual_post(self):
+        self.assert_reorder(outer=True)
+
+    def test_nested_object_reorder_passes_delta_and_actual_post(self):
+        self.assert_reorder(nested=True)
+
+    def test_both_reorders_pass_delta_and_actual_post(self):
+        self.assert_reorder(outer=True, nested=True)
+
+    def mutations(self):
+        def aggregate(state):
+            return state["check_results"][-1]
+        def obj(state):
+            return aggregate(state)["objects"][0]
+        known_added = {"object_kind": "var", "config_addr": "var.region", "status": "pass",
+                       "objects": [{"object_addr": "var.region", "status": "pass"}]}
+        return {
+            "aggregate-fail": lambda s: aggregate(s).update(status="fail"),
+            "aggregate-unknown-status": lambda s: aggregate(s).update(status="unknown"),
+            "object-fail": lambda s: obj(s).update(status="fail"),
+            "object-unknown-status": lambda s: obj(s).update(status="unknown"),
+            "changed-message": lambda s: obj(s).update(failure_messages=["DUMMY_PRIVATE_SENTINEL"]),
+            "malformed-message": lambda s: obj(s).update(failure_messages="DUMMY_PRIVATE_SENTINEL"),
+            "removed-message-field": lambda s: obj(s).pop("failure_messages"),
+            "removed-object": lambda s: aggregate(s)["objects"].pop(),
+            "removed-aggregate": lambda s: s["check_results"].pop(),
+            "added-known-aggregate": lambda s: s["check_results"].append(copy.deepcopy(known_added)),
+            "duplicate-aggregate": lambda s: s["check_results"].append(copy.deepcopy(aggregate(s))),
+            "duplicate-object": lambda s: aggregate(s)["objects"].append(copy.deepcopy(obj(s))),
+            "unknown-aggregate-field": lambda s: aggregate(s).update(private_extra="DUMMY_PRIVATE_SENTINEL"),
+            "unknown-object-field": lambda s: obj(s).update(private_extra="DUMMY_PRIVATE_SENTINEL"),
+            "unknown-kind": lambda s: aggregate(s).update(object_kind="DUMMY_PRIVATE_SENTINEL"),
+            "unknown-config-address": lambda s: aggregate(s).update(config_addr="var.DUMMY_PRIVATE_SENTINEL"),
+            "unknown-object-address": lambda s: obj(s).update(object_addr="var.DUMMY_PRIVATE_SENTINEL"),
+            "foreign-resource-instance": lambda s: obj(s).update(
+                object_addr='module.youtube_quota_alerts.google_monitoring_alert_policy.quota["DUMMY_PRIVATE_SENTINEL"]'),
+            "missing-aggregate-field": lambda s: aggregate(s).pop("status"),
+            "missing-object-field": lambda s: obj(s).pop("status"),
+            "malformed-objects": lambda s: aggregate(s).update(objects={"DUMMY_PRIVATE_SENTINEL": True}),
+            "null-active-objects": lambda s: aggregate(s).update(objects=None),
+            "empty-active-objects": lambda s: aggregate(s).update(objects=[]),
+            "malformed-config-address": lambda s: aggregate(s).update(config_addr=[]),
+            "malformed-object-address": lambda s: obj(s).update(object_addr=[]),
+            "malformed-aggregate": lambda s: s["check_results"].append([]),
+            "malformed-object": lambda s: aggregate(s)["objects"].append([]),
+            "malformed-check-list": lambda s: s.update(check_results={"DUMMY_PRIVATE_SENTINEL": True}),
+        }
+
+    def test_check_mutations_fail_delta_and_actual_post_without_receipt_or_values(self):
+        for name, mutate in self.mutations().items():
+            with self.subTest(mutation=name):
+                child = CheckOrderTest()
+                child.setUp()
+                try:
+                    before, after = child.state(), child.state(imported=True)
+                    mutate(after)
+                    if type(after["check_results"]) is list:
+                        after["check_results"].reverse()
+                    with self.assertRaises(ValueError):
+                        gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), child.case.metadata)
+                    result, public = child.run_post_cli(before, after)
+                    self.assertEqual(result, 3)
+                    self.assertIn("stage=history-import-state-delta; category=invalid-evidence", public)
+                    self.assertIn("state=unknown; metadata=PASS; volatile=unchanged; lock=absent", public)
+                    self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+                    self.assertTrue((child.case.root / "history-import-table-after.json").exists())
+                finally:
+                    child.doCleanups()
+
+    def test_before_checks_are_strictly_validated_before_mapping(self):
+        # These mutants would match if both sides were mapped before validation.
+        cases = ("duplicate-aggregate", "duplicate-object", "unknown-aggregate-field", "unknown-object-field",
+                 "unknown-kind", "unknown-config-address", "unknown-object-address", "foreign-resource-instance",
+                 "malformed-objects", "malformed-message", "aggregate-fail", "object-fail")
+        mutations = self.mutations()
+        for name in cases:
+            with self.subTest(mutation=name):
+                before, after = self.state(), self.state(imported=True)
+                mutations[name](before)
+                mutations[name](after)
+                with self.assertRaises(receipt.ReceiptInvariantError):
+                    gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), self.case.metadata)
+
+    def test_history_checks_are_validated_before_exclusion(self):
+        for mutation in ("unknown-field", "unknown-address", "duplicate", "failed"):
+            with self.subTest(mutation=mutation):
+                before, after = self.state(), self.state(imported=True)
+                history = next(c for c in after["check_results"] if c["config_addr"].startswith(
+                    "module.user_activity_history.google_bigquery_table."))
+                if mutation == "unknown-field":
+                    history["private_extra"] = "DUMMY_PRIVATE_SENTINEL"
+                elif mutation == "unknown-address":
+                    history["objects"][0]["object_addr"] = "module.user_activity_history.DUMMY_PRIVATE_SENTINEL"
+                elif mutation == "duplicate":
+                    after["check_results"].append(copy.deepcopy(history))
+                else:
+                    history["status"] = "fail"
+                with self.assertRaises(receipt.ReceiptInvariantError):
+                    gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), self.case.metadata)
+
+    def test_added_valid_object_is_a_genuine_change(self):
+        before, after = self.state(), self.state(imported=True)
+        before["check_results"][-1]["objects"].pop()
+        receipt.state_shape(json.dumps(before).encode())
+        receipt.state_shape(json.dumps(after).encode(), imported=True)
+        with self.assertRaises(ValueError):
+            gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), self.case.metadata)
+        result, public = self.run_post_cli(before, after)
+        self.assertEqual(result, 3)
+        self.assertIn("stage=history-import-state-delta; category=invalid-evidence", public)
+        self.assertFalse((self.case.root / gate.ownership.RECORD).exists())
+
+    def test_reorder_preserves_resource_output_lineage_serial_and_schema_guards(self):
+        mutations = {
+            "resource-value": lambda s: s["resources"][0]["instances"][0]["attributes"].update(dummy="DUMMY_PRIVATE_SENTINEL"),
+            "missing-resource": lambda s: s["resources"].pop(0),
+            "duplicate-resource": lambda s: s["resources"].append(copy.deepcopy(s["resources"][0])),
+            "output-field": lambda s: s["outputs"]["project_id"].update(sensitive=False),
+            "lineage": lambda s: s.update(lineage="bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            "serial-unchanged": lambda s: s.update(serial=27),
+            "serial-decreased": lambda s: s.update(serial=26),
+            "terraform-version": lambda s: s.update(terraform_version="1.16.5"),
+            "schema": lambda s: s["resources"][-1]["instances"][0]["attributes"].update(schema="[]"),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(mutation=name):
+                child = CheckOrderTest()
+                child.setUp()
+                try:
+                    before, after = child.state(), child.state(imported=True)
+                    mutate(after)
+                    after["check_results"].reverse()
+                    for check in after["check_results"]:
+                        if type(check["objects"]) is list:
+                            check["objects"].reverse()
+                    with self.assertRaises(ValueError):
+                        gate.state_delta(json.dumps(before).encode(), json.dumps(after).encode(), child.case.metadata)
+                    result, public = child.run_post_cli(before, after)
+                    self.assertEqual(result, 3)
+                    self.assertIn("stage=history-import-state-delta; category=invalid-evidence", public)
+                    self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+                finally:
+                    child.doCleanups()
+
+    def test_capture_and_delta_failures_use_fixed_stages_and_suppress_exception_payloads(self):
+        for failure in ("capture", "delta", "duplicate-json"):
+            with self.subTest(failure=failure):
+                child = CheckOrderTest()
+                child.setUp()
+                try:
+                    before, after = child.state(), child.state(imported=True)
+                    if failure == "capture":
+                        # Inject the dependency failure after before/preapply reads.
+                        original = child.case.preapply
+                        def preapply():
+                            original()
+                            child.case.aws.network = True
+                        child.case.preapply = preapply
+                    elif failure == "delta":
+                        child.enterContext(patch.object(gate, "state_delta", side_effect=RuntimeError(
+                            "DUMMY_PRIVATE_SENTINEL " + str(child.case.root))))
+                    else:
+                        after = json.dumps(after).replace('"status": "pass"',
+                            '"status": "pass", "status": "DUMMY_PRIVATE_SENTINEL"', 1).encode()
+                    result, public = child.run_post_cli(before, after)
+                    self.assertEqual(result, 3)
+                    stage = "capture" if failure == "capture" else "delta"
+                    self.assertIn("stage=history-import-state-" + stage, public)
+                    if failure == "duplicate-json":
+                        self.assertIn("category=invalid-evidence; reason=json-duplicate", public)
+                    else:
+                        self.assertIn("category=dependency-error", public)
+                    self.assertFalse((child.case.root / gate.ownership.RECORD).exists())
+                    self.assertTrue((child.case.root / "history-import-table-after.json").exists())
                 finally:
                     child.doCleanups()
 
