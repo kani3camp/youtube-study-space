@@ -195,30 +195,31 @@ def capture(env, root, name, *, request=None):
 
 
 def metadata_snapshot(env, packet, *, request=None):
-    """Exact existing metadata GETs; no IAM permission probe or mutation."""
+    """Exact metadata reads; no IAM permission probe or mutation."""
     request = request or google
     errors = []
-    def get(host, path):
+    def read(host, path, **kwargs):
         try:
-            status, value = request(path, env['GCP_SMOKE_ACCESS_TOKEN'], host=host)
+            status, value = request(path, env['GCP_SMOKE_ACCESS_TOKEN'], host=host, **kwargs)
             receipt.need(status == 200 and type(value) is dict and len(receipt.canonical(value)) <= private.MAX_BYTES)
             return value
         except Exception:
             errors.append(True)
             return {}
-    table = get('bigquery.googleapis.com', private.TABLE_PATH)
+    table = read('bigquery.googleapis.com', private.TABLE_PATH)
     expected = packet['inventory']
-    project = get('cloudresourcemanager.googleapis.com', 'v1/projects/' + env['TF_VAR_project_id'])
+    project = read('cloudresourcemanager.googleapis.com', 'v1/projects/' + env['TF_VAR_project_id'])
     observed = copy.deepcopy(expected)
     observed['project'] = {key: project.get(key) for key in ('projectId', 'projectNumber')}
     pool = expected['pool']['name']
-    observed['pool'] = get('iam.googleapis.com', 'v1/' + pool)
-    observed['provider'] = get('iam.googleapis.com', 'v1/' + expected['provider']['name'])
-    observed['pool_attestation_rules'] = get('iam.googleapis.com', 'v1/' + pool + ':listAttestationRules')
-    observed['iam_policy'] = get('iam.googleapis.com', 'v1/' + expected['iam_policy_resource'] + ':getIamPolicy?options.requestedPolicyVersion=3')
+    observed['pool'] = read('iam.googleapis.com', 'v1/' + pool)
+    observed['provider'] = read('iam.googleapis.com', 'v1/' + expected['provider']['name'])
+    observed['pool_attestation_rules'] = read('iam.googleapis.com', 'v1/' + pool + ':listAttestationRules')
+    # IAM v1 serviceAccounts.getIamPolicy is POST with an empty body; options are query parameters.
+    observed['iam_policy'] = read('iam.googleapis.com', 'v1/' + expected['iam_policy_resource'] + ':getIamPolicy?options.requestedPolicyVersion=3', method='POST')
     services, token, seen = [], '', set()
     for _ in range(16):
-        page = get('serviceusage.googleapis.com', 'v1/projects/' + expected['project']['projectNumber'] + '/services?filter=state%3AENABLED&pageSize=200' +
+        page = read('serviceusage.googleapis.com', 'v1/projects/' + expected['project']['projectNumber'] + '/services?filter=state%3AENABLED&pageSize=200' +
                    ('&pageToken=' + quote(token, safe='') if token else ''))
         receipt.need(set(page) <= {'services', 'nextPageToken'} and type(page.get('services', [])) is list)
         services.extend(page.get('services', []))
@@ -345,6 +346,9 @@ def state_delta(old, new, packet):
     receipt.need(set(previous) < set(current) and len(current) == len(previous) + 1
                  and all(current[k] == v for k, v in previous.items()))
     added = set(current) - set(previous)
+    # The before/post paths validate both snapshots with state_shape before
+    # mapping: duplicate or malformed entries must never collapse into keys.
+    # Ignore array order only here; state bytes and receipt commitments stay exact.
     def preserved_checks(state):
         results = copy.deepcopy(state.get('check_results'))
         if results is None:
@@ -352,7 +356,9 @@ def state_delta(old, new, packet):
         for check in results:
             if check['object_kind'] == 'resource':
                 check['objects'] = [o for o in check['objects'] if o['object_addr'] not in added]
-        return [c for c in results if c['object_kind'] != 'resource' or c['objects']]
+        return {(c['object_kind'], c['config_addr']):
+                dict(c, objects={o['object_addr']: o for o in c['objects']} if c['objects'] is not None else None)
+                for c in results if c['object_kind'] != 'resource' or c['objects']}
     receipt.need(preserved_checks(new) == preserved_checks(old))
 
 
@@ -370,7 +376,7 @@ def after(env, *, request=None, metadata_request=None):
         head, raw = capture(env, root, 'runtime-state-after.json', request=state_read)
         new = state_shape(raw, packet, metadata, env, selection='selected' if applied else 'adopted')
         if applied:
-            state_delta(private.decode(old_raw), new, packet)
+            state_delta(state_shape(old_raw, packet, metadata, env, selection='adopted'), new, packet)
         else:
             receipt.need(head == saved['head'] and raw == old_raw)
         checks['state'] = checks['lock'] = checks['workspace'] = True

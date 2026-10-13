@@ -91,11 +91,13 @@ def verify_oidc(env: dict[str, str], *, plan_read_only: bool = False) -> list[st
     return checks + ["AWS wrong Environment AssumeRole denied"]
 
 
-def google(path: str, token: str, body: dict | None = None, *, host: str = "cloudresourcemanager.googleapis.com") -> tuple[int, dict]:
+def google(path: str, token: str, body: dict | None = None, *, host: str = "cloudresourcemanager.googleapis.com",
+           method: str | None = None) -> tuple[int, dict]:
     request = urllib.request.Request(
         f"https://{host}/{path}",
         data=json.dumps(body).encode() if body is not None else None,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method=method,
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
