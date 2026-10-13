@@ -12,7 +12,10 @@ import re
 import sys
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'infra/gcp/tests'))
@@ -149,15 +152,22 @@ class WaveFixture:
         self.aws = FakeS3()
         self.aws.body = json.dumps(self.old).encode()
         self.metadata_calls = []
+        self.http_calls = []
         self.metadata_mutation = None
 
     def github(self, path, *, archive=False):
         responses = {k: v for fake in self.fakes for k, v in fake.responses.items()}
         return copy.deepcopy(responses[path])
 
-    def google(self, path, token, *, host):
+    def google(self, path, token, body=None, *, host, method=None):
         self.metadata_calls.append((host, path))
         inventory = self.packet['inventory']
+        policy_read = host == 'iam.googleapis.com' and ':getIamPolicy' in path
+        actual_method = method or ('POST' if body is not None else 'GET')
+        if actual_method != ('POST' if policy_read else 'GET') or body is not None:
+            raise AssertionError('unexpected dummy metadata transport')
+        if policy_read and path != 'v1/' + inventory['iam_policy_resource'] + ':getIamPolicy?options.requestedPolicyVersion=3':
+            raise AssertionError('unexpected dummy IAM policy options')
         if host == 'cloudresourcemanager.googleapis.com':
             value = inventory['project']
         elif host == 'serviceusage.googleapis.com':
@@ -176,6 +186,17 @@ class WaveFixture:
         if self.metadata_mutation:
             self.metadata_mutation(host, path, value)
         return 200, value
+
+    def urlopen(self, request, *, timeout):
+        url = urlsplit(request.full_url)
+        path = url.path.lstrip('/') + ('?' + url.query if url.query else '')
+        self.http_calls.append((request.get_method(), url.netloc, path, request.data))
+        if request.data is not None or timeout != 30:
+            raise AssertionError('unexpected dummy metadata request body or timeout')
+        status, value = self.google(path, 'DUMMY_PRIVATE_TOKEN', host=url.netloc, method=request.get_method())
+        response = io.BytesIO(json.dumps(value).encode())
+        response.status = status
+        return response
 
     def stage(self, root, *, job='apply', mode=None, expected=None):
         root = Path(root)
@@ -256,6 +277,59 @@ class RuntimeExecutionTest(unittest.TestCase):
         active=patch.object(provenance,'CATALOG',catalog);active.start();self.addCleanup(active.stop)
         f.begin(env);f.approve(env);f.seal(env)
         return f,env
+
+    def test_metadata_transport_uses_empty_post_policy_v3_and_get_for_other_reads(self):
+        f = WaveFixture()
+        with tempfile.TemporaryDirectory() as directory:
+            env, _ = f.stage(directory)
+            with patch.object(urllib.request, 'urlopen', side_effect=f.urlopen):
+                observed = runtime.metadata_snapshot(env, f.packet)
+        self.assertEqual(observed['inventory']['iam_policy'], f.packet['inventory']['iam_policy'])
+        policy_path = 'v1/' + f.packet['inventory']['iam_policy_resource'] + ':getIamPolicy?options.requestedPolicyVersion=3'
+        self.assertEqual(len(f.http_calls), 7)
+        self.assertEqual([call for call in f.http_calls if ':getIamPolicy' in call[2]],
+                         [('POST', 'iam.googleapis.com', policy_path, None)])
+        self.assertTrue(all(method == 'GET' and body is None for method, _, path, body in f.http_calls
+                            if ':getIamPolicy' not in path))
+
+    def test_policy_transport_failures_stop_with_sanitized_diagnostics(self):
+        for failure in ('http', 'network', 'invalid-json'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                f = WaveFixture()
+                env, catalog = f.stage(directory)
+                sentinel = 'DUMMY_PRIVATE_IAM_VALUE'
+                policy_requests = []
+                def urlopen(request, *, timeout):
+                    if ':getIamPolicy' not in request.full_url:
+                        return f.urlopen(request, timeout=timeout)
+                    policy_requests.append(request)
+                    message = env['GCP_SMOKE_ACCESS_TOKEN'] + ' ' + sentinel
+                    if failure == 'http':
+                        raise urllib.error.HTTPError(request.full_url, 403, message, {},
+                            io.BytesIO(json.dumps({'error': {'message': message}}).encode()))
+                    if failure == 'network':
+                        raise urllib.error.URLError(message)
+                    response = io.BytesIO(message.encode())
+                    response.status = 200
+                    return response
+                with patch.object(provenance, 'CATALOG', catalog), patch.dict(os.environ, env, clear=True), \
+                     patch('sys.argv', ['runtime', '--phase', 'before']), \
+                     patch.object(urllib.request, 'urlopen', side_effect=urlopen), \
+                     patch.object(runtime.private, 'aws', side_effect=AssertionError('unexpected AWS call')), \
+                     patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
+                    result = runtime.main()
+                self.assertEqual(len(policy_requests), 1)
+                self.assertEqual(policy_requests[0].get_method(), 'POST')
+                self.assertIsNone(policy_requests[0].data)
+                self.assertEqual(result, 3)
+                self.assertEqual(out.getvalue(), '')
+                self.assertEqual(err.getvalue(), 'STOP: runtime execution receipt rejected; private diagnostic suppressed.\n')
+                for value in (env['GCP_SMOKE_ACCESS_TOKEN'], sentinel,
+                              f.packet['inventory']['iam_policy_resource'], json.dumps(f.packet['inventory']['iam_policy'])):
+                    self.assertNotIn(value, out.getvalue() + err.getvalue())
+                self.assertTrue(any(host == 'serviceusage.googleapis.com' for host, _ in f.metadata_calls))
+                self.assertFalse((Path(directory) / runtime.BEFORE).exists())
+                self.assertFalse((Path(directory) / runtime.RECORD).exists())
 
     def test_all_waves_real_freshness_seal_emitter_and_next_authentic_consumer(self):
         previous=None
@@ -504,7 +578,7 @@ class RuntimeExecutionTest(unittest.TestCase):
     def test_post_network_metadata_failure_still_attempts_table_lock_and_workspace(self):
         f,env=self.run_wave();f.approve(env,phase='post');f.aws.denied='get-object'
         calls=[]
-        def broken(path,token,*,host):
+        def broken(path,token,*,host,method=None):
             calls.append((host,path))
             raise RuntimeError('DUMMY_PRIVATE_ERROR')
         with self.assertRaises(Exception):runtime.after(env,request=f.aws,metadata_request=broken)
@@ -554,17 +628,239 @@ class RuntimeExecutionTest(unittest.TestCase):
     def test_complete_api_pagination_and_loop_or_truncation_rejection(self):
         f,env=self.run_wave()
         services=f.packet['inventory']['enabled_services']['services']
-        def paged(path,token,*,host):
+        def paged(path,token,*,host,method=None):
             if host=='serviceusage.googleapis.com':
                 if 'pageToken=' in path:return 200,{'services':services[1:]}
                 return 200,{'services':services[:1],'nextPageToken':'dummy page&token'}
-            return f.google(path,token,host=host)
+            return f.google(path,token,host=host,method=method)
         observed=runtime.metadata_snapshot(env,f.packet,request=paged)
         self.assertEqual(len(observed['inventory']['enabled_services']['services']),len(services))
-        def loop(path,token,*,host):
+        def loop(path,token,*,host,method=None):
             if host=='serviceusage.googleapis.com':return 200,{'services':services[:1],'nextPageToken':'same'}
-            return f.google(path,token,host=host)
+            return f.google(path,token,host=host,method=method)
         with self.assertRaises(Exception):runtime.metadata_snapshot(env,f.packet,request=loop)
+
+
+class RuntimeCheckOrderTest(unittest.TestCase):
+    def setUp(self):
+        for target in (preparer, graph):
+            self.enterContext(patch.object(target, 'PROJECT', PROJECT))
+        self.enterContext(patch.object(private, 'aws', side_effect=AssertionError('no real AWS calls')))
+        self.enterContext(patch.object(runtime, 'google', side_effect=AssertionError('no real GCP calls')))
+
+    def fixture(self, index=3):
+        from terraform_quota_create_gate import ADDRESSES
+        f = WaveFixture(index)
+        for state in (f.old, f.new):
+            state['check_results'].append(dict(object_kind='resource',
+                config_addr='module.youtube_quota_alerts.google_monitoring_alert_policy.quota', status='pass',
+                objects=[dict(object_addr=address, status='pass', failure_messages=[]) for address in sorted(ADDRESSES)]))
+            grouped = {}
+            for address in sorted(runtime.instances(state)):
+                if address.startswith(('module.runtime_wif.', 'module.owned_apis.')):
+                    config = re.sub(r'\[(?:\d+|"[^"]*")\]', '', address)
+                    grouped.setdefault(config, []).append(dict(object_addr=address, status='pass', failure_messages=[]))
+            state['check_results'].extend(dict(object_kind='resource', config_addr=config, status='pass', objects=objects)
+                                          for config, objects in grouped.items())
+        return f
+
+    def stage(self, f, *, job='apply'):
+        # Bind the dummy predecessor to the exact before state, including checks.
+        predecessor = copy.deepcopy(f.fakes[-1].value)
+        predecessor['state_after_commitment'] = receipt.state_commitment(f.packet['receipt_binding'], f.old)
+        f.fakes[-1] = GitHubFixture(predecessor, minute=5 * f.index)
+        f.packet['adoption_receipts'][-1]['reference'] = f.fakes[-1].ref
+        f.aws.body = json.dumps(f.old).encode()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        env, catalog = f.stage(temporary.name, job=job)
+        self.enterContext(patch.object(provenance, 'CATALOG', catalog))
+        return env
+
+    def begin(self, f, *, job='apply'):
+        env = self.stage(f, job=job)
+        f.begin(env); f.approve(env)
+        if job == 'apply': f.seal(env)
+        return env
+
+    def after_cli(self, f, env):
+        if env['GITHUB_JOB'] == 'apply': f.approve(env, phase='post')
+        env.update(APPLY_OUTCOME='success', POST_PLAN_OUTCOME='success', POST_PLAN_EXIT_CODE='0')
+        f.aws.body = json.dumps(f.new).encode()
+        original = runtime.after
+        with patch.dict(os.environ, env, clear=True), patch('sys.argv', ['runtime', '--phase', 'after']), \
+             patch.object(runtime, 'after', side_effect=lambda e: original(e, request=f.aws, metadata_request=f.google)), \
+             patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
+            result = runtime.main()
+        root = Path(env['RUNNER_TEMP'])
+        public = out.getvalue() + err.getvalue() + (root / 'summary').read_text()
+        for value in ('DUMMY_PRIVATE_SENTINEL', 'DUMMY_PRIVATE_TOKEN', '222222222222',
+                      f.packet['receipt_binding']['nonce'], json.dumps(f.packet['inventory']['iam_policy'])):
+            self.assertNotIn(value, public)
+        self.assertTrue(all(call[:2] in {('s3api', 'head-object'), ('s3api', 'get-object'), ('s3api', 'list-objects-v2')}
+                            for call in f.aws.calls))
+        return result, root
+
+    @staticmethod
+    def reorder(state, *, outer=True, nested=True):
+        if nested:
+            for check in state['check_results']:
+                if type(check['objects']) is list:
+                    check['objects'].reverse()
+        if outer:
+            state['check_results'].reverse()
+
+    def assert_reorder(self, *, outer=False, nested=False):
+        f = self.fixture()
+        env = self.begin(f)
+        original = copy.deepcopy(f.new['check_results'])
+        self.reorder(f.new, outer=outer, nested=nested)
+        self.assertNotEqual(original, f.new['check_results'])
+        result, root = self.after_cli(f, env)
+        self.assertEqual(result, 0)
+        machine = private.private_json(root / runtime.RECORD)
+        self.assertEqual(receipt.validate_receipt(machine), machine)
+        # Only comparison is normalized; the receipt commits the observed order.
+        self.assertEqual(machine['state_after_commitment'], receipt.state_commitment(f.packet['receipt_binding'], f.new))
+        self.assertEqual(machine['accounting']['post_state_reads'], 5)
+        self.assertEqual(machine['accounting']['post_metadata_reads'], 7)
+        self.assertTrue(all(private.private_json(root / 'runtime-execution-after.json')['checks'].values()))
+
+    def test_aggregate_reorder_passes_real_before_after(self):
+        self.assert_reorder(outer=True)
+
+    def test_nested_object_reorder_passes_real_before_after(self):
+        self.assert_reorder(nested=True)
+
+    def test_both_reorders_pass_real_before_after(self):
+        self.assert_reorder(outer=True, nested=True)
+
+    @staticmethod
+    def mutations():
+        def aggregate(state):
+            return next(c for c in state['check_results'] if c['config_addr'].endswith('google_monitoring_alert_policy.quota'))
+        def obj(state):
+            return aggregate(state)['objects'][0]
+        return {
+            'aggregate-fail': lambda s: aggregate(s).update(status='fail'),
+            'aggregate-unknown-status': lambda s: aggregate(s).update(status='unknown'),
+            'object-fail': lambda s: obj(s).update(status='fail'),
+            'object-unknown-status': lambda s: obj(s).update(status='unknown'),
+            'changed-message': lambda s: obj(s).update(failure_messages=['DUMMY_PRIVATE_SENTINEL']),
+            'malformed-message': lambda s: obj(s).update(failure_messages='DUMMY_PRIVATE_SENTINEL'),
+            'removed-message-field': lambda s: obj(s).pop('failure_messages'),
+            'removed-object': lambda s: aggregate(s)['objects'].pop(),
+            'removed-aggregate': lambda s: s['check_results'].remove(aggregate(s)),
+            'added-known-aggregate': lambda s: s['check_results'].append(dict(object_kind='var', config_addr='var.region',
+                status='pass', objects=[dict(object_addr='var.region', status='pass')])),
+            'duplicate-aggregate': lambda s: s['check_results'].append(copy.deepcopy(aggregate(s))),
+            'duplicate-object': lambda s: aggregate(s)['objects'].append(copy.deepcopy(obj(s))),
+            'unknown-aggregate-field': lambda s: aggregate(s).update(private_extra='DUMMY_PRIVATE_SENTINEL'),
+            'unknown-object-field': lambda s: obj(s).update(private_extra='DUMMY_PRIVATE_SENTINEL'),
+            'unknown-kind': lambda s: aggregate(s).update(object_kind='DUMMY_PRIVATE_SENTINEL'),
+            'unknown-config-address': lambda s: aggregate(s).update(config_addr='var.DUMMY_PRIVATE_SENTINEL'),
+            'unknown-object-address': lambda s: obj(s).update(object_addr='var.DUMMY_PRIVATE_SENTINEL'),
+            'foreign-resource-instance': lambda s: obj(s).update(
+                object_addr='module.youtube_quota_alerts.google_monitoring_alert_policy.quota["DUMMY_PRIVATE_SENTINEL"]'),
+            'missing-aggregate-field': lambda s: aggregate(s).pop('status'),
+            'missing-object-field': lambda s: obj(s).pop('status'),
+            'malformed-objects': lambda s: aggregate(s).update(objects={'DUMMY_PRIVATE_SENTINEL': True}),
+            'null-active-objects': lambda s: aggregate(s).update(objects=None),
+            'empty-active-objects': lambda s: aggregate(s).update(objects=[]),
+            'malformed-config-address': lambda s: aggregate(s).update(config_addr=[]),
+            'malformed-object-address': lambda s: obj(s).update(object_addr=[]),
+            'malformed-aggregate': lambda s: s['check_results'].append([]),
+            'malformed-object': lambda s: aggregate(s)['objects'].append([]),
+            'malformed-check-list': lambda s: s.update(check_results={'DUMMY_PRIVATE_SENTINEL': True}),
+            'zero-instance-shape-change': lambda s: next(c for c in s['check_results'] if c['objects'] is None).update(objects=[]),
+        }
+
+    def assert_rejected_after(self, f, env):
+        result, root = self.after_cli(f, env)
+        self.assertEqual(result, 3)
+        self.assertEqual(private.private_json(root / 'runtime-execution-after.json')['checks'],
+                         dict(state=False, metadata=True, lock=True, workspace=True))
+        self.assertFalse((root / runtime.RECORD).exists())
+        self.assertFalse((root / receipt.PUBLIC_DIRECTORY).exists())
+
+    def test_check_mutations_reject_real_after_with_reordered_checks(self):
+        for name, mutate in self.mutations().items():
+            with self.subTest(mutation=name):
+                f = self.fixture()
+                env = self.begin(f)
+                mutate(f.new)
+                if type(f.new['check_results']) is list:
+                    f.new['check_results'].reverse()
+                self.assert_rejected_after(f, env)
+
+    def test_invalid_before_checks_cannot_reach_keyed_comparison(self):
+        for name in ('duplicate-aggregate', 'duplicate-object', 'unknown-aggregate-field', 'unknown-object-field',
+                     'unknown-kind', 'unknown-config-address', 'unknown-object-address', 'foreign-resource-instance',
+                     'malformed-objects', 'malformed-message', 'aggregate-fail', 'object-fail'):
+            with self.subTest(mutation=name):
+                f = self.fixture()
+                # Matching malformed sides could disappear if mapped first.
+                self.mutations()[name](f.old)
+                self.mutations()[name](f.new)
+                env = self.stage(f)
+                with self.assertRaises(Exception):
+                    f.begin(env)
+                root = Path(env['RUNNER_TEMP'])
+                self.assertFalse((root / runtime.BEFORE).exists())
+                self.assertFalse((root / runtime.RECORD).exists())
+
+    def test_new_runtime_object_is_validated_before_exclusion(self):
+        for name in ('duplicate-object', 'unknown-field', 'unknown-address', 'failed-status', 'failure-message'):
+            with self.subTest(mutation=name):
+                f = self.fixture()
+                env = self.begin(f)
+                check = next(c for c in f.new['check_results'] if c['config_addr'].endswith('google_service_account_iam_member.runtime'))
+                added = check['objects'][-1]
+                if name == 'duplicate-object': check['objects'].append(copy.deepcopy(added))
+                elif name == 'unknown-field': added['private_extra'] = 'DUMMY_PRIVATE_SENTINEL'
+                elif name == 'unknown-address': added['object_addr'] = 'module.runtime_wif.DUMMY_PRIVATE_SENTINEL'
+                elif name == 'failed-status': added['status'] = 'fail'
+                else: added['failure_messages'] = ['DUMMY_PRIVATE_SENTINEL']
+                self.reorder(f.new)
+                self.assert_rejected_after(f, env)
+
+    def test_added_valid_preserved_object_is_a_genuine_change(self):
+        f = self.fixture()
+        next(c for c in f.old['check_results'] if c['config_addr'].endswith('google_monitoring_alert_policy.quota'))['objects'].pop()
+        env = self.begin(f)
+        self.reorder(f.new)
+        self.assert_rejected_after(f, env)
+
+    def test_noop_and_plan_still_reject_reordered_state(self):
+        f = self.fixture(5)
+        env = self.begin(f)
+        self.reorder(f.new)
+        self.assert_rejected_after(f, env)
+        # The plan job additionally requires exact state version and raw bytes.
+        f = self.fixture(5)
+        env = self.begin(f, job='plan')
+        self.reorder(f.new)
+        env.update(BACKEND_INIT_OUTCOME='success',
+                   TERRAFORM_PLAN_OUTCOME='success', PLAN_VALIDATION_OUTCOME='success')
+        self.assert_rejected_after(f, env)
+
+    def test_reorder_keeps_resource_output_lineage_and_serial_guards(self):
+        mutations = {
+            'resource-value': lambda s: s['resources'][0]['instances'][0]['attributes'].update(dummy='DUMMY_PRIVATE_SENTINEL'),
+            'missing-resource': lambda s: s['resources'].pop(0),
+            'output-field': lambda s: s['outputs']['project_id'].update(sensitive=False),
+            'lineage': lambda s: s.update(lineage='bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee'),
+            'serial-unchanged': lambda s: s.update(serial=27),
+            'serial-decreased': lambda s: s.update(serial=26),
+            'terraform-version': lambda s: s.update(terraform_version='1.16.5'),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(mutation=name):
+                f = self.fixture()
+                env = self.begin(f)
+                mutate(f.new)
+                self.reorder(f.new)
+                self.assert_rejected_after(f, env)
 
 
 if __name__=='__main__':unittest.main()
