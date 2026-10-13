@@ -78,6 +78,13 @@ classify_path() {
 	local path="$1"
 	local matched=false
 
+	case "$path" in
+		.github/scripts/terraform_current_state_attestation.py|.github/scripts/test_terraform_current_state_attestation.py|.github/scripts/terraform_current_state_artifact_fixture.py|.github/terraform/current-state-attestation-sources.json)
+			gcp_terraform=true
+			matched=true
+			;;
+	esac
+
 	if path_is_ci_config "$path"; then
 		set_all_groups
 		matched=true

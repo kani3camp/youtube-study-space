@@ -35,6 +35,19 @@ on:
         required: false
         default: false
         type: boolean
+      terraform_current_state_attestation:
+        description: Disabled separate current-state bootstrap attestation; no historical import claim
+        required: false
+        default: false
+        type: boolean
+      terraform_ownership_root_basis:
+        description: Explicit runtime root contract matching the private packet version
+        required: false
+        default: original-history-import
+        type: choice
+        options:
+          - original-history-import
+          - current-state-bootstrap
       gcp_user_activity_schema_audit:
         description: Run the fail-closed development user-activity schema audit
         required: false
@@ -631,6 +644,7 @@ jobs:
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
           python3 .github/scripts/test_terraform_history_post_noop_receipt.py
+          python3 .github/scripts/test_terraform_current_state_attestation.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_ownership_receipt.py
           python3 .github/scripts/test_terraform_runtime_execution.py
@@ -713,6 +727,8 @@ jobs:
       history_plan_safety_evidence: ${{ inputs.terraform_history_plan_safety_evidence }}
       history_import_approval: ${{ inputs.terraform_history_import_approval }}
       history_post_noop: ${{ inputs.terraform_history_post_noop }}
+      current_state_attestation: ${{ inputs.terraform_current_state_attestation }}
+      ownership_root_basis: ${{ inputs.terraform_ownership_root_basis }}
       ownership_wave: ${{ inputs.terraform_ownership_wave }}
 
   gcp-user-activity-schema-audit:

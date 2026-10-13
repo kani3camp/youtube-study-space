@@ -22,7 +22,7 @@ from terraform_history_table_metadata import stable_table_metadata
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'infra/gcp/scripts'))
 import runtime_ownership_provenance as provenance
-from runtime_ownership_packet import validate_packet
+from runtime_ownership_packet import validate_packet, root_reference
 from prepare_runtime_ownership import prepare
 from prepare_user_activity_history_workflow import PrivateArgumentParser
 import validate_runtime_ownership_plan as graph
@@ -42,8 +42,10 @@ INPUT_ENV = ('TF_VAR_project_id', 'TF_VAR_manage_user_activity_history', 'TF_VAR
 
 def context(env, *, safety=False):
     root, packet, catalog = provenance.load_inputs(env)
+    ready_gate = ('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY' if packet['schema_version'] == 3
+                  else 'DEV_HISTORY_POST_NOOP12_READY')
     receipt.need(env.get('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED') == 'true'
-                 and env.get('DEV_HISTORY_POST_NOOP12_READY') == 'true'
+                 and env.get(ready_gate) == 'true'
                  and env.get('TF_VAR_manage_user_activity_history') == 'true'
                  and env.get('HISTORY_TARGET') == 'dev'
                  and env.get('AWS_MAX_ATTEMPTS') == '1' and env.get('AWS_RETRY_MODE') == 'standard')
@@ -53,7 +55,7 @@ def context(env, *, safety=False):
     metadata = private.private_json(root / 'user-history-before.json')
     provenance.require_verified_inputs(env, packet, metadata, now=provenance.receipt.timestamp(packet['reviewed_utc']) if safety else None)
     receipt.need(all(ref['run_id'] != int(env['GITHUB_RUN_ID']) for ref in
-                     [packet['history_receipt']] + [i['reference'] for i in packet['adoption_receipts']]))
+                     [root_reference(packet)] + [i['reference'] for i in packet['adoption_receipts']]))
     return root, packet, metadata
 
 
@@ -270,9 +272,19 @@ def before(env, *, request=None, metadata_request=None):
     state = state_shape(raw, packet, metadata, env, selection='adopted')
     verified = private.private_json(root / provenance.VERIFIED)
     receipt.need(receipt.state_commitment(packet['receipt_binding'], state) == verified['last_state_after_commitment'])
+    first_state_join(packet, verified, head, raw)
     saved = dict(inputs=value, input_commitment=commit, state_sha256=hashlib.sha256(raw).hexdigest(), head=head, provenance=verified, observed_reads=reads)
     private.write_private(root / BEFORE, saved)
     output(env, 'runtime_input_commitment', commit)
+
+
+def first_state_join(packet, verified, head, raw, *, now=None):
+    if packet['schema_version'] == 3 and not packet['adoption_receipts']:
+        from datetime import datetime, timezone
+        import terraform_current_state_attestation as bootstrap
+        receipt.need((now or datetime.now(timezone.utc)) < receipt.timestamp(verified['root_expires_utc'])
+                     and bootstrap.observation_commitment(packet['receipt_binding'], head, raw)
+                         == verified['root_state_observation_commitment'])
 
 
 def require_fresh_inputs(env, packet):
@@ -286,6 +298,7 @@ def require_fresh_inputs(env, packet):
     state = state_shape(raw, packet, metadata, env, selection='adopted')
     receipt.need(hashlib.sha256(raw).hexdigest() == saved['state_sha256']
                  and receipt.state_commitment(packet['receipt_binding'], state) == saved['provenance']['last_state_after_commitment'])
+    first_state_join(packet, saved['provenance'], saved['head'], raw)
     return root, saved
 
 
@@ -422,7 +435,7 @@ def after(env, *, request=None, metadata_request=None):
         target='dev', root_contract='gcp-dev-default', operation='apply', wave=packet['wave'], phase='post',
         prior_receipt_sha256=prior['last_receipt_sha256'], prior_scope_commitment=prior['adopted_scope_commitment'],
         prior_state_commitment=prior['last_state_after_commitment'], state_after_commitment=receipt.state_commitment(packet['receipt_binding'], new),
-        scope_commitment=receipt.commitment(packet['receipt_binding'], provenance.scope(packet['receipt_binding'], candidate, packet['selected'])),
+        scope_commitment=receipt.commitment(packet['receipt_binding'], provenance.scope(packet['receipt_binding'], candidate, packet['selected'], version=packet['schema_version'])),
         resource_count=len(instances(new)), import_before_count=int(packet['wave'] != 'noop'), import_post_count=0,
         checks={k: True for k in receipt.CHECKS}, accounting=dict(terraform_outcomes={'apply': env['APPLY_OUTCOME'], 'post_plan': env['POST_PLAN_OUTCOME']},
         post_state_reads=reads['state'], post_metadata_reads=reads['metadata'], provider_requests='unknown', actual_cost='unknown'))

@@ -452,7 +452,8 @@ class WorkflowContracts(unittest.TestCase):
         self.assertIn('ownership_wave: ${{ inputs.terraform_ownership_wave }}', self.caller)
         self.assertIn('test_runtime_ownership_package.py', self.caller)
         self.assertNotIn('-target=', plan)
-        self.assertEqual(self.text.count('uses: actions/upload-artifact@'), 1)
+        self.assertEqual(self.text.count('uses: actions/upload-artifact@'), 2)
+        self.assertIn('path: ${{ runner.temp }}/current-state-public/current-state-attestation.json', self.text)
         self.assertIn('path: ${{ runner.temp }}/ownership-public/ownership-receipt.json', self.text)
         for name in ['runtime-ownership-packet.json', 'runtime-ownership.tfvars.json']:
             self.assertIn('"${RUNNER_TEMP}/' + name + '"', plan.split('Cleanup sensitive temporary files')[1])

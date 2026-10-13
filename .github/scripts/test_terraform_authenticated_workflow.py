@@ -330,6 +330,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_EXPORT_FUNCTION_MANAGED_ENABLED": "true",
             "DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true",
             "DEV_HISTORY_POST_NOOP12_READY": "false",
+            "DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED": "false",
+            "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
             "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "true",
@@ -496,7 +498,12 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for value in ("actions/download-artifact", "actions/cache", "-auto-approve"):
             self.assertNotIn(value, self.text)
         uploads = re.findall(r'(?m)^\s*uses: actions/upload-artifact@([0-9a-f]{40})', self.text)
-        self.assertEqual(len(uploads), 1)
+        self.assertEqual(len(uploads), 2)
+        current = self.text.split('      - name: Publish sanitized current-state attestation\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('path: ${{ runner.temp }}/current-state-public/current-state-attestation.json', current)
+        self.assertNotIn('*', current)
+        for line in ('archive: true', 'overwrite: false', 'include-hidden-files: false', 'if-no-files-found: error'):
+            self.assertIn(line, current)
         publish = self.text.split('      - name: Publish sanitized ownership receipt\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('path: ${{ runner.temp }}/ownership-public/ownership-receipt.json', publish)
         self.assertNotIn('*', publish)
@@ -607,7 +614,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("      actions: read", caller)
         self.assertIn("      actions: read", apply)
         self.assertNotIn("actions: write", self.text)
-        self.assertEqual(self.text.count("uses: actions/upload-artifact@"), 1)
+        self.assertEqual(self.text.count("uses: actions/upload-artifact@"), 2)
         self.assertIn("test_terraform_ownership_receipt.py", self.caller)
         self.assertIn("test_runtime_ownership_provenance.py", self.caller)
 
