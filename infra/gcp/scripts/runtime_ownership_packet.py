@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline, SHA-bound private inputs for a single cumulative ownership wave.
 
-Version 1 remains an offline contract. Protected staging requires version 2;
+Version 1 remains an offline contract. Protected staging requires version 2 or 3;
 GitHub provenance is verified separately before cloud credentials. Gates remain
 closed; apply uses the same private packet and separate protected approval.
 """
@@ -19,6 +19,16 @@ from prepare_user_activity_history_adoption import private_json
 
 WAVES = {"pool", "provider", "grant", "api", "noop"}
 SELECTION_KEYS = {"pool", "provider", "grants", "apis"}
+ROOT_BASES = {2: "original-history-import", 3: "current-state-bootstrap"}
+
+
+def root_reference(packet):
+    return packet["current_state_attestation" if packet["schema_version"] == 3 else "history_receipt"]
+
+
+def require_root_basis(packet, env):
+    require(packet.get("schema_version") in ROOT_BASES
+            and env.get("OWNERSHIP_ROOT_BASIS", "original-history-import") == ROOT_BASES[packet["schema_version"]])
 
 
 def invalid_constant(_):
@@ -51,10 +61,10 @@ def selection(value, candidate):
 def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
     require(wave in WAVES and type(packet) is dict)
     version = packet.get("schema_version")
-    require(type(version) is int and version in {1, 2})
+    require(type(version) is int and version in {1, 2, 3})
     base = {"schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc", "inventory", "adopted", "selected"}
     require(set(packet) == base | ({"history_post_noop_run_id"} if version == 1 else
-            {"receipt_binding", "history_receipt", "adoption_receipts"}))
+            {"receipt_binding", "current_state_attestation" if version == 3 else "history_receipt", "adoption_receipts"}))
     require(type(git_sha) is str and re.fullmatch(r"[0-9a-f]{40}", git_sha))
     require(packet["git_sha"] == git_sha and packet["wave"] == wave)
     reviewed, expires = timestamp(packet["reviewed_utc"]), timestamp(packet["expires_utc"])
@@ -65,7 +75,11 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / ".github/scripts"))
         import terraform_ownership_receipt as receipt
         receipt.binding(packet["receipt_binding"])
-        receipt.reference(packet["history_receipt"])
+        if version == 3:
+            import terraform_current_state_attestation as current_state
+            current_state.reference(packet["current_state_attestation"])
+        else:
+            receipt.reference(packet["history_receipt"])
         chain = packet["adoption_receipts"]
         require(type(chain) is list and len(chain) <= 256)
         for item in chain:
@@ -73,11 +87,11 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
             receipt.reference(item["reference"])
     candidate = prepare(packet["inventory"])
     old, new = (selection(packet[k], candidate) for k in ("adopted", "selected"))
-    if version == 2 and check_chain_shape:
+    if version in {2, 3} and check_chain_shape:
         require(len(chain) == int(old["pool"]) + int(old["provider"]) + len(old["grants"]) + len(old["apis"]))
         for item in chain:
             selection(item["selected"], candidate)
-        ids = [packet["history_receipt"]["run_id"]] + [i["reference"]["run_id"] for i in chain]
+        ids = [root_reference(packet)["run_id"]] + [i["reference"]["run_id"] for i in chain]
         require(len(ids) == len(set(ids)))
     # Preserve all adopted flags and keys; adoption adds one object, noop none.
     require(not old["pool"] or new["pool"])
@@ -111,7 +125,7 @@ def prepare_workflow(env):
     raw = env.get("RUNTIME_OWNERSHIP_PACKET_JSON", "")
     require(type(raw) is str and 0 < len(raw.encode()) <= 4 * 1024 * 1024)
     packet = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
-    require(packet.get("schema_version") == 2)
+    require_root_basis(packet, env)
     candidate = validate_packet(packet, wave=env.get("OWNERSHIP_WAVE"), git_sha=env.get("GITHUB_SHA"))
     root = Path(env["RUNNER_TEMP"])
     repository = Path(__file__).resolve().parents[3]

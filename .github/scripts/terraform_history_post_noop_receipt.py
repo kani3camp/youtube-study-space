@@ -148,6 +148,10 @@ def after(env, *, request=None, metadata_request=None):
         for label, passed in checks.items():
             output.write(f"- {label}: {'PASS' if passed else 'STOP'}\n")
     receipt.require(all(checks.values()), "post-noop-after-safety")
+    if env.get("CURRENT_STATE_ATTESTATION", "false") == "true":
+        # Separate contract only: never reissue the lost historical receipt.
+        from terraform_current_state_attestation import record_verified
+        record_verified(env, initial, head, raw, metadata)
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
         output.write("Independent history post-import no-op: PASS; import0/no-op12; "
                      "state and stable table metadata unchanged; native lock/workspaces absent; "

@@ -32,7 +32,7 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-history import/post-noop12は未完了で、新runtime live gateはfalse。後続receipt sourceはexact GitHub provenanceとprivate scope/前waveを照合し、検証済みhistory/runtime成功時にstrict public receipt1件だけを専用artifactへ発行するdisabled配線を備えますが、issuer catalogとemitter/publication gatesは閉じています。source独立review、bounded public dummy artifact roundtripと実before/after execution receiptsは引き続き必要です。
+history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとissuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。新emission/root-ready gatesもfalseです。詳細と後続の別実行承認は[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-13-current-state-bootstrap別契約source-only)を参照してください。
 
 ## Directory
 
@@ -391,4 +391,4 @@ Runtime ownership のfresh-state/apply/per-wave receipt sourceは
 [runtime ownership contract](docs/runtime-wif-api-ownership.md)を参照。
 既存11/history12のexact guard、same-SHA/private packet/plan seal、one-object state delta、full-root post-noopと
 complete unrelated IAM/API/WIF metadata保存を検査する。gateはfalse・issuer catalogは空。
-history未importのため、承認後の初回importでauthentic root receiptを取得する。dummy resultsは実receiptやactivation approvalではない。
+original importは成功しましたが、authentic history root receiptは未取得です。既存v1 receipt/v2 packetのimport/apply履歴契約を維持し、別のcurrent-state attestation/v3 packetを追加します。dummy resultsは実receiptやactivation approvalではありません。

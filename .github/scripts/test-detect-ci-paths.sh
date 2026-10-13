@@ -129,6 +129,10 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_ownership_recei
 assert_exact_groups gcp_terraform .github/scripts/terraform_history_import_verifier.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_import_verifier.py
 assert_exact_groups gcp_terraform .github/terraform/runtime-receipt-sources.json
+assert_exact_groups gcp_terraform .github/terraform/current-state-attestation-sources.json
+assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_attestation.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_current_state_attestation.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_artifact_fixture.py
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
 

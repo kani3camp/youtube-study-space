@@ -249,7 +249,7 @@ history source/validator/activation、D01削除、実 cloud IAM/auth/API/import/
 
 開始 base は `feature/gcp-terraform-iac` の `77e3c24c6fb9d82f48a59c9c587a5c323b622ffb`。
 open PR の確認時点では既存 module/helper が integration PR #1251 に含まれており、runtime配線の重複PRはない。
-history は plan-verified のみで **import/apply・post full-root no-op12 は未完了**。
+このpackage作成時点ではhistoryはplan-verifiedのみだった。2026-10-13時点ではimportと独立full-root no-op12は成功したが、original final receiptは失敗しており、下記current-state bootstrapを別契約として扱う。
 この package の dummy PASS はその prerequisite を完了にしない。
 
 `ci.yml` の `terraform_ownership_wave` は `none` がdefault。
@@ -320,11 +320,11 @@ version更新時はこのvalidatorも独立reviewする。省略remote pool mode
 
 後続 source は [`terraform_ownership_receipt.py`](../../../.github/scripts/terraform_ownership_receipt.py) と
 [`runtime_ownership_provenance.py`](../scripts/runtime_ownership_provenance.py) を使い、submitted run ID の型検査から
-source-pinned GitHub run/attempt/job/Environment/receipt artifact の照合へ進める。history は plan-verified のままで、
-actual import/post-noop12 は未完了。runtime/apply gates はfalse、追加 `DEV_HISTORY_RECEIPT_EMITTER_ENABLED=false`。
+source-pinned GitHub run/attempt/job/Environment/receipt artifact の照合へ進める。historyのactual importと独立post-noop12は後に成功したが、original final receiptは未取得。
+runtime plan/root-ready gatesはfalse。元history emitter/publication設定はそのまま保持し、新bootstrap emission/root-ready gatesもfalse。
 source の追加は execution approval や activation ready を意味しない。
 
-protected staging はstrict v2のみ。v1は既存offline graph fixturesに残し、実provenanceとして昇格しない。
+original-history-importのprotected stagingはstrict v2のみ。別のcurrent-state-bootstrapは下記strict v3を使用する。v1は既存offline graph fixturesに残し、実provenanceとして昇格しない。
 v2はv1から `history_post_noop_run_id` を除き、次の3 fieldsを加える。
 
 | Field | Private contract |
@@ -395,7 +395,7 @@ provider内部request数・workflow全体総数・実請求額はunknownとし�
 初回history applyはemitter/publication gates両方true、exact trusted context、attempt1を認証前に必須とし、falseの経路ではimportしない。root emission後のcatalog admissionは別closure sourceでhistorical issuer SHAをpinし、catalog準備のためにimportを再実行しない。
 
 sourceで閉じる範囲はissuer success emission、GitHub authenticity、private scope/ordered predecessor joins、protected mandatory wiringとdummy denial tests。
-**未完了**: actual history import/post-noop12、real receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、
+**未完了**: original final receipt、別current-state rootの実発行/受理、ordered real runtime receipts、reviewed issuer pins/Environment policy、private caller/grant/Own approvals、
 fresh cloud exact readsとruntime before/after state/metadata/lock/accountingの実receipt、最終full-rootdevnoop。
 runtime receipt emitter/apply pathのdummy PASSは実adoptionの証明ではない。
 issuer導入前に実history adoptionが終わった場合、元traceとfresh noop/state proofの別承認契約が必要で、blind import/applyを再実行しない。
@@ -448,16 +448,16 @@ issuer catalogのexisting ordered step pinsはhistory/runtime conditional branch
 選択されたwaveの全critical stepsと共通checkout/apply/noop/emitter/publish/cleanupがsuccessfulかつ順序一致であることが必須。
 
 public receipt publication用 `DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED` をfalseで追加する。追加secret/PAT/serviceはない。既存 `DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`, `DEV_HISTORY_POST_NOOP12_READY`,
-`DEV_HISTORY_RECEIPT_EMITTER_ENABLED`, apply/history-postnoop/probe gatesはfalse、issuer catalogは空。
+runtime plan/root-ready gatesはfalse、issuer catalogは空。元history emitter/apply/post-noop設定は後続の承認済みsource値を保持し、新bootstrap gateに読み替えない。
 history independent post-noop selectorとruntime waveの混在は認証前に拒否する。
 [`test_terraform_runtime_execution.py`](../../../.github/scripts/test_terraform_runtime_execution.py) はpublic dummy transport/full stateで
 全waveのfreshness→saved seal→one-object delta→実emitter→実consumer、private input/nonce/receipt/state race、
 same-count IAM/API/trust交換、metadata/network/lock/cleanup failure、公開漏出拒否を検査する。
 
-historyは未import。ownerのexecution approval後の**初回history import**で既存history emitterのauthentic root receiptを取得し、
-独立post-noop12も保持する。receipt導入前にadoption済みだった場合の別bootstrap契約はこのpackageに追加しない。
+このpackageのoriginal-history-import経路はauthentic history root receiptを必要とする。現在はimport済みだがそのfinal receiptは失われているため、再import・遡及発行で復旧しない。
+独立post-noop12も保持する。この旧経路は別bootstrapを受理せず、新契約は次の専用sectionで扱う。
 source integration/reviewはactivation承認ではなく、final issuer SHA/CI、actual workflow/job/Environment/reviewer pinsとprotection/artifact
-interface、private nonce/backend/history binding、actual scope/CI exact reads、実history import/postnoop12・ordered runtime receipts・
+interface、private nonce/backend/history binding、actual scope/CI exact reads、別rootの実発行/受理・ordered runtime receipts・
 final dev noop/owner merge判断が必要。既存security probe証拠は再利用し、追加live probe/query/DDL/deployを自動要求しない。
 
 ## 2026-10-13 部分採用の proof-bound no-op（source-only）
@@ -486,3 +486,47 @@ exceptional modeからruntime tfvarsを省略する経路も使わず、部分�
 dummyで各段階のpacket→provenance→fresh state→plan／seal→post→public receipt／consumerを検証しても、実採用の証明にはならない。
 既存のfresh history no-opは元importのhistorical root receiptの代替ではない。元root receiptが欠落／取得不能なら
 この経路もSTOPし、recovery-rootの代替契約を追加せず、元importの再実行やauthenticated dispatchを行わない。
+
+## 2026-10-13 current-state bootstrap（別契約、source-only）
+
+この変更は `320270f1e2830195a66702b9bff46eaf623c07c5` をbaseとし、ownerが2026-10-13 15:32 UTCに承認した保証差を実装する。変更先は専用統合branch `feature/gcp-terraform-iac`。sourceレビュー・通常CIの後も、実発行、private binding/Secrets変更、protected dispatch、runtime plan/apply、mergeはそれぞれ既存の承認境界を守る。このsource PRでは実AWS/GCP認証・backend実行を行わない。
+
+### 失われた歴史証拠と現在の確認
+
+original apply [38326967769](https://github.com/kani3camp/youtube-study-space/actions/runs/38326967769)、source `f409439324f489b08fe9ccda3695d65828cd173a` はhistory import1とpost-noop12まで成功したが、final receiptはstate unknownで停止した。publishはskipped、artifact0、private capturesはcleanup済み。独立protected plan [38352702468](https://github.com/kani3camp/youtube-study-space/actions/runs/38352702468) は現在のimport0/no-op12/other0、stable state bytes/HEAD/table metadata、lock/workspace absenceを確認した。
+
+限定した歴史候補比較では旧11 instances不変、history1追加、serial+1、outputs不変、既存10 checks不変と追加7 variable validation PASSが見えた。ただし候補はoriginal capturesへimmutableに結び付いておらず、削除済みversionも除外できない。当時の完全なdeltaは証明できない。historical comparatorを緩めず、lost receiptを復元・遡及発行せず、再importしない。
+
+新契約は「現在の正規12件を新しい起点として受け入れる」保証であり、original importの連続した歴史を保証しない。`historical_delta_attested=false` は必須で、v1 history receiptへの変換は不可。
+
+### 新しい発行・受理契約
+
+[`terraform_current_state_attestation.py`](../../../.github/scripts/terraform_current_state_attestation.py) はstrict schema1 / type `dev-history12-current-state-v1`。operationは`protected-plan`、phaseは`current-state`、job/Environmentはplan/`terraform-dev-plan`、dev/default root12、Terraform1.16.4、exact import0/no-op12/other0、観測・admission時刻、成功outcomes、全checksとopaque commitmentsだけを公開する。original ownership receipt v1 / packet v2のapply/import-before1/post0検査はそのまま維持する。
+
+既存post-noop verifierのHEAD→bounded GET→HEAD、before/after raw bytesとHEADの完全一致、exact state12/canonical table/schema/deletion protection、stable metadata、native lock/workspace absence、init/plan/validation成功、plan exit0、fresh admissionを再利用する。expiry・plan/state失敗でもbounded after safety readsを独立に試し、partial PASSからrecordを作らない。新recordはstrict summary envelope/version/int countsも検査する。
+
+private bindingは既存secretによる `{schema_version:1, attestation_type:"dev-history12-current-state-v1", receipt_binding}`。scopeは新base contract名とprivate backend/stable metadataを結ぶ。decoded full-stateの既存HMACに加え、別domain `ownership-state-observation-v1` でrawbytes SHA256とprivate HEAD responseを結ぶ。nonceはprivate scope bindingであって独立の署名鍵ではない。rawstate hash、VersionId、ETag、nonce、backend、private logsをpublicへ出さない。
+
+専用artifactは `current-state-attestation-v1-<run>-1-<source>`、canonical JSON+改行の`current-state-attestation.json`一件のみ。payload16 KiB/ZIP64 KiB、retention90日、pinned upload、glob/directory/hidden/private uploadなし。record、state/metadata、public staging、credentials、saved planとlogsをalways cleanupする。consumerはpublisher成功だけでは受理せず、run/job/cleanup成功も要求する。
+
+別の[`current-state-attestation-sources.json`](../../../.github/terraform/current-state-attestation-sources.json) はschema1・初期issuers空。review済みexact SHA、actual workflow ID、唯一のplan job名とapply job名、plan Environment ID/name、owner-reviewed reviewer IDs、ordered critical steps、唯一のpublisher、固定purposeをpinする。実IDを推測しない。GET-only authenticatorはlegacy bounded transport/redirect policyを使い、exact run/attempt1/repository/ref/caller/reusable、successful protected plan、Environment approval、executed apply不在、unique artifact/digest/expiry/timing/strict ZIPを確認し、run/artifact/listを再読する。single-page成功時はAPI GET10（うちZIP1）、signed redirect GETは別。logs fallbackはない。
+
+### packet v3と初回state join
+
+`terraform_ownership_root_basis` / reusable `ownership_root_basis` のdefaultは`original-history-import`。これにはpacket v2とoriginal `artifact-v1` history rootが必要。`current-state-bootstrap` を選んだ場合はstrict packet v3、`history_receipt`の代わりに`current_state_attestation`、別transport `current-state-artifact-v1`が必要。選択/version/type/transportの混合は認証前STOP、自動fallbackなし。v1 packetはoffline専用のまま。
+
+v3は同じinventory/adopted/selected/freshness/bindingとordered adoption receiptsを使う。初回はpool/provider=false、grants/apis空、pool一件のみの追加。root digest、新scope、state commitmentをchildのprior fieldsに連結する。最初のprotected planとapplyのbefore state読取ではdecoded-state HMACとrawbytes/HEAD observation commitmentを両方照合する。JSONとして同じでもbytesやversion/ETagが違えばSTOP。後続childのschema1は維持し、scope生成だけが明示されたroot versionに従う。旧scope/別nonce/backend/metadata/member、skip/batch/削減は受理しない。
+
+owner-reviewed admissionのissued→expiresは最大24時間。初回の未採用consumerはfresh admission期限内で検査を完了する。後続chainは最初のpool protected planとapply開始がroot完了後・expiry前だったことを再確認し、その後も各packetの24時間freshnessとfresh state照合を維持する。artifact expiry/deletionはいつでもSTOP。未採用で期限が切れたら新しいprotected current-state no-opを取り直し、保存延長・定期再bootstrapは別scope。
+
+### 閉じたゲートと後続承認
+
+`terraform_current_state_attestation` / reusable `current_state_attestation` はdefault false。dev / mode=plan / history_post_noop=true / ownership_wave=none / history_import_approval空 / initial attempt1 / default root selectorだけ許す。miscombinationとclosed emission gateはcredentials前に拒否する。
+
+`DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED=false`、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY=false`、`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false`。旧 `DEV_HISTORY_POST_NOOP12_READY=false` を新rootのreadyへ読み替えない。両issuer catalogsは空。実binding、Secrets、権限・Environment、dev/main/prodは変更しない。
+
+後続はownerがexact source S、actual Environment protection/reviewer/bypass policy、既存principalの境界、private nonce/backend/metadata、same-SHA/max4MiB/24時間/quiet-writer admission、費用と実行scopeをまとめて別承認する。review済みSでemissionのみを開き、protected plan1/apply0/import0を実行する。成功run/steps/cleanup/unique artifactを確認したclosure source CがSを別catalogへpinし、初めてnew-root readyを扱う。Sを自己参照pinせず、bootstrap issuerをruntime apply issuerへ昇格しない。runtime planは別CI execution approval、runtime applyはさらに別承認が必要。
+
+accountingはobserved Terraform outcomesとexplicit S3 reads10/canonical metadata GET2のみ。provider内部・workflow全体requests・actual costはunknown。後の通常planはnative S3 lockのPutObject/DeleteObjectやversion retentionを伴い得るため、全S3 writes0とは約束しない。
+
+public dummy testsとPR専用fixture artifactは実cloud credentials/OIDC/Environmentを使わず、実データを含めない。fixtureはtrust catalogへ追加せず、実attestation/root-ready/実行承認の証拠にはしない。source revertとnew gate/catalog closureでconsumerを停止できる。既存history managed flagをfalseへ戻したり、destroy/rollback applyを行ったりしない。

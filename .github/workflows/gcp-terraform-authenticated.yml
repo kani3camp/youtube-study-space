@@ -36,6 +36,16 @@ on:
         required: false
         default: none
         type: string
+      current_state_attestation:
+        description: Disabled separate current-state bootstrap attestation
+        required: false
+        default: false
+        type: boolean
+      ownership_root_basis:
+        description: Explicit original-history-import or current-state-bootstrap runtime root
+        required: false
+        default: original-history-import
+        type: string
     # Explicit names allow Environment secret resolution in called jobs without
     # inheriting unrelated repository secrets. Values come from each job's gate.
     secrets:
@@ -91,9 +101,11 @@ env:
   DEV_EXPORT_FUNCTION_MANAGED_ENABLED: "true"
   # Retain the repaired history table; apply still requires exact one-shot approval.
   DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
-  # History is plan-verified only. Runtime activation requires actual import/post
-  # no-op12, independent review, CI exact reads and execution accounting receipts.
+  # The original final history receipt was lost. Original-history readiness
+  # remains separate from the default-off current-state root and runtime plan.
   DEV_HISTORY_POST_NOOP12_READY: "false"
+  DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "false"
+  DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Initial history import requires its authentic root receipt in the same apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
@@ -127,6 +139,9 @@ jobs:
           MODE: ${{ inputs.mode }}
           HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
           OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
+          CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
+          OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
+          HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
         run: |
           set -euo pipefail
@@ -177,6 +192,23 @@ jobs:
             }
           fi
 
+          [[ "${CURRENT_STATE_ATTESTATION:-false}" == "true" || "${CURRENT_STATE_ATTESTATION:-false}" == "false" ]] || {
+            echo "::error::Invalid current-state selector."; exit 1;
+          }
+          case "${OWNERSHIP_ROOT_BASIS:-original-history-import}" in
+            original-history-import|current-state-bootstrap) ;;
+            *) echo "::error::Invalid ownership root basis."; exit 1 ;;
+          esac
+          if [[ "${CURRENT_STATE_ATTESTATION:-false}" == "true" ]]; then
+            [[ "${TARGET}" == "dev" && "${MODE}" == "plan" && "${HISTORY_POST_NOOP}" == "true" && "${OWNERSHIP_WAVE:-none}" == "none" && -z "${HISTORY_IMPORT_APPROVAL:-}" && "${GITHUB_RUN_ATTEMPT:-}" == "1" && "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "original-history-import" && "${DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED:-false}" == "true" ]] || {
+              echo "::error::Current-state attestation disabled or inconsistent; separate plan-only approval required."
+              exit 1
+            }
+          fi
+          if [[ "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "current-state-bootstrap" && "${OWNERSHIP_WAVE:-none}" == "none" ]]; then
+            echo "::error::Current-state runtime root requires an explicit runtime wave."; exit 1
+          fi
+
           ownership_wave="${OWNERSHIP_WAVE:-none}"
           case "${ownership_wave}" in
             none|pool|provider|grant|api|noop) ;;
@@ -187,8 +219,12 @@ jobs:
               echo "::error::Runtime ownership requires development plan/apply and a separate history selector."
               exit 1
             }
-            [[ "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" && "${DEV_HISTORY_POST_NOOP12_READY:-false}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}" == "true" ]] || {
-              echo "::error::Runtime ownership disabled; history import/post no-op12 and activation review remain pending."
+            root_ready="${DEV_HISTORY_POST_NOOP12_READY:-false}"
+            if [[ "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "current-state-bootstrap" ]]; then
+              root_ready="${DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY:-false}"
+            fi
+            [[ "${DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED:-false}" == "true" && "${root_ready}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED:-false}" == "true" ]] || {
+              echo "::error::Runtime ownership disabled; selected root attestation and activation review remain pending."
               exit 1
             }
             if [[ "${MODE}" == "apply" && ( "${DEV_HISTORY_RECEIPT_EMITTER_ENABLED}" != "true" || "${DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED}" != "true" ) ]]; then
@@ -314,6 +350,8 @@ jobs:
     env:
       MODE: ${{ inputs.mode }}
       HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
+      CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
+      OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
       STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
       STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       STATE_KEY: ${{ needs.preflight.outputs.state_key }}
@@ -400,6 +438,12 @@ jobs:
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding
+
+      - name: Check private current-state binding before credentials
+        if: ${{ inputs.current_state_attestation }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_current_state_attestation.py check-binding
 
       - name: Configure AWS backend credential
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -501,6 +545,12 @@ jobs:
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_ownership_receipt.py check-history-binding --fresh
+
+      - name: Check fresh current-state metadata binding
+        if: ${{ inputs.current_state_attestation }}
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_current_state_attestation.py check-binding --fresh
 
       - name: Bind the private history plan baseline
         id: history_plan_before
@@ -638,8 +688,10 @@ jobs:
         run: python3 .github/scripts/terraform_history_plan_receipt.py --phase after
 
       - name: Verify independent post-import no-op and unchanged state
+        id: history_post_noop_after
         if: ${{ always() && inputs.history_post_noop && steps.history_post_noop_before.outcome == 'success' }}
         env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ inputs.current_state_attestation && secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON || '' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
           TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
@@ -656,11 +708,33 @@ jobs:
           PLAN_VALIDATION_OUTCOME: ${{ steps.sanitize.outcome }}
         run: python3 .github/scripts/terraform_runtime_execution.py --phase after
 
+      - name: Emit verified current-state attestation
+        if: ${{ inputs.current_state_attestation && steps.history_post_noop_after.outcome == 'success' }}
+        id: current_state_attestation
+        env:
+          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
+        run: python3 .github/scripts/terraform_current_state_attestation.py emit
+
+      - name: Publish sanitized current-state attestation
+        if: ${{ inputs.current_state_attestation && steps.current_state_attestation.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: current-state-attestation-v1-${{ github.run_id }}-1-${{ github.sha }}
+          path: ${{ runner.temp }}/current-state-public/current-state-attestation.json
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
       - name: Cleanup sensitive temporary files
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+          rm -f "${RUNNER_TEMP}/current-state-public/current-state-attestation.json" \
+            "${RUNNER_TEMP}/current-state-attestation-record.json"
           rm -f \
             "${RUNNER_TEMP}/runtime-execution-before.json" \
             "${RUNNER_TEMP}/runtime-execution-sealed.json" \
@@ -700,6 +774,7 @@ jobs:
             "${RUNNER_TEMP}/sanitizer.out" \
             "${RUNNER_TEMP}/sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+          if [[ -d "${RUNNER_TEMP}/current-state-public" ]]; then rmdir "${RUNNER_TEMP}/current-state-public"; fi
   apply:
     name: Protected validated apply
     if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
@@ -716,6 +791,7 @@ jobs:
       id-token: write
     env:
       MODE: ${{ inputs.mode }}
+      OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
       OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}
       EXPECTED_RUNTIME_INPUT_COMMITMENT: ${{ needs.plan.outputs.runtime_input_commitment }}
       APPROVED_SUMMARY_DIGEST: ${{ needs.plan.outputs.summary_digest }}

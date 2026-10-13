@@ -9,6 +9,8 @@ on:
       - '.github/scripts/*terraform*receipt*.py'
       - '.github/scripts/*terraform*history_import*.py'
       - '.github/terraform/runtime-receipt-sources.json'
+      - '.github/scripts/*current_state*.py'
+      - '.github/terraform/current-state-attestation-sources.json'
       - '.github/workflows/gcp-terraform-authenticated.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/gcp-runtime-ownership-contracts.yml'
@@ -32,4 +34,5 @@ jobs:
           python3 infra/gcp/tests/test_runtime_ownership_package.py
           python3 infra/gcp/tests/test_runtime_ownership_provenance.py
           python3 .github/scripts/test_terraform_ownership_receipt.py
+          python3 .github/scripts/test_terraform_current_state_attestation.py
           python3 .github/scripts/test_terraform_history_import_verifier.py

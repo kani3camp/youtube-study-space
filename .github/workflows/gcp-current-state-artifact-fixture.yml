@@ -1,0 +1,44 @@
+name: GCP Current State Artifact Fixture
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/scripts/*current_state*.py'
+      - '.github/workflows/gcp-current-state-artifact-fixture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  current-state-artifact-fixture:
+    if: ${{ github.repository == 'kani3camp/youtube-study-space' && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout public source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify public dummy current-state contracts
+        run: python3 .github/scripts/test_terraform_current_state_attestation.py
+      - name: Prepare public dummy current-state fixture
+        run: python3 .github/scripts/terraform_current_state_artifact_fixture.py
+      - name: Publish public dummy current-state fixture
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: current-state-attestation-fixture-v1-${{ github.run_id }}-1-${{ github.sha }}
+          path: ${{ runner.temp }}/current-state-fixture-public/current-state-attestation.json
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
+      - name: Cleanup public dummy current-state fixture
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${RUNNER_TEMP}/current-state-fixture-public/current-state-attestation.json"
+          if [[ -d "${RUNNER_TEMP}/current-state-fixture-public" ]]; then rmdir "${RUNNER_TEMP}/current-state-fixture-public"; fi
