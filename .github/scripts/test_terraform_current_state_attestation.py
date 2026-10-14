@@ -8,6 +8,7 @@ import hashlib
 from io import BytesIO
 import json
 import os
+import re
 from pathlib import Path
 import stat
 import subprocess
@@ -504,7 +505,7 @@ class CurrentStateTest(unittest.TestCase):
 
     def test_actual_workflow_cleanup_removes_staged_input_on_success_and_failure(self):
         workflow = workflow_fixture.WORKFLOW.read_text()
-        plan = workflow.split('  plan:\n', 1)[1].split('  apply:\n', 1)[0]
+        plan = re.split(r'\n  [a-z][a-z0-9_-]*:\n', workflow.split('  plan:\n', 1)[1], maxsplit=1)[0]
         cleanup = plan.split('      - name: Cleanup sensitive temporary files', 1)[1]
         script = textwrap.dedent(cleanup.split('        run: |\n', 1)[1])
         for valid in (True, False):
