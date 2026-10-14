@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Execute routing denial cases and verify the protected metadata-only surface."""
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 import sys
 import unittest
 
@@ -17,6 +18,7 @@ class CurrentStateReadWorkflowTest(unittest.TestCase):
         cls.reader = cls.text.split("  current_state_read:\n", 1)[1].split("  apply:\n", 1)[0]
 
     def route(self, **overrides):
+        now = datetime.now(timezone.utc).replace(microsecond=0)
         return self.harness.run_preflight(**{
             "MODE": "current-state-read", "TARGET": "dev",
             "DEV_CURRENT_STATE_READ_ENABLED": "true",
@@ -25,7 +27,9 @@ class CurrentStateReadWorkflowTest(unittest.TestCase):
             "GITHUB_RUN_ATTEMPT": "1", "OWNERSHIP_WAVE": "none",
             "OWNERSHIP_ROOT_BASIS": "original-history-import",
             "HISTORY_IMPORT_APPROVAL": "", "PLAN_COST_EVIDENCE": "",
-            "PLAN_SAFETY_EVIDENCE": "", **overrides})
+            "PLAN_SAFETY_EVIDENCE": "",
+            "DEV_CURRENT_STATE_READ_ISSUED_UTC": (now - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "DEV_CURRENT_STATE_READ_EXPIRES_UTC": (now + timedelta(hours=7)).strftime("%Y-%m-%dT%H:%M:%SZ"), **overrides})
 
     def test_enabled_route_only_selects_development_metadata(self):
         result = self.route()
@@ -48,6 +52,16 @@ class CurrentStateReadWorkflowTest(unittest.TestCase):
             "PLAN_SAFETY_EVIDENCE": "safety"}.items():
             with self.subTest(key=key):
                 result = self.route(**{key: value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.outputs, "")
+
+    def test_pending_environment_approval_cannot_extend_the_source_window(self):
+        for override in ({"DEV_CURRENT_STATE_READ_ISSUED_UTC": ""},
+                         {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": "2000-01-01T00:00:00Z"},
+                         {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": "PRIVATE_INVALID"},
+                         {"DEV_CURRENT_STATE_READ_ISSUED_UTC": "2999-01-01T00:00:00Z"}):
+            with self.subTest(override=override):
+                result = self.route(**override)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.outputs, "")
 

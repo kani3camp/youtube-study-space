@@ -8,6 +8,7 @@ historical import evidence or an ownership/admission receipt.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import re
@@ -43,12 +44,25 @@ def need(value):
         raise ValueError("current-state read STOP")
 
 
+def execution_window(env, *, now=None):
+    def parse(key):
+        value = env.get(key)
+        need(type(value) is str and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", value) is not None)
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    issued = parse("DEV_CURRENT_STATE_READ_ISSUED_UTC")
+    expires = parse("DEV_CURRENT_STATE_READ_EXPIRES_UTC")
+    now = now or datetime.now(timezone.utc)
+    need(issued <= now < expires <= issued + timedelta(hours=8))
+
+
 def context(env, *, gate=True, token=False):
     need(env.get("MODE") == "current-state-read" and env.get("HISTORY_TARGET") == "dev"
          and env.get("TF_VAR_project_id") == PROJECT and env.get("TF_VAR_manage_user_activity_history") == "true"
          and env.get("TF_WORKSPACE") == "default"
          and env.get("GCP_SMOKE_SERVICE_ACCOUNT") == f"terraform-dev-plan@{PROJECT}.iam.gserviceaccount.com")
     need(not gate or env.get("DEV_CURRENT_STATE_READ_ENABLED") == "true")
+    if gate:
+        execution_window(env)
     expected = {
         "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": "kani3camp/youtube-study-space",
         "GITHUB_REPOSITORY_ID": "340900071", "GITHUB_REPOSITORY_OWNER_ID": "54093651",
