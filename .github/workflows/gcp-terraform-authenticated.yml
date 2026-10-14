@@ -106,6 +106,8 @@ env:
   DEV_HISTORY_POST_NOOP12_READY: "false"
   DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"
   DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
+  # Metadata observation only; no Terraform, admission or issuer claim.
+  DEV_CURRENT_STATE_READ_ENABLED: "false"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Initial history import requires its authentic root receipt in the same apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
@@ -143,6 +145,7 @@ jobs:
           OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
           HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+          PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
         run: |
           set -euo pipefail
 
@@ -175,12 +178,21 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
+            plan|current-state-read|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
               ;;
           esac
+          if [[ "${MODE}" == "current-state-read" ]]; then
+            [[ "${TARGET}" == "dev" && "${DEV_CURRENT_STATE_READ_ENABLED:-false}" == "true" && "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED}" == "true" && "${GITHUB_RUN_ATTEMPT:-}" == "1" && "${HISTORY_POST_NOOP}" == "false" && "${CURRENT_STATE_ATTESTATION:-false}" == "false" && "${OWNERSHIP_WAVE:-none}" == "none" && "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "original-history-import" && -z "${HISTORY_IMPORT_APPROVAL:-}" && -z "${PLAN_COST_EVIDENCE:-}" && -z "${PLAN_SAFETY_EVIDENCE:-}" ]] || {
+              echo "::error::Current-state metadata read is disabled or has inconsistent selectors."; exit 1;
+            }
+            echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
+            echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
+            echo "ownership_wave=none" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
           [[ "${HISTORY_POST_NOOP}" == "true" || "${HISTORY_POST_NOOP}" == "false" ]] || {
             echo "::error::Invalid history post-import check input."
             exit 1
@@ -333,7 +345,7 @@ jobs:
   plan:
     name: Authenticated protected plan
     needs: preflight
-    if: ${{ inputs.mode != 'security-probe' }}
+    if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -778,6 +790,105 @@ jobs:
             "${RUNNER_TEMP}/sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
           if [[ -d "${RUNNER_TEMP}/current-state-public" ]]; then rmdir "${RUNNER_TEMP}/current-state-public"; fi
+  current_state_read:
+    name: Protected current-state metadata read
+    needs: preflight
+    if: ${{ inputs.mode == 'current-state-read' && inputs.target == 'dev' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: terraform-dev-plan
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MODE: ${{ inputs.mode }}
+      HISTORY_TARGET: ${{ inputs.target }}
+      HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
+      CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
+      OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
+      OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
+      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
+      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
+      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      STATE_KEY: ${{ needs.preflight.outputs.state_key }}
+      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+      TF_WORKSPACE: default
+      TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}
+      TF_VAR_manage_user_activity_history: "true"
+    steps:
+      - name: Mask private identity fragments before metadata authentication
+        shell: bash
+        env:
+          PRIVATE_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          PRIVATE_GCP_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          : "${BACKEND_ROLE_ID:?missing backend role ID}"
+          : "${BACKEND_ROLE_ARN:?missing backend role ARN}"
+          : "${PRIVATE_WIF_PROVIDER:?missing WIF provider}"
+          : "${PRIVATE_GCP_SA:?missing GCP service account}"
+          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${PRIVATE_GCP_SA}" "${PRIVATE_GCP_SA%%@*}" "${PRIVATE_WIF_PROVIDER}"; do
+            echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF_PROVIDER}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+
+      - name: Checkout trusted metadata reader commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate bounded read context before cloud credentials
+        run: python3 .github/scripts/terraform_current_state_read.py --phase preflight
+
+      - name: Configure existing AWS plan credential for metadata reads
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+
+      - name: Verify same-SHA OIDC and immutable AWS plan RoleId
+        run: python3 .github/scripts/terraform_current_state_read.py --phase identity
+
+      - name: Configure existing GCP plan credential for metadata reads
+        id: metadata_gcp_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ needs.preflight.outputs.project_id }}
+          create_credentials_file: false
+          export_environment_variables: false
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 600s
+
+      - name: Read exact State and canonical table metadata without writes
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.metadata_gcp_auth.outputs.access_token }}
+        run: python3 .github/scripts/terraform_current_state_read.py --phase read
+
+      - name: Cleanup private metadata read files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup_status=0
+          python3 .github/scripts/terraform_current_state_read.py --phase cleanup || cleanup_status=$?
+          rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
+          exit "${cleanup_status}"
+
   apply:
     name: Protected validated apply
     if: ${{ inputs.mode == 'apply' || inputs.mode == 'email-adoption' || inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
