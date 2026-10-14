@@ -224,6 +224,12 @@ waveは混ぜません。
   新S3 VersionIdを要求する。persisted `check_results` の変化も現contractではSTOP。
 - `noop`: import0、同じState本文/VersionId/HEAD/GET/listings、同じmetadataと全ownership no-opを要求する。
 
+initial State分類のうち `initialize` が扱うのはpositive LISTで証明した **absentだけ** です。
+既存resource0のStateがproductionの2 outputsを既に持つ場合は`noop`で検証できます。
+既存空Stateに`outputs={}`しかない場合、旧CLI/schema/不明outputsがある場合は未対応としてSTOP。
+既存lineage/versionを保持するoutput-only adapterは別source条件であり、このpacketで全初期化ケースが
+実装済みとは扱いません。fresh inventoryがどのケースかを確認するまでlive初期化を選択しません。
+
 whole project/SA IAM policy/binding、未知resource type、未知schemaは拒否します。allowlistは既存migration
 sourceのretained typesだけで、Google providerのschemaはbucket4/その他0。SA IAM memberは既存runtime用の
 `roles/iam.workloadIdentityUser` とexact project-number配下の`principalSet`に限定します。一般IAM principalの
