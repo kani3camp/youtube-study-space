@@ -304,6 +304,54 @@ class PackageContracts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.review(plan, metadata, p)
 
+    def test_own_api_dependency_requires_consumer_instead_of_api_ownership(self):
+        service = 'pubsub.googleapis.com'
+        self_address = f'module.owned_apis.google_project_service.owned["{service}"]'
+        consumer = 'module.export_topic[0].google_pubsub_topic.export'
+        api_dependencies = [
+            [self_address],
+            ['google_project_service.other'],
+            ['module.other.google_project_service.owned["dummy.googleapis.com"]'],
+            [consumer, self_address],
+        ]
+        for phase in ('before', 'post'):
+            for dependencies in api_dependencies:
+                plan, metadata, p = fixture(4, phase)
+                p['inventory']['api_classification'][service]['dependency_addresses'] = dependencies
+                with self.subTest(phase=phase, dependencies=dependencies), self.assertRaises(ValueError):
+                    # Fails while staging the reviewed packet, before cloud
+                    # auth or any protected plan can treat it as evidence.
+                    packet_module.validate_packet(p, wave='api', git_sha=SHA, now=NOW)
+                with self.subTest(phase=phase, protected=True), self.assertRaises(ValueError):
+                    self.review(plan, metadata, p, phase)
+            plan, metadata, p = fixture(4, phase)
+            p['inventory']['api_classification'][service]['dependency_addresses'] = [consumer]
+            result = self.review(plan, metadata, p, phase)
+            self.assertEqual(result['counts']['import'], int(phase == 'before'))
+            self.assertEqual(result['counts']['no-op'], 17)
+
+    def test_review_classification_never_promotes_external_or_investigate_api(self):
+        for classification in ('Platform/External', 'Investigate', 'Do not own'):
+            p = packet(4)
+            p['inventory']['api_classification']['pubsub.googleapis.com']['classification'] = classification
+            # Classification can stay in the inventory, but selection of its
+            # one enabled API must still be explicitly rejected.
+            candidate = preparer.prepare(p['inventory'])
+            self.assertEqual(candidate['owned_api_keys'], [])
+            with self.subTest(classification=classification), self.assertRaises(ValueError):
+                packet_module.validate_packet(p, wave='api', git_sha=SHA, now=NOW)
+
+    def test_protected_graph_independently_requires_non_api_consumers(self):
+        plan, metadata, p = fixture(4)
+        candidate = packet_module.validate_packet(p, wave='api', git_sha=SHA, now=NOW)
+        candidate['api_classification']['pubsub.googleapis.com']['dependency_addresses'] = [
+            'module.owned_apis.google_project_service.owned["pubsub.googleapis.com"]']
+        # Inject a synthetic already-staged candidate to exercise the graph's
+        # second guard independently of pre-credential packet validation. This
+        # API address exists in the real fixture graph, but is not a consumer.
+        with patch.object(gate, 'validate_packet', return_value=candidate), self.assertRaises(ValueError):
+            self.review(plan, metadata, p)
+
     def test_post_rejects_import_marker_and_missing_selected_resource(self):
         plan, metadata, p = fixture(3)
         with self.assertRaises(ValueError):
