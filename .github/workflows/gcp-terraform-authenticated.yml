@@ -85,6 +85,11 @@ env:
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  # Production activation needs its own reviewed execution contract and a fresh
+  # measured development exit. Source gates do not replace Environment approval.
+  PROD_EXECUTION_CONTRACT_READY: "false"
+  PROD_DEVELOPMENT_EXIT_READY: "false"
+  PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   # Email adoption completed with five-resource post-plan no-op. Ordinary modes
   # keep its ownership; exceptional modes have separate validators and gates.
   DEV_PRIMARY_EMAIL_IMPORT_ENABLED: "true"
@@ -146,6 +151,7 @@ jobs:
           CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
           OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
           HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
+          HISTORY_PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
           PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
         run: |
@@ -337,6 +343,23 @@ jobs:
                 echo "::error::Production authenticated Terraform is intentionally disabled until the production backend is bootstrapped."
                 exit 1
               }
+              [[ "${PROD_EXECUTION_CONTRACT_READY:-false}" == "true" && "${PROD_DEVELOPMENT_EXIT_READY:-false}" == "true" ]] || {
+                echo "::error::Production execution contract and measured development exit are not ready."
+                exit 1
+              }
+              [[ "${MODE}" == "plan" || "${MODE}" == "apply" ]] || {
+                echo "::error::Production only supports ordinary plan/import-only apply."
+                exit 1
+              }
+              [[ "${GITHUB_RUN_ATTEMPT:-}" == "1" && "${HISTORY_POST_NOOP}" == "false" && "${CURRENT_STATE_ATTESTATION:-false}" == "false" && "${ownership_wave}" == "none" && "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "original-history-import" && -z "${HISTORY_IMPORT_APPROVAL:-}" && -z "${HISTORY_PLAN_SAFETY_EVIDENCE:-}" && -z "${PLAN_COST_EVIDENCE:-}" ]] || {
+                echo "::error::Production requires a fresh run without development-only execution inputs."
+                exit 1
+              }
+              if [[ "${MODE}" == "apply" && "${PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED:-false}" != "true" ]]; then
+                echo "::error::Production apply is independently disabled."
+                exit 1
+              fi
+              echo "manage_quota=false" >> "${GITHUB_OUTPUT}"
               echo "manage_user_activity_history=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_function=false" >> "${GITHUB_OUTPUT}"
               echo "manage_export_scheduler=false" >> "${GITHUB_OUTPUT}"

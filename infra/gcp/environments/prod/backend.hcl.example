@@ -1,5 +1,6 @@
 # The shared state bucket already exists; do not bootstrap another bucket.
-# Fill private values only after fresh inventory and separate production approval.
+# Fill private values after fresh inventory within Current Canon approval scope.
+# Every protected run still needs the owner's GitHub Environment approval.
 # backend.hcl is gitignored. Do not put credentials here. Use TF_WORKSPACE=default.
 # See ../../docs/production-readiness.md before any remote init/state operation.
 bucket               = "REPLACE_WITH_PERSONAL_TERRAFORM_STATE_BUCKET"

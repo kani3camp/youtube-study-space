@@ -35,4 +35,6 @@ jobs:
           terraform_wrapper: false
 
       - name: Verify production defaults and preflight denial with mocked plans
-        run: python3 infra/gcp/tests/test_production_readiness.py
+        run: |
+          python3 infra/gcp/tests/test_production_readiness.py
+          python3 infra/gcp/tests/test_production_backend_packet.py
