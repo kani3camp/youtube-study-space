@@ -10,8 +10,10 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
+import textwrap
 from io import StringIO
 import unittest
 from unittest.mock import patch
@@ -302,21 +304,145 @@ class CurrentStateTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             runtime.first_state_join(value, verified, head, raw, now=datetime(2026, 10, 10, 23, tzinfo=timezone.utc))
 
-    def attestation_fixture(self):
+    def attestation_fixture(self, *, legacy=False):
         fixture = noop_fixture.IndependentHistoryPostNoopTest()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         binding = dummy_binding()
         binding['history_metadata'] = copy.deepcopy(fixture.metadata)
+        envelope = dict(schema_version=1, receipt_binding=binding)
+        if not legacy:
+            envelope['attestation_type'] = gate.TYPE
         fixture.env |= dummy_context() | dict(MODE='plan', GITHUB_JOB='plan',
             CURRENT_STATE_ATTESTATION='true', DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED='true',
             OWNERSHIP_WAVE='none', OWNERSHIP_ROOT_BASIS='original-history-import',
-            RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(dict(schema_version=1, attestation_type=gate.TYPE,
-                                                         receipt_binding=binding)))
+            RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(envelope))
+        gate.stage_binding(fixture.env)
+        fixture.env.pop('RUNTIME_OWNERSHIP_PACKET_JSON')
         return fixture
 
-    def test_real_post_noop_record_emit_and_zip_join_with_private_dummy_state_only(self):
+    def test_staging_preserves_exact_legacy_and_native_binding_and_freezes_input(self):
+        for legacy in (True, False):
+            fixture = self.attestation_fixture(legacy=legacy)
+            path = fixture.root / gate.BINDING
+            staged = private.private_json(path)
+            self.assertEqual(set(staged), {'schema_version', 'attestation_type', 'receipt_binding'})
+            self.assertEqual(staged['attestation_type'], gate.TYPE)
+            self.assertEqual(staged['receipt_binding'], dummy_binding() | dict(history_metadata=fixture.metadata))
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            path.unlink()
+            original = copy.deepcopy(staged)
+            if legacy:
+                original.pop('attestation_type')
+            with patch.dict(os.environ, fixture.env | dict(RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(original)), clear=True), \
+                    patch('sys.argv', ['attestation', 'stage-binding']), patch('sys.stdout', StringIO()) as out, \
+                    patch('sys.stderr', StringIO()) as err:
+                self.assertEqual(gate.main(), 0)
+                self.assertEqual(out.getvalue(), 'Private current-state binding checked; values suppressed.\n')
+                self.assertEqual(err.getvalue(), '')
+            # Later env changes cannot replace the single private source.
+            self.assertEqual(gate.check_binding(fixture.env | dict(RUNTIME_OWNERSHIP_PACKET_JSON='invalid'), fresh=True),
+                             staged['receipt_binding'])
+            with self.assertRaises(Exception):
+                gate.stage_binding(fixture.env | dict(RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(staged)))
+            self.assertEqual(private.private_json(path), staged)
+            self.assertEqual(fixture.aws.calls, [])
+
+    def test_staging_rejects_wrong_shapes_types_bindings_and_ambiguous_json_without_output(self):
         fixture = self.attestation_fixture()
+        path = fixture.root / gate.BINDING
+        native = private.private_json(path)
+        path.unlink()
+        legacy = {key: value for key, value in native.items() if key != 'attestation_type'}
+        invalid = ['', '{}', 'null', '[]', '{"schema_version":1,"schema_version":1}',
+                   '{"schema_version":NaN}', 'x' * (1024 * 1024 + 1), json.dumps(dummy_attestation()),
+                   json.dumps(dummy_receipt()), json.dumps(packet(0))]
+        for original in (legacy, native):
+            for mutation in (lambda p: p.update(schema_version=True), lambda p: p.update(schema_version=2),
+                             lambda p: p.update(extra='DUMMY_PRIVATE'), lambda p: p.pop('receipt_binding'),
+                             lambda p: p.update(attestation_type='dev-history12-v1'),
+                             lambda p: p['receipt_binding'].update(nonce='00'*32),
+                             lambda p: p['receipt_binding'].update(extra='DUMMY_PRIVATE'),
+                             lambda p: p['receipt_binding']['backend'].update(bucket='dummy-other'),
+                             lambda p: p['receipt_binding']['backend'].update(key='dummy-other'),
+                             lambda p: p['receipt_binding']['history_metadata'].update(schema={'fields': []})):
+                changed = copy.deepcopy(original)
+                mutation(changed)
+                invalid.append(json.dumps(changed))
+        for raw in invalid:
+            with self.subTest(raw_size=len(raw)), patch.dict(os.environ, fixture.env | dict(RUNTIME_OWNERSHIP_PACKET_JSON=raw), clear=True), \
+                    patch('sys.argv', ['attestation', 'stage-binding']), patch('sys.stdout', StringIO()) as out, \
+                    patch('sys.stderr', StringIO()) as err:
+                self.assertEqual(gate.main(), 3)
+                self.assertEqual(out.getvalue(), '')
+                self.assertEqual(err.getvalue(), 'STOP: current-state attestation rejected; private diagnostic suppressed.\n')
+                self.assertFalse(path.exists())
+        self.assertEqual(fixture.aws.calls, [])
+
+    def test_staging_context_and_private_file_boundaries_fail_closed(self):
+        fixture = self.attestation_fixture()
+        path = fixture.root / gate.BINDING
+        native = private.private_json(path)
+        path.unlink()
+        env = fixture.env | dict(RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(native))
+        for change in (dict(MODE='apply'), dict(GITHUB_JOB='apply'), dict(HISTORY_TARGET='prod'),
+                       dict(CURRENT_STATE_ATTESTATION='false'), dict(HISTORY_POST_NOOP='false'),
+                       dict(DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED='false'), dict(OWNERSHIP_WAVE='pool'),
+                       dict(OWNERSHIP_ROOT_BASIS='current-state-bootstrap'), dict(GITHUB_RUN_ATTEMPT='2'),
+                       dict(RUNNER_TEMP=str(ROOT)), dict(RUNNER_TEMP='relative')):
+            with self.subTest(change=change), self.assertRaises(Exception):
+                gate.stage_binding(env | change)
+            self.assertFalse(path.exists())
+        target = fixture.root / 'dummy-target'
+        with patch.object(gate.os, 'geteuid', return_value=-1), self.assertRaises(Exception):
+            gate.stage_binding(env)
+        self.assertFalse(path.exists())
+        target.write_text('DUMMY_UNCHANGED')
+        path.symlink_to(target)
+        with self.assertRaises(Exception): gate.stage_binding(env)
+        with self.assertRaises(Exception): gate.check_binding(env)
+        self.assertEqual(target.read_text(), 'DUMMY_UNCHANGED')
+        path.unlink()
+        link = fixture.root / 'dummy-root-link'
+        link.symlink_to(fixture.root, target_is_directory=True)
+        with self.assertRaises(Exception): gate.stage_binding(env | dict(RUNNER_TEMP=str(link)))
+        with self.assertRaises(Exception): gate.check_binding(env)
+        gate.stage_binding(env)
+        path.chmod(0o644)
+        with self.assertRaises(Exception): gate.check_binding(env)
+        path.chmod(0o600)
+        path.write_text(json.dumps({key: native[key] for key in ('schema_version', 'receipt_binding')}))
+        with self.assertRaises(Exception): gate.check_binding(env)
+        self.assertEqual(fixture.aws.calls, [])
+
+    def test_staged_binding_keeps_fresh_metadata_strictness_and_legacy_contract_separate(self):
+        fixture = self.attestation_fixture(legacy=True)
+        value = private.private_json(fixture.root / gate.BINDING)
+        legacy = {key: value[key] for key in ('schema_version', 'receipt_binding')}
+        with self.assertRaises(ValueError): gate.validate_binding_envelope(legacy)
+        old_env = fixture.env | dict(MODE='apply', DEV_HISTORY_RECEIPT_EMITTER_ENABLED='true',
+                                     RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(legacy))
+        self.assertEqual(receipt.history_binding(old_env), value['receipt_binding'])
+        with self.assertRaises(ValueError):
+            receipt.history_binding(old_env | dict(RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(value)))
+        for key, changed in [('numRows', '123'), ('numCurrentPhysicalBytes', '90')]:
+            metadata = copy.deepcopy(fixture.metadata) | {key: changed}
+            (fixture.root / 'user-history-post.json').write_text(json.dumps(metadata))
+            gate.check_binding(fixture.env, fresh=True)
+        for mutation in (lambda m: m.update(creationTime='99999'), lambda m: m.update(unknown='DUMMY_CONFIG'),
+                         lambda m: m['schema']['fields'].reverse()):
+            metadata = copy.deepcopy(fixture.metadata)
+            mutation(metadata)
+            (fixture.root / 'user-history-post.json').write_text(json.dumps(metadata))
+            with self.assertRaises(Exception): gate.check_binding(fixture.env, fresh=True)
+
+    def test_real_post_noop_record_emit_and_zip_join_with_private_dummy_state_only(self):
+        for legacy in (True, False):
+            with self.subTest(legacy=legacy):
+                self.check_post_noop_record_emit_and_zip(legacy=legacy)
+
+    def check_post_noop_record_emit_and_zip(self, *, legacy):
+        fixture = self.attestation_fixture(legacy=legacy)
         with patch.object(gate, 'datetime') as clock:
             clock.now.return_value = state_fixture.NOW
             noop.before(fixture.env, request=fixture.aws)
@@ -329,7 +455,7 @@ class CurrentStateTest(unittest.TestCase):
         self.assertEqual(body, receipt.canonical(value)+b'\n')
         self.assertEqual((fixture.root / gate.PUBLIC_DIRECTORY / gate.PUBLIC_FILE).stat().st_mode & 0o777, 0o600)
         self.assertEqual(len(fixture.aws.calls), 10)
-        binding = json.loads(fixture.env['RUNTIME_OWNERSHIP_PACKET_JSON'])['receipt_binding']
+        binding = private.private_json(fixture.root / gate.BINDING)['receipt_binding']
         head = private.private_json(fixture.root / noop.BEFORE)['head']
         raw = private.private_bytes(fixture.root / noop.STATE_AFTER)
         self.assertEqual(value['state_after_commitment'], receipt.state_commitment(binding, private.decode(raw)))
@@ -337,6 +463,30 @@ class CurrentStateTest(unittest.TestCase):
         for forbidden in ('DUMMY_', 'dummy-state-bucket', binding['nonce'], 'VersionId', 'ETag', 'state_sha256'):
             self.assertNotIn(forbidden, body.decode()+output.getvalue())
         with self.assertRaises(FileExistsError): gate.emit(fixture.env)
+
+    def test_actual_workflow_cleanup_removes_staged_input_on_success_and_failure(self):
+        workflow = workflow_fixture.WORKFLOW.read_text()
+        plan = workflow.split('  plan:\n', 1)[1].split('  apply:\n', 1)[0]
+        cleanup = plan.split('      - name: Cleanup sensitive temporary files', 1)[1]
+        script = textwrap.dedent(cleanup.split('        run: |\n', 1)[1])
+        for valid in (True, False):
+            fixture = self.attestation_fixture(legacy=True)
+            if not valid:
+                (fixture.root / gate.BINDING).write_text('DUMMY_INVALID_PARTIAL_INPUT')
+            checkout = fixture.root / 'dummy-checkout'
+            checkout.mkdir()
+            preserved = checkout / 'unrelated'
+            preserved.write_text('DUMMY_PRESERVED')
+            directory = fixture.root / gate.PUBLIC_DIRECTORY
+            directory.mkdir()
+            private.write_private(directory / gate.PUBLIC_FILE, {})
+            result = subprocess.run(['bash', '-e', '-c', script], capture_output=True, text=True,
+                                    env=dict(os.environ, RUNNER_TEMP=str(fixture.root), GITHUB_WORKSPACE=str(checkout)))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, '')
+            self.assertFalse((fixture.root / gate.BINDING).exists())
+            self.assertFalse(directory.exists())
+            self.assertEqual(preserved.read_text(), 'DUMMY_PRESERVED')
 
     def test_invalid_state_and_outcomes_never_create_current_state_record(self):
         for failure in ('11', '13', 'duplicate-container', 'duplicate-instance', 'empty-container', 'provider',
@@ -472,13 +622,19 @@ class CurrentStateTest(unittest.TestCase):
         self.assertLess(plan.index('Check private current-state binding'), plan.index('Configure AWS backend credential'))
         cleanup = plan.split('      - name: Cleanup sensitive temporary files', 1)[1]
         self.assertIn('if: always()', cleanup)
-        for filename in (gate.RECORD, noop.BEFORE, noop.STATE_BEFORE, noop.STATE_AFTER,
+        for filename in (gate.BINDING, gate.RECORD, noop.BEFORE, noop.STATE_BEFORE, noop.STATE_AFTER,
                          'history-post-noop-table-after.json', gate.PUBLIC_DIRECTORY+'/'+gate.PUBLIC_FILE):
             self.assertIn('"${RUNNER_TEMP}/'+filename+'"', cleanup)
         self.assertIn('DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"', workflow)
         self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', workflow)
         self.assertIn('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"', workflow)
         self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"', workflow)
+        stage = plan.split('      - name: Check private current-state binding before credentials', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}', stage)
+        self.assertIn('terraform_current_state_attestation.py stage-binding', stage)
+        for name in ('Check fresh current-state metadata binding', 'Verify independent post-import no-op and unchanged state', gate.EMIT_STEP):
+            step = plan.split('      - name: '+name, 1)[1].split('      - name:', 1)[0]
+            self.assertNotIn('RUNTIME_OWNERSHIP_PACKET_JSON', step)
 
     def test_public_dummy_fixture_has_no_authentication_and_is_never_an_issuer(self):
         import terraform_current_state_artifact_fixture as fixture

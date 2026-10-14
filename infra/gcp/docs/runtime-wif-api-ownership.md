@@ -521,6 +521,27 @@ owner-reviewed admissionのissued→expiresは最大24時間。初回の未採�
 
 ### 閉じたゲートと後続承認
 
+current-state発行のprivate入力は、認証前の `stage-binding` で一度だけ読み取る。
+既存 `terraform-dev-plan` Environment の `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` が
+厳密な旧 `{schema_version: 1, receipt_binding}` envelopeなら、`attestation_type`
+だけを追加する。現形式は `{schema_version: 1, attestation_type:
+"dev-history12-current-state-v1", receipt_binding}` のexact schemaとして検査する。
+重複key、非有限JSON、不正version/type、余分/不足field、public receipt、runtime packetは
+STOP。nonce/backend/完全なhistory metadataは変更・生成・置換せず、認証前に既存backendとの
+一致を検査する。旧history receipt/v2 runtime契約へのfallbackや履歴証拠への昇格はない。
+
+検査済み現形式だけをrepository外のowned `RUNNER_TEMP/current-state-private-binding.json`
+へ0600・exclusive/no-followで保存する。fresh metadata照合、post-noop verifier、emitterは
+この一つのprivate fileを再検査し、Secretを再読しない。metadataのstable設定・未知fieldの
+完全比較、rawbytes/HEAD不変、no-op12、lock/workspace不存在、期限、provenance、
+`historical_delta_attested=false` を維持する。private fileは出力・artifact・cacheへ渡さず、
+既存always cleanupで失敗時も削除する。Secret/API/IAM/Environmentの変更やMac原稿取得は不要。
+Secretが欠落・別形式・backend不一致・stable metadata変更ならfail-closedで止める。
+
+このsource変更を実行する承認は、旧sourceに固定された承認とは別に扱う。
+ダミー検証と独立レビュー後、新exact sourceとEnvironment review、24時間以内のadmission、
+plan1/apply0/import0を改めて束ねる。旧sourceの承認期限を新sourceへ引き継がない。
+
 `terraform_current_state_attestation` / reusable `current_state_attestation` はdefault false。dev / mode=plan / history_post_noop=true / ownership_wave=none / history_import_approval空 / initial attempt1 / default root selectorだけ許す。miscombinationとclosed emission gateはcredentials前に拒否する。
 
 `DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED=false`、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY=false`、`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false`。旧 `DEV_HISTORY_POST_NOOP12_READY=false` を新rootのreadyへ読み替えない。両issuer catalogsは空。実binding、Secrets、権限・Environment、dev/main/prodは変更しない。
