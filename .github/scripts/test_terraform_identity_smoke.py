@@ -376,7 +376,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                     raise RuntimeError("PRIVATE_GCP_BODY")
                 requested = body["permissions"]
                 allowed = {"monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"}
-                data = {"permissions": sorted((set(requested) & allowed) | set(extra_permissions))}
+                data = {"permissions": sorted(set(requested) & (allowed | set(extra_permissions)))}
                 if missing_permission in data["permissions"]: data["permissions"].remove(missing_permission)
             elif url.endswith("/functions/firestoreCollectionsExport"):
                 if fail_read == "function": raise RuntimeError("PRIVATE_READ_ERROR")
@@ -488,6 +488,42 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         for permission in ("monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"):
             with self.subTest(missing=permission):
                 self.assertEqual(self.run_smoke(missing_permission=permission)[0], 1)
+
+    def test_each_wif_mutation_grant_stops_plan_and_apply_before_state_or_negative_probes(self):
+        permissions = [f"iam.{resource}.{operation}"
+                       for resource in ("workloadIdentityPools", "workloadIdentityPoolProviders")
+                       for operation in ("create", "update", "delete", "undelete")]
+        for args in (("plan-read-only",), ("apply-read-only",)):
+            for permission in permissions:
+                with self.subTest(mode=args[0], permission=permission):
+                    rc, http, aws, summary, output = self.run_smoke(
+                        args=args, extra_permissions=(permission,))
+                    self.assertEqual(rc, 1, output)
+                    self.assertEqual(summary, "")
+                    self.assertEqual(aws, [])
+                    self.assertIn("stage=gcp-project; category=check-failed", output)
+                    self.assertNotIn("PRIVATE", output)
+                    permission_requests = [body["permissions"] for _, url, body in http
+                                           if url.endswith(":testIamPermissions")]
+                    self.assertEqual(len(permission_requests), 1)
+                    self.assertIn(permission, permission_requests[0])
+                    self.assertFalse(any("generateAccessToken" in url or
+                                         "/projects/youtube-study-space:" in url
+                                         for _, url, _ in http))
+
+    def test_wif_read_grants_preserve_read_only_success_and_skipped_security_boundaries(self):
+        reads = ("iam.workloadIdentityPools.get", "iam.workloadIdentityPools.getAttestationRules",
+                 "iam.workloadIdentityPoolProviders.get")
+        for args in (("plan-read-only",), ("apply-read-only",)):
+            with self.subTest(mode=args[0]):
+                rc, http, _, summary, output = self.run_smoke(args=args, extra_permissions=reads)
+                self.assertEqual(rc, 0, output)
+                self.assertEqual(sum(line.startswith("- SKIPPED") for line in summary.splitlines()), 5)
+                self.assertIn("Full security gate: NOT VERIFIED", summary)
+                for _, url, body in http:
+                    if url.endswith(":testIamPermissions"):
+                        self.assertTrue(set(reads).isdisjoint(body["permissions"]))
+                self.assertNotIn("PRIVATE", summary + output)
 
     def test_wrong_sha_identity_state_or_dependency_error_fails_closed(self):
         project = "test-youtube-study-space"
