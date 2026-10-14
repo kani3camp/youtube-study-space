@@ -95,6 +95,9 @@ import-only の apply identity に WIF create/update/delete、SA setIamPolicy、
 未掲載 service は `Investigate` のまま。非 enabled / 別 project の API を enable して候補へ合わせない。
 `owned_api_keys=[]` は分類後も維持し、採用は承認された API1件ずつの wave に分ける。
 `dependency_addresses` は以下の resource prefix をそのまま流用せず、採用時の full-root にある exact address/alias に解決する。
+Own API の根拠は API 以外の既存 managed consumer address とする。
+当該 API 自身や別 API の `google_project_service` ownership address は consumer evidence ではないため、
+認証前 packet preparation と protected full-root graph の両方で拒否する。
 default-off dependency は、その prerequisite ownership wave と current baseline を先に確認する。
 
 | Service | 分類候補 | Explicit dependency / source evidence | 採用前の条件 |
@@ -649,6 +652,24 @@ GitHub Environment の Required reviewer によるユーザー本人の承認を
    apply gate は false を維持して protected Pool plan へ進む。Pool 一件でも safety metadata は
    Pool / Provider / attestation / SA policy / enabled APIs / project の全 inventory を再読するため、Pool GET だけでは足りない。
    runtime-plan が true の間は `ownership_wave=none` を拒否するので、current-state 再発行と closure を先に完了する。
+
+#### D1 初回 Pool import の最小 private handoff
+
+protected current-state attestation の成功・別 issuer closure・freshness に加え、必要な private 入力は次の3点。
+
+1. 既存 `receipt_binding` の同一 nonce / backend / canonical history metadata。
+   暗号化された GitHub Secret の GET や新 nonce 生成で代替せず、既存 private envelope を保持する。
+2. exact development project / Pool / Provider / 空で完了した attestation response / runtime SA 全 IAM policy /
+   全 page 完了した enabled services の fresh inventory。既存 CI plan/apply identity の各 exact read 成功を
+   operator read の成功と分けて検証する。Trust / unrelated bindings / enabled 状態は変更しない。
+3. 既存 AWS Lambda6 caller と ECS task-role caller の audience / runtime SA / actual role metadata を join して
+   重複排除した required grants の review map。実 member / condition と public aliases を固定する。
+   最初の Pool apply receipt は required-grants 全 map を scope に結ぶため、空 map で採用してから
+   後続 wave で grant を追加する方法は使用しない。7 caller が7 grants になるとは仮定しない。
+
+全 enabled API を `Investigate` で分類し、`selected.apis=[]` のまま Pool を開始できる。
+先に全 API を `Own` と判定する必要はなく、explicit consumer evidence による採用判断は D2 に分離する。
+各 API の classification / reason / dependency はレビュー入力であり、enabled 件数や候補数から選択を補完しない。
 
 ### Private handoff 不足中の protected metadata-only read
 

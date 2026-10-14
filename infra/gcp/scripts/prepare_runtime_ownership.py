@@ -118,6 +118,11 @@ def prepare(data: object) -> dict:
         reason = text(item["reason"])
         if item["classification"] == "Own":
             require(name in service_states and bool(dependencies))
+            # API ownership is not application consumer evidence. Reject both
+            # self and cross-API ownership references before cloud credentials;
+            # the protected graph later resolves every remaining exact address.
+            require(all(not re.search(r"(?:^|\.)google_project_service\.", address)
+                        for address in dependencies))
         classification[name] = {**item, "state": service_states.get(name, "NOT_ENABLED"), "reason": reason}
     require(set(service_states) <= set(classification))
     return {
