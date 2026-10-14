@@ -40,7 +40,7 @@ class IdentitySmokeTest(unittest.TestCase):
         job = workflow.split('  apply:\n', 1)[1].split('  security-probe:\n', 1)[0]
         job_env = job.split('    env:\n', 1)[1].split('    steps:\n', 1)[0]
         step = job.split('      - name: Verify Function identity exact read permissions\n', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('terraform_identity_smoke.py apply-read-only', step)
+        self.assertIn('terraform_identity_smoke.py export-function-apply-read-only', step)
         values = dict(re.findall(r'^\s+(\w+): (.+)$', job_env + '\n' + step.split('        env:\n', 1)[1].split('        run:', 1)[0], re.M))
         substitutions = {'${{ inputs.mode }}': 'apply', '${{ needs.preflight.outputs.ownership_wave }}': 'pool',
             '${{ needs.preflight.outputs.manage_user_activity_history }}': 'true',

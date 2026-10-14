@@ -441,10 +441,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             recorder = Path(directory) / "python3"
             recorder.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
             recorder.chmod(0o700)
-            for mode, expected in (("apply", "export-function-apply-read-only"),
-                                   ("quota-create", "export-function")):
+            for mode, wave, expected in (("apply", "none", "export-function-apply-read-only"),
+                                         ("apply", "pool", "export-function-apply-read-only"),
+                                         ("quota-create", "none", "export-function")):
                 result = subprocess.run(["bash", "-c", script],
-                    env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode},
+                    env={"PATH": directory + os.pathsep + os.environ["PATH"], "MODE": mode, "OWNERSHIP_WAVE": wave},
                     capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py", expected])

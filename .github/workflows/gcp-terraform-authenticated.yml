@@ -970,9 +970,7 @@ jobs:
           QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
         run: |
           set -euo pipefail
-          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
-            python3 .github/scripts/terraform_identity_smoke.py apply-read-only
-          elif [[ "${MODE}" == "apply" ]]; then
+          if [[ "${MODE}" == "apply" ]]; then
             python3 .github/scripts/terraform_identity_smoke.py export-function-apply-read-only
           else
             python3 .github/scripts/terraform_identity_smoke.py export-function
