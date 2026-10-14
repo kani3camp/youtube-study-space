@@ -714,7 +714,8 @@ class RuntimeOwnershipReadOnlySmokeTest(unittest.TestCase):
                       for operation in ("create", "update", "delete", "undelete")) + (
         "iam.serviceAccounts.setIamPolicy", "serviceusage.services.enable", "serviceusage.services.disable")
 
-    def run_smoke(self, *, job="plan", mode="plan", wave="pool", granted=(), status=200, overrides=None):
+    def run_smoke(self, *, job="plan", mode="plan", wave="pool", granted=(), status=200, overrides=None,
+                  response_payload=...):
         calls, out, err = [], io.StringIO(), io.StringIO()
         project = "test-youtube-study-space"
         with tempfile.TemporaryDirectory() as directory:
@@ -729,6 +730,8 @@ class RuntimeOwnershipReadOnlySmokeTest(unittest.TestCase):
                 body = json.loads(request.data)
                 calls.append((request.get_method(), request.full_url, body))
                 data = {"permissions": sorted(set(body["permissions"]) & set(granted))}
+                if response_payload is not Ellipsis:
+                    data = response_payload
                 response = io.BytesIO(json.dumps(data).encode())
                 response.status = status
                 return response
@@ -794,6 +797,18 @@ class RuntimeOwnershipReadOnlySmokeTest(unittest.TestCase):
                 rc, _, summary, output = self.run_smoke(status=status)
                 self.assertEqual((rc, summary), (1, ""))
                 self.assertNotIn("PRIVATE", output)
+
+    def test_unknown_or_malformed_success_envelope_never_proves_permission_absence(self):
+        for payload in (None, [], 1, "PRIVATE_UNKNOWN", {"error": {"message": "PRIVATE_ERROR"}},
+                        {"PRIVATE_UNKNOWN": True}, {"permissions": [], "PRIVATE_UNKNOWN": True},
+                        {"permissions": None}, {"permissions": "PRIVATE_ERROR"}):
+            with self.subTest(payload=payload):
+                rc, calls, summary, output = self.run_smoke(response_payload=payload)
+                self.assertEqual((rc, summary), (1, ""))
+                self.assertEqual(len(calls), 1)
+                self.assertNotIn("PRIVATE", output)
+        # An omitted empty repeated field is a legitimate Google REST response.
+        self.assertEqual(self.run_smoke(response_payload={})[0], 0)
 
     def test_live_workflow_checks_each_runtime_principal_after_auth_before_metadata(self):
         workflow = (Path(__file__).parents[1] / "workflows/gcp-terraform-authenticated.yml").read_text()

@@ -191,6 +191,8 @@ def verify_runtime_ownership_google(env, request=google):
                  "serviceusage.services.enable", "serviceusage.services.disable"]
     status, data = request(f"v3/projects/{project}:testIamPermissions",
                            env["GCP_SMOKE_ACCESS_TOKEN"], {"permissions": requested})
+    if status != 200 or type(data) is not dict or set(data) - {"permissions"}:
+        raise SmokeFailure("runtime-ownership-project-mutation-permissions")
     granted = data.get("permissions", [])
     if status != 200 or type(granted) is not list or granted:
         raise SmokeFailure("runtime-ownership-project-mutation-permissions")
