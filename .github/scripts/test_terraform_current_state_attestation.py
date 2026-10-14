@@ -158,44 +158,60 @@ class CurrentStateTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             receipt.authenticate(fake.ref | dict(transport=receipt.TRANSPORT), dummy_catalog(), request=fake)
 
-    def test_reviewed_source_catalog_pins_only_the_successful_current_state_issuer(self):
-        source = '94786489c90666889dd4efe5f303d1444bc8c430'
+    def test_reviewed_source_catalog_pins_only_successful_current_state_issuers(self):
+        sources = ('94786489c90666889dd4efe5f303d1444bc8c430',
+                   '18d41d08bd8221e11db51d5f9f093d19784327e3')
         catalog = gate.load_catalog(receipt.decode(provenance.BOOTSTRAP_CATALOG.read_bytes()))
-        self.assertEqual(catalog, dict(schema_version=1, issuers={source: dict(
+        expected = dict(
             workflow_id=325439161,
             job_names=dict(plan='GCP Terraform Authenticated / Authenticated protected plan',
                            apply='GCP Terraform Authenticated / Protected validated apply'),
             environment=dict(id=23410074023, name='terraform-dev-plan'), reviewer_ids=[54093651],
             attestation_step=gate.EMIT_STEP, publisher_step=gate.PUBLISH_STEP,
-            required_steps=gate.REQUIRED_STEPS, purpose=gate.TYPE)}))
+            required_steps=gate.REQUIRED_STEPS, purpose=gate.TYPE)
+        self.assertEqual(catalog, dict(schema_version=1, issuers={source: expected for source in sources}))
         self.assertEqual(receipt.decode(provenance.CATALOG.read_bytes()), dict(schema_version=1, issuers={}))
 
         # Only public dummy run/ZIP data goes through the actual reviewed catalog.
-        fake = CurrentStateFixture(dummy_attestation() | dict(source_sha=source))
-        fake.ref['source_sha'] = source
-        issuer = catalog['issuers'][source]
-        for path in (fake.base, fake.base+'/attempts/1'):
-            run = fake.responses[path]
-            run.update(head_sha=source, workflow_id=issuer['workflow_id'])
-            run['referenced_workflows'][0]['sha'] = source
-        for job, role in zip(fake.jobs, ('plan', 'apply')):
-            job.update(head_sha=source, name=issuer['job_names'][role])
-        approval = fake.responses[fake.base+'/approvals'][0]
-        approval['user']['id'] = issuer['reviewer_ids'][0]
-        approval['environments'] = [copy.deepcopy(issuer['environment'])]
-        artifact = fake.responses[fake.artifact_path]
-        artifact['name'] = gate.artifact_name(fake.ref['run_id'], source)
-        artifact['workflow_run']['head_sha'] = source
-        value, _ = gate.authenticate(fake.ref, catalog, request=fake, now=NOW)
-        self.assertEqual(value, fake.value)
-        self.assertIs(value['historical_delta_attested'], False)
-        for unpinned in (SHA, 'b'*40):
-            with self.subTest(source=unpinned), self.assertRaises(ValueError):
-                gate.authenticate(fake.ref | dict(source_sha=unpinned), catalog,
-                                  request=lambda *_: self.fail('unpinned source must stop before transport'), now=NOW)
-        with self.assertRaises(ValueError):
-            receipt.authenticate(fake.ref, receipt.decode(provenance.CATALOG.read_bytes()),
-                                 request=lambda *_: self.fail('bootstrap must never become an apply issuer'))
+        for source in sources:
+            with self.subTest(source=source):
+                fake = CurrentStateFixture(dummy_attestation() | dict(source_sha=source))
+                fake.ref['source_sha'] = source
+                issuer = catalog['issuers'][source]
+                for path in (fake.base, fake.base+'/attempts/1'):
+                    run = fake.responses[path]
+                    run.update(head_sha=source, workflow_id=issuer['workflow_id'])
+                    run['referenced_workflows'][0]['sha'] = source
+                for job, role in zip(fake.jobs, ('plan', 'apply')):
+                    job.update(head_sha=source, name=issuer['job_names'][role])
+                approval = fake.responses[fake.base+'/approvals'][0]
+                approval['user']['id'] = issuer['reviewer_ids'][0]
+                approval['environments'] = [copy.deepcopy(issuer['environment'])]
+                artifact = fake.responses[fake.artifact_path]
+                artifact['name'] = gate.artifact_name(fake.ref['run_id'], source)
+                artifact['workflow_run']['head_sha'] = source
+                value, _ = gate.authenticate(fake.ref, catalog, request=fake, now=NOW)
+                self.assertEqual(value, fake.value)
+                self.assertIs(value['historical_delta_attested'], False)
+                # Historical issuer retention never changes payload expiry or
+                # lets its first unadopted consumer use the fresh issuer's TTL.
+                p, _ = v3_packet()
+                p['current_state_attestation'] = fake.ref
+                expired = receipt.timestamp(fake.value['expires_utc'])
+                p.update(reviewed_utc=(expired-timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                         expires_utc=(expired+timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ'))
+                calls_before = len(fake.calls)
+                with self.assertRaises(ValueError):
+                    provenance.verify_chain(p, dummy_catalog(), bootstrap_catalog=catalog,
+                                            request=fake, now=expired)
+                self.assertGreater(len(fake.calls), calls_before)  # Packet itself remained fresh.
+                for unpinned in (SHA, 'b'*40):
+                    with self.subTest(unpinned=unpinned), self.assertRaises(ValueError):
+                        gate.authenticate(fake.ref | dict(source_sha=unpinned), catalog,
+                            request=lambda *_: self.fail('unpinned or closure source must stop before transport'), now=NOW)
+                with self.assertRaises(ValueError):
+                    receipt.authenticate(fake.ref, receipt.decode(provenance.CATALOG.read_bytes()),
+                        request=lambda *_: self.fail('bootstrap must never become an apply issuer'))
 
     def test_issuer_catalog_is_distinct_strict_and_empty_catalog_stops_before_transport(self):
         self.assertEqual(receipt.decode(provenance.CATALOG.read_bytes()), dict(schema_version=1, issuers={}))
