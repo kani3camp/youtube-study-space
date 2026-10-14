@@ -9,14 +9,22 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 ## 現在のscope
 
-Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceのownership移行は完了しています。2026-10-06時点の通常full-rootは `import0 / no-op11 / drift0 / unknown0` です。後続はIssue #1191を入口に、development残件を片付けてからproduction migration準備へ進みます。
+Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceおよび `user-activity-history` のownership移行は完了しています。最新の認証付き実証は[2026-10-14 current-state run](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934)の `import0 / no-op12 / drift0 / change0` です。これは当該run時点の証拠であり、現在の実環境を再取得したという意味ではありません。後続はIssue #1191を入口に、runtime WIF / 必要な個別IAM / 明示Own APIとdevelopment exitを完了してからproduction migrationへ進みます。
 
 dedicated development aggregate auditの実行記録・revoke手順と、development→production→MyPage releaseの証拠条件は
 [`docs/phase2-approval-and-readiness.md`](docs/phase2-approval-and-readiness.md) を参照してください。
 source準備や過去のno-op記録を、fresh実環境検証・実行承認・Infrastructure Readyと扱いません。
-監査時点でlegacy値のbackfillは不要でしたが、legacy列は残っています。次のschema修復と
-別waveでのcanonical import準備は[`docs/user-activity-history-canonicalization.md`](docs/user-activity-history-canonicalization.md)
-を参照してください。adoptionはdefault-offのままで、live DROP/import/applyは未承認です。
+history tableは既に12件目としてStateへ追加済みです。legacy列の旧監査記録と修復条件は
+[`docs/user-activity-history-canonicalization.md`](docs/user-activity-history-canonicalization.md)を参照し、
+fresh `tables.get`と現Stateを照合します。canonical8列なら再DROP・再importを行いません。
+original history applyのfinal receiptは失われており、current-state証跡はその履歴を遡及証明しません。
+
+Notion Current Canonの[2026-10-15 条件付き包括承認案A](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)
+の範囲内は、作業ごとのChat再承認を求めず進めます。各protected runのGitHub Environment承認は
+ユーザー本人が行い、required reviewers / branch protection / OIDC trustを保持します。
+古い文書の別Chat承認という記述は案Aの対象範囲で更新されましたが、fresh inventory、exact SHA、
+import-only、same-SHA re-plan、post no-op等の技術的STOP条件は変わりません。
+`dev`へのmerge、直接push、auto-mergeはCodexやbotでは行いません。
 
 通常のmigration pathでは以下を行いません。bounded normal-change / state-only例外は、別validator・別approvalで明示的に隔離します。
 
@@ -202,11 +210,11 @@ backend bucketのObject Versioningを前提に、誤ったstate更新・削除�
 1. apply / importを停止する
 2. 対象environmentとbackend bucketを再確認する
 3. bucket object generationをread-onlyで確認する
-4. 復旧対象generationを特定する
-5. 現行stateを別名で退避する
-6. 選定したgenerationからstateを復元する
-7. `terraform plan` でremote resourceとの整合を確認する
-8. 差分の原因が説明できるまでapplyしない
+4. 復旧候補versionと現行Stateのlineage / serial / ownership / 後続writeを比較する
+5. 現行Stateをprivate領域に保全し、候補versionの盲目的な上書きを禁止する
+6. native lock下で現行ownershipと後続writeを保持できる、対象限定の復旧planをreviewする
+7. 承認された復旧手順だけを実行し、完全な `terraform plan` とversion / lockを再検証する
+8. 差分の原因が説明できるまで通常applyを再開しない
 
 dev / prodを跨いだstate copyは行いません。
 
