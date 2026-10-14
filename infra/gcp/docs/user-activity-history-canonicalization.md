@@ -1,7 +1,20 @@
-# Development user-activity-history: schema repair before adoption
+# Development user-activity-history: current ownership and schema repair history
 
 この文書は公開可能な判定・準備仕様です。private metadata、実件数、row、IAM inventory、
 state/planは保存しません。入口は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。
+
+## 現在の実証と再実行禁止
+
+2026-10-14の[protected current-state run](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934)
+はhistoryを含むState12件と `import0 / no-op12 / drift0 / change0` を検証済みです。
+[issuer closure #1294](https://github.com/kani3camp/youtube-study-space/pull/1294)が別current-state証跡をcatalog化しました。
+original history importのfinal receiptは失われており、`historical_delta_attested=false`を維持します。
+下記旧audit・schema修復手順は履歴と条件の説明であり、現在のlegacy列残存や未importを意味しません。
+まずfresh `tables.get`と現Stateを照合し、canonical8列ならDROP・importを再実行しません。
+
+Notion Current Canonの2026-10-15包括承認案Aは、未修復の場合に限る限定DROPと安全なimportを
+条件付きで承認しています。作業ごとのChat承認は不要ですが、GitHub Environmentの本人承認と
+fresh metadata / consumer / writer / recovery / unknown差分0の技術条件は維持します。
 
 ## Recorded audit outcome
 
@@ -32,8 +45,8 @@ runtimeのtemporary trust/bindings/inputs撤回とSA disableはoperatorのreadba
 
 ## Decision: preserve the canonical contract
 
-値が空でもlegacy列自体は残っています。Notion Current Canonと#1191のこのtableに対する
-具体方針は、schema修復を別approved waveで終えてからcanonical8列をimportする順序です。
+旧audit時点では値が空でもlegacy列自体は残っていました。当時のNotion Current Canonと#1191の
+具体方針は、schema修復を別waveで終えてからcanonical8列をimportする順序でした。
 一般の「import first」原則を理由に、Unexpected Driftの9列を新しい正本にしません。
 
 現状9列を正確に定義してno-op importする案は技術的に別案ですが、環境別timestamp許容と
@@ -67,7 +80,7 @@ python3 infra/gcp/scripts/prepare_user_activity_history_adoption.py \
 
 これは認証付きplan/import/applyを実行するコマンドではありません。
 
-## Separate live waves, all still unapproved
+## 未修復と実測された場合だけに適用する別wave
 
 1. **Dependency and recovery preflight**: external BI/cross-project/manual SQL/wildcard/views、
    current export/tmp canonical schema、#1192 guardのactual runtime deployment SHA、writer windowを
@@ -76,7 +89,7 @@ python3 infra/gcp/scripts/prepare_user_activity_history_adoption.py \
    private retention・新write保持・復元proofが未確定ならSTOP。snapshot/copy/deploy/IAM等が
    必要ならそのexact scopeも別承認。追加business-data queryをこの準備へ自動追加しない。
 2. **Schema-only repair**: 上記gateが満たされた時だけ、既存operator identityのpermissionと
-   exact targetを確認してDROPのaction-time承認を取る。候補は次の1 statementだけ。
+   exact targetと包括承認案Aの条件適合を確認する。候補は次の1 statementだけ。
    `IF EXISTS`でschemaの想定外変更を隠さず、retry/backfill/table再作成は追加しない。
 
    ```sql
@@ -112,5 +125,5 @@ recovery tableへのcopyも無条件のrollbackにせず、新writeとprivacy re
 `deletion_protection`/`prevent_destroy`だけを列削除の防止と扱いません。
 9列remoteへ8列definitionを当てたimport+update planは必ず拒否し、repairとimportを分離します。
 
-Schema repair/import、runtime WIF/API ownership、production基盤は未完了です。
+history ownershipはcurrent-state証跡で確認済みです。fresh schema照合、runtime WIF/API ownership、production基盤は残件です。
 audit成功とcode/testsだけでInfrastructure/MyPage release ReadyGateをPASSにしません。
