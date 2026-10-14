@@ -32,7 +32,7 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとissuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。新emission/root-ready gatesもfalseです。詳細と後続の別実行承認は[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-13-current-state-bootstrap別契約source-only)を参照してください。
+history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとruntime apply issuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。current-state発行は成功し、closureは成功issuer Sだけを専用catalogへpinします。root-ready/runtime/production gatesはfalseを維持します。証跡・初回消費期限と後続の別実行承認は[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-14-current-state-issuer-closureデータ参照準備のみ)を参照してください。
 
 ## Directory
 

@@ -509,7 +509,7 @@ private bindingは既存secretによる `{schema_version:1, attestation_type:"de
 
 専用artifactは `current-state-attestation-v1-<run>-1-<source>`、canonical JSON+改行の`current-state-attestation.json`一件のみ。payload16 KiB/ZIP64 KiB、retention90日、pinned upload、glob/directory/hidden/private uploadなし。record、state/metadata、public staging、credentials、saved planとlogsをalways cleanupする。consumerはpublisher成功だけでは受理せず、run/job/cleanup成功も要求する。
 
-別の[`current-state-attestation-sources.json`](../../../.github/terraform/current-state-attestation-sources.json) はschema1・初期issuers空。review済みexact SHA、actual workflow ID、唯一のplan job名とapply job名、plan Environment ID/name、owner-reviewed reviewer IDs、ordered critical steps、唯一のpublisher、固定purposeをpinする。実IDを推測しない。GET-only authenticatorはlegacy bounded transport/redirect policyを使い、exact run/attempt1/repository/ref/caller/reusable、successful protected plan、Environment approval、executed apply不在、unique artifact/digest/expiry/timing/strict ZIPを確認し、run/artifact/listを再読する。single-page成功時はAPI GET10（うちZIP1）、signed redirect GETは別。logs fallbackはない。
+別の[`current-state-attestation-sources.json`](../../../.github/terraform/current-state-attestation-sources.json) はschema1で、下記closureが成功issuer Sだけをpinする。review済みexact SHA、actual workflow ID、唯一のplan job名とapply job名、plan Environment ID/name、owner-reviewed reviewer IDs、ordered critical steps、唯一のpublisher、固定purposeをpinする。実IDを推測しない。GET-only authenticatorはlegacy bounded transport/redirect policyを使い、exact run/attempt1/repository/ref/caller/reusable、successful protected plan、Environment approval、executed apply不在、unique artifact/digest/expiry/timing/strict ZIPを確認し、run/artifact/listを再読する。single-page成功時はAPI GET10（うちZIP1）、signed redirect GETは別。logs fallbackはない。
 
 ### packet v3と初回state join
 
@@ -544,10 +544,50 @@ plan1/apply0/import0を改めて束ねる。旧sourceの承認期限を新source
 
 `terraform_current_state_attestation` / reusable `current_state_attestation` はdefault false。dev / mode=plan / history_post_noop=true / ownership_wave=none / history_import_approval空 / initial attempt1 / default root selectorだけ許す。miscombinationとclosed emission gateはcredentials前に拒否する。
 
-`DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED=false`、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY=false`、`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false`。旧 `DEV_HISTORY_POST_NOOP12_READY=false` を新rootのreadyへ読み替えない。両issuer catalogsは空。実binding、Secrets、権限・Environment、dev/main/prodは変更しない。
+初期sourceでは `DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED=false`、両issuer catalogsは空だった。Sではemissionのみを開いて下記の発行が成功した。closureでも `DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY=false`、`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED=false`、旧 `DEV_HISTORY_POST_NOOP12_READY=false` を維持する。実binding、Secrets、権限・Environment、dev/main/prodは変更しない。
 
-後続はownerがexact source S、actual Environment protection/reviewer/bypass policy、既存principalの境界、private nonce/backend/metadata、same-SHA/max4MiB/24時間/quiet-writer admission、費用と実行scopeをまとめて別承認する。review済みSでemissionのみを開き、protected plan1/apply0/import0を実行する。成功run/steps/cleanup/unique artifactを確認したclosure source CがSを別catalogへpinし、初めてnew-root readyを扱う。Sを自己参照pinせず、bootstrap issuerをruntime apply issuerへ昇格しない。runtime planは別CI execution approval、runtime applyはさらに別承認が必要。
+発行にはownerがexact source S、actual Environment protection/reviewer/bypass policy、既存principalの境界、private nonce/backend/metadata、same-SHA/max4MiB/24時間/quiet-writer admission、費用と実行scopeをまとめて別承認する。review済みSでemissionのみを開き、protected plan1/apply0/import0を実行する。成功run/steps/cleanup/unique artifactを確認したclosure source CがSを別catalogへpinする。catalog受理だけではnew-root ready gateを有効化しない。Sを自己参照pinせず、bootstrap issuerをruntime apply issuerへ昇格しない。runtime planは別CI execution approval、runtime applyはさらに別承認が必要。
 
 accountingはobserved Terraform outcomesとexplicit S3 reads10/canonical metadata GET2のみ。provider内部・workflow全体requests・actual costはunknown。後の通常planはnative S3 lockのPutObject/DeleteObjectやversion retentionを伴い得るため、全S3 writes0とは約束しない。
 
 public dummy testsとPR専用fixture artifactは実cloud credentials/OIDC/Environmentを使わず、実データを含めない。fixtureはtrust catalogへ追加せず、実attestation/root-ready/実行承認の証拠にはしない。source revertとnew gate/catalog closureでconsumerを停止できる。既存history managed flagをfalseへ戻したり、destroy/rollback applyを行ったりしない。
+
+### 2026-10-14 current-state issuer closure（データ参照準備のみ）
+
+source S `94786489c90666889dd4efe5f303d1444bc8c430`（tree `9801dc0f4b35511a737ab5192a271ffc9d222d71`）の
+[run 38528566934](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934) attempt1、
+[plan job 115734708760](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934/job/115734708760) は成功した。
+workflow ID `325439161`、Environment `terraform-dev-plan` / ID `23410074023`、owner reviewer ID `54093651`、admin bypass false。
+ordered `REQUIRED_STEPS`、publisher、cleanupが成功し、applyはskipped。CI全体は2026-10-14 07:31:32 UTCにSUCCESS。
+
+closure CはSのみをcurrent-state専用catalogへpinする。C自身をpinせず、
+`runtime-receipt-sources.json` は空のまま、Sをruntime apply issuerへ昇格しない。
+root-ready、旧historical readiness、runtime plan、production gatesはfalseを維持し、実行権限を増やさない。
+この変更の受理と後続のlive plan/apply承認は別である。
+
+非秘密のreceipt参照は次の通り。private inventory、nonce、backend、metadataは含めない。
+
+```json
+{
+  "run_id": 38528566934,
+  "attempt": 1,
+  "job_id": 115734708760,
+  "source_sha": "94786489c90666889dd4efe5f303d1444bc8c430",
+  "receipt_sha256": "5cf14275459ae11f384b05ae5269280d88110bb9f4ca92848989ede96752b5fa",
+  "transport": "current-state-artifact-v1",
+  "artifact_id": 11876852839,
+  "artifact_sha256": "1f376b8f2e075c1a9dbe86f5dd9ad9885f5b018405e472ec38365863897b681c"
+}
+```
+
+sanitized ZIPは893 bytes。独立検証でZIP / strict schema / source / guardsはPASS、
+no-op12 / change0 / import0 / drift0、state bytes/HEADとmetadata不変、lock/workspace不存在、cleanup PASS。
+観測は `2026-10-14T07:30:03Z`、初回消費期限は `2026-10-15T03:04:34Z`。
+artifactの90日保存は初回消費期限を延長しない。`historical_delta_attested=false`、実費と全request数はunknown。
+
+後続の新しい実行計画はpool一件を先行させ、`schema_version=3` / `current-state-bootstrap`、
+`adopted={pool:false,provider:false,grants:[],apis:[]}`、
+`selected={pool:true,provider:false,grants:[],apis:[]}`、`adoption_receipts=[]` とする。
+exact consumer source、private packet/bindingとfresh admission、Environment review、root-ready/runtime gateの別承認が必要。
+このclosureではpacket作成・Secret読取更新・gate有効化・protected dispatch・live plan/applyを行わない。
+未採用のまま期限が切れた場合は新しいprotected current-state no-opと別issuer closureが必要で、古いreceiptへfallbackしない。
