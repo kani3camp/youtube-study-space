@@ -6,7 +6,6 @@ does not attest inventory, effective permissions, development exit, or approval.
 """
 from __future__ import annotations
 
-import argparse
 from datetime import datetime, timezone
 import json
 import os
@@ -14,6 +13,8 @@ from pathlib import Path
 import re
 import stat
 import sys
+
+from prepare_user_activity_history_workflow import PrivateArgumentParser
 
 ROOT = Path(__file__).resolve().parents[3]
 STATE_KEY = "youtube-study-space/prod/terraform.tfstate"
@@ -107,7 +108,7 @@ def permissions_policy(bucket, kind):
          "Resource": state_arn + ".tflock"},
         {"Sid": "ProductionDiscoveryOnly", "Effect": "Allow", "Action": "s3:ListBucket",
          "Resource": bucket_arn, "Condition": {"StringEquals": {
-             "s3:prefix": [STATE_KEY, WORKSPACE_PREFIX + "/"],
+             "s3:prefix": [STATE_KEY, STATE_KEY + ".tflock", WORKSPACE_PREFIX + "/"],
          }}},
     ]}
 
@@ -152,11 +153,11 @@ def private_file(path):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--inventory", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args(argv)
     try:
+        parser = PrivateArgumentParser(description=__doc__)
+        parser.add_argument("--inventory", type=Path, required=True)
+        parser.add_argument("--output", type=Path, required=True)
+        args = parser.parse_args(argv)
         packet = build_packet(private_file(args.inventory))
         destination = args.output
         private_path(destination)

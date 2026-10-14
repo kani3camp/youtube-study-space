@@ -56,7 +56,7 @@ class ProductionBackendPacketTest(unittest.TestCase):
             self.assertFalse(permits(policy, "s3:GetObjectVersion", state))
             for action in ("s3:GetObject", "s3:PutObject", "s3:DeleteObject"):
                 self.assertTrue(permits(policy, action, state + ".tflock"))
-            for prefix in (packet.STATE_KEY, packet.WORKSPACE_PREFIX + "/"):
+            for prefix in (packet.STATE_KEY, packet.STATE_KEY + ".tflock", packet.WORKSPACE_PREFIX + "/"):
                 self.assertTrue(permits(policy, "s3:ListBucket", bucket, **{"s3:prefix": prefix}))
             for prefix in (None, "", "youtube-study-space/", "youtube-study-space/dev/", "unrelated-product/",
                            "youtube-study-space/prod/", packet.WORKSPACE_PREFIX + "/other/"):
@@ -163,6 +163,16 @@ class ProductionBackendPacketTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(packet.main(["--inventory", str(source), "--output", str(output)]), 1)
             self.assertFalse(output.exists())
+
+    def test_cli_argument_errors_never_echo_private_values(self):
+        for arguments in (["--inventory", "/private/private-sentinel.json", "--unknown", "private-sentinel"],
+                          ["--unknown-private-sentinel"], ["--inventory"],
+                          ["--inventory", "/private/private-sentinel.json"]):
+            out, err = io.StringIO(), io.StringIO()
+            with self.subTest(arguments=arguments), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                self.assertEqual(packet.main(arguments), 1)
+            self.assertEqual(out.getvalue(), "")
+            self.assertEqual(err.getvalue(), "Production backend proposal STOP; private diagnostic suppressed.\n")
 
 
 if __name__ == "__main__":

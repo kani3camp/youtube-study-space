@@ -25,7 +25,7 @@ source準備、credentialless tests、最小read-only inventory整理はそれ�
 - prod default graphはresource/import/drift各0。既存Email/quota ownershipはfalseのまま。
 - prod rootへ別projectを渡すと停止。backend exampleはprod keyとworkspace discovery prefixへ限定。
 - Email opt-inはcreate1、quota opt-inはcreate3であり、既存import-only sanitizerが拒否。
-- 現行authenticated workflowのprod向け全7 modeはpreflightで停止し、job inputも生成しない。
+- 現行authenticated workflowのprod向け全modeはpreflightで停止し、job inputも生成しない。
 - prod plan/applyは独立gate。source契約と実測development exitが未完の間はplanも閉鎖する。
 - gateを開いたsynthetic testでもdev例外mode/入力、rerunを拒否し、prodの全ownership outputを明示する。
 - offline backend proposalはexact prod state/lockとEnvironment別OIDC subjectを生成し、実値を公開しない。
@@ -67,7 +67,7 @@ credential/token、signed URL、raw state/planを会話・public repository・Ac
 | AWS backend roles | prod roleの存在/collision、RoleId、trust、attached/inline policies、boundary/SCPによる実効制限、既存dev roleからprodへの境界 | Exact role GETとそのpolicy metadata。必要なpolicy一覧のみ。新role/provider/permissionなし |
 | GitHub trust/settings | 現行repository OIDC subject template、prod plan/apply Environmentの存在、reviewer/self-review/bypass、branch restrictions、secret **names** の存在 | Settings read不可なら未確認。secret値read不要。CodeQL/OIDC制約を解消するためにtrustを弱めない |
 | GCP Terraform CI trust | prod側CI pool/provider/plan-SA/apply-SAの存在または不在、mapping/condition、exact SA IAM、roles/grants/API依存 | 既存CI resourceのexact GET。AWS runtime WIFとは別。project番号/member全文/role実値はprivate。permission追加なし |
-| First import candidates | 本人合意のOwn候補だけについてexact ID/location/provider Read fields、IAM dependency、生成resourceとの境界 | 最初はsmall waveに必要なmetadataだけ。data本文、query、export、source download、Function invocationなし |
+| First import candidates | 包括承認AのOwn条件を満たす候補だけについてexact ID/location/provider Read fields、IAM dependency、生成resourceとの境界 | 最初はsmall waveに必要なmetadataだけ。data本文、query、export、source download、Function invocationなし |
 | Recovery/operator path | 既存SSO/短期operator経路、prod version復旧を行える主体とrunbook、期限/cost条件、既存dev recoveryの参照 | 新backup/restore testを勝手に実行しない。#1165/#1166の完了を推測しない |
 
 state key不在はstate bucket不在を意味しません。既存共通bucketを再利用し、prod用のkey/roles/trustを
@@ -155,7 +155,7 @@ fresh private inventoryから一つのprivate proposalを生成します。既�
 [development smoke](../../../.github/scripts/terraform_identity_smoke.py) のcontractと一致しない場合はSTOP。
 account/bucket/region/role名を推測せず、prod/dev4 identitiesの衝突を拒否します。
 
-権限は上表のexact State/lockと、exact default state key・prod workspace discovery prefixに限ります。
+権限は上表のexact State/lockと、exact default state key・native lock key・prod workspace discovery prefixに限ります。
 planはState Put/Deleteなし、applyもState Deleteなし、両方ともdev/other-product/object-version/KMS/IAM/API
 権限なし。これは生成された単独policyの提案であり、attached policy、bucket policy、SCP、session policyを
 含む実効権限や実際のdeny証拠ではありません。実identity/negative probes/read-backはP1/P2で別途検証します。

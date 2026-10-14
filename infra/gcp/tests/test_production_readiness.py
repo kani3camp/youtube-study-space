@@ -74,11 +74,12 @@ class ProductionReadinessTest(unittest.TestCase):
     def test_every_production_mode_stops_in_preflight_before_authentication(self):
         source = WORKFLOW.read_text()
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', source)
-        modes = ("plan", "apply", "security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh")
+        modes = ("plan", "apply", "security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh", "current-state-read")
         for mode in modes:
             with self.subTest(mode=mode):
                 result = self.assert_stops_before_job_inputs(mode)
-                self.assertIn("Production authenticated Terraform is intentionally disabled", result.stdout)
+                if mode != "current-state-read":
+                    self.assertIn("Production authenticated Terraform is intentionally disabled", result.stdout)
 
     def test_single_production_plan_gate_cannot_bypass_missing_contract_or_development_exit(self):
         for ready in ({}, {"PROD_EXECUTION_CONTRACT_READY": "true"}, {"PROD_DEVELOPMENT_EXIT_READY": "true"}):
@@ -106,7 +107,7 @@ class ProductionReadinessTest(unittest.TestCase):
     def test_production_rejects_development_modes_inputs_and_reruns_even_when_all_gates_are_open(self):
         gates = {name: "true" for name in ("PROD_AUTHENTICATED_TERRAFORM_ENABLED", "PROD_EXECUTION_CONTRACT_READY",
                                           "PROD_DEVELOPMENT_EXIT_READY", "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED")}
-        for mode in ("security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh"):
+        for mode in ("security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh", "current-state-read"):
             with self.subTest(mode=mode):
                 self.assert_stops_before_job_inputs(mode, **gates)
         for key, value in (("HISTORY_POST_NOOP", "true"), ("CURRENT_STATE_ATTESTATION", "true"),
