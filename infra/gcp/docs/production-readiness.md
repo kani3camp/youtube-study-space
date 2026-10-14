@@ -231,6 +231,7 @@ case normalizationは未対応でSTOP。SA/member/condition titleのwhitespace�
 曖昧になるためSTOPし、必要なら別typed adapterをreviewします。APIは1件importの独立wave、disable flags falseを要求します。
 create/update/delete/replace/read/forget、unknown、drift、deferred/action invocation、address move、deposed、
 output差分、root graphの欠落/追加、失敗したGET/LISTや403をabsenceとして扱う入力はすべてSTOP。
+Stateのidentity schema versionは実証済みのomitted/0だけを許可し、未知versionを受理しません。
 
 ```sh
 python3 infra/gcp/scripts/production_execution_contract.py \

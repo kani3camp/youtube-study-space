@@ -168,7 +168,7 @@ def state_shape(state, expected):
             need(instance.get("create_before_destroy", False) is False and type(instance.get("sensitive_attributes", [])) is list)
             need(type(instance.get("private", "")) is str and type(instance.get("dependencies", [])) is list
                  and all(type(dependency) is str for dependency in instance.get("dependencies", [])))
-            need(type(instance.get("identity_schema_version", 0)) is int and instance.get("identity_schema_version", 0) >= 0
+            need(type(instance.get("identity_schema_version", 0)) is int and instance.get("identity_schema_version", 0) == 0
                  and (instance.get("identity") is None or type(instance["identity"]) is dict))
             instances[address] = instance
     need(set(instances) == set(expected))

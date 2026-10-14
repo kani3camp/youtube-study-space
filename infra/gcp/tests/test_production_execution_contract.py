@@ -198,6 +198,7 @@ class ProductionExecutionContractTest(unittest.TestCase):
         self.rejected(lambda value: self.edit_state(value, "after", lambda state: state["resources"][0]["instances"].append(deepcopy(state["resources"][0]["instances"][0]))))
         self.rejected(lambda value: self.edit_state(value, "after", lambda state: state.update(check_results=[{"status": "unknown"}])))
         self.rejected(lambda value: self.edit_state(value, "after", lambda state: state.update(unknown_metadata={})))
+        self.rejected(lambda value: self.edit_state(value, "after", lambda state: state["resources"][-1]["instances"][0].update(identity_schema_version=99, identity={})))
         self.rejected(lambda value: value["after"]["snapshot"]["get_metadata"].update(ServerSideEncryption="aws:kms"))
 
     def test_any_private_cloud_metadata_change_or_identity_mismatch_stops(self):
