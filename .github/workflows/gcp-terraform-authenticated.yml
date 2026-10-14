@@ -107,7 +107,9 @@ env:
   DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"
   DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
   # Metadata observation only; no Terraform, admission or issuer claim.
-  DEV_CURRENT_STATE_READ_ENABLED: "false"
+  DEV_CURRENT_STATE_READ_ENABLED: "true"
+  DEV_CURRENT_STATE_READ_ISSUED_UTC: "2026-10-14T17:15:25Z"
+  DEV_CURRENT_STATE_READ_EXPIRES_UTC: "2026-10-15T01:15:25Z"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Initial history import requires its authentic root receipt in the same apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
@@ -187,6 +189,15 @@ jobs:
           if [[ "${MODE}" == "current-state-read" ]]; then
             [[ "${TARGET}" == "dev" && "${DEV_CURRENT_STATE_READ_ENABLED:-false}" == "true" && "${DEV_AUTHENTICATED_TERRAFORM_ENABLED}" == "true" && "${DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED}" == "true" && "${GITHUB_RUN_ATTEMPT:-}" == "1" && "${HISTORY_POST_NOOP}" == "false" && "${CURRENT_STATE_ATTESTATION:-false}" == "false" && "${OWNERSHIP_WAVE:-none}" == "none" && "${OWNERSHIP_ROOT_BASIS:-original-history-import}" == "original-history-import" && -z "${HISTORY_IMPORT_APPROVAL:-}" && -z "${PLAN_COST_EVIDENCE:-}" && -z "${PLAN_SAFETY_EVIDENCE:-}" ]] || {
               echo "::error::Current-state metadata read is disabled or has inconsistent selectors."; exit 1;
+            }
+            [[ "${DEV_CURRENT_STATE_READ_ISSUED_UTC:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && "${DEV_CURRENT_STATE_READ_EXPIRES_UTC:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
+              echo "::error::Current-state read window is missing or malformed."; exit 1;
+            }
+            reader_issued=$(date -u -d "${DEV_CURRENT_STATE_READ_ISSUED_UTC}" +%s 2>/dev/null)
+            reader_expires=$(date -u -d "${DEV_CURRENT_STATE_READ_EXPIRES_UTC}" +%s 2>/dev/null)
+            reader_now=$(date -u +%s)
+            (( reader_issued <= reader_now && reader_now < reader_expires && reader_expires > reader_issued && reader_expires - reader_issued <= 28800 )) || {
+              echo "::error::Current-state read window is expired or invalid."; exit 1;
             }
             echo "state_key=youtube-study-space/dev/terraform.tfstate" >> "${GITHUB_OUTPUT}"
             echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
