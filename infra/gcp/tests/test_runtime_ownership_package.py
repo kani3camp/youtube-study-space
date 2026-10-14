@@ -411,7 +411,8 @@ class WorkflowContracts(unittest.TestCase):
             for mode in ['plan', 'apply']:
                 with self.subTest(managed=managed, mode=mode):
                     result = self.preflight(OWNERSHIP_WAVE='none', MODE=mode,
-                        DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=managed)
+                        DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=managed,
+                        DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true')
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.preflight(OWNERSHIP_WAVE='none', HISTORY_POST_NOOP='true').returncode, 0)
 

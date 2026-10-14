@@ -475,7 +475,8 @@ class CurrentStateTest(unittest.TestCase):
         for filename in (gate.RECORD, noop.BEFORE, noop.STATE_BEFORE, noop.STATE_AFTER,
                          'history-post-noop-table-after.json', gate.PUBLIC_DIRECTORY+'/'+gate.PUBLIC_FILE):
             self.assertIn('"${RUNNER_TEMP}/'+filename+'"', cleanup)
-        self.assertIn('DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "false"', workflow)
+        self.assertIn('DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"', workflow)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', workflow)
         self.assertIn('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"', workflow)
         self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"', workflow)
 
@@ -501,6 +502,8 @@ class CurrentStateTest(unittest.TestCase):
     def test_selector_combination_and_closed_gates_stop_in_unauthenticated_preflight(self):
         fixture = workflow_fixture.TerraformAuthenticatedWorkflowTest(); fixture.setUpClass()
         selected = fixture.source_gates() | dict(CURRENT_STATE_ATTESTATION='true', HISTORY_POST_NOOP='true')
+        self.assertEqual(fixture.run_preflight(**selected).returncode, 0)
+        selected['DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED'] = 'false'
         self.assertNotEqual(fixture.run_preflight(**selected).returncode, 0)
         selected['DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED'] = 'true'
         self.assertEqual(fixture.run_preflight(**selected).returncode, 0)

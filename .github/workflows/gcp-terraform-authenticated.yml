@@ -81,7 +81,7 @@ env:
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
   # Bounded history execution window; exact fresh plan and Environment approvals
   # are still mandatory. Close all four execution gates after independent no-op12.
-  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
@@ -104,7 +104,7 @@ env:
   # The original final history receipt was lost. Original-history readiness
   # remains separate from the default-off current-state root and runtime plan.
   DEV_HISTORY_POST_NOOP12_READY: "false"
-  DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "false"
+  DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"
   DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Initial history import requires its authentic root receipt in the same apply.
