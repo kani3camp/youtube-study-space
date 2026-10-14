@@ -7,13 +7,16 @@
 
 ## Scope and evidence
 
-開始時にremote integration `feature/gcp-terraform-iac` のHEAD
-`7c7b99c7c8492a1c675c821dbf17762e13edbb80` をfresh確認しました。
+source packetの作成基点は integration `feature/gcp-terraform-iac` のHEAD
+`801afa4f00851d01c32eb8c054d067266272e814` です。実行開始時には最新remote HEADを再確認します。
 既存[prod root](../environments/prod/main.tf)、[backend example](../environments/prod/backend.hcl.example)、
 通知2 modulesを再利用します。共通state account/bucketはdevelopmentでbootstrap済みという
 repository記録がありますが、このpacketでcloud側を再確認していません。
 
-production backend/key/trust/importは未検証・未承認です。dev batch cutoverや今夜の成功を
+production backend/key/trust/importは実環境で未検証です。2026年10月15日の条件付き包括承認Aを
+今回のユーザー指示として適用します。承認範囲内の作業にChatで再承認は不要ですが、
+GitHub EnvironmentのRequired reviewersは実行ごとに本人が承認します。devへのagent mergeは禁止です。
+dev batch cutoverや今夜の成功を
 production gateの証拠にしません。dev history/runtime WIF/APIの作業は別workstreamです。
 source準備、credentialless tests、最小read-only inventory整理はそれらと並行できます。
 
@@ -22,7 +25,10 @@ source準備、credentialless tests、最小read-only inventory整理はそれ�
 - prod default graphはresource/import/drift各0。既存Email/quota ownershipはfalseのまま。
 - prod rootへ別projectを渡すと停止。backend exampleはprod keyとworkspace discovery prefixへ限定。
 - Email opt-inはcreate1、quota opt-inはcreate3であり、既存import-only sanitizerが拒否。
-- 現行authenticated workflowのprod向け全6 modeはpreflightで停止し、job inputも生成しない。
+- 現行authenticated workflowのprod向け全7 modeはpreflightで停止し、job inputも生成しない。
+- prod plan/applyは独立gate。source契約と実測development exitが未完の間はplanも閉鎖する。
+- gateを開いたsynthetic testでもdev例外mode/入力、rerunを拒否し、prodの全ownership outputを明示する。
+- offline backend proposalはexact prod state/lockとEnvironment別OIDC subjectを生成し、実値を公開しない。
 - 専用PR CIはcredentiallessで、OIDC permission、Environment、secret、remote state操作を持たない。
 
 これらはmocked plan/source guardの証明です。pinned providerのprod実Read、remote no-op、
@@ -32,14 +38,16 @@ cloud trust、実Environment approval、locking/recoveryの検証にはなりま
 
 [現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml) は閉鎖を維持します。
 `PROD_AUTHENTICATED_TERRAFORM_ENABLED` をtrueへ変えるだけでは完成しません。
-共通CI/identity scriptの変更はこのpacketへ混ぜず、fresh inventory後の別source PRで束ねます。
+本packetは独立gate/routingとoffline backend proposalまでです。`PROD_EXECUTION_CONTRACT_READY` と
+`PROD_DEVELOPMENT_EXIT_READY` はfalseを維持します。fresh inventory後のsource PRでprod専用
+identity smoke・initial-state・exact wave検証を完成し、実測development exit後にactivationをreviewします。
 
 | Remaining source work | Current evidence / required result |
 | --- | --- |
-| Independent prod plan/apply gates | 現行prodにはdevと同等の独立apply-enable flagがない。plan smokeだけでapplyを解禁できない構成が必要 |
-| Production mode routing | prod branchは`manage_quota` outputを設定せず、dev専用例外modeをprod側で明示拒否していない。prodは通常plan/import-only applyだけへ限定し、各job inputを明示する |
+| Independent prod plan/apply gates | source準備済み。`PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`。plan enableから独立し、Environment承認も別 |
+| Production mode routing | source準備済み。通常plan/import-only applyのみ。全ownership inputを明示false、dev専用入力/例外mode/rerunを拒否 |
 | Actual prod identity smoke | planのidentity smokeはdev条件付き。既存scriptはdev project/keyと既存stateを前提にする。prod plan/apply双方の実identity/negative probeが必要 |
-| Initial-state handling | prod keyがabsent/empty/existingのどれか未確認。absentはAccessDeniedと区別する。dev stateをcopyせず、必要なinitial state/output writeは独立した承認対象 |
+| Initial-state handling | prod keyがabsent/empty/existingのどれか未確認。absentはAccessDeniedと区別する。dev stateをcopyせず、必要なinitial state/output writeは包括承認A内の独立実行unit |
 | Import definitions and exact wave validators | prod import blocksは未準備。fresh Own分類/remote値に基づく定義と、exact address/import/no-op/unknown/drift/output/state shapeのwave契約が必要 |
 | Protected execution evidence | same-SHA再plan/projection一致、独立Environment approvals、post no-op、lock/version/lineage、public output監査をprodで実測する |
 
@@ -90,7 +98,7 @@ state ARN wildcardを足しません。既存encryptionがSSE-S3なら維持し�
 
 prod smokeを準備するとき、stateがabsentの状態で条件付きPutObjectを「必ずdenyされるread」と
 扱いません。許可が誤ってあればobjectを作成します。negative test自体の最大mutation/costを先に
-reviewし、別承認するか、書込みを試みない検証へ限定します。404やnetwork errorをdeny PASSにしません。
+reviewし、包括承認Aの安全条件を満たす独立unitへ分離するか、書込みを試みない検証へ限定します。404やnetwork errorをdeny PASSにしません。
 
 [AWS OIDC trust公式](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)、
 [GitHub OIDC reference](https://docs.github.com/en/actions/reference/security/oidc)、
@@ -98,19 +106,19 @@ reviewし、別承認するか、書込みを試みない検証へ限定しま�
 と、**実際の**subject template/mappingを照合します。private exact diffにはimmutable repo/owner ID、
 trusted integration ref、caller/reusable workflow、event、plan/apply Environmentとaudienceを含めます。
 repo名やEnvironment名だけでworkflow限定済みとみなしません。repo OIDC templateを変更する案は
-既存dev/AWS/GCP/CodeQLへの影響を含む別承認です。
+既存dev/AWS/GCP/CodeQLへの影響を含む別判断です。このpacketは既存templateを変更しません。
 
 本人が選ぶreviewer/self-review/bypass設定を実API値と照合します。会話内のaction-time承認と
 GitHub Environment approvalは別です。既存secret名を再利用する場合もEnvironmentごとの実role/SAを
-privateに照合し、planとapplyを同じidentityへ暗黙にまとめません。新secret設定は未承認の実操作です。
+privateに照合し、planとapplyを同じidentityへ暗黙にまとめません。承認範囲内のEnvironment/Secrets構築は実値をprivateに保ち、保護条件を維持して実施します。
 
-## Separate approval and execution units
+## Separate protected execution units
 
 dev exitが実測完了するまで、以下のproduction実操作は開始しません。source PRのreview/mergeは
-これらの承認を兼ねません。各packetはexact targets/before-after/impact/window/rollback/verificationを
-完成させてから親へ渡します。approval gateを自動enableしません。
+実Environment approvalやlive readinessを兼ねません。各packetはexact targets/before-after/impact/window/rollback/verificationを
+完成させてから親へ渡します。包括承認A内でもRequired reviewersとbranch/trust保護を維持します。
 
-| Unit | Concrete content for owner approval | Result needed before next unit |
+| Unit | Concrete reviewed execution packet | Result needed before next unit |
 | --- | --- | --- |
 | P1 Backend/security bootstrap | 共通bucket再利用、prod backend role/trust/policyのexact diff、Environmentとprivate inputs、GCP CI trust/SA/grantsのexact diff。新bucket/accountは含めない | 設定read-back、dev/他product不変、各roleの境界証拠。失敗時は追加grant/trust/inputsだけを撤回 |
 | P2 Authenticated plan / initial state | 別reviewed source PRのprod plan routing/smoke、必要ならempty state/output初期化とlockの最大diff | 実AWS/GCP identity、prod state snapshot/version/lineage/resources0、実lock解放、negative probes、public output監査。apply-enableは閉鎖 |
@@ -119,7 +127,8 @@ dev exitが実測完了するまで、以下のproduction実操作は開始し�
 
 P1はIAM/Environment/backend/GCP trustの対象別diffを同じ判断packetへ束ねます。実行権限・rollbackが
 異なるので、承認scopeを明示します。bucket全policyやSA全policyを古いsnapshotで上書きしません。
-stateの復旧は単なる古いversionのcopyではなく、post-write/ownershipを保持する別承認です。
+stateの復旧は単なる古いversionのcopyではありません。fresh post-write/ownershipを保持する
+正規手順をreviewし、blind restoreを行いません。
 
 ## Production import acceptance
 
@@ -139,36 +148,73 @@ production Email channel0 / quota3 dangling refsはIssueの記録であり、こ
 通知修復はprivate field-mask/rollbackを揃えた別operator waveです。
 #983/#1165/#1166は別Issue、D01のholdはこのscope外です。
 
-## Owner preparation and critical path
+## Offline backend proposal
 
-本人しか確定できない情報を一度にprivateへ揃えます。既知account/profile/regionやSSO loginを
-聞き直さず、既存operator経路が使えるか、欠けた情報だけを記録します。
+[production_backend_packet.py](../scripts/production_backend_packet.py) はcloud API/CLIを呼ばず、
+fresh private inventoryから一つのprivate proposalを生成します。既存OIDC subject templateの順序が
+[development smoke](../../../.github/scripts/terraform_identity_smoke.py) のcontractと一致しない場合はSTOP。
+account/bucket/region/role名を推測せず、prod/dev4 identitiesの衝突を拒否します。
 
-1. prod ownershipの最初の候補と優先順、既存recovery条件/許容cost、import window。
-2. 既存state-control-planeの参照とprod role/keyの有無。新credentialsを送らない。
-3. prod plan/apply承認者、既存Environment protectionとself-review/bypass運用の選択。
-4. GCP Terraform CI trust/SAの既存private参照。runtime WIFと混同しない。
-5. state不在時の初期化、negative probes、通知修復を今回含めるかの**別scope**判定。
+権限は上表のexact State/lockと、exact default state key・prod workspace discovery prefixに限ります。
+planはState Put/Deleteなし、applyもState Deleteなし、両方ともdev/other-product/object-version/KMS/IAM/API
+権限なし。これは生成された単独policyの提案であり、attached policy、bucket policy、SCP、session policyを
+含む実効権限や実際のdeny証拠ではありません。実identity/negative probes/read-backはP1/P2で別途検証します。
 
-critical pathは **dev history/runtime WIF/API完了とfresh dev exit → P1 → P2 → P3各wave → P4**。
-今夜のdev batch成功だけではdev exitを満たしません。source/tests/runbook、private read-only inventory、
-definitionの準備とowner情報整理はdev workと並行可能です。live定義を確定できない部分はdefault-offにします。
+private inputは次の**全fieldのみ**を持つowner-only JSONです。credential/tokenは入力しません。
 
-| Remaining effort after this source packet | Working-time range | Why still uncertain |
-| --- | --- | --- |
-| Private minimum inventory + exact P1 packet | 2–5h | prod既存roles/trust/Environment/keyの有無、read経路の権限未確認 |
-| Shared source routing/smoke/wave contract + review/CI | 4–8h | 初期state方式、実OIDC/mapping、最初のOwn候補が未確定 |
-| Approved P1/P2 execution/read-back | 2–5h | 実protection/権限制約、初期state/lock/recovery条件に依存 |
-| Each approved small P3 import wave | 1–3h per wave | 対象数・provider実Read・metadata fidelity・drift未確認 |
-| Exit/public audit/canon synchronization | 1–2h | fresh dev/prod ownershipと証拠を揃える必要 |
+| Field | Required observed value |
+| --- | --- |
+| `schema_version` | `production-backend-private-inventory-v1` |
+| `source_git_sha` / `observed_at` | packet作成対象の40桁SHA / timezone付きinventory取得時刻。次の実行前にfresh再readする |
+| `state_account_id` / `state_bucket` / `state_region` | 既存共通State control planeの確認済み実値 |
+| `state_status` / `bucket_encryption` | exact prod keyの`absent`・`empty`・`existing`、既存SSE-S3の`AES256`。403/unknownは拒否 |
+| `production_plan_role_name` / `production_apply_role_name` | collision確認済みのprod専用role名 |
+| `development_plan_role_name` / `development_apply_role_name` | fresh確認した既存dev role名。prodとの衝突防止のみ |
+| `oidc_include_claim_keys` | 順序付き `repository_id, repository_owner_id, environment, ref, workflow_ref, job_workflow_ref, event_name` |
 
-基本準備と基盤実行は残り **9–20h + 各wave 1–3h** の作業見積りです。
-承認待ち、dev critical path、CI queue、権限/remote driftの修復は含めません。暦時間や今夜の完了を保証しません。
+input/outputをcheckout外のprivate directoryへ置きます。inputはowner-only、outputは0600で排他的に
+新規作成し、既存packetを上書きしません。stdout/stderrは固定labelだけです。
+
+```sh
+python3 infra/gcp/scripts/production_backend_packet.py \
+  --inventory /private/path/production-backend-inventory.json \
+  --output /private/path/production-backend-proposal.json
+```
+
+上記pathはprivate operatorが解決する例です。outputに実値を含むためGitHub/Notion/Actions artifactへ
+公開しません。GCP trust/SA/GET grants、GitHub Environment settings、initial state/recovery、exact import
+waveはこのgeneratorの範囲外であり、P1/P2/P3 packetへfresh実測のexact diffを追加します。
+新bucket/account/marker object、CloudTrail継続課金、repo-wide OIDC template変更を生成しません。
+
+根拠は [Terraform S3 backend](https://developer.hashicorp.com/terraform/language/backend/s3)、
+[AWS OIDC trust](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)、
+[GitHub OIDC subject](https://docs.github.com/en/actions/reference/security/oidc)。IAM action名は
+[AWS service reference S3](https://servicereference.us-east-1.amazonaws.com/v1/s3/s3.json) と
+[STS](https://servicereference.us-east-1.amazonaws.com/v1/sts/sts.json) で確認しました。
+SDK sourceからruntime権限を推定するpacketではなく、上表で明示されたbackend操作に限定します。
+
+## Critical path and remaining work
+
+**実測Development Exit → P1 → P2 → P3各wave → P4** を維持します。
+source PRやprovider-mocked resource0をInfrastructure Readyとして扱いません。
+
+- P1: private metadataをfresh収集し、prod backend roles/trust/policy、GCP CI trust/SA/grants、
+  GitHub Environment/Secretsのexact差分を作る。既存devや共通bucket全policyを上書きしない。
+- P2 source: prod専用AWS/GCP identity smoke、initial state不在の安全な契約、nonmutating negative probes、
+  state version/lineage/native-lock/recovery証拠を作る。現source-ready gateの解除にはこれらが必要。
+- P2 live: 本人が各GitHub Environmentで承認後、実identity/plan/lock/stateを検証する。apply gateは閉じる。
+- P3: fresh Own分類とexact import definition/validatorを作り、1件または最小unitずつsame-SHA import-onlyと
+  post full-root no-op、metadata不変を検証する。通知修復は別wave。
+- P4: 通常full-root no-op、drift/unknown0、回帰、public出力監査、正本同期、ReadyGate判断。
+
+既知private参照や包括承認範囲は聞き直しません。個人しか決められない未確定reviewer/復旧責任者等だけを
+既存private情報の確認後に提示します。#1165/#1166/#983の未完項目と費用・削除のscopeは別に保持します。
 
 ## Offline verification
 
 ```sh
 python3 infra/gcp/tests/test_production_readiness.py
+python3 infra/gcp/tests/test_production_backend_packet.py
 terraform fmt -check -recursive infra/gcp
 terraform -chdir=infra/gcp/environments/prod init -backend=false -input=false -lockfile=readonly
 terraform -chdir=infra/gcp/environments/prod validate
@@ -177,4 +223,4 @@ bash .github/scripts/test-detect-ci-paths.sh
 
 testはsource/lock/modulesをfresh temp treeへcopyし、mock providerのplanだけを実行します。
 local backend.hcl/state/tfvars/cacheをcopyせず、raw mock planをpublic出力しません。
-[専用CI](../../../.github/workflows/gcp-production-readiness.yml) も同じtestをPRで実行し、共通CIを変更しません。
+[専用CI](../../../.github/workflows/gcp-production-readiness.yml) も同じtestをPRで実行します。CI callerの`ci.yml`やdevelopment gate値は変更しません。
