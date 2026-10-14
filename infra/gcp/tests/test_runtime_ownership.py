@@ -152,6 +152,10 @@ class InventoryContracts(unittest.TestCase):
             lambda d: d["enabled_services"]["services"][0].update(state="DISABLED"),
             lambda d: d["enabled_services"]["services"][0].update(name="projects/999/services/pubsub.googleapis.com"),
             lambda d: d["api_classification"]["pubsub.googleapis.com"].update(dependency_addresses=[]),
+            lambda d: d["api_classification"]["pubsub.googleapis.com"].update(dependency_addresses=[
+                'module.owned_apis.google_project_service.owned["pubsub.googleapis.com"]']),
+            lambda d: d["api_classification"]["pubsub.googleapis.com"].update(dependency_addresses=[
+                'module.other.google_project_service.owned["dummy.googleapis.com"]']),
             lambda d: d["api_classification"]["pubsub.googleapis.com"].update(classification="Unknown"),
             lambda d: d["enabled_services"].update(services=[]),
             lambda d: d["api_classification"].pop("firebase.googleapis.com"),

@@ -154,9 +154,12 @@ def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, n
         require(canonical(p.get("values")) == canonical(r["change"]["after"]))
         require(type(p.get("schema_version")) is int and
                 p["schema_version"] == (4 if r.get("type") == "google_storage_bucket" else 0))
-    graph = set(addresses)
+    # Every API wave imports only its one service. Dependencies must identify
+    # retained application/runtime consumers, never API ownership itself (even
+    # an already adopted different service) as circular ownership evidence.
+    consumers = {r["address"] for r in changes if r["type"] != "google_project_service"}
     for service in candidate["owned_api_keys"]:
-        require(set(candidate["api_classification"][service]["dependency_addresses"]) <= graph)
+        require(set(candidate["api_classification"][service]["dependency_addresses"]) <= consumers)
     summary = build_summary(plan, environment="dev", git_sha=git_sha, policy="import-only")
     require(summary["policy_passed"] and summary["counts"] == {
         key: len(imports) if key == "import" else len(addresses) if key == "no-op" else 0
