@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+from datetime import datetime, timedelta, timezone
 import io
 import json
 import os
@@ -37,6 +38,9 @@ class CurrentStateReadTests(unittest.TestCase):
             "GITHUB_JOB": "current_state_read",
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
         }
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        self.env.update(DEV_CURRENT_STATE_READ_ISSUED_UTC=(now - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        DEV_CURRENT_STATE_READ_EXPIRES_UTC=(now + timedelta(hours=7)).strftime("%Y-%m-%dT%H:%M:%SZ"))
         source = history_fixtures.UserActivityHistoryPlanTest()
         source.setUp()
         plan, self.table = source.fixture(False)
@@ -118,6 +122,29 @@ class CurrentStateReadTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(Exception):
                 gate.read(self.env | {key: value}, request=self.aws, metadata_request=self.google)
         self.assertEqual((self.aws.calls, self.google_calls), ([], []))
+
+    def test_expired_missing_future_or_overlong_window_stops_before_credentials_and_reads(self):
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        stamp = lambda value: value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for override in ({"DEV_CURRENT_STATE_READ_ISSUED_UTC": ""},
+                         {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": "PRIVATE_INVALID"},
+                         {"DEV_CURRENT_STATE_READ_ISSUED_UTC": stamp(now + timedelta(hours=1))},
+                         {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": stamp(now)},
+                         {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": stamp(now + timedelta(hours=9))}):
+            env = self.env | override
+            with self.subTest(override=override):
+                for action in (lambda: gate.context(env), lambda: gate.identity(env),
+                               lambda: gate.read(env, request=self.aws, metadata_request=self.google)):
+                    with self.assertRaises(Exception):
+                        action()
+        self.assertEqual((self.aws.calls, self.google_calls), ([], []))
+
+    def test_cleanup_remains_available_after_the_read_window_expires(self):
+        env = self.env | {"DEV_CURRENT_STATE_READ_EXPIRES_UTC": "2000-01-01T00:00:00Z"}
+        for name in gate.FILES:
+            gate.private.write_private(self.root / name, {"private": "DUMMY"})
+        gate.cleanup(gate.context(env, gate=False))
+        self.assertFalse(any((self.root / name).exists() for name in gate.FILES))
 
     def test_missing_apply_or_unrelated_gcp_identity_stops_before_authentication(self):
         for service_account in (None, "", f"terraform-dev-apply@{gate.PROJECT}.iam.gserviceaccount.com",

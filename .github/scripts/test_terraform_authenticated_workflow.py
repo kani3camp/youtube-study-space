@@ -332,7 +332,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_HISTORY_POST_NOOP12_READY": "false",
             "DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED": "true",
             "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
-            "DEV_CURRENT_STATE_READ_ENABLED": "false",
+            "DEV_CURRENT_STATE_READ_ENABLED": "true",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
             "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "true",
