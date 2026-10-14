@@ -30,7 +30,7 @@ public Issue / PR / log / artifact へ本文を出さない。permission がな�
 | Read | Exact resource / fields | Permission candidate |
 | --- | --- | --- |
 | pool GET | `projects/<private-number>/locations/global/workloadIdentityPools/aws-runtime`: name/state/displayName/description/disabled/mode、unexpected trust fields | `iam.workloadIdentityPools.get` |
-| pool attestation read | 同 exact pool の `:listAttestationRules`。既存 rules が空であることを確認 | exact endpoint の permission 名は fresh確認が必要（未確定・未付与） |
+| pool attestation read | 同 exact pool の `:listAttestationRules`。既存 rules が空であることを確認 | `iam.workloadIdentityPools.getAttestationRules`（CI の実 read・付与状況は未確認） |
 | provider GET | 同 pool の `providers/aws-provider`: name/state/displayName/description/disabled/aws.accountId/attributeMapping/attributeCondition、他 federation type の有無 | `iam.workloadIdentityPoolProviders.get` |
 | SA getIamPolicy | runtime config と一致する default App Engine SA 1件。`options.requestedPolicyVersion=3`、exact role/member/condition と unrelated bindings を private で照合 | `iam.serviceAccounts.getIamPolicy` |
 | Service Usage list | `projects/<private-number>/services?filter=state:ENABLED` の全 page。name/config.name/state のみ | `serviceusage.services.list` |
@@ -50,7 +50,10 @@ SA identity GET はこの provider の IAM member Read には不要。
   [pool source](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/google/services/iambeta/resource_iam_workload_identity_pool.go)、
   [provider source](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/google/services/iambeta/resource_iam_workload_identity_pool_provider.go)。
   [公式 attestation read](https://docs.cloud.google.com/sdk/gcloud/reference/iam/workload-identity-pools/list-attestation-rules)
-  は存在する。operator の endpoint 成功は受領済みだが、permission 名と existing CI identity の実 read は未確認。
+  は存在する。operator の endpoint 成功は受領済みだが、existing CI identity の実 read は未確認。
+  [公式 IAM audit logging](https://docs.cloud.google.com/iam/docs/audit-logging#ListAttestationRules)
+  は pool の read に `iam.workloadIdentityPools.getAttestationRules` を記載する。
+  managed identity 用の `iam.workloadIdentityPoolManagedIdentities.getAttestationRules` は今回の pool endpoint の対象外。
   broad pool list / viewer へ広げず、まず CI の同 exact endpoint の read を別確認する。
 - IAM member import / Read は対象 SA の `getIamPolicy` を policy version 3 で取得。
   import は `service_account_id role member [condition title]`。
@@ -158,7 +161,8 @@ non-200 / malformed / incomplete / mismatch はその probe で STOPし、自動
 GET成功は mutation permission がない証拠ではない。親は既存 least-privilege 契約と role/binding review を別に維持し、
 本採用用に WIF create/update/delete/undelete、SA setIamPolicy、API enable/disable を追加しない。
 既存 quota normal-change gate 等の別承認権限も、この read smoke を根拠に拡大/転用しない。
-attestation の permission 名が未確定でもまず既存 CI principal の exact read を確認し、失敗した exact endpoint だけ別承認へ返す。
+permission 名の文書確認は実 principal の成功を証明しない。まず既存 CI principal の exact read を確認し、
+不足時は既存 read role / principals / bindings を維持する最小 permission 差分を最新 Current Canon の承認範囲に照合する。
 
 ## Private offline preparation
 
@@ -591,3 +595,67 @@ artifactの90日保存は初回消費期限を延長しない。`historical_delt
 exact consumer source、private packet/bindingとfresh admission、Environment review、root-ready/runtime gateの別承認が必要。
 このclosureではpacket作成・Secret読取更新・gate有効化・protected dispatch・live plan/applyを行わない。
 未採用のまま期限が切れた場合は新しいprotected current-state no-opと別issuer closureが必要で、古いreceiptへfallbackしない。
+
+### Fresh current-state の再発行から初回 Pool wave まで
+
+最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
+GitHub Environment の Required reviewer によるユーザー本人の承認を受ける。
+過去の source-only PR に記した未実行や別承認の説明は、現行包括承認の取り消しを意味しない。
+
+1. 現 integration HEAD と実 Environment protection / reviewer / bypass 設定、同 State の writer が静止していること、
+   fresh State HEAD の size を確認する。root-ready / runtime-plan / apply はまだ false とする。
+2. `ci.yml` を integration ref から fresh initial attempt で dispatch する。入力は
+   `terraform_authenticated=true`, `terraform_target=dev`, `terraform_mode=plan`,
+   `terraform_history_post_noop=true`, `terraform_current_state_attestation=true`,
+   `terraform_ownership_root_basis=original-history-import`, `terraform_ownership_wave=none`。
+   `terraform_plan_cost_evidence` / `terraform_history_import_approval` は空、schema audit は false とする。
+   `terraform_history_plan_safety_evidence` は exact schema
+   `{schema_version:1, git_sha:<exact HEAD>, issued_utc:<fresh UTC>, expires_utc:<24時間以内>,
+   max_state_bytes:<fresh State size以上かつ4194304以下>, state_writers_quiescent:true}`。
+   size / quiet-writer は実測・確認した値だけを記載する。
+3. `terraform-dev-plan` の承認待ちへ進める。同 Environment の既存
+   `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` は legacy binding envelope または typed current-state envelope として再利用する。
+   `stage-binding` が同 nonce / backend / history metadata を認証前に private file へ保持する。
+   format 不一致、metadata 変更、no-op12 不成立は STOP。Secret を公開・平文取得する経路は追加しない。
+4. 成功後、exact run / attempt1 / plan job / ordered critical steps / cleanup、apply skipped、
+   Environment の実承認、唯一の artifact / digest / canonical attestation / expiry を GET-only で独立検証する。
+   `historical_delta_attested=false` を維持し、公開証跡は counts / outcomes / opaque commitments と参照のみとする。
+5. issuer source SHA を actual workflow ID / job names / Environment ID / reviewer IDs / required steps / purpose とともに
+   `current-state-attestation-sources.json` へ別 closure PR で登録する。closure 自身は issuer として登録しない。
+   runbook / README の現在参照と初回消費期限を更新し、root-ready / runtime-plan / apply は false のまま保持する。
+6. 初回 Pool 用 strict v3 packet は fresh complete inventory と同一 `receipt_binding` が必要。
+   `adopted={pool:false,provider:false,grants:[],apis:[]}`、
+   `selected={pool:true,provider:false,grants:[],apis:[]}`、`adoption_receipts=[]` とし、
+   new current-state reference / exact consumer SHA / 24時間以内の packet freshness を結ぶ。
+   nonce は既存 private envelope から保持する。GitHub encrypted Secret の GET は平文回収手段ではなく、
+   nonce の再生成や旧 scope の補完はできない。private envelope が回収できなければ Pool wave だけを保留し、
+   fresh no-op の結果と不足する private handoff を記録する。
+7. full packet と exact-read / least-privilege 境界の独立 review 後、別小 PR で current-state root-ready / runtime-plan を有効化する。
+   apply gate は false を維持して protected Pool plan へ進む。Pool 一件でも safety metadata は
+   Pool / Provider / attestation / SA policy / enabled APIs / project の全 inventory を再読するため、Pool GET だけでは足りない。
+   runtime-plan が true の間は `ownership_wave=none` を拒否するので、current-state 再発行と closure を先に完了する。
+
+### Private handoff 不足中の protected metadata-only read
+
+[`terraform_current_state_read.py`](../../../.github/scripts/terraform_current_state_read.py) は
+専用 `current-state-read` mode / `current_state_read` job の source helper。
+workflow 配線・限定 gate activation・GitHub Environment approval は別途必要で、この追加自体は実行結果ではない。
+既存 `terraform-dev-plan` identity / trust / reviewer を使い、production は許可しない。
+専用 `DEV_CURRENT_STATE_READ_ENABLED` gate は source で default false とし、実行後は再び閉鎖する。
+
+creds 前の `preflight` は既存 exact development plan SA、repo / immutable IDs / integration caller-ref / initial attempt / dev backend と
+repository 外の owned non-symlink temp を検査する。既存 AWS OIDC 認証後の `identity` は
+exact same-SHA OIDC claims と STS account / immutable RoleId を既存 helper で確認する。
+既存 GCP plan SA の token を渡す `read` は exact project GET と canonical history `tables.get` を前後に取得し、
+fixed 4 MiB ceiling を HEAD で先に検査してから State HEAD → GET → HEAD を前後に実行する。
+history12 State envelope / addresses / table identity / canonical8 schema と bytes / full HEAD の前後一致、
+stable table configuration / full project metadata の前後一致、lock / workspace prefix の成功 LIST による不存在を確認する。
+文書化された table output-only metrics は既存 stable-metadata 契約の範囲で変動を許す。
+
+private State / metadata の fixed files は exclusive0600、失敗時を含め cleanup 必須。
+public Summary は fixed PASS/STOP と全検査成功時の managed12 / canonical8 のみ。artifact0、
+Terraform init / plan / apply / State write / native lock creation0。
+metadata の unknown stable field は前後比較から除外せず、schema の unknown field / legacy timestamp は STOP。
+before / after の lock 不存在は期間全体の writer quiescence を証明しない。
+この route は full-root no-op / drift0 / issuer / historical delta / admission receipt を発行せず、
+後続 plan admission の `state_writers_quiescent=true` へ自動変換しない。
