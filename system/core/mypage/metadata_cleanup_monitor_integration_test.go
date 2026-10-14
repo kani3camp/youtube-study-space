@@ -145,7 +145,7 @@ func TestCleanupRunnerEmulatorClearsOnlyMetadataAndWatchdogObservesRetentionAndS
 	maintenance, err := monitor.ref().Get(ctx)
 	require.NoError(t, err)
 	data := maintenance.Data()
-	require.Len(t, data, 2)
+	require.Len(t, data, 3)
 	require.Contains(t, data, "latest")
 	require.Contains(t, data, "lastSuccessfulCoverage")
 }
@@ -171,4 +171,49 @@ func TestCleanupMonitoringClientRulesDenyAnonymousAndAuthenticatedReadsAndWrites
 			require.NoError(t, response.Body.Close())
 		}
 	}
+}
+
+func TestCleanupMonitorEmulatorTimestampReplayAndRetentionAcknowledgement(t *testing.T) {
+	_, monitor := cleanupMonitorEmulator(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 14, 0, 0, 0, 123456789, time.UTC)
+	success := cleanupCompleteObservation(now)
+	failure := success
+	failure.Succeeded, failure.Stage = false, "monitoring"
+	require.NoError(t, monitor.Record(ctx, success))
+	require.NoError(t, monitor.Record(ctx, failure))
+	require.NoError(t, monitor.Record(ctx, success))
+	state, err := monitor.Load(ctx)
+	require.NoError(t, err)
+	require.False(t, state.Latest.Succeeded)
+	require.Equal(t, "monitoring", state.Latest.Stage)
+	require.Equal(t, now.Truncate(time.Microsecond), state.LastSuccessfulCoverage)
+
+	first := cleanupCompleteObservation(now.Add(time.Hour))
+	first.Scanned, first.Cleared, first.RetentionViolations = 1, 1, 1
+	require.NoError(t, monitor.Record(ctx, first))
+	firstState, err := monitor.Load(ctx)
+	require.NoError(t, err)
+	newer := first
+	newer.StartedAt, newer.CompletedAt = first.StartedAt.Add(time.Hour), first.CompletedAt.Add(time.Hour)
+	require.NoError(t, monitor.Record(ctx, newer))
+	healthy := cleanupCompleteObservation(now.Add(3 * time.Hour))
+	require.NoError(t, monitor.Record(ctx, healthy))
+	// A delayed acknowledgement must not erase the newer undelivered violation.
+	require.NoError(t, monitor.AcknowledgeRetention(ctx, firstState.PendingRetentionStartedAt))
+	state, err = monitor.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, newer.StartedAt.Truncate(time.Microsecond), state.PendingRetentionStartedAt)
+	var output cleanupBufferWriter
+	watchdog := MetadataCleanupRunner{Monitor: monitor, Now: func() time.Time { return healthy.CompletedAt }, Signals: &JSONMetadataCleanupHealthRecorder{Writer: &output}}
+	signal, err := watchdog.CheckHealth(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "retention_deadline", signal.Reason)
+	state, err = monitor.Load(ctx)
+	require.NoError(t, err)
+	require.True(t, state.PendingRetentionStartedAt.IsZero())
+	require.Equal(t, healthy.StartedAt.Truncate(time.Microsecond), state.LastSuccessfulCoverage)
+	signal, err = watchdog.CheckHealth(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "healthy", signal.Reason)
 }

@@ -16,7 +16,7 @@ runner, err := mypage.NewFirestoreMetadataCleanupRunner(
 // 独立watchdogのschedule callback: runner.CheckHealth(ctx)
 ```
 
-`Run`は既存の10分budget・29日eligibility・revision guard・backlog検査を使う。監視stateの保存にはjob終了後の独立2秒budgetを使い、health readとsignal writeも各2秒に制限する。scheduler側はjob10分に後処理の余裕を加えたdeadlineを持ち、返るerrorを失敗扱いにする。キャンセルされたrunも失敗signalを試みる。`CheckHealth`はaccountをscan/clearせず、単独で呼べる。
+`Run`は既存の10分budget・29日eligibility・revision guard・backlog検査を使う。監視stateの保存にはjob終了後の独立2秒budgetを使い、health read・signal write・期限違反ACKも各2秒に制限する。scheduler側はjob10分に後処理の余裕を加えたdeadlineを持ち、返るerrorを失敗扱いにする。キャンセルされたrunも失敗signalを試みる。`CheckHealth`はaccountをscan/clearせず、単独で呼べる。sinkが受理した期限違反についてだけ監視stateのpendingをACKする。
 
 cleanupは1日2回等、成功scan開始間隔が23時間未満になる配置が必要。独立watchdogは例として毎時に起動し、cleanupのtrigger欠落・停止も監視する。cleanupの終了時にhealthを確認するだけでは、次のcleanupが起動しない障害を検出できない。watchdog自身の未起動やsignal sink障害はscheduler/runtime側の失敗監視が必要で、このsourceだけで到達性を証明しない。
 
@@ -24,14 +24,14 @@ cleanupは1日2回等、成功scan開始間隔が23時間未満になる配置�
 
 ## 監視stateとsignal
 
-既存client rulesでdefault denyとなるserver-only `mypage-maintenance/metadata-cleanup`へ、最新の匿名observationと`lastSuccessfulCoverage`をtransaction保存する。project単位のsingletonであり、user ID、metadata、credential、raw error、実行別履歴を保存しない。constructorがcleanupとmonitorの同じprojectを確認する。新しいquery indexは不要。
+既存client rulesでdefault denyとなるserver-only `mypage-maintenance/metadata-cleanup`へ、最新の匿名observation、`lastSuccessfulCoverage`、sink未受理の匿名期限違反の`pendingRetentionStartedAt`をtransaction保存する。project単位のsingletonであり、user ID、metadata、credential、raw error、実行別履歴を保存しない。constructorがcleanupとmonitorの同じprojectを確認する。新しいquery indexは不要。
 
-成功coverageは完了時刻ではなくscan開始時刻。古い実行の遅延到着・再送は新しい失敗を上書きせず、同じ開始時刻では失敗を優先する。monitoring stateが不正・破損している場合は成功値へresetせず拒否し、運用側の調査を必要とする。signal書込み失敗はrunのerrorへ返し、monitorへ保存できる場合はmonitoring失敗も残す。
+成功coverageは完了時刻ではなくscan開始時刻。入力時刻はFirestoreのmicrosecond保存精度へ正規化してから比較する。古い実行の遅延到着・再送は新しい失敗を上書きせず、同じ開始時刻では失敗を優先する。monitoring stateが不正・破損している場合は成功値へresetせず拒否し、運用側の調査を必要とする。signal書込み失敗はrunのerrorへ返し、monitorへ保存できる場合はmonitoring失敗も残す。
 
-health出力は`checkedAt`, `alert`, allowlist内の`reason`のみ。`healthy`は回復signal、`never_succeeded`/`run_failed`/`stale_heartbeat`/`retention_deadline`/`invalid_clock`/`incomplete_observation`/`monitoring_failed`はalert。retention違反は後の正常runで最新観測から消えるため、sink側のincident記録を後続のhealthyで削除しない。raw errorは内部でunwrap可能なまま返すが、公開logへ出さない。
+health出力は`checkedAt`, `alert`, allowlist内の`reason`のみ。`healthy`は回復signal、`never_succeeded`/`run_failed`/`stale_heartbeat`/`retention_deadline`/`invalid_clock`/`incomplete_observation`/`monitoring_failed`はalert。後続の正常runが最新観測を置換しても、sink未受理のretention違反はpendingに保持する。各run自身の検出した違反も通知する。sink受理後にexpected scan開始時刻が一致する場合だけtransactionでACKし、同時に記録された新しい違反を消さない。sink/ACK失敗時は再通知可能なまま残す。ACKはwriterへの受理を意味し、実通知deliveryやoperatorの確認を証明しない。受理されたincidentの保持はsink側で行い、後続のhealthyで記録を削除しない。raw errorは内部でunwrap可能なまま返すが、公開logへ出さない。
 
 ## 合成検証と残るGate
 
-mock/local pipeで未成功・23時間境界・再実行・取消・monitor/signal障害・不正観測の拒否を確認する。Firestore Emulatorでは実cleanupとmonitorを組み合わせ、公開metadataのみ除去、policy/access保持、同時transaction、adapter再生成後のcoverage、古い観測の再送、不正projectと破損stateの拒否を確認する。通常Go suiteと[既存Emulator script](../../../.github/scripts/run-firestore-integration-tests.sh)が検証入口。
+mock/local pipeで未成功・23時間境界・再実行・取消・monitor/signal障害・不正観測の拒否を確認する。Firestore Emulatorでは実cleanupとmonitorを組み合わせ、公開metadataのみ除去、policy/access保持、同時transaction、adapter再生成後のcoverage、端数付き時刻での古い観測の再送、未受理期限違反と競合ACKの保持、不正projectと破損stateの拒否を確認する。通常Go suiteと[既存Emulator script](../../../.github/scripts/run-firestore-integration-tests.sh)が検証入口。
 
 実project・runtime・所有者、watchdog/cleanup schedule、監視sinkと通知delivery、失敗再試行、store/log/backup inventoryと保持は未確認。既存のlive gate・アプリ内Privacy受付flagを変更せず、実OAuth・実削除・deployment・scheduler activationを行わない。

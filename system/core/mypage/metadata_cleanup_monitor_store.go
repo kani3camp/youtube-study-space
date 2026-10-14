@@ -82,3 +82,29 @@ func NewFirestoreMetadataCleanupRunner(client *firestore.Client, projectID strin
 		Signals: signals, Now: now, BatchSize: batchSize, MaxPages: maxPages,
 	}, nil
 }
+
+// Acknowledgement means acceptance by the deadline-capable signal sink, not
+// receipt by an operator. Compare-and-clear preserves a concurrent newer event.
+func (s *FirestoreMetadataCleanupMonitor) AcknowledgeRetention(ctx context.Context, startedAt time.Time) error {
+	if !s.valid() || startedAt.IsZero() {
+		return ErrMetadataCleanupIncomplete
+	}
+	startedAt = startedAt.UTC().Truncate(time.Microsecond)
+	if err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		state, err := decodeMetadataCleanupMonitoring(tx.Get(s.ref()))
+		if err != nil {
+			return err
+		}
+		if !state.PendingRetentionStartedAt.Equal(startedAt) {
+			return nil
+		}
+		state.PendingRetentionStartedAt = time.Time{}
+		if err := tx.Set(s.ref(), state); err != nil {
+			return fmt.Errorf("acknowledge cleanup retention signal: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("commit cleanup retention acknowledgement: %w", err)
+	}
+	return nil
+}

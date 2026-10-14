@@ -10,13 +10,15 @@ import (
 
 // One bounded, anonymous snapshot per project; no per-user or per-run archive.
 type MetadataCleanupMonitoringState struct {
-	Latest                 *MetadataCleanupObservation `firestore:"latest"`
-	LastSuccessfulCoverage time.Time                   `firestore:"lastSuccessfulCoverage"`
+	Latest                    *MetadataCleanupObservation `firestore:"latest"`
+	LastSuccessfulCoverage    time.Time                   `firestore:"lastSuccessfulCoverage"`
+	PendingRetentionStartedAt time.Time                   `firestore:"pendingRetentionStartedAt"`
 }
 
 type MetadataCleanupMonitor interface {
 	MetadataCleanupRecorder
 	Load(context.Context) (MetadataCleanupMonitoringState, error)
+	AcknowledgeRetention(context.Context, time.Time) error
 }
 
 type MetadataCleanupHealthObservation struct {
@@ -64,7 +66,8 @@ func (r *MetadataCleanupRunner) Run(ctx context.Context) (MetadataCleanupObserva
 	return observation, errors.Join(runErr, healthErr)
 }
 
-// CheckHealth is read-only with respect to accounts and monitoring state. It
+// CheckHealth never scans or clears accounts. It acknowledges a pending
+// retention signal only after the sink accepts it. The watchdog
 // must be triggered independently of cleanup; merely calling it after Run does
 // not monitor missed scheduler invocations or a stopped cleanup process.
 func (r *MetadataCleanupRunner) CheckHealth(ctx context.Context) (MetadataCleanupHealthObservation, error) {
@@ -97,6 +100,12 @@ func (r *MetadataCleanupRunner) checkHealth(ctx context.Context, current *Metada
 			health.Reason = "monitoring_failed"
 		}
 	}
+	// A newer successful scan cannot hide a deadline violation that has never
+	// reached the signal sink. Also report this run's violation if persistence
+	// failed or a concurrent run already replaced its latest observation.
+	if health.Reason != "invalid_clock" && ((loadErr == nil && !state.PendingRetentionStartedAt.IsZero()) || (current != nil && current.RetentionViolations > 0)) {
+		health = MetadataCleanupHealth{Alert: true, Reason: "retention_deadline"}
+	}
 	signal := MetadataCleanupHealthObservation{CheckedAt: now, Alert: health.Alert, Reason: health.Reason}
 	signalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
@@ -106,6 +115,14 @@ func (r *MetadataCleanupRunner) checkHealth(ctx context.Context, current *Metada
 	}
 	if loadErr != nil {
 		return signal, fmt.Errorf("load cleanup monitoring: %w", loadErr)
+	}
+	if signal.Reason == "retention_deadline" && !state.PendingRetentionStartedAt.IsZero() {
+		ackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		ackErr := errors.Join(r.Monitor.AcknowledgeRetention(ackCtx, state.PendingRetentionStartedAt), ackCtx.Err())
+		cancel()
+		if ackErr != nil {
+			return signal, fmt.Errorf("acknowledge cleanup retention signal: %w", ackErr)
+		}
 	}
 	return signal, nil
 }
@@ -126,17 +143,30 @@ func validMetadataCleanupMonitoringObservation(o MetadataCleanupObservation) boo
 
 func validMetadataCleanupMonitoringState(state MetadataCleanupMonitoringState) bool {
 	if state.Latest == nil {
-		return state.LastSuccessfulCoverage.IsZero()
+		return state.LastSuccessfulCoverage.IsZero() && state.PendingRetentionStartedAt.IsZero()
 	}
 	return validMetadataCleanupMonitoringObservation(*state.Latest) &&
 		!state.LastSuccessfulCoverage.After(state.Latest.StartedAt) &&
+		!state.PendingRetentionStartedAt.After(state.Latest.StartedAt) &&
 		(!state.Latest.Succeeded || state.LastSuccessfulCoverage.Equal(state.Latest.StartedAt))
+}
+
+func canonicalMetadataCleanupObservation(next MetadataCleanupObservation) MetadataCleanupObservation {
+	// Firestore rounds timestamp precision down to microseconds. Normalize before
+	// comparing replayed input with persisted state, including equal-start ties.
+	next.StartedAt = next.StartedAt.UTC().Truncate(time.Microsecond)
+	next.CompletedAt = next.CompletedAt.UTC().Truncate(time.Microsecond)
+	return next
 }
 
 // Update by scan start, so delayed completion/replayed observations never mask a
 // newer failure. At equal start times a failure wins. Coverage only moves forward
 // from a fully completed scan; completion time is never the heartbeat origin.
 func updateMetadataCleanupMonitoring(state MetadataCleanupMonitoringState, next MetadataCleanupObservation) MetadataCleanupMonitoringState {
+	next = canonicalMetadataCleanupObservation(next)
+	if next.RetentionViolations > 0 && next.StartedAt.After(state.PendingRetentionStartedAt) {
+		state.PendingRetentionStartedAt = next.StartedAt
+	}
 	if state.Latest == nil || next.StartedAt.After(state.Latest.StartedAt) ||
 		(next.StartedAt.Equal(state.Latest.StartedAt) && (!next.Succeeded || state.Latest.Succeeded)) {
 		state.Latest = &next
