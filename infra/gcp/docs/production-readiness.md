@@ -38,7 +38,7 @@ cloud trust、実Environment approval、locking/recoveryの検証にはなりま
 
 [現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml) は閉鎖を維持します。
 `PROD_AUTHENTICATED_TERRAFORM_ENABLED` をtrueへ変えるだけでは完成しません。
-本packetは独立gate/routingとoffline backend proposalまでです。`PROD_EXECUTION_CONTRACT_READY` と
+本packetは独立gate/routing、offline backend proposalとoffline execution validatorまでです。`PROD_EXECUTION_CONTRACT_READY` と
 `PROD_DEVELOPMENT_EXIT_READY` はfalseを維持します。fresh inventory後のsource PRでprod専用
 identity smoke・initial-state・exact wave検証を完成し、実測development exit後にactivationをreviewします。
 
@@ -47,8 +47,8 @@ identity smoke・initial-state・exact wave検証を完成し、実測developmen
 | Independent prod plan/apply gates | source準備済み。`PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`。plan enableから独立し、Environment承認も別 |
 | Production mode routing | source準備済み。通常plan/import-only applyのみ。全ownership inputを明示false、dev専用入力/例外mode/rerunを拒否 |
 | Actual prod identity smoke | planのidentity smokeはdev条件付き。既存scriptはdev project/keyと既存stateを前提にする。prod plan/apply双方の実identity/negative probeが必要 |
-| Initial-state handling | prod keyがabsent/empty/existingのどれか未確認。absentはAccessDeniedと区別する。dev stateをcopyせず、必要なinitial state/output writeは包括承認A内の独立実行unit |
-| Import definitions and exact wave validators | prod import blocksは未準備。fresh Own分類/remote値に基づく定義と、exact address/import/no-op/unknown/drift/output/state shapeのwave契約が必要 |
+| Initial-state handling | offline output-only/positive absence/state shape validatorを準備。実prod keyのabsent/empty/existing判定、authenticated collector、initial writeのprotected実行は未完。dev Stateはcopyしない |
+| Import definitions and exact wave validators | offline exact1 import/full-root no-op/state delta/metadata不変 validatorを準備。実Own inventory、resource-specific定義/metadata adapter、authenticated collectorとsame-SHA workflow接続は未完 |
 | Protected execution evidence | same-SHA再plan/projection一致、独立Environment approvals、post no-op、lock/version/lineage、public output監査をprodで実測する |
 
 初回empty graphだけではGCP providerが認証/Readを行った保証がありません。token交換・plan/apply SA
@@ -193,6 +193,65 @@ waveはこのgeneratorの範囲外であり、P1/P2/P3 packetへfresh実測のex
 [STS](https://servicereference.us-east-1.amazonaws.com/v1/sts/sts.json) で確認しました。
 SDK sourceからruntime権限を推定するpacketではなく、上表で明示されたbackend操作に限定します。
 
+## Offline production execution contract
+
+[production_execution_contract.py](../scripts/production_execution_contract.py) の作成基点は
+integration `18d41d08bd8221e11db51d5f9f093d19784327e3` です。このscriptはcloud/CLI/Terraformを
+呼ばず、private collector inputを検証するだけです。protected execution workflowへ未接続で、production全gateはfalse。
+結果の `live_readiness_attested=false` を維持し、offline PASSを実認証・Environment approval・
+import完了・Infrastructure Readyの証拠として使いません。
+
+private bundleは以下のexact契約です。raw State/plan、provider values、metadata本文は公開しません。
+
+| Field | Required contract |
+| --- | --- |
+| `schema_version` | `production-private-validation-bundle-v1` |
+| `contract` | version `production-execution-contract-v1`、same `git_sha`、UTC `issued_utc`/`expires_utc`（最大24h）、exact prod `project_id`/private `project_number`/`state_bucket`/`state_key`、`wave`、`adopted`、`candidate` |
+| `adopted` / `candidate` | fresh inventoryからreviewした全既存ownershipと追加1件。各descriptorは`address`/`type`/`schema_version`/exact `import_id`/完全なprovider `values`。Developmentの件数・設定・順序を仮定しない |
+| `before` / `after` | exact `snapshot` と、全選択addressの`metadata`。metadata envelopeはprod `project_id`/exact provider `resource_id`/完全なGET `payload`。前後をstrict比較し、unknown/volatile fieldも黙って除外しない |
+| `snapshot` | UTF-8 raw `state_body`（最大4MiB）、`head_before`/`get_metadata`/`head_after`、exact State/lock/workspace `*_listing`。HEAD/GET version・ETag・length・SSE-S3をjoinし、positive non-truncated LISTを要求する |
+| `plan_before` / `plan_after` | 完全なpinned Terraform plan JSON。全選択address/provider/schema/values、outputs、import IDをjoinし、後段は通常full-root no-op |
+
+waveは混ぜません。
+
+- `initialize`: positive exact State LIST0、State/HEAD/GETなし、adopted/candidate/resource0、既存rootの
+  `environment=production` と `project_id=youtube-study-space` の2 output作成だけを許可。
+  後段Stateはversion4/valid lineage/serial、resource0、post full-root no-opを要求する。
+- `import`: initialized existing Stateと既存全ownershipを要求し、exact candidate1件のみimport。
+  通常retained typeのimport IDはprovider `values.id`へ完全一致を要求し、SA IAM memberだけはpinned
+  space区切りimport IDと、condition全fieldを含むslash区切りState IDを個別に組み立ててjoinする。
+  全plan actionはno-op、lineage/version/outputsと旧container/instance/private属性を保持し、serial増加と
+  新S3 VersionIdを要求する。persisted `check_results` の変化も現contractではSTOP。
+- `noop`: import0、同じState本文/VersionId/HEAD/GET/listings、同じmetadataと全ownership no-opを要求する。
+
+whole project/SA IAM policy/binding、未知resource type、未知schemaは拒否します。allowlistは既存migration
+sourceのretained typesだけで、Google providerのschemaはbucket4/その他0。SA IAM memberは既存runtime用の
+`roles/iam.workloadIdentityUser` とexact project-number配下の`principalSet`に限定します。一般IAM principalの
+case normalizationは未対応でSTOP。SA/member/condition titleのwhitespaceもpinned importerのtoken解釈が
+曖昧になるためSTOPし、必要なら別typed adapterをreviewします。APIは1件importの独立wave、disable flags falseを要求します。
+create/update/delete/replace/read/forget、unknown、drift、deferred/action invocation、address move、deposed、
+output差分、root graphの欠落/追加、失敗したGET/LISTや403をabsenceとして扱う入力はすべてSTOP。
+
+```sh
+python3 infra/gcp/scripts/production_execution_contract.py \
+  --bundle /private/path/production-validation-bundle.json \
+  --git-sha FULL_REVIEWED_COMMIT_SHA
+```
+
+inputは全checkout外のowner-only regular file（bundle最大16MiB）。symlink/FIFO、duplicate JSON key、
+non-finite値を拒否します。stdoutはprivate値を含まないcountsとoffline status、stderrは固定STOPだけ。
+`resource_change_actions=0` は検証したplanのresource action数であり、実cloud変更件数を報告しません。
+scriptはStateやreceiptをwriteせず、誤ったStateのrestore・lock削除・API操作を行いません。
+
+**残るlive requirements:** actual AWS/GCP identityとnegative probes、expected bucket owner/roleの検証、
+complete metadataとprovider valuesを結ぶresource-specific adapter、authenticated HEAD/GET/HEAD/LIST collector、
+same-SHA re-plan/保存plan sealと独立Environment approval、post full-root/no-opと実workload回帰、private cleanupが
+未接続です。渡されたsnapshotの真正性・full-root実行・writer静止をこのoffline scriptは証明しません。
+APIのOwn classification/dependency provenance、WIF trust/mapping、SA IAM grantの必要性と実caller/targetのjoinは
+typed waveの残条件です。このvalidatorのtype/shape PASSからOwn分類を自動判定しません。
+metadataのvolatile差分や候補check追加が必要なら、exact候補の別reviewed adapterを実装するまでSTOPを保持します。
+このsource準備だけでは `PROD_EXECUTION_CONTRACT_READY` をtrueにしません。
+
 ## Critical path and remaining work
 
 **実測Development Exit → P1 → P2 → P3各wave → P4** を維持します。
@@ -215,6 +274,7 @@ source PRやprovider-mocked resource0をInfrastructure Readyとして扱いま�
 ```sh
 python3 infra/gcp/tests/test_production_readiness.py
 python3 infra/gcp/tests/test_production_backend_packet.py
+python3 infra/gcp/tests/test_production_execution_contract.py
 terraform fmt -check -recursive infra/gcp
 terraform -chdir=infra/gcp/environments/prod init -backend=false -input=false -lockfile=readonly
 terraform -chdir=infra/gcp/environments/prod validate

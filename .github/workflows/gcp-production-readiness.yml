@@ -38,3 +38,4 @@ jobs:
         run: |
           python3 infra/gcp/tests/test_production_readiness.py
           python3 infra/gcp/tests/test_production_backend_packet.py
+          python3 infra/gcp/tests/test_production_execution_contract.py
