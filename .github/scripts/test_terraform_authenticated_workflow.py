@@ -335,6 +335,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_HISTORY_POST_NOOP12_READY": "false",
             "DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED": "true",
             "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
+            "DEV_CURRENT_STATE_READ_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
             "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "true",
@@ -470,7 +471,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_workspace_discovery_stays_within_target_prefix(self) -> None:
         self.assertEqual(self.text.count('workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"'), 2)
-        self.assertEqual(self.text.count("TF_WORKSPACE: default"), 2)
+        self.assertEqual(self.text.count("TF_WORKSPACE: default"), 3)
 
     def test_private_identity_fragments_are_masked_before_authentication(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -490,7 +491,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.text.count("id-token: write"), 3)
+        self.assertEqual(self.text.count("id-token: write"), 4)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -549,7 +550,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.text.count("persist-credentials: false"), 3)
+        self.assertEqual(self.text.count("persist-credentials: false"), 4)
 
     def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
@@ -562,7 +563,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ inputs.mode != 'security-probe' }}", plan)
+        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' }}", plan)
         probe = self.text.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",
