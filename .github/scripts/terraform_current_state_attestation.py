@@ -27,6 +27,7 @@ TRANSPORT = 'current-state-artifact-v1'
 PUBLIC_FILE = 'current-state-attestation.json'
 PUBLIC_DIRECTORY = 'current-state-public'
 RECORD = 'current-state-attestation-record.json'
+BINDING = 'current-state-private-binding.json'
 EMIT_STEP = 'Emit verified current-state attestation'
 PUBLISH_STEP = 'Publish sanitized current-state attestation'
 REQUIRED_STEPS = [
@@ -268,12 +269,42 @@ def context(env):
                    and env.get('TF_VAR_manage_user_activity_history') == 'true')
 
 
-def check_binding(env, *, fresh=False):
-    context(env)
-    envelope = ownership.decode(env.get('RUNTIME_OWNERSHIP_PACKET_JSON', ''))
+def validate_binding_envelope(envelope):
     ownership.need(type(envelope) is dict and set(envelope) == {'schema_version', 'attestation_type', 'receipt_binding'}
                    and type(envelope['schema_version']) is int and envelope['schema_version'] == 1
                    and envelope['attestation_type'] == TYPE)
+    ownership.binding(envelope['receipt_binding'])
+    return envelope
+
+
+def binding_path(env):
+    root = Path(env['RUNNER_TEMP'])
+    ownership.need(root.is_absolute() and root.is_dir() and not root.is_symlink()
+                   and root.stat().st_uid == os.geteuid()
+                   and not root.resolve().is_relative_to(Path(__file__).resolve().parents[2]))
+    return root / BINDING
+
+
+def stage_binding(env):
+    """Convert only the exact legacy envelope; never change its private binding.
+
+    The protected plan stages one immutable input before cloud credentials.
+    Legacy receipt and runtime packet validators retain their strict contracts.
+    """
+    context(env)
+    envelope = ownership.decode(env.get('RUNTIME_OWNERSHIP_PACKET_JSON', ''))
+    ownership.need(type(envelope) is dict)
+    if set(envelope) == {'schema_version', 'receipt_binding'}:
+        ownership.need(type(envelope['schema_version']) is int and envelope['schema_version'] == 1)
+        envelope = dict(schema_version=1, attestation_type=TYPE, receipt_binding=envelope['receipt_binding'])
+    validate_binding_envelope(envelope)
+    ownership.check_current_binding(envelope['receipt_binding'], env)
+    private.write_private(binding_path(env), envelope)
+
+
+def check_binding(env, *, fresh=False):
+    context(env)
+    envelope = validate_binding_envelope(private.private_json(binding_path(env)))
     metadata = private.private_json(Path(env['RUNNER_TEMP']) / 'user-history-post.json') if fresh else None
     ownership.check_current_binding(envelope['receipt_binding'], env, metadata)
     return envelope['receipt_binding']
@@ -342,10 +373,12 @@ def emit(env):
 
 def main():
     try:
-        ownership.need(sys.argv[1:] in (['check-binding'], ['check-binding', '--fresh'], ['emit']))
+        ownership.need(sys.argv[1:] in (['stage-binding'], ['check-binding'], ['check-binding', '--fresh'], ['emit']))
         if sys.argv[1] == 'emit':
             emit(dict(os.environ))
         else:
+            if sys.argv[1] == 'stage-binding':
+                stage_binding(dict(os.environ))
             check_binding(dict(os.environ), fresh='--fresh' in sys.argv)
             print('Private current-state binding checked; values suppressed.')
     except Exception:

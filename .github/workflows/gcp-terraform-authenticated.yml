@@ -443,7 +443,7 @@ jobs:
         if: ${{ inputs.current_state_attestation }}
         env:
           RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
-        run: python3 .github/scripts/terraform_current_state_attestation.py check-binding
+        run: python3 .github/scripts/terraform_current_state_attestation.py stage-binding
 
       - name: Configure AWS backend credential
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -548,8 +548,6 @@ jobs:
 
       - name: Check fresh current-state metadata binding
         if: ${{ inputs.current_state_attestation }}
-        env:
-          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_current_state_attestation.py check-binding --fresh
 
       - name: Bind the private history plan baseline
@@ -691,7 +689,6 @@ jobs:
         id: history_post_noop_after
         if: ${{ always() && inputs.history_post_noop && steps.history_post_noop_before.outcome == 'success' }}
         env:
-          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ inputs.current_state_attestation && secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON || '' }}
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
           BACKEND_INIT_OUTCOME: ${{ steps.backend_init.outcome }}
           TERRAFORM_PLAN_OUTCOME: ${{ steps.plan.outcome }}
@@ -711,8 +708,6 @@ jobs:
       - name: Emit verified current-state attestation
         if: ${{ inputs.current_state_attestation && steps.history_post_noop_after.outcome == 'success' }}
         id: current_state_attestation
-        env:
-          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
         run: python3 .github/scripts/terraform_current_state_attestation.py emit
 
       - name: Publish sanitized current-state attestation
@@ -734,7 +729,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f "${RUNNER_TEMP}/current-state-public/current-state-attestation.json" \
-            "${RUNNER_TEMP}/current-state-attestation-record.json"
+            "${RUNNER_TEMP}/current-state-attestation-record.json" \
+            "${RUNNER_TEMP}/current-state-private-binding.json"
           rm -f \
             "${RUNNER_TEMP}/runtime-execution-before.json" \
             "${RUNNER_TEMP}/runtime-execution-sealed.json" \
