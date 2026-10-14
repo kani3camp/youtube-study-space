@@ -207,9 +207,9 @@ public Summaryは固定PASS/STOP、sanitized action数、waiverとactual cost un
 
 backend bucketのObject Versioningを前提に、誤ったstate更新・削除時は以下の順序で停止・復旧します。
 
-1. apply / importを停止する
+1. apply / importを停止し、対象account/environment/backend keyとnative lockを確認する
 2. 対象environmentとbackend bucketを再確認する
-3. bucket object generationをread-onlyで確認する
+3. S3 object VersionIdと事故前後のStateをprivateにread-only比較する
 4. 復旧候補versionと現行Stateのlineage / serial / ownership / 後続writeを比較する
 5. 現行Stateをprivate領域に保全し、候補versionの盲目的な上書きを禁止する
 6. native lock下で現行ownershipと後続writeを保持できる、対象限定の復旧planをreviewする
@@ -217,6 +217,8 @@ backend bucketのObject Versioningを前提に、誤ったstate更新・削除�
 8. 差分の原因が説明できるまで通常applyを再開しない
 
 dev / prodを跨いだstate copyは行いません。
+SSO/MFA、break-glass、責任者、private contactの確認は
+[State account recovery runbook](docs/state-account-recovery.md)を参照します。
 
 ## Import policy
 
@@ -279,6 +281,10 @@ Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
 - Issue #1166: durable CloudTrail / S3 data events監査
 - Issue #1162: public repository向けauthenticated Terraform plan / apply（completed）
 - Issue #1191: Phase 2 development残件 / production migration準備
+
+#1165の[recovery runbook](docs/state-account-recovery.md)と#1166の
+[durable audit source/設定案](docs/state-durable-audit.md)は独立follow-upです。
+Audit logging/継続課金は未有効化で、設計案を実装完了と扱いません。
 
 ## Development import wave 1: native backup schedule
 
