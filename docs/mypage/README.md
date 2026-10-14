@@ -287,7 +287,11 @@ JSONMetadataCleanupRecorderは匿名の開始/完了時刻・結果・固定stag
 
 29日eligibilityと処理時間に余裕を持たせるため、接続時には成功scan開始間隔23時間以内・job10分以内を条件とする。少なくとも日次という仕様を満たす設定候補は1日2回だが、実scheduler/alert設定は作成していない。単に24時間間隔の実行を宣言して完了時間の余裕を無視しない。heartbeatは完了日時でなく、成功runのStartedAtを基準にする。日次以上の起動・失敗/heartbeat/期限違反の通知先・再試行・telemetry到達の運用検証はinfrastructure/公開gateに残る。
 
-このsliceはinjectable job、Firestore adapter、JSON観測とhealth判定まで。mock/emulatorで29日境界、未利用/blocked/旧policy、pagination、同時refresh/削除/同意変更、残件と再実行、scan/clear/monitoring失敗、heartbeatと期限違反を検証する。新API、実scheduler、IAM、credentials、deploy、実データ消去は追加・実行していない。account削除/revoke/開示の実行承認や全writer guardを代替しない。
+定期呼出し側のsourceは[MetadataCleanupRunner](../../system/core/mypage/metadata_cleanup_runner.go)へ結線した。`Run`は既存jobとdurable monitorを接続し、終了後のhealth signalまで返す。`CheckHealth`はaccountへ触れない独立watchdog用callback。両者を別々に起動しなければcleanup trigger欠落を監視できない。constructorは同じ明示project/clientからcleanup storeとmonitorを作り、scheduler・credential・通信を開始しない。
+
+[FirestoreMetadataCleanupMonitor](../../system/core/mypage/metadata_cleanup_monitor_store.go)はserver-only `mypage-maintenance/metadata-cleanup`の匿名singletonへ最新観測と成功scan開始時刻だけをtransaction保存する。実行履歴を増殖させず、client rulesの既存default denyを維持する。古いscanの遅延到着・再送は新しい失敗を隠さず、同時刻では失敗を優先する。破損状態はresetせず拒否する。monitor read/write・signal delivery失敗は成功扱いしない。出力はdeadline対応sinkへ固定reason/alert/確認時刻だけで、healthyも回復signalとして出す。sink障害後にmonitorが利用可能ならmonitoring失敗も保存し、次のwatchdogが古い正常観測だけを信頼しない。
+
+callbackの接続例と残る運用依存は[metadata監視source手順](release/metadata-monitoring.md)を参照する。実scheduler・独立watchdog・監視宛先を作成/有効化した証跡ではない。mock/emulatorで29日境界、未利用/blocked/旧policy、pagination、同時refresh/削除/同意変更、残件と再実行、scan/clear/monitoring失敗、heartbeatと期限違反を検証する。新API、実scheduler、IAM、credentials、deploy、実データ消去は追加・実行していない。account削除/revoke/開示の実行承認や全writer guardを代替しない。
 
 
 ## Review hardening: bounded telemetry and terminal account on work failure
