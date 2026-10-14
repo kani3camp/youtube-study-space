@@ -742,8 +742,8 @@ class RuntimeExecutionTest(unittest.TestCase):
         f,env=self.run_wave()
         with self.assertRaises(Exception):f.begin(env)
         workflow=(ROOT/'.github/workflows/gcp-terraform-authenticated.yml').read_text()
-        for job,end in [('plan','apply'),('apply','security-probe')]:
-            section=workflow.split('  '+job+':\n')[1].split('  '+end+':\n')[0]
+        for job in ('plan', 'apply'):
+            section=re.split(r'\n  [a-z][a-z0-9_-]*:\n', workflow.split('  '+job+':\n',1)[1],maxsplit=1)[0]
             cleanup=section.split('      - name: Cleanup sensitive temporary files')[1]
             self.assertIn('if: always()',cleanup)
             for name in runtime.FILES:self.assertIn('"${RUNNER_TEMP}/'+name+'"',cleanup)
