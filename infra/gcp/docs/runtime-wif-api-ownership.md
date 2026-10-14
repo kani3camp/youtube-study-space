@@ -1,5 +1,20 @@
 # Phase 2A runtime WIF / API ownership 実行前 packet
 
+## 2026-10-15 JST protected current-state metadata検証
+
+[run38606660109](https://github.com/kani3camp/youtube-study-space/actions/runs/38606660109)
+（source `24093a4e9c8dfab26aeb36b7380eb8dba5ba0219`、attempt1、17:46 UTC完了）は
+本人による `terraform-dev-plan` Environment承認後、専用metadata readerでPASS。
+State12件・history canonical8列・State bytes/S3 HEAD metadataと安定したtable/project metadataの
+前後不変、lock/workspaceのpositive LIST不存在、private cleanupを検証しました。
+State読取は各HEADで4MiB上限を強制しています。Terraform実行・State/lock書込・artifact発行は0。
+公開logのcredential/raw-State/raw-Plan/signed-URL/未mask identity対象patternの検出は0でした。
+
+これはfull-root no-op、writer quiescence、runtime六種metadata、original history deltaの証明では
+ありません。`historical_delta_attested=false`を維持します。完了済みcanonical tableを再DROP・再importしません。
+重複して準備したread run38612550915は承認前に取消し、read gateをfalseへ閉鎖しました。
+次は同一環境でfresh admissionに基づく独立protected no-op/issuer closureです。
+
 Issue [#1191](https://github.com/kani3camp/youtube-study-space/issues/1191) の担当 workstream。
 正本は [Terraform Canon](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc) と
 [完了済み WIF migration 記録](https://app.notion.com/p/3d3357a8d0ce81ca9e0fe03749301deb)。
