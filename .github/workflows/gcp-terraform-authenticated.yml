@@ -519,6 +519,13 @@ jobs:
           token_format: access_token
           access_token_lifetime: 600s
 
+      - name: Verify runtime ownership plan project-scope mutation permissions
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.plan_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py runtime-ownership-read-only
+
       - name: Verify development identity boundaries without public identifiers
         id: identity_smoke
         if: ${{ inputs.target == 'dev' }}
@@ -1056,6 +1063,13 @@ jobs:
           token_format: access_token
           access_token_lifetime: 600s
 
+      - name: Verify runtime ownership apply project-scope mutation permissions
+        if: ${{ inputs.target == 'dev' && needs.preflight.outputs.ownership_wave != 'none' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.apply_gcp_auth.outputs.access_token }}
+          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: python3 .github/scripts/terraform_identity_smoke.py runtime-ownership-read-only
+
       - name: Verify quota apply identity least privilege
         if: ${{ inputs.mode == 'quota-create' || inputs.mode == 'quota-refresh' }}
         env:
@@ -1078,9 +1092,7 @@ jobs:
           QUOTA_IDENTITY_REQUIRED: ${{ needs.preflight.outputs.manage_quota == 'true' }}
         run: |
           set -euo pipefail
-          if [[ "${OWNERSHIP_WAVE:-none}" != "none" ]]; then
-            python3 .github/scripts/terraform_identity_smoke.py apply-read-only
-          elif [[ "${MODE}" == "apply" ]]; then
+          if [[ "${MODE}" == "apply" ]]; then
             python3 .github/scripts/terraform_identity_smoke.py export-function-apply-read-only
           else
             python3 .github/scripts/terraform_identity_smoke.py export-function

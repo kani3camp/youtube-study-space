@@ -5,6 +5,8 @@ plan-read-only and apply-read-only perform only bounded dev reads and dev
 testIamPermissions. The separately gated security-probe performs negative
 tests with private before/after state checks; omitted checks are not DENY evidence.
 No credentials, raw state, identifiers, or dependency errors go to public output.
+runtime-ownership-read-only checks project-scope mutation permissions for the
+exact plan/apply principal; it does not prove absence of all conditional IAM.
 """
 from __future__ import annotations
 
@@ -24,10 +26,18 @@ from pathlib import Path
 from terraform_identity_diagnostics import SmokeFailure, StageFailure, at_stage
 
 
+WIF_MUTATION_PERMISSIONS = (
+    "iam.workloadIdentityPools.create", "iam.workloadIdentityPools.update",
+    "iam.workloadIdentityPools.delete", "iam.workloadIdentityPools.undelete",
+    "iam.workloadIdentityPoolProviders.create", "iam.workloadIdentityPoolProviders.update",
+    "iam.workloadIdentityPoolProviders.delete", "iam.workloadIdentityPoolProviders.undelete",
+)
+
 FORBIDDEN_PERMISSIONS = (
     "resourcemanager.projects.update", "resourcemanager.projects.delete",
     "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
     "iam.serviceAccounts.setIamPolicy", "iam.serviceAccounts.getAccessToken",
+    *WIF_MUTATION_PERMISSIONS,
     "secretmanager.versions.access", "storage.buckets.create", "bigquery.datasets.create",
     "storage.buckets.update", "storage.objects.get", "storage.objects.list",
     "storage.objects.create", "storage.objects.delete",
@@ -165,6 +175,28 @@ def verify_quota_google(token: str, service_account: str, request=google, *, ide
     if not ((status == 200 and not data.get("permissions", [])) or (status == 403 and data.get("error", {}).get("status") == "PERMISSION_DENIED")):
         raise SmokeFailure("quota-production-permissions-denied")
     return checks + ["GCP quota production grants absent"]
+
+
+def verify_runtime_ownership_google(env, request=google):
+    """Project-scope test only; conditional/resource-specific IAM remains unproved."""
+    project = "test-youtube-study-space"
+    job, mode = env.get("GITHUB_JOB"), env.get("MODE")
+    if (job not in {"plan", "apply"} or mode not in {"plan", "apply"}
+            or (job == "apply" and mode != "apply")
+            or env.get("OWNERSHIP_WAVE") not in {"pool", "provider", "grant", "api", "noop"}
+            or env.get("HISTORY_TARGET") != "dev" or env.get("TF_VAR_project_id") != project
+            or env.get("GCP_SMOKE_SERVICE_ACCOUNT") != f"terraform-dev-{job}@{project}.iam.gserviceaccount.com"):
+        raise SmokeFailure("runtime-ownership-context")
+    requested = [*WIF_MUTATION_PERMISSIONS, "iam.serviceAccounts.setIamPolicy",
+                 "serviceusage.services.enable", "serviceusage.services.disable"]
+    status, data = request(f"v3/projects/{project}:testIamPermissions",
+                           env["GCP_SMOKE_ACCESS_TOKEN"], {"permissions": requested})
+    if status != 200 or type(data) is not dict or set(data) - {"permissions"}:
+        raise SmokeFailure("runtime-ownership-project-mutation-permissions")
+    granted = data.get("permissions", [])
+    if status != 200 or type(granted) is not list or granted:
+        raise SmokeFailure("runtime-ownership-project-mutation-permissions")
+    return ["GCP runtime ownership project-scope mutation permissions absent"]
 
 
 FUNCTION_FORBIDDEN_PERMISSIONS = tuple("cloudfunctions.functions." + suffix for suffix in (
@@ -351,6 +383,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         env = os.environ
         args = sys.argv[1:] if argv is None else argv
+        if args == ["runtime-ownership-read-only"]:
+            checks = at_stage("gcp-project", lambda: verify_runtime_ownership_google(env))
+            summary = "### Runtime ownership project-scope permission smoke\n\n" + "".join(
+                f"- PASS: {label}\n" for label in checks)
+            summary += "\nConditional and resource-specific IAM: NOT VERIFIED by this project-scope testIamPermissions check.\n"
+            def write_runtime_summary():
+                with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+                    output.write(summary)
+            at_stage("identity-output", write_runtime_summary)
+            print("Runtime ownership project-scope mutation permission smoke: PASS; conditional IAM: NOT VERIFIED")
+            return 0
         if args == ["backend-role-read-only"]:
             if (env.get("MODE") not in {"plan", "apply"} or env.get("HISTORY_TARGET") != "dev"
                     or env.get("TF_VAR_project_id") != "test-youtube-study-space"

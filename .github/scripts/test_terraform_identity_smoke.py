@@ -40,7 +40,7 @@ class IdentitySmokeTest(unittest.TestCase):
         job = workflow.split('  apply:\n', 1)[1].split('  security-probe:\n', 1)[0]
         job_env = job.split('    env:\n', 1)[1].split('    steps:\n', 1)[0]
         step = job.split('      - name: Verify Function identity exact read permissions\n', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('terraform_identity_smoke.py apply-read-only', step)
+        self.assertIn('terraform_identity_smoke.py export-function-apply-read-only', step)
         values = dict(re.findall(r'^\s+(\w+): (.+)$', job_env + '\n' + step.split('        env:\n', 1)[1].split('        run:', 1)[0], re.M))
         substitutions = {'${{ inputs.mode }}': 'apply', '${{ needs.preflight.outputs.ownership_wave }}': 'pool',
             '${{ needs.preflight.outputs.manage_user_activity_history }}': 'true',
@@ -376,7 +376,7 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                     raise RuntimeError("PRIVATE_GCP_BODY")
                 requested = body["permissions"]
                 allowed = {"monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"}
-                data = {"permissions": sorted((set(requested) & allowed) | set(extra_permissions))}
+                data = {"permissions": sorted(set(requested) & (allowed | set(extra_permissions)))}
                 if missing_permission in data["permissions"]: data["permissions"].remove(missing_permission)
             elif url.endswith("/functions/firestoreCollectionsExport"):
                 if fail_read == "function": raise RuntimeError("PRIVATE_READ_ERROR")
@@ -488,6 +488,42 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         for permission in ("monitoring.alertPolicies.get", "pubsub.topics.get", "cloudscheduler.jobs.get", "cloudfunctions.functions.get"):
             with self.subTest(missing=permission):
                 self.assertEqual(self.run_smoke(missing_permission=permission)[0], 1)
+
+    def test_each_wif_mutation_grant_stops_plan_and_apply_before_state_or_negative_probes(self):
+        permissions = [f"iam.{resource}.{operation}"
+                       for resource in ("workloadIdentityPools", "workloadIdentityPoolProviders")
+                       for operation in ("create", "update", "delete", "undelete")]
+        for args in (("plan-read-only",), ("apply-read-only",)):
+            for permission in permissions:
+                with self.subTest(mode=args[0], permission=permission):
+                    rc, http, aws, summary, output = self.run_smoke(
+                        args=args, extra_permissions=(permission,))
+                    self.assertEqual(rc, 1, output)
+                    self.assertEqual(summary, "")
+                    self.assertEqual(aws, [])
+                    self.assertIn("stage=gcp-project; category=check-failed", output)
+                    self.assertNotIn("PRIVATE", output)
+                    permission_requests = [body["permissions"] for _, url, body in http
+                                           if url.endswith(":testIamPermissions")]
+                    self.assertEqual(len(permission_requests), 1)
+                    self.assertIn(permission, permission_requests[0])
+                    self.assertFalse(any("generateAccessToken" in url or
+                                         "/projects/youtube-study-space:" in url
+                                         for _, url, _ in http))
+
+    def test_wif_read_grants_preserve_read_only_success_and_skipped_security_boundaries(self):
+        reads = ("iam.workloadIdentityPools.get", "iam.workloadIdentityPools.getAttestationRules",
+                 "iam.workloadIdentityPoolProviders.get")
+        for args in (("plan-read-only",), ("apply-read-only",)):
+            with self.subTest(mode=args[0]):
+                rc, http, _, summary, output = self.run_smoke(args=args, extra_permissions=reads)
+                self.assertEqual(rc, 0, output)
+                self.assertEqual(sum(line.startswith("- SKIPPED") for line in summary.splitlines()), 5)
+                self.assertIn("Full security gate: NOT VERIFIED", summary)
+                for _, url, body in http:
+                    if url.endswith(":testIamPermissions"):
+                        self.assertTrue(set(reads).isdisjoint(body["permissions"]))
+                self.assertNotIn("PRIVATE", summary + output)
 
     def test_wrong_sha_identity_state_or_dependency_error_fails_closed(self):
         project = "test-youtube-study-space"
@@ -668,6 +704,131 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         ):
             with self.assertRaises(smoke.SmokeFailure): operation()
         request.assert_not_called()
+
+
+class RuntimeOwnershipReadOnlySmokeTest(unittest.TestCase):
+    """Exercise both live job principals through the dedicated bounded command."""
+
+    MUTATIONS = tuple(f"iam.{resource}.{operation}"
+                      for resource in ("workloadIdentityPools", "workloadIdentityPoolProviders")
+                      for operation in ("create", "update", "delete", "undelete")) + (
+        "iam.serviceAccounts.setIamPolicy", "serviceusage.services.enable", "serviceusage.services.disable")
+
+    def run_smoke(self, *, job="plan", mode="plan", wave="pool", granted=(), status=200, overrides=None,
+                  response_payload=...):
+        calls, out, err = [], io.StringIO(), io.StringIO()
+        project = "test-youtube-study-space"
+        with tempfile.TemporaryDirectory() as directory:
+            env = {"GITHUB_JOB": job, "MODE": mode, "OWNERSHIP_WAVE": wave,
+                   "HISTORY_TARGET": "dev", "TF_VAR_project_id": project,
+                   "GCP_SMOKE_SERVICE_ACCOUNT": f"terraform-dev-{job}@{project}.iam.gserviceaccount.com",
+                   "GCP_SMOKE_ACCESS_TOKEN": "PRIVATE_TOKEN", "GITHUB_STEP_SUMMARY": directory + "/summary"}
+            for key, value in (overrides or {}).items():
+                if value is None: env.pop(key, None)
+                else: env[key] = value
+            def urlopen(request, **kwargs):
+                body = json.loads(request.data)
+                calls.append((request.get_method(), request.full_url, body))
+                data = {"permissions": sorted(set(body["permissions"]) & set(granted))}
+                if response_payload is not Ellipsis:
+                    data = response_payload
+                response = io.BytesIO(json.dumps(data).encode())
+                response.status = status
+                return response
+            with patch.dict(os.environ, env, clear=True), \
+                 patch.object(smoke.urllib.request, "urlopen", side_effect=urlopen), \
+                 patch.object(smoke, "aws") as aws, \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = smoke.main(["runtime-ownership-read-only"])
+                aws.assert_not_called()
+            path = Path(env["GITHUB_STEP_SUMMARY"])
+            return rc, calls, path.read_text() if path.exists() else "", out.getvalue() + err.getvalue()
+
+    def test_exact_plan_and_apply_job_principals_use_only_project_permission_smoke(self):
+        reads = ("iam.workloadIdentityPools.get", "iam.workloadIdentityPools.getAttestationRules",
+                 "iam.workloadIdentityPoolProviders.get")
+        for job, mode in (("plan", "plan"), ("plan", "apply"), ("apply", "apply")):
+            for wave in ("pool", "provider", "grant", "api", "noop"):
+                with self.subTest(job=job, mode=mode, wave=wave):
+                    rc, calls, summary, output = self.run_smoke(job=job, mode=mode, wave=wave, granted=reads)
+                    self.assertEqual(rc, 0, output)
+                    self.assertEqual(len(calls), 1)
+                    method, url, body = calls[0]
+                    self.assertEqual((method, url), ("POST", "https://cloudresourcemanager.googleapis.com/"
+                                                     "v3/projects/test-youtube-study-space:testIamPermissions"))
+                    self.assertEqual(set(body["permissions"]), set(self.MUTATIONS))
+                    self.assertEqual(len(body["permissions"]), len(self.MUTATIONS))
+                    self.assertIn("Conditional and resource-specific IAM: NOT VERIFIED", summary)
+                    self.assertIn("conditional IAM: NOT VERIFIED", output)
+                    self.assertNotIn("PRIVATE", summary + output)
+
+    def test_each_mutation_grant_stops_actual_plan_and_actual_apply_principal(self):
+        for job, mode in (("plan", "plan"), ("plan", "apply"), ("apply", "apply")):
+            for permission in self.MUTATIONS:
+                with self.subTest(job=job, mode=mode, permission=permission):
+                    rc, calls, summary, output = self.run_smoke(job=job, mode=mode, granted=(permission,))
+                    self.assertEqual(rc, 1)
+                    self.assertEqual(len(calls), 1)
+                    self.assertIn(permission, calls[0][2]["permissions"])
+                    self.assertEqual(summary, "")
+                    self.assertIn("stage=gcp-project; category=check-failed", output)
+                    self.assertNotIn("PRIVATE", output)
+
+    def test_wrong_job_identity_mode_wave_and_target_stop_before_any_request(self):
+        cases = [{"GITHUB_JOB": job} for job in (None, "security-probe", "preflight", "Plan")] + [
+            {"MODE": mode} for mode in (None, "quota-plan", "quota-create", "security-probe", "destroy")] + [
+            {"OWNERSHIP_WAVE": wave} for wave in (None, "none", "unknown", "POOL")] + [
+            {"HISTORY_TARGET": "prod"}, {"TF_VAR_project_id": "youtube-study-space"},
+            {"GCP_SMOKE_SERVICE_ACCOUNT": None},
+            {"GCP_SMOKE_SERVICE_ACCOUNT": "PRIVATE_UNRELATED@fixture.iam.gserviceaccount.com"}]
+        for job, mode in (("plan", "plan"), ("apply", "apply")):
+            wrong_principal = f"terraform-dev-{'apply' if job == 'plan' else 'plan'}@test-youtube-study-space.iam.gserviceaccount.com"
+            for overrides in cases + [{"GCP_SMOKE_SERVICE_ACCOUNT": wrong_principal}]:
+                with self.subTest(job=job, overrides=overrides):
+                    rc, calls, summary, output = self.run_smoke(job=job, mode=mode, overrides=overrides)
+                    self.assertEqual((rc, calls, summary), (1, [], ""))
+                    self.assertNotIn("PRIVATE", output)
+        rc, calls, summary, _ = self.run_smoke(job="apply", mode="plan")
+        self.assertEqual((rc, calls, summary), (1, [], ""))
+
+    def test_permission_request_errors_do_not_count_as_absent_grants(self):
+        for status in (403, 404, 500):
+            with self.subTest(status=status):
+                rc, _, summary, output = self.run_smoke(status=status)
+                self.assertEqual((rc, summary), (1, ""))
+                self.assertNotIn("PRIVATE", output)
+
+    def test_unknown_or_malformed_success_envelope_never_proves_permission_absence(self):
+        for payload in (None, [], 1, "PRIVATE_UNKNOWN", {"error": {"message": "PRIVATE_ERROR"}},
+                        {"PRIVATE_UNKNOWN": True}, {"permissions": [], "PRIVATE_UNKNOWN": True},
+                        {"permissions": None}, {"permissions": "PRIVATE_ERROR"}):
+            with self.subTest(payload=payload):
+                rc, calls, summary, output = self.run_smoke(response_payload=payload)
+                self.assertEqual((rc, summary), (1, ""))
+                self.assertEqual(len(calls), 1)
+                self.assertNotIn("PRIVATE", output)
+        # An omitted empty repeated field is a legitimate Google REST response.
+        self.assertEqual(self.run_smoke(response_payload={})[0], 0)
+
+    def test_live_workflow_checks_each_runtime_principal_after_auth_before_metadata(self):
+        workflow = (Path(__file__).parents[1] / "workflows/gcp-terraform-authenticated.yml").read_text()
+        for job, metadata in (("plan", "Read canonical history metadata privately"),
+                              ("apply", "Re-read canonical history metadata privately")):
+            section = workflow.split(f"  {job}:\n", 1)[1].split(
+                "  apply:\n" if job == "plan" else "  security-probe:\n", 1)[0]
+            name = f"Verify runtime ownership {job} project-scope mutation permissions"
+            step = section.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+            self.assertIn("if: ${{ inputs.target == 'dev' && needs.preflight.outputs.ownership_wave != 'none' }}", step)
+            self.assertIn(f"GCP_SMOKE_ACCESS_TOKEN: ${{{{ steps.{job}_gcp_auth.outputs.access_token }}}}", step)
+            self.assertIn("GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}", step)
+            self.assertIn("run: python3 .github/scripts/terraform_identity_smoke.py runtime-ownership-read-only", step)
+            self.assertLess(section.index(f"id: {job}_gcp_auth"), section.index(name))
+            self.assertLess(section.index(name), section.index(metadata))
+            job_env = section.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]
+            for entry in ("MODE: ${{ inputs.mode }}", "HISTORY_TARGET: ${{ inputs.target }}",
+                          "OWNERSHIP_WAVE: ${{ needs.preflight.outputs.ownership_wave }}",
+                          "TF_VAR_project_id: ${{ needs.preflight.outputs.project_id }}"):
+                self.assertIn(entry, job_env)
 
 
 class HistoryPlanCliTest(unittest.TestCase):
