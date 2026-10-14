@@ -9,7 +9,7 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 ## 現在のscope
 
-Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceおよび `user-activity-history` のownership移行は完了しています。最新の認証付き実証は[2026-10-14 current-state run](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934)の `import0 / no-op12 / drift0 / change0` です。これは当該run時点の証拠であり、現在の実環境を再取得したという意味ではありません。後続はIssue #1191を入口に、runtime WIF / 必要な個別IAM / 明示Own APIとdevelopment exitを完了してからproduction migrationへ進みます。
+Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceおよび `user-activity-history` のownership移行は完了しています。最新の認証付き実証は[fresh current-state run 38617630530](https://github.com/kani3camp/youtube-study-space/actions/runs/38617630530)の `import0 / no-op12 / drift0 / change0`（観測 `2026-10-14T22:18:59Z`）です。観測時点の結果として記録し、次waveではfresh Stateを再照合します。後続はIssue #1191を入口に、runtime WIF / 必要な個別IAM / 明示Own APIとdevelopment exitを完了してからproduction migrationへ進みます。
 
 dedicated development aggregate auditの実行記録・revoke手順と、development→production→MyPage releaseの証拠条件は
 [`docs/phase2-approval-and-readiness.md`](docs/phase2-approval-and-readiness.md) を参照してください。
@@ -40,7 +40,7 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとruntime apply issuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。current-state発行は成功し、closureは成功issuer Sだけを専用catalogへpinします。root-ready/runtime/production gatesはfalseを維持します。証跡・初回消費期限と後続の別実行承認は[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-14-current-state-issuer-closureデータ参照準備のみ)を参照してください。
+history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとruntime apply issuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。fresh current-state発行は成功し、closureは成功source S18だけを専用catalogへ追加します。旧issuerは履歴として保持し、旧receiptの期限を延長しません。root-ready/runtime/metadata-read/apply/production gatesはfalseを維持します。fresh初回消費期限は `2026-10-15T18:43:51Z`。証跡と後続のprivate handoffは[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-14-fresh-current-state-issuer-closure現在の参照)を参照してください。
 
 ## Directory
 

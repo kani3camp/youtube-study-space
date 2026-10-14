@@ -576,6 +576,9 @@ public dummy testsとPR専用fixture artifactは実cloud credentials/OIDC/Enviro
 
 ### 2026-10-14 current-state issuer closure（データ参照準備のみ）
 
+以下は初回 issuer の履歴記録。現在の fresh 参照は後続の fresh current-state issuer closure に記載する。
+旧 receipt の初回消費期限は新 issuer の登録によって延長されない。
+
 source S `94786489c90666889dd4efe5f303d1444bc8c430`（tree `9801dc0f4b35511a737ab5192a271ffc9d222d71`）の
 [run 38528566934](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934) attempt1、
 [plan job 115734708760](https://github.com/kani3camp/youtube-study-space/actions/runs/38528566934/job/115734708760) は成功した。
@@ -613,6 +616,40 @@ artifactの90日保存は初回消費期限を延長しない。`historical_delt
 exact consumer source、private packet/bindingとfresh admission、Environment review、root-ready/runtime gateの別承認が必要。
 このclosureではpacket作成・Secret読取更新・gate有効化・protected dispatch・live plan/applyを行わない。
 未採用のまま期限が切れた場合は新しいprotected current-state no-opと別issuer closureが必要で、古いreceiptへfallbackしない。
+
+### 2026-10-14 fresh current-state issuer closure（現在の参照）
+
+fresh issuer S `18d41d08bd8221e11db51d5f9f093d19784327e3` の
+[run 38617630530](https://github.com/kani3camp/youtube-study-space/actions/runs/38617630530)（CI #799）attempt1 と
+[plan job 116036746682](https://github.com/kani3camp/youtube-study-space/actions/runs/38617630530/job/116036746682) は SUCCESS。
+workflow ID `325439161`、Environment `terraform-dev-plan` / ID `23410074023`、owner reviewer ID `54093651`。
+actual GitHub API / ordered required steps / Environment approval / publisher / cleanup と strict canonical ZIP の独立検証は PASS、
+apply は skipped。authenticated full-root plan の fresh 証拠として記録する。
+
+```json
+{
+  "run_id": 38617630530,
+  "attempt": 1,
+  "job_id": 116036746682,
+  "source_sha": "18d41d08bd8221e11db51d5f9f093d19784327e3",
+  "receipt_sha256": "fb2a64a9b43b4ba2fd38f63c9eff696c2f63636c73e8a8867dad08a9647edfa3",
+  "transport": "current-state-artifact-v1",
+  "artifact_id": 11933325159,
+  "artifact_sha256": "1b3039aa6bb7cbdac9bc6d990fd604a5aa7372df62b25b9b7352f82957baaa3a"
+}
+```
+
+sanitized ZIP は888 bytes。`import0 / no-op12 / drift0 / change0`、State bytes / full HEAD と stable metadata 不変、
+native lock / workspace 不存在、cleanup を確認した。観測は `2026-10-14T22:18:59Z`、
+fresh receipt の初回消費期限は `2026-10-15T18:43:51Z`。artifact retention はこの期限を延長しない。
+`historical_delta_attested=false` を維持し、失われた original history final receipt を復元したとは扱わない。
+
+closure は S18 だけを current-state catalog に追加する。旧 S947 entry は履歴として保持し、
+旧 receipt の `2026-10-15T03:04:34Z` を更新・新期限へ読み替えない。closure 自身や runtime apply issuer は追加しない。
+current-state root-ready / original-history readiness / runtime-plan / metadata-read / development apply /
+production plan・apply gates は false のまま。既存の emission 設定は変更しない。
+private nonce / backend / metadata / inventory は公開せず、API/IAM/Secret/State ownership はこの closure で変更しない。
+初回 Pool wave は fresh packet / exact consumer SHA / private handoff と各 GitHub Environment の本人承認を確認して進める。
 
 ### Fresh current-state の再発行から初回 Pool wave まで
 
