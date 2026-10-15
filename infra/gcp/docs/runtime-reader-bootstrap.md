@@ -3,7 +3,7 @@
 この文書と [`bootstrap_runtime_readers.py`](../scripts/bootstrap_runtime_readers.py) は、固定の設定差分をレビューするための準備物です。
 本人は通常GCPログイン経由の作業を継続的に許可しています。経路の許可と、具体的な対象・差分・実行条件のレビューは区別します。
 確定したsource・private差分・独立Security reviewで範囲を限定し、元AWSキーや新たな管理権限の委譲へ拡張しません。
-今回提出された設定結果と、未実行の既存CIによる再検証は[Runtime ownership記録](runtime-wif-api-ownership.md)を参照してください。
+本人提出の設定結果と、既存CI両identityでPASSとなった再検証は[Runtime ownership記録](runtime-wif-api-ownership.md)を参照してください。
 
 ## 変更する範囲
 
@@ -19,7 +19,9 @@ custom roleの定義先namespaceはdev projectですが、Project IAM policyへ�
 
 PoolへのbindingがProvider読取に効く場合、粒度はそのPool配下の現在・将来のProvider全体です。
 単一Providerだけに絞れるとは主張しません。AWS federation Poolへのbinding追加は本人提出結果に記録されていますが、
-各permissionが既存CIのreadに効くことと、Providerへの継承は未実証です。
+その提出物だけでCIのread成功を証明したとは扱いません。後続の`run38712857940`では既存CI両identityで、
+exact Pool・空attestation・exact Provider・Runtime SA policyを含む6種の前後readがPASSでした。
+これは当該対象・実行区間での読取成功であり、他のProviderや将来時点の権限、継承経路全体の独立証明へ拡張しません。
 過去の`queryTestablePermissions` HTTP400を、その可否の証拠へ読み替えません。失敗時にProject全体のgrantへ広げません。
 
 ## 既定動作とprivate manifest
@@ -86,8 +88,9 @@ raw policy/metadataはprivateファイルに保持しますが、token/error bod
 roleだけが残った状態を完了扱いにしません。復旧はjournalの独立review後に、fresh policyから今回追加したmemberだけを除去する別の判断です。
 既存policy全体の復元や、新roleの自動delete/disableは行いません。
 
-設定完了もCIのread成功・Provider継承・migration/import準備完了の証明ではありません。
-設定後の既存plan/apply各Environmentによるprotected readと、exact対象の変更権限が増えていない確認は、担当者が別のレビュー済み有限windowで行います。
+設定結果単独ではCIのread成功・Provider継承・migration/import準備完了の証明ではありません。
+後続の既存plan/apply各Environmentによるprotected readは両PASSで、stable・project-scoped negative・window・cleanupもPASSでした。
+使用済みmetadata gateと時刻を閉鎖し、fresh full7・root/importは未成立のまま維持します。negativeはproject scopeの観測であり、全resourceの変更権限不存在を証明しません。
 
 ## Source検証と根拠
 
