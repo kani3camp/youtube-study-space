@@ -869,6 +869,67 @@ staging は既存固定名2件の0600／exclusive fileだけで、成功・失�
 private 値を outputs／summary／artifact／diagnostic へ出さない。この source-only adapter は
 inventory 成功、issuer closure、runtime gate activation、Environment 承認、Pool import の証明ではない。
 
+##### 同じ追加入力 Secret に収める可逆圧縮
+
+GitHub Actions Secret の上限は48KBであるため、4MiBの内部上限までの平文をそのままSecretへ
+投入できるとは限らない。既存の平文 reviewed v3 は引き続き受理し、同じ追加Secretに限り
+`runtime-reviewed-inputs-zlib-v1` wrapperも受理する。既存binding/full packet Secretは圧縮形式を受理しない。
+inventory、全件性を示す応答、provenanceのfieldを容量対策として削除しない。
+
+wrapperのexact keysは `schema_version:1`、`kind:"runtime-reviewed-inputs-zlib-v1"`、
+`encoding:"zlib+base64"`、`uncompressed_bytes`、`sha256`、`payload`。
+wrapperのUTF-8 bytesを48,000以下、復元bytesを1以上4MiB以下に制限する。サイズはboolを受理しない整数、
+SHAは復元する**元fragment bytes**のlowercase SHA-256、payloadは改行・空白を含まないcanonical Base64とする。
+zlibは1streamのEOFまでの完全な入力だけを受理し、展開bomb、未完stream、trailing bytes、連結stream、
+length/hash不一致、無効UTF-8、重複key、nonfinite number、未知wrapper fieldを拒否する。
+復元後も上記bindingなしv3 exact keysが必須で、`receipt_binding:null`も拒否する。
+
+runnerは既存gate/root basis/binding envelope/backend一致を確認した**後**だけ展開する。
+gate=false、別root、full packet併用ではdecompress自体を呼ばず認証前STOPとなる。
+join後の完全validator、issuer/provenance、24時間期限、同じnonce・commitment、plan/applyの同SHAは変更しない。
+これは可逆符号化であり、暗号化・真正性・freshness・full admission・Infrastructure Readyの証明ではない。
+
+[`pack_runtime_reviewed_inputs.py`](../scripts/pack_runtime_reviewed_inputs.py) はoffline専用で、
+既定では検査だけを行う。初回Pool、empty adoption chain、exact SHA、レビュー期限24時間以内、
+完全inventoryの既存構造、明示issuer SHAと既存source catalog、参照shapeを検査する。
+既存bindingを読まず、GitHub証跡やrootの実期限/HMACを認証しないため、runner側検証の代替にはならない。
+`--pack --output`を明示した場合だけ、checkout外のowned0700親配下へexclusive0600のwrapperを作る。
+入力もowned0600の通常file、hardlink/symlink不可とし、本文・path・hashをstdout/stderrへ出さない。
+wrapperはcompact UTF-8・末尾CR/LFなしで生成する。元fragmentはreformatせず、そのbytes/hashを維持する。
+容量対策のcompact化が必要なら、fragmentレビュー**前**にcompact UTF-8・末尾CR/LFなしの別fragmentを明示生成し、
+そのbytesを新たにレビュー/hash固定してからpackする。packがレビュー済み入力を黙って正規化することはない。
+
+##### 本人の既存GitHub認証による投入候補（未実行）
+
+source/fragment/wrapperのexact SHA、期待issuer、期限、private handoffを独立レビューした後の候補は、
+本人の既存標準`gh`認証を使い、同じwrapper fileのstdinを
+`terraform-dev-plan`と`terraform-dev-apply`の追加Environment Secretへそれぞれ渡す経路である。
+新SDKやPAT、本人credentialをCodexへ渡さず、既存binding Secretをread/export/updateしない。
+repository-wide Secret、bulk env file、公開file/artifact、本文のCLI引数は使わない。
+以下は経路の説明であり、この文書やpack成功を本人作業・書込・dispatchの依頼/承認とは扱わない。
+
+```sh
+gh secret set GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON --repo github.com/kani3camp/youtube-study-space --env terraform-dev-plan < /private/path/reviewed-wrapper.json
+gh secret set GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON --repo github.com/kani3camp/youtube-study-space --env terraform-dev-apply < /private/path/reviewed-wrapper.json
+```
+
+標準`gh secret set`はEnvironment public keyを取得し、ローカル暗号化した値を対象SecretへPUTする。
+既存値の取得は不要だが、本人アカウントの対象Environment書込権限は別途必要である。
+2件はatomicではないため、片方だけ成功・不明ならそこでSTOPし、gate/dispatchを止めたまま
+成功/未確認の固定statusだけをprivate journalに残す。旧値を読めないので自動rollback/deleteは行わない。
+Secretが使われるのはjob開始時のため、同じ入力を消費するprotected jobの実行/承認待ち中には更新しない。
+両方の投入後もrunner内join/provenance検証と本人のEnvironment承認が必要になる。
+
+同じ既存private fragment→同じ2つのEnvironment→同じrunner joinへの符号化は、承認済みmigrationの
+source準備範囲であり、権限や送信先を増やさない。一方、新たにCloud Shellへprivate fileを移す場合や
+`gh auth login --web`で新OAuth認証を始める場合は、その端末のcredential保管も含めた具体経路の判断が残る。
+secure credential storeがなければ`gh`は設定fileへ平文保存し得るため、既に本人認証済みの手元PCを優先候補とする。
+現時点ではlogin、file転送、Secret書込を実装/実行/依頼していない。
+
+参考: [GitHub Secretの上限](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#limits-for-secrets)、
+[`gh secret set`](https://cli.github.com/manual/gh_secret_set)、
+[`gh auth login`](https://cli.github.com/manual/gh_auth_login)。
+
 ### Private handoff 不足中の protected metadata-only read
 
 [`terraform_current_state_read.py`](../../../.github/scripts/terraform_current_state_read.py) は

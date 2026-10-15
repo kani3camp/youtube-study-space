@@ -40,6 +40,8 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
+既存bindingを保つ追加入力には、同じEnvironment Secret内の可逆圧縮形式も用意しています。
+[`圧縮・private handoffの契約`](docs/runtime-wif-api-ownership.md#同じ追加入力-secret-に収める可逆圧縮)はsource準備であり、gateは閉鎖したままです。
 Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF の再利用手順と現在の metadata gap は
 [read-only 認証 runbook](docs/runtime-wif-api-ownership.md#codex-cloud-の調査用-read-only-認証経路)に記録しています。
 既存plan/apply Environmentそれぞれでruntime六種metadataを読む `runtime-metadata-read` source routeは

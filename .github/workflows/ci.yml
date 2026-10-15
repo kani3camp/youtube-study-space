@@ -666,6 +666,7 @@ jobs:
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
+          python3 infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
           python3 infra/gcp/tests/test_collect_runtime_metadata.py
           python3 infra/gcp/tests/test_collect_runtime_read_scope.py
           python3 infra/gcp/tests/test_collect_runtime_read_scope_reviewed_targets.py
