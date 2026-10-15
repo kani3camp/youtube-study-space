@@ -165,3 +165,9 @@ assert_exact_groups gcp_terraform infra/gcp/scripts/collect_aws_runtime_versione
 assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_aws_runtime_list_functions_projection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/requirements.txt
+
+# Optional original-user metadata transport must retain dummy SDK validation.
+assert_exact_groups gcp_terraform infra/gcp/scripts/collect_codex_runtime_metadata.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_codex_runtime_metadata.py
+assert_exact_groups gcp_terraform infra/gcp/requirements/codex-runtime-metadata.txt
+assert_exact_groups gcp_terraform infra/gcp/docs/codex-runtime-metadata-collector.md
