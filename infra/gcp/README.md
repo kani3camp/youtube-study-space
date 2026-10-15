@@ -75,6 +75,10 @@ dev / prodは別root moduleです。Terraform workspaceで環境を切り替え�
 
 ## Local validation
 
+GitHubと別に管理権限でログイン済みの端末で必要な設定だけを取得する場合は、
+[`設定を読むツールの手順`](docs/runtime-operator-metadata-collector.md)を参照してください。
+このツールは権限を追加せず、取得結果や実データを公開しません。
+
 credentialやbackendを使わない構文・provider validation:
 
 ```bash

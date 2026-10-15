@@ -658,6 +658,8 @@ jobs:
           python3 .github/scripts/test_terraform_email_adoption_gate.py
           python3 .github/scripts/test_terraform_protected_plan.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
+          python3 infra/gcp/tests/test_collect_runtime_metadata.py
+          python3 infra/gcp/tests/test_collect_aws_runtime_task_metadata.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
