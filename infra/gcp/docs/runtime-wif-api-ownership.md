@@ -850,6 +850,28 @@ null / empty mode、default-off、架空Stateの2段階mockによる実値変更
 native mockの`test_plan`はsaved planの完全なadmission証拠ではない。mock importは非computed値をconfigから作るため、
 実値変更・unknownの負例には別の2段階mockを用いる。これらの検証は実認証・Cloud read・import・applyの成功を示さない。
 
+### 2026-10-15 M13後の初回Pool実行枠（sourceのみ）
+
+M13 `9074b064b9bf5117c0cfa3f7ac49f73f357e31b3`（PR #1334）の修正・native7テスト・通常CI・独立レビューの後、
+新しい初回Pool用sourceでcurrent-state root-ready / runtime-plan / split-input / development applyの4 gateだけをtrueにする。
+M12のbounded診断と全失敗条件、M13のPool4属性だけのsensitivity修正とnativeの値差・unknown・canary負例を保持する。
+module / root inventory / validator / native lock / issuer catalog / 他gateとwindowはこのactivationで変更せず、productionは閉鎖したまま。
+前回CI #866やM12閉鎖の歴史記録を書き換えず、M13の架空入力での再現を実runの原因確定や成功へ昇格させない。
+
+最終consumer source Rはmerge後に確定し、新しいprivate packetはまだ発行していない。
+root-readyというsource名や4 gateの有効化だけでは、実admission・plan/import・Infrastructure Readyは成立しない。
+新Rへのfresh GCP/AWS captureと独立private packetレビュー、同じwrapperを入れる2つの追加Environment Secretの一致を確認してから、
+rootが新attempt1のPLANだけをdispatchする。既存binding Secretとnonceを保持し、旧packetや旧観測の期限を延長・再利用しない。
+初回入力は`current-state-bootstrap`、空のadopted / adoption chain、Poolだけのselectedを明示し、
+exact SHA・issuer・期限・全inventory・Stateをrunnerで検証する。現issuer `18d41d08bd8221e11db51d5f9f093d19784327e3`の
+初回消費期限`2026-10-15T18:43:51Z`も延長せず、失効した場合はruntime実行枠を閉じて別の再発行契約へ戻る。
+
+PLANのimport1 / 既存no-op12 / drift0 / change0、admissionと事後State・metadata・lock・cleanupを独立確認した後だけ、
+同じSHA・同じprivate入力の別apply runでplanを取り直し、commitment / digest / seal一致を検証する。
+公開projectionではimportもno-opに重複計数されるため、正常候補の件数はimport1 / no-op13となる。
+各protected jobで本人のEnvironment承認が必要で、applyのreceipt emitter / artifact gateが欠ければSTOPする。
+dev/none、不一致wave/root、混在した再発行、失敗・不明・期限切れは拒否し、旧runのattempt2や自動fallbackを行わない。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は

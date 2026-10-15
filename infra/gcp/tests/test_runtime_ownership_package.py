@@ -552,22 +552,28 @@ class WorkflowContracts(unittest.TestCase):
             result.outputs = Path(env['GITHUB_OUTPUT']).read_text() if Path(env['GITHUB_OUTPUT']).exists() else ''
             return result
 
-    def test_new_live_gates_closed_before_any_auth_all_selections(self):
+    def test_closed_runtime_gates_stop_all_selections_before_authentication(self):
+        closed = dict(DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='false',
+                      DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY='false',
+                      DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='false')
         for wave in ['pool', 'provider', 'grant', 'api', 'noop']:
             with self.subTest(wave=wave):
-                self.assertNotEqual(self.preflight(OWNERSHIP_WAVE=wave).returncode, 0)
-                self.assertNotEqual(self.preflight(OWNERSHIP_WAVE=wave, DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true').returncode, 0)
-        self.assertEqual(self.preflight(OWNERSHIP_WAVE='none').returncode, 0)
+                self.assertNotEqual(self.preflight(**closed, OWNERSHIP_WAVE=wave).returncode, 0)
+                self.assertNotEqual(self.preflight(**dict(closed, DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true'),
+                    OWNERSHIP_WAVE=wave).returncode, 0)
+        self.assertEqual(self.preflight(**closed, OWNERSHIP_WAVE='none').returncode, 0)
 
     def test_none_preserves_baseline_and_history_routes_only_while_runtime_is_disabled(self):
         for managed in ['false', 'true']:
             for mode in ['plan', 'apply']:
                 with self.subTest(managed=managed, mode=mode):
                     result = self.preflight(OWNERSHIP_WAVE='none', MODE=mode,
+                        DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='false',
                         DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED=managed,
                         DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED='true')
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.preflight(OWNERSHIP_WAVE='none', HISTORY_POST_NOOP='true').returncode, 0)
+        self.assertEqual(self.preflight(OWNERSHIP_WAVE='none', HISTORY_POST_NOOP='true',
+            DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='false').returncode, 0)
 
     def test_activated_runtime_none_stops_preflight_before_credential_jobs(self):
         for ready in ['false', 'true']:
@@ -611,13 +617,13 @@ class WorkflowContracts(unittest.TestCase):
         self.assertIn('path: ${{ runner.temp }}/ownership-public/ownership-receipt.json', self.text)
         for name in ['runtime-ownership-packet.json', 'runtime-ownership.tfvars.json']:
             self.assertIn('"${RUNNER_TEMP}/' + name + '"', plan.split('Cleanup sensitive temporary files')[1])
-        for name in ['DEV_HISTORY_POST_NOOP12_READY', 'DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED']:
-            self.assertIn(name + ': "false"', self.text)
+        self.assertIn('DEV_HISTORY_POST_NOOP12_READY: "false"', self.text)
+        self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "true"', self.text)
         self.assertNotIn('plan_cost_evidence', plan.split('Stage reviewed private cumulative', 1)[1].split('Configure AWS backend credential')[0])
 
-    def test_split_binding_secret_is_explicit_default_off_and_only_in_protected_staging(self):
+    def test_split_binding_secret_is_explicit_and_only_in_protected_staging(self):
         secret = 'GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'
-        self.assertIn('DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "false"', self.text)
+        self.assertIn('DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "true"', self.text)
         self.assertIn(secret + ':\n        required: false', self.text)
         self.assertIn(secret + ': ${{ secrets.' + secret + ' }}', self.caller)
         self.assertEqual(self.text.count('secrets.' + secret), 2)
