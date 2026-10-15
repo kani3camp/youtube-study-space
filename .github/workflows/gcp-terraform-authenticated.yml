@@ -81,9 +81,9 @@ env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
-  # Initial runtime Pool plan and same-SHA re-plan/apply window. Exact admission
-  # and a separate apply Environment approval remain mandatory after plan review.
-  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
+  # Used runtime Pool window is closed. A future activation requires a fresh
+  # exact-SHA private packet, successful plan and separate Environment approvals.
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
@@ -112,7 +112,7 @@ env:
   # remains separate from the current-state root and runtime plan contracts.
   DEV_HISTORY_POST_NOOP12_READY: "false"
   DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"
-  DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "true"
+  DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
   # Metadata observation only; no Terraform, admission or issuer claim.
   DEV_CURRENT_STATE_READ_ENABLED: "false"
   DEV_CURRENT_STATE_READ_ISSUED_UTC: ""
@@ -123,9 +123,9 @@ env:
   DEV_RUNTIME_METADATA_READ_EXPIRES_UTC: ""
   # Separate observations only; never authorize IAM changes or reuse negative results.
   DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED: "false"
-  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "true"
+  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Runner-only binding join; activation requires separately reviewed v3 inputs.
-  DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "true"
+  DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "false"
   # Initial history import requires its authentic root receipt in the same apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
   # Owner-approved sanitized history receipt only; upload follows verified success.
@@ -752,6 +752,9 @@ jobs:
             echo "summary_digest=${digest}" >> "${GITHUB_OUTPUT}"
           fi
           if [[ "${rc}" -ne 0 ]]; then
+            if [[ "${OWNERSHIP_WAVE}" != "none" ]]; then
+              python3 .github/scripts/terraform_plan_diagnostic.py || true
+            fi
             echo "::error::Terraform plan violated the protected policy. See the sanitized Job Summary."
             exit "${rc}"
           fi
@@ -849,7 +852,8 @@ jobs:
             "${RUNNER_TEMP}/sanitized-plan.json" \
             "${RUNNER_TEMP}/sanitized-plan.md" \
             "${RUNNER_TEMP}/sanitizer.out" \
-            "${RUNNER_TEMP}/sanitizer.err"
+            "${RUNNER_TEMP}/sanitizer.err" \
+            "${RUNNER_TEMP}/runtime-plan-diagnostic.json"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json
           if [[ -d "${RUNNER_TEMP}/current-state-public" ]]; then rmdir "${RUNNER_TEMP}/current-state-public"; fi
   current_state_read:
@@ -1443,6 +1447,9 @@ jobs:
             cat "${RUNNER_TEMP}/sanitized-replan.md" >> "${GITHUB_STEP_SUMMARY}"
           fi
           [[ "${rc}" -eq 0 ]] || {
+            if [[ "${OWNERSHIP_WAVE}" != "none" ]]; then
+              python3 .github/scripts/terraform_plan_diagnostic.py || true
+            fi
             echo "::error::Re-plan violated the protected policy."
             exit "${rc}"
           }
@@ -1643,6 +1650,7 @@ jobs:
             "${RUNNER_TEMP}/post-apply-summary.md" \
             "${RUNNER_TEMP}/sanitizer.out" \
             "${RUNNER_TEMP}/sanitizer.err" \
+            "${RUNNER_TEMP}/runtime-plan-diagnostic.json" \
             "${RUNNER_TEMP}/post-sanitizer.out" \
             "${RUNNER_TEMP}/post-sanitizer.err"
           rm -f "${GITHUB_WORKSPACE}"/gha-creds-*.json

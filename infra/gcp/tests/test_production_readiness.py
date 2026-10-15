@@ -125,7 +125,7 @@ class ProductionReadinessTest(unittest.TestCase):
         production_open = {name: "true" for name in (
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED", "PROD_EXECUTION_CONTRACT_READY",
             "PROD_DEVELOPMENT_EXIT_READY", "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED")}
-        for wave, development in (("none", closed_runtime), ("pool", {
+        for wave, development in (("none", closed_runtime), ("pool", {**{name: "true" for name in closed_runtime},
                 "OWNERSHIP_WAVE": "pool", "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap"})):
             for production in ({}, production_open):
                 with self.subTest(wave=wave, production=production):
@@ -137,8 +137,8 @@ class ProductionReadinessTest(unittest.TestCase):
                         **{name: "true" for name in ("manage_primary_email", "manage_quota", "manage_export_topic",
                                                       "manage_export_scheduler", "manage_export_function", "manage_user_activity_history")},
                     })
-        # Current runtime activation requires a selection before any job inputs.
-        self.assert_stops_before_job_inputs(TARGET="dev")
+        # Runtime activation requires a selection before any job inputs.
+        self.assert_stops_before_job_inputs(TARGET="dev", DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED="true")
 
     def test_readiness_ci_has_no_cloud_authorization_or_state_operations(self):
         source = (ROOT / ".github/workflows/gcp-production-readiness.yml").read_text()
