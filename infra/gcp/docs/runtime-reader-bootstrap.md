@@ -18,7 +18,8 @@ custom roleの定義先namespaceはdev projectですが、Project IAM policyへ�
 既存roleの更新、広いViewer/Admin、CIへの変更権限委譲、元AWSキー経由の変更、prod、WIF trust変更、Terraform、State/lock書込は対象外です。
 
 PoolへのbindingがProvider読取に効く場合、粒度はそのPool配下の現在・将来のProvider全体です。
-単一Providerだけに絞れるとは主張しません。AWS federation Poolでのbinding受理・各permissionの適用・Provider継承は未実証です。
+単一Providerだけに絞れるとは主張しません。AWS federation Poolへのbinding追加は本人提出結果に記録されていますが、
+各permissionが既存CIのreadに効くことと、Providerへの継承は未実証です。
 過去の`queryTestablePermissions` HTTP400を、その可否の証拠へ読み替えません。失敗時にProject全体のgrantへ広げません。
 
 ## 既定動作とprivate manifest
