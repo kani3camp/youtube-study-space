@@ -77,7 +77,11 @@ dev / prodは別root moduleです。Terraform workspaceで環境を切り替え�
 
 GitHubと別に管理権限でログイン済みの端末で必要な設定だけを取得する場合は、
 [`設定を読むツールの手順`](docs/runtime-operator-metadata-collector.md)を参照してください。
-このツールは権限を追加せず、取得結果や実データを公開しません。
+この設定読取ツールは権限を追加せず、取得結果や実データを公開しません。
+
+既存CIに不足するRuntime読取権限の設定候補は、
+[`一度だけの設定をレビューするための準備物`](docs/runtime-reader-bootstrap.md)にまとめています。
+既定は認証・HTTP・変更なしのoffline検査です。本人の通常GCPログインによるIAM変更の例外は、まだ承認されていません。
 
 credentialやbackendを使わない構文・provider validation:
 
