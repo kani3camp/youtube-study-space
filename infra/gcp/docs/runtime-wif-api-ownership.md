@@ -916,3 +916,59 @@ HTTP200のshape拒否・通信失敗等を区別する。全条件未達はSTOP�
 Terraform・State・lock・runtime mutation・artifact・ownership receiptには接続しない。
 既存current-state issuerを消費せず、read成功もPool取込やInfrastructure Readyへ読み替えない。
 この実測後も別review済source変更でgate=false、発行・失効UTCを空へ閉鎖する。
+
+
+### 診断付き再検証の実測結果とwindow閉鎖
+
+[run38667310894](https://github.com/kani3camp/youtube-study-space/actions/runs/38667310894) は
+integration `5bd2d63c9486560d639c1c99df649263fb85392c` / workflow_dispatch / 新規attempt1。
+本人 `kani3camp` の既存dev-plan/dev-apply両Environment承認を実APIで確認した。
+[plan job116202140398](https://github.com/kani3camp/youtube-study-space/actions/runs/38667310894/job/116202140398) と
+[apply job116202140258](https://github.com/kani3camp/youtube-study-space/actions/runs/38667310894/job/116202140258) は
+exact Environment/same-SHA OIDC・既存GCP短期認証がSUCCESS、metadata readはSTOP、実cleanup stepとpost-auth cleanupはSUCCESSで完了した。
+
+supported job-log APIから固定24行blockを各jobちょうど1件として抽出し、全key/有限enumを検証した。
+両identityの実測は以下のとおり。前後片方の成功による補完や、旧runへの理由の遡及は行わない。
+
+| Fixed alias | Plan before / after | Apply before / after | Result |
+| --- | --- | --- | --- |
+| `runtime-pool` | HTTP403 / HTTP403 | HTTP403 / HTTP403 | STOP |
+| `runtime-attestation` | HTTP403 / HTTP403 | HTTP403 / HTTP403 | STOP |
+| `runtime-provider` | HTTP403 / HTTP403 | HTTP403 / HTTP403 | STOP |
+| `runtime-sa-policy` | HTTP403 / HTTP403 | HTTP403 / HTTP403 | STOP |
+| `runtime-project` | PASS / PASS | PASS / PASS | PASS |
+| `runtime-enabled-services` | PASS / PASS | PASS / PASS | PASS |
+
+`runtime-project-permissions` / `runtime-window` / `runtime-cleanup` は両identityでPASS。
+`runtime-stable` は未実行、全体はSTOP。project範囲のpermission観測を全resource上の権限否定へ拡張しない。
+HTTP403は当該readが拒否された証拠であり、特定のAllow欠落・Deny・condition等の原因を単独で確定しない。
+旧run38663394483の理由は引き続き未判別であり、今回の403を転記しない。
+
+通常Terraform plan/apply、current-state metadata、identity probe、schema routeはskipped。
+Terraform/State/lock、IAM/resource変更、artifact、ownership receiptは0、既存current-state issuerは未消費。
+public logのAWS ARN/SA email/access-key/Bearer token/receipt bindingの5pattern検査は両jobで検出0
+（全private値の完全検査や実runner disk検査ではない）。
+使用済みの再検証gateをfalse、発行・失効UTCを空へ閉鎖する。追加実測には別reviewの新windowと本人の各Environment承認が必要。
+
+### Exact readの最小権限候補（未適用・未実証）
+
+[allow policy対応resource一覧](https://docs.cloud.google.com/iam/docs/resource-types-with-policies) はWorkload Identity Pool自身を含み、
+[GA Pool binding CLI](https://docs.cloud.google.com/sdk/gcloud/reference/iam/workload-identity-pools/add-iam-policy-binding) はcustom roleを明示的に許可する。
+[custom-role permission support](https://docs.cloud.google.com/iam/docs/custom-roles-permissions-support) では
+`iam.workloadIdentityPools.get` / `iam.workloadIdentityPools.getAttestationRules` /
+`iam.workloadIdentityPoolProviders.get` はSUPPORTED。role定義をprojectに置くことと、principalへのproject-wide grantは同一ではない。
+したがって、この3readだけのcustom roleをRuntime Pool自身へbindする案は仕様上の候補であり、
+AWS Providerを含むという理由だけでPool policy不可と断定しない。実対象でのpolicy受理・実CI read成功は未実証である。
+
+[親policyの子への継承](https://docs.cloud.google.com/iam/docs/resource-hierarchy-access-control) と
+[Provider resourceの構造](https://docs.cloud.google.com/iam/docs/reference/rest/v1/projects.locations.workloadIdentityPools.providers/get) により、
+Poolに置くProvider GET grantは同Pool内のcurrent/future全Providerに及ぶ粒度としてreviewする。
+既存aws-provider1件だけへのgrantとは扱わず、unsupportedなresource.name条件で制限できたとしない。
+project-wide roleやOwner/Editorを追加する代替にしない。
+
+次の最小調査は、既存の管理用identityによるexact Runtime PoolのgetIamPolicy（version3、full policy/etag/conditions保持）と、
+[queryTestablePermissions](https://docs.cloud.google.com/iam/docs/reference/rest/v1/permissions/queryTestablePermissions) を同Pool/Providerに限定した全pageのprivate read。
+query結果はcustom-role/testability仕様であり、callerの保有権限の証明ではない。
+SA policy readとhistory table metadataは別resourceのscopeで検討する。既存のread-only collectorで自動grantは行わない。
+将来の最小IAM変更も既存principal/binding保持、独立review、negative test、GitHub Environmentの本人承認を省略せず、
+調査用の元AWS長期キーでは適用しない。必要なmetadata/caller/private joinが欠ける間はPool importへ進まない。
