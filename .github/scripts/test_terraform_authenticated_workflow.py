@@ -124,8 +124,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         declared = set(re.findall(r"(?m)^      ([A-Z_]+):$", interface))
         used = set(re.findall(r"secrets\.([A-Z_]+)", self.text))
         self.assertEqual(declared, used)
-        self.assertEqual(len(declared), 9)
-        self.assertEqual(interface.count("required: false"), 9)
+        self.assertEqual(len(declared), 10)
+        self.assertEqual(interface.count("required: false"), 10)
         call = re.split(r"\n  [a-zA-Z0-9_-]+:\n",
                         self.caller.split("  gcp-terraform-authenticated:\n", 1)[1], maxsplit=1)[0]
         forwarded = re.findall(r"(?m)^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call)
@@ -337,6 +337,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
             "DEV_CURRENT_STATE_READ_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
+            "DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
             "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "true",
         })

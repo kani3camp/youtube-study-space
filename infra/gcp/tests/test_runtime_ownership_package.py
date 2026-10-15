@@ -366,7 +366,8 @@ class PackageContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(MODE='plan', TF_VAR_project_id='test-youtube-study-space',
                        TF_VAR_manage_user_activity_history='true', OWNERSHIP_WAVE='pool',
-                       GITHUB_SHA=SHA, RUNNER_TEMP=directory, RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(staging_packet()))
+                       GITHUB_SHA=SHA, RUNNER_TEMP=directory, RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(staging_packet()),
+                       **binding_context(staging_packet()))
             with patch.object(packet_module, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)):
                 packet_module.prepare_workflow(env)
                 for name in ['runtime-ownership-packet.json', 'runtime-ownership.tfvars.json']:
@@ -377,6 +378,104 @@ class PackageContracts(unittest.TestCase):
             with patch.dict(os.environ, env, clear=True), patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
                 self.assertEqual(packet_module.main(), 3)
                 self.assertNotIn('private sentinel', out.getvalue() + err.getvalue())
+
+    def split_env(self, directory, *, typed=False):
+        value = staging_packet()
+        from test_terraform_current_state_attestation import CurrentStateFixture
+        from terraform_current_state_attestation import TYPE
+        value['schema_version'] = 3
+        value['current_state_attestation'] = CurrentStateFixture().ref
+        value.pop('history_receipt')
+        reviewed = {key: item for key, item in value.items() if key != 'receipt_binding'}
+        envelope = dict(schema_version=1, receipt_binding=value['receipt_binding'])
+        if typed:
+            envelope['attestation_type'] = TYPE
+        env = dict(MODE='plan', TF_VAR_project_id='test-youtube-study-space',
+                   TF_VAR_manage_user_activity_history='true', OWNERSHIP_WAVE='pool', GITHUB_SHA=SHA,
+                   RUNNER_TEMP=directory, OWNERSHIP_ROOT_BASIS='current-state-bootstrap',
+                   DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='true', **binding_context(value),
+                   RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(envelope),
+                   RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON=json.dumps(reviewed))
+        return env, value, envelope, reviewed
+
+    def test_split_handoff_preserves_exact_binding_and_full_packet_without_exposing_inputs(self):
+        for typed in (False, True):
+            with self.subTest(typed=typed), tempfile.TemporaryDirectory() as directory:
+                env, value, _, _ = self.split_env(directory, typed=typed)
+                with patch.dict(os.environ, env, clear=True), \
+                     patch.object(packet_module, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), \
+                     patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
+                    self.assertEqual(packet_module.main(), 0)
+                root = Path(directory)
+                self.assertEqual(json.loads((root / 'runtime-ownership-packet.json').read_text()), value)
+                self.assertEqual(json.loads((root / 'runtime-ownership.tfvars.json').read_text()),
+                                 packet_module_validate(value, wave='pool', git_sha=SHA, now=NOW))
+                self.assertEqual({p.name for p in root.iterdir()}, {'runtime-ownership-packet.json', 'runtime-ownership.tfvars.json'})
+                for path in root.iterdir():
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                for secret in (value['receipt_binding']['nonce'], 'dummy-state-bucket', 'DUMMY_', 'attributeMapping'):
+                    self.assertNotIn(secret, out.getvalue() + err.getvalue())
+                with self.assertRaises(OSError), patch.object(packet_module, 'validate_packet',
+                        side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)):
+                    packet_module.prepare_workflow(env)
+                self.assertEqual(json.loads((root / 'runtime-ownership-packet.json').read_text()), value)
+
+    def test_split_handoff_rejects_ambiguous_shapes_context_and_unreviewed_scope_before_files(self):
+        mutations = [
+            lambda e, b, p, v: e.update(DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='false'),
+            lambda e, b, p, v: e.update(DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='TRUE'),
+            lambda e, b, p, v: e.update(OWNERSHIP_ROOT_BASIS='original-history-import'),
+            lambda e, b, p, v: e.update(RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON=''),
+            lambda e, b, p, v: e.update(RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(v)),
+            lambda e, b, p, v: b.update(schema_version=True),
+            lambda e, b, p, v: b.update(attestation_type='wrong'),
+            lambda e, b, p, v: b.update(unexpected='DUMMY_PRIVATE'),
+            lambda e, b, p, v: b['receipt_binding'].update(nonce='00' * 32),
+            lambda e, b, p, v: b['receipt_binding']['history_metadata'].update(schema={'fields': []}),
+            lambda e, b, p, v: e.update(STATE_BUCKET='dummy-wrong-bucket'),
+            lambda e, b, p, v: p.update(receipt_binding=None),
+            lambda e, b, p, v: p.update(receipt_binding=v['receipt_binding']),
+            lambda e, b, p, v: p.update(unexpected='DUMMY_PRIVATE'),
+            lambda e, b, p, v: p.update(schema_version=True),
+            lambda e, b, p, v: p.update(schema_version=2),
+            lambda e, b, p, v: p.update(git_sha='b' * 40),
+            lambda e, b, p, v: p.update(expires_utc='2026-10-10T03:59:59Z'),
+            lambda e, b, p, v: p['selected'].update(provider=True),
+            lambda e, b, p, v: p['current_state_attestation'].update(transport='artifact-v1'),
+            lambda e, b, p, v: p['inventory']['pool_attestation_rules'].update(nextPageToken='remaining'),
+            lambda e, b, p, v: p['inventory']['enabled_services'].update(nextPageToken='remaining'),
+            lambda e, b, p, v: p['inventory']['runtime_grants']['grant-01'].update(member='unreviewed-member'),
+            lambda e, b, p, v: e.update(RUNTIME_OWNERSHIP_PACKET_JSON='{"private sentinel":1,"private sentinel":2}'),
+            lambda e, b, p, v: e.update(RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON='{"private sentinel":1,"private sentinel":2}'),
+        ]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index), tempfile.TemporaryDirectory() as directory:
+                env, value, envelope, reviewed = self.split_env(directory)
+                previous = env.copy()
+                mutate(env, envelope, reviewed, value)
+                if env['RUNTIME_OWNERSHIP_PACKET_JSON'] == previous['RUNTIME_OWNERSHIP_PACKET_JSON']:
+                    env['RUNTIME_OWNERSHIP_PACKET_JSON'] = json.dumps(envelope)
+                if env['RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'] == previous['RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON']:
+                    env['RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'] = json.dumps(reviewed)
+                with patch.dict(os.environ, env, clear=True), \
+                     patch.object(packet_module, 'validate_packet', side_effect=lambda p, **kw: packet_module_validate(p, now=NOW, **kw)), \
+                     patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
+                    self.assertEqual(packet_module.main(), 3)
+                self.assertEqual(list(Path(directory).iterdir()), [])
+                for secret in (value['receipt_binding']['nonce'], 'dummy-state-bucket', 'DUMMY_PRIVATE', 'private sentinel'):
+                    self.assertNotIn(secret, out.getvalue() + err.getvalue())
+
+    def test_split_handoff_bounds_each_input_and_joined_serialization(self):
+        for kind in ('binding', 'reviewed', 'joined'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                env, _, _, _ = self.split_env(directory)
+                limit = max(len(env[key].encode()) for key in ('RUNTIME_OWNERSHIP_PACKET_JSON', 'RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'))
+                if kind != 'joined':
+                    key = 'RUNTIME_OWNERSHIP_PACKET_JSON' if kind == 'binding' else 'RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'
+                    env[key] += ' ' * limit
+                with patch.object(packet_module, 'MAX_PACKET_BYTES', limit), self.assertRaises(ValueError):
+                    packet_module.prepare_workflow(env)
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_protected_consumer_checks_private_var_file_and_sanitizes_all_values(self):
         plan, metadata, p = fixture(4)
@@ -419,6 +518,12 @@ def staging_packet():
     value.pop('history_post_noop_run_id')
     value.update(schema_version=2, receipt_binding=dummy_binding(), history_receipt=GitHubFixture().ref, adoption_receipts=[])
     return value
+
+
+def binding_context(value):
+    backend = value['receipt_binding']['backend']
+    return dict(STATE_ACCOUNT_ID=backend['account_id'], STATE_BUCKET=backend['bucket'], STATE_KEY=backend['key'],
+                STATE_AWS_REGION=backend['region'], TF_WORKSPACE=backend['workspace'])
 
 
 packet_module_validate = packet_module.validate_packet
@@ -509,6 +614,22 @@ class WorkflowContracts(unittest.TestCase):
         for name in ['DEV_HISTORY_POST_NOOP12_READY', 'DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED']:
             self.assertIn(name + ': "false"', self.text)
         self.assertNotIn('plan_cost_evidence', plan.split('Stage reviewed private cumulative', 1)[1].split('Configure AWS backend credential')[0])
+
+    def test_split_binding_secret_is_explicit_default_off_and_only_in_protected_staging(self):
+        secret = 'GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON'
+        self.assertIn('DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "false"', self.text)
+        self.assertIn(secret + ':\n        required: false', self.text)
+        self.assertIn(secret + ': ${{ secrets.' + secret + ' }}', self.caller)
+        self.assertEqual(self.text.count('secrets.' + secret), 2)
+        for job in ('plan', 'apply'):
+            section = re.search(r'^  ' + job + r':\n(.*?)(?=^  [a-z_]+:\n|\Z)', self.text, re.M | re.S).group(1)
+            step = section.split('      - name: Stage reviewed private cumulative', 1)[1].split('      - name:', 1)[0]
+            self.assertIn("if: ${{ needs.preflight.outputs.ownership_wave != 'none' }}", step)
+            self.assertIn('RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON: ${{ secrets.' + secret + ' }}', step)
+            self.assertLess(section.index('Stage reviewed private cumulative'), section.index('Configure AWS backend credential'))
+            cleanup = section.split('      - name: Cleanup sensitive temporary files', 1)[1]
+            for name in ('runtime-ownership-packet.json', 'runtime-ownership.tfvars.json'):
+                self.assertIn('"${RUNNER_TEMP}/' + name + '"', cleanup)
 
     def test_plan_passes_private_cumulative_inputs_only_for_selected_wave(self):
         step = self.text.split('      - name: Create saved plan without public output', 1)[1].split('      - name:', 1)[0]
