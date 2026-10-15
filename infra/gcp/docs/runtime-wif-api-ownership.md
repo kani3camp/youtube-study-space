@@ -36,6 +36,66 @@ private helper は全 API を `Investigate` として成功し、flags=false / s
 残る照合は、73件と以下の source 候補の private join、現行 AWS caller metadata との対応、CI exact read。
 inventory を再取得するための broad list や新権限は不要。既存 receipt にない情報だけを親が不足として扱う。
 
+## Codex Cloud の調査用 read-only 認証経路
+
+private selectors と trust の正本は親ページ
+[インフラ改善](https://app.notion.com/p/3d3357a8d0ce8191a8b1d8876b6840a9) の
+「Codex Cloud 2026-10-12」節。対象 role ARN / account / Service Account は同 private 正本に保持し、
+この repository や公開ログへ複製しない。既存 Personal Vault の AWS keys は State account の source IAM user 用で、
+調査では次の2経路を使う。
+
+| 対象 | 既存の認証経路 | 調査範囲 |
+| --- | --- | --- |
+| AWS development / production metadata | 元の source IAM user → private 正本にある各環境の exact ReadOnlyRole → 900秒の scoped STS session | 対象環境の既存 Lambda / ECS 等の必要な metadata read |
+| GCP development / production metadata | 元の source IAM user → 専用 `codex-cloud/aws-state-reader` WIF → private 正本の対象環境専用 SA impersonation | 既存 metadataReader が許可する project / enabled services / SA / bucket / dataset / topic metadata read |
+
+### 再利用手順と identity の境界
+
+1. Codex Cloud の credential readiness と元の source STS identity を確認し、private 正本の account / ARN / UserId に照合する。
+   source account が development / production workload account と異なることは、AssumeRole 前の期待された構成である。
+   この時点の account 差だけで keys を無効と判定しない。公開出力は照合結果だけとし、identity 本文を出さない。
+2. AWS 調査は private 正本で指定された exact 2 ReadOnlyRole から環境に対応する1件を選び、
+   元の keys を source に `DurationSeconds=900` で AssumeRole する。
+   session credentials はその read command / isolated child process にだけ渡し、元の environment と global credential chain を保持する。
+   AssumeRole 後に対象 account / exact role を private 照合してから、必要な read を行う。
+   別 role の推測、trust の変更、global AWS profile / credentials の上書きは行わない。
+3. GCP 調査は元の source IAM user の environment を使い、repository 外の owned temp に
+   external-account config と SA impersonation の設定を0600で作る。
+   専用 WIF の trust は元 IAM user の account / ARN / UserId の3点を明示的に要求する。
+   AWS 調査用 AssumeRole 後の session をこの WIF へ渡すと source が変わるため、GCP の child process は元の environment から分離して起動する。
+   ADC / gcloud config はその child process の temp だけに指定し、既存 global 設定を保持する。temp は失敗時も削除する。
+4. token / session credentials / private configs / API body / error body を公開ログや artifact へ出さない。
+   status、pagination completion、identity-match 等の固定結果を記録し、認証成功と各 endpoint の権限成功を分けて判断する。
+
+AWS Core connector はこの Codex Cloud environment keys と別の接続である。
+connector が再認証を要求した場合はその connector の接続状態を扱い、Codex Cloud keys の失効証拠へ転用しない。
+既存 keys とこの read-only 経路は調査専用であり、State write / lock create / resource 設定変更 / protected apply には使用しない。
+実 migration は repository の Actions OIDC / GCP WIF、専用 plan/apply identity、GitHub Environment の本人承認を通す。
+
+### 2026-10-15 JST の fresh 調査結果と残る metadata gap
+
+両環境で AWS ReadOnlyRole と専用 GCP WIF / SA impersonation の fresh AUTH は PASS。
+同日取得の endpoint 結果は次の通り。ARN / account / SA / role metadata / response 本文は private に保持する。
+
+| Exact read | Development | Production | Endpoint 契約 |
+| --- | --- | --- | --- |
+| Project metadata | PASS | PASS | canonical `cloudresourcemanager.googleapis.com/v1/projects/<exact-project-id>` GET |
+| Enabled services | 全page完了・73件 | 全page完了・65件 | `serviceusage.googleapis.com/v1/projects/<private-number>/services?filter=state:ENABLED` GET。pagination を最後まで取得 |
+| Runtime Pool | HTTP403 | HTTP403 | `iam.googleapis.com/v1/<exact-runtime-pool-name>` GET |
+| Runtime Provider | HTTP403 | HTTP403 | 同 Pool の exact `providers/aws-provider` GET |
+| Pool attestation rules | HTTP403 | HTTP403 | 同 exact Pool の `:listAttestationRules` GET。未取得 response を空 rules としない |
+| Runtime SA IAM policy | HTTP403 | HTTP403 | exact SA の `:getIamPolicy?options.requestedPolicyVersion=3`、空 body の POST（read）。GET へ置換しない |
+| History table metadata | HTTP403 | HTTP403 | `bigquery.googleapis.com/bigquery/v2/projects/<exact-project>/datasets/firestore_export/tables/user-activity-history` GET。row query / data read はしない |
+| ECS task definition | `DescribeTaskDefinition` AccessDenied | `DescribeTaskDefinition` AccessDenied | 既存 exact task-definition を指定。task role と execution role を区別 |
+
+各環境で Lambda6本の actual execution role を取得し、6 distinct roles であることを確認した。
+3 GCP environment（project / audience / SA）の一貫性を確認し、runtime trust / IAM member との照合は未完了。
+ECS task-role metadata は未取得のため、full7caller map は未完成である。
+この operator 経路の結果は CI plan/apply identity 各6種の read smoke や workload の自然実行回帰を完了にしない。
+metadata gap は失敗した exact endpoint / principal / scope を private に切り分け、既存 least-privilege 設定と pinned provider を照合する。
+permission 名が未検証なら推測せず、broad role / API enable / mutation grant で埋めない。
+AUTH PASS を migration Ready や Terraform import の完了として扱わず、fresh private inventory / caller join / protected wave の残条件を維持する。
+
 ## 最小 read-only inventory を一度に取得する
 
 対象は development `test-youtube-study-space` のみ。正規 read-only connector / 既存 operator 権限で取得し、
