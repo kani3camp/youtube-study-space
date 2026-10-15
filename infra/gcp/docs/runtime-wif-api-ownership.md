@@ -845,6 +845,58 @@ protected current-state attestation の成功・別 issuer closure・freshness �
 先に全 API を `Own` と判定する必要はなく、explicit consumer evidence による採用判断は D2 に分離する。
 各 API の classification / reason / dependency はレビュー入力であり、enabled 件数や候補数から選択を補完しない。
 
+#### 固定Task revisionを使う構成mapの明示join（offline候補）
+
+[`prepare_runtime_versioned_caller_map.py`](../scripts/prepare_runtime_versioned_caller_map.py) は、
+`private-aws-runtime-versioned-config-observations` のcurrent-readと元のowner14key投影を、
+fresh `private-codex-runtime-metadata-capture` の全7種GCP metadataへofflineでjoinする別producer。
+旧AWS captureや旧GCP captureへ変換せず、既存collector/legacy consumerの拒否条件を維持する。
+初回Pool用の全required-grants review mapを準備する経路で、既存packet validatorへ自動投入しない。
+
+[ECS task定義の変更](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/update-task-definition-console-v2.html)は
+新revisionを作るため、元投影のexact revision/taskRole/3auth fieldsと、現在のexact stack outputおよび
+[full-family ACTIVE/DESC先頭](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ListTaskDefinitions.html)が
+一致することを固定revision構成の根拠とする。旧`captured_at`、原raw SHA、14key bodyは変更しない。
+旧statusや当時の一致flagを現在の観測へ昇格せず、fresh Describe/拒否原因の解消/Role存在やRoleIdの証明にしない。
+Lambda6は固定名のsingle-page ListFunctionsによる現在の点観測で、`$LATEST`をimmutableとは扱わない。
+
+strict `private-runtime-versioned-caller-map-request` は、producer/AWS collector/GCP collector/GCP validator/
+ownership validator/history validatorのsource SHA、source revisions、各private入力のraw SHA、最大1時間の受付窓を固定する。
+GCP manifestのSDK requirements hashも既存lockへ照合し、新SDKの導入/importは行わない。
+元Task projection、AWS request/current record、正規認証wrapper/harness/canonical、固定25行journal、
+fresh GCP capture/manifestをprivate fileとして照合し、入力と出力はcheckout外owned0700/0600、
+symlink/hardlink不可、出力exclusiveとする。既定はoffline検査のみ、`--prepare --output`でだけ候補を保存する。
+認証/API/State/Secret/nonce生成/Environment承認は行わず、stdout/stderrは固定statusだけとする。
+
+AWS current recordは既存`validate/call_plan/check_observation/collect`を4応答・元の10時点でreplayし、
+全field/type/順序/成功4flag/未証明flagと完全一致させる。source2authとmetadata4のjournalは固定の成功列だけを受理する。
+これはraw pinとレビュー済みsourceに対する自己申告journalの整合検査であり、署名/HMAC付き実行証明ではない。
+canonical source IAM userとdev ReadOnlyRoleは別accountでも正規で、source identity/returned sessionの照合を混同しない。
+新しい受付日時を書くだけではexpired AWS/GCP evidenceを再利用できない。
+GCP manifestの最大15分は実際の読取実行を認可する窓で、capture開始/完了がその窓内かつ10分未満であることを照合する。
+取得済metadataの消費期限は別の明示`MAX_CAPTURE_AGE=1h`とし、manifestの元日時を延長/書換えない。
+候補の`evidence_expires_utc`はrequest/AWS request/GCP capture開始から1時間の最短期限を表示し、
+元GCP実行窓もproofに保持する。これは新たな実行認可やtoken期限の延長ではない。
+
+GCP側はsource/manifest/auth-selector hash、source identity、全7種の完全metadataを再検査し、
+account/3auth/project/provider/runtime SAを完全一致させる。mappingはexact3keysの既知式だけを受理する。
+`attribute.account=assertion.account`、`attribute.aws_role=assertion.arn.extract('assumed-role/{role_name}/')`、
+`google.subject=assertion.arn`または`assertion.account + ':' + assertion.userid.split(':')[0]`に限定する。
+subject式の承認をRoleIdや実workload assertionの評価証明とは扱わず、member照合にはroleName属性だけを用いる。
+CELはaccount一致とrole allowlistの既知AND式だけを受理し、exact7 callerの実role名を重複排除した集合と完全一致させる。
+未知mapping、extra expression、別account/版/role/auth、欠落/重複、TaskRole=ExecutionRoleはSTOP。
+
+ECSはTaskRoleだけを採用し、execution roleをrequired grantへ混ぜない。7 callerを7 grantと仮定せず、
+実SA policy上の各member/conditionの一意一致から`grant-01`等の候補を重複排除する。
+全SA policy・全enabled API inventoryを保持し、対象外WIF memberは用途未解決のreview対象として残す。
+API classificationは`Investigate`の候補とし、所有権判断や選択を補完しない。
+
+出力は別kind `private-runtime-versioned-caller-grant-review-candidate`で、`configuration_map_complete`だけが
+構成mapの計算完了を示す。full-seven-fresh、fresh Describe、Role存在/RoleId、実workload STS、override、自然実行、
+CI/root/State、cross-cloud atomic snapshot、Lambda安定性、Infrastructure Readyはfalseを維持する。
+GCP captureの`ecs_source_match`等を変更しない。producer proofとcanonical inventory SHAを一緒に独立reviewし、
+後から既存bindingを保持するreviewed inputを用意する。既存`provenance.scope`が全required mapをcommitする条件は変えない。
+
 #### 既存 binding を保持する runner 内 private handoff（default-off）
 
 既存 `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` の full packet 単独経路は維持する。
