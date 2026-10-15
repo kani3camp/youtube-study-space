@@ -1075,13 +1075,36 @@ finish PASS・setup completeであり、readonly role 2件とPool/Runtime SAへ�
 期限切れfull7 metadataの更新、CI read成功、Providerへの継承成功、migration/import準備完了の証明へ使わない。
 既存bootstrapを再実行せず、metadata本文・selectors・policy・hashのprivate実値を公開sourceへ複製しない。
 
-次のsource windowはUTC `2026-10-15T09:15:00Z` から `2026-10-15T17:15:00Z` の最大8時間とし、
-`DEV_RUNTIME_METADATA_READ_ENABLED`だけを開く。IAM authority readはfalse、current-state read時刻は空、
+再検証source windowはUTC `2026-10-15T09:15:00Z` から `2026-10-15T17:15:00Z` の最大8時間とし、
+`DEV_RUNTIME_METADATA_READ_ENABLED`だけを開いた。IAM authority readはfalse、current-state read時刻は空、
 root/current-state/ownership/split/apply/productionの既存gateとread/negative条件は変更しない。
 既存の`runtime-metadata-read`専用routeで、plan/applyの両identityを各自のEnvironment承認とexact same-SHA OIDCで使う。
 新規attempt1の具体的runを作成してから、本人にそのrunの既存Environment承認を案内する。
 
 scopeは既存のruntime6種を各identityで前後2回読むことと、既存project-scoped negative permission確認だけである。
 enabled-servicesのpaginationがあれば必要pageを読み切る。Terraform、State/lock、IAM変更、authority診断、artifact/receipt発行を行わない。
-実run前は未実行のままとし、両identityの全read・空attestation・全policy/metadataの前後一致・negative/window/cleanupを実測してから判定する。
+実run前は未実行としていた。以下のrunで両identityの全read・空attestation・全policy/metadataの前後一致・negative/window/cleanupを実測した。
 reader設定時のowner tokenや提出archiveをCI identityの証拠へ代用せず、使用後はこのmetadata gateと時刻を再び閉じる。
+
+### Runtime metadata再検証の両CI成功とwindow閉鎖
+
+[run850 / 38712857940](https://github.com/kani3camp/youtube-study-space/actions/runs/38712857940) は
+source `555916bb5f175907ad7a816b4cb561b37a92fff9` / workflow_dispatch / attempt1でSUCCESSとなった。
+主担当はimmutable owner ID `54093651` による既存plan/apply両Environmentの承認と、両identityの固定summary alias/reasonを照合した。
+CI観測の実行区間はUTC `2026-10-15T09:43:48Z` から `2026-10-15T09:44:01Z`。個々のAPI request時刻は確定していない。
+wall timeのない本人提出bootstrap ZIPとは別の、既存CI自身の短期認証による観測として扱う。
+
+| Read / 検査 | Plan | Apply |
+| --- | --- | --- |
+| exact Pool、空かつ完了したattestation、exact Provider | 前後PASS | 前後PASS |
+| Runtime SA全policy、dev project、enabled services全page | 前後PASS | 前後PASS |
+| 全policy/metadataの前後一致（stable） | PASS | PASS |
+| 既存project-scoped negative permissions、window、cleanup | PASS | PASS |
+
+readの固定reasonも両identityでPASSだった。Terraform、State/lock、IAM変更、authority診断、artifact/receipt発行はこのmodeの対象外である。
+当該対象・区間の読取成功を、全Provider/将来時点の権限や、project scopeを超える変更権限不存在の証明へ拡張しない。
+history tableを含むfresh full7 metadataの再取得、root admission、import/ownership採用準備完了は未成立のまま維持する。
+
+使用済み`DEV_RUNTIME_METADATA_READ_ENABLED`をfalse、発行・失効UTCを空へ閉鎖する。
+authority/current-state/root/ownership/split/apply/productionの既存gate、Environment、OIDC、Secret、read/negative条件を変更しない。
+追加runや使用済みwindowの延長・再試行を行わない。
