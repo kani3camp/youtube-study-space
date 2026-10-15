@@ -691,7 +691,7 @@ class CurrentStateTest(unittest.TestCase):
                          'history-post-noop-table-after.json', gate.PUBLIC_DIRECTORY+'/'+gate.PUBLIC_FILE):
             self.assertIn('"${RUNNER_TEMP}/'+filename+'"', cleanup)
         self.assertIn('DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"', workflow)
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', workflow)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', workflow)
         self.assertIn('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "true"', workflow)
         self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "true"', workflow)
         stage = plan.split('      - name: Check private current-state binding before credentials', 1)[1].split('      - name:', 1)[0]

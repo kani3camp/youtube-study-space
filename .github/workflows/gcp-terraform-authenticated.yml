@@ -81,9 +81,9 @@ env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
   DEV_AUTHENTICATED_TERRAFORM_ENABLED: "true"
-  # Bounded history execution window; exact fresh plan and Environment approvals
-  # are still mandatory. Close all four execution gates after independent no-op12.
-  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
+  # Initial runtime Pool plan and same-SHA re-plan/apply window. Exact admission
+  # and a separate apply Environment approval remain mandatory after plan review.
+  DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"

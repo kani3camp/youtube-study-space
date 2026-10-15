@@ -39,11 +39,11 @@ class AuthorityWorkflowTest(unittest.TestCase):
             start, end = (datetime.strptime(item, "%Y-%m-%dT%H:%M:%SZ") for item in (issued, expires))
             self.assertLess(start, end)
             self.assertLessEqual(end - start, timedelta(hours=8))
-            for gate in ("DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY", "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED"):
+            for gate in ("DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY", "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED",
+                         "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED"):
                 self.assertIn(gate + ': "false"', self.workflow)
         # A separate ownership-plan window does not activate authority observation.
-        for gate in ("DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED", "PROD_AUTHENTICATED_TERRAFORM_ENABLED"):
-            self.assertIn(gate + ': "false"', self.workflow)
+        self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.workflow)
 
     def test_old_metadata_and_negative_steps_are_not_replaced_or_made_successful(self):
         for job in self.jobs.values():

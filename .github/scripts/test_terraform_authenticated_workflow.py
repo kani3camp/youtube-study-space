@@ -70,7 +70,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_one_shot_history_import_has_separate_approval_and_state_receipts(self):
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
         apply = self.text.split("  apply:\n", 1)[1]
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', self.text)
         self.assertIn("history_import_approval: ${{ inputs.terraform_history_import_approval }}", self.caller)
         self.assertLess(plan.index("Check one-shot history import authorization"), plan.index("Configure AWS backend credential"))
         ordered = ["Re-read canonical history metadata", "Capture exact pre-import state",
@@ -190,7 +190,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_history_activation_requires_complete_dev_baseline(self):
         self.assertIn('DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"', self.text)
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', self.text)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', self.text)
         gates = {"DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED": "true", "DEV_QUOTA_MANAGED_ENABLED": "true"}
         enabled = self.run_preflight(**gates)
         self.assertEqual(enabled.returncode, 0)
@@ -313,14 +313,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def source_gates(self):
         return dict(re.findall(r'(?m)^  ([A-Z0-9_]+): "(true|false)"$', self.text))
 
-    def test_source_initial_pool_window_requires_explicit_plan_and_current_root(self) -> None:
+    def test_source_initial_pool_window_requires_explicit_selection_and_current_root(self) -> None:
         gates = self.source_gates()
         # Exact-runtime activation has an independent bounded source contract.
         gates.pop("DEV_RUNTIME_METADATA_READ_ENABLED")
         gates.pop("DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED")
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
-            "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
+            "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
@@ -346,10 +346,12 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         })
         selected = gates | {"MODE": "plan", "HISTORY_POST_NOOP": "false",
                             "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap", "OWNERSHIP_WAVE": "pool"}
-        allowed = self.run_preflight(**selected)
-        self.assertEqual(allowed.returncode, 0)
-        self.assertIn("ownership_wave=pool", allowed.outputs)
-        self.assertIn("manage_user_activity_history=true", allowed.outputs)
+        for mode in ("plan", "apply"):
+            with self.subTest(mode=mode):
+                allowed = self.run_preflight(**(selected | {"MODE": mode}))
+                self.assertEqual(allowed.returncode, 0)
+                self.assertIn("ownership_wave=pool", allowed.outputs)
+                self.assertIn("manage_user_activity_history=true", allowed.outputs)
         for mode, post_noop in (("plan", "false"), ("plan", "true")):
             with self.subTest(mode=mode, post_noop=post_noop):
                 allowed = self.run_preflight(**(gates | {"MODE": mode, "HISTORY_POST_NOOP": post_noop}))
@@ -370,16 +372,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 self.assertNotEqual(self.run_preflight(**(selected | {key: value})).returncode, 0)
         for change in ({"DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false"},
                        {"DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false"},
-                       {"OWNERSHIP_ROOT_BASIS": "original-history-import"}, {"MODE": "apply"}):
+                       {"OWNERSHIP_ROOT_BASIS": "original-history-import"},
+                       {"MODE": "apply", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false"},
+                       {"MODE": "apply", "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "false"},
+                       {"MODE": "apply", "DEV_OWNERSHIP_RECEIPT_ARTIFACT_ENABLED": "false"}):
             with self.subTest(change=change):
                 self.assertNotEqual(self.run_preflight(**(selected | change)).returncode, 0)
 
-    def test_source_apply_modes_stop_preflight_before_credential_jobs(self):
+    def test_source_exception_modes_and_closed_apply_stop_before_credential_jobs(self):
         gates = self.source_gates()
         for mode in ("apply", "email-adoption", "quota-create", "quota-refresh"):
             with self.subTest(mode=mode):
                 denied = self.run_preflight(**(gates | {"MODE": mode, "CURRENT_STATE_ATTESTATION": "false",
-                    "OWNERSHIP_WAVE": "pool", "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap"}))
+                    "OWNERSHIP_WAVE": "pool", "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap",
+                    "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false"}))
                 self.assertNotEqual(denied.returncode, 0)
                 expected = ("Development apply is disabled" if mode == "apply" else
                             "Runtime ownership requires development plan/apply")
@@ -387,7 +393,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 self.assertEqual(denied.outputs, "")
 
     def test_source_history_gate_closure_denies_apply_and_independent_post_noop(self):
-        # Test each legacy gate independently despite the source apply closure.
+        # Test each legacy gate independently of the runtime execution window.
         gates = self.source_gates() | {"DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true",
                                       "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false"}
         for gate in ("DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED", "DEV_HISTORY_RECEIPT_EMITTER_ENABLED",

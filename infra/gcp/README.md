@@ -41,13 +41,13 @@ Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / production
 runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
 既存bindingを保つ追加入力には、同じEnvironment Secret内の可逆圧縮形式も用意しています。
-[`圧縮・private handoffの契約`](docs/runtime-wif-api-ownership.md#同じ追加入力-secret-に収める可逆圧縮)に従い、初回Pool plan向けの3つのsource gateを有効にしています。private入力の独立レビューとrunnerでのadmissionは未成立です。
+[`圧縮・private handoffの契約`](docs/runtime-wif-api-ownership.md#同じ追加入力-secret-に収める可逆圧縮)に従い、初回Poolのplanと同じSHAでのre-plan/applyに必要な4つのsource gateを有効にしています。最初はplanだけを実行し、private入力の独立レビューとrunnerでのadmissionは未成立です。
 Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF の再利用手順と現在の metadata gap は
 [read-only 認証 runbook](docs/runtime-wif-api-ownership.md#codex-cloud-の調査用-read-only-認証経路)に記録しています。
 既存plan/apply Environmentそれぞれでruntime六種metadataを読む `runtime-metadata-read` source routeは
 別default-off gateと最大8時間windowを持ち、Terraform/State/lock/receipt/artifactを扱いません。
 [source契約](docs/runtime-wif-api-ownership.md#protected-runtime-metadata-read-の-source-routedefault-off未実行)を参照してください。
-history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。fresh current-state発行後の専用catalogは成功source S18を参照し、旧issuerは履歴として保持します。初回Pool planに限るレビュー入力を用意するため、current-state root-ready / runtime-plan / split-inputの3 gateを有効にしています。root-readyというsource名はrunnerでのroot admission成立を意味しません。metadata-read / authority / current-state-read / development apply / production gatesは閉鎖を維持し、runtime apply issuer catalogも空のままです。fresh初回消費期限は `2026-10-15T18:43:51Z` のままで、private入力の有効期間も実際のfresh観測の期限に制限されます。exact consumer SHA、保持したbinding、fresh全inventory、空のadoption chain、Poolだけの選択をrunnerで検証するまで、import・Infrastructure Readyとは扱いません。[現在のsource条件](docs/runtime-wif-api-ownership.md#2026-10-15-初回pool-plan向けsource-gate)を参照してください。
+history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。fresh current-state発行後の専用catalogは成功source S18を参照し、旧issuerは履歴として保持します。初回Poolの同じSHAでplan→re-plan/applyを進めるため、current-state root-ready / runtime-plan / split-input / development applyの4 gateを有効にしています。root-readyというsource名はrunnerでのroot admission成立を意味しません。まずplanだけを実行し、そのimport1/no-op12/drift0/change0とadmissionを確認した後に、同じSHAの別apply runと本人の別Environment承認が必要です。metadata-read / authority / current-state-read / production gatesは閉鎖を維持し、runtime apply issuer catalogも空のままです。fresh初回消費期限は `2026-10-15T18:43:51Z` のままで、private入力の有効期間も実際のfresh観測の期限に制限されます。exact consumer SHA、保持したbinding、fresh全inventory、空のadoption chain、Poolだけの選択をrunnerで検証するまで、import・Infrastructure Readyとは扱いません。[現在のsource条件](docs/runtime-wif-api-ownership.md#2026-10-15-初回pool-plan向けsource-gate)を参照してください。
 
 ## Directory
 

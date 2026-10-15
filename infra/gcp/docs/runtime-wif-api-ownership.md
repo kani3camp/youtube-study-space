@@ -789,11 +789,17 @@ private nonce / backend / metadata / inventory は公開せず、API/IAM/Secret/
 
 ### 2026-10-15 初回Pool plan向けsource gate
 
-初回Poolのprotected planを準備するため、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY`、
-`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`、`DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED`だけをtrueにする。
+初回Poolのprotected planと同じSHAでのre-plan/applyを準備するため、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY`、
+`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`、`DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED`、
+`DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED`の4つだけをtrueにする。
 root-readyというsource名は、private入力やStateをrunnerで照合する前のroot admission成立を表さない。
-development apply / production / metadata-read / authority / current-state-readなど他のgateとwindowは変更せず、
+production / metadata-read / authority / current-state-readなど他のgateとwindowは変更せず、
 runtime apply issuer catalogも空のままにする。このsource変更は認証・Secret書込・dispatch・plan/importの実行結果ではない。
+
+最初はplanだけをdispatchし、`import1 / no-op12 / drift0 / change0`、root admissionとcleanupを独立検証する。
+成功後だけ、同じsource SHA・private入力の別apply runでplanを取り直し、本人の別Environment承認を受ける。
+apply gateを後から別commitで開くことによるSHA変更や、追加Secretの貼り直しを避けるための同時activationであり、
+source gateの有効化だけでapply実行や成功を承認・証明したとは扱わない。
 
 初回のレビュー入力は`current-state-bootstrap`、current issuer `18d41d08bd8221e11db51d5f9f093d19784327e3`、
 `adopted={pool:false,provider:false,grants:[],apis:[]}`、
@@ -838,8 +844,9 @@ GitHub Environment の Required reviewer によるユーザー本人の承認を
    nonce は既存 private envelope から保持する。GitHub encrypted Secret の GET は平文回収手段ではなく、
    nonce の再生成や旧 scope の補完はできない。runner 内で既存 envelope を保持する下記 adapter は
    default-off。利用できる private handoff がなければ Pool wave だけを保留し、不足を記録する。
-7. full packet と exact-read / least-privilege 境界の独立 review 後、別小 PR で current-state root-ready / runtime-plan を有効化する。
-   apply gate は false を維持して protected Pool plan へ進む。Pool 一件でも safety metadata は
+7. full packet と exact-read / least-privilege 境界の独立 review 後、別小 PR で current-state root-ready / runtime-plan /
+   split-input / development applyを同時に有効化する。最初はprotected Pool planだけを実行し、成功確認後に
+   同じSHAでre-planする別apply runと本人の別Environment承認へ進む。Pool 一件でも safety metadata は
    Pool / Provider / attestation / SA policy / enabled APIs / project の全 inventory を再読するため、Pool GET だけでは足りない。
    runtime-plan が true の間は `ownership_wave=none` を拒否するので、current-state 再発行と closure を先に完了する。
 
