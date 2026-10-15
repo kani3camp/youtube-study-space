@@ -832,6 +832,24 @@ Stateやlockの事後検証は確認できておらず、root admission完了・
 診断を作れない場合も元のsanitizer失敗codeでSTOPし、failed planを承認するsummaryやreceiptを発行しない。
 source guardの修正やfresh再実行は、診断と独立検証を経た別の変更で判断する。
 
+### Pool importのsensitivity伝播を防ぐsource修正
+
+Terraform 1.16.4 / lock済みGoogle 8.5.0のcredentialless mockで、private inventoryの
+sensitive指定がPoolの4属性へ伝播すると、値が一致していてもimport projectionが`update`となることを再現した。
+これは架空入力によるsource上の再現であり、CI #866の実原因や事後Stateを確定する証拠ではない。
+rootとchildのinventoryは`sensitive=true`を保持し、Pool resourceの`display_name` / `description` /
+`disabled` / `mode`の4式だけに`nonsensitive()`を用いる。Providerのmapping / CEL / accountと、
+IAM member / conditionは引き続きsensitiveのまま。全gateは閉鎖を維持し、validatorのaction・値・unknown・
+sensitivity比較を緩めず、値一致の`update`も拒否する。
+
+この4属性は通常の`plan` / `show`で表示され得る。公開可能な値とは扱わず、protected jobのraw plan/logは
+引き続きprivateへのredirect / 0600 / artifactなしを守る。公開summaryと固定診断へ値を出さない。
+[`test_runtime_pool_import_fidelity.py`](../tests/test_runtime_pool_import_fidelity.py)をCIで実行し、
+実Core/providerのimport projectionで値・mask一致の`no-op`、旧式のsensitivity差分による`update`、
+null / empty mode、default-off、架空Stateの2段階mockによる実値変更とunknown、および公開sinkのcanary非漏えいを検証する。
+native mockの`test_plan`はsaved planの完全なadmission証拠ではない。mock importは非computed値をconfigから作るため、
+実値変更・unknownの負例には別の2段階mockを用いる。これらの検証は実認証・Cloud read・import・applyの成功を示さない。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
