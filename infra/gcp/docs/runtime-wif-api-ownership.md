@@ -260,7 +260,10 @@ apply Environmentのこのjobはmetadata read専用で、通常apply jobやそ�
 project scope、完了した全enabled-servicesをprivate memory内で比較する。
 known REST envelope、existing offline shape、空attestation、20 page/4000 service/4 MiBのsnapshot上限を検証し、
 unknown/error/incomplete/duplicate/範囲違い/変化はSTOPする。redirectを追わず、error bodyを出力しない。
-metadata本文やtokenをdiskへ書かず、公開Summaryは固定aliasとPASS/STOPだけとする。
+metadata本文やtokenをdiskへ書かず、公開Summaryは固定aliasとPASS/STOP/未実行だけとする。
+project GETを先行し、dev project ID/number不一致なら他endpointへ進まない。照合後は各interfaceを独立に検査し、
+1件の403等で他の実成功を失敗へ書き換えない。各aliasのPASSは前後両read成功だけを表し、片方の失敗を他方で補完しない。
+全6種成功・全field前後一致・project-scoped permission確認・window内完了の全条件以外は全体STOPを維持する。
 
 既存のruntime least-privilege契約に合わせ、development projectの `testIamPermissions` で
 WIF pool/provider create/update/delete/undelete、SA setIamPolicy、API enable/disableが空responseであることも確認する。

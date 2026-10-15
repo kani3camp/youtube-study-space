@@ -32,9 +32,13 @@ MAX_SERVICES = 4000
 MAX_TOKEN = 2048
 ALIASES = ("runtime-pool", "runtime-attestation", "runtime-provider", "runtime-sa-policy",
            "runtime-project", "runtime-enabled-services", "runtime-stable",
-           "runtime-project-permissions", "runtime-cleanup")
+           "runtime-project-permissions", "runtime-window", "runtime-cleanup")
 MUTATIONS = (*WIF_MUTATION_PERMISSIONS, "iam.serviceAccounts.setIamPolicy",
              "serviceusage.services.enable", "serviceusage.services.disable")
+
+
+class RuntimeLimit(ValueError):
+    pass
 
 
 def need(value):
@@ -239,7 +243,7 @@ def validate(snapshot, number):
     ownership.prepare(snapshot | {"runtime_grants": {}, "api_classification": classification})
 
 
-def observe(env, number, *, request):
+def observe(env, number, results, *, request):
     total = 0
     def get(host, path, validate_item=None, *, method="GET"):
         nonlocal total
@@ -247,49 +251,85 @@ def observe(env, number, *, request):
         status, value = request(path, env["GCP_SMOKE_ACCESS_TOKEN"], host=host, method=method)
         need(status == 200 and type(value) is dict)
         size = len(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
+        if not 0 < size <= MAX_BYTES or total + size > MAX_BYTES:
+            raise RuntimeLimit("runtime metadata read STOP")
         total += size
-        need(0 < size <= MAX_BYTES and total <= MAX_BYTES)
         if validate_item is not None:
             validate_item(value)
         return value
+
+    def probe(alias, operation):
+        # Admission failures do not become evidence of a denied endpoint. Once
+        # admitted, one failed interface cannot fabricate another interface's
+        # response or suppress its independent success/failure observation.
+        window(env)
+        try:
+            value = operation()
+        except Exception as error:
+            results[alias] = "STOP"
+            if isinstance(error, RuntimeLimit):
+                raise
+            return None
+        results[alias] = "PASS"
+        return value
+
+    # Establish the fixed development project number before any number-scoped
+    # IAM request, including when the existing provider secret is misconfigured.
+    project = probe("runtime-project", lambda: get("cloudresourcemanager.googleapis.com", "v1/projects/" + PROJECT,
+                    lambda value: validate_project(value, number)))
+    if project is None:
+        return None
     pool_name = f"projects/{number}/locations/global/workloadIdentityPools/aws-runtime"
     provider_name = pool_name + "/providers/aws-provider"
     sa_email = PROJECT + "@appspot.gserviceaccount.com"
     sa_name = f"projects/{PROJECT}/serviceAccounts/{sa_email}"
-    # Establish the fixed development project number before number-scoped IAM
-    # requests, including when the existing provider secret is misconfigured.
-    project = get("cloudresourcemanager.googleapis.com", "v1/projects/" + PROJECT, lambda value: validate_project(value, number))
     snapshot = {
         "project": project,
-        "pool": get("iam.googleapis.com", "v1/" + pool_name, lambda value: validate_pool(value, number)),
-        "pool_attestation_rules": get("iam.googleapis.com", "v1/" + pool_name + ":listAttestationRules", ownership.require_empty_attestation_response),
-        "provider": get("iam.googleapis.com", "v1/" + provider_name, lambda value: validate_pool(value, number, provider=True)),
-        "iam_policy": get("iam.googleapis.com", "v1/" + sa_name + ":getIamPolicy?options.requestedPolicyVersion=3", validate_policy, method="POST"),
         "iam_policy_resource": sa_name,
         "runtime_config": {"audience": "//iam.googleapis.com/" + provider_name, "service_account_email": sa_email},
     }
-    services, tokens, token = [], set(), ""
-    for _ in range(MAX_PAGES):
-        path = f"v1/projects/{number}/services?filter=state:ENABLED&pageSize=200"
-        if token:
-            path += "&pageToken=" + urllib.parse.quote(token, safe="")
-        page = get("serviceusage.googleapis.com", path)
-        shape(page, {"services", "nextPageToken"})
-        items, next_token = page.get("services", []), page.get("nextPageToken", "")
-        need(type(items) is list and len(items) <= 200 and type(next_token) is str and len(next_token) <= MAX_TOKEN)
-        for item in items:
-            validate_service(item, number)
-        services.extend(items)
-        need(len(services) <= MAX_SERVICES)
-        if not next_token:
-            break
-        need(next_token not in tokens)
-        tokens.add(next_token)
-        token = next_token
-    else:
-        need(False)
-    snapshot["enabled_services"] = {"services": services}
-    validate(snapshot, number)
+    operations = (
+        ("runtime-pool", "pool", lambda: get("iam.googleapis.com", "v1/" + pool_name, lambda value: validate_pool(value, number))),
+        ("runtime-attestation", "pool_attestation_rules", lambda: get("iam.googleapis.com", "v1/" + pool_name + ":listAttestationRules", ownership.require_empty_attestation_response)),
+        ("runtime-provider", "provider", lambda: get("iam.googleapis.com", "v1/" + provider_name, lambda value: validate_pool(value, number, provider=True))),
+        ("runtime-sa-policy", "iam_policy", lambda: get("iam.googleapis.com", "v1/" + sa_name + ":getIamPolicy?options.requestedPolicyVersion=3", validate_policy, method="POST")),
+    )
+    for alias, key, operation in operations:
+        value = probe(alias, operation)
+        if value is not None:
+            snapshot[key] = value
+
+    def enabled_services():
+        services, tokens, token, names = [], set(), "", set()
+        for _ in range(MAX_PAGES):
+            path = f"v1/projects/{number}/services?filter=state:ENABLED&pageSize=200"
+            if token:
+                path += "&pageToken=" + urllib.parse.quote(token, safe="")
+            page = get("serviceusage.googleapis.com", path)
+            shape(page, {"services", "nextPageToken"})
+            items, next_token = page.get("services", []), page.get("nextPageToken", "")
+            need(type(items) is list and len(items) <= 200 and type(next_token) is str and len(next_token) <= MAX_TOKEN)
+            for item in items:
+                name = validate_service(item, number)
+                need(name not in names)
+                names.add(name)
+            services.extend(items)
+            need(len(services) <= MAX_SERVICES)
+            if not next_token:
+                break
+            need(next_token not in tokens)
+            tokens.add(next_token)
+            token = next_token
+        else:
+            need(False)
+        need(bool(services))
+        return {"services": services}
+
+    enabled = probe("runtime-enabled-services", enabled_services)
+    if enabled is not None:
+        snapshot["enabled_services"] = enabled
+    if all(results[alias] == "PASS" for alias in ALIASES[:6]):
+        validate(snapshot, number)
     return snapshot
 
 
@@ -303,8 +343,8 @@ def permissions(env, *, request):
 
 
 def summary(env, checks):
-    lines = ["runtime-metadata-read: " + ("PASS" if all(checks.values()) else "STOP")]
-    lines += [alias + ": " + ("PASS" if checks[alias] else "STOP") for alias in ALIASES]
+    lines = ["runtime-metadata-read: " + ("PASS" if all(value == "PASS" for value in checks.values()) else "STOP")]
+    lines += [alias + ": " + checks[alias] for alias in ALIASES]
     path = Path(env["GITHUB_STEP_SUMMARY"])
     need(path.is_absolute() and not path.is_symlink())
     fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
@@ -316,26 +356,40 @@ def summary(env, checks):
 
 def read(env, *, request=None):
     number = context(env, token=True)
-    checks = dict.fromkeys(ALIASES, False)
-    before = after = None
+    checks = dict.fromkeys(ALIASES, "未実行")
+    observations = {phase: dict.fromkeys(ALIASES[:6], "未実行") for phase in ("before", "after")}
+    snapshots = {}
+    checks["runtime-window"] = "STOP"
     try:
-        before = observe(env, number, request=request or google)
-        after = observe(env, number, request=request or google)
+        for phase in ("before", "after"):
+            snapshots[phase] = observe(env, number, observations[phase], request=request or google)
+            if observations[phase]["runtime-project"] != "PASS":
+                break
         for alias in ALIASES[:6]:
-            checks[alias] = True
-        checks["runtime-stable"] = before == after
-        need(checks["runtime-stable"])
-        permissions(env, request=request or google)
-        checks["runtime-project-permissions"] = True
+            states = [observations[phase][alias] for phase in ("before", "after")]
+            checks[alias] = "STOP" if "STOP" in states else ("PASS" if states == ["PASS", "PASS"] else "未実行")
+        complete = all(checks[alias] == "PASS" for alias in ALIASES[:6])
+        if complete:
+            checks["runtime-stable"] = "PASS" if snapshots["before"] == snapshots["after"] else "STOP"
+        if observations["after"]["runtime-project"] == "PASS":
+            window(env)
+            checks["runtime-project-permissions"] = "STOP"
+            permissions(env, request=request or google)
+            checks["runtime-project-permissions"] = "PASS"
         window(env)
+        checks["runtime-window"] = "PASS"
     except Exception:
-        pass
+        # Preserve completed individual observations when a later window/read
+        # fails. Missing observations remain explicit; no response is invented.
+        for alias in ALIASES[:6]:
+            states = [observations[phase][alias] for phase in ("before", "after")]
+            checks[alias] = "STOP" if "STOP" in states else ("PASS" if states == ["PASS", "PASS"] else "未実行")
     finally:
         # No private snapshots, token files, candidates or receipts reach disk.
-        before = after = None
-        checks["runtime-cleanup"] = True
+        snapshots.clear()
+        checks["runtime-cleanup"] = "PASS"
         summary(env, checks)
-    need(all(checks.values()))
+    need(all(value == "PASS" for value in checks.values()))
 
 
 def main(argv=None):

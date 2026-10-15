@@ -96,7 +96,7 @@ class RuntimeReadTest(unittest.TestCase):
     def safe_summary(self, status):
         result = (self.root / "summary").read_text()
         self.assertIn("runtime-metadata-read: " + status, result)
-        self.assertEqual(set(line.rsplit(": ", 1)[-1] for line in result.splitlines()) <= {"PASS", "STOP"}, True)
+        self.assertEqual(set(line.rsplit(": ", 1)[-1] for line in result.splitlines()) <= {"PASS", "STOP", "未実行"}, True)
         self.assertEqual({p.name for p in self.root.iterdir()}, {"summary"})
         for secret in ("DUMMY_", self.number, gate.PROJECT, "appspot", "googleapis", "principalSet", "attribute.", "roles/"):
             self.assertNotIn(secret, result)
@@ -137,17 +137,42 @@ class RuntimeReadTest(unittest.TestCase):
                 self.run_read(**override)
             self.assertEqual(self.calls, [])
 
-    def test_all_http_non_success_statuses_stop_at_failing_probe_without_payload(self):
+    def test_independent_non_success_probe_preserves_other_observed_results_without_payload(self):
         for alias in gate.ALIASES[:6]:
             for status in (403, 404, 429, 500):
                 self.calls.clear()
+                (self.root / "summary").unlink(missing_ok=True)
                 def request(path, token, body=None, *, host, method):
                     result = self.request(path, token, body, host=host, method=method)
                     return (status, {"error": {"message": "DUMMY_PRIVATE_ERROR"}}) if self.alias(host, path) == alias else result
                 with self.subTest(alias=alias, status=status), self.assertRaises(Exception):
                     self.run_read(request)
-                self.assertEqual(self.calls[-1][0], alias)
-                self.safe_summary("STOP")
+                summary = self.safe_summary("STOP")
+                self.assertIn(alias + ": STOP", summary)
+                if alias == "runtime-project":
+                    self.assertEqual([call[0] for call in self.calls], ["runtime-project"])
+                    self.assertIn("runtime-pool: 未実行", summary)
+                else:
+                    self.assertEqual(self.calls[-1][0], "runtime-project-permissions")
+                    for other in set(gate.ALIASES[:6]) - {alias}:
+                        self.assertIn(other + ": PASS", summary)
+
+    def test_one_failed_phase_is_never_filled_in_by_the_successful_phase(self):
+        failed = False
+        def request(path, token, body=None, *, host, method):
+            nonlocal failed
+            result = self.request(path, token, body, host=host, method=method)
+            if self.alias(host, path) == "runtime-attestation" and not failed:
+                failed = True
+                return 403, {"error": {"message": "DUMMY_PRIVATE_DENIED"}}
+            return result
+        with self.assertRaises(Exception):
+            self.run_read(request)
+        summary = self.safe_summary("STOP")
+        self.assertIn("runtime-attestation: STOP", summary)
+        self.assertIn("runtime-provider: PASS", summary)
+        self.assertIn("runtime-stable: 未実行", summary)
+        self.assertEqual(sum(call[0] == "runtime-attestation" for call in self.calls), 2)
 
     def test_completed_pagination_is_escaped_bounded_and_compared(self):
         def request(path, token, body=None, *, host, method):
@@ -183,7 +208,7 @@ class RuntimeReadTest(unittest.TestCase):
             return result
         with self.assertRaises(Exception):
             self.run_read(request)
-        self.assertEqual(pages, gate.MAX_PAGES)
+        self.assertEqual(pages, gate.MAX_PAGES * 2)
 
     def test_attestation_known_empty_shapes_are_supported_without_fabricating_response(self):
         for value in ({}, {"attestationRules": []}, {"nextPageToken": ""}, {"attestationRules": [], "nextPageToken": ""}):
@@ -260,6 +285,37 @@ class RuntimeReadTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(Exception):
                 self.run_read(request)
             self.safe_summary("STOP")
+
+    def test_second_project_scope_failure_prevents_all_later_runtime_reads(self):
+        projects = 0
+        def request(path, token, body=None, *, host, method):
+            nonlocal projects
+            status, value = self.request(path, token, body, host=host, method=method)
+            if self.alias(host, path) == "runtime-project":
+                projects += 1
+                if projects == 2:
+                    value["projectNumber"] = "999999999999"
+            return status, value
+        with self.assertRaises(Exception):
+            self.run_read(request)
+        self.assertEqual(len(self.calls), 7)
+        summary = self.safe_summary("STOP")
+        self.assertIn("runtime-project: STOP", summary)
+        self.assertIn("runtime-pool: 未実行", summary)
+        self.assertIn("runtime-project-permissions: 未実行", summary)
+
+    def test_expiry_after_the_last_successful_http_response_cannot_report_success(self):
+        def request(path, token, body=None, *, host, method):
+            result = self.request(path, token, body, host=host, method=method)
+            if self.alias(host, path) == "runtime-project-permissions":
+                self.env["DEV_RUNTIME_METADATA_READ_EXPIRES_UTC"] = "2000-01-01T00:00:00Z"
+            return result
+        with self.assertRaises(Exception):
+            gate.read(self.env, request=request)
+        summary = self.safe_summary("STOP")
+        self.assertIn("runtime-stable: PASS", summary)
+        self.assertIn("runtime-project-permissions: PASS", summary)
+        self.assertIn("runtime-window: STOP", summary)
 
     def test_closed_gate_untrusted_mixed_and_invalid_source_window_stop_before_requests(self):
         variants = {
