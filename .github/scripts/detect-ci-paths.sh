@@ -79,6 +79,10 @@ classify_path() {
 	local matched=false
 
 	case "$path" in
+		.github/scripts/terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read_workflow.py)
+			gcp_terraform=true
+			matched=true
+			;;
 		.github/scripts/terraform_current_state_attestation.py|.github/scripts/test_terraform_current_state_attestation.py|.github/scripts/terraform_current_state_artifact_fixture.py|.github/terraform/current-state-attestation-sources.json)
 			gcp_terraform=true
 			matched=true

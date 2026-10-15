@@ -138,3 +138,8 @@ assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provena
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
+
+# Metadata-only source/test edits must retain the authenticated Terraform checks.
+assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_metadata_read.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read_workflow.py
