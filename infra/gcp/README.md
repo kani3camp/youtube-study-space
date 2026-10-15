@@ -42,6 +42,9 @@ runtime WIF/APIの後続source-only配線と累積graph validatorは
 [`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
 Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF の再利用手順と現在の metadata gap は
 [read-only 認証 runbook](docs/runtime-wif-api-ownership.md#codex-cloud-の調査用-read-only-認証経路)に記録しています。
+既存plan/apply Environmentそれぞれでruntime六種metadataを読む `runtime-metadata-read` source routeは
+別default-off gateと最大8時間windowを持ち、Terraform/State/lock/receipt/artifactを扱いません。
+[source契約](docs/runtime-wif-api-ownership.md#protected-runtime-metadata-read-の-source-routedefault-off未実行)を参照してください。
 history importは成功し、独立protected planで現在のimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。runtime live gateとruntime apply issuer catalogは閉じたままです。承認された別のcurrent-state bootstrap契約（packet v3）は現在12件を新しい起点として扱い、失われた歴史証拠を復元しません。fresh current-state発行は成功し、closureは成功source S18だけを専用catalogへ追加します。旧issuerは履歴として保持し、旧receiptの期限を延長しません。root-ready/runtime/metadata-read/apply/production gatesはfalseを維持します。fresh初回消費期限は `2026-10-15T18:43:51Z`。証跡と後続のprivate handoffは[runtime runbook](docs/runtime-wif-api-ownership.md#2026-10-14-fresh-current-state-issuer-closure現在の参照)を参照してください。
 
 ## Directory
