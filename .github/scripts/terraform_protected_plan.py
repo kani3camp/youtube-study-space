@@ -14,6 +14,7 @@ from pathlib import Path
 
 from terraform_email_adoption_gate import CHANNEL, EXISTING, canonical, has_unknown, validate
 from terraform_plan_summary import build_summary, render_markdown, write_private
+from terraform_plan_diagnostic import Context, record as record_diagnostic
 from terraform_quota_create_gate import validate as validate_quota
 from terraform_quota_refresh_gate import validate as validate_quota_refresh
 from terraform_export_topic_gate import validate as validate_export_topic
@@ -68,8 +69,10 @@ def main():
     parser.add_argument("--json-output", required=True, type=Path)
     parser.add_argument("--markdown-output", required=True, type=Path)
     args = parser.parse_args()
+    diagnostic, plan = Context(), None
     try:
         plan = json.load(sys.stdin, object_pairs_hook=unique_object)
+        diagnostic.mark("ADMISSION")
         history = os.environ.get("TF_VAR_manage_user_activity_history", "false")
         wave = os.environ.get("OWNERSHIP_WAVE", "none")
         if wave not in {"none", "pool", "provider", "grant", "api", "noop"}:
@@ -92,6 +95,7 @@ def main():
             directory = Path(os.environ["RUNNER_TEMP"])
             if not directory.is_absolute():
                 raise ValueError("Private runner directory required")
+            diagnostic.mark("HISTORY")
             metadata = private_json(str(directory / f"user-history-{args.phase}.json"))
             inputs = private_json(str(directory / f"user-history-{args.phase}.tfvars.json"))
             expected_inputs = {key: value for key, value in prepare(metadata).items()
@@ -104,14 +108,18 @@ def main():
                 summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
             else:
                 packet = private_json(str(directory / "runtime-ownership-packet.json"))
+                diagnostic.mark("PROVENANCE")
                 require_verified_inputs(dict(os.environ), packet, metadata)
                 from terraform_runtime_execution import require_fresh_inputs
+                diagnostic.mark("FRESHNESS")
                 require_fresh_inputs(dict(os.environ), packet)
+                diagnostic.mark("PACKET")
                 candidate = validate_packet(packet, wave=wave, git_sha=args.git_sha)
+                diagnostic.mark("PRIVATE_INPUT")
                 if private_json(str(directory / "runtime-ownership.tfvars.json")) != candidate:
                     raise ValueError("Reviewed cumulative ownership inputs required")
                 summary = validate_runtime(plan, packet=packet, wave=wave, git_sha=args.git_sha,
-                                           metadata=metadata, phase=args.phase,
+                                           metadata=metadata, phase=args.phase, diagnostic=diagnostic,
                                            execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
         elif args.operation == "email-adoption":
             summary = adoption_summary(plan, environment=args.environment, git_sha=args.git_sha, phase=args.phase,
@@ -152,11 +160,18 @@ def main():
             # published projection digests must not enumerate aliases/APIs.
             summary = dict(summary, resources=[])
             from terraform_runtime_execution import approve_plan
+            diagnostic.mark("APPROVAL")
             approve_plan(dict(os.environ), plan, summary, phase=args.phase)
+        diagnostic.mark("SERIALIZATION")
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")
         write_private(args.markdown_output, render_markdown(dict(summary, resources=[]) if wave != "none" else summary))
         return 0 if summary["policy_passed"] else 3
-    except Exception:
+    except Exception as error:
+        if os.environ.get("OWNERSHIP_WAVE", "none") != "none":
+            try:
+                record_diagnostic(os.environ["RUNNER_TEMP"], plan, diagnostic, error)
+            except Exception:
+                pass  # Diagnostic failure cannot authorize the rejected plan.
         print("Protected Terraform plan STOP; private diagnostic suppressed.", file=sys.stderr)
         return 3
 

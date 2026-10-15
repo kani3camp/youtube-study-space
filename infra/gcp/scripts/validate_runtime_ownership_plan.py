@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import re
 
-from prepare_runtime_ownership import PROJECT, ROLE, require
+from prepare_runtime_ownership import PROJECT, ROLE
+from terraform_plan_diagnostic import Context, FIELDS
 from runtime_ownership_packet import validate_packet
 from validate_user_activity_history_plan import validate as validate_history
 from terraform_email_adoption_gate import canonical, has_unknown
@@ -62,7 +63,10 @@ def identities(candidate):
     return result
 
 
-def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, now=None, state_phase=None):
+def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, now=None, state_phase=None, diagnostic=None):
+    diagnostic = diagnostic if diagnostic is not None else Context()
+    diagnostic.mark("RUNTIME_PACKET")
+    require = diagnostic.require
     require(phase in {"before", "post"} and type(plan) is dict)
     candidate = validate_packet(packet, wave=wave, git_sha=git_sha, now=now)
     # The independent full-state verifier reuses these exact value/schema
@@ -78,8 +82,9 @@ def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, n
                              own_runtime_wif_provider=packet["adopted"]["provider"],
                              runtime_wif_grant_keys=packet["adopted"]["grants"], owned_api_keys=packet["adopted"]["apis"])
     imports = set(expected) - set(identities(adopted_candidate)) if phase == "before" else set()
-    require(plan.get("format_version") == "1.2" and plan.get("terraform_version") == "1.16.4")
-    require(plan.get("complete") is True and plan.get("errored", False) is False)
+    diagnostic.mark("RUNTIME_PLAN")
+    require(plan.get("format_version") == "1.2" and plan.get("terraform_version") == "1.16.4", "FORMAT")
+    require(plan.get("complete") is True and plan.get("errored", False) is False, "COMPLETE")
     for key in ("resource_drift", "deferred_changes", "action_invocations", "deferred_action_invocations"):
         require(type(plan.get(key, [])) is list and plan.get(key, []) == [])
     checks = plan.get("checks", [])
@@ -91,16 +96,18 @@ def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, n
     addresses = [r.get("address") for r in changes]
     require(all(type(a) is str for a in addresses) and len(addresses) == len(set(addresses)))
     require(all("previous_address" not in r and "deposed" not in r for r in changes))
+    diagnostic.mark("RESOURCE_CHANGE")
     for r in changes:
         change = r.get("change")
         require(type(change) is dict and type(change.get("before")) is dict and type(change.get("after")) is dict)
-        require(change.get("actions") == ["no-op"] and not has_unknown(change.get("after_unknown", {})))
-        require(canonical(change["before"]) == canonical(change["after"]))
-        require(canonical(change.get("before_sensitive", {})) == canonical(change.get("after_sensitive", {})))
-        require(not change.get("replace_paths") and "generated_config" not in change)
+        require(change.get("actions") == ["no-op"] and not has_unknown(change.get("after_unknown", {})), "ACTION" if change.get("actions") != ["no-op"] else "UNKNOWN")
+        require(canonical(change["before"]) == canonical(change["after"]), "VALUE")
+        require(canonical(change.get("before_sensitive", {})) == canonical(change.get("after_sensitive", {})), "SENSITIVITY")
+        require(not change.get("replace_paths") and "generated_config" not in change, "REPLACE")
         address_type = re.search(r"(google_[a-z_]+)\.", r["address"])
-        require(address_type is not None and address_type.group(1) == r.get("type"))
+        require(address_type is not None and address_type.group(1) == r.get("type"), "TYPE")
         require(change.get("importing") == {"id": expected[r["address"]][1]} if r["address"] in imports else "importing" not in change)
+    diagnostic.mark("OUTPUT_CHANGE")
     outputs = plan.get("output_changes", {})
     require(type(outputs) is dict)
     for output in outputs.values():
@@ -108,33 +115,37 @@ def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, n
         require(not has_unknown(output.get("after_unknown", {})))
         require(canonical(output.get("before")) == canonical(output.get("after")))
         require(canonical(output.get("before_sensitive", False)) == canonical(output.get("after_sensitive", False)))
+    diagnostic.mark("RESOURCE_CHANGE")
     runtime = [r for r in changes if r["address"] in expected]
     baseline = [r for r in changes if r["address"] not in expected]
-    require(len(runtime) == len(expected))
+    require(len(runtime) == len(expected), "GRAPH")
     # This preserves all history schema/order/description and eleven-resource
     # identities/exclusions, requiring history already adopted (import0).
+    diagnostic.mark("BASELINE")
     validate_history(dict(plan, resource_changes=baseline), metadata=metadata,
                      phase="post", execution_email=execution_email)
+    diagnostic.mark("RUNTIME_VALUES")
     require(all(r.get("provider_name") == GOOGLE for r in changes))
     for resource in runtime:
         resource_type, _, values = expected[resource["address"]]
         require(resource.get("mode") == "managed" and resource.get("type") == resource_type)
         actual = resource["change"]["after"]
-        require(set(actual) <= set(values) | {"timeouts", "etag"})
+        require(set(actual) <= set(values) | {"timeouts", "etag"}, "ALLOWED_FIELDS")
         for key, value in values.items():
             # Unspecified remote mode remains provider-computed, but only known
             # federation-only values are accepted; no input value is invented.
             if resource["address"] == POOL and key == "mode" and value in (None, ""):
-                require(actual.get(key) in (None, "", "FEDERATION_ONLY"))
+                require(actual.get(key) in (None, "", "FEDERATION_ONLY"), "MODE")
             else:
-                require(key in actual and type(actual[key]) is type(value) and actual[key] == value)
-        require(actual.get("timeouts") in (None, {}))
+                require(key in actual and type(actual[key]) is type(value) and actual[key] == value, key.upper() if key.upper() in FIELDS else "VALUE")
+        require(actual.get("timeouts") in (None, {}), "TIMEOUTS")
         if resource_type == "google_service_account_iam_member":
             require(type(actual.get("etag")) is str and bool(actual["etag"]))
         else:
-            require("etag" not in actual)
+            require("etag" not in actual, "ETAG")
     # Confirm resource schema version and planned values, independently of the
     # change projection. Google 8.5.0 uses schema version 0 for these resources.
+    diagnostic.mark("PLANNED_VALUES")
     planned = {}
     def walk(module):
         require(type(module) is dict)
@@ -157,9 +168,11 @@ def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, n
     # Every API wave imports only its one service. Dependencies must identify
     # retained application/runtime consumers, never API ownership itself (even
     # an already adopted different service) as circular ownership evidence.
+    diagnostic.mark("DEPENDENCIES")
     consumers = {r["address"] for r in changes if r["type"] != "google_project_service"}
     for service in candidate["owned_api_keys"]:
         require(set(candidate["api_classification"][service]["dependency_addresses"]) <= consumers)
+    diagnostic.mark("COUNTS")
     summary = build_summary(plan, environment="dev", git_sha=git_sha, policy="import-only")
     require(summary["policy_passed"] and summary["counts"] == {
         key: len(imports) if key == "import" else len(addresses) if key == "no-op" else 0

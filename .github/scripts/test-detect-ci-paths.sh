@@ -73,6 +73,8 @@ assert_exact_groups gcp_terraform .github/scripts/terraform_quota_create_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_create_gate.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_protected_plan.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_protected_plan.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_plan_diagnostic.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_diagnostic.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_email_adoption_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_email_adoption_gate.py
 assert_exact_groups docs_site docs-site/docs/intro.md

@@ -810,6 +810,28 @@ issuerの初回消費期限`2026-10-15T18:43:51Z`やfresh観測の期限を、fr
 runtime-plan有効中の`ownership_wave=none`はSTOPし、別waveは初回Pool専用fragmentと一致しないため認証前に拒否する。
 再発行が必要になった場合は先にこのruntime実行枠を閉じ、既存のcurrent-state再発行契約に戻る。
 
+### 2026-10-15 Pool plan失敗後の閉鎖と固定診断
+
+初回Poolの[CI #866 / run 38769742851](https://github.com/kani3camp/youtube-study-space/actions/runs/38769742851)は、
+source `05361c9423e9b92904fde5238ad09f9499b5eb6a`と本人のEnvironment承認を確認済み。
+plan job `116542188290`はprivate join / provenance / 認証 / root-before binding / init / saved plan /
+直前recheckまで進んだ後、protected plan sanitizerでSTOPした。cleanupは成功し、applyはskipped、pending0 / artifact0。
+失敗前に公開summaryが成立せず、原因のfieldや正確なaction件数は保存されていない。
+Stateやlockの事後検証は確認できておらず、root admission完了・import成功・migration Readyとは扱わない。
+この閉鎖ではcurrent-state root-ready / runtime-plan / split-input / development applyの4 gateだけをfalseへ戻し、
+管理済み12件のownership flag、他gate/window、issuer catalogを保持する。旧runのattempt2や旧packetの再使用は行わない。
+
+後続の失敗診断は[`terraform_plan_diagnostic.py`](../../../.github/scripts/terraform_plan_diagnostic.py)が
+固定stage / allowlist内のfield code / 最大10,000のaction件数だけを1行へ出す。
+生の例外、値、resource address、member、ARN、nonce、raw plan/logは出さず、artifactも追加しない。
+`counts`はcompleteなresource-change projectionの分類で、importはno-op等のaction件数と重複する。
+したがって既存12件のno-opにPool import1件が加わる正常候補なら、投影はimport1 / no-op13となる。
+これらの件数だけでgraph・値・sensitivity・freshness・State・lockの検証成功を証明しない。
+不完全・未解析・範囲外なら`NOT_OBSERVED`を保ち、未知例外は`UNCLASSIFIED`とする。codeから原因を断定しない。
+診断fileはexclusive0600・2KiB上限とstrict JSON / enum検査を用い、両jobでcleanupする。
+診断を作れない場合も元のsanitizer失敗codeでSTOPし、failed planを承認するsummaryやreceiptを発行しない。
+source guardの修正やfresh再実行は、診断と独立検証を経た別の変更で判断する。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は

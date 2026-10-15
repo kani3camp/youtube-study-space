@@ -691,9 +691,9 @@ class CurrentStateTest(unittest.TestCase):
                          'history-post-noop-table-after.json', gate.PUBLIC_DIRECTORY+'/'+gate.PUBLIC_FILE):
             self.assertIn('"${RUNNER_TEMP}/'+filename+'"', cleanup)
         self.assertIn('DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"', workflow)
-        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "true"', workflow)
-        self.assertIn('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "true"', workflow)
-        self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "true"', workflow)
+        self.assertIn('DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"', workflow)
+        self.assertIn('DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"', workflow)
+        self.assertIn('DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"', workflow)
         stage = plan.split('      - name: Check private current-state binding before credentials', 1)[1].split('      - name:', 1)[0]
         self.assertIn('RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}', stage)
         self.assertIn('terraform_current_state_attestation.py stage-binding', stage)
@@ -722,14 +722,8 @@ class CurrentStateTest(unittest.TestCase):
 
     def test_selector_combination_and_closed_gates_stop_in_unauthenticated_preflight(self):
         fixture = workflow_fixture.TerraformAuthenticatedWorkflowTest(); fixture.setUpClass()
-        # Reissuance is a separate closed-runtime window; activation cannot
-        # silently issue a new root while consuming the existing one.
-        selected = fixture.source_gates() | dict(CURRENT_STATE_ATTESTATION='true', HISTORY_POST_NOOP='true',
-            DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='false', DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY='false',
-            DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='false')
+        selected = fixture.source_gates() | dict(CURRENT_STATE_ATTESTATION='true', HISTORY_POST_NOOP='true')
         self.assertEqual(fixture.run_preflight(**selected).returncode, 0)
-        active_emission = fixture.source_gates() | dict(CURRENT_STATE_ATTESTATION='true', HISTORY_POST_NOOP='true')
-        self.assertNotEqual(fixture.run_preflight(**active_emission).returncode, 0)
         selected['DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED'] = 'false'
         self.assertNotEqual(fixture.run_preflight(**selected).returncode, 0)
         selected['DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED'] = 'true'
@@ -740,8 +734,7 @@ class CurrentStateTest(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertNotEqual(fixture.run_preflight(**(selected | change)).returncode, 0)
         selected = fixture.source_gates() | dict(OWNERSHIP_WAVE='pool', OWNERSHIP_ROOT_BASIS='current-state-bootstrap',
-            DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true',
-            DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY='false')
+            DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', DEV_HISTORY_POST_NOOP12_READY='true')
         self.assertNotEqual(fixture.run_preflight(**selected).returncode, 0)
         selected.update(DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY='true', DEV_HISTORY_POST_NOOP12_READY='false')
         self.assertEqual(fixture.run_preflight(**selected).returncode, 0)
