@@ -972,3 +972,36 @@ query結果はcustom-role/testability仕様であり、callerの保有権限の�
 SA policy readとhistory table metadataは別resourceのscopeで検討する。既存のread-only collectorで自動grantは行わない。
 将来の最小IAM変更も既存principal/binding保持、独立review、negative test、GitHub Environmentの本人承認を省略せず、
 調査用の元AWS長期キーでは適用しない。必要なmetadata/caller/private joinが欠ける間はPool importへ進まない。
+
+### 正規CI主体のIAM authority前提を読む追加source（default off・未実行）
+
+`runtime-metadata-read` の既存plan/apply各Environmentに、独立したauthority観測stepを用意する。
+`DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED=false` を維持し、既存metadata read gate/windowやmutation gateは変更しない。
+後続の別source reviewでmetadata読取windowとこの追加gateを明示的に開くまで実行しない。
+stepは `always()` / `!cancelled()` / 既存GCP認証success / 新gatetrueを全て要求し、既存cleanupの前に置く。
+metadataや既存negative stepの失敗を成功へ書き換えず、元のrequest集合・projection・終了条件を保持する。
+
+追加helperはまず固定dev projectをfresh GETし、ID/number/ACTIVEが既存selectorと一致した場合だけ、
+同じ既存短期tokenで以下の3 POSTを各1回行う。各request前・応答直後・公開直前にcontext/windowを再確認する。
+
+| Fixed scope | Read-only request | Requested permissions |
+| --- | --- | --- |
+| project roles | CRM v3 exact dev project `:testIamPermissions` | `iam.roles.create`, `iam.roles.get`, `iam.roles.update` |
+| Pool policy | IAM v1 exact Runtime Pool `:testIamPermissions` | `iam.workloadIdentityPools.getIamPolicy`, `iam.workloadIdentityPools.setIamPolicy` |
+| SA policy | IAM v1 exact runtime SA `:testIamPermissions` | `iam.serviceAccounts.getIamPolicy`, `iam.serviceAccounts.setIamPolicy` |
+
+responseは `permissions` だけのobject、requested subsetのunique文字列listだけを受理する。
+有効なHTTP200 `{}` / `{"permissions":[]}` の未返却項目は `NOT_RETURNED`、返却された項目は `HELD` とする。
+NOT_RETURNEDはresource不存在、globalなpermission不在、Deny原因の証明ではない。
+非200・未知field・未知permission・重複・型違いは当該scope全体を `UNKNOWN` とし、他scopeで補完しない。
+応答中にwindow/contextが失効した場合は当該scopeを受理せず `ADMISSION_STOP`、後続requestは実行しない。
+公開時だけ失効した場合、既に受理した時点観測は保持するがwindow/全体はSTOPにする。
+公開projectionは別schema/purpose `prerequisites-only`、固定alias/status/有限reasonだけで、両公開sinkでallowlist検証する。
+IAM変更許可・writer/bootstrap/metadata/migration readyは全てfalse固定とする。
+
+project上のroles.get/update返却は、将来の特定roleに対する実操作authorityの証明ではない。
+HELDも当該scope/時刻のpermission観測であり、API受理、OrgPolicy/Deny、binding受理、Provider継承、
+将来時点の成功、full7 metadataのfreshnessやroot admissionを証明しない。
+ownerが読んだPool policy `{}` / etagなしの安全な初回writeも証明しない。
+role CRUD・特定role GET・setIamPolicy・IAM bootstrap・State/lock/Terraform・artifact/receiptは実行しない。
+既存metadataの4read403、期限切れfull7、閉じたruntime/root/apply/production gatesは独立したSTOP条件として保持する。

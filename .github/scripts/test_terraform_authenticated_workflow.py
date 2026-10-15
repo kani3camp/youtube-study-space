@@ -317,6 +317,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         gates = self.source_gates()
         # Exact-runtime activation has an independent bounded source contract.
         gates.pop("DEV_RUNTIME_METADATA_READ_ENABLED")
+        gates.pop("DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED")
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
