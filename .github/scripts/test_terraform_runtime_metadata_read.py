@@ -105,15 +105,26 @@ class RuntimeReadTest(unittest.TestCase):
     def test_exact_six_metadata_types_twice_and_scoped_permission_read_only(self):
         self.run_read()
         self.safe_summary("PASS")
-        self.assertEqual([c[0] for c in self.calls], list(gate.ALIASES[:6]) * 2 + ["runtime-project-permissions"])
+        self.assertEqual([c[0] for c in self.calls], ["runtime-project", "runtime-pool", "runtime-attestation", "runtime-provider", "runtime-sa-policy", "runtime-enabled-services"] * 2 + ["runtime-project-permissions"])
         pool_paths = [c[2] for c in self.calls if c[0] == "runtime-pool"]
         self.assertEqual(pool_paths, ["v1/" + self.pool] * 2)
-        self.assertIn(":getIamPolicy?options.requestedPolicyVersion=3", self.calls[3][2])
-        self.assertEqual(self.calls[4][2], "v1/projects/" + gate.PROJECT)
+        self.assertIn(":getIamPolicy?options.requestedPolicyVersion=3", self.calls[4][2])
+        self.assertEqual(self.calls[0][2], "v1/projects/" + gate.PROJECT)
         self.assertEqual(self.calls[5][2], f"v1/projects/{self.number}/services?filter=state:ENABLED&pageSize=200")
         for call in self.calls:
             for forbidden in ("youtube-study-space/production", ":setIamPolicy", ":generateAccessToken", "/keys", "/buckets", "bigquery", "cloudfunctions"):
                 self.assertNotIn(forbidden, call[2])
+
+    def test_wrong_project_number_or_scope_stops_before_any_runtime_endpoint(self):
+        for changes in ({"projectNumber": "999999999999"}, {"projectId": "youtube-study-space"}):
+            self.calls.clear()
+            original = copy.deepcopy(self.data["runtime-project"])
+            self.data["runtime-project"].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(Exception):
+                self.run_read()
+            self.assertEqual([c[0] for c in self.calls], ["runtime-project"])
+            self.safe_summary("STOP")
+            self.data["runtime-project"] = original
 
     def test_apply_has_separate_exact_context_and_reads(self):
         self.run_read(RUNTIME_READ_IDENTITY="apply", GITHUB_JOB="runtime_metadata_read_apply",
@@ -289,7 +300,7 @@ class RuntimeReadTest(unittest.TestCase):
         self.data["runtime-pool"]["description"] = "x" * gate.MAX_BYTES
         with self.assertRaises(Exception):
             self.run_read()
-        self.assertEqual(len(self.calls), 1)
+        self.assertEqual([c[0] for c in self.calls], ["runtime-project", "runtime-pool"])
         self.safe_summary("STOP")
         with self.assertRaises(Exception):
             gate.load(b" " * (gate.MAX_BYTES + 1))

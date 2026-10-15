@@ -256,12 +256,15 @@ def observe(env, number, *, request):
     provider_name = pool_name + "/providers/aws-provider"
     sa_email = PROJECT + "@appspot.gserviceaccount.com"
     sa_name = f"projects/{PROJECT}/serviceAccounts/{sa_email}"
+    # Establish the fixed development project number before number-scoped IAM
+    # requests, including when the existing provider secret is misconfigured.
+    project = get("cloudresourcemanager.googleapis.com", "v1/projects/" + PROJECT, lambda value: validate_project(value, number))
     snapshot = {
+        "project": project,
         "pool": get("iam.googleapis.com", "v1/" + pool_name, lambda value: validate_pool(value, number)),
         "pool_attestation_rules": get("iam.googleapis.com", "v1/" + pool_name + ":listAttestationRules", ownership.require_empty_attestation_response),
         "provider": get("iam.googleapis.com", "v1/" + provider_name, lambda value: validate_pool(value, number, provider=True)),
         "iam_policy": get("iam.googleapis.com", "v1/" + sa_name + ":getIamPolicy?options.requestedPolicyVersion=3", validate_policy, method="POST"),
-        "project": get("cloudresourcemanager.googleapis.com", "v1/projects/" + PROJECT, lambda value: validate_project(value, number)),
         "iam_policy_resource": sa_name,
         "runtime_config": {"audience": "//iam.googleapis.com/" + provider_name, "service_account_email": sa_email},
     }
