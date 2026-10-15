@@ -151,6 +151,49 @@ def validate_capture(value, now=None):
          and len(metadata['history_table']['schema']['fields']) == 8)
     return {'pool': pool, 'provider': provider, 'source_capture_started_utc': value['capture_started_utc']}
 
+def reviewed_targets(value, now=None):
+    """Read an address list, never reuse old observations as current evidence."""
+    current = now or utc_now()
+    need(type(value) is dict and set(value) == CAPTURE_KEYS
+         and type(value['schema_version']) is int and value['schema_version'] == 1
+         and value['kind'] == 'private-operator-runtime-metadata-capture')
+    for key in ('complete', 'lambda6_source_match', 'ecs_source_match',
+                'ci_identity_read_verified', 'migration_ready'):
+        need(type(value[key]) is bool)  # Shape only; no old success flag is trusted.
+    start, end = timestamp(value['capture_started_utc']), timestamp(value['capture_completed_utc'])
+    need(start <= end <= current)
+    metadata = value['metadata']
+    need(type(metadata) is dict and set(metadata) == METADATA_KEYS)
+    project = metadata['project']
+    need(type(project) is dict and project.get('projectId') == PROJECT
+         and type(project.get('projectNumber')) is str and re.fullmatch(r'[0-9]+', project['projectNumber']))
+    pool = 'projects/' + project['projectNumber'] + '/locations/global/workloadIdentityPools/aws-runtime'
+    provider = pool + '/providers/aws-provider'
+    need(type(metadata['pool']) is dict and metadata['pool'].get('name') == pool
+         and type(metadata['provider']) is dict and metadata['provider'].get('name') == provider)
+    # Do not inspect state, trust, policies, attestations, services, history or success values.
+    return {'project_id': PROJECT, 'project_number': project['projectNumber'],
+            'pool': pool, 'provider': provider,
+            'source_capture_started_utc': value['capture_started_utc'],
+            'source_capture_completed_utc': value['capture_completed_utc'],
+            'source_capture_age_seconds_at_new_read': int((current - start).total_seconds())}
+
+def observation_window(started, now=None):
+    current = now or utc_now()
+    need(started <= current < started + timedelta(hours=1))
+
+def project_transport(token):
+    # The additional interface is a fixed dev project GET, never a caller-selected URL.
+    request = urllib.request.Request('https://cloudresourcemanager.googleapis.com/v1/projects/' + PROJECT,
+        method='GET', headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
+            need(response.status == 200)
+            return 200, decode(response.read(MAX_BYTES + 1))
+    except urllib.error.HTTPError as error:
+        error.read(MAX_BYTES + 1)
+        return error.code, None
+
 def read_token():
     result = subprocess.run(['gcloud', 'auth', 'print-access-token', '--quiet'],
                             capture_output=True, text=True, timeout=60)
@@ -307,6 +350,28 @@ def collect(selectors, request, fresh, capture_sha256):
             'proves_pool_binding_acceptance': False, 'proves_provider_inheritance': False,
             'project_or_resource_policy_changed': False, 'migration_ready': False}}
 
+def collect_reviewed_targets(targets, request, project_request, fresh, capture_sha256, started):
+    fresh()
+    status, project = project_request()
+    fresh()
+    # No IAM request is made until the fresh, fixed-project result matches the reviewed IDs.
+    need(type(status) is int and status == 200 and type(project) is dict
+         and project.get('projectId') == PROJECT and project.get('projectId') == targets['project_id']
+         and project.get('projectNumber') == targets['project_number']
+         and project.get('lifecycleState') == 'ACTIVE')
+    captured = collect(targets, request, fresh, capture_sha256)
+    captured.update(schema_version=2, kind='private-owner-runtime-read-scope-reviewed-targets',
+        source_usage='reviewed-target-identifiers-only',
+        source_capture_completed_utc=targets['source_capture_completed_utc'],
+        source_capture_age_seconds_at_new_read=targets['source_capture_age_seconds_at_new_read'],
+        capture_started_utc=started.isoformat().replace('+00:00', 'Z'),
+        capture_expires_utc=(started + timedelta(hours=1)).isoformat().replace('+00:00', 'Z'),
+        fresh_project={'complete': True, 'http_status': 200, 'metadata': project})
+    captured['interpretation'].update(proves_ci_identity_reads=False,
+        reuses_source_metadata_as_fresh=False, proves_runtime_trust_state=False)
+    fresh()
+    return captured
+
 def write_capture(value):
     raw = (json.dumps(value, ensure_ascii=False, allow_nan=False) + '\n').encode()
     need(len(raw) <= MAX_BYTES)
@@ -334,20 +399,35 @@ def main(argv=None):
     try:
         parser = PrivateArgumentParser(description=__doc__)
         parser.add_argument('--capture-sha256', required=True)
-        parser.add_argument('--capture-file', type=Path)
+        inputs = parser.add_mutually_exclusive_group()
+        inputs.add_argument('--capture-file', type=Path)
+        inputs.add_argument('--reviewed-targets-file', type=Path)
         args = parser.parse_args(argv)
         need(re.fullmatch(r'[0-9a-fA-F]{64}', args.capture_sha256) is not None)
         capture_sha256 = args.capture_sha256.lower()
-        if args.capture_file is not None:
+        if args.reviewed_targets_file is not None:
+            source = read_uploaded_capture(args.reviewed_targets_file, capture_sha256)
+            started = utc_now()
+            selectors = reviewed_targets(source, now=started)
+            def fresh():
+                observation_window(started)
+        elif args.capture_file is not None:
             source = read_uploaded_capture(args.capture_file, capture_sha256)
         else:
             _path, source = find_capture(capture_sha256)
-        selectors = validate_capture(source)
-        def fresh():
-            validate_capture(source)
+        if args.reviewed_targets_file is None:
+            selectors = validate_capture(source)
+            def fresh():
+                validate_capture(source)
+        fresh()
         token = read_token()
         try:
-            captured = collect(selectors, lambda path, body: transport(token, selectors, path, body), fresh, capture_sha256)
+            request = lambda path, body: transport(token, selectors, path, body)
+            if args.reviewed_targets_file is None:
+                captured = collect(selectors, request, fresh, capture_sha256)
+            else:
+                captured = collect_reviewed_targets(selectors, request, lambda: project_transport(token),
+                                                     fresh, capture_sha256, started)
         finally:
             token = ''
         fresh()
