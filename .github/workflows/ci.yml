@@ -665,6 +665,7 @@ jobs:
           python3 infra/gcp/tests/test_collect_runtime_read_scope_reviewed_targets.py
           python3 infra/gcp/tests/test_bootstrap_runtime_readers.py
           python3 infra/gcp/tests/test_collect_aws_runtime_task_metadata.py
+          python3 infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py

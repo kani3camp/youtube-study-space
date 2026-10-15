@@ -194,3 +194,78 @@ python3 infra/gcp/scripts/collect_runtime_read_scope.py \
 新しい読取開始から最大1時間の窓を認証前・各読取前・保存前に検査します。
 元の7種類の設定や移行の証拠の期限を延長した結果にはなりません。新しい取得の完了判定にも古い成功を使いません。
 権限保有・変更能力・Poolへの権限付与・Provider継承・CIでの読取・Runtime trust・移行準備は引き続き未証明です。
+
+## 過去の ECS 設定と、新しく読んだ版の参照を分けて保存する
+
+[`collect_aws_runtime_versioned_config.py`](../scripts/collect_aws_runtime_versioned_config.py) は、
+確認済みの ECS 取得結果を繰り返し本人に取り直してもらう負担を減らすための、別形式の設定読取ツールです。
+既存の `ecs:DescribeTaskDefinition` の HTTP403 は解消・再確認せず、権限も追加しません。
+元の4readツールは変更しません。新しい形式を旧schema1の取得結果や移行packetへ変換する処理もありません。
+
+ECS の task role・execution role・環境変数を変更するには、新しい task definition revision を作成します。
+そこで確認済みの **同じ exact revision ARN** に限って、過去の設定投影と、新しく観測する版の参照を分離します。
+元ファイル14キーの本文・取得時刻・成功フラグは `historical_capture.body` に保持し、
+`historical_capture.sha256` は元ファイルの**生bytes**のSHA256です。入れ子の本文を再保存したbytesのhashではありません。
+古い成功フラグや時刻を更新せず、新しい `captured_at` に置き換えません。
+
+新しい private request は次の11キーだけを持ち、raw SHA256でレビュー対象を固定します。
+実 account / role / session / hash を公開場所へ保存しません。
+
+| キー | 内容 |
+| --- | --- |
+| `schema_version`, `kind` | integer `1`, `private-aws-runtime-versioned-config-request` |
+| `environment`, `aws_region`, `stack_name` | `dev`, `ap-northeast-1`, `AwsCdkStack` に固定 |
+| `aws_account_id` | 既存 private canonical と対応を確認した開発account |
+| `readonly_role_arn`, `readonly_session_name` | 今回使う既存の正規ReadOnly roleと exact session名 |
+| `owner_capture_sha256` | 既に独立確認した元AWS取得ファイルのraw SHA256 |
+| `issued_utc`, `expires_utc` | 今回の観測窓。UTCで最大1時間 |
+
+```sh
+python3 infra/gcp/scripts/collect_aws_runtime_versioned_config.py \
+  --request-file "$AWS_RUNTIME_PRIVATE_DIR/versioned-config-request.json" \
+  --request-sha256 "$REVIEWED_REQUEST_SHA256" \
+  --owner-capture-file "$AWS_RUNTIME_PRIVATE_DIR/aws-task-metadata-capture.json" \
+  --output "$AWS_RUNTIME_PRIVATE_DIR/versioned-config-offline.json"
+```
+
+既定は offline 検査で、認証・AWS API は0件です。過去の取得が古くても、本文・対象・hashをレビューした
+immutable設定投影として検査できますが、現在の状態や期限内の移行証拠にはなりません。
+新しいreadを行う場合だけ `--read-current` を付け、未使用の出力名を使います。
+実行前に exact source / request / 有限call scopeのレビューを終え、既存の正規ReadOnly sessionを選択します。
+ツール自身はログイン、AssumeRole、元の長期keysの差し替えを行いません。
+元の長期IAM userで直接設定を読もうとしても、最初の exact assumed-role identity照合で停止します。
+
+現在のreadは次の9件に限定します。APIの自動retryは1 attemptに固定します。
+
+1. STS `GetCallerIdentity` 1件で、accountと exact ReadOnly role/session を照合します。これは読取側のidentityです。
+2. exact stackの `DescribeStacks` 1件で、`DailyBatchTaskDefinitionArn` output 1件と共通GCP認証parameter 3件を読みます。
+3. 過去の exact ARN から導いた full family に `ListTaskDefinitions` 1件を行います。`ACTIVE` / `DESC` / `maxResults=1` / `--no-paginate` 固定です。
+4. sourceで固定した Lambda6本それぞれの exact ARN を `GetFunctionConfiguration` で1回ずつ読み、function名・ARN・role・共通3環境変数・`Version` / `RevisionId` / `LastModified` だけを投影します。
+
+stack output と ACTIVE family先頭の**両方**が過去の exact revision ARN と一致しない場合は停止します。
+family先頭1件は版を確かめるための点観測であり、family全件の一覧ではありません。
+過去の取得時の mutable なACTIVE状態を継承せず、ACTIVEは新しい限定listの応答時点だけの観測です。
+stack parameterと新しいLambda6の3環境変数も、過去のtask設定と一致することを確認します。
+Lambdaの `$LATEST` 設定は可変なので immutable と扱わず、各 function の観測時刻と revision情報を個別に保持します。
+入力窓は認証前・各read前後・保存前後に確認し、途中の期限切れ・逆行時刻・不一致・不明な応答は新規出力を削除して停止します。
+異なるrevision、family、account、role、functionへ探索や再試行を広げません。
+
+出力は別kind `private-aws-runtime-versioned-config-observations` のschema1です。
+新しい `observations` と過去の `historical_capture` を混同せず、移行を許可するreceiptにはしません。
+各APIは別時点の観測であり、atomic snapshot、将来の参照先、実行中taskや自然実行の保証ではありません。
+revisionなしの `RunTask` は最新ACTIVEを使うためfamily先頭も確認しますが、実際のStep Functions定義や
+実行時の task-role / environment override はこのツールでは取得しません。
+新しい `DescribeTaskDefinition`、IAM roleの存在・RoleIdの継続、workload自身のSTS、自然実行、
+fresh full7 / CI read / migration readiness はすべて未証明のままです。
+元のDescribeTaskDefinitionを追加しても、それだけでIAM roleの存在や実行時overrideが証明されるわけではありません。
+
+input / outputはowned0700のフォルダー内の0600ファイルに限定し、既存output・symlink・hardlink・実checkoutを拒否します。
+managed環境の `/tmp/.git` / `/workspace/.git` が空の0555 guardである場合だけ、checkoutではないものとして扱います。
+それ以外の `.git` markerは空でも拒否し、guardを削除・変更しません。
+標準出力・エラーは固定文だけです。設定本文やAWSエラー本文を公開logへ出さず、IAM / State / workloadを変更しません。
+
+公式仕様：
+[task definitionの更新](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/update-task-definition-console-v2.html)、
+[ListTaskDefinitions](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ListTaskDefinitions.html)、
+[RunTaskのrevision選択](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RunTask.html)、
+[実行時TaskOverride](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskOverride.html)。
