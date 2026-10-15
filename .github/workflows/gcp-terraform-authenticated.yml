@@ -109,10 +109,10 @@ env:
   # Retain the repaired history table; apply still requires exact one-shot approval.
   DEV_USER_ACTIVITY_HISTORY_MANAGED_ENABLED: "true"
   # The original final history receipt was lost. Original-history readiness
-  # remains separate from the default-off current-state root and runtime plan.
+  # remains separate from the current-state root and runtime plan contracts.
   DEV_HISTORY_POST_NOOP12_READY: "false"
   DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED: "true"
-  DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "false"
+  DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY: "true"
   # Metadata observation only; no Terraform, admission or issuer claim.
   DEV_CURRENT_STATE_READ_ENABLED: "false"
   DEV_CURRENT_STATE_READ_ISSUED_UTC: ""
@@ -123,9 +123,9 @@ env:
   DEV_RUNTIME_METADATA_READ_EXPIRES_UTC: ""
   # Separate observations only; never authorize IAM changes or reuse negative results.
   DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED: "false"
-  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
+  DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "true"
   # Runner-only binding join; activation requires separately reviewed v3 inputs.
-  DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "false"
+  DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "true"
   # Initial history import requires its authentic root receipt in the same apply.
   DEV_HISTORY_RECEIPT_EMITTER_ENABLED: "true"
   # Owner-approved sanitized history receipt only; upload follows verified success.

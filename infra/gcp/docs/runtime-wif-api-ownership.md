@@ -787,6 +787,23 @@ production plan・apply gates は false のまま。既存の emission 設定は
 private nonce / backend / metadata / inventory は公開せず、API/IAM/Secret/State ownership はこの closure で変更しない。
 初回 Pool wave は fresh packet / exact consumer SHA / private handoff と各 GitHub Environment の本人承認を確認して進める。
 
+### 2026-10-15 初回Pool plan向けsource gate
+
+初回Poolのprotected planを準備するため、`DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY`、
+`DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED`、`DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED`だけをtrueにする。
+root-readyというsource名は、private入力やStateをrunnerで照合する前のroot admission成立を表さない。
+development apply / production / metadata-read / authority / current-state-readなど他のgateとwindowは変更せず、
+runtime apply issuer catalogも空のままにする。このsource変更は認証・Secret書込・dispatch・plan/importの実行結果ではない。
+
+初回のレビュー入力は`current-state-bootstrap`、current issuer `18d41d08bd8221e11db51d5f9f093d19784327e3`、
+`adopted={pool:false,provider:false,grants:[],apis:[]}`、
+`selected={pool:true,provider:false,grants:[],apis:[]}`、`adoption_receipts=[]`に限定する。
+最終consumerのmerge SHAに固定したfragmentと既存bindingのrunner内join、fresh全inventoryとStateの再照合、
+issuer/provenance、本人のEnvironment承認が通るまでadmission・import・migration Readyは未成立とする。
+issuerの初回消費期限`2026-10-15T18:43:51Z`やfresh観測の期限を、fragmentの最大24時間枠で延長しない。
+runtime-plan有効中の`ownership_wave=none`はSTOPし、別waveは初回Pool専用fragmentと一致しないため認証前に拒否する。
+再発行が必要になった場合は先にこのruntime実行枠を閉じ、既存のcurrent-state再発行契約に戻る。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
@@ -952,6 +969,13 @@ wrapperはcompact UTF-8・末尾CR/LFなしで生成する。元fragmentはrefor
 そのbytesを新たにレビュー/hash固定してからpackする。packがレビュー済み入力を黙って正規化することはない。
 
 ##### 本人の既存GitHub認証による投入候補（未実行）
+
+追加ログインを避ける現在の候補は、本人が既にログイン済みのGitHubブラウザーで、
+repositoryのSettings → Environmentsから`terraform-dev-plan`と`terraform-dev-apply`を開き、
+それぞれ追加Secret `GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON`へ**同じレビュー済みwrapper全文**を貼る経路である。
+既存`GCP_RUNTIME_OWNERSHIP_PACKET_JSON`は保持し、公開issue/comment/artifactや新しい保管先へ入力しない。
+wrapperは可逆圧縮であり秘匿化ではない。privateな受け渡し、exact最終SHA・期限・両入力の一致を別途確認し、
+片方だけ成功・不明ならSTOPする。ここでは本人への実行依頼やSecret書込を行っていない。
 
 source/fragment/wrapperのexact SHA、期待issuer、期限、private handoffを独立レビューした後の候補は、
 本人の既存標準`gh`認証を使い、同じwrapper fileのstdinを
