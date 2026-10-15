@@ -137,3 +137,36 @@ Codex の既存ReadOnlyRoleでは、両環境のこのexact ECS readが `no iden
 では `DescribeTaskDefinition` のresource types欄が空で、IAMは `Resource: "*"` を要求します。
 exact task ARNだけのAllow追加では解消しません。region条件を付けた1 action追加でも対象account内の
 task-definition metadata全体へreadが広がるため、このツールは既存権限での取得を優先し、IAM変更を実施しません。
+
+## Poolの権限設定と、対象で調べられる権限を読む
+
+[`collect_runtime_read_scope.py`](../scripts/collect_runtime_read_scope.py) は、前回のGCP設定取得と
+同じCloud Shellで使う補助ツールです。確認済みの元ファイルのSHA256を必須引数として渡します。
+実際のハッシュ・認証情報・設定値は、この公開文書やソースへ保存しません。
+
+```sh
+python3 infra/gcp/scripts/collect_runtime_read_scope.py \
+  --capture-sha256 "$REVIEWED_CAPTURE_SHA256"
+```
+
+元ファイルは既存の `/tmp/yss-metadata-*/private/runtime-metadata-capture.json` から探し、
+ハッシュが一致する1件だけを使います。前のCloud Shellが終了して一時ファイルが失われた場合は、
+同じ取得済みJSONをCloud Shellへアップロードし、`--capture-file` でその絶対パスを指定できます。
+明示ファイルは所有者が一致し、親フォルダーが他の人に書き込めず、symlinkを含まないものに限定します。
+アップロード時の0644は、本文を読む前に0600へ狭めます。元の自動探索では親2段の0700とファイルの0600を要求します。
+どちらもハッシュ一致・開発環境・schema・取得開始から1時間以内を認証前に確認し、
+各読取前と保存前にも期限を確認します。
+期限切れや一致しない場合は停止し、入力を推測・更新しません。
+
+読むのは次の3対象だけです。いずれも設定を変更しないPOSTです。
+
+- 既存Pool自身の権限設定：`getIamPolicy` の本文で `options.requestedPolicyVersion=3` を指定。
+- 既存Poolで調べられる権限：`permissions:queryTestablePermissions` の全ページ。
+- 既存Providerで調べられる権限：同APIの全ページ。
+
+結果は新規 `/tmp/yss-gcp-read-scope-*/runtime-read-scope.json` に0700／0600で保存します。
+Poolの権限設定は条件や無関係な設定も含めて保持します。権限一覧は `scopeTestable` として保存し、
+3種類の必要な読取権限について、仕様上の対応と取得完了状態を記録します。
+これは実行アカウントが権限を持つ証拠、権限設定の変更許可、Poolへの権限付与やProviderへの継承の
+成功証明ではありません。非200・未完了・未知の応答は未確認のまま保存し、空の成功へ置き換えません。
+project全体の権限設定、role一覧、鍵、State、業務データは取得しません。

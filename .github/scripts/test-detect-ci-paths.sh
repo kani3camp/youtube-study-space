@@ -135,6 +135,8 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_current_state_a
 assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_artifact_fixture.py
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
+assert_exact_groups gcp_terraform infra/gcp/scripts/collect_runtime_read_scope.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_runtime_read_scope.py
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
