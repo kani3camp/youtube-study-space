@@ -118,13 +118,27 @@ class ProductionReadinessTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assert_stops_before_job_inputs(**gates, **{key: value})
 
-    def test_production_gates_do_not_change_development_default_plan_routing(self):
-        result, outputs = self.preflight(TARGET="dev")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(outputs["terraform_root"], "infra/gcp/environments/dev")
-        self.assertEqual(outputs["state_key"], "youtube-study-space/dev/terraform.tfstate")
-        self.assertEqual(outputs["manage_quota"], "true")
-        self.assertEqual(outputs["manage_user_activity_history"], "true")
+    def test_production_gates_do_not_change_development_plan_routing(self):
+        closed_runtime = {name: "false" for name in (
+            "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED", "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY",
+            "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED", "DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED")}
+        production_open = {name: "true" for name in (
+            "PROD_AUTHENTICATED_TERRAFORM_ENABLED", "PROD_EXECUTION_CONTRACT_READY",
+            "PROD_DEVELOPMENT_EXIT_READY", "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED")}
+        for wave, development in (("none", closed_runtime), ("pool", {
+                "OWNERSHIP_WAVE": "pool", "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap"})):
+            for production in ({}, production_open):
+                with self.subTest(wave=wave, production=production):
+                    result, outputs = self.preflight(TARGET="dev", **development, **production)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(outputs, {
+                        "terraform_root": "infra/gcp/environments/dev", "project_id": "test-youtube-study-space",
+                        "state_key": "youtube-study-space/dev/terraform.tfstate", "ownership_wave": wave,
+                        **{name: "true" for name in ("manage_primary_email", "manage_quota", "manage_export_topic",
+                                                      "manage_export_scheduler", "manage_export_function", "manage_user_activity_history")},
+                    })
+        # Current runtime activation requires a selection before any job inputs.
+        self.assert_stops_before_job_inputs(TARGET="dev")
 
     def test_readiness_ci_has_no_cloud_authorization_or_state_operations(self):
         source = (ROOT / ".github/workflows/gcp-production-readiness.yml").read_text()
