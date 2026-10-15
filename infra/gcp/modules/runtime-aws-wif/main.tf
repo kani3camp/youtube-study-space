@@ -81,14 +81,18 @@ variable "inventory" {
 
 # NOTE: Preserve fresh mappings/condition byte-for-byte. Never reconstruct the
 # working runtime trust from historical AWS roles, CDK audience, or test values.
+# NOTE: Importing an unmarked Pool must not become an update merely because the
+# private input object is sensitive. Declassify only these four metadata leaves;
+# this can display their values in ordinary plan/show. Protected raw plans/logs
+# must remain private; provider trust and IAM member/condition inputs stay marked.
 resource "google_iam_workload_identity_pool" "runtime" {
   count                     = var.own_pool ? 1 : 0
   project                   = var.project_id
   workload_identity_pool_id = "aws-runtime"
-  display_name              = var.inventory.pool.display_name
-  description               = var.inventory.pool.description
-  disabled                  = var.inventory.pool.disabled
-  mode                      = var.inventory.pool.mode
+  display_name              = nonsensitive(var.inventory.pool.display_name)
+  description               = nonsensitive(var.inventory.pool.description)
+  disabled                  = nonsensitive(var.inventory.pool.disabled)
+  mode                      = nonsensitive(var.inventory.pool.mode)
   lifecycle { prevent_destroy = true }
 }
 

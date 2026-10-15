@@ -714,6 +714,9 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" validate
           done
 
+      - name: Test Pool import fidelity with credentialless mocks
+        run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
+
       - name: Test quota alert mock plans and import-only boundary
         run: |
           python3 .github/scripts/test_youtube_quota_alerts.py
