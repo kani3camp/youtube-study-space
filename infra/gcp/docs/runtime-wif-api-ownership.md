@@ -846,3 +846,10 @@ metadata の unknown stable field は前後比較から除外せず、schema の
 before / after の lock 不存在は期間全体の writer quiescence を証明しない。
 この route は full-root no-op / drift0 / issuer / historical delta / admission receipt を発行せず、
 後続 plan admission の `state_writers_quiescent=true` へ自動変換しない。
+
+### CI各主体の設定読取を時間限定で有効化
+
+設定を読む専用modeだけを、UTC `2026-10-15T00:58:09Z` から `2026-10-15T08:58:09Z` まで有効化します。
+既存 `terraform-dev-plan` / `terraform-dev-apply` の本人Environment承認は各jobで必要です。
+State・Terraform・IAM変更・ownership採用を行うgateは開きません。既存のcurrent-state証跡も消費しません。
+実測後はこのread専用gateと時刻を閉鎖し、期限切れなら古いwindowの再利用や延長で代替しません。
