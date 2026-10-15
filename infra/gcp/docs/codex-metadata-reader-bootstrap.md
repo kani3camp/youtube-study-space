@@ -62,6 +62,7 @@ gcloudの現在の通常user sessionだけをaccount指定で使い、新login�
 古いsnapshotへの新しい変更の自動mergeは行いません。
 SETは元etagを含むfull policyと `updateMask=bindings,etag` を使い、SET応答と事後GETの両方を予定した差分だけと照合します。
 member/bindingの順序と、条件なしpolicyのversion 1/3応答差だけを正規化し、条件付きversion3とauditConfig・既存内容を保持します。
+history Tableの計画はnative version 1・条件なしを要求してそのまま保持し、未対応のversion 3を暗黙に降格させず拒否します。Pool/Runtime SAの計画は変更しません。
 全4試行の後にも3 role・3 policy・専用SAを再GETし、予定差分と同じSA応答を確認します。途中のpolicy変更やSAの同名再作成があれば、4 write確認済みでもsetup完了にしません。
 
 送信前にwrite試行をjournalへ記録・fsyncし、fsync後にも期限を確認します。
@@ -77,6 +78,9 @@ token、CLI出力、HTTP error body、未検証の成功本文は保存・公開
 journalの開始・完了・各eventにはUTCを付けますが、時計は **local-clock-self-report** であり独立実行時刻の証明ではありません。
 setup完了と、専用identityの実際のread成功・fresh full7・migration/import readyは区別し、後者は常にfalseです。
 fresh full7の収集とprivate受渡しは、このhelperとは別のreview対象です。
+
+先行の本人提出結果はrole作成・Pool/Runtime SAの3変更まで確認済み、history第4試行HTTP400でSTOPでした。
+元commandは再実行せず、[Tableだけを扱う別の完了候補](codex-history-reader-completion.md)で追加差分を限定します。一般Policy仕様とTable固有のversion記述には差があり、先行400の原因をversionだけで確定しません。
 
 ## 検証と公式根拠
 

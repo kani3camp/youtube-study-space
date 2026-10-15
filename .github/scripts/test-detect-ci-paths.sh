@@ -146,6 +146,9 @@ assert_exact_groups gcp_terraform infra/gcp/docs/runtime-reader-bootstrap.md
 assert_exact_groups gcp_terraform infra/gcp/scripts/bootstrap_codex_metadata_readers.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_bootstrap_codex_metadata_readers.py
 assert_exact_groups gcp_terraform infra/gcp/docs/codex-metadata-reader-bootstrap.md
+assert_exact_groups gcp_terraform infra/gcp/scripts/complete_codex_history_reader.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_complete_codex_history_reader.py
+assert_exact_groups gcp_terraform infra/gcp/docs/codex-history-reader-completion.md
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py

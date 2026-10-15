@@ -136,6 +136,11 @@ def check_window(base, manifest, started):
 
 def planned_policy(base, before, alias, email):
     before = base.policy(before)  # All three etags are mandatory, including Pool.
+    if alias == 'history':
+        # BigQuery's table-specific contract retains native version 1. Do not
+        # promote to 3, or silently strip/downgrade an unsupported condition.
+        need(before.get('version') == 1
+             and not any('condition' in binding for binding in before.get('bindings', [])))
     result = copy.deepcopy(before)
     role = history_role_name() if alias == 'history' else base.role_name(alias)
     matches = [binding for binding in result.get('bindings', []) if binding['role'] == role]
@@ -147,7 +152,8 @@ def planned_policy(base, before, alias, email):
         need(len(matches) == 1 and 'condition' not in matches[0]
              and sorted(matches[0]['members']) == sorted(base.fixed_members()))
         matches[0]['members'].append(member)
-    result['version'] = 3
+    if alias != 'history':
+        result['version'] = 3
     base.encoded(result)
     return result
 
