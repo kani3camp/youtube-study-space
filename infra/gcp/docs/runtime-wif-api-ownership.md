@@ -1064,3 +1064,24 @@ project scopeのroles.get/update観測を将来の特定roleへの実操作autho
 既存current-state/ownership/root/apply/production gates、required reviewers、trusted ref/immutable owner/same-SHA OIDC、
 plan/apply Environment分離とSecretを保持する。期限切れfull7とroot admission falseも解消したとは扱わない。
 追加readやCloudShell再収集をこの閉鎖sourceの要件にせず、後続は不足条件と独立した承認範囲を確認してから設計する。
+
+### 本人提出のreader設定結果と、既存CIによるmetadata再検証の準備
+
+本人が既存の通常GCPログイン経由の作業を継続的に許可した後、設定結果のprivate archiveを提出した。
+主担当のDATAONLY照合では、承認済みhelper/intentに対応する4 write試行がHTTP200・verified、
+finish PASS・setup completeであり、readonly role 2件とPool/Runtime SAへのbinding各1件が意図どおりだった。
+各bindingの既存CI memberは2件で、既存unrelated policyとPool/Provider等のmetadataは保持されていた。
+ここでは提出内容の照合結果だけを記録する。journalにwall timeがないため独立した実行時刻を確定せず、
+期限切れfull7 metadataの更新、CI read成功、Providerへの継承成功、migration/import準備完了の証明へ使わない。
+既存bootstrapを再実行せず、metadata本文・selectors・policy・hashのprivate実値を公開sourceへ複製しない。
+
+次のsource windowはUTC `2026-10-15T09:15:00Z` から `2026-10-15T17:15:00Z` の最大8時間とし、
+`DEV_RUNTIME_METADATA_READ_ENABLED`だけを開く。IAM authority readはfalse、current-state read時刻は空、
+root/current-state/ownership/split/apply/productionの既存gateとread/negative条件は変更しない。
+既存の`runtime-metadata-read`専用routeで、plan/applyの両identityを各自のEnvironment承認とexact same-SHA OIDCで使う。
+新規attempt1の具体的runを作成してから、本人にそのrunの既存Environment承認を案内する。
+
+scopeは既存のruntime6種を各identityで前後2回読むことと、既存project-scoped negative permission確認だけである。
+enabled-servicesのpaginationがあれば必要pageを読み切る。Terraform、State/lock、IAM変更、authority診断、artifact/receipt発行を行わない。
+実run前は未実行のままとし、両identityの全read・空attestation・全policy/metadataの前後一致・negative/window/cleanupを実測してから判定する。
+reader設定時のowner tokenや提出archiveをCI identityの証拠へ代用せず、使用後はこのmetadata gateと時刻を再び閉じる。
