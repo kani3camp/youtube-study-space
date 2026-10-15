@@ -220,12 +220,12 @@ caller 照合を理由に Lambda invoke / ECS run-task / batch / export / YouTub
 operator token を CI principal の証拠へ転用せず、新 WIF provider / SA / role / binding は作らない。
 common identity smoke/activation の実装変更は親 workstream が所有し、本 PR はその追加を行わない。
 
-| Probe alias | GET request（値は private handoff） | 必須結果 |
+| Probe alias | Read request（値は private handoff） | 必須結果 |
 | --- | --- | --- |
 | `runtime-pool` | `iam.googleapis.com/v1/<exact-pool-name>` | HTTP200、ACTIVE、existing fields/trust 一致 |
 | `runtime-attestation` | 同 exact pool の `:listAttestationRules` | HTTP200、known schema、空 rules、継続 tokenなし |
 | `runtime-provider` | `iam.googleapis.com/v1/<exact-provider-name>` | HTTP200、ACTIVE/AWS、mapping/condition byte一致 |
-| `runtime-sa-policy` | `iam.googleapis.com/v1/<exact-SA-resource>:getIamPolicy?options.requestedPolicyVersion=3` | HTTP200、全 unrelated bindings/conditions 不変、無条件 response version1 は可 |
+| `runtime-sa-policy` | `iam.googleapis.com/v1/<exact-SA-resource>:getIamPolicy?options.requestedPolicyVersion=3`、空 body POST | HTTP200、全 unrelated bindings/conditions 不変、無条件 response version1 は可 |
 | `runtime-project` | `cloudresourcemanager.googleapis.com/v1/projects/<dev-project-id>` | HTTP200、ID/number一致、DELETE_REQUESTED でない |
 | `runtime-enabled-services` | `serviceusage.googleapis.com/v1/projects/<private-number>/services?filter=state:ENABLED&pageSize=200`、必要 page 継続 | 全 page HTTP200、完了、private inventory と候補 API の state 一致 |
 
@@ -241,6 +241,35 @@ GET成功は mutation permission がない証拠ではない。親は既存 leas
 既存 quota normal-change gate 等の別承認権限も、この read smoke を根拠に拡大/転用しない。
 permission 名の文書確認は実 principal の成功を証明しない。まず既存 CI principal の exact read を確認し、
 不足時は既存 read role / principals / bindings を維持する最小 permission 差分を最新 Current Canon の承認範囲に照合する。
+
+### Protected runtime metadata read の source route（default off・未実行）
+
+`ci.yml` の既存 `workflow_dispatch` で `terraform_authenticated=true` / `terraform_target=dev` /
+`terraform_mode=runtime-metadata-read` を指定する専用 source route を用意する。
+`current-state-read`、Terraform plan/apply、runtime ownership waveとは独立する。
+`DEV_RUNTIME_METADATA_READ_ENABLED=false`、発行・失効UTCは空のまま保持し、実測前の別source変更で
+有効化と最大8時間のwindowをreviewする。Environment承認待ちでwindowを延長せず、各jobの認証前・各read前・完了時にも再確認する。
+
+2個の明示jobは既存 `terraform-dev-plan` / `terraform-dev-apply` Environmentをそれぞれ使い、
+各Environmentの既存WIF provider / exact Terraform SA secretで独立に短期tokenを取得する。
+同じrepo/immutable owner/ref/initial attempt、caller・reusable workflowのsame SHAとexact Environment OIDCを検証する。
+apply Environmentのこのjobはmetadata read専用で、通常apply jobやそのgateへ流入しない。
+新secret、AWS認証、State/lockのread/write、Terraform実行、artifact、ownership receiptは使わない。
+
+上の6種類を各identityで前後2回readし、全JSON field、CEL文字列、unrelated IAM binding/condition、
+project scope、完了した全enabled-servicesをprivate memory内で比較する。
+known REST envelope、existing offline shape、空attestation、20 page/4000 service/4 MiBのsnapshot上限を検証し、
+unknown/error/incomplete/duplicate/範囲違い/変化はSTOPする。redirectを追わず、error bodyを出力しない。
+metadata本文やtokenをdiskへ書かず、公開Summaryは固定aliasとPASS/STOP/未実行だけとする。
+project GETを先行し、dev project ID/number不一致なら他endpointへ進まない。照合後は各interfaceを独立に検査し、
+1件の403等で他の実成功を失敗へ書き換えない。各aliasのPASSは前後両read成功だけを表し、片方の失敗を他方で補完しない。
+全6種成功・全field前後一致・project-scoped permission確認・window内完了の全条件以外は全体STOPを維持する。
+
+既存のruntime least-privilege契約に合わせ、development projectの `testIamPermissions` で
+WIF pool/provider create/update/delete/undelete、SA setIamPolicy、API enable/disableが空responseであることも確認する。
+これはproject scopeの観測であり、conditional/resource-specific grant全体やsource/private caller joinを証明しない。
+read成功や前後一致をimport承認、fresh inventoryの保存、full-root no-op、historical receipt、Infrastructure Readyに読み替えない。
+non-200や不足permissionでは停止し、grantやroleを自動で追加しない。
 
 ## Private offline preparation
 

@@ -315,6 +315,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_source_emission_window_preserves_baseline_and_denies_other_waves(self) -> None:
         gates = self.source_gates()
+        # Exact-runtime activation has an independent bounded source contract.
+        gates.pop("DEV_RUNTIME_METADATA_READ_ENABLED")
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
@@ -493,7 +495,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.text.count("id-token: write"), 4)
+        self.assertEqual(self.text.count("id-token: write"), 6)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -552,7 +554,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.text.count("persist-credentials: false"), 4)
+        self.assertEqual(self.text.count("persist-credentials: false"), 6)
 
     def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
@@ -565,7 +567,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' }}", plan)
+        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' }}", plan)
         probe = self.text.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",

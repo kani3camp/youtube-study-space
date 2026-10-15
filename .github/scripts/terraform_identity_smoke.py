@@ -63,18 +63,13 @@ def denied_aws(result: subprocess.CompletedProcess[str], label: str) -> None:
         raise SmokeFailure(label)
 
 
-def verify_oidc(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
-    request = urllib.request.Request(
-        env["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
-        headers={"Authorization": "Bearer " + env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        token = json.load(response)["value"]
-    encoded = token.split(".")[1]
-    claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+def verify_oidc_claims(claims: dict, env: dict[str, str], *, expected_identity: str = "plan") -> None:
+    """Exact trusted claims; callers retain their own execution admission."""
+    if expected_identity not in {"plan", "apply"}:
+        raise SmokeFailure("github-environment-target")
     expected = {
         "repository_id": "340900071", "repository_owner_id": "54093651",
-        "environment": "terraform-dev-plan", "ref": "refs/heads/feature/gcp-terraform-iac",
+        "environment": f"terraform-dev-{expected_identity}", "ref": "refs/heads/feature/gcp-terraform-iac",
         "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
         "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
         "event_name": "workflow_dispatch",
@@ -84,6 +79,18 @@ def verify_oidc(env: dict[str, str], *, plan_read_only: bool = False) -> list[st
         raise SmokeFailure("github-exact-oidc-claims")
     if claims.get("job_workflow_sha") != env["GITHUB_SHA"] or claims.get("workflow_sha") != env["GITHUB_SHA"]:
         raise SmokeFailure("github-same-commit-oidc-claims")
+
+
+def verify_oidc(env: dict[str, str], *, plan_read_only: bool = False) -> list[str]:
+    request = urllib.request.Request(
+        env["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
+        headers={"Authorization": "Bearer " + env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        token = json.load(response)["value"]
+    encoded = token.split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    verify_oidc_claims(claims, env)
     plan_role = env["BACKEND_ROLE_ARN"]
     if not plan_role.endswith("-plan"):
         raise SmokeFailure("aws-plan-role-target")

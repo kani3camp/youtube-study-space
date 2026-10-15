@@ -25,6 +25,7 @@ on:
         options:
           - plan
           - current-state-read
+          - runtime-metadata-read
           - security-probe
           - apply
           - email-adoption
@@ -648,6 +649,8 @@ jobs:
           python3 .github/scripts/test_terraform_current_state_attestation.py
           python3 .github/scripts/test_terraform_current_state_read.py
           python3 .github/scripts/test_terraform_current_state_read_workflow.py
+          python3 .github/scripts/test_terraform_runtime_metadata_read.py
+          python3 .github/scripts/test_terraform_runtime_metadata_read_workflow.py
           python3 .github/scripts/test_terraform_history_import_verifier.py
           python3 .github/scripts/test_terraform_ownership_receipt.py
           python3 .github/scripts/test_terraform_runtime_execution.py
