@@ -896,7 +896,7 @@ before / after の lock 不存在は期間全体の writer quiescence を証明�
 当該sourceは設定を読む専用modeだけを、UTC `2026-10-15T00:58:09Z` から `2026-10-15T08:58:09Z` のwindowで有効化した。
 既存 `terraform-dev-plan` / `terraform-dev-apply` は本人の各Environment承認後に実測を完了した。
 State・Terraform・IAM変更・ownership採用のgateは開かず、既存のcurrent-state証跡も消費しなかった。
-現在はread専用gate=false、発行・失効UTCは空へ閉鎖済みである。
+初回実測後にread専用gate=false、発行・失効UTCは空へ閉鎖した。後続の独立windowは次節を参照する。
 古いwindowの再利用や延長で追加実測を代替しない。結果は上の初回実測記録を参照する。
 
 
