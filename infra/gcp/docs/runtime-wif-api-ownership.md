@@ -242,13 +242,16 @@ GET成功は mutation permission がない証拠ではない。親は既存 leas
 permission 名の文書確認は実 principal の成功を証明しない。まず既存 CI principal の exact read を確認し、
 不足時は既存 read role / principals / bindings を維持する最小 permission 差分を最新 Current Canon の承認範囲に照合する。
 
-### Protected runtime metadata read の source route（default off）
+### Protected runtime metadata read の source route（本8時間窓の診断準備・actual未実行）
 
 `ci.yml` の既存 `workflow_dispatch` で `terraform_authenticated=true` / `terraform_target=dev` /
 `terraform_mode=runtime-metadata-read` を指定する専用 source route を用意する。
 `current-state-read`、Terraform plan/apply、runtime ownership waveとは独立する。
-`DEV_RUNTIME_METADATA_READ_ENABLED=false`、発行・失効UTCは空のまま保持し、実測前の別source変更で
-有効化と最大8時間のwindowをreviewする。Environment承認待ちでwindowを延長せず、各jobの認証前・各read前・完了時にも再確認する。
+`DEV_RUNTIME_METADATA_READ_ENABLED=true` とし、UTC `2026-10-15T04:32:00Z` から
+`2026-10-15T12:32:00Z` の独立した8時間窓でreview済み診断を実測できるよう準備する。actualは未実行。
+このactivationの独立review・required CI・integration統合後のexact SHAから新規attempt1をdispatchし、
+本人が既存両Environmentをそれぞれ承認してから観測する。Environment承認待ちでwindowを延長せず、
+各jobの認証前・各read前・完了時にも再確認する。実測後は別source変更でread gate=false・時刻空へ閉鎖する。
 
 2個の明示jobは既存 `terraform-dev-plan` / `terraform-dev-apply` Environmentをそれぞれ使い、
 各Environmentの既存WIF provider / exact Terraform SA secretで独立に短期tokenを取得する。
@@ -973,11 +976,14 @@ SA policy readとhistory table metadataは別resourceのscopeで検討する。�
 将来の最小IAM変更も既存principal/binding保持、独立review、negative test、GitHub Environmentの本人承認を省略せず、
 調査用の元AWS長期キーでは適用しない。必要なmetadata/caller/private joinが欠ける間はPool importへ進まない。
 
-### 正規CI主体のIAM authority前提を読む追加source（default off・未実行）
+### 正規CI主体のIAM authority前提を読む追加source（本8時間窓の診断準備・actual未実行）
 
 `runtime-metadata-read` の既存plan/apply各Environmentに、独立したauthority観測stepを用意する。
-`DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED=false` を維持し、既存metadata read gate/windowやmutation gateは変更しない。
-後続の別source reviewでmetadata読取windowとこの追加gateを明示的に開くまで実行しない。
+`DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED=true` とし、上記UTC `2026-10-15T04:32:00Z` から
+`2026-10-15T12:32:00Z` の独立8時間窓でreview済み追加診断を準備する。actualは未実行。
+metadata read gateとその既存windowだけを同時に有効化し、その他のgate・OIDC・role・Secret・既存read/negative条件は変更しない。
+独立review・required CI・integration統合後の新規attempt1と本人の両Environment承認を経るまで実行しない。
+実測後は別source変更で両read gate=false・発行/失効UTC空へ閉鎖する。
 stepは `always()` / `!cancelled()` / 既存GCP認証success / 新gatetrueを全て要求し、既存cleanupの前に置く。
 metadataや既存negative stepの失敗を成功へ書き換えず、元のrequest集合・projection・終了条件を保持する。
 
@@ -1004,4 +1010,4 @@ HELDも当該scope/時刻のpermission観測であり、API受理、OrgPolicy/De
 将来時点の成功、full7 metadataのfreshnessやroot admissionを証明しない。
 ownerが読んだPool policy `{}` / etagなしの安全な初回writeも証明しない。
 role CRUD・特定role GET・setIamPolicy・IAM bootstrap・State/lock/Terraform・artifact/receiptは実行しない。
-既存metadataの4read403、期限切れfull7、閉じたruntime/root/apply/production gatesは独立したSTOP条件として保持する。
+既存metadataの4read403、期限切れfull7、閉じたruntime ownership/root/apply/production gatesは独立したSTOP条件として保持する。
