@@ -373,10 +373,24 @@ class Bootstrap:
             self.write(alias + '-set', {'policy': planned_policy(self.base, self.before[alias + '_policy'],
                 alias, self.manifest['metadata_service_account_email']), 'updateMask': 'bindings,etag'})
         # Recheck exact roles; never update/reuse a conflicting role definition.
+        after = {'roles': {}, 'policies': {}}
         for alias in ('pool', 'sa'):
-            self.base.validate_role(self.call('role-' + alias + '-get'), alias)
-        validate_history_role(self.base, self.call('role-history-get'))
-        self.check()
+            value = self.call('role-' + alias + '-get')
+            self.base.validate_role(value, alias)
+            after['roles'][alias] = value
+        value = self.call('role-history-get')
+        validate_history_role(self.base, value)
+        after['roles']['history'] = value
+        for alias in ('pool', 'sa', 'history'):
+            value = self.base.policy(self.call(alias + '-policy'))
+            expected = planned_policy(self.base, self.before[alias + '_policy'], alias,
+                                      self.manifest['metadata_service_account_email'])
+            need(self.base.comparable_policy(value) == self.base.comparable_policy(expected))
+            after['policies'][alias] = value
+        account = self.call('metadata-sa')
+        need(account == self.before['metadata_service_account'])
+        after['metadata_service_account'] = account
+        self.save('after-final.json', after)
 
 
 def main(argv=None):

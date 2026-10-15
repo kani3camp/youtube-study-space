@@ -62,6 +62,7 @@ gcloudの現在の通常user sessionだけをaccount指定で使い、新login�
 古いsnapshotへの新しい変更の自動mergeは行いません。
 SETは元etagを含むfull policyと `updateMask=bindings,etag` を使い、SET応答と事後GETの両方を予定した差分だけと照合します。
 member/bindingの順序と、条件なしpolicyのversion 1/3応答差だけを正規化し、条件付きversion3とauditConfig・既存内容を保持します。
+全4試行の後にも3 role・3 policy・専用SAを再GETし、予定差分と同じSA応答を確認します。途中のpolicy変更やSAの同名再作成があれば、4 write確認済みでもsetup完了にしません。
 
 送信前にwrite試行をjournalへ記録・fsyncし、fsync後にも期限を確認します。
 HTTP409、timeout、未知結果、不正なHTTP200本文、事後差分の不一致は即停止です。最大4回は成功数ではなく予約した試行数です。
@@ -71,7 +72,7 @@ etagは同一policy上の競合を防ぎますが、別role定義や未知writer
 ## private結果と証拠の限界
 
 結果directoryは0700、journal/snapshotは0600・exclusiveで作成し、公開出力は固定status/mode/試行数、falseのmigration-ready、private結果pathだけです。
-保存対象は `journal.jsonl`、`offline-intent.json`、`preflight.json`、`dry-plan.json`、`write-1.json`〜`write-4.json`、`after-pool-policy.json`、`after-sa-policy.json`、`after-history-policy.json` の必要なsubsetです。
+保存対象は `journal.jsonl`、`offline-intent.json`、`preflight.json`、`dry-plan.json`、`write-1.json`〜`write-4.json`、`after-pool-policy.json`、`after-sa-policy.json`、`after-history-policy.json`、`after-final.json` の必要なsubsetです。
 token、CLI出力、HTTP error body、未検証の成功本文は保存・公開しません。private policyをrepositoryや公開artifactへ移しません。
 journalの開始・完了・各eventにはUTCを付けますが、時計は **local-clock-self-report** であり独立実行時刻の証明ではありません。
 setup完了と、専用identityの実際のread成功・fresh full7・migration/import readyは区別し、後者は常にfalseです。

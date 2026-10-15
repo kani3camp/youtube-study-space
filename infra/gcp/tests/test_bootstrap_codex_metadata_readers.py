@@ -427,6 +427,42 @@ class Tests(unittest.TestCase):
         self.assertFalse(finish['fresh_full7_verified']); self.assertFalse(finish['migration_ready'])
         self.assertEqual(len(finish['verified_write_aliases']), 4)
         self.assertIn('completed_utc', finish)
+        after = json.loads((directory / 'after-final.json').read_text())
+        self.assertEqual(set(after['policies']), {'pool', 'sa', 'history'})
+
+    def final_drift_main(self, target):
+        args = self.file_args()
+        cloud = FakeCloud(self.b, self.manifest)
+        original = m.Bootstrap
+        changed = False
+        def drift(call):
+            nonlocal changed
+            if len(cloud.writes) == 4 and call[1] == '/v1/' + self.b.role_name('pool') and not changed:
+                changed = True
+                if target == 'policy':
+                    cloud.policies['pool']['bindings'][0]['members'].append('dummy-final-drift')
+                else:
+                    cloud.account['uniqueId'] = '555555555555'
+        cloud.hook = drift
+        def factory(base, manifest, evidence, **kwargs):
+            return original(base, manifest, evidence, request=cloud, github=lambda _: None, **kwargs)
+        with patch.object(self.b, 'owner_token', return_value='dummy-secret-token'), \
+             patch.object(self.b, 'check_github'), patch.object(m, 'Bootstrap', side_effect=factory):
+            result, _, directory = self.capture_main(args + ['--execute-owner-route', '--source-sha256', m.source_hash()])
+        self.assertEqual(result, 1)
+        self.assertEqual(len(cloud.writes), 4)
+        finish = json.loads((directory / 'journal.jsonl').read_text().splitlines()[-1])
+        self.assertEqual(finish['status'], 'STOP')
+        self.assertFalse(finish['setup_complete'])
+        self.assertEqual(finish['write_attempts'], 4)
+        self.assertEqual(len(finish['verified_write_aliases']), 4)
+        self.assertFalse((directory / 'after-final.json').exists())
+
+    def test_final_policy_drift_after_all_four_writes_stops_setup(self):
+        self.final_drift_main('policy')
+
+    def test_final_same_email_sa_recreation_after_all_four_writes_stops_setup(self):
+        self.final_drift_main('account')
 
     def test_expiry_after_durable_attempt_reservation_stops_before_http(self):
         session = self.session(); session.prepare()
