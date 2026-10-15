@@ -330,7 +330,8 @@ def main(argv=None):
         created_identity = (info.st_dev, info.st_ino)
         result = collect(request, capture, current=current)
         if current:
-            need(issued <= now() < expires)
+            before_save = now()
+            need(issued <= stamp(result['observed_finished_at_utc']) <= before_save < expires)
         raw = json.dumps(result, sort_keys=True, indent=2).encode() + b'\n'
         need(len(raw) <= MAX_BYTES)
         with os.fdopen(descriptor, 'wb') as handle:
@@ -338,7 +339,7 @@ def main(argv=None):
             os.fchmod(handle.fileno(), 0o600)
             handle.write(raw)
         if current:
-            need(issued <= now() < expires)
+            need(before_save <= now() < expires)
         print('AWS versioned configuration saved privately; migration readiness remains false.')
         return 0
     except Exception:

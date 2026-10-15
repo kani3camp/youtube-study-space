@@ -289,6 +289,21 @@ class CliAndPrivateFiles(unittest.TestCase):
         input_index = commands[2].index('--cli-input-json') + 1
         self.assertEqual(json.loads(commands[2][input_index])['maxResults'], 1)
 
+    def test_clock_reversal_before_or_after_save_removes_output_without_extra_calls(self):
+        for final_times in ([POINT - timedelta(seconds=1)],
+                            [POINT + timedelta(seconds=1), POINT]):
+            values = iter(responses())
+            times = iter([POINT] * 20 + final_times)
+            with self.subTest(final_times=final_times), \
+                 patch.object(collector, 'aws_read', side_effect=lambda call: next(values)) as read, \
+                 patch.object(collector, 'now', side_effect=lambda: next(times)):
+                code, stdout, stderr = self.run_cli(live=True)
+            self.assertEqual(code, 1)
+            self.assertEqual(read.call_count, 9)
+            self.assertFalse(self.output.exists())
+            self.assertNotIn('DummyRuntimeTaskRole', stdout + stderr)
+            self.assertNotIn('222222222222', stdout + stderr)
+
     def test_live_cli_partial_read_failure_does_not_publish_or_retry_private_diagnostics(self):
         outcomes = iter([subprocess.CompletedProcess('dummy', 0, json.dumps(responses()[0]), ''),
                          subprocess.CompletedProcess('dummy', 1, '', 'dummy-private-error-body')])
