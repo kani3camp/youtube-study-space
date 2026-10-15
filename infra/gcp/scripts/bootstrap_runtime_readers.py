@@ -527,12 +527,14 @@ class Bootstrap:
             self.evidence.event({'event': 'write-http', 'alias': alias, 'http_status': status})
             self.check()
             need(status == 200 and type(value) is dict)
-            self.save('write-' + str(self.attempts) + '.json', value)
             if alias.startswith('role-'):
                 validate_role(value, target)
             else:
                 policy(value, empty_pool=False)
                 need(comparable_policy(value) == comparable_policy(body['policy']))
+            # Persist only validated success metadata. A malformed HTTP200
+            # envelope may contain an error body and is never saved verbatim.
+            self.save('write-' + str(self.attempts) + '.json', value)
             self.completed.append(alias)
             self.evidence.event({'event': 'write-verified', 'alias': alias})
         except Exception:

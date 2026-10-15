@@ -364,6 +364,7 @@ class Tests(unittest.TestCase):
             rows = (session.evidence.root / 'journal.jsonl').read_text().splitlines()
             self.assertEqual(json.loads(rows[0])['event'], 'write-attempt')
             self.assertEqual(json.loads(rows[-1])['event'], 'write-unconfirmed')
+            self.assertFalse((session.evidence.root / 'write-1.json').exists())
 
     def test_read_only_live_plan_and_out_of_order_write_cannot_mutate(self):
         session = self.session(execute=False); session.prepare()
