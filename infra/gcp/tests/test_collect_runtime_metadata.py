@@ -134,10 +134,11 @@ class PrivateBoundaryTests(unittest.TestCase):
         def transport(token, host, path, **kwargs):
             self.assertEqual(token, 'private-fixture-token')
             return (request or self.request)(host, path, **kwargs)
-        with patch.object(collector, 'google_token', return_value='private-fixture-token'), \
+        with patch.object(collector, 'google_token', return_value='private-fixture-token') as auth, \
              patch.object(collector, 'transport', side_effect=transport), \
              contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             result = collector.main(['--private-root', str(self.root), '--selectors-file', str(self.path)])
+        self.token_call_count = auth.call_count
         public = out.getvalue() + err.getvalue()
         for secret in ('private-fixture-token', 'private-fixture-member', 'dummy-etag', self.selectors['project_number']):
             self.assertNotIn(secret, public)
@@ -163,20 +164,22 @@ class PrivateBoundaryTests(unittest.TestCase):
         self.assertFalse((self.root / collector.OUTPUT).exists())
 
     def test_nonprivate_symlink_checkout_and_malformed_selectors_stop_before_auth(self):
-        with patch.object(collector, 'google_token') as auth:
-            self.path.chmod(0o644)
-            self.assertEqual(self.run_main()[0], 1)
-            self.path.chmod(0o600)
-            self.root.chmod(0o755)
-            self.assertEqual(self.run_main()[0], 1)
-            self.root.chmod(0o700)
-            (self.root / '.git').write_text('gitdir: fixture')
-            self.assertEqual(self.run_main()[0], 1)
-            (self.root / '.git').unlink()
-            self.path.unlink()
-            self.path.symlink_to('/dev/null')
-            self.assertEqual(self.run_main()[0], 1)
-            auth.assert_not_called()
+        self.path.chmod(0o644)
+        self.assertEqual(self.run_main()[0], 1)
+        self.assertEqual(self.token_call_count, 0)
+        self.path.chmod(0o600)
+        self.root.chmod(0o755)
+        self.assertEqual(self.run_main()[0], 1)
+        self.assertEqual(self.token_call_count, 0)
+        self.root.chmod(0o700)
+        (self.root / '.git').write_text('gitdir: fixture')
+        self.assertEqual(self.run_main()[0], 1)
+        self.assertEqual(self.token_call_count, 0)
+        (self.root / '.git').unlink()
+        self.path.unlink()
+        self.path.symlink_to('/dev/null')
+        self.assertEqual(self.run_main()[0], 1)
+        self.assertEqual(self.token_call_count, 0)
 
     def test_output_symlink_is_never_followed_or_unlinked(self):
         target = self.root / collector.OUTPUT
