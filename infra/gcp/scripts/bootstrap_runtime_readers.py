@@ -600,6 +600,7 @@ def main(argv=None):
         else:
             # Inspect known repository gates/activity before requesting a token.
             check_github(manifest)
+            check_window(manifest, invocation_started)
             token = owner_token()
             try:
                 session = Bootstrap(manifest, evidence, execute=args.execute_owner_exception,

@@ -564,6 +564,15 @@ class Tests(unittest.TestCase):
             self.assertEqual(self.capture_main(self.args(path, checksum) + ['--live-plan', '--source-sha256', m.source_hash()])[0], 1)
         self.assertEqual(cloud.calls, [])
 
+    def test_github_delay_expiring_manifest_stops_before_requesting_owner_token(self):
+        path, checksum = self.manifest_file()
+        def delay(_manifest):
+            m.now.return_value = TIME + timedelta(hours=1)
+        with patch.object(m, 'check_github', side_effect=delay), patch.object(m, 'owner_token') as token:
+            result, _, _ = self.capture_main(self.args(path, checksum) + ['--live-plan', '--source-sha256', m.source_hash()])
+        self.assertEqual(result, 1)
+        token.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
