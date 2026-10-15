@@ -33,12 +33,24 @@ MAX_TOKEN = 2048
 ALIASES = ("runtime-pool", "runtime-attestation", "runtime-provider", "runtime-sa-policy",
            "runtime-project", "runtime-enabled-services", "runtime-stable",
            "runtime-project-permissions", "runtime-window", "runtime-cleanup")
+REASONS = {"PASS", "未実行", "HTTP403", "HTTP_OTHER", "RESPONSE_REJECTED", "TRANSPORT_FAILED", "ADMISSION_STOP"}
+REASON_KEYS = tuple(alias + "-" + phase + "-reason" for phase in ("before", "after") for alias in ALIASES[:6]) + ("runtime-project-permissions-reason",)
 MUTATIONS = (*WIF_MUTATION_PERMISSIONS, "iam.serviceAccounts.setIamPolicy",
              "serviceusage.services.enable", "serviceusage.services.disable")
 
 
-class RuntimeLimit(ValueError):
+class RuntimeAdmission(ValueError):
     pass
+
+
+class RuntimeLimit(RuntimeAdmission):
+    pass
+
+
+class ProbeFailure(ValueError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__("runtime metadata read STOP")
 
 
 def need(value):
@@ -54,6 +66,13 @@ def window(env, *, now=None):
         stamps.append(datetime.fromisoformat(value.replace("Z", "+00:00")))
     issued, expires = stamps
     need(issued <= (now or datetime.now(timezone.utc)) < expires <= issued + timedelta(hours=8))
+
+
+def read_window(env):
+    try:
+        window(env)
+    except Exception:
+        raise RuntimeAdmission("runtime metadata read STOP") from None
 
 
 def context(env, *, gate=True, token=False):
@@ -110,9 +129,13 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def response_json(response, limit=MAX_BYTES):
     length = response.headers.get("Content-Length")
-    need(length is None or (re.fullmatch(r"[0-9]+", length) and int(length) <= limit))
+    need(length is None or re.fullmatch(r"[0-9]+", length))
+    if length is not None and int(length) > limit:
+        raise RuntimeLimit("runtime metadata read STOP")
     raw = response.read(limit + 1)
-    need(0 < len(raw) <= limit and (length is None or len(raw) == int(length)))
+    if len(raw) > limit:
+        raise RuntimeLimit("runtime metadata read STOP")
+    need(0 < len(raw) and (length is None or len(raw) == int(length)))
     return load(raw)
 
 
@@ -126,12 +149,35 @@ def google(path, token, body=None, *, host, method):
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"}, method=method)
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
-            need(response.status == 200)
-            return response.status, response_json(response)
+            if response.status != 200:
+                return response.status, {}
+            try:
+                return response.status, response_json(response)
+            except RuntimeAdmission:
+                raise
+            except Exception:
+                # The HTTP success was actually observed before parsing failed.
+                raise ProbeFailure("RESPONSE_REJECTED") from None
     except urllib.error.HTTPError as error:
         # HTTP status alone is public-safe. Never consume or emit error bodies.
         error.close()
         return error.code, {}
+
+
+def exact_response(request, path, token, body=None, *, host, method):
+    try:
+        status, value = request(path, token, body, host=host, method=method)
+    except (ProbeFailure, RuntimeAdmission):
+        raise
+    except Exception:
+        # No HTTP status was established here. Never label an unknown exception
+        # as an observed denial or a rejected HTTP200 response.
+        raise ProbeFailure("TRANSPORT_FAILED") from None
+    if type(status) is not int or not 100 <= status <= 599:
+        raise ProbeFailure("TRANSPORT_FAILED")
+    if status != 200:
+        raise ProbeFailure("HTTP403" if status == 403 else "HTTP_OTHER")
+    return value
 
 
 def identity(env):
@@ -181,7 +227,9 @@ def validate_pool(value, number, *, provider=False):
 def validate_project(project, number):
     shape(project, {"projectId", "projectNumber", "lifecycleState", "name", "createTime", "labels", "parent"},
           {"projectId", "projectNumber", "lifecycleState"})
-    need(project["projectId"] == PROJECT and project["projectNumber"] == number and project["lifecycleState"] == "ACTIVE")
+    if project["projectId"] != PROJECT or project["projectNumber"] != number:
+        raise RuntimeAdmission("runtime metadata read STOP")
+    need(project["lifecycleState"] == "ACTIVE")
     for key in ("projectId", "projectNumber", "lifecycleState", "name", "createTime"):
         need(key not in project or type(project[key]) is str)
     if "labels" in project:
@@ -243,13 +291,13 @@ def validate(snapshot, number):
     ownership.prepare(snapshot | {"runtime_grants": {}, "api_classification": classification})
 
 
-def observe(env, number, results, *, request):
+def observe(env, number, results, reasons, *, request):
     total = 0
     def get(host, path, validate_item=None, *, method="GET"):
         nonlocal total
-        window(env)
-        status, value = request(path, env["GCP_SMOKE_ACCESS_TOKEN"], host=host, method=method)
-        need(status == 200 and type(value) is dict)
+        read_window(env)
+        value = exact_response(request, path, env["GCP_SMOKE_ACCESS_TOKEN"], host=host, method=method)
+        need(type(value) is dict)
         size = len(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
         if not 0 < size <= MAX_BYTES or total + size > MAX_BYTES:
             raise RuntimeLimit("runtime metadata read STOP")
@@ -262,14 +310,17 @@ def observe(env, number, results, *, request):
         # Admission failures do not become evidence of a denied endpoint. Once
         # admitted, one failed interface cannot fabricate another interface's
         # response or suppress its independent success/failure observation.
-        window(env)
+        read_window(env)
         try:
             value = operation()
         except Exception as error:
             results[alias] = "STOP"
-            if isinstance(error, RuntimeLimit):
+            if isinstance(error, RuntimeAdmission):
+                reasons[alias] = "ADMISSION_STOP"
                 raise
+            reasons[alias] = error.reason if isinstance(error, ProbeFailure) else "RESPONSE_REJECTED"
             return None
+        reasons[alias] = "PASS"
         results[alias] = "PASS"
         return value
 
@@ -334,35 +385,48 @@ def observe(env, number, results, *, request):
 
 
 def permissions(env, *, request):
-    window(env)
-    status, value = request("v3/projects/" + PROJECT + ":testIamPermissions", env["GCP_SMOKE_ACCESS_TOKEN"],
+    read_window(env)
+    value = exact_response(request, "v3/projects/" + PROJECT + ":testIamPermissions", env["GCP_SMOKE_ACCESS_TOKEN"],
         {"permissions": list(MUTATIONS)}, host="cloudresourcemanager.googleapis.com", method="POST")
-    need(status == 200)
     shape(value, {"permissions"})
     need(type(value.get("permissions", [])) is list and value.get("permissions", []) == [])
 
 
-def summary(env, checks):
+def summary(env, checks, reasons=None):
+    need(set(checks) == set(ALIASES) and all(value in {"PASS", "STOP", "未実行"} for value in checks.values()))
     lines = ["runtime-metadata-read: " + ("PASS" if all(value == "PASS" for value in checks.values()) else "STOP")]
     lines += [alias + ": " + checks[alias] for alias in ALIASES]
-    path = Path(env["GITHUB_STEP_SUMMARY"])
-    need(path.is_absolute() and not path.is_symlink())
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        info = os.fstat(handle.fileno())
-        need(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid())
-        handle.write("\n".join(lines) + "\n")
+    if reasons is not None:
+        need(set(reasons) == set(REASON_KEYS) and all(value in REASONS for value in reasons.values()))
+        lines += [key + ": " + reasons[key] for key in REASON_KEYS]
+    try:
+        path = Path(env["GITHUB_STEP_SUMMARY"])
+        need(path.is_absolute() and not path.is_symlink())
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            info = os.fstat(handle.fileno())
+            need(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid())
+            handle.write("\n".join(lines) + "\n")
+    except Exception:
+        lines[0] = "runtime-metadata-read: STOP"
+        raise
+    finally:
+        # Both public sinks receive only the validated fixed projection. Keep
+        # per-interface observations available when Step Summary is unavailable.
+        print("\n".join(lines))
 
 
 def read(env, *, request=None):
     number = context(env, token=True)
     checks = dict.fromkeys(ALIASES, "未実行")
     observations = {phase: dict.fromkeys(ALIASES[:6], "未実行") for phase in ("before", "after")}
+    reasons = {phase: dict.fromkeys(ALIASES[:6], "未実行") for phase in ("before", "after")}
+    permission_reason = "未実行"
     snapshots = {}
     checks["runtime-window"] = "STOP"
     try:
         for phase in ("before", "after"):
-            snapshots[phase] = observe(env, number, observations[phase], request=request or google)
+            snapshots[phase] = observe(env, number, observations[phase], reasons[phase], request=request or google)
             if observations[phase]["runtime-project"] != "PASS":
                 break
         for alias in ALIASES[:6]:
@@ -372,9 +436,17 @@ def read(env, *, request=None):
         if complete:
             checks["runtime-stable"] = "PASS" if snapshots["before"] == snapshots["after"] else "STOP"
         if observations["after"]["runtime-project"] == "PASS":
-            window(env)
+            read_window(env)
             checks["runtime-project-permissions"] = "STOP"
-            permissions(env, request=request or google)
+            try:
+                permissions(env, request=request or google)
+            except RuntimeAdmission:
+                permission_reason = "ADMISSION_STOP"
+                raise
+            except Exception as error:
+                permission_reason = error.reason if isinstance(error, ProbeFailure) else "RESPONSE_REJECTED"
+                raise
+            permission_reason = "PASS"
             checks["runtime-project-permissions"] = "PASS"
         window(env)
         checks["runtime-window"] = "PASS"
@@ -388,7 +460,10 @@ def read(env, *, request=None):
         # No private snapshots, token files, candidates or receipts reach disk.
         snapshots.clear()
         checks["runtime-cleanup"] = "PASS"
-        summary(env, checks)
+        public_reasons = {alias + "-" + phase + "-reason": reasons[phase][alias]
+                          for phase in ("before", "after") for alias in ALIASES[:6]}
+        public_reasons["runtime-project-permissions-reason"] = permission_reason
+        summary(env, checks, public_reasons)
     need(all(value == "PASS" for value in checks.values()))
 
 

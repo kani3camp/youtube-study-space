@@ -214,7 +214,7 @@ role ID が既存 receipt にある場合は同名 role の再作成有無の照
 ECS execution role、Scheduler/SFN control-plane role、`start_daily_batch` は shared WIF caller に含めない。
 caller 照合を理由に Lambda invoke / ECS run-task / batch / export / YouTube API call を実行しない。
 
-## CI exact-read smoke の最小 scope（未実行）
+## CI exact-read smoke の最小 scope（初回STOP・未完了）
 
 親が既存 protected CI route の plan/apply identity をそれぞれ使い、同じ private dev resource に対して以下を確認する。
 operator token を CI principal の証拠へ転用せず、新 WIF provider / SA / role / binding は作らない。
@@ -242,7 +242,7 @@ GET成功は mutation permission がない証拠ではない。親は既存 leas
 permission 名の文書確認は実 principal の成功を証明しない。まず既存 CI principal の exact read を確認し、
 不足時は既存 read role / principals / bindings を維持する最小 permission 差分を最新 Current Canon の承認範囲に照合する。
 
-### Protected runtime metadata read の source route（default off・未実行）
+### Protected runtime metadata read の source route（default off）
 
 `ci.yml` の既存 `workflow_dispatch` で `terraform_authenticated=true` / `terraform_target=dev` /
 `terraform_mode=runtime-metadata-read` を指定する専用 source route を用意する。
@@ -260,7 +260,13 @@ apply Environmentのこのjobはmetadata read専用で、通常apply jobやそ�
 project scope、完了した全enabled-servicesをprivate memory内で比較する。
 known REST envelope、existing offline shape、空attestation、20 page/4000 service/4 MiBのsnapshot上限を検証し、
 unknown/error/incomplete/duplicate/範囲違い/変化はSTOPする。redirectを追わず、error bodyを出力しない。
-metadata本文やtokenをdiskへ書かず、公開Summaryは固定aliasとPASS/STOP/未実行だけとする。
+metadata本文やtokenをdiskへ書かず、公開SummaryとActions stdoutは同じ固定aliasとPASS/STOP/未実行を出す。
+各metadata aliasのbefore/afterとproject permission readは、固定reason aliasを併記する。
+reasonは `PASS` / `未実行` / `HTTP403` / `HTTP_OTHER` / `RESPONSE_REJECTED` / `TRANSPORT_FAILED` / `ADMISSION_STOP` だけを許可し、
+公開sinkで全keyと値をallowlist検証する。HTTP403は当該HTTP応答を実観測した場合だけ、HTTP_OTHERは他のnon-200、
+RESPONSE_REJECTEDはHTTP200のJSON/shape等の拒否、TRANSPORT_FAILEDはHTTP status未確定のdependency失敗、
+ADMISSION_STOPはscope/window/byte budgetの拒否を表す。raw HTTP status、body、URL、exception textは出さず、
+有限reasonも権限追加が必要という証拠へ読み替えない。Summaryへの書き込み失敗時もstdoutに固定結果を残し、全体結果はSTOPにする。
 project GETを先行し、dev project ID/number不一致なら他endpointへ進まない。照合後は各interfaceを独立に検査し、
 1件の403等で他の実成功を失敗へ書き換えない。各aliasのPASSは前後両read成功だけを表し、片方の失敗を他方で補完しない。
 全6種成功・全field前後一致・project-scoped permission確認・window内完了の全条件以外は全体STOPを維持する。
@@ -270,6 +276,43 @@ WIF pool/provider create/update/delete/undelete、SA setIamPolicy、API enable/d
 これはproject scopeの観測であり、conditional/resource-specific grant全体やsource/private caller joinを証明しない。
 read成功や前後一致をimport承認、fresh inventoryの保存、full-root no-op、historical receipt、Infrastructure Readyに読み替えない。
 non-200や不足permissionでは停止し、grantやroleを自動で追加しない。
+
+### 2026-10-15 JST runtime metadata read の初回実測とwindow閉鎖
+
+[run 38663394483](https://github.com/kani3camp/youtube-study-space/actions/runs/38663394483) は
+integration commit `ede97cb79734c3ba52b872f9fe163c2bcc7cb531` の専用metadata routeで実行した。
+本人が既存 `terraform-dev-plan` / `terraform-dev-apply` の両Environmentを承認し、
+両jobのexact Environment/same-SHA OIDC検証とGCP短期認証はSUCCESS、metadata observe stepはSTOP、
+always cleanupはSUCCESSで完了した。認証成功をmetadata成功へ読み替えない。
+
+当該sourceは個別固定aliasの結果をStep Summaryだけへ書き、Actions logには全体STOPだけを出していた。
+API/connector経路では個別Summaryを取得できなかったが、本人が両jobの固定Summaryを共有した。
+同じfirst attemptで得られた結果は両identityとも以下である。
+
+| Fixed alias | Plan | Apply |
+| --- | --- | --- |
+| `runtime-pool` | STOP | STOP |
+| `runtime-attestation` | STOP | STOP |
+| `runtime-provider` | STOP | STOP |
+| `runtime-sa-policy` | STOP | STOP |
+| `runtime-project` | PASS | PASS |
+| `runtime-enabled-services` | PASS | PASS |
+| `runtime-stable` | 未実行 | 未実行 |
+| `runtime-project-permissions` | PASS | PASS |
+| `runtime-window` | PASS | PASS |
+| `runtime-cleanup` | PASS | PASS |
+
+当該sourceは失敗reasonを保持しておらず、この記録からHTTP403、HTTP200のshape拒否、その他の原因を判別できない。
+後続sourceの有限reasonを過去runへ遡って補完せず、不足permissionや原因を推定しない。
+後続sourceは同じ固定結果と有限reasonをstdoutにも出し、body/error/URL/identity/CEL/raw HTTP statusは出さない。
+
+使用済みの `DEV_RUNTIME_METADATA_READ_ENABLED` はfalse、発行・失効UTCは空へ閉鎖する。
+既存Environment approvals、required reviewers、trusted ref/immutable owner/same-SHA OIDC、plan/apply分離、
+runtime ownership/apply/productionの閉じたgateと既存least-privilege構成を保持し、grant/secretを追加しない。
+Terraform/State/lock、runtime mutation、artifact、ownership receiptへ進まない。
+共有された当該runの固定結果は追加readなしで保存する。失敗分類の追加実測が必要なら、
+別reviewで新しい最大8時間のsource windowを設定し、本人の両Environment承認を経て新規runを行う。
+過去runの再実行やwindowの延長で代用しない。
 
 ## Private offline preparation
 

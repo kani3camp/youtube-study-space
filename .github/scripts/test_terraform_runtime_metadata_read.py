@@ -20,6 +20,10 @@ import terraform_runtime_metadata_read as gate
 
 class RuntimeReadTest(unittest.TestCase):
     def setUp(self):
+        self.public_output = io.StringIO()
+        output_capture = contextlib.redirect_stdout(self.public_output)
+        output_capture.__enter__()
+        self.addCleanup(output_capture.__exit__, None, None, None)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -96,7 +100,7 @@ class RuntimeReadTest(unittest.TestCase):
     def safe_summary(self, status):
         result = (self.root / "summary").read_text()
         self.assertIn("runtime-metadata-read: " + status, result)
-        self.assertEqual(set(line.rsplit(": ", 1)[-1] for line in result.splitlines()) <= {"PASS", "STOP", "未実行"}, True)
+        self.assertEqual(set(line.rsplit(": ", 1)[-1] for line in result.splitlines()) <= ({"PASS", "STOP", "未実行"} | gate.REASONS), True)
         self.assertEqual({p.name for p in self.root.iterdir()}, {"summary"})
         for secret in ("DUMMY_", self.number, gate.PROJECT, "appspot", "googleapis", "principalSet", "attribute.", "roles/"):
             self.assertNotIn(secret, result)
@@ -172,6 +176,8 @@ class RuntimeReadTest(unittest.TestCase):
         self.assertIn("runtime-attestation: STOP", summary)
         self.assertIn("runtime-provider: PASS", summary)
         self.assertIn("runtime-stable: 未実行", summary)
+        self.assertIn("runtime-attestation-before-reason: HTTP403", summary)
+        self.assertIn("runtime-attestation-after-reason: PASS", summary)
         self.assertEqual(sum(call[0] == "runtime-attestation" for call in self.calls), 2)
 
     def test_completed_pagination_is_escaped_bounded_and_compared(self):
@@ -443,6 +449,138 @@ class RuntimeReadTest(unittest.TestCase):
         with patch.object(gate.urllib.request, "build_opener") as opener, patch.object(error, "read", side_effect=AssertionError("error body must not be consumed")):
             opener.return_value.open.side_effect = error
             self.assertEqual(gate.google("v1/dummy", "DUMMY_TOKEN", host="iam.googleapis.com", method="GET"), (403, {}))
+
+    def test_public_stdout_is_the_same_fixed_alias_projection_as_step_summary(self):
+        for status in ("PASS", "STOP", "未実行"):
+            (self.root / "summary").unlink(missing_ok=True)
+            checks = dict.fromkeys(gate.ALIASES, "PASS")
+            checks["runtime-provider"] = status
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                gate.summary(self.env, checks)
+            expected = "runtime-metadata-read: " + ("PASS" if status == "PASS" else "STOP") + "\n"
+            expected += "".join(alias + ": " + checks[alias] + "\n" for alias in gate.ALIASES)
+            self.assertEqual(output.getvalue(), expected)
+            self.assertEqual(output.getvalue(), (self.root / "summary").read_text())
+
+    def test_partial_metadata_failure_is_diagnosable_without_private_payload_or_http_status(self):
+        def request(path, token, body=None, *, host, method):
+            result = self.request(path, token, body, host=host, method=method)
+            if self.alias(host, path) == "runtime-provider":
+                return 403, {"error": {"message": "DUMMY_PRIVATE_BODY_URL_IDENTITY_CEL"}}
+            return result
+        output, error = io.StringIO(), io.StringIO()
+        with patch.dict(os.environ, self.env, clear=True), patch.object(gate, "google", side_effect=request), contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            self.assertEqual(gate.main(["--phase", "read"]), 3)
+        self.assertEqual(output.getvalue(), (self.root / "summary").read_text())
+        self.assertIn("runtime-metadata-read: STOP\n", output.getvalue())
+        self.assertIn("runtime-provider: STOP\n", output.getvalue())
+        self.assertIn("runtime-pool: PASS\n", output.getvalue())
+        self.assertIn("runtime-stable: 未実行\n", output.getvalue())
+        self.assertEqual(error.getvalue(), "runtime-metadata-read: STOP\n")
+        for secret in ("DUMMY_", self.number, gate.PROJECT, "googleapis", "attribute.", "roles/", "https://"):
+            self.assertNotIn(secret, output.getvalue() + error.getvalue())
+
+    def test_summary_sink_failure_keeps_fixed_observations_but_overall_stops(self):
+        output, error = io.StringIO(), io.StringIO()
+        with patch.dict(os.environ, self.env, clear=True), patch.object(gate, "google", side_effect=self.request), patch.object(gate.os, "open", side_effect=OSError("DUMMY_PRIVATE_SUMMARY_PATH_ERROR")), contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            self.assertEqual(gate.main(["--phase", "read"]), 3)
+        self.assertEqual(output.getvalue().splitlines()[0], "runtime-metadata-read: STOP")
+        self.assertIn("runtime-provider: PASS\n", output.getvalue())
+        self.assertEqual(error.getvalue(), "runtime-metadata-read: STOP\n")
+        self.assertNotIn("DUMMY_", output.getvalue() + error.getvalue())
+        self.assertFalse((self.root / "summary").exists())
+
+    def test_unrecognized_summary_keys_or_private_values_cannot_reach_public_sinks(self):
+        safe = dict.fromkeys(gate.ALIASES, "PASS")
+        for checks in (safe | {"runtime-provider": "DUMMY_PRIVATE_BODY_URL_IDENTITY_CEL"},
+                       safe | {"DUMMY_PRIVATE_KEY": "PASS"},
+                       {alias: "PASS" for alias in gate.ALIASES if alias != "runtime-provider"}):
+            output = io.StringIO()
+            with self.subTest(checks=checks), contextlib.redirect_stdout(output), self.assertRaises(Exception):
+                gate.summary(self.env, checks)
+            self.assertEqual(output.getvalue(), "")
+            self.assertFalse((self.root / "summary").exists())
+
+    def test_finite_reasons_distinguish_http403_from_http200_shape_and_transport_failures(self):
+        for kind, expected in (("denied", "HTTP403"), ("other-http", "HTTP_OTHER"),
+                               ("malformed", "RESPONSE_REJECTED"), ("transport", "TRANSPORT_FAILED")):
+            (self.root / "summary").unlink(missing_ok=True)
+            def request(path, token, body=None, *, host, method):
+                status, value = self.request(path, token, body, host=host, method=method)
+                if self.alias(host, path) == "runtime-provider":
+                    if kind == "transport":
+                        raise RuntimeError("DUMMY_PRIVATE_TRANSPORT_ERROR_URL_TOKEN")
+                    if kind in {"denied", "other-http"}:
+                        return (403 if kind == "denied" else 429), {"error": {"message": "DUMMY_PRIVATE_ERROR_BODY"}}
+                    value["attributeCondition"] = ""
+                return status, value
+            output = io.StringIO()
+            with self.subTest(kind=kind), contextlib.redirect_stdout(output), self.assertRaises(Exception):
+                self.run_read(request)
+            observed = self.safe_summary("STOP")
+            self.assertEqual(output.getvalue(), observed)
+            self.assertIn("runtime-provider-before-reason: " + expected, observed)
+            self.assertIn("runtime-provider-after-reason: " + expected, observed)
+            self.assertIn("runtime-pool: PASS", observed)
+            self.assertNotIn("DUMMY_", output.getvalue())
+            self.assertNotIn("429", output.getvalue())
+
+    def test_http_status_must_be_observed_before_response_rejection_can_be_reported(self):
+        for dependency in (lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("DUMMY_PRIVATE_DEPENDENCY_ERROR")),
+                           lambda *args, **kwargs: ("403", {}), lambda *args, **kwargs: (None, {})):
+            with self.assertRaises(gate.ProbeFailure) as failure:
+                gate.exact_response(dependency, "v1/dummy", "DUMMY_TOKEN", host="iam.googleapis.com", method="GET")
+            self.assertEqual(failure.exception.reason, "TRANSPORT_FAILED")
+        with patch.object(gate.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = self.response(b'{"DUMMY_PRIVATE_MALFORMED_JSON"')
+            with self.assertRaises(gate.ProbeFailure) as failure:
+                gate.google("v1/dummy", "DUMMY_TOKEN", host="iam.googleapis.com", method="GET")
+            self.assertEqual(failure.exception.reason, "RESPONSE_REJECTED")
+
+    def test_http_response_byte_limit_is_an_admission_stop_after_status_success(self):
+        for raw, length in ((b'{}', gate.MAX_BYTES + 1), (b'x' * (gate.MAX_BYTES + 1), None)):
+            with patch.object(gate.urllib.request, "build_opener") as opener:
+                opener.return_value.open.return_value = self.response(raw, length)
+                with self.assertRaises(gate.RuntimeAdmission):
+                    gate.exact_response(gate.google, "v1/dummy", "DUMMY_TOKEN", host="iam.googleapis.com", method="GET")
+
+    def test_admission_failures_are_never_reported_as_http_or_response_denials(self):
+        original = copy.deepcopy(self.data)
+        for kind, alias in (("scope", "runtime-project"), ("budget", "runtime-pool"), ("window", "runtime-enabled-services")):
+            (self.root / "summary").unlink(missing_ok=True)
+            self.data = copy.deepcopy(original)
+            env = self.env.copy()
+            if kind == "scope":
+                self.data["runtime-project"]["projectNumber"] = "999999999999"
+            elif kind == "budget":
+                self.data["runtime-pool"]["description"] = "DUMMY_PRIVATE_BUDGET" + "x" * gate.MAX_BYTES
+            def request(path, token, body=None, *, host, method):
+                result = self.request(path, token, body, host=host, method=method)
+                if kind == "window" and host == "serviceusage.googleapis.com":
+                    env["DEV_RUNTIME_METADATA_READ_EXPIRES_UTC"] = "2000-01-01T00:00:00Z"
+                    return 200, {"services": [self.service("iam.googleapis.com")], "nextPageToken": "DUMMY_NEXT"}
+                return result
+            output = io.StringIO()
+            with self.subTest(kind=kind), contextlib.redirect_stdout(output), self.assertRaises(Exception):
+                gate.read(env, request=request)
+            observed = self.safe_summary("STOP")
+            self.assertEqual(output.getvalue(), observed)
+            self.assertIn(alias + "-before-reason: ADMISSION_STOP", observed)
+            self.assertNotIn("HTTP403", observed)
+            self.assertNotIn("RESPONSE_REJECTED", observed)
+
+    def test_private_or_unknown_reason_keys_and_values_cannot_enter_either_public_sink(self):
+        checks = dict.fromkeys(gate.ALIASES, "PASS")
+        safe = dict.fromkeys(gate.REASON_KEYS, "PASS")
+        for reasons in (safe | {gate.REASON_KEYS[0]: "DUMMY_PRIVATE_BODY_URL_IDENTITY_CEL"},
+                        safe | {"DUMMY_PRIVATE_ALIAS": "PASS"},
+                        {key: "PASS" for key in gate.REASON_KEYS[1:]}):
+            output = io.StringIO()
+            with self.subTest(reasons=reasons), contextlib.redirect_stdout(output), self.assertRaises(Exception):
+                gate.summary(self.env, checks, reasons)
+            self.assertEqual(output.getvalue(), "")
+            self.assertFalse((self.root / "summary").exists())
 
     def test_cli_errors_are_fixed_alias_status_only(self):
         out, err = io.StringIO(), io.StringIO()
