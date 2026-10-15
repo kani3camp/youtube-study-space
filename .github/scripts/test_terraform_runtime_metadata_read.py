@@ -292,6 +292,17 @@ class RuntimeReadTest(unittest.TestCase):
                 self.run_read(request)
             self.safe_summary("STOP")
 
+    def test_valid_forbidden_permission_response_has_a_distinct_boundary_reason(self):
+        self.data["runtime-project-permissions"] = {"permissions": [gate.MUTATIONS[0]]}
+        with self.assertRaises(Exception):
+            self.run_read()
+        observed = self.safe_summary("STOP")
+        self.assertIn("runtime-project-permissions: STOP", observed)
+        self.assertIn("runtime-project-permissions-reason: BOUNDARY_REJECTED", observed)
+        self.assertIn("runtime-stable: PASS", observed)
+        self.assertNotIn("RESPONSE_REJECTED", observed)
+        self.assertNotIn(gate.MUTATIONS[0], observed)
+
     def test_second_project_scope_failure_prevents_all_later_runtime_reads(self):
         projects = 0
         def request(path, token, body=None, *, host, method):

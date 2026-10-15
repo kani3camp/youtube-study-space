@@ -262,10 +262,11 @@ known REST envelope、existing offline shape、空attestation、20 page/4000 ser
 unknown/error/incomplete/duplicate/範囲違い/変化はSTOPする。redirectを追わず、error bodyを出力しない。
 metadata本文やtokenをdiskへ書かず、公開SummaryとActions stdoutは同じ固定aliasとPASS/STOP/未実行を出す。
 各metadata aliasのbefore/afterとproject permission readは、固定reason aliasを併記する。
-reasonは `PASS` / `未実行` / `HTTP403` / `HTTP_OTHER` / `RESPONSE_REJECTED` / `TRANSPORT_FAILED` / `ADMISSION_STOP` だけを許可し、
+reasonは `PASS` / `未実行` / `HTTP403` / `HTTP_OTHER` / `RESPONSE_REJECTED` / `TRANSPORT_FAILED` / `ADMISSION_STOP` / `BOUNDARY_REJECTED` だけを許可し、
 公開sinkで全keyと値をallowlist検証する。HTTP403は当該HTTP応答を実観測した場合だけ、HTTP_OTHERは他のnon-200、
 RESPONSE_REJECTEDはHTTP200のJSON/shape等の拒否、TRANSPORT_FAILEDはHTTP status未確定のdependency失敗、
-ADMISSION_STOPはscope/window/byte budgetの拒否を表す。raw HTTP status、body、URL、exception textは出さず、
+ADMISSION_STOPはscope/window/byte budgetの拒否、BOUNDARY_REJECTEDは有効なHTTP200 permission応答が禁止権限を含む境界違反を表す。
+raw HTTP status、body、URL、exception textは出さず、
 有限reasonも権限追加が必要という証拠へ読み替えない。Summaryへの書き込み失敗時もstdoutに固定結果を残し、全体結果はSTOPにする。
 project GETを先行し、dev project ID/number不一致なら他endpointへ進まない。照合後は各interfaceを独立に検査し、
 1件の403等で他の実成功を失敗へ書き換えない。各aliasのPASSは前後両read成功だけを表し、片方の失敗を他方で補完しない。
@@ -890,9 +891,10 @@ before / after の lock 不存在は期間全体の writer quiescence を証明�
 この route は full-root no-op / drift0 / issuer / historical delta / admission receipt を発行せず、
 後続 plan admission の `state_writers_quiescent=true` へ自動変換しない。
 
-### CI各主体の設定読取を時間限定で有効化
+### CI各主体の設定読取の初回window（実測後閉鎖）
 
-設定を読む専用modeだけを、UTC `2026-10-15T00:58:09Z` から `2026-10-15T08:58:09Z` まで有効化します。
-既存 `terraform-dev-plan` / `terraform-dev-apply` の本人Environment承認は各jobで必要です。
-State・Terraform・IAM変更・ownership採用を行うgateは開きません。既存のcurrent-state証跡も消費しません。
-実測後はこのread専用gateと時刻を閉鎖し、期限切れなら古いwindowの再利用や延長で代替しません。
+当該sourceは設定を読む専用modeだけを、UTC `2026-10-15T00:58:09Z` から `2026-10-15T08:58:09Z` のwindowで有効化した。
+既存 `terraform-dev-plan` / `terraform-dev-apply` は本人の各Environment承認後に実測を完了した。
+State・Terraform・IAM変更・ownership採用のgateは開かず、既存のcurrent-state証跡も消費しなかった。
+現在はread専用gate=false、発行・失効UTCは空へ閉鎖済みである。
+古いwindowの再利用や延長で追加実測を代替しない。結果は上の初回実測記録を参照する。

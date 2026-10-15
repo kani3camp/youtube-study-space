@@ -33,7 +33,7 @@ MAX_TOKEN = 2048
 ALIASES = ("runtime-pool", "runtime-attestation", "runtime-provider", "runtime-sa-policy",
            "runtime-project", "runtime-enabled-services", "runtime-stable",
            "runtime-project-permissions", "runtime-window", "runtime-cleanup")
-REASONS = {"PASS", "未実行", "HTTP403", "HTTP_OTHER", "RESPONSE_REJECTED", "TRANSPORT_FAILED", "ADMISSION_STOP"}
+REASONS = {"PASS", "未実行", "HTTP403", "HTTP_OTHER", "RESPONSE_REJECTED", "TRANSPORT_FAILED", "ADMISSION_STOP", "BOUNDARY_REJECTED"}
 REASON_KEYS = tuple(alias + "-" + phase + "-reason" for phase in ("before", "after") for alias in ALIASES[:6]) + ("runtime-project-permissions-reason",)
 MUTATIONS = (*WIF_MUTATION_PERMISSIONS, "iam.serviceAccounts.setIamPolicy",
              "serviceusage.services.enable", "serviceusage.services.disable")
@@ -389,7 +389,11 @@ def permissions(env, *, request):
     value = exact_response(request, "v3/projects/" + PROJECT + ":testIamPermissions", env["GCP_SMOKE_ACCESS_TOKEN"],
         {"permissions": list(MUTATIONS)}, host="cloudresourcemanager.googleapis.com", method="POST")
     shape(value, {"permissions"})
-    need(type(value.get("permissions", [])) is list and value.get("permissions", []) == [])
+    granted = value.get("permissions", [])
+    need(type(granted) is list and all(type(item) is str and item in MUTATIONS for item in granted)
+         and len(granted) == len(set(granted)))
+    if granted:
+        raise ProbeFailure("BOUNDARY_REJECTED")
 
 
 def summary(env, checks, reasons=None):
