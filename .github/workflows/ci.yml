@@ -639,11 +639,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Python for optional metadata SDK contract
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+
       - name: Install Terraform contract test dependencies
         run: |
           python3 -m venv "$RUNNER_TEMP/gcp-contract-tests"
           "$RUNNER_TEMP/gcp-contract-tests/bin/python" -m pip install --no-cache-dir --require-hashes --only-binary=:all: -r infra/gcp/tests/requirements.txt
           echo "$RUNNER_TEMP/gcp-contract-tests/bin" >> "$GITHUB_PATH"
+
+      - name: Test isolated optional metadata SDK with dummy credentials only
+        env:
+          CODEX_METADATA_TEST_DEPENDENCIES: ${{ runner.temp }}/codex-runtime-metadata-dependencies
+        run: |
+          python3 -m pip install --no-cache-dir --no-compile --no-deps --require-hashes --only-binary=:all: --target "$CODEX_METADATA_TEST_DEPENDENCIES" -r infra/gcp/requirements/codex-runtime-metadata.txt
+          python3 -B infra/gcp/tests/test_collect_codex_runtime_metadata.py
 
       - name: Test authenticated Terraform CI guardrails
         run: |
