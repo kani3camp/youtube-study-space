@@ -242,16 +242,16 @@ GET成功は mutation permission がない証拠ではない。親は既存 leas
 permission 名の文書確認は実 principal の成功を証明しない。まず既存 CI principal の exact read を確認し、
 不足時は既存 read role / principals / bindings を維持する最小 permission 差分を最新 Current Canon の承認範囲に照合する。
 
-### Protected runtime metadata read の source route（本8時間窓の診断準備・actual未実行）
+### Protected runtime metadata read の source route（実測後閉鎖）
 
 `ci.yml` の既存 `workflow_dispatch` で `terraform_authenticated=true` / `terraform_target=dev` /
 `terraform_mode=runtime-metadata-read` を指定する専用 source route を用意する。
 `current-state-read`、Terraform plan/apply、runtime ownership waveとは独立する。
-`DEV_RUNTIME_METADATA_READ_ENABLED=true` とし、UTC `2026-10-15T04:32:00Z` から
-`2026-10-15T12:32:00Z` の独立した8時間窓でreview済み診断を実測できるよう準備する。actualは未実行。
-このactivationの独立review・required CI・integration統合後のexact SHAから新規attempt1をdispatchし、
-本人が既存両Environmentをそれぞれ承認してから観測する。Environment承認待ちでwindowを延長せず、
-各jobの認証前・各read前・完了時にも再確認する。実測後は別source変更でread gate=false・時刻空へ閉鎖する。
+UTC `2026-10-15T04:32:00Z` から `2026-10-15T12:32:00Z` の独立8時間窓で、
+review済み診断をintegration統合後のexact SHAから新規attempt1として実測した。結果は末尾のrun38682551235記録を参照する。
+使用済みの `DEV_RUNTIME_METADATA_READ_ENABLED=false` とし、発行・失効UTCを空へ閉鎖する。
+追加実測は別reviewの新windowと本人の既存両Environment承認を必要とし、古いwindowの再利用・延長や過去runの再実行で代替しない。
+認証前・各read前・完了時のwindow/context再確認は保持する。
 
 2個の明示jobは既存 `terraform-dev-plan` / `terraform-dev-apply` Environmentをそれぞれ使い、
 各Environmentの既存WIF provider / exact Terraform SA secretで独立に短期tokenを取得する。
@@ -976,14 +976,12 @@ SA policy readとhistory table metadataは別resourceのscopeで検討する。�
 将来の最小IAM変更も既存principal/binding保持、独立review、negative test、GitHub Environmentの本人承認を省略せず、
 調査用の元AWS長期キーでは適用しない。必要なmetadata/caller/private joinが欠ける間はPool importへ進まない。
 
-### 正規CI主体のIAM authority前提を読む追加source（本8時間窓の診断準備・actual未実行）
+### 正規CI主体のIAM authority前提を読む追加source（実測後閉鎖）
 
 `runtime-metadata-read` の既存plan/apply各Environmentに、独立したauthority観測stepを用意する。
-`DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED=true` とし、上記UTC `2026-10-15T04:32:00Z` から
-`2026-10-15T12:32:00Z` の独立8時間窓でreview済み追加診断を準備する。actualは未実行。
-metadata read gateとその既存windowだけを同時に有効化し、その他のgate・OIDC・role・Secret・既存read/negative条件は変更しない。
-独立review・required CI・integration統合後の新規attempt1と本人の両Environment承認を経るまで実行しない。
-実測後は別source変更で両read gate=false・発行/失効UTC空へ閉鎖する。
+上記独立8時間窓で本人承認後に追加診断を実測し、使用済みの `DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED=false` とする。
+metadata read gateもfalse・発行/失効UTC空へ閉鎖し、その他のgate・OIDC・role・Secret・既存read/negative条件は変更しない。
+実測結果は次節へ記録する。追加実測は別reviewの新window・新規attempt1と本人の両Environment承認を必要とする。
 stepは `always()` / `!cancelled()` / 既存GCP認証success / 新gatetrueを全て要求し、既存cleanupの前に置く。
 metadataや既存negative stepの失敗を成功へ書き換えず、元のrequest集合・projection・終了条件を保持する。
 
@@ -1011,3 +1009,58 @@ HELDも当該scope/時刻のpermission観測であり、API受理、OrgPolicy/De
 ownerが読んだPool policy `{}` / etagなしの安全な初回writeも証明しない。
 role CRUD・特定role GET・setIamPolicy・IAM bootstrap・State/lock/Terraform・artifact/receiptは実行しない。
 既存metadataの4read403、期限切れfull7、閉じたruntime ownership/root/apply/production gatesは独立したSTOP条件として保持する。
+
+
+### 正規CI主体のIAM authority診断の実測結果とwindow閉鎖
+
+[run38682551235](https://github.com/kani3camp/youtube-study-space/actions/runs/38682551235) は
+integration `198552a973d166b1d3a291956e16df540f1d471b` / workflow_dispatch / 新規attempt1で、本人承認後に実行しcompleted failureとなった。
+主担当がapprovals APIで既存plan/apply両Environmentの本人 `kani3camp` による承認を確認した。pending0・artifact0。
+使用したsource windowはUTC `2026-10-15T04:32:00Z` から `2026-10-15T12:32:00Z`。
+[plan job116250146199](https://github.com/kani3camp/youtube-study-space/actions/runs/38682551235/job/116250146199) と
+[apply job116250146121](https://github.com/kani3camp/youtube-study-space/actions/runs/38682551235/job/116250146121) は
+exact Environment/same-SHA OIDC・既存GCP短期認証・実cleanup stepとpost-auth cleanupがSUCCESS、既存metadata readはSTOPで完了した。
+API上の両job開始はUTC `2026-10-15T05:22:44Z`、plan完了は `05:22:53Z`、apply完了は `05:22:56Z`。
+以下の観測は当該job実行範囲内の各request時点に限り、個々のrequest時刻やapproval時刻は記録から確定していない。
+
+両identityの既存metadataではPool・同Pool attestation・Provider・Runtime SA policyの前後readが全てHTTP403。
+projectとenabled servicesは両phaseでPASS、project-scoped negative permissions・window・cleanupもPASS、stableは未実行だった。
+HTTP403は当該requestが拒否された証拠であり、Allow欠落・Deny・condition等の原因を単独で確定しない。
+古いrunの結果・理由へ遡って補完しない。
+
+主担当が各job logから新authority固定25行projectionをちょうど1件ずつ抽出した。4interfaceの結果は両identityで以下だった。
+
+| Fixed request alias | Plan | Apply |
+| --- | --- | --- |
+| `authority-project` | PASS | PASS |
+| `authority-project-roles` | PASS | PASS |
+| `authority-pool-policy` | PASS | PASS |
+| `authority-sa-policy` | PASS | PASS |
+
+`runtime-iam-authority-read` / `authority-window` / `authority-cleanup` も両identityでPASSだった。
+これは診断requestと公開検証の完了を示し、下記のfalse固定flagsを変更しない。
+
+fresh dev project GETで固定ID/number/ACTIVEを照合した後、exact dev project、exact Runtime Pool、exact Runtime SAを対象に
+read-only `testIamPermissions` を各1回行った時点の観測は以下のとおり。
+
+| Fixed permission alias | Plan | Apply |
+| --- | --- | --- |
+| `authority-role-create` | NOT_RETURNED | NOT_RETURNED |
+| `authority-role-get` | NOT_RETURNED | NOT_RETURNED |
+| `authority-role-update` | NOT_RETURNED | NOT_RETURNED |
+| `authority-pool-get-policy` | NOT_RETURNED | NOT_RETURNED |
+| `authority-pool-set-policy` | NOT_RETURNED | NOT_RETURNED |
+| `authority-sa-get-policy` | NOT_RETURNED | NOT_RETURNED |
+| `authority-sa-set-policy` | NOT_RETURNED | NOT_RETURNED |
+
+全7項目のNOT_RETURNEDは、当該scope・request観測時点の有効なHTTP200応答にrequested permissionが返却されなかったことだけを示す。
+resource不存在、全resource/将来時点のpermission不在、global Deny、Deny原因、OrgPolicy、binding受理・継承の証明へ拡張しない。
+project scopeのroles.get/update観測を将来の特定roleへの実操作authorityの証明にせず、4interfaceのPASSをwrite権限やAPI変更の受理成功と扱わない。
+`authority-iam-change-authorized` / `authority-writer-ready` / `authority-bootstrap-ready` /
+`authority-metadata-ready` / `authority-migration-ready` は両identityで全てfalseだった。
+このrunからIAM bootstrap、grant追加、role CRUD、setIamPolicy、Terraform/State/lock、ownership採用へ進まない。
+
+使用済みのmetadata/authority両read gateをfalse、発行・失効UTCを空へ閉鎖する。
+既存current-state/ownership/root/apply/production gates、required reviewers、trusted ref/immutable owner/same-SHA OIDC、
+plan/apply Environment分離とSecretを保持する。期限切れfull7とroot admission falseも解消したとは扱わない。
+追加readやCloudShell再収集をこの閉鎖sourceの要件にせず、後続は不足条件と独立した承認範囲を確認してから設計する。
