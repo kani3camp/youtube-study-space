@@ -536,6 +536,24 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.cloud.writes, [])
         self.assertEqual(session.attempts, 1)
 
+    def test_durable_attempt_journal_delay_cannot_send_after_expiry_or_retry(self):
+        session = self.session(); session.prepare()
+        original = session.evidence.event
+        def delayed_event(value):
+            original(value)
+            if value['event'] == 'write-attempt':
+                m.now.return_value = TIME + timedelta(hours=1)
+        with patch.object(session.evidence, 'event', side_effect=delayed_event):
+            with self.assertRaises(ValueError): session.run()
+        self.assertEqual(session.attempts, 1)
+        self.assertEqual(self.cloud.writes, [])
+        self.assertEqual(session.completed, [])
+        rows = [json.loads(line) for line in (session.evidence.root / 'journal.jsonl').read_text().splitlines()]
+        self.assertEqual(rows[-1], {'event': 'write-unconfirmed', 'alias': 'role-pool-create'})
+        with self.assertRaises(ValueError): session.run()
+        self.assertEqual(session.attempts, 1)
+        self.assertEqual(self.cloud.writes, [])
+
     def test_routes_never_allow_list_key_project_policy_or_trust_mutation(self):
         session = self.session()
         for alias in ('roles-list', 'project-policy', 'sa-keys', 'provider-update', 'pool-delete', 'state'):

@@ -523,6 +523,7 @@ class Bootstrap:
         self.attempts += 1
         self.evidence.event({'event': 'write-attempt', 'alias': alias, 'attempt': self.attempts})
         try:
+            self.check()  # A slow durable journal write must not outlive approval.
             status, value = self.request(host, path, method=method, body=copy.deepcopy(body), token=self.token)
             self.evidence.event({'event': 'write-http', 'alias': alias, 'http_status': status})
             self.check()
