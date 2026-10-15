@@ -898,3 +898,21 @@ before / after の lock 不存在は期間全体の writer quiescence を証明�
 State・Terraform・IAM変更・ownership採用のgateは開かず、既存のcurrent-state証跡も消費しなかった。
 現在はread専用gate=false、発行・失効UTCは空へ閉鎖済みである。
 古いwindowの再利用や延長で追加実測を代替しない。結果は上の初回実測記録を参照する。
+
+
+### 有限診断付きmetadata再検証の独立window
+
+#1312で初回windowを閉鎖し、固定alias/statusと有限reasonをstdoutにも残す修正を統合した。
+初回runの4項目STOPはHTTP403等へ読み替えず保存する。今回の別source変更は
+UTC `2026-10-15T01:38:10Z` から `2026-10-15T09:38:10Z` の新規8時間windowで、
+`runtime-metadata-read` のみ有効化する。古いwindowの延長・過去runの再実行は使わない。
+
+独立review・required CI・integration統合後のexact SHAから新規attempt1をdispatchし、
+既存 `terraform-dev-plan` と `terraform-dev-apply` を本人がそれぞれ承認してから観測する。
+対象は既存development projectのPool/同Pool attestation/Provider/Runtime SA policy/project/enabled APIsの
+metadataとproject範囲のpermission検査だけ。HTTP403は実応答時だけ記録し、
+HTTP200のshape拒否・通信失敗等を区別する。全条件未達はSTOPを維持し、自動grantは行わない。
+
+Terraform・State・lock・runtime mutation・artifact・ownership receiptには接続しない。
+既存current-state issuerを消費せず、read成功もPool取込やInfrastructure Readyへ読み替えない。
+この実測後も別review済source変更でgate=false、発行・失効UTCを空へ閉鎖する。
