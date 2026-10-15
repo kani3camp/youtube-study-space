@@ -7,12 +7,16 @@ closed; apply uses the same private packet and separate protected approval.
 """
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
 import sys
+import zlib
 
 from prepare_runtime_ownership import prepare, require, unique_object
 from prepare_user_activity_history_adoption import private_json
@@ -21,7 +25,11 @@ WAVES = {"pool", "provider", "grant", "api", "noop"}
 SELECTION_KEYS = {"pool", "provider", "grants", "apis"}
 ROOT_BASES = {2: "original-history-import", 3: "current-state-bootstrap"}
 MAX_PACKET_BYTES = 4 * 1024 * 1024
+MAX_REVIEWED_WRAPPER_BYTES = 48000
+REVIEWED_CODEC_KIND = "runtime-reviewed-inputs-zlib-v1"
+REVIEWED_WRAPPER_KEYS = {"schema_version", "kind", "encoding", "uncompressed_bytes", "sha256", "payload"}
 BASE_KEYS = {"schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc", "inventory", "adopted", "selected"}
+REVIEWED_KEYS = BASE_KEYS | {"current_state_attestation", "adoption_receipts"}
 
 
 def root_reference(packet):
@@ -35,6 +43,12 @@ def require_root_basis(packet, env):
 
 def invalid_constant(_):
     raise ValueError("ownership packet STOP")
+
+
+def finite_float(raw):
+    value = float(raw)
+    require(math.isfinite(value))
+    return value
 
 
 def timestamp(value):
@@ -122,7 +136,57 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
 
 def input_json(raw):
     require(type(raw) is str and 0 < len(raw.encode()) <= MAX_PACKET_BYTES)
-    return json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    return json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant,
+                      parse_float=finite_float)
+
+
+def reviewed_fragment(value):
+    # No binding may enter this channel, including an explicit null binding.
+    require(type(value) is dict and type(value.get("schema_version")) is int
+            and value["schema_version"] == 3 and set(value) == REVIEWED_KEYS)
+    return value
+
+
+def reviewed_input(raw):
+    """Decode only after the runner has checked the existing private binding."""
+    value = input_json(raw)
+    if type(value) is dict and value.get("kind") == REVIEWED_CODEC_KIND:
+        require(len(raw.encode("utf-8")) <= MAX_REVIEWED_WRAPPER_BYTES
+                and set(value) == REVIEWED_WRAPPER_KEYS
+                and type(value["schema_version"]) is int and value["schema_version"] == 1
+                and value["encoding"] == "zlib+base64"
+                and type(value["uncompressed_bytes"]) is int
+                and 1 <= value["uncompressed_bytes"] <= MAX_PACKET_BYTES
+                and type(value["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", value["sha256"])
+                and type(value["payload"]) is str)
+        payload = value["payload"]
+        compressed = base64.b64decode(payload, validate=True)
+        require(base64.b64encode(compressed).decode("ascii") == payload)
+        stream = zlib.decompressobj()
+        try:
+            body = stream.decompress(compressed, MAX_PACKET_BYTES + 1)
+        except zlib.error:
+            raise ValueError("ownership packet STOP") from None
+        # Never flush or request another chunk: over-limit output, another
+        # stream, an incomplete stream, and any trailing byte are all STOP.
+        require(len(body) <= MAX_PACKET_BYTES and stream.eof
+                and not stream.unused_data and not stream.unconsumed_tail
+                and len(body) == value["uncompressed_bytes"]
+                and hashlib.sha256(body).hexdigest() == value["sha256"])
+        value = input_json(body.decode("utf-8", errors="strict"))
+    return reviewed_fragment(value)
+
+
+def pack_reviewed_input(raw):
+    """Losslessly encode exact reviewed bytes; this does not authenticate them."""
+    require(type(raw) is bytes and 0 < len(raw) <= MAX_PACKET_BYTES)
+    reviewed_fragment(input_json(raw.decode("utf-8", errors="strict")))
+    value = dict(schema_version=1, kind=REVIEWED_CODEC_KIND, encoding="zlib+base64",
+                 uncompressed_bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
+                 payload=base64.b64encode(zlib.compress(raw, level=9)).decode("ascii"))
+    wrapper = json.dumps(value, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    require(len(wrapper) <= MAX_REVIEWED_WRAPPER_BYTES)
+    return wrapper
 
 
 def workflow_packet(env):
@@ -146,10 +210,7 @@ def workflow_packet(env):
         current_state.validate_binding_envelope(packet)
         receipt.check_current_binding(packet["receipt_binding"], env)
         binding = packet["receipt_binding"]
-        packet = input_json(reviewed)
-        require(type(packet) is dict and type(packet.get("schema_version")) is int
-                and packet["schema_version"] == 3
-                and set(packet) == BASE_KEYS | {"current_state_attestation", "adoption_receipts"})
+        packet = reviewed_input(reviewed)
         packet = dict(packet, receipt_binding=binding)
     # Apply the same bound to the exact bytes written after the in-memory join.
     require(len(json.dumps(packet, separators=(",", ":"), allow_nan=False).encode()) + 1 <= MAX_PACKET_BYTES)
