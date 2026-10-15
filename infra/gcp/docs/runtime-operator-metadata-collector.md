@@ -123,7 +123,9 @@ checkout外を証明できないpathとして拒否します。guardの削除や
 4. その exact revision を `ecs:DescribeTaskDefinition` で読み、ACTIVE / revision / `daily-batch` / 3環境変数を照合。
 
 保存するのは取得時刻、task-definition、**task role**、execution role、3環境変数と照合結果です。
-execution roleをGCP callerに取り違えません。tokenや他のcontainer環境変数、secret参照本文は取得・保存しません。
+execution roleをGCP callerに取り違えません。AWS CLIはtask metadata全体を受信し、`--query` で必要な項目だけに絞ります。
+このツールに渡す標準出力と保存対象には3環境変数だけを含め、他の環境変数やsecret参照は公開・保存しません。
+secret payloadを取得するAPIは呼びません。
 失敗時は固定STOPだけを表示し、新規outputを削除します。Lambda invoke / ECS run-task / IAM操作 / Stateアクセスはありません。
 この結果をLambda6とjoinする前に7 caller完了とは扱わず、GCP trust/memberの照合、CI exact read、
 migration admission、Environment承認も別に維持します。4readはatomic snapshotではありません。
