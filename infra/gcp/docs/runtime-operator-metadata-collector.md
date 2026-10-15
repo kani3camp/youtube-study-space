@@ -199,7 +199,7 @@ python3 infra/gcp/scripts/collect_runtime_read_scope.py \
 
 [`collect_aws_runtime_versioned_config.py`](../scripts/collect_aws_runtime_versioned_config.py) は、
 確認済みの ECS 取得結果を繰り返し本人に取り直してもらう負担を減らすための、別形式の設定読取ツールです。
-既存の `ecs:DescribeTaskDefinition` の HTTP403 は解消・再確認せず、権限も追加しません。
+既存の `ecs:DescribeTaskDefinition` の AWS CLI exit254 / `AccessDeniedException`（HTTP status未確認）は解消・再確認せず、権限も追加しません。
 元の4readツールは変更しません。新しい形式を旧schema1の取得結果や移行packetへ変換する処理もありません。
 
 ECS の task role・execution role・環境変数を変更するには、新しい task definition revision を作成します。

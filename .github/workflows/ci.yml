@@ -670,6 +670,7 @@ jobs:
           python3 infra/gcp/tests/test_collect_runtime_read_scope.py
           python3 infra/gcp/tests/test_collect_runtime_read_scope_reviewed_targets.py
           python3 infra/gcp/tests/test_bootstrap_runtime_readers.py
+          python3 infra/gcp/tests/test_bootstrap_codex_metadata_readers.py
           python3 infra/gcp/tests/test_collect_aws_runtime_task_metadata.py
           python3 infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
           python3 infra/gcp/tests/test_aws_runtime_list_functions_projection.py
