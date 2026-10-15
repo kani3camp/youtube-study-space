@@ -1,9 +1,9 @@
 # 既存CIにRuntime設定の読取権限を追加する案
 
-この文書と [`bootstrap_runtime_readers.py`](../scripts/bootstrap_runtime_readers.py) は、実行前にレビューするための準備物です。
-**本人の通常GCPログインでIAMを変更する例外は、まだ承認されていません。**
-元の「IAM変更はGitHub OIDCとGitHub Environment承認を通す」という契約を、このsourceの追加で変更したとは扱いません。
-実行手順と具体的な例外判断は担当者が、確定したsource・private差分・独立Security reviewを揃えてからまとめます。
+この文書と [`bootstrap_runtime_readers.py`](../scripts/bootstrap_runtime_readers.py) は、固定の設定差分をレビューするための準備物です。
+本人は通常GCPログイン経由の作業を継続的に許可しています。経路の許可と、具体的な対象・差分・実行条件のレビューは区別します。
+確定したsource・private差分・独立Security reviewで範囲を限定し、元AWSキーや新たな管理権限の委譲へ拡張しません。
+今回提出された設定結果と、未実行の既存CIによる再検証は[Runtime ownership記録](runtime-wif-api-ownership.md)を参照してください。
 
 ## 変更する範囲
 
@@ -18,7 +18,8 @@ custom roleの定義先namespaceはdev projectですが、Project IAM policyへ�
 既存roleの更新、広いViewer/Admin、CIへの変更権限委譲、元AWSキー経由の変更、prod、WIF trust変更、Terraform、State/lock書込は対象外です。
 
 PoolへのbindingがProvider読取に効く場合、粒度はそのPool配下の現在・将来のProvider全体です。
-単一Providerだけに絞れるとは主張しません。AWS federation Poolでのbinding受理・各permissionの適用・Provider継承は未実証です。
+単一Providerだけに絞れるとは主張しません。AWS federation Poolへのbinding追加は本人提出結果に記録されていますが、
+各permissionが既存CIのreadに効くことと、Providerへの継承は未実証です。
 過去の`queryTestablePermissions` HTTP400を、その可否の証拠へ読み替えません。失敗時にProject全体のgrantへ広げません。
 
 ## 既定動作とprivate manifest
