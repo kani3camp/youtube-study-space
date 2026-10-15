@@ -610,10 +610,11 @@ class CurrentStateTest(unittest.TestCase):
 
     def test_v3_protected_staging_catalog_and_real_runtime_before_consumer(self):
         for job in ('plan', 'apply'):
-            with self.subTest(job=job):
-                self.check_runtime_consumer(job)
+            for binding_input in ('full', 'legacy', 'typed'):
+                with self.subTest(job=job, binding_input=binding_input):
+                    self.check_runtime_consumer(job, binding_input=binding_input)
 
-    def check_runtime_consumer(self, job):
+    def check_runtime_consumer(self, job, *, binding_input):
         from test_terraform_runtime_execution import WaveFixture
         fixture = WaveFixture(0)
         with tempfile.TemporaryDirectory() as directory:
@@ -637,11 +638,20 @@ class CurrentStateTest(unittest.TestCase):
             packet_value['current_state_attestation'] = fake.ref
             env.update(OWNERSHIP_ROOT_BASIS='current-state-bootstrap', DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY='true',
                        DEV_HISTORY_POST_NOOP12_READY='false', RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(packet_value))
+            if binding_input != 'full':
+                envelope = dict(schema_version=1, receipt_binding=packet_value['receipt_binding'])
+                if binding_input == 'typed':
+                    envelope['attestation_type'] = gate.TYPE
+                env.update(DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED='true',
+                    RUNTIME_OWNERSHIP_PACKET_JSON=json.dumps(envelope),
+                    RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON=json.dumps({key: item for key, item in packet_value.items()
+                                                                  if key != 'receipt_binding'}))
             for name in ('runtime-ownership-packet.json', 'runtime-ownership.tfvars.json', provenance.VERIFIED):
                 (root/name).unlink()
             with self.assertRaises(ValueError):
                 packet_module.prepare_workflow(env | dict(OWNERSHIP_ROOT_BASIS='original-history-import'))
             packet_module.prepare_workflow(env)
+            self.assertEqual(private.private_json(root / 'runtime-ownership-packet.json'), packet_value)
             bootstrap_path = root/'bootstrap.json'; bootstrap_path.write_text(json.dumps(bootstrap_catalog()))
             with patch.object(provenance, 'CATALOG', catalog), patch.object(provenance, 'BOOTSTRAP_CATALOG', bootstrap_path):
                 provenance.verify_workflow(env, request=fixture.github)
