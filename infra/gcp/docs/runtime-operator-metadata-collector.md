@@ -170,3 +170,27 @@ Poolの権限設定は条件や無関係な設定も含めて保持します。�
 これは実行アカウントが権限を持つ証拠、権限設定の変更許可、Poolへの権限付与やProviderへの継承の
 成功証明ではありません。非200・未完了・未知の応答は未確認のまま保存し、空の成功へ置き換えません。
 project全体の権限設定、role一覧、鍵、State、業務データは取得しません。
+
+
+### 確認済みの対象名だけを使い、新しく観測する別手順
+
+元の取得から1時間を超えた場合、通常の手順は認証前に停止します。この制限は変わりません。
+元のJSONのハッシュと対象名を別途確認した場合だけ、明示的な `--reviewed-targets-file` で、
+同ファイルを「対象の住所録」として使えます。`--capture-file` とは同時に指定できません。
+
+```sh
+python3 infra/gcp/scripts/collect_runtime_read_scope.py \
+  --capture-sha256 "$REVIEWED_CAPTURE_SHA256" \
+  --reviewed-targets-file "$REVIEWED_TARGETS_FILE"
+```
+
+この別手順が元ファイルから使うのは、開発環境のproject ID／番号とPool／Provider名だけです。
+古い状態・CEL・権限設定・attestation・API一覧・履歴テーブル・成功フラグは、新しい証拠に使いません。
+まず固定の開発projectを新しくGETし、ID・番号・ACTIVEを照合します。一致するまでIAM APIを呼びません。
+その後、上記3種類の権限設定・仕様を新しく読みます。追加するAPIはこのproject GET 1件だけです。
+
+結果は別kindのschema2となり、`source_usage=reviewed-target-identifiers-only` と、元ファイルの取得時刻・
+新しい観測開始時点での年齢を記録します。新しいproject応答と取得開始／完了時刻を保存し、
+新しい読取開始から最大1時間の窓を認証前・各読取前・保存前に検査します。
+元の7種類の設定や移行の証拠の期限を延長した結果にはなりません。新しい取得の完了判定にも古い成功を使いません。
+権限保有・変更能力・Poolへの権限付与・Provider継承・CIでの読取・Runtime trust・移行準備は引き続き未証明です。
