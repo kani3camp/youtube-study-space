@@ -62,9 +62,11 @@ class FakeCloud:
         for alias in ('pool', 'sa', 'history'):
             bindings = [{'role': 'roles/dummy.other', 'members': ['dummy-old-member'],
                 'condition': {'title': 'dummy-title', 'expression': 'dummy-CEL', 'location': 'dummy-location'}}]
+            if alias == 'history':
+                bindings[0].pop('condition')
             if alias != 'history':
                 bindings.insert(0, {'role': b.role_name(alias), 'members': b.fixed_members()})
-            self.policies[alias] = {'version': 3, 'etag': 'dummy-policy-' + alias, 'bindings': bindings,
+            self.policies[alias] = {'version': 1 if alias == 'history' else 3, 'etag': 'dummy-policy-' + alias, 'bindings': bindings,
                 'auditConfigs': [{'service': 'allServices', 'auditLogConfigs': [
                     {'logType': 'ADMIN_READ', 'exemptedMembers': ['dummy-exempt-member']}]}]}
 
@@ -278,6 +280,16 @@ class Tests(unittest.TestCase):
         self.cloud.roles['history'] = dict(copy.deepcopy(m.HISTORY_ROLE['role']), name=m.history_role_name(), etag='dummy-collision')
         with self.assertRaises(ValueError): session.prepare()
         self.assertEqual(self.cloud.writes, [])
+
+    def test_history_keeps_native_v1_etag_and_rejects_unsupported_v3_or_conditions(self):
+        before = {'version': 1, 'etag': 'dummy-native-iam-etag'}
+        after = m.planned_policy(self.b, before, 'history', self.manifest['metadata_service_account_email'])
+        self.assertEqual(after['version'], 1)
+        self.assertEqual(after['etag'], before['etag'])
+        for policy in ({'version': 3, 'etag': 'dummy-v3'}, {'version': 1, 'etag': 'dummy-condition',
+                'bindings': [{'role': 'roles/dummy', 'members': ['dummy'],
+                              'condition': {'title': 'dummy', 'expression': 'true'}}]}):
+            with self.assertRaises(ValueError): m.planned_policy(self.b, policy, 'history', self.manifest['metadata_service_account_email'])
 
     def test_existing_binding_requires_exact_ci_two_members_unconditioned_once(self):
         for alias in ('pool', 'sa'):

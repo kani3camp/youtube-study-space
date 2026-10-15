@@ -90,6 +90,7 @@ fresh full7 metadata、root admission、import準備完了は別条件です。[
 
 既存の専用Codex dev metadata SAへ同じRuntime読取と保持history Tableのmetadata読取だけを追加する別の準備物は、
 [`専用の設定読取SA向けの限定差分`](docs/codex-metadata-reader-bootstrap.md)を参照してください。既定はofflineで、先行設定を再実行せず、全policyのIAM etagを必須にします。
+その先行結果で残ったTable設定だけを扱う別の準備物は、[`history Tableだけの完了候補`](docs/codex-history-reader-completion.md)に記載しています。既存3変更を再実行せず、Table native version 1と最大1試行を要求します。
 
 専用SAでの読取を行う任意の[Codex向けcollector](docs/codex-runtime-metadata-collector.md)も既定はofflineです。
 レビュー済みprivate pinsと短い実行枠を必要とし、既存operator用CLIやprotected CIの実行条件は変更しません。
