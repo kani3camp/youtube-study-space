@@ -154,3 +154,7 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadat
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_iam_authority_read.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read_workflow.py
+
+# Historical task projections and fresh version anchors retain Terraform checks.
+assert_exact_groups gcp_terraform infra/gcp/scripts/collect_aws_runtime_versioned_config.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
