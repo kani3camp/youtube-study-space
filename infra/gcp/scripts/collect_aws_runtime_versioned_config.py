@@ -47,6 +47,9 @@ FUNCTION_QUERY = ('{name:FunctionName,arn:FunctionArn,role:Role,version:Version,
     'auth:{GOOGLE_CLOUD_PROJECT:Environment.Variables.GOOGLE_CLOUD_PROJECT,'
     'GCP_WIF_AUDIENCE:Environment.Variables.GCP_WIF_AUDIENCE,'
     'GCP_WIF_SERVICE_ACCOUNT_EMAIL:Environment.Variables.GCP_WIF_SERVICE_ACCOUNT_EMAIL}}')
+FUNCTION_PAGE_QUERY = ('{selected:Functions[?contains(`'
+    + json.dumps(CALLERS, separators=(',', ':')) + '`, FunctionName)].' + FUNCTION_QUERY
+    + ',has_more:NextMarker != `null` && NextMarker != `""`}')
 
 
 class Stop(ValueError):
@@ -176,7 +179,6 @@ def validate(request, capture):
 
 def call_plan(request, capture):
     validate(request, capture)
-    account = request['aws_account_id']
     family = capture['task_definition_arn'].rsplit('/', 1)[1].rsplit(':', 1)[0]
     calls = [
         {'alias': 'reader-identity', 'service': 'sts', 'operation': 'get-caller-identity',
@@ -188,10 +190,9 @@ def call_plan(request, capture):
              'sort': 'DESC', 'maxResults': 1}, sort_keys=True, separators=(',', ':')),
              '--no-paginate'], 'query': 'taskDefinitionArns'},
     ]
-    for name in CALLERS:
-        calls.append({'alias': name, 'service': 'lambda', 'operation': 'get-function-configuration',
-            'arguments': ['--function-name', 'arn:aws:lambda:' + REGION + ':' + account
-                + ':function:' + name], 'query': FUNCTION_QUERY})
+    calls.append({'alias': 'lambda-six-configurations', 'service': 'lambda', 'operation': 'list-functions',
+        'arguments': ['--cli-input-json', '{"MaxItems":50}', '--no-paginate'],
+        'query': FUNCTION_PAGE_QUERY})
     return calls
 
 
@@ -199,7 +200,7 @@ def aws_read(call):
     need(type(call) is dict and set(call) == {'alias', 'service', 'operation', 'arguments', 'query'})
     need((call['service'], call['operation']) in {
         ('sts', 'get-caller-identity'), ('cloudformation', 'describe-stacks'),
-        ('ecs', 'list-task-definitions'), ('lambda', 'get-function-configuration')})
+        ('ecs', 'list-task-definitions'), ('lambda', 'list-functions')})
     command = ['aws', call['service'], call['operation'], *call['arguments'], '--region', REGION,
                '--output', 'json', '--no-cli-pager', '--cli-connect-timeout', '10',
                '--cli-read-timeout', '20', '--query', call['query']]
@@ -238,16 +239,24 @@ def check_observation(call, value, request, capture):
         # This is the first ACTIVE/DESC page (maxResults=1), not a complete list.
         need(type(value) is list and value == [capture['task_definition_arn']])
     else:
-        name = call['alias']
-        need(name in CALLERS and type(value) is dict and set(value) == {
-            'name', 'arn', 'role', 'version', 'revision_id', 'last_modified', 'auth'}
-            and value['name'] == name
-            and value['arn'] == 'arn:aws:lambda:' + REGION + ':' + account + ':function:' + name
-            and value['version'] == '$LATEST'
-            and value['auth'] == capture['runtime_auth'])
-        role_arn(value['role'], account)
-        need(all(type(value[key]) is str and 0 < len(value[key]) <= 128
-                 for key in ('revision_id', 'last_modified')))
+        need(call['alias'] == 'lambda-six-configurations'
+             and type(value) is dict and set(value) == {'selected', 'has_more'}
+             and type(value['has_more']) is bool
+             and type(value['selected']) is list and len(value['selected']) == len(CALLERS))
+        names = set()
+        for function in value['selected']:
+            need(type(function) is dict and set(function) == {
+                'name', 'arn', 'role', 'version', 'revision_id', 'last_modified', 'auth'})
+            name = function['name']
+            need(type(name) is str and name in CALLERS and name not in names
+                 and function['arn'] == 'arn:aws:lambda:' + REGION + ':' + account + ':function:' + name
+                 and function['version'] == '$LATEST'
+                 and function['auth'] == capture['runtime_auth'])
+            names.add(name)
+            role_arn(function['role'], account)
+            need(all(type(function[key]) is str and 0 < len(function[key]) <= 128
+                     for key in ('revision_id', 'last_modified')))
+        need(names == set(CALLERS))
 
 
 def collect(request, capture, *, current=False, read=None, clock=None):
@@ -275,6 +284,7 @@ def collect(request, capture, *, current=False, read=None, clock=None):
             'task_role_existence_verified': False, 'role_id_continuity_verified': False,
             'workload_sts_identity_verified': False, 'stepfunctions_runtime_overrides_verified': False,
             'natural_execution_verified': False, 'full_seven_caller_fresh': False,
+            'lambda_function_inventory_complete': False,
             'ci_identity_read_verified': False, 'migration_ready': False,
         },
     }

@@ -235,18 +235,23 @@ immutable設定投影として検査できますが、現在の状態や期限�
 ツール自身はログイン、AssumeRole、元の長期keysの差し替えを行いません。
 元の長期IAM userで直接設定を読もうとしても、最初の exact assumed-role identity照合で停止します。
 
-現在のreadは次の9件に限定します。APIの自動retryは1 attemptに固定します。
+現在のreadは次の4件に限定します。APIの自動retryは1 attemptに固定します。
+外側の既存認証手順でSource STSとAssumeRoleを使う場合、その2操作は別に数え、合計は最大6 CLI操作です。
 
 1. STS `GetCallerIdentity` 1件で、accountと exact ReadOnly role/session を照合します。これは読取側のidentityです。
 2. exact stackの `DescribeStacks` 1件で、`DailyBatchTaskDefinitionArn` output 1件と共通GCP認証parameter 3件を読みます。
 3. 過去の exact ARN から導いた full family に `ListTaskDefinitions` 1件を行います。`ACTIVE` / `DESC` / `maxResults=1` / `--no-paginate` 固定です。
-4. sourceで固定した Lambda6本それぞれの exact ARN を `GetFunctionConfiguration` で1回ずつ読み、function名・ARN・role・共通3環境変数・`Version` / `RevisionId` / `LastModified` だけを投影します。
+4. `ListFunctions` を `MaxItems=50` / `--no-paginate` の単一pageで1回だけ呼びます。AWS CLIはserviceのpage全体をメモリで受け取り、`--query` でsource固定6名の function名・ARN・role・共通3環境変数・`Version` / `RevisionId` / `LastModified` だけを選びます。collectorへ渡すのはこの投影と `has_more` booleanだけで、他のfunction・他の環境変数・NextMarker本文を保存しません。
 
 stack output と ACTIVE family先頭の**両方**が過去の exact revision ARN と一致しない場合は停止します。
 family先頭1件は版を確かめるための点観測であり、family全件の一覧ではありません。
 過去の取得時の mutable なACTIVE状態を継承せず、ACTIVEは新しい限定listの応答時点だけの観測です。
 stack parameterと新しいLambda6の3環境変数も、過去のtask設定と一致することを確認します。
-Lambdaの `$LATEST` 設定は可変なので immutable と扱わず、各 function の観測時刻と revision情報を個別に保持します。
+Lambdaの `$LATEST` 設定は可変なので immutable と扱わず、単一pageの観測窓と各functionのrevision情報を保持します。
+page内にexact6名・ARNが重複なくすべて存在し、各roleのaccount・共通3環境変数・version等が一致することを必須とします。
+順序は問いません。6件が揃えばNextMarkerがあっても選択対象の点観測として受け入れますが、
+`lambda_function_inventory_complete=false` を維持し、全function一覧が完了したとは扱いません。
+不足・重複・不明な対象・shape不正は停止し、追加page・`GetFunctionConfiguration` / `GetFunction`・再試行へ切り替えません。
 入力窓は認証前・各read前後・保存前後に確認し、途中の期限切れ・逆行時刻・不一致・不明な応答は新規出力を削除して停止します。
 異なるrevision、family、account、role、functionへ探索や再試行を広げません。
 
@@ -264,8 +269,14 @@ managed環境の `/tmp/.git` / `/workspace/.git` が空の0555 guardである場
 それ以外の `.git` markerは空でも拒否し、guardを削除・変更しません。
 標準出力・エラーは固定文だけです。設定本文やAWSエラー本文を公開logへ出さず、IAM / State / workloadを変更しません。
 
+過去の `2026-10-15T02:01:47Z` のLambda再照合は `ListFunctions` 1件を含む計6認証・設定CLI操作で、
+Lambda6件の個別GETではありません。新しく導入した個別 `GetFunctionConfiguration` は既存ReadOnly sessionで
+最初の対象がCLI rc254 / `AccessDeniedException`となったため、既存と同じListFunctions操作へsourceを修正しました。
+過去のListFunctions成功を現在の許可の証拠にはせず、修正後の実読取は別の有限実測まで未確認です。
+
 公式仕様：
 [task definitionの更新](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/update-task-definition-console-v2.html)、
 [ListTaskDefinitions](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ListTaskDefinitions.html)、
 [RunTaskのrevision選択](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RunTask.html)、
-[実行時TaskOverride](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskOverride.html)。
+[実行時TaskOverride](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_TaskOverride.html)、
+[ListFunctions](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html)。

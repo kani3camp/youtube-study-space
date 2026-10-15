@@ -69,11 +69,11 @@ def responses():
           'parameters': [{'key': key, 'value': source['runtime_auth'][auth]}
                          for key, auth in collector.PARAMETERS.items()]}],
         [source['task_definition_arn']],
-        *[{'name': name, 'arn': 'arn:aws:lambda:ap-northeast-1:222222222222:function:' + name,
+        {'selected': [{'name': name, 'arn': 'arn:aws:lambda:ap-northeast-1:222222222222:function:' + name,
            'role': 'arn:aws:iam::222222222222:role/DummyLambda-' + str(i),
            'auth': copy.deepcopy(source['runtime_auth']), 'version': '$LATEST',
            'revision_id': 'dummy-revision-' + str(i), 'last_modified': '2026-01-01T12:34:56.000+0000'}
-          for i, name in enumerate(collector.CALLERS)],
+          for i, name in enumerate(collector.CALLERS)], 'has_more': False},
     ]
 
 
@@ -101,8 +101,8 @@ class VersionedRead(unittest.TestCase):
     def test_live_replay_preserves_historical_body_and_only_claims_bounded_new_observations(self):
         old = capture()
         packet, calls = self.run_capture()
-        self.assertEqual(len(calls), 9)
-        self.assertEqual(packet['metadata_reads'], 9)
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(packet['metadata_reads'], 4)
         self.assertEqual(packet['historical_capture']['body'], old)
         self.assertEqual(packet['historical_capture']['sha256'], hashlib.sha256(raw_capture()).hexdigest())
         self.assertNotEqual(packet['historical_capture']['sha256'],
@@ -117,23 +117,24 @@ class VersionedRead(unittest.TestCase):
         self.assertEqual(packet['cloud_mutations'], 0)
         self.assertEqual(packet['state_accesses'], 0)
         self.assertEqual([item['alias'] for item in packet['observations']], [c['alias'] for c in calls])
-        self.assertEqual([item['value']['version'] for item in packet['observations'][3:]], ['$LATEST'] * 6)
-        self.assertEqual([item['value']['revision_id'] for item in packet['observations'][3:]],
+        self.assertEqual([item['version'] for item in packet['observations'][3]['value']['selected']], ['$LATEST'] * 6)
+        self.assertEqual([item['revision_id'] for item in packet['observations'][3]['value']['selected']],
                          ['dummy-revision-' + str(i) for i in range(6)])
 
     def test_fixed_scope_has_no_task_describe_iam_role_assume_or_workload_calls(self):
         plan = collector.call_plan(request(), capture())
         self.assertEqual([(call['service'], call['operation']) for call in plan], [
             ('sts', 'get-caller-identity'), ('cloudformation', 'describe-stacks'),
-            ('ecs', 'list-task-definitions'), *[('lambda', 'get-function-configuration')] * 6])
+            ('ecs', 'list-task-definitions'), ('lambda', 'list-functions')])
         self.assertEqual(plan[1]['arguments'], ['--stack-name', 'AwsCdkStack', '--no-paginate'])
         self.assertEqual(json.loads(plan[2]['arguments'][1]), {
             'familyPrefix': 'DummyDailyBatch', 'status': 'ACTIVE', 'sort': 'DESC', 'maxResults': 1})
         self.assertEqual(plan[2]['arguments'][-1], '--no-paginate')
         self.assertEqual(plan[2]['query'], 'taskDefinitionArns')
-        for call, name in zip(plan[3:], collector.CALLERS):
-            self.assertEqual(call['arguments'], ['--function-name',
-                'arn:aws:lambda:ap-northeast-1:222222222222:function:' + name])
+        self.assertEqual(plan[3]['alias'], 'lambda-six-configurations')
+        self.assertEqual(plan[3]['arguments'], ['--cli-input-json', '{"MaxItems":50}', '--no-paginate'])
+        self.assertEqual(plan[3]['query'], collector.FUNCTION_PAGE_QUERY)
+        self.assertNotIn('--function-name', plan[3]['arguments'])
         self.assertNotIn('Secret', collector.FUNCTION_QUERY)
 
     def test_identity_mismatch_stops_before_cloud_metadata(self):
@@ -179,8 +180,39 @@ class VersionedRead(unittest.TestCase):
             ('role', 'arn:aws:iam::333333333333:role/Other'), ('auth', {}), ('version', '2'),
             ('revision_id', ''), ('last_modified', None), ('extra', 'dummy-private-secret')]
         for key, bad in mutations:
-            calls = []; values = responses(); values[3][key] = bad
+            calls = []; values = responses(); values[3]['selected'][0][key] = bad
             with self.subTest(key=key), self.assertRaises(collector.Stop):
+                collector.collect(request(), capture(), current=True,
+                    read=lambda call: calls.append(call) or values[len(calls) - 1], clock=lambda: POINT)
+            self.assertEqual(len(calls), 4)
+
+    def test_single_lambda_page_accepts_any_selected_order_and_more_marker_without_full_inventory_claim(self):
+        values = responses()
+        values[3]['selected'].reverse()
+        values[3]['has_more'] = True
+        packet, calls = self.run_capture(values)
+        self.assertEqual(len(calls), 4)
+        self.assertTrue(packet['observations'][3]['value']['has_more'])
+        self.assertEqual({item['name'] for item in packet['observations'][3]['value']['selected']},
+                         set(collector.CALLERS))
+        self.assertFalse(packet['interpretation']['lambda_function_inventory_complete'])
+        self.assertTrue(packet['interpretation']['fresh_lambda_six_configuration_auth_matches_historical_auth'])
+
+    def test_single_lambda_page_missing_duplicate_unknown_or_malformed_selected_records_stop_without_paging(self):
+        page = responses()[3]
+        candidates = []
+        bad = copy.deepcopy(page); bad['selected'].pop(); candidates.append(bad)
+        bad = copy.deepcopy(page); bad['selected'][1] = bad['selected'][0]; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['selected'][0]['name'] = 'unrelated-function'; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['selected'][0]['arn'] += ':2'; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['selected'][0]['arn'] = bad['selected'][0]['arn'].replace('ap-northeast-1', 'us-east-1'); candidates.append(bad)
+        bad = copy.deepcopy(page); bad['selected'][0]['auth']['UNRELATED_SECRET'] = 'PRIVATE_UNUSED_SENTINEL'; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['has_more'] = 'PRIVATE_MARKER_SENTINEL'; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['NextMarker'] = 'PRIVATE_MARKER_SENTINEL'; candidates.append(bad)
+        bad = copy.deepcopy(page); bad['unrelated'] = 'PRIVATE_UNUSED_SENTINEL'; candidates.append(bad)
+        for index, bad in enumerate(candidates):
+            values = responses(); values[3] = bad; calls = []
+            with self.subTest(index=index), self.assertRaises(collector.Stop):
                 collector.collect(request(), capture(), current=True,
                     read=lambda call: calls.append(call) or values[len(calls) - 1], clock=lambda: POINT)
             self.assertEqual(len(calls), 4)
@@ -266,7 +298,7 @@ class CliAndPrivateFiles(unittest.TestCase):
         self.assertEqual(packet['observations'], [])
         self.assertEqual(self.run_cli()[0], 1)
 
-    def test_live_cli_full_mock_replay_uses_only_nine_calls_and_private_fixed_output(self):
+    def test_live_cli_full_mock_replay_uses_only_four_calls_and_private_fixed_output(self):
         values = iter(responses())
         commands = []
 
@@ -280,8 +312,8 @@ class CliAndPrivateFiles(unittest.TestCase):
              patch.object(collector, 'now', return_value=POINT):
             code, stdout, stderr = self.run_cli(live=True)
         self.assertEqual(code, 0)
-        self.assertEqual(len(commands), 9)
-        self.assertEqual(json.loads(self.output.read_text())['metadata_reads'], 9)
+        self.assertEqual(len(commands), 4)
+        self.assertEqual(json.loads(self.output.read_text())['metadata_reads'], 4)
         self.assertEqual(json.loads(self.output.read_text())['historical_capture']['body'], capture())
         self.assertNotIn('DummyRuntimeTaskRole', stdout + stderr)
         self.assertNotIn('222222222222', stdout + stderr)
@@ -289,17 +321,29 @@ class CliAndPrivateFiles(unittest.TestCase):
         input_index = commands[2].index('--cli-input-json') + 1
         self.assertEqual(json.loads(commands[2][input_index])['maxResults'], 1)
 
+    def test_unrelated_projected_values_fail_without_persisting_or_printing_them(self):
+        values = responses()
+        values[3]['unrelated'] = 'PRIVATE_UNUSED_SENTINEL'
+        values = iter(values)
+        with patch.object(collector, 'aws_read', side_effect=lambda call: next(values)) as read, \
+             patch.object(collector, 'now', return_value=POINT):
+            code, stdout, stderr = self.run_cli(live=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(read.call_count, 4)
+        self.assertFalse(self.output.exists())
+        self.assertNotIn('PRIVATE_UNUSED_SENTINEL', stdout + stderr)
+
     def test_clock_reversal_before_or_after_save_removes_output_without_extra_calls(self):
         for final_times in ([POINT - timedelta(seconds=1)],
                             [POINT + timedelta(seconds=1), POINT]):
             values = iter(responses())
-            times = iter([POINT] * 20 + final_times)
+            times = iter([POINT] * 10 + final_times)
             with self.subTest(final_times=final_times), \
                  patch.object(collector, 'aws_read', side_effect=lambda call: next(values)) as read, \
                  patch.object(collector, 'now', side_effect=lambda: next(times)):
                 code, stdout, stderr = self.run_cli(live=True)
             self.assertEqual(code, 1)
-            self.assertEqual(read.call_count, 9)
+            self.assertEqual(read.call_count, 4)
             self.assertFalse(self.output.exists())
             self.assertNotIn('DummyRuntimeTaskRole', stdout + stderr)
             self.assertNotIn('222222222222', stdout + stderr)
@@ -390,10 +434,12 @@ class CliAndPrivateFiles(unittest.TestCase):
             self.assertEqual(kwargs['env']['AWS_MAX_ATTEMPTS'], '1')
             self.assertEqual(kwargs['timeout'], 45)
             self.assertEqual(os.environ.copy(), original)
-        call['operation'] = 'assume-role'
-        with patch.object(collector.subprocess, 'run') as run, self.assertRaises(collector.Stop):
-            collector.aws_read(call)
-        run.assert_not_called()
+        for service, operation in (('sts', 'assume-role'), ('lambda', 'get-function-configuration'),
+                                   ('lambda', 'get-function')):
+            call['service'], call['operation'] = service, operation
+            with patch.object(collector.subprocess, 'run') as run, self.assertRaises(collector.Stop):
+                collector.aws_read(call)
+            run.assert_not_called()
 
 
 if __name__ == '__main__':
