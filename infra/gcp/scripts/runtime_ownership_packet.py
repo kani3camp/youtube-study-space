@@ -20,6 +20,8 @@ from prepare_user_activity_history_adoption import private_json
 WAVES = {"pool", "provider", "grant", "api", "noop"}
 SELECTION_KEYS = {"pool", "provider", "grants", "apis"}
 ROOT_BASES = {2: "original-history-import", 3: "current-state-bootstrap"}
+MAX_PACKET_BYTES = 4 * 1024 * 1024
+BASE_KEYS = {"schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc", "inventory", "adopted", "selected"}
 
 
 def root_reference(packet):
@@ -62,8 +64,7 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
     require(wave in WAVES and type(packet) is dict)
     version = packet.get("schema_version")
     require(type(version) is int and version in {1, 2, 3})
-    base = {"schema_version", "git_sha", "wave", "reviewed_utc", "expires_utc", "inventory", "adopted", "selected"}
-    require(set(packet) == base | ({"history_post_noop_run_id"} if version == 1 else
+    require(set(packet) == BASE_KEYS | ({"history_post_noop_run_id"} if version == 1 else
             {"receipt_binding", "current_state_attestation" if version == 3 else "history_receipt", "adoption_receipts"}))
     require(type(git_sha) is str and re.fullmatch(r"[0-9a-f]{40}", git_sha))
     require(packet["git_sha"] == git_sha and packet["wave"] == wave)
@@ -119,14 +120,50 @@ def validate_packet(packet, *, wave, git_sha, now=None, check_chain_shape=True):
     return candidate
 
 
+def input_json(raw):
+    require(type(raw) is str and 0 < len(raw.encode()) <= MAX_PACKET_BYTES)
+    return json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+
+
+def workflow_packet(env):
+    """Join only inside the runner; never recover or replace a private binding."""
+    packet = input_json(env.get("RUNTIME_OWNERSHIP_PACKET_JSON", ""))
+    reviewed = env.get("RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON", "")
+    require(type(reviewed) is str and len(reviewed.encode()) <= MAX_PACKET_BYTES)
+    enabled = env.get("DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED", "false")
+    require(enabled in {"true", "false"})
+    if reviewed:
+        require(enabled == "true" and env.get("OWNERSHIP_ROOT_BASIS") == "current-state-bootstrap")
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / ".github/scripts"))
+        import terraform_current_state_attestation as current_state
+        import terraform_ownership_receipt as receipt
+        # A full packet and a second packet are ambiguous even if their values
+        # agree. The existing Secret must contain one exact binding envelope.
+        require(type(packet) is dict)
+        if set(packet) == {"schema_version", "receipt_binding"}:
+            require(type(packet["schema_version"]) is int and packet["schema_version"] == 1)
+            packet = dict(packet, attestation_type=current_state.TYPE)
+        current_state.validate_binding_envelope(packet)
+        receipt.check_current_binding(packet["receipt_binding"], env)
+        binding = packet["receipt_binding"]
+        packet = input_json(reviewed)
+        require(type(packet) is dict and type(packet.get("schema_version")) is int
+                and packet["schema_version"] == 3
+                and set(packet) == BASE_KEYS | {"current_state_attestation", "adoption_receipts"})
+        packet = dict(packet, receipt_binding=binding)
+    # Apply the same bound to the exact bytes written after the in-memory join.
+    require(len(json.dumps(packet, separators=(",", ":"), allow_nan=False).encode()) + 1 <= MAX_PACKET_BYTES)
+    return packet
+
+
 def prepare_workflow(env):
     require(env.get("MODE") in {"plan", "apply"} and env.get("TF_VAR_project_id") == "test-youtube-study-space")
     require(env.get("TF_VAR_manage_user_activity_history") == "true")
-    raw = env.get("RUNTIME_OWNERSHIP_PACKET_JSON", "")
-    require(type(raw) is str and 0 < len(raw.encode()) <= 4 * 1024 * 1024)
-    packet = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    packet = workflow_packet(env)
     require_root_basis(packet, env)
     candidate = validate_packet(packet, wave=env.get("OWNERSHIP_WAVE"), git_sha=env.get("GITHUB_SHA"))
+    import terraform_ownership_receipt as receipt
+    receipt.check_current_binding(packet["receipt_binding"], env)
     root = Path(env["RUNNER_TEMP"])
     repository = Path(__file__).resolve().parents[3]
     require(root.is_absolute() and root.is_dir() and not root.is_symlink())

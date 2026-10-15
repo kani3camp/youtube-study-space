@@ -772,8 +772,8 @@ GitHub Environment の Required reviewer によるユーザー本人の承認を
    `selected={pool:true,provider:false,grants:[],apis:[]}`、`adoption_receipts=[]` とし、
    new current-state reference / exact consumer SHA / 24時間以内の packet freshness を結ぶ。
    nonce は既存 private envelope から保持する。GitHub encrypted Secret の GET は平文回収手段ではなく、
-   nonce の再生成や旧 scope の補完はできない。private envelope が回収できなければ Pool wave だけを保留し、
-   fresh no-op の結果と不足する private handoff を記録する。
+   nonce の再生成や旧 scope の補完はできない。runner 内で既存 envelope を保持する下記 adapter は
+   default-off。利用できる private handoff がなければ Pool wave だけを保留し、不足を記録する。
 7. full packet と exact-read / least-privilege 境界の独立 review 後、別小 PR で current-state root-ready / runtime-plan を有効化する。
    apply gate は false を維持して protected Pool plan へ進む。Pool 一件でも safety metadata は
    Pool / Provider / attestation / SA policy / enabled APIs / project の全 inventory を再読するため、Pool GET だけでは足りない。
@@ -785,6 +785,7 @@ protected current-state attestation の成功・別 issuer closure・freshness �
 
 1. 既存 `receipt_binding` の同一 nonce / backend / canonical history metadata。
    暗号化された GitHub Secret の GET や新 nonce 生成で代替せず、既存 private envelope を保持する。
+   既存 Secret が envelope だけの場合は、下記 runner 内 join で binding を外へ取り出さずに再利用できる。
 2. exact development project / Pool / Provider / 空で完了した attestation response / runtime SA 全 IAM policy /
    全 page 完了した enabled services の fresh inventory。既存 CI plan/apply identity の各 exact read 成功を
    operator read の成功と分けて検証する。Trust / unrelated bindings / enabled 状態は変更しない。
@@ -796,6 +797,30 @@ protected current-state attestation の成功・別 issuer closure・freshness �
 全 enabled API を `Investigate` で分類し、`selected.apis=[]` のまま Pool を開始できる。
 先に全 API を `Own` と判定する必要はなく、explicit consumer evidence による採用判断は D2 に分離する。
 各 API の classification / reason / dependency はレビュー入力であり、enabled 件数や候補数から選択を補完しない。
+
+#### 既存 binding を保持する runner 内 private handoff（default-off）
+
+既存 `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` の full packet 単独経路は維持する。
+同 Secret が strict legacy `{schema_version:1, receipt_binding}` または typed
+`{schema_version:1, attestation_type:"dev-history12-current-state-v1", receipt_binding}` の場合、
+別の `GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON` Environment Secret に binding を除いた
+reviewed v3 packet を渡せる。後者の exact keys は `schema_version`、`git_sha`、`wave`、
+`reviewed_utc`、`expires_utc`、`inventory`、`adopted`、`selected`、
+`current_state_attestation`、`adoption_receipts`。`receipt_binding` は null を含め記載しない。
+
+source gate `DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED=false` を維持し、full private packet と
+既存 plan/apply 各 identity の read 境界を独立 review してから別 source で開く。
+追加 Secret は caller/reusable の明示 name mapping と各 protected staging step だけへ渡す。
+gate=false で追加入力がある場合、full packet と追加入力の併用、未知 field／重複 JSON key／
+別 type／binding override は認証前 STOP。repository-wide secret や `secrets: inherit` へ変更しない。
+
+adapter は runner 内で既存 backend context を照合し、同一 binding を in-memory で join するだけ。
+各入力と合成後 bytes は4MiB以内とし、既存 strict v3 validator と provenance／freshness／
+complete inventory／required-grants scope／same-SHA plan/apply commitment をそのまま適用する。
+新 nonce、metadata の補完、grant map の生成、Secret 平文の回収や export は行わない。
+staging は既存固定名2件の0600／exclusive fileだけで、成功・失敗とも既存 always cleanup 対象。
+private 値を outputs／summary／artifact／diagnostic へ出さない。この source-only adapter は
+inventory 成功、issuer closure、runtime gate activation、Environment 承認、Pool import の証明ではない。
 
 ### Private handoff 不足中の protected metadata-only read
 
