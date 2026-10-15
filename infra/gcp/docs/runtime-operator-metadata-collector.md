@@ -71,7 +71,8 @@ HTTP403 を解消するために project-wide の既存 custom roleへ上記5 pe
 [Pool policy API](https://docs.cloud.google.com/iam/docs/reference/rest/v1/projects.locations.workloadIdentityPools/getIamPolicy)
 は Pool自身のpolicyを公開していますが、既存AWS Poolでのcustom role適用、Providerへの継承、
 現在のcustom-role permission supportは未実証です。新bindingやpolicy mutationを設定読取ツールで試しません。
-SA/tableのdirect resource bindingも、既存の管理用アカウントによるpolicy/etag/継承範囲の確認と別の承認が必要です。
+SA/tableのdirect resource bindingも、既存の管理用アカウントによるpolicy/etag/継承範囲の確認、独立レビューとGitHub Environmentの本人承認が必要です。
+Current Canonの包括承認Aに含まれる範囲ではChatの再承認を求めません。
 exact scopeが確認できない場合はSTOPし、project-wide role追加で埋めません。
 
 仕様確認先：
