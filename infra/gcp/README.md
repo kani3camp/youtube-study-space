@@ -83,6 +83,18 @@ GitHubと別に管理権限でログイン済みの端末で必要な設定だ�
 [`一度だけの設定をレビューするための準備物`](docs/runtime-reader-bootstrap.md)にまとめています。
 既定は認証・HTTP・変更なしのoffline検査です。本人の通常GCPログインによるIAM変更の例外は、まだ承認されていません。
 
+AWS設定読取ツールのCLI投影テストは、固定6関数以外の値を保存しないことを実際のJMESPath parserで検査します。
+本体の依存は標準ライブラリーのみです。テスト専用のhash固定依存を隔離環境へ入れて実行します。
+通常PRのGCP Terraform CIも同じrequirementsから導入し、省略せず実行します。
+
+```sh
+GCP_TEST_VENV="$(mktemp -d /tmp/gcp-contract-tests-XXXXXX)"
+python3 -m venv "$GCP_TEST_VENV"
+"$GCP_TEST_VENV/bin/python" -m pip install --no-cache-dir --require-hashes --only-binary=:all: -r infra/gcp/tests/requirements.txt
+"$GCP_TEST_VENV/bin/python" infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
+"$GCP_TEST_VENV/bin/python" infra/gcp/tests/test_aws_runtime_list_functions_projection.py
+```
+
 credentialやbackendを使わない構文・provider validation:
 
 ```bash

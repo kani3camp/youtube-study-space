@@ -639,6 +639,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install Terraform contract test dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/gcp-contract-tests"
+          "$RUNNER_TEMP/gcp-contract-tests/bin/python" -m pip install --no-cache-dir --require-hashes --only-binary=:all: -r infra/gcp/tests/requirements.txt
+          echo "$RUNNER_TEMP/gcp-contract-tests/bin" >> "$GITHUB_PATH"
+
       - name: Test authenticated Terraform CI guardrails
         run: |
           python3 .github/scripts/test_terraform_plan_summary.py
@@ -666,6 +672,7 @@ jobs:
           python3 infra/gcp/tests/test_bootstrap_runtime_readers.py
           python3 infra/gcp/tests/test_collect_aws_runtime_task_metadata.py
           python3 infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
+          python3 infra/gcp/tests/test_aws_runtime_list_functions_projection.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py

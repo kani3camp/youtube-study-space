@@ -158,3 +158,5 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_aut
 # Historical task projections and fresh version anchors retain Terraform checks.
 assert_exact_groups gcp_terraform infra/gcp/scripts/collect_aws_runtime_versioned_config.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_aws_runtime_list_functions_projection.py
+assert_exact_groups gcp_terraform infra/gcp/tests/requirements.txt
