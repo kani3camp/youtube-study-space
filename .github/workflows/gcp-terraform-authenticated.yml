@@ -121,6 +121,8 @@ env:
   DEV_RUNTIME_METADATA_READ_ENABLED: "false"
   DEV_RUNTIME_METADATA_READ_ISSUED_UTC: ""
   DEV_RUNTIME_METADATA_READ_EXPIRES_UTC: ""
+  # Separate observations only; never authorize IAM changes or reuse negative results.
+  DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED: "false"
   DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED: "false"
   # Runner-only binding join; activation requires separately reviewed v3 inputs.
   DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED: "false"
@@ -1016,6 +1018,14 @@ jobs:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.runtime_gcp_auth.outputs.access_token }}
         run: python3 .github/scripts/terraform_runtime_metadata_read.py --phase read
 
+      - name: Observe IAM authority prerequisites without settings changes
+        if: ${{ always() && !cancelled() && env.DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED == 'true' && steps.runtime_gcp_auth.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.runtime_gcp_auth.outputs.access_token }}
+          AUTHORITY_AUTH_OUTCOME: ${{ steps.runtime_gcp_auth.outcome }}
+          AUTHORITY_JOB_STATUS: ${{ job.status }}
+        run: python3 .github/scripts/terraform_runtime_iam_authority_read.py
+
       - name: Verify private runtime read cleanup
         if: always()
         run: python3 .github/scripts/terraform_runtime_metadata_read.py --phase cleanup
@@ -1086,6 +1096,14 @@ jobs:
         env:
           GCP_SMOKE_ACCESS_TOKEN: ${{ steps.runtime_gcp_auth.outputs.access_token }}
         run: python3 .github/scripts/terraform_runtime_metadata_read.py --phase read
+
+      - name: Observe IAM authority prerequisites without settings changes
+        if: ${{ always() && !cancelled() && env.DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED == 'true' && steps.runtime_gcp_auth.outcome == 'success' }}
+        env:
+          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.runtime_gcp_auth.outputs.access_token }}
+          AUTHORITY_AUTH_OUTCOME: ${{ steps.runtime_gcp_auth.outcome }}
+          AUTHORITY_JOB_STATUS: ${{ job.status }}
+        run: python3 .github/scripts/terraform_runtime_iam_authority_read.py
 
       - name: Verify private runtime read cleanup
         if: always()

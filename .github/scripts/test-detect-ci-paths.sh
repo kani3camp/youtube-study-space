@@ -146,3 +146,8 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_executi
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_metadata_read.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read_workflow.py
+
+# Authority observations must retain authenticated Terraform validation.
+assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_iam_authority_read.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read_workflow.py

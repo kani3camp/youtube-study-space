@@ -79,7 +79,7 @@ classify_path() {
 	local matched=false
 
 	case "$path" in
-		.github/scripts/terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read_workflow.py)
+		.github/scripts/terraform_runtime_iam_authority_read.py|.github/scripts/test_terraform_runtime_iam_authority_read.py|.github/scripts/test_terraform_runtime_iam_authority_read_workflow.py|.github/scripts/terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read.py|.github/scripts/test_terraform_runtime_metadata_read_workflow.py)
 			gcp_terraform=true
 			matched=true
 			;;
