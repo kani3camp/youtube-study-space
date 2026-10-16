@@ -23,6 +23,7 @@ import urllib.parse
 import urllib.request
 
 import terraform_migration_contract as contract
+from terraform_identity_smoke import FORBIDDEN_PERMISSIONS, FUNCTION_FORBIDDEN_PERMISSIONS
 
 ROOT = Path(__file__).resolve().parents[2]
 PRIVATE = 'gcp-migration-private'
@@ -37,11 +38,33 @@ TABLE_OBSERVATIONS = {
     'numActivePhysicalBytes', 'numLongTermPhysicalBytes', 'numPartitions',
     'numCurrentPhysicalBytes',
 }
+DIAGNOSTIC_FIELDS = frozenset({
+    'schema', 'description', 'labels', 'terraform_labels', 'effective_labels',
+    'project', 'id', 'name', 'location', 'region', 'deletion_protection',
+    'expiration_time', 'default_table_expiration_ms', 'retention', 'daily_recurrence',
+    'notification_channels', 'conditions', 'enabled', 'user_labels',
+    'environment_variables', 'runtime', 'available_memory_mb', 'timeout',
+    'event_trigger', 'source_archive_bucket', 'source_archive_object',
+    'pubsub_target', 'schedule', 'time_zone', 'retry_config', 'service',
+    'attribute_mapping', 'attribute_condition', 'aws', 'disabled',
+    'member', 'role', 'condition', 'storage_class', 'uniform_bucket_level_access',
+    'public_access_prevention', 'soft_delete_policy', 'retention_policy',
+})
 
 
 def need(condition):
     if not condition:
         raise ValueError('migration contract rejected')
+
+
+def close_http_error(error):
+    # urllib responses otherwise emit ResourceWarning with private URL/reason
+    # on newer Python runtimes even when exception text is never printed.
+    if isinstance(error, urllib.error.HTTPError):
+        try:
+            error.close()
+        except Exception:
+            pass
 
 
 def canonical(value):
@@ -177,6 +200,44 @@ def verify_identity(env):
     project = google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECTS[target])
     need(project.get('projectId') == PROJECTS[target] and project.get('state') == 'ACTIVE'
          and project.get('name') == 'projects/' + inputs(env)['manifest'].get('project_number', ''))
+
+
+def verify_permissions(env):
+    """Import-only identities must hold reads and no workload mutation powers."""
+    target = env['MIGRATION_TARGET']
+    forbidden = tuple(dict.fromkeys((*FORBIDDEN_PERMISSIONS, *FUNCTION_FORBIDDEN_PERMISSIONS,
+        *(f'pubsub.topics.{suffix}' for suffix in ('publish', 'create', 'update', 'delete', 'setIamPolicy')),
+        *(f'cloudscheduler.jobs.{suffix}' for suffix in ('create', 'update', 'delete', 'run', 'pause', 'enable')))))
+    requested = ['resourcemanager.projects.get', *forbidden]
+    need(len(requested) <= 100)
+    own = google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECTS[target] + ':testIamPermissions',
+                 {'permissions': requested})
+    need(type(own) is dict and set(own) <= {'permissions'} and own.get('permissions') == ['resourcemanager.projects.get'])
+    other = PROJECTS['prod' if target == 'dev' else 'dev']
+    try:
+        denied = google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + other + ':testIamPermissions',
+                        {'permissions': requested})
+    except urllib.error.HTTPError as error:
+        try:
+            body = decode(error.read(MAX_BYTES + 1))
+            need(error.code == 403 and type(body) is dict
+                 and type(body.get('error')) is dict and body['error'].get('status') == 'PERMISSION_DENIED')
+        finally:
+            error.close()
+    else:
+        need(type(denied) is dict and set(denied) <= {'permissions'} and denied.get('permissions', []) == [])
+    # Project probes cannot prove the absence of resource-scoped conditional IAM.
+    # Check both existing runtime authority boundaries explicitly as well.
+    number = inputs(env)['manifest']['project_number']
+    scoped = (
+        (f'projects/{PROJECTS[target]}/serviceAccounts/{PROJECTS[target]}@appspot.gserviceaccount.com',
+         ['iam.serviceAccounts.setIamPolicy', 'iam.serviceAccounts.getAccessToken', 'iam.serviceAccounts.actAs']),
+        (f'projects/{number}/locations/global/workloadIdentityPools/aws-runtime',
+         ['iam.workloadIdentityPools.setIamPolicy']),
+    )
+    for resource, permissions in scoped:
+        result = google(env, 'iam.googleapis.com', 'v1/' + resource + ':testIamPermissions', {'permissions': permissions})
+        need(type(result) is dict and set(result) <= {'permissions'} and result.get('permissions', []) == [])
 
 
 def google(env, host, path, body=None):
@@ -315,13 +376,68 @@ def terraform(env, root, tfroot, name, args, *, codes=(0,)):
     return result
 
 
+def plan_diagnostic(plan):
+    """Finite names and counts only; never echo a plan key, address or value."""
+    result = {'changes': 0, 'unknown_change_keys': 0, 'identities_present': 0,
+              'identities_changed': 0, 'sensitivity_changed': 0, 'other_changed_fields': 0,
+              'actions': {name: 0 for name in ('no-op', 'create', 'read', 'update', 'delete', 'forget', 'other')},
+              'changed_fields': {name: 0 for name in sorted(DIAGNOSTIC_FIELDS)}}
+    if type(plan) is not dict or type(plan.get('resource_changes')) is not list:
+        return {'shape_observed': False}
+    for resource in plan['resource_changes'][:1000]:
+        result['changes'] += 1
+        change = resource.get('change') if type(resource) is dict else None
+        if type(change) is not dict:
+            continue
+        result['unknown_change_keys'] += len(set(change) - contract.CHANGE_KEYS)
+        if 'before_identity' in change or 'after_identity' in change:
+            result['identities_present'] += 1
+            result['identities_changed'] += int(canonical(change.get('before_identity')) != canonical(change.get('after_identity')))
+        result['sensitivity_changed'] += int(canonical(change.get('before_sensitive', {})) != canonical(change.get('after_sensitive', {})))
+        actions = change.get('actions')
+        if type(actions) is list:
+            for action in actions[:4]:
+                key = action if type(action) is str and action in result['actions'] else 'other'
+                result['actions'][key] += 1
+        before, after = change.get('before'), change.get('after')
+        if type(before) is dict and type(after) is dict:
+            for field in set(before) | set(after):
+                if canonical(before.get(field)) != canonical(after.get(field)) or (field in before) != (field in after):
+                    if field in DIAGNOSTIC_FIELDS:
+                        result['changed_fields'][field] += 1
+                    else:
+                        result['other_changed_fields'] += 1
+    result['changed_fields'] = {key: count for key, count in result['changed_fields'].items() if count}
+    return result
+
+
+def failure_safety(env, root, manifest, before, before_metadata):
+    """One bounded readback per boundary; a failed read is never proof of safety."""
+    result = {'apply_attempted': (root / 'apply-attempt').exists(),
+              'state': 'UNOBSERVED', 'metadata': 'UNOBSERVED'}
+    if before is not None:
+        try:
+            result['state'] = 'SAME' if snapshot(env, root, 'failure') == before else 'CHANGED'
+        except Exception as error:
+            close_http_error(error)
+    if before_metadata is not None:
+        try:
+            result['metadata'] = 'SAME' if collect_metadata(env, manifest) == before_metadata else 'CHANGED'
+        except Exception as error:
+            close_http_error(error)
+    return result
+
+
 def execute(env):
     role, target = env['MIGRATION_ROLE'], context(env, env['MIGRATION_ROLE'])
     value, root = inputs(env), private_root(env)
     manifest = value['manifest']
     stage_name = 'IDENTITY'
+    before = before_metadata = plan = None
     try:
         verify_identity(env)
+        stage_name = 'PERMISSIONS'
+        verify_permissions(env)
         stage_name = 'METADATA'
         before_metadata = collect_metadata(env, manifest)
         stage_name = 'STATE_BEFORE'
@@ -403,8 +519,13 @@ def execute(env):
               + '; summary=' + json.dumps(summary, sort_keys=True, separators=(',', ':')))
     except Exception as error:
         # Stage codes are source constants. Never expose provider/API exceptions.
+        close_http_error(error)
         reason = error.reason if type(error) is contract.ContractError else 'EXECUTION'
         print('GCP_MIGRATION: STOP; stage=' + stage_name + '; reason=' + reason)
+        if plan is not None:
+            print('GCP_MIGRATION_DIAGNOSTIC: ' + json.dumps(plan_diagnostic(plan), sort_keys=True, separators=(',', ':')))
+        print('GCP_MIGRATION_FAILURE_SAFETY: ' + json.dumps(
+            failure_safety(env, root, manifest, before, before_metadata), sort_keys=True, separators=(',', ':')))
         raise
 
 
@@ -428,7 +549,8 @@ def main():
             need(not root.exists())
         else:
             need(False)
-    except Exception:
+    except Exception as error:
+        close_http_error(error)
         print('GCP_MIGRATION: STOP; phase=' + (sys.argv[1] if len(sys.argv) == 2 and sys.argv[1] in
               {'preflight', 'stage', 'oidc', 'execute', 'cleanup'} else 'UNKNOWN'))
         return 1
