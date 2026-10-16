@@ -38,6 +38,24 @@ Coreがresource0で省略するresource_changesだけを空listへ正規化し�
 通常post-planのresource0・output no-op、lock解放が必要である。新bucket/marker/dev State copyは作らない。
 このsource準備はproduction activationや実State作成の許可・完了を意味しない。
 
+## Runtime WIF / API source preparation
+
+[production runtime-ownership.tf](../environments/prod/runtime-ownership.tf)はdevelopmentと同じ
+共有modules、public grant alias、resource address、private inventory形式とimport ID組立を使う。
+production projectだけを許可し、pool/providerはfalse、grant/API選択は空が既定である。
+private metadataを与えるだけでは所有を開始しない。信頼条件・mapping・個別IAM conditionを再生成せず保持する。
+
+pool → provider → exact individual grantの順で、それまでの所有を残して取り込む。
+SA本体・全IAM policy/role binding・project IAM・CI federationは所有しない。
+APIはenabled一覧から一括選択せず、productionの実callerとdependency evidenceを照合した後に
+`Own`と分類した既存ENABLED serviceだけを明示する。developmentの分類結果は流用しない。
+`disable_on_destroy=false`、`disable_dependent_services=false`、`prevent_destroy`を維持する。
+
+既存readinessテスト入口は、資格情報/HOME/backendを使わないnative mockでproduction full rootと
+development runtime定義のdefault0、累積address/import、values/sensitivity不変、順序/分類の拒否を検証する。
+synthetic inventoryによるsource検証であり、production実inventory・caller分類・ownership・CI activationの
+証明ではない。実行workflow、production gate、initializerへの接続はこの変更に含めない。
+
 ## Historical offline packet scope and evidence
 
 source packetの作成基点は integration `feature/gcp-terraform-iac` のHEAD
