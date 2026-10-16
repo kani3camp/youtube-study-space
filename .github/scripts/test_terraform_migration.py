@@ -106,6 +106,29 @@ class ContextAndPrivateInputTest(OfflineTest):
         self.assertTrue(root.is_dir())
         self.assertEqual(root.stat().st_mode & 0o777, 0o700)
 
+    def test_stage_rejects_api_without_owned_consumer_before_git_or_credentials(self):
+        for target in ("dev", "prod"):
+            env = environment(target=target) | {"RUNNER_TEMP": str(self.directory),
+                                                 "MIGRATION_PRODUCTION_READY": "true"}
+            value = json.loads(env["MIGRATION_INPUTS_JSON"])
+            service = "storage.googleapis.com"
+            value["tfvars"].update(owned_api_keys=[service], api_classification={service: {
+                "classification": "Own", "state": "ENABLED", "reason": CANARY,
+                "dependency_addresses": ["module.backup.google_storage_bucket.retained[0]"],
+            }})
+            value["manifest"]["resources"] = [{
+                "address": 'module.owned_project_apis.google_project_service.owned["storage.googleapis.com"]',
+                "type": "google_project_service", "import_id": migration.PROJECTS[target] + "/" + service,
+            }]
+            env["MIGRATION_INPUTS_JSON"] = json.dumps(value)
+            with self.subTest(target=target), patch.object(migration, "run") as command, patch.object(migration, "verify_identity") as identity:
+                with self.assertRaises(ValueError) as rejected:
+                    migration.stage(env)
+                command.assert_not_called()
+                identity.assert_not_called()
+                self.assertNotIn(CANARY, str(rejected.exception))
+            self.assertFalse((self.directory / migration.PRIVATE).exists())
+
     def test_private_inputs_reject_crossproject_duplicate_keys_and_unreviewed_shape(self):
         env = environment()
         self.assertEqual(migration.inputs(env)["manifest"], manifest())
