@@ -201,6 +201,13 @@ jobs:
             echo "::error::Unexpected immutable repository owner ID."
             exit 1
           }
+          # Guard the initial dispatching identity before any plan/apply job can
+          # receive Environment secrets or acquire GitHub OIDC credentials.
+          # Re-runs retain the original actor's privileges, so deny all retries.
+          [[ "${GITHUB_ACTOR_ID:-}" == "54093651" && "${GITHUB_ACTOR:-}" == "kani3camp" && "${GITHUB_TRIGGERING_ACTOR:-}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT:-}" == "1" ]] || {
+            echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
+            exit 1
+          }
           [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
             echo "::error::Authenticated Terraform must be called from ci.yml at the trusted integration ref."
             exit 1
