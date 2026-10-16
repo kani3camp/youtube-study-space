@@ -6,7 +6,7 @@ Current Canon §10と本人の最新指示により、4 EnvironmentはRequired r
 
 新経路は既存 `ci.yml` → 同一SHAのreusable workflowと同じ4 Environment/OIDC/WIF/plan・apply別identityを使用する。`dev`への直接push・merge・auto-mergeは禁止のまま。Productionの新経路も `MIGRATION_PRODUCTION_READY=false` で閉じ、実測Development Exit後の独立reviewで開く。
 
-- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
+- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。同じtype/import IDを複数addressへ採用する重複ownershipは拒否する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
 - 本人初回・固定repo/ref/callerを認証前に検査。実OIDC claimsとAWS account/RoleId、GCP SAを照合し、同じEnvironmentの短期認証だけを使う。
 - plan/apply両identityについて、project GETとproject-scope mutation権限なし・他環境への権限なしをfresh `testIamPermissions` で確認する。Runtime SAのpolicy/token/actAsとRuntime Poolのpolicy変更権限はresource-scopeでも確認し、project probeだけで条件付き権限まで否定したと扱わない。
 - fresh metadata、4MiB以下のHEAD→GET→HEAD同一State、lineage/serial、native lockとworkspace不在、source closureとprovider lockを確認する。通常full-root planで完全graph・既存全件no-op・候補1件以下のexact import・unknown/move/replace/予期しないaction0を必須にする。
