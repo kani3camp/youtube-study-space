@@ -2,6 +2,10 @@
 
 既存 Gen1 Function の default-off import definition。Scheduler wave 完了後に別 wave として扱う。production root・source deploy は ownership 外。root は default-off、承認済み development CI は独立 flag で有効化する。
 
+共有moduleの`environment`入力は既存値`development`を既定とし、`production`も受け取れる。
+runtime/entry point/source/triggerの契約は変更しない。production rootへの接続はfresh metadataと
+同じruntime契約の成立を確認する別waveであり、この入力追加はproduction adoptionやNode移行を実行しない。
+
 ## Fresh inventory / provider probe — 2026-10-06
 
 | Field | Observed development value |

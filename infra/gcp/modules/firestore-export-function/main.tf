@@ -10,6 +10,15 @@ terraform {
 variable "project_id" { type = string }
 variable "region" { type = string }
 variable "topic_id" { type = string }
+variable "environment" {
+  description = "Existing export runtime environment; preserve the value observed in function metadata."
+  type        = string
+  default     = "development"
+  validation {
+    condition     = contains(["development", "production"], var.environment)
+    error_message = "Use the existing development or production export environment."
+  }
+}
 variable "execution_service_account_email" {
   type     = string
   nullable = false
@@ -32,7 +41,7 @@ resource "google_cloudfunctions_function" "export" {
   description           = null
 
   environment_variables = {
-    YSS_EXPORT_ENVIRONMENT = "development"
+    YSS_EXPORT_ENVIRONMENT = var.environment
     YSS_EXPORT_PROJECT_ID  = var.project_id
   }
 

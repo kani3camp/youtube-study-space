@@ -37,9 +37,10 @@ def main():
         module = base / "modules/firestore-export-function"
         shutil.copyfile(lock, module / ".terraform.lock.hcl")
         module_plans = plans(module)
-        assert len(module_plans) == 1
-        created = build_summary(module_plans[0], environment="dev", git_sha="0" * 40, policy="import-only")
-        assert created["counts"]["create"] == 1 and not created["policy_passed"]
+        assert len(module_plans) == 3
+        for plan, environment in zip(module_plans[:2], ("dev", "prod")):
+            created = build_summary(plan, environment=environment, git_sha="0" * 40, policy="import-only")
+            assert created["counts"]["create"] == 1 and created["counts"]["import"] == 0 and not created["policy_passed"]
         for name in ["export-topic.tf", "export-scheduler.tf", "export-function.tf"]:
             shutil.copyfile(ROOT / "infra/gcp/environments/dev" / name, target / name)
         shutil.copyfile(lock, target / ".terraform.lock.hcl")
