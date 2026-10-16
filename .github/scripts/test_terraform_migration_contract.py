@@ -133,6 +133,33 @@ def identity_fixture():
     return saved, before, after, schema
 
 
+def inactive_reference_fixture(environment="dev"):
+    saved, before, schema = plan(environment), state(environment), provider_schema()
+    calls = saved["configuration"]["root_module"]["module_calls"]
+    references = []
+    for module in ("existing_youtube_quota_alerts", "youtube_quota_alerts"):
+        local = "google_monitoring_alert_policy.quota"
+        calls[module] = {"source": "../../modules/youtube-quota-alerts", "module": {
+            "resources": [{"address": local, "mode": "managed", "type": "google_monitoring_alert_policy",
+                           "name": "quota", "provider_config_key": "google", "schema_version": 0,
+                           "for_each_expression": {"references": ["local.managed_policies"]}}],
+            "outputs": {"policy_names": {"expression": {"references": [local]}}}}}
+        references.append({"resource": "module." + module + "." + local, "attribute": []})
+    local = "google_monitoring_notification_channel.primary_email"
+    calls["notification_channels"] = {"source": "../../modules/monitoring-notification-channels", "module": {
+        "resources": [{"address": local, "mode": "managed", "type": "google_monitoring_notification_channel",
+                       "name": "primary_email", "provider_config_key": "google", "schema_version": 0,
+                       "count_expression": {"references": ["var.manage_primary_email"]}}],
+        "outputs": {"primary_email_name": {"expression": {"references": [
+            local + "[0].name", local + "[0]", local]}}}}}
+    references.append({"resource": "module.notification_channels." + local + "[0]", "attribute": ["name"],
+                       "future_field": {"ordered": [True, 1]}})
+    saved["relevant_attributes"] = references
+    for kind in ("google_monitoring_alert_policy", "google_monitoring_notification_channel"):
+        schema["provider_schemas"][gate.GOOGLE]["resource_schemas"][kind] = {"version": 0, "block": {"attributes": {}}}
+    return saved, before, schema
+
+
 class MigrationContractTest(unittest.TestCase):
     def validate(self, value=None, *, environment="dev", before=None, phase="before", custom_manifest=None, schema=None):
         return gate.validate_plan(plan(environment) if value is None else value,
@@ -538,6 +565,97 @@ class MigrationContractTest(unittest.TestCase):
             self.assertEqual(first, original)
             self.assertEqual(gate.canonical(payload), gate.canonical(gate.plan_commitment_payload(
                 second, args["manifest"], environment, args["provider_schema"], state=args["state"])))
+
+    def test_known_inactive_configured_output_references_remain_fully_bound(self):
+        for environment in gate.ENVIRONMENTS:
+            saved, before, schema = inactive_reference_fixture(environment)
+            original = deepcopy((saved, before, schema))
+            result = self.validate(saved, environment=environment, before=before, schema=schema)
+            self.assertEqual((result["imports"], result["no_op"], result["mutations"]), (1, 2, 0))
+            args = dict(manifest=manifest(environment), environment=environment, provider_schema=schema, state=before)
+            payload = gate.plan_commitment_payload(saved, **{key: value for key, value in args.items() if key != "state"}, state=before)
+            self.assertEqual(payload["relevant_attributes"], sorted(saved["relevant_attributes"], key=gate.canonical))
+            self.assertEqual(payload["configuration"], saved["configuration"])
+            self.assertTrue(gate.compare_replans(saved, deepcopy(saved), **args)["matched"])
+            edits = [
+                lambda value: value["relevant_attributes"][2]["future_field"].update(ordered=[1, 1]),
+                lambda value: value["relevant_attributes"][2].update(attribute=["different"]),
+                lambda value: value["relevant_attributes"].append(deepcopy(value["relevant_attributes"][0])),
+                lambda value: value["relevant_attributes"].pop(),
+                lambda value: value["configuration"]["root_module"]["module_calls"]["notification_channels"]
+                    ["module"]["outputs"]["primary_email_name"]["expression"]["references"].reverse(),
+                lambda value: value["configuration"].update(future_field={"ordered": [True, 1]}),
+            ]
+            for edit in edits:
+                candidate = deepcopy(saved)
+                edit(candidate)
+                self.validate(candidate, environment=environment, before=before, schema=schema)
+                with self.assertRaises(gate.ContractError) as error:
+                    gate.compare_replans(saved, candidate, **args)
+                self.assertEqual(error.exception.reason, "REPLAN")
+            self.assertEqual((saved, before, schema), original)
+
+    def test_inactive_reference_catalog_rejects_unknown_addresses_and_configuration(self):
+        edits = [
+            lambda p: p["relevant_attributes"][0].update(resource="module.foreign.google_monitoring_alert_policy.quota"),
+            lambda p: p["relevant_attributes"][0].update(resource="module.youtube_quota_alerts[0].google_monitoring_alert_policy.quota"),
+            lambda p: p["relevant_attributes"][0].update(resource='module.youtube_quota_alerts.google_monitoring_alert_policy.quota["unknown"]'),
+            lambda p: p["relevant_attributes"][2].update(resource="module.notification_channels.google_monitoring_notification_channel.primary_email[1]"),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"].update(source="../../modules/unreviewed"),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"].update(count_expression={"constant_value": 0}),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"]["module"].update(resources=[]),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"]["module"]["resources"].append(
+                deepcopy(p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"]["module"]["resources"][0])),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"]["module"].update(outputs={}),
+            lambda p: p["configuration"]["root_module"]["module_calls"]["youtube_quota_alerts"]["module"]["outputs"]["policy_names"]["expression"].update(references=[]),
+            lambda p: p["configuration"]["provider_config"]["google"].update(full_name="unreviewed/google"),
+        ]
+        for field, value in (("mode", "data"), ("type", "google_pubsub_topic"), ("name", "other"),
+                             ("provider_config_key", "google.alias"), ("schema_version", False),
+                             ("schema_version", 1), ("for_each_expression", {}),
+                             ("count_expression", {"references": ["var.unknown"]})):
+            edits.append(lambda p, field=field, value=value: p["configuration"]["root_module"]["module_calls"]
+                         ["youtube_quota_alerts"]["module"]["resources"][0].update({field: value}))
+        for index, edit in enumerate(edits):
+            saved, before, schema = inactive_reference_fixture()
+            edit(saved)
+            with self.subTest(case=index), self.assertRaises(gate.ContractError) as error:
+                self.validate(saved, before=before, schema=schema)
+            self.assertEqual(error.exception.reason, "SHAPE")
+        saved, before, schema = inactive_reference_fixture()
+        schema["provider_schemas"][gate.GOOGLE]["resource_schemas"]["google_monitoring_alert_policy"]["version"] = 1
+        with self.assertRaises(gate.ContractError):
+            self.validate(saved, before=before, schema=schema)
+        with self.assertRaises(gate.ContractError):
+            gate.validate_plan(saved, manifest=manifest(), environment="dev", provider_schema=schema, state=None)
+
+    def test_inactive_reference_requires_no_active_family_in_each_resource_graph(self):
+        address = "module.youtube_quota_alerts.google_monitoring_alert_policy.quota"
+        for graph in ("change", "planned", "prior", "raw", "manifest"):
+            saved, before, schema = inactive_reference_fixture()
+            fixed = manifest()
+            if graph == "change":
+                saved["resource_changes"].append({"address": address + '["other"]'})
+            elif graph == "planned":
+                saved["planned_values"]["root_module"]["resources"] = [{"address": address + '["other"]'}]
+            elif graph == "prior":
+                saved["prior_state"] = {"values": {"root_module": {"resources": [{"address": address + '["other"]'}]}}}
+            elif graph == "raw":
+                before["resources"].append({"module": "module.youtube_quota_alerts", "mode": "managed",
+                    "type": "google_monitoring_alert_policy", "name": "quota", "instances": [{}]})
+            else:
+                # An unknown sibling count instance cannot borrow the known [0]
+                # literal: the complete primary-email family must be inactive.
+                fixed["resources"].append({"address": "module.notification_channels.google_monitoring_notification_channel.primary_email[1]",
+                    "type": "google_monitoring_notification_channel", "import_id": "fixture-other-instance"})
+            with self.subTest(graph=graph), self.assertRaises(gate.ContractError) as error:
+                self.validate(saved, before=before, schema=schema, custom_manifest=fixed)
+            self.assertEqual(error.exception.reason, "SHAPE")
+        saved, before, schema = inactive_reference_fixture()
+        saved["resource_changes"][0]["change"]["actions"] = ["update"]
+        with self.assertRaises(gate.ContractError) as error:
+            self.validate(saved, before=before, schema=schema)
+        self.assertEqual(error.exception.reason, "ACTION")
 
     def test_relevant_nokey_alias_keeps_module_instances_and_strict_entry_content(self):
         # Whole-resource references lose only the resource instance key, never

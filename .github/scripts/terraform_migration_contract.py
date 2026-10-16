@@ -29,6 +29,24 @@ RESOURCE_TYPES = frozenset({
 })
 OBSERVATIONAL = frozenset({"etag", "last_modified_time"})
 API_DISABLE_FLAGS = ("disable_on_destroy", "disable_dependent_services")
+# Core can retain literal output references to these zero-instance legacy
+# resources. This is a fixed source contract, never a generic address exception.
+INACTIVE_REFERENCES = {
+    "module.existing_youtube_quota_alerts.google_monitoring_alert_policy.quota": (
+        "existing_youtube_quota_alerts", "../../modules/youtube-quota-alerts",
+        "google_monitoring_alert_policy", "quota", "for_each_expression", "policy_names",
+        ("google_monitoring_alert_policy.quota",)),
+    "module.youtube_quota_alerts.google_monitoring_alert_policy.quota": (
+        "youtube_quota_alerts", "../../modules/youtube-quota-alerts",
+        "google_monitoring_alert_policy", "quota", "for_each_expression", "policy_names",
+        ("google_monitoring_alert_policy.quota",)),
+    "module.notification_channels.google_monitoring_notification_channel.primary_email[0]": (
+        "notification_channels", "../../modules/monitoring-notification-channels",
+        "google_monitoring_notification_channel", "primary_email", "count_expression", "primary_email_name",
+        ("google_monitoring_notification_channel.primary_email[0].name",
+         "google_monitoring_notification_channel.primary_email[0]",
+         "google_monitoring_notification_channel.primary_email")),
+}
 ADDRESS = re.compile(
     r'(?P<modules>(?:module\.[A-Za-z_][A-Za-z0-9_-]*(?:\[(?:[0-9]+|"(?:[^"\\]|\\.)*")\])?\.)*)'
     r'(?P<type>google_[a-z0-9_]+)\.(?P<name>[A-Za-z_][A-Za-z0-9_-]*)'
@@ -637,6 +655,87 @@ def _native_state(state, expected, manifest, provider_schema, environment, *, ap
     return found
 
 
+def _inactive_configured_reference(address, plan, state, expected, provider_schema):
+    """Authorize only catalogued literal references with no active family."""
+    need(address in INACTIVE_REFERENCES, "SHAPE")
+    module, source, kind, name, repeat, output, literals = INACTIVE_REFERENCES[address]
+    local = kind + "." + name
+    family = "module." + module + "." + local
+
+    def resource_family(value):
+        need(type(value) is str and ADDRESS.fullmatch(value) is not None, "SHAPE")
+        return INDEX.sub("", value)
+
+    active = {resource_family(item) for item in expected}
+    changes = plan.get("resource_changes")
+    need(type(changes) is list, "SHAPE")
+    for item in changes:
+        need(type(item) is dict, "SHAPE")
+        active.add(resource_family(item.get("address")))
+
+    def shown(module):
+        need(type(module) is dict and type(module.get("resources", [])) is list
+             and type(module.get("child_modules", [])) is list, "SHAPE")
+        for item in module.get("resources", []):
+            need(type(item) is dict, "SHAPE")
+            active.add(resource_family(item.get("address")))
+        for child in module.get("child_modules", []):
+            shown(child)
+
+    planned = plan.get("planned_values")
+    need(type(planned) is dict, "SHAPE")
+    shown(planned.get("root_module"))
+    if "prior_state" in plan:
+        prior = plan["prior_state"]
+        need(type(prior) is dict and type(prior.get("values")) is dict, "SHAPE")
+        shown(prior["values"].get("root_module"))
+    need(type(state) is dict and type(state.get("resources")) is list, "SHAPE")
+    _bounded(state)
+    for item in state["resources"]:
+        need(type(item) is dict and type(item.get("instances")) is list, "SHAPE")
+        if item["instances"]:
+            need(type(item.get("module", "")) is str and type(item.get("type")) is str
+                 and type(item.get("name")) is str, "SHAPE")
+            active.add(resource_family((item.get("module", "") + "." if item.get("module") else "")
+                                       + item["type"] + "." + item["name"]))
+    need(family not in active, "SHAPE")
+
+    configuration = plan.get("configuration")
+    need(type(configuration) is dict and type(configuration.get("root_module")) is dict, "SHAPE")
+    providers = configuration.get("provider_config")
+    need(type(providers) is dict and type(providers.get("google")) is dict
+         and providers["google"].get("full_name") == GOOGLE, "SHAPE")
+    calls = configuration["root_module"].get("module_calls")
+    need(type(calls) is dict and type(calls.get(module)) is dict, "SHAPE")
+    call = calls[module]
+    need(call.get("source") == source and "count_expression" not in call
+         and "for_each_expression" not in call and type(call.get("module")) is dict, "SHAPE")
+    contents = call["module"]
+    resources = contents.get("resources")
+    need(type(resources) is list and all(type(item) is dict for item in resources), "SHAPE")
+    matches = [item for item in resources if item.get("address") == local]
+    need(len(matches) == 1, "SHAPE")
+    resource = matches[0]
+    need(resource.get("mode") == "managed" and resource.get("type") == kind
+         and resource.get("name") == name and resource.get("provider_config_key") == "google"
+         and type(resource.get("schema_version")) is int
+         and resource["schema_version"] == _schema(provider_schema, kind)["version"] == 0
+         and type(resource.get(repeat)) is dict
+         and set(resource[repeat]) == {"references"}
+         and type(resource[repeat]["references"]) is list
+         and resource[repeat]["references"]
+         and all(type(item) is str for item in resource[repeat]["references"]), "SHAPE")
+    need(("count_expression" if repeat == "for_each_expression" else "for_each_expression") not in resource, "SHAPE")
+    outputs = contents.get("outputs")
+    need(type(outputs) is dict and type(outputs.get(output)) is dict, "SHAPE")
+    expression = outputs[output].get("expression")
+    need(type(expression) is dict and set(expression) == {"references"}, "SHAPE")
+    references = expression["references"]
+    need(type(references) is list and all(type(item) is str for item in references)
+         and len(references) == len(literals) and set(references) == set(literals)
+         and address.removeprefix("module." + module + ".") in references, "SHAPE")
+
+
 def validate_plan(plan, *, manifest, environment, provider_schema, state=None, phase="before"):
     """Accept only the exact full graph, existing no-ops and missing-State imports.
 
@@ -664,10 +763,12 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
             relevant_resources.add(match["modules"] + match["type"] + "." + match["name"])
         for entry in relevant:
             need(type(entry) is dict and {"resource", "attribute"} <= set(entry)
-                 and type(entry["resource"]) is str and entry["resource"] in relevant_resources
+                 and type(entry["resource"]) is str
                  and type(entry["attribute"]) is list
                  and all(type(step) is str or type(step) is int and step >= 0
                          for step in entry["attribute"]), "SHAPE")
+            if entry["resource"] not in relevant_resources:
+                _inactive_configured_reference(entry["resource"], plan, state, expected, provider_schema)
     _check_map(plan.get("checks", []))
     for field in ("configuration", "variables"):
         need(type(plan.get(field)) is dict, "SHAPE")
