@@ -30,9 +30,17 @@ run "preserve_existing_gen1_runtime_trigger_and_limits" {
 run "preserve_production_environment_without_changing_runtime_or_trigger" {
   command = plan
   variables {
-    project_id  = "youtube-study-space"
-    topic_id    = "projects/youtube-study-space/topics/initiateFirestoreCollectionsExport"
-    environment = "production"
+    project_id          = "youtube-study-space"
+    region              = "asia-northeast2"
+    topic_id            = "projects/youtube-study-space/topics/fixture-prod-export"
+    environment         = "production"
+    name                = "fixtureProdExportFunction"
+    available_memory_mb = 512
+    timeout             = 120
+  }
+  assert {
+    condition     = google_cloudfunctions_function.export.name == "fixtureProdExportFunction" && google_cloudfunctions_function.export.region == "asia-northeast2" && google_cloudfunctions_function.export.available_memory_mb == 512 && google_cloudfunctions_function.export.timeout == 120 && google_cloudfunctions_function.export.max_instances == 1 && google_cloudfunctions_function.export.min_instances == 0
+    error_message = "Preserve an independently observed production name, region, memory and timeout without altering concurrency."
   }
   assert {
     condition     = google_cloudfunctions_function.export.environment_variables == tomap({ YSS_EXPORT_ENVIRONMENT = "production", YSS_EXPORT_PROJECT_ID = "youtube-study-space" })
@@ -50,4 +58,64 @@ run "reject_unknown_runtime_environment" {
     environment = "staging"
   }
   expect_failures = [var.environment]
+}
+
+run "allow_other_google_memory_and_timeout_limits" {
+  command = plan
+  variables {
+    available_memory_mb = 8192
+    timeout             = 540
+  }
+  assert {
+    condition     = google_cloudfunctions_function.export.available_memory_mb == 8192 && google_cloudfunctions_function.export.timeout == 540
+    error_message = "Do not restrict reusable limits to the two observed environment settings."
+  }
+}
+
+run "reject_function_resource_path_instead_of_short_name" {
+  command = plan
+  variables {
+    name = "projects/fixture/locations/fixture/functions/fixture"
+  }
+  expect_failures = [var.name]
+}
+
+run "reject_nonpositive_memory" {
+  command = plan
+  variables {
+    available_memory_mb = 0
+  }
+  expect_failures = [var.available_memory_mb]
+}
+
+run "reject_fractional_memory" {
+  command = plan
+  variables {
+    available_memory_mb = 256.5
+  }
+  expect_failures = [var.available_memory_mb]
+}
+
+run "reject_nonpositive_timeout" {
+  command = plan
+  variables {
+    timeout = 0
+  }
+  expect_failures = [var.timeout]
+}
+
+run "reject_timeout_above_gen1_limit" {
+  command = plan
+  variables {
+    timeout = 541
+  }
+  expect_failures = [var.timeout]
+}
+
+run "reject_fractional_timeout" {
+  command = plan
+  variables {
+    timeout = 60.5
+  }
+  expect_failures = [var.timeout]
 }
