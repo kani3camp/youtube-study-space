@@ -872,6 +872,30 @@ PLANのimport1 / 既存no-op12 / drift0 / change0、admissionと事後State・me
 各protected jobで本人のEnvironment承認が必要で、applyのreceipt emitter / artifact gateが欠ければSTOPする。
 dev/none、不一致wave/root、混在した再発行、失敗・不明・期限切れは拒否し、旧runのattempt2や自動fallbackを行わない。
 
+### 2026-10-15 M14配布入力の期限切れと実行枠閉鎖
+
+M14 consumer `bea636351f3d315d5b2012e2d5cc2f9c866d354f`の配布入力とcurrent-state issuer
+`18d41d08bd8221e11db51d5f9f093d19784327e3`の初回消費期限`2026-10-15T18:43:51Z`は失効した。
+期限切れに伴い追加Secret2か所の保存依頼を撤回し、この入力によるprotected dispatchは行っていない。
+旧packet / receipt / captureは歴史記録のまま保持し、issued/expiresや生の観測時刻を更新せず、新しい証拠として再使用しない。
+
+このclosureはdevelopment apply / current-state root-ready / runtime-plan / split-inputの4 scalarだけをfalseに戻す。
+emitter=true / history-post-noop=true / 管理済み12件、M13のPool4属性修正、M12診断・全guard・native lock・catalog・
+既存binding・production・他windowは変更しない。閉鎖sourceは別current-state baseline planの発行経路を残すが、
+このPRで発行・State照合・新issuer登録・runtime plan/importを実行または証明したとは扱わない。
+
+再開時は下記の既存手順に従い、新source Sに実際のfresh State HEAD sizeと既知writer静止を確認した
+新しいpublic safety profileを結び、`dev / plan / history_post_noop=true / current_state_attestation=true /
+ownership_wave=none / ownership_root_basis=original-history-import`を選ぶ。
+本人の`terraform-dev-plan`承認と実full-root no-op12、State/metadata不変、lock不存在、cleanup、apply skipped、
+唯一artifact/digest/canonical attestationを独立確認した後、別closureで成功source Sをissuerとして登録する。
+旧issuerの失効を新profileやartifact保持期間で延長しない。root-ready/runtime/applyはその間も閉じたままとする。
+
+baselineではreviewed-inputs Secretをstageせず、既存binding envelopeをrunner内で再利用するsource経路があるため、
+事前に本人が2か所を更新する必要はない。実Secret shape/metadata一致は未読で、runner検証まで未証明である。
+nonceやbindingを読み出し・再生成せず、State sizeやwriter静止を過去値から補完しない。
+新issuerの独立確認後に別activationとfresh inventoryを最終consumer SHAへ結び、新private入力だけを改めて案内する。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
