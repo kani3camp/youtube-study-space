@@ -268,4 +268,3 @@ SCHEMA_VERSIONS = {'google_bigquery_dataset': 0,
  'google_monitoring_notification_channel': 0,
  'google_pubsub_topic': 0,
  'google_storage_bucket': 4}
-
