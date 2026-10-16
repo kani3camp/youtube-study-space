@@ -12,17 +12,13 @@ Both roots call this shared module with `manage_youtube_quota_alerts = false` by
 
 The mock plan exercises all three logical types and both environments, and proves missing/foreign channels are rejected. Opt-in with fixture channels yields **create=3**, rejected by the unchanged import-only sanitizer. This is a credentialless synthetic plan, not an authenticated GCP plan or proof of channel delivery. Current migration roots yield zero alert resource actions. Actual development creation is deferred to a separately approved normal-change apply after a safe channel is available. Do not relax global migration guards to enable these alerts.
 
-## Future production import
+## Existing production import definitions
 
-Production import/backend remain prohibited in this wave. After their separate approval, use the same module addresses with exact existing display-name overrides and verified channel configuration:
+The production root has separate default-off import definitions. `import_existing_policies` selects only `policy_keys`, and requires the exact observed `legacy_display_names`, `legacy_documentation`, and `legacy_notification_channels` for each selected alias. Aliases remain `minute_80`, `day_80`, and `day_60`; IDs and other private metadata come from private inputs rather than this document.
 
-| Module key | Existing policy suffix |
-| --- | --- |
-| minute_80 | 15336510856705008605 |
-| day_80 | 6495260290910048395 |
-| day_60 | 7765713814956280710 |
+The import resource is `google_monitoring_alert_policy.existing["<key>"]`. The established `quota` resource and its sensitive channel input remain unchanged, so development ownership is unaffected. Existing import metadata alone is declassified at the provider attribute boundary to preserve imported sensitivity; raw plans, state and logs remain private.
 
-Address: `module.youtube_quota_alerts.google_monitoring_alert_policy.quota["<key>"]`. Import ID: `projects/<production-project>/alertPolicies/<suffix>`. No production import blocks are added now. Existing names can be preserved with `youtube_quota_legacy_display_names`; environment naming/documentation and repaired channel changes require a separately reviewed normal change, not a no-op migration. Resolve notification-path drift before attempting ownership.
+Import preserves existing dangling references without creating, verifying or repairing a channel. Notification repair is a separate normal change after ownership; creation and existing import opt-ins cannot be combined. Source definitions and mocked import plans do not activate production or prove authenticated import/no-op. Production remains dependent on measured Development Exit and protected backend/identity/state verification.
 
 MQL is kept to preserve the observed quota semantics. Google still permits API-based creation of MQL policies, although console creation/support ended: [official MQL policy](https://docs.cloud.google.com/stackdriver/docs/deprecations/mql). PromQL migration is a separate behavior change.
 

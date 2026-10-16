@@ -2026,6 +2026,7 @@ jobs:
       id-token: write
     outputs:
       commitment: ${{ steps.migration.outputs.commitment }}
+      components: ${{ steps.migration.outputs.components }}
     env:
       MIGRATION_TARGET: ${{ inputs.target }}
       MIGRATION_MODE: ${{ inputs.mode }}
@@ -2172,6 +2173,7 @@ jobs:
           MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
           GCP_ACCESS_TOKEN: ${{ steps.migration_gcp.outputs.access_token }}
           MIGRATION_EXPECTED_COMMITMENT: ${{ needs.migration_plan.outputs.commitment }}
+          MIGRATION_EXPECTED_COMPONENTS: ${{ needs.migration_plan.outputs.components }}
         run: python3 .github/scripts/terraform_migration.py execute
       - name: Remove private migration files
         if: ${{ always() }}
