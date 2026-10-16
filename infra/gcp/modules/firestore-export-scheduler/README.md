@@ -4,6 +4,12 @@ The root default remains disabled; the approved protected development CI wave en
 protected run37342000553: import0/no-op9/drift0). PR #1187 was definition-only. A separately approved activation adds exact graph
 and CI identity validation; importing state must not change or manually run the job.
 
+The shared module accepts an optional short `name` from fresh environment metadata.
+Its default preserves the existing development job name. Production can supply its
+different name together with the existing `region` and `topic_id` inputs; schedule,
+payload, retries, target type and the resource address stay the same. Production
+root wiring and import remain a separate wave.
+
 ## Fresh inventory and fidelity
 
 After topic completion, read the existing job again. The observed development
