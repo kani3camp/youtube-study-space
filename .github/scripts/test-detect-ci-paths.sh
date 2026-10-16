@@ -78,6 +78,7 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_contr
 assert_exact_groups gcp_terraform .github/scripts/production_initializer.py
 assert_exact_groups gcp_terraform .github/scripts/test_production_initializer.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_native_fidelity.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_api_import_fidelity.py
 assert_exact_groups gcp_terraform infra/gcp/modules/retained-order-history/tests/contract.tftest.hcl
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-function.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-function/main.tf

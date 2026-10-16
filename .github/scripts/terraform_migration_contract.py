@@ -28,6 +28,7 @@ RESOURCE_TYPES = frozenset({
     "google_project_service",
 })
 OBSERVATIONAL = frozenset({"etag", "last_modified_time"})
+API_DISABLE_FLAGS = ("disable_on_destroy", "disable_dependent_services")
 ADDRESS = re.compile(
     r'(?P<modules>(?:module\.[A-Za-z_][A-Za-z0-9_-]*(?:\[(?:[0-9]+|"(?:[^"\\]|\\.)*")\])?\.)*)'
     r'(?P<type>google_[a-z0-9_]+)\.(?P<name>[A-Za-z_][A-Za-z0-9_-]*)'
@@ -342,9 +343,17 @@ def _values(value, descriptor, manifest, provider_schema):
         if identifier.startswith("projects/"):
             need(any(identifier.startswith(f"projects/{item}/") for item in projects), "VALUE")
     if descriptor["type"] == "google_project_service":
-        need(identifier == project + "/" + value.get("service", "")
-             and value.get("disable_on_destroy") is False
-             and value.get("disable_dependent_services") is False, "VALUE")
+        need(identifier == project + "/" + value.get("service", ""), "VALUE")
+        # Google 8.5 imports these optional bools as present JSON nulls even
+        # when configured false. Accept no coercion or missing field; ownership
+        # additionally requires the exact desired-false configuration below.
+        for field in API_DISABLE_FLAGS:
+            attribute = schema["block"].get("attributes", {}).get(field)
+            need(type(attribute) is dict and attribute.get("type") == "bool"
+                 and attribute.get("optional") is True
+                 and attribute.get("computed", False) is False
+                 and attribute.get("required", False) is False, "SCHEMA")
+            need(field in value and (value[field] is None or value[field] is False), "VALUE")
     for name in _observation_keys(provider_schema, descriptor["type"]):
         if name in value and value[name] is not None:
             need((type(value[name]) is str and bool(value[name])) if name == "etag"
@@ -531,7 +540,47 @@ def _shown_values(shown, expected, manifest, provider_schema, environment):
     return found
 
 
-def _native_state(state, expected, manifest, provider_schema, environment):
+def _api_configuration(configuration, expected):
+    """Join each API instance to its reviewed static desired-false resource.
+
+    The reviewed roots call the local API module directly. Module/resource
+    instance indexes resolve to that same static configuration, but unknown
+    nesting or source paths require a separately reviewed source contract.
+    """
+    selected = {address for address, item in expected.items() if item["type"] == "google_project_service"}
+    if not selected:
+        return frozenset()
+    need(type(configuration) is dict and type(configuration.get("root_module")) is dict, "GRAPH")
+    providers = configuration.get("provider_config")
+    need(type(providers) is dict and type(providers.get("google")) is dict
+         and providers["google"].get("full_name") == GOOGLE, "GRAPH")
+    calls = configuration["root_module"].get("module_calls")
+    need(type(calls) is dict, "GRAPH")
+    for address in selected:
+        match = ADDRESS.fullmatch(address)
+        module = INDEX.sub("", match["modules"].removesuffix("."))
+        need(re.fullmatch(r"module\.[A-Za-z_][A-Za-z0-9_-]*", module) is not None, "GRAPH")
+        call = calls.get(module.removeprefix("module."))
+        need(type(call) is dict and call.get("source") == "../../modules/owned-project-apis"
+             and type(call.get("module")) is dict, "GRAPH")
+        resources = call["module"].get("resources")
+        need(type(resources) is list and all(type(item) is dict for item in resources), "GRAPH")
+        static = match["type"] + "." + match["name"]
+        found = [item for item in resources if item.get("address") == static]
+        need(len(found) == 1, "GRAPH")
+        resource = found[0]
+        need(resource.get("mode") == "managed" and resource.get("type") == match["type"]
+             and resource.get("name") == match["name"] and resource.get("provider_config_key") == "google", "GRAPH")
+        expressions = resource.get("expressions")
+        need(type(expressions) is dict, "VALUE")
+        for field in API_DISABLE_FLAGS:
+            expression = expressions.get(field)
+            need(type(expression) is dict and set(expression) == {"constant_value"}
+                 and expression["constant_value"] is False, "VALUE")
+    return frozenset(selected)
+
+
+def _native_state(state, expected, manifest, provider_schema, environment, *, api_configuration=frozenset()):
     if state is None:
         return {}
     _bounded(state)
@@ -568,6 +617,8 @@ def _native_state(state, expected, manifest, provider_schema, environment):
             need(type(instance["schema_version"]) is int and instance["schema_version"] == schema["version"], "SCHEMA")
             if "schema_version" in descriptor:
                 need(descriptor["schema_version"] == instance["schema_version"], "SCHEMA")
+            if descriptor["type"] == "google_project_service":
+                need(address in api_configuration, "STATE")
             _values(instance["attributes"], descriptor, manifest, provider_schema)
             need(type(instance.get("sensitive_attributes", [])) is list and type(instance.get("private", "")) is str
                  and type(instance.get("dependencies", [])) is list
@@ -596,7 +647,6 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
     _bounded(plan)
     expected = validate_manifest(manifest, environment)
     need(phase in {"before", "post"}, "ACTION")
-    native = _native_state(state, expected, manifest, provider_schema, environment)
     need(type(plan) is dict and set(plan) <= PLAN_KEYS and plan.get("format_version") == "1.2"
          and plan.get("terraform_version") == TERRAFORM_VERSION and plan.get("complete") is True
          and plan.get("errored", False) is False, "SHAPE")
@@ -621,6 +671,9 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
     _check_map(plan.get("checks", []))
     for field in ("configuration", "variables"):
         need(type(plan.get(field)) is dict, "SHAPE")
+    api_configuration = _api_configuration(plan["configuration"], expected)
+    native = _native_state(state, expected, manifest, provider_schema, environment,
+                           api_configuration=api_configuration)
     _outputs(plan.get("output_changes"), environment, changes=True)
     planned = _shown_values(plan.get("planned_values"), expected, manifest, provider_schema, environment)
     need(set(planned) == set(expected), "GRAPH")
@@ -762,8 +815,17 @@ def plan_commitment_payload(plan, manifest, environment, provider_schema, *, sta
 def validate_state_delta(before, after, *, manifest, environment, provider_schema, expected_imports, plan=None):
     """Require exact ownership addition and unchanged existing State semantics."""
     expected = validate_manifest(manifest, environment)
-    old = _native_state(before, expected, manifest, provider_schema, environment)
-    new = _native_state(after, expected, manifest, provider_schema, environment)
+    api_configuration = frozenset()
+    if any(item["type"] == "google_project_service" for item in expected.values()):
+        # Native nulls are not standalone State authorization. Every API delta
+        # must be bound to the saved plan's exact constant-false configuration.
+        need(type(plan) is dict, "STATE_DELTA")
+        _bounded(plan)
+        api_configuration = _api_configuration(plan.get("configuration"), expected)
+    old = _native_state(before, expected, manifest, provider_schema, environment,
+                        api_configuration=api_configuration)
+    new = _native_state(after, expected, manifest, provider_schema, environment,
+                        api_configuration=api_configuration)
     need(type(expected_imports) in (set, frozenset, list, tuple)
          and all(type(address) is str for address in expected_imports), "STATE_DELTA")
     imports = set(expected_imports)
