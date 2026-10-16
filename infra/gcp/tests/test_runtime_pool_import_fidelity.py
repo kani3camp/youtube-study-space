@@ -28,6 +28,14 @@ from terraform_plan_summary import render_markdown
 POOL = gate.POOL
 FIELDS = ('display_name', 'description', 'disabled', 'mode')
 CANARY = 'DUMMY_POOL_CANARY_NEVER_PUBLIC'
+ARGUMENT_LEAVES = (
+    *(f'var.inventory.pool.{field}' for field in FIELDS),
+    *(f'var.inventory.provider.{field}' for field in ('display_name', 'description', 'disabled',
+        'attribute_mapping', 'attribute_condition', 'aws_account_id')),
+    'var.inventory.service_account_id', 'var.inventory.grants[each.key].member',
+    'var.inventory.grants[each.key].condition == null',
+    *(f'var.inventory.grants[each.key].condition.{field}' for field in ('title', 'description', 'expression')),
+)
 
 
 class NativePoolContracts(unittest.TestCase):
@@ -237,15 +245,179 @@ module "runtime_wif" {
         self.assertNotIn(CANARY, output)
         self.assertIn('field=ACTION', output)
 
-    def test_default_off_and_only_four_pool_leaves_are_declassified(self):
+    def test_default_off_and_only_resource_argument_leaves_are_declassified(self):
         # Core omits resource_changes when this native test has no resources.
         self.assertEqual(self.default_off.get('resource_changes', []), [])
-        self.assertEqual(self.original.count('nonsensitive('), 4)
+        self.assertEqual(self.original.count('nonsensitive('), len(ARGUMENT_LEAVES))
+        for expression in ARGUMENT_LEAVES:
+            self.assertEqual(self.original.count('nonsensitive('+expression+')'), 1)
         self.assertRegex(self.original, r'variable "inventory"\s*\{[\s\S]*?sensitive\s*=\s*true')
         root_inputs = (ROOT/'infra/gcp/environments/dev/runtime-ownership.tf').read_text()
         self.assertRegex(root_inputs, r'variable "runtime_wif_inventory"\s*\{[\s\S]*?sensitive\s*=\s*true')
-        provider_and_grants = self.original.split('resource "google_iam_workload_identity_pool_provider"', 1)[1]
-        self.assertNotIn('nonsensitive(', provider_and_grants)
+
+
+class NativeProviderGrantContracts(unittest.TestCase):
+    """Core/provider import projections; mock state and all inputs are invented."""
+
+    command = classmethod(NativePoolContracts.command.__func__)
+    setUp = NativePoolContracts.setUp
+
+    @classmethod
+    def setUpClass(cls):
+        binary = shutil.which('terraform')
+        if not binary:
+            raise AssertionError('Pinned Terraform is required; this contract must not skip')
+        cls.temp = tempfile.TemporaryDirectory(prefix='dummy-provider-grant-fidelity-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.directory = Path(cls.temp.name)
+        cls.module = cls.directory/'runtime-aws-wif/main.tf'
+        cls.module.parent.mkdir()
+        cls.original = (ROOT/'infra/gcp/modules/runtime-aws-wif/main.tf').read_text()
+        cls.module.write_text(cls.original)
+        shutil.copyfile(ROOT/'infra/gcp/environments/dev/.terraform.lock.hcl', cls.directory/'.terraform.lock.hcl')
+        cli = cls.directory/'terraform.rc'
+        text = 'disable_checkpoint = true\n'
+        mirror = os.environ.get('GCP_TEST_PROVIDER_MIRROR')
+        if mirror:
+            path = Path(mirror)
+            if not path.is_absolute() or path.is_symlink():
+                raise AssertionError('An absolute public provider mirror is required')
+            text += 'provider_installation {\n filesystem_mirror {\n path = '+json.dumps(str(path))+'\n }\n}\n'
+        cli.write_text(text)
+        cls.env = {key: os.environ[key] for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+            'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
+            'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE') if key in os.environ}
+        cls.env.update(PATH=str(Path(binary).parent)+os.pathsep+os.defpath,
+            TF_CLI_CONFIG_FILE=str(cli), TF_IN_AUTOMATION='true', TF_INPUT='false', CHECKPOINT_DISABLE='1')
+        cls.binary = binary
+        if json.loads(cls.command('version', '-json').stdout)['terraform_version'] != '1.16.4':
+            raise AssertionError('Terraform version must match the protected contract')
+        cls.raw = inventory()
+        cls.raw['iam_policy']['bindings'][1]['condition']['description'] = CANARY
+        cls.inventory = prepare_module.prepare(cls.raw)['runtime_wif_inventory']
+        candidate = dict(runtime_wif_inventory=cls.inventory, own_runtime_wif_pool=True,
+            own_runtime_wif_provider=True, runtime_wif_grant_keys=['grant-01', 'grant-02'], owned_api_keys=[])
+        with patch.object(gate, 'PROJECT', PROJECT):
+            cls.identities = gate.identities(candidate)
+        cls.tests = cls.directory/'tests'; cls.tests.mkdir()
+        cls.configure()
+        cls.command('init', '-backend=false', '-input=false', '-lockfile=readonly')
+        cls.fixed = cls.plan()
+        cls.counterfactual = cls.plan(old_expression=True)
+        cls.changed = cls.plan(changed=True)
+
+    @classmethod
+    def configure(cls, *, seeded=False):
+        text = '''terraform {
+ required_providers {
+  google = { source = "hashicorp/google", version = "= 8.5.0" }
+ }
+}
+provider "google" { access_token = "dummy-offline-not-a-credential" }
+variable "inventory" {
+ type = any
+ sensitive = true
+ default = '''+json.dumps(cls.inventory)+'''
+}
+module "runtime_wif" {
+ source = "./runtime-aws-wif"
+ project_id = "'''+PROJECT+'''"
+ own_pool = true
+ own_provider = true
+ grant_keys = ["grant-01", "grant-02"]
+ inventory = var.inventory
+}
+'''
+        if not seeded:
+            for address, (_, import_id, _) in cls.identities.items():
+                text += '\nimport {\n to = '+address+'\n id = '+json.dumps(import_id)+'\n}\n'
+        (cls.directory/'main.tf').write_text(text)
+
+    @classmethod
+    def plan(cls, *, old_expression=False, changed=False):
+        module = cls.original
+        if old_expression:
+            for expression in ARGUMENT_LEAVES[4:]:
+                marked = 'nonsensitive('+expression+')'
+                if module.count(marked) != 1:
+                    raise AssertionError('Expected one explicit resource argument leaf')
+                module = module.replace(marked, expression)
+        cls.module.write_text(module)
+        cls.configure(seeded=changed)
+        overrides = ''
+        for address, (_, _, values) in cls.identities.items():
+            if address != POOL and address != gate.PROVIDER:
+                values = dict(values, etag='DUMMY_IAM_ETAG')
+            overrides += '\n override_resource {\n target = '+address+'\n values = '+json.dumps(values)+'\n }\n'
+        if changed:
+            value = copy.deepcopy(cls.inventory)
+            value['provider']['description'] = 'DUMMY_CHANGED_PROVIDER'
+            tests = ('mock_provider "google" {}\nrun "seed" {\n command = apply\n'+overrides+
+                '}\nrun "changed" {\n command = plan\n variables {\n inventory = '+json.dumps(value)+'\n }\n'+overrides+'}\n')
+        else:
+            tests = 'mock_provider "google" {}\nrun "imports" {\n command = plan\n'+overrides+'}\n'
+        (cls.tests/'imports.tftest.hcl').write_text(tests)
+        result = cls.command('test', '-json', '-verbose')
+        plans = [event['test_plan'] for line in result.stdout.splitlines()
+                 if (event := json.loads(line)).get('type') == 'test_plan']
+        if not plans:
+            raise AssertionError('Expected native Terraform import projections')
+        return plans[-1]
+
+    def joined(self, native, index):
+        plan, metadata, packet = fixture(index)
+        packet['inventory'] = copy.deepcopy(self.raw)
+        address = plan['resource_changes'][-1]['address']
+        # Only the new wave's native projection replaces its synthetic entry;
+        # the remaining graph is a dummy validator witness, not saved admission.
+        plan['resource_changes'][-1] = copy.deepcopy(next(
+            item for item in native['resource_changes'] if item['address'] == address))
+        planned_values(plan)
+        return plan, metadata, packet
+
+    def review(self, plan, metadata, packet):
+        return gate.validate(plan, packet=packet, wave=packet['wave'], git_sha=SHA,
+            metadata=metadata, phase='before', execution_email=EMAIL, now=NOW)
+
+    def test_provider_and_both_grant_imports_are_noop_with_equal_masks(self):
+        for index in (1, 2, 3):
+            with self.subTest(wave=index):
+                joined = self.joined(self.fixed, index)
+                change = joined[0]['resource_changes'][-1]['change']
+                self.assertEqual(change['actions'], ['no-op'])
+                self.assertEqual(change['before'], change['after'])
+                self.assertEqual(change['before_sensitive'], change['after_sensitive'])
+                self.assertEqual(change['after_unknown'], {})
+                self.assertIn('importing', change)
+                summary = self.review(*joined)
+                self.assertEqual(summary['counts']['import'], 1)
+                self.assertEqual(summary['counts']['update'], 0)
+                self.assertNotIn(CANARY, json.dumps(summary)+render_markdown(summary))
+
+    def test_old_provider_and_grant_expressions_reproduce_mark_only_updates(self):
+        for index in (1, 2, 3):
+            with self.subTest(wave=index):
+                joined = self.joined(self.counterfactual, index)
+                change = joined[0]['resource_changes'][-1]['change']
+                self.assertEqual(change['actions'], ['update'])
+                self.assertEqual(change['before'], change['after'])
+                self.assertNotEqual(change['before_sensitive'], change['after_sensitive'])
+                with self.assertRaises(ValueError):
+                    self.review(*joined)
+
+    def test_changed_provider_value_and_forged_grant_values_remain_rejected(self):
+        joined = self.joined(self.changed, 1)
+        change = joined[0]['resource_changes'][-1]['change']
+        self.assertEqual(change['actions'], ['update'])
+        self.assertNotEqual(change['before']['description'], change['after']['description'])
+        with self.assertRaises(ValueError):
+            self.review(*joined)
+        for index in (2, 3):
+            joined = self.joined(self.fixed, index)
+            joined[0]['resource_changes'][-1]['change']['after']['member'] += 'Changed'
+            planned_values(joined[0])
+            with self.subTest(wave=index), self.assertRaises(ValueError):
+                self.review(*joined)
 
 
 if __name__ == '__main__':

@@ -82,9 +82,9 @@ variable "inventory" {
 # NOTE: Preserve fresh mappings/condition byte-for-byte. Never reconstruct the
 # working runtime trust from historical AWS roles, CDK audience, or test values.
 # NOTE: Importing an unmarked Pool must not become an update merely because the
-# private input object is sensitive. Declassify only these four metadata leaves;
-# this can display their values in ordinary plan/show. Protected raw plans/logs
-# must remain private; provider trust and IAM member/condition inputs stay marked.
+# private input object is sensitive. Declassify only resource argument leaves;
+# this can display trust and IAM values in ordinary plan/show. Protected raw
+# plans/logs/state must remain private; the inventory input stays sensitive.
 resource "google_iam_workload_identity_pool" "runtime" {
   count                     = var.own_pool ? 1 : 0
   project                   = var.project_id
@@ -101,12 +101,12 @@ resource "google_iam_workload_identity_pool_provider" "runtime" {
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.runtime[0].workload_identity_pool_id
   workload_identity_pool_provider_id = "aws-provider"
-  display_name                       = var.inventory.provider.display_name
-  description                        = var.inventory.provider.description
-  disabled                           = var.inventory.provider.disabled
-  attribute_mapping                  = var.inventory.provider.attribute_mapping
-  attribute_condition                = var.inventory.provider.attribute_condition
-  aws { account_id = var.inventory.provider.aws_account_id }
+  display_name                       = nonsensitive(var.inventory.provider.display_name)
+  description                        = nonsensitive(var.inventory.provider.description)
+  disabled                           = nonsensitive(var.inventory.provider.disabled)
+  attribute_mapping                  = nonsensitive(var.inventory.provider.attribute_mapping)
+  attribute_condition                = nonsensitive(var.inventory.provider.attribute_condition)
+  aws { account_id = nonsensitive(var.inventory.provider.aws_account_id) }
   lifecycle { prevent_destroy = true }
 }
 
@@ -114,11 +114,17 @@ resource "google_iam_workload_identity_pool_provider" "runtime" {
 # role bindings, project IAM, service agents and keys remain externally owned.
 resource "google_service_account_iam_member" "runtime" {
   for_each           = var.grant_keys
-  service_account_id = var.inventory.service_account_id
+  service_account_id = nonsensitive(var.inventory.service_account_id)
   role               = "roles/iam.workloadIdentityUser"
-  member             = var.inventory.grants[each.key].member
+  member             = nonsensitive(var.inventory.grants[each.key].member)
   dynamic "condition" {
-    for_each = var.inventory.grants[each.key].condition == null ? [] : [var.inventory.grants[each.key].condition]
+    # A sensitive iterator also marks the whole block, even after declassifying
+    # its content. Build only these supported leaves with an unmarked null test.
+    for_each = nonsensitive(var.inventory.grants[each.key].condition == null) ? [] : [{
+      title       = nonsensitive(var.inventory.grants[each.key].condition.title)
+      description = nonsensitive(var.inventory.grants[each.key].condition.description)
+      expression  = nonsensitive(var.inventory.grants[each.key].condition.expression)
+    }]
     content {
       title       = condition.value.title
       description = condition.value.description
