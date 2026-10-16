@@ -8,11 +8,16 @@ Current Canon §10と本人の最新指示により、4 EnvironmentはRequired r
 
 - 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
 - 本人初回・固定repo/ref/callerを認証前に検査。実OIDC claimsとAWS account/RoleId、GCP SAを照合し、同じEnvironmentの短期認証だけを使う。
+- plan/apply両identityについて、project GETとproject-scope mutation権限なし・他環境への権限なしをfresh `testIamPermissions` で確認する。Runtime SAのpolicy/token/actAsとRuntime Poolのpolicy変更権限はresource-scopeでも確認し、project probeだけで条件付き権限まで否定したと扱わない。
 - fresh metadata、4MiB以下のHEAD→GET→HEAD同一State、lineage/serial、native lockとworkspace不在、source closureとprovider lockを確認する。通常full-root planで完全graph・既存全件no-op・候補1件以下のexact import・unknown/move/replace/予期しないaction0を必須にする。
 - BigQuery Tableの `etag` / `last_modified_time` はprovider schemaのcomputed-only性を実検査した場合だけ、**設定変更と区別した観測差分**として許す。raw drift件数は公開summaryに保持する。他field・sensitivity・未知差分を無視しない。通常Terraformにもresource変更を提案させない。
 - `migration-plan` はStateを書かない。`migration-apply` は同runの独立plan job成功後、apply Environmentで同SHAを再planする。source、固定private入力、全State/HEAD、安定metadata、private plan values/masks/import IDs/config/outputs/checksをHMACで完全比較し、保存binary sealと直前再検証後に一度だけ通常saved-plan applyする。
 - import/計算観測のState永続化後は、保存planとの全State差分、lineage/serial/version、live metadata不変、lock解放と別の通常full-root no-opを検証する。未知のapply結果では再送・force unlock・古いStateの上書きを行わない。S3 Versioningを調査・限定復旧の根拠として保持する。
 - raw State/plan/API/error/credentialsはowned0700/0600のrunner一時領域に閉じ、always cleanupする。公開artifactは作らず、出力は固定stage、件数、purpose-bound HMACのみ。履歴証跡を現在の実行成功へ読み替えない。
+
+Core/providerが返す `before_identity` / `after_identity` は独立したprovider identity schemaで型・required属性・versionを検査し、resource属性・planned/prior/raw State・保存plan後の全Stateと結合する。未知keyや識別子の変更/削除は拒否する。native回帰は実Core/providerとloopback GET専用ダミーAPIを使い、実認証・実Cloud・共有Stateなしでimportとno-op、計算観測保存、sensitivity-only update拒否を検証する。
+
+失敗時は固定action名・既知field名の件数だけを診断し、address/import ID/値/未知key名を公開しない。before観測が存在する境界だけを一度再取得し、Stateと安定metadataを `SAME` / `CHANGED` / `UNOBSERVED` で報告する。取得失敗を不変の証明にせず、apply試行済みかも明記する。結果にかかわらず元の失敗で停止し、再applyしない。
 
 設定担当はfull-rootで候補を1件ずつ追加し、完全manifestとbaselineをplan/apply両Environmentへ同一設定する。各adoption前に実値とrequired callers/dependenciesをreviewし、採用後の固定baselineに対して通常planでdriftを検知する。State writerは既存reusable workflowの環境別concurrencyで直列化し、operatorは別writerを走らせない。非協調writer不存在を完全に証明したとは扱わず、前後State/Versionとnative lock/stale-plan検査で異常時停止する。
 
