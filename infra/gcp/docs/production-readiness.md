@@ -2,8 +2,8 @@
 
 実行入口は [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)、設計正本は
 [Notion Current Canon](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)。
-これは実変更前のsource/test/runbook packetです。実prod inventory、承認、Infrastructure Readyを
-証明しません。private identity、既存IAM全文、raw state/plan、mailbox、business dataは記載しません。
+この文書はsource/test/runbookと現在の実証範囲を記録します。各実行の証跡はIssue #1191へ集約し、
+Infrastructure Readyは個別条件で判定します。private identity、既存IAM全文、raw state/plan、mailbox、business dataは記載しません。
 
 ## Current execution boundary — 2026-10-17
 
@@ -15,8 +15,11 @@ GitHub本人account ID 54093651・actor/triggering actor kani3campの初回workf
 Development Exitは[owner初回run 38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で、
 plan/apply両identityの31 no-op・imports0・raw drift0、State/bucket policy、完了後に観測できたworkload指標を照合し、独立reviewもPASSした。
 完了後のLambdaは3/6で自然実行・error0を観測した。quiet3件とdaily SFN/ECS・backupのcutoff後E2Eは未観測で、daily E2E成功はcutoff前の証跡である。
-productionの実認証・backend/trust・initial State・importはまだ未完で、MIGRATION_PRODUCTION_READYはfalseを維持する。
-Production AWS/GCP bootstrapの実readbackが完了してから、同じintegration sourceのgate変更を別途検証する。
+Production AWS backend rolesとGCP CI foundationは実作成・readbackを完了し、独立reviewもPASSした。
+GCPの新規7 resource、保護対象5件の不変、個別policy5件へのmember追加8・削除0、read custom roleの12/3/1 permissionsを確認した。
+実行証跡は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)へ集約し、private IAM本文は公開しない。
+この実証を前提にMIGRATION_PRODUCTION_READYだけをtrueとし、旧PROD_* gateはfalseのまま維持する。
+正規Actionsの実短期認証・initial State・importは未完で、source/CI成功をこれらの完了と扱わない。
 旧PROD_* gateや過去の手動Environment承認記録は、新経路の実readinessを証明しない。
 resource0の初期StateだけでInfrastructure/MyPage ReadyGateをPASSにしない。
 

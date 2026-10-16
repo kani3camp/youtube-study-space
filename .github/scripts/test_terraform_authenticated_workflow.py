@@ -146,7 +146,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn("      - gcp-terraform-authenticated\n", gate)
         self.assertIn("contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')", gate)
 
-    def test_production_remains_fail_closed_and_trusted_surface_is_fixed(self) -> None:
+    def test_legacy_production_remains_closed_and_trusted_surface_is_fixed(self) -> None:
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
         self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
@@ -365,7 +365,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
-            "MIGRATION_PRODUCTION_READY": "false",
+            "MIGRATION_PRODUCTION_READY": "true",
             "PROD_EXECUTION_CONTRACT_READY": "false",
             "PROD_DEVELOPMENT_EXIT_READY": "false",
             "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
