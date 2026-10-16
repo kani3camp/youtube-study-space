@@ -70,7 +70,20 @@ cloud trust、現Environment保護、locking/recoveryの検証にはなりませ
 
 共有export modulesはFunctionの既存name/memory/timeoutとSchedulerの既存nameを入力で保持できる。
 developmentの既定値・resource addressは維持し、production固有値はfresh private inputsから与える。
-このsource準備はproduction rootへの接続、import、実plan/no-op、Development Exitを証明しない。
+このsource準備はproduction実行経路への接続、import、実plan/no-op、Development Exitを証明しない。
+
+prod rootの`existing-resources.tf`は、既存resourceだけの取り込み用定義を持つ。
+公開選択`existing_resources`は既定空集合、実ID/name/location/retention/列順/説明文/実行identity等は
+sensitiveな`existing_resource_inputs`から与え、repositoryには保存しない。
+選択は累積とし、各waveでは新規aliasを1件だけ追加して、既存所有分を残す。
+候補はnative backup、backup bucket、retained dataset、履歴table2件、export topic/Scheduler/Function、
+quota3件の計11件。tableやexport chainの参照はprivate metadataを使い、依存resourceを自動で取り込まない。
+
+quota importは共有moduleのdefault-offな`google_monitoring_alert_policy.existing`を使用する。
+既存`quota`resourceとsensitive入力は維持し、import専用metadataの通知先・説明文のみproviderの
+未マーク属性を保つ。現在のdangling通知参照もそのまま保存し、channel作成・検証・修復を行わない。
+legacy Email/quota作成opt-inとの混在は拒否する。mockで各1件と累積11件のimport/no-opを検証するが、
+実inventoryの鮮度、provider実Read、State ownership、CI activation、MyPage Readyは別の未完条件である。
 
 [現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)のproduction migrationは上記gateで閉鎖を維持します。
 以下のPROD_* gate/tableは旧経路のhistorical source packetです。
