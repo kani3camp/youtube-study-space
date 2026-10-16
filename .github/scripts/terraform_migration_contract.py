@@ -146,6 +146,7 @@ def validate_manifest(manifest, environment):
              and re.fullmatch(r"[0-9]{6,20}", manifest["project_number"]), "MANIFEST")
     need(type(manifest["resources"]) is list and len(manifest["resources"]) <= 1000, "MANIFEST")
     result = {}
+    remote_identities = set()
     for descriptor in manifest["resources"]:
         need(type(descriptor) is dict and {"address", "type", "import_id"} <= set(descriptor)
              <= {"address", "type", "import_id", "values", "schema_version"}, "MANIFEST")
@@ -155,6 +156,9 @@ def validate_manifest(manifest, environment):
              and type(descriptor["type"]) is str and descriptor["type"] in RESOURCE_TYPES and address not in result, "MANIFEST")
         need(type(descriptor["import_id"]) is str and 0 < len(descriptor["import_id"]) <= 4096
              and not any(character in descriptor["import_id"] for character in "\n\r\x00"), "MANIFEST")
+        remote_identity = (descriptor["type"], descriptor["import_id"])
+        need(remote_identity not in remote_identities, "MANIFEST")
+        remote_identities.add(remote_identity)
         if "schema_version" in descriptor:
             need(type(descriptor["schema_version"]) is int and descriptor["schema_version"] >= 0, "MANIFEST")
         if "values" in descriptor:

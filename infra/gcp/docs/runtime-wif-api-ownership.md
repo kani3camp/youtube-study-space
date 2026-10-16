@@ -6,7 +6,7 @@ Current Canon §10と本人の最新指示により、4 EnvironmentはRequired r
 
 新経路は既存 `ci.yml` → 同一SHAのreusable workflowと同じ4 Environment/OIDC/WIF/plan・apply別identityを使用する。`dev`への直接push・merge・auto-mergeは禁止のまま。Productionの新経路も `MIGRATION_PRODUCTION_READY=false` で閉じ、実測Development Exit後の独立reviewで開く。
 
-- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
+- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。同じtype/import IDを複数addressへ採用する重複ownershipは拒否する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
 - 本人初回・固定repo/ref/callerを認証前に検査。実OIDC claimsとAWS account/RoleId、GCP SAを照合し、同じEnvironmentの短期認証だけを使う。
 - plan/apply両identityについて、project GETとproject-scope mutation権限なし・他環境への権限なしをfresh `testIamPermissions` で確認する。Runtime SAのpolicy/token/actAsとRuntime Poolのpolicy変更権限はresource-scopeでも確認し、project probeだけで条件付き権限まで否定したと扱わない。
 - fresh metadata、4MiB以下のHEAD→GET→HEAD同一State、lineage/serial、native lockとworkspace不在、source closureとprovider lockを確認する。通常full-root planで完全graph・既存全件no-op・候補1件以下のexact import・unknown/move/replace/予期しないaction0を必須にする。
@@ -18,6 +18,8 @@ Current Canon §10と本人の最新指示により、4 EnvironmentはRequired r
 Core/providerが返す `before_identity` / `after_identity` は独立したprovider identity schemaで型・required属性・versionを検査し、resource属性・planned/prior/raw State・保存plan後の全Stateと結合する。未知keyや識別子の変更/削除は拒否する。native回帰は実Core/providerとloopback GET専用ダミーAPIを使い、実認証・実Cloud・共有Stateなしでimportとno-op、計算観測保存、sensitivity-only update拒否を検証する。
 
 失敗時は固定action名・既知field名の件数だけを診断し、address/import ID/値/未知key名を公開しない。before観測が存在する境界だけを一度再取得し、Stateと安定metadataを `SAME` / `CHANGED` / `UNOBSERVED` で報告する。取得失敗を不変の証明にせず、apply試行済みかも明記する。結果にかかわらず元の失敗で停止し、再applyしない。
+
+再plan完全比較の原因分類には、source/closure/inputs/state/metadata/planの固定6区分と鍵確認を、別domainのkeyed HMACでjob間へ渡す。詳細もplanの既知top-level field、metadataの既知resource type、Stateの固定HEAD項目/other/raw/parsedだけを別domainで比較する。公開診断は不一致区分・固定項目名と鍵一致boolのみ。unkeyed private hashや値は出さず、全6区分・詳細と従来のexecution全体HMACの一致をすべて必須にする。区分を除外したり、比較失敗をapply許可へ変えたりしない。
 
 設定担当はfull-rootで候補を1件ずつ追加し、完全manifestとbaselineをplan/apply両Environmentへ同一設定する。各adoption前に実値とrequired callers/dependenciesをreviewし、採用後の固定baselineに対して通常planでdriftを検知する。State writerは既存reusable workflowの環境別concurrencyで直列化し、operatorは別writerを走らせない。非協調writer不存在を完全に証明したとは扱わず、前後State/Versionとnative lock/stale-plan検査で異常時停止する。
 

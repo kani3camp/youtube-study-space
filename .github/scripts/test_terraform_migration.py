@@ -447,6 +447,8 @@ class ExecuteTest(OfflineTest):
         self.fixture_payload = payload
         expected = migration.hmac.new(bytes.fromhex("b" * 64), b"gcp-migration-execution-v1\0" + migration.canonical(payload), migration.hashlib.sha256).hexdigest()
         env["MIGRATION_EXPECTED_COMMITMENT"] = expected if commitment is None else commitment
+        _, components = migration.execution_commitment(migration.inputs(env), payload)
+        env['MIGRATION_EXPECTED_COMPONENTS'] = json.dumps(components)
         return env, root, calls
 
     def main(self, env):
@@ -457,15 +459,17 @@ class ExecuteTest(OfflineTest):
         self.assertEqual(stderr.getvalue(), "")
         return result, stdout.getvalue()
 
-    def test_successful_plan_never_applies_and_publishes_only_commitment(self):
+    def test_successful_plan_never_applies_and_publishes_only_keyed_commitments(self):
         env, _, calls = self.setup_execution(role="plan")
         result, output = self.main(env)
         self.assertEqual(result, 0)
         self.assertIn("GCP_MIGRATION: PASS; role=plan", output)
         self.assertFalse(any(name == "apply" for name, _ in calls))
         public = Path(env["GITHUB_OUTPUT"]).read_text()
-        self.assertRegex(public, r"\Acommitment=[0-9a-f]{64}\n\Z")
-        self.assertEqual(public, "commitment=" + env["MIGRATION_EXPECTED_COMMITMENT"] + "\n")
+        rows = dict(line.split('=', 1) for line in public.splitlines())
+        self.assertEqual(set(rows), {'commitment', 'components'})
+        self.assertEqual(rows['commitment'], env["MIGRATION_EXPECTED_COMMITMENT"])
+        self.assertEqual(json.loads(rows['components']), json.loads(env['MIGRATION_EXPECTED_COMPONENTS']))
         self.assertNotIn(CANARY, public)
 
     def test_successful_apply_uses_saved_plan_once_and_checks_post_plan(self):
@@ -545,6 +549,51 @@ class ExecuteTest(OfflineTest):
         self.assertIn("stage=REPLAN_MATCH", output)
         self.assertFalse(any(name == "apply" for name, _ in calls))
         self.assertFalse((root / "apply-attempt").exists())
+
+    def test_section_mismatch_is_finite_and_stops_before_apply_even_when_overall_value_was_passed(self):
+        env, root, calls = self.setup_execution()
+        components = json.loads(env['MIGRATION_EXPECTED_COMPONENTS'])
+        components['metadata'] = '0' * 64
+        env['MIGRATION_EXPECTED_COMPONENTS'] = json.dumps(components)
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('GCP_MIGRATION_COMPARISON: {"changed_components":["metadata"],"changed_details":[],"key_match":true}', output)
+        self.assertFalse(any(name == 'apply' for name, _ in calls))
+        self.assertFalse((root / 'apply-attempt').exists())
+
+    def test_each_private_section_and_key_is_independently_bound_without_unkeyed_hashes(self):
+        env, _, _ = self.setup_execution()
+        original = self.fixture_payload
+        value = migration.inputs(env)
+        overall, components = migration.execution_commitment(value, original)
+        for name in original:
+            changed = deepcopy(original)
+            changed[name] = {'private': CANARY} if name != 'inputs' else deepcopy(original['inputs']) | {'private': CANARY}
+            next_overall, next_components = migration.execution_commitment(value, changed)
+            result = migration.compare_commitments(json.dumps(components), next_components)
+            self.assertNotEqual(overall, next_overall)
+            self.assertEqual(result['changed_components'], [name])
+            self.assertEqual(result['key_match'], name != 'source')
+            self.assertNotIn(CANARY, json.dumps(result) + json.dumps(next_components))
+        _, changed_key = migration.execution_commitment(value | {'plan_integrity_key': 'c' * 64}, original)
+        self.assertFalse(migration.compare_commitments(json.dumps(components), changed_key)['key_match'])
+        for invalid in ('', '{}', json.dumps(components | {CANARY: 'd' * 64}),
+                        json.dumps(components | {'state': CANARY})):
+            with self.subTest(invalid_length=len(invalid)), self.assertRaises(ValueError):
+                migration.compare_commitments(invalid, components)
+        with self.assertRaises(ValueError):
+            migration.compare_commitments(json.dumps(components | {CANARY: 'd' * 64}), components | {CANARY: 'd' * 64})
+
+    def test_subsection_diagnostic_names_are_fixed_and_each_detail_still_requires_equality(self):
+        env, root, calls = self.setup_execution()
+        components = json.loads(env['MIGRATION_EXPECTED_COMPONENTS'])
+        components['plan.configuration'] = '0' * 64
+        env['MIGRATION_EXPECTED_COMPONENTS'] = json.dumps(components)
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('"changed_components":[],"changed_details":["plan.configuration"]', output)
+        self.assertFalse(any(name == 'apply' for name, _ in calls))
+        self.assertFalse((root / 'apply-attempt').exists())
 
     def test_changed_source_copy_stops_before_apply_is_reserved(self):
         env, root, calls = self.setup_execution()
