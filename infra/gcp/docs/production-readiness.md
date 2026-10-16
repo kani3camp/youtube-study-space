@@ -5,7 +5,40 @@
 これは実変更前のsource/test/runbook packetです。実prod inventory、承認、Infrastructure Readyを
 証明しません。private identity、既存IAM全文、raw state/plan、mailbox、business dataは記載しません。
 
-## Scope and evidence
+## Current execution boundary — 2026-10-16
+
+全4 Terraform EnvironmentのRequired reviewersは本人が解除済みで、GitHub実APIでも確認した。
+独立したplan/apply Environment、integration branch限定、OIDC/WIF trustは維持し、
+GitHub本人account ID 54093651・actor/triggering actor kani3campの初回workflow_dispatchだけを通す。
+各runの人間承認を再要求せず、botへの切替やrerunで制限を迂回しない。
+
+現在のmigration-plan/migration-apply経路でもproductionの実認証・backend/trust・initial State・importは未完である。
+MIGRATION_PRODUCTION_READYはfalseを維持し、Development Exitを実測してから本格移行を進める。
+旧PROD_* gateや過去の手動Environment承認記録は、新経路の実readinessを証明しない。
+resource0の初期StateだけでInfrastructure/MyPage ReadyGateをPASSにしない。
+
+## Output-only initializer source preparation
+
+[production_initializer.py](../../../.github/scripts/production_initializer.py)はcloud/State操作のないpure adapterで、
+現controller/workflowの実行経路には未接続である。CIはsynthetic fixtureとbackendのない一時local rootだけを検証する。
+
+比較した最小案は、新mode追加よりも既存migration-plan/apply内の厳密な条件分岐である。
+将来の接続時は、owner初回/ref/Environment/実identityの共通検査後、成功したS3 snapshotの
+head/raw/stateがすべてnullで、production targetかつmanifest/resources0の場合だけ選択する。
+失敗read、403、既存State、dev、resource/import/drift/unknown/deferred actionは初期化へ流さない。
+
+adapterは既存production_execution_contract.plan_shapeのinitialize契約で、固定production/projectの2 output createを先に検証する。
+その2件だけを内部の検証射影でno-op形式へ対応させ、通常full-graph契約も再利用する。
+saved binaryは変更せず、通常import-only契約自体も変更しない。public結果はoutput_creates=2を明示し、
+専用operation markerと元のoutput changesをprivate HMAC payloadへ保持する。
+Coreがresource0で省略するresource_changesだけを空listへ正規化し、その他の未知差分は隠さない。
+
+将来のcontroller接続には、同SHA再plan/HMAC、source copyとsaved-plan seal、native lock、
+適用直前のpositive absence再確認、新version/lineageと固定outputs/resource0のState検査、
+通常post-planのresource0・output no-op、lock解放が必要である。新bucket/marker/dev State copyは作らない。
+このsource準備はproduction activationや実State作成の許可・完了を意味しない。
+
+## Historical offline packet scope and evidence
 
 source packetの作成基点は integration `feature/gcp-terraform-iac` のHEAD
 `801afa4f00851d01c32eb8c054d067266272e814` です。実行開始時には最新remote HEADを再確認します。
@@ -13,14 +46,13 @@ source packetの作成基点は integration `feature/gcp-terraform-iac` のHEAD
 通知2 modulesを再利用します。共通state account/bucketはdevelopmentでbootstrap済みという
 repository記録がありますが、このpacketでcloud側を再確認していません。
 
-production backend/key/trust/importは実環境で未検証です。2026年10月15日の条件付き包括承認Aを
-今回のユーザー指示として適用します。承認範囲内の作業にChatで再承認は不要ですが、
-GitHub EnvironmentのRequired reviewersは実行ごとに本人が承認します。devへのagent mergeは禁止です。
-dev batch cutoverや今夜の成功を
-production gateの証拠にしません。dev history/runtime WIF/APIの作業は別workstreamです。
+production backend/key/trust/importは実環境で未検証です。2026年10月15日の条件付き包括承認Aに加え、
+実行者・reviewer運用は上記2026年10月16日のCurrent Canon更新を適用します。
+承認範囲内の作業にChat再承認や各runの人間reviewer承認は不要です。devへのagent mergeは禁止です。
+過去のdev成功をproduction gateの証拠にしません。dev history/runtime WIF/APIの作業は別workstreamです。
 source準備、credentialless tests、最小read-only inventory整理はそれらと並行できます。
 
-追加したoffline contractsは次を検証します。
+以下は旧経路のhistorical/offline contractsです。新migration経路の実readinessとは区別します。
 
 - prod default graphはresource/import/drift各0。既存Email/quota ownershipはfalseのまま。
 - prod rootへ別projectを渡すと停止。backend exampleはprod keyとworkspace discovery prefixへ限定。
@@ -32,7 +64,7 @@ source準備、credentialless tests、最小read-only inventory整理はそれ�
 - 専用PR CIはcredentiallessで、OIDC permission、Environment、secret、remote state操作を持たない。
 
 これらはmocked plan/source guardの証明です。pinned providerのprod実Read、remote no-op、
-cloud trust、実Environment approval、locking/recoveryの検証にはなりません。
+cloud trust、現Environment保護、locking/recoveryの検証にはなりません。
 
 ## Source gaps before production activation
 
@@ -40,7 +72,8 @@ cloud trust、実Environment approval、locking/recoveryの検証にはなりま
 developmentの既定値・resource addressは維持し、production固有値はfresh private inputsから与える。
 このsource準備はproduction rootへの接続、import、実plan/no-op、Development Exitを証明しない。
 
-[現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml) は閉鎖を維持します。
+[現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)のproduction migrationは上記gateで閉鎖を維持します。
+以下のPROD_* gate/tableは旧経路のhistorical source packetです。
 `PROD_AUTHENTICATED_TERRAFORM_ENABLED` をtrueへ変えるだけでは完成しません。
 本packetは独立gate/routing、offline backend proposalとoffline execution validatorまでです。`PROD_EXECUTION_CONTRACT_READY` と
 `PROD_DEVELOPMENT_EXIT_READY` はfalseを維持します。fresh inventory後のsource PRでprod専用
