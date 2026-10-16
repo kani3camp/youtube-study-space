@@ -50,6 +50,7 @@ DIAGNOSTIC_FIELDS = frozenset({
     'member', 'role', 'condition', 'storage_class', 'uniform_bucket_level_access',
     'public_access_prevention', 'soft_delete_policy', 'retention_policy',
 })
+COMMITMENT_COMPONENTS = frozenset({'source', 'closure', 'inputs', 'state', 'metadata', 'plan'})
 
 
 def need(condition):
@@ -428,6 +429,30 @@ def failure_safety(env, root, manifest, before, before_metadata):
     return result
 
 
+def execution_commitment(value, payload):
+    """Keyed section witnesses diagnose equality without exposing private hashes."""
+    need(set(payload) == COMMITMENT_COMPONENTS)
+    key = bytes.fromhex(value['plan_integrity_key'])
+    def tag(domain, item):
+        return hmac.new(key, domain + canonical(item), hashlib.sha256).hexdigest()
+    overall = tag(b'gcp-migration-execution-v1\0', payload)
+    components = {name: tag(b'gcp-migration-component-v1\0', {name: payload[name]})
+                  for name in sorted(payload)}
+    components['key'] = tag(b'gcp-migration-key-check-v1\0', payload['source'])
+    return overall, components
+
+
+def compare_commitments(expected, current):
+    """Return fixed category names only; the overall execution seal stays mandatory."""
+    value = decode(expected.encode())
+    need(type(current) is dict and set(current) == COMMITMENT_COMPONENTS | {'key'})
+    need(type(value) is dict and set(value) == set(current)
+         and all(type(item) is str and re.fullmatch('[0-9a-f]{64}', item) for item in value.values()))
+    return {'key_match': hmac.compare_digest(value['key'], current['key']),
+            'changed_components': [name for name in sorted(current) if name != 'key'
+                                   and not hmac.compare_digest(value[name], current[name])]}
+
+
 def execute(env):
     role, target = env['MIGRATION_ROLE'], context(env, env['MIGRATION_ROLE'])
     value, root = inputs(env), private_root(env)
@@ -474,12 +499,17 @@ def execute(env):
                    'metadata': before_metadata,
                    'plan': contract.plan_commitment_payload(plan, manifest=manifest,
                         environment=target, provider_schema=schema, state=before['state'])}
-        commitment = hmac.new(bytes.fromhex(value['plan_integrity_key']), b'gcp-migration-execution-v1\0' + canonical(payload), hashlib.sha256).hexdigest()
+        commitment, components = execution_commitment(value, payload)
         if role == 'plan':
             with open(env['GITHUB_OUTPUT'], 'a') as stream:
                 stream.write('commitment=' + commitment + '\n')
+                stream.write('components=' + canonical(components).decode() + '\n')
         else:
             stage_name = 'REPLAN_MATCH'
+            comparison = compare_commitments(env.get('MIGRATION_EXPECTED_COMPONENTS', ''), components)
+            if not comparison['key_match'] or comparison['changed_components']:
+                print('GCP_MIGRATION_COMPARISON: ' + canonical(comparison).decode())
+            need(comparison['key_match'] and not comparison['changed_components'])
             need(hmac.compare_digest(commitment, env.get('MIGRATION_EXPECTED_COMMITMENT', '')))
             stage_name = 'SEAL'
             seal = hashlib.sha256(binary.read_bytes()).hexdigest()
