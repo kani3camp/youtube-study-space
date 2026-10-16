@@ -6,6 +6,7 @@ from datetime import timedelta
 import io
 import json
 import os
+import re
 from pathlib import Path
 import stat
 import subprocess
@@ -320,12 +321,35 @@ class HistoryObservationControllerTest(unittest.TestCase):
                 (private/name).write_text(CANARY)
             controller.cleanup(env);self.assertFalse(private.exists())
 
-    def test_workflow_isolated_jobs_default_off_owner_environments_and_typed_upload(self):
+    def test_workflow_isolated_jobs_bounded_window_owner_environments_and_typed_upload(self):
         text=(controller.ROOT/'.github/workflows/gcp-terraform-authenticated.yml').read_text()
         old=text.split('\n  history_observation_sync_plan:',1)[0]
         self.assertIn("inputs.mode != 'dev-history-observation-sync'",old)
+        source=dict(re.findall(r'(?m)^  ([A-Z0-9_]+): "([^"]*)"$',text))
         for gate_ in ('DEV_HISTORY_OBSERVATION_SYNC_ENABLED','DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED'):
-            self.assertIn(gate_+': "false"',text)
+            self.assertEqual(source[gate_],'true')
+        issued=source['DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC']
+        expires=source['DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC']
+        self.assertEqual(issued,'2026-10-16T04:29:31Z')
+        self.assertEqual(expires,'2026-10-17T04:29:31Z')
+        start,end=(controller.profiles.timestamp(value)for value in (issued,expires))
+        self.assertEqual(end-start,timedelta(hours=24))
+        # Evaluate immutable source-time semantics with an explicit test clock;
+        # a later CI date must neither extend nor invalidate this source test.
+        for operation in ('preview','synchronize'):
+            env=requests.dummy_env(operation);env.update(source)
+            profile=json.loads(env['HISTORY_OBSERVATION_SYNC_PROFILE'])
+            profile.update(issued_utc=issued,expires_utc=expires)
+            env['HISTORY_OBSERVATION_SYNC_PROFILE']=json.dumps(profile)
+            self.assertEqual(controller.profiles.context(env,phase=operation,now=start)['operation'],operation)
+            for instant in (start-timedelta(seconds=1),end):
+                with self.assertRaises(ValueError):controller.profiles.context(env,phase=operation,now=instant)
+            with self.assertRaises(ValueError):
+                controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_ENABLED':'false'},phase=operation,now=start)
+            if operation=='synchronize':
+                with self.assertRaises(ValueError):
+                    controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED':'false'},phase=operation,now=start)
+
         for role in ('plan','apply'):
             block=text.split('\n  history_observation_sync_'+role+':',1)[1].split('\n  history_observation_sync_',1)[0]
             self.assertIn('environment: terraform-dev-'+role,block)

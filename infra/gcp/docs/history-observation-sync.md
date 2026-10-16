@@ -1,13 +1,24 @@
-# 開発履歴Tableの観測属性を同期する別契約（既定無効）
+# 開発履歴Tableの観測属性を同期する別契約
 
 CI #885の通常planはimport0 / no-op12 / drift1で停止した。対象は履歴Tableの`etag`と
 `last_modified_time`だけだった。State/HEAD不変、安定Table設定不変、lock/workspace不存在、freshnessの
 5検査はPASSしたが、通常full-root no-opはSTOPで、issuerはない。この結果を成功へ読み替えない。
 
-[旧prototype](history-observation-sync-prototype.md)は変更しない。ここで追加する専用mode
-`dev-history-observation-sync`は、実装が存在しても既定無効で、実行許可や移行完了を表さない。
+[旧prototype](history-observation-sync-prototype.md)は変更しない。M20で追加した専用mode
+`dev-history-observation-sync`は導入時に既定無効とした。実装の存在は実行許可や移行完了を表さない。
 既存55guard、通常drift0、State不変検査、既存issuer/catalog、HCL、productionを変更しない。
 本人の追加操作や実State変更は、このsource変更では発生しない。
+
+## 最新の専用source window（2026-10-16）
+
+専用2gateだけをtrueにし、UTC `2026-10-16T04:29:31Z` から `2026-10-17T04:29:31Z` までの最大24hに固定する。
+最終実行SHA Rはこのsourceの統合後に確定し、同Rでpreviewを先に行う。実previewの独立QA後だけ、
+同R・同request・期待値B固定の別synchronize runを作り、TableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変
+（配列順は変化可）に限定した新しいapply Environment本人承認を必要とする。
+source windowはactual admissionやState書込許可ではない。この変更時点でpreview/applyは未実行、
+State同期・新issuer・migration Readyは未成立で、本人への実run承認依頼もまだ行わない。
+旧4runtime gate、metadata/authority/current-state read、production、profile契約、既存binding/nonceは変更しない。
+期限切れ入力や旧run承認を流用せず、このwindowを後から延長しない。
 
 ## 対象と承認
 
@@ -15,7 +26,7 @@ CI #885の通常planはimport0 / no-op12 / drift1で停止した。対象は履�
 履歴Tableの上記2属性だけであることを要求する。欠落・未知・重複・move・import・replacement・unknown・
 sensitivity変更・余分なdrift/actionを拒否する。時刻は非bool整数で増加、etagは非空stringかつ変化が必要。
 
-source gate `DEV_HISTORY_OBSERVATION_SYNC_ENABLED` / `_APPLY_ENABLED`はfalse、時刻は空である。
+M20導入時のsource gate `DEV_HISTORY_OBSERVATION_SYNC_ENABLED` / `_APPLY_ENABLED`はfalse、時刻は空だった。
 有効化する場合は別reviewでsame SHAに両gateと最大24hのwindowを固定し、PLANを先に行う。
 source gateが開いているだけでState変更を許可しない。通常applyのgateはfalseのままである。
 

@@ -55,7 +55,9 @@ history importは成功し、過去の独立protected planでimport0/no-op12を�
 
 [CI #885](https://github.com/kani3camp/youtube-study-space/actions/runs/38836240227)では、drift1がhistory Tableの`etag` / `last_modified_time`だけと分かり、strict guardは引き続きSTOPしました。この2項目をStateへ同期する[実行不可の設計・pure prototype](docs/history-observation-sync-prototype.md)を用意しています。refresh-onlyの実保存planと2leafだけの永続化は未証明で、成功結果も実行許可を返しません。既存workflow・gateは変更せず、State書込の追加許可や本人操作を今は求めません。
 
-後段の[専用観測同期protocol](docs/history-observation-sync.md)をsource-onlyで追加しました。既存通常guard・旧prototypeは不変で、新gateは既定falseです。完全隔離ダミーのserializer/check-set根拠とfull12検証を分け、same-SHAのpreview QA後、別apply Environmentで2属性と検査結果内容不変を明示した本人承認を必要とします。実State変更・新issuer・移行完了は未成立で、今は本人操作を求めません。
+M20では[専用観測同期protocol](docs/history-observation-sync.md)をsource-onlyで導入し、新gateを既定falseとしました。既存通常guard・旧prototypeは不変です。完全隔離ダミーのserializer/check-set根拠とfull12検証を分け、same-SHAのpreview QA後、別apply Environmentで2属性と検査結果内容不変を明示した本人承認を必要とします。実State変更・新issuer・移行完了は未成立で、今は本人操作を求めません。
+
+専用source windowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` の最大24hです。専用2gateだけを有効にし、統合後の同じSHAでpreviewの独立QA→別synchronize runの新しい本人apply Environment承認という順序を保ちます。source有効化だけではState書込を許可せず、この変更時点で両run・State同期・新issuer・移行完了は未成立です。旧4runtime gateとproductionは閉鎖のままです。[現在のwindowと承認境界](docs/history-observation-sync.md)を参照してください。
 
 ## Directory
 
