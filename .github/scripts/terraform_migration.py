@@ -21,6 +21,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
 import terraform_migration_contract as contract
 from terraform_identity_smoke import FORBIDDEN_PERMISSIONS, FUNCTION_FORBIDDEN_PERMISSIONS
@@ -28,6 +29,10 @@ from terraform_identity_smoke import FORBIDDEN_PERMISSIONS, FUNCTION_FORBIDDEN_P
 ROOT = Path(__file__).resolve().parents[2]
 PRIVATE = 'gcp-migration-private'
 MAX_BYTES = 4 * 1024 * 1024
+INPUT_WIRE_BYTES = 48 * 1024
+INPUT_SCHEMA = 'gcp-migration-inputs-v1'
+PACKED_INPUT_SCHEMA = 'gcp-migration-inputs-packed-v1'
+INPUT_FIELDS = frozenset({'schema_version', 'tfvars', 'manifest', 'plan_integrity_key'})
 PROJECTS = {'dev': 'test-youtube-study-space', 'prod': 'youtube-study-space'}
 GOOGLE = 'registry.terraform.io/hashicorp/google'
 VERSION = (ROOT / 'infra/gcp/.terraform-version').read_text().strip()
@@ -142,14 +147,52 @@ def write(path, raw):
         os.fsync(stream.fileno())
 
 
+def input_value(raw):
+    need(type(raw) is bytes and 0 < len(raw) <= MAX_BYTES)
+    value = decode(raw.decode('utf-8'))
+    canonical(value)  # Reject exponent overflow as well as JSON NaN/Infinity.
+    need(type(value) is dict and set(value) == INPUT_FIELDS
+         and value['schema_version'] == INPUT_SCHEMA)
+    return value
+
+
+def decode_input_transport(raw):
+    """Decode one bounded transport; all admission/HMAC uses the original value."""
+    try:
+        need(type(raw) is bytes and 0 < len(raw) <= INPUT_WIRE_BYTES)
+        value = decode(raw.decode('utf-8'))
+        if type(value) is dict and value.get('schema_version') == PACKED_INPUT_SCHEMA:
+            need(set(value) == {'schema_version', 'codec', 'payload'}
+                 and value['codec'] == 'zlib+base64' and type(value['payload']) is str
+                 and b'\n' not in raw and b'\r' not in raw)
+            payload = value['payload'].encode('ascii')
+            compressed = base64.b64decode(payload, validate=True)
+            need(base64.b64encode(compressed) == payload)
+            stream = zlib.decompressobj()
+            raw = stream.decompress(compressed, MAX_BYTES + 1)
+            need(0 < len(raw) <= MAX_BYTES and stream.eof
+                 and not stream.unused_data and not stream.unconsumed_tail)
+        # A second wrapper (or any unknown schema/field) is rejected here.
+        return input_value(raw)
+    except (ValueError, TypeError, UnicodeError, RecursionError, zlib.error):
+        raise ValueError('migration contract rejected') from None
+
+
+def encode_input_transport(raw):
+    """Offline lossless transport encoder; never modifies the reviewed input file."""
+    try:
+        expected = input_value(raw)
+        packed = canonical({'schema_version': PACKED_INPUT_SCHEMA, 'codec': 'zlib+base64',
+                            'payload': base64.b64encode(zlib.compress(raw, 9)).decode('ascii')})
+        need(len(packed) <= INPUT_WIRE_BYTES and decode_input_transport(packed) == expected)
+        return packed
+    except (ValueError, TypeError, UnicodeError, RecursionError, zlib.error):
+        raise ValueError('migration contract rejected') from None
+
+
 def inputs(env):
-    raw = env.get('MIGRATION_INPUTS_JSON', '').encode()
-    need(0 < len(raw) <= MAX_BYTES)
-    value = decode(raw)
-    need(type(value) is dict and set(value) == {
-        'schema_version', 'tfvars', 'manifest', 'plan_integrity_key'})
-    need(value['schema_version'] == 'gcp-migration-inputs-v1'
-         and type(value['tfvars']) is dict
+    value = decode_input_transport(env.get('MIGRATION_INPUTS_JSON', '').encode())
+    need(type(value['tfvars']) is dict and type(value['plan_integrity_key']) is str
          and re.fullmatch('[0-9a-f]{64}', value['plan_integrity_key']) is not None)
     target = env['MIGRATION_TARGET']
     contract.validate_manifest(value['manifest'], target)
