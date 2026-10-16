@@ -6,6 +6,13 @@
 runtime/entry point/source/triggerの契約は変更しない。production rootへの接続はfresh metadataと
 同じruntime契約の成立を確認する別waveであり、この入力追加はproduction adoptionやNode移行を実行しない。
 
+`name` / `available_memory_mb` / `timeout`もfresh metadataの既存値を受け取る。
+省略時はdevelopmentの既存名・256 MB・60秒を保つ。productionの異なる名前・512 MB・120秒は
+private inputsで指定できるが、production rootの接続・importは別waveである。
+memoryは正の整数だけを検査し、Googleが認める設定を二環境の観測値だけに制限しない。
+timeoutは[pinned providerのGen1契約](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/website/docs/r/cloudfunctions_function.html.markdown#argument-reference)に合わせ、正の整数秒から540秒までとする。
+これらの入力はresource address、Node22、entry point、trigger、source境界を変えない。
+
 ## Fresh inventory / provider probe — 2026-10-06
 
 | Field | Observed development value |

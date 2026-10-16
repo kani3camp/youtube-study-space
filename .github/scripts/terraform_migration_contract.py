@@ -44,7 +44,7 @@ RESOURCE_KEYS = frozenset({
 })
 CHANGE_KEYS = frozenset({
     "actions", "before", "after", "before_sensitive", "after_sensitive", "after_unknown",
-    "importing", "replace_paths",
+    "importing", "replace_paths", "before_identity", "after_identity",
 })
 INSTANCE_KEYS = frozenset({
     "schema_version", "attributes", "sensitive_attributes", "private", "dependencies",
@@ -174,6 +174,76 @@ def _schema(provider_schema, resource_type):
         return schema
     except (KeyError, TypeError):
         raise ContractError("SCHEMA") from None
+
+
+def _identity_schema(provider_schema, resource_type):
+    """Identity has its own provider-level schema, not a resource block."""
+    _schema(provider_schema, resource_type)
+    schemas = provider_schema["provider_schemas"][GOOGLE].get("resource_identity_schemas", {})
+    need(type(schemas) is dict, "SCHEMA")
+    schema = schemas.get(resource_type)
+    if schema is None:
+        return None
+    need(type(schema) is dict and set(schema) == {"version", "attributes"}
+         and type(schema["version"]) is int and schema["version"] >= 0
+         and type(schema["attributes"]) is dict and bool(schema["attributes"]), "SCHEMA")
+    for name, attribute in schema["attributes"].items():
+        need(type(name) is str and type(attribute) is dict
+             and {"type"} <= set(attribute) <= {"type", "description", "required_for_import", "optional_for_import"}
+             # All reviewed Google 8.5.0 allowlist identity attributes are strings.
+             # New identity types require a deterministic adapter, never coercion.
+             and attribute["type"] == "string"
+             and type(attribute.get("required_for_import", False)) is bool
+             and type(attribute.get("optional_for_import", False)) is bool
+             and attribute.get("required_for_import", False) != attribute.get("optional_for_import", False), "SCHEMA")
+    return schema
+
+
+def _resource_identity(identity, version, values, descriptor, manifest, provider_schema):
+    """Validate identity type/requiredness and its binding to resource attributes."""
+    need(type(version) is int and version >= 0, "SCHEMA")
+    if identity is None:
+        need(version == 0, "SCHEMA")
+        return None
+    schema = _identity_schema(provider_schema, descriptor["type"])
+    need(schema is not None and type(identity) is dict and bool(identity)
+         and version == schema["version"], "SCHEMA")
+    attributes = schema["attributes"]
+    required = {name for name, attribute in attributes.items() if attribute.get("required_for_import", False)}
+    need(required <= set(identity) <= set(attributes), "VALUE")
+    for name, value in identity.items():
+        if value is None:
+            need(name not in required, "VALUE")
+            continue
+        need(type(value) is str and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+             and (name not in required or bool(value)), "VALUE")
+        if name == "condition_title" and descriptor["type"] == "google_service_account_iam_member":
+            conditions = values.get("condition", [])
+            expected = conditions[0]["title"] if conditions else ""
+        else:
+            need(name in values, "VALUE")
+            expected = values[name]
+        if name == "project":
+            projects = {manifest["project_id"], manifest.get("project_number", manifest["project_id"])}
+            need(value in projects and expected in projects, "VALUE")
+        else:
+            _same(value, expected)
+    return identity
+
+
+def _change_identity(change, planned, descriptor, manifest, provider_schema, *, existing=None):
+    """A no-op cannot change, drop or invent an existing resource identity."""
+    before, after = change.get("before_identity"), change.get("after_identity")
+    schema = _identity_schema(provider_schema, descriptor["type"])
+    for side, identity in (("before", before), ("after", after)):
+        _resource_identity(identity, schema["version"] if identity is not None and schema is not None else 0,
+                           change[side], descriptor, manifest, provider_schema)
+    # The pinned Core/provider also shows an import's resolved remote identity
+    # on both sides of its no-op. An identity create/delete is not this contract.
+    _same(before, after)
+    _same(after, planned.get("identity"))
+    if existing is not None and existing.get("identity") is not None:
+        _same(existing["identity"], before, "STATE")
 
 
 def _observation_keys(provider_schema, resource_type):
@@ -400,6 +470,8 @@ def _shown_values(shown, expected, manifest, provider_schema, environment):
                  and (resource.get("identity") is None or type(resource["identity"]) is dict)
                  and type(resource.get("depends_on", [])) is list
                  and all(type(item) is str for item in resource.get("depends_on", [])), "GRAPH")
+            _resource_identity(resource.get("identity"), resource.get("identity_schema_version", 0),
+                               resource["values"], descriptor, manifest, provider_schema)
             found[address] = resource
         for child in children:
             need(type(child) is dict and type(child.get("address")) is str, "GRAPH")
@@ -458,6 +530,8 @@ def _native_state(state, expected, manifest, provider_schema, environment):
                  and instance.get("create_before_destroy", False) is False
                  and type(instance.get("identity_schema_version", 0)) is int and instance.get("identity_schema_version", 0) >= 0
                  and (instance.get("identity") is None or type(instance["identity"]) is dict), "STATE")
+            _resource_identity(instance.get("identity"), instance.get("identity_schema_version", 0),
+                               instance["attributes"], descriptor, manifest, provider_schema)
             normalized = deepcopy(instance)
             for field in ("sensitive_attributes", "dependencies"):
                 items = normalized.get(field, [])
@@ -503,6 +577,8 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
         _values(change["after"], descriptor, manifest, provider_schema)
         _same(change["after"], planned[address]["values"])
         _same(change.get("after_sensitive", {}), planned[address].get("sensitive_values", {}), "MASK")
+        _change_identity(change, planned[address], descriptor, manifest, provider_schema,
+                         existing=native[address][1] if address in native else None)
         if "importing" in change:
             need(change["importing"] == {"id": descriptor["import_id"]}, "ACTION")
             imports.add(address)
@@ -527,6 +603,9 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
         _same(change["before"], native[address][1]["attributes"], "DRIFT")
         _same(change["after"], found[address]["before"], "DRIFT")
         _same(change.get("before_sensitive", {}), found[address].get("before_sensitive", {}), "MASK")
+        if "before_identity" in change or "after_identity" in change:
+            _change_identity(change, planned[address], descriptor, manifest, provider_schema,
+                             existing=native[address][1])
         observed[address] = differing
     for address, (_, instance) in native.items():
         _same(instance["attributes"],
@@ -544,6 +623,7 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
         need(set(native) <= set(prior_values) <= set(expected), "GRAPH")
         for address, resource in prior_values.items():
             _same(resource["values"], found[address]["before"], "STATE")
+            _same(resource.get("identity"), found[address].get("before_identity"), "STATE")
     return {"schema_version": "gcp-migration-result-v1", "environment": environment,
             "managed": len(expected), "managed_before": len(native), "imports": len(imports),
             "no_op": len(expected), "raw_observation_drift": len(drift),
@@ -644,6 +724,8 @@ def validate_state_delta(before, after, *, manifest, environment, provider_schem
         need(validated["imports"] == len(imports), "STATE_DELTA")
         approved_values = {resource["address"]: resource["change"]["after"]
                            for resource in plan["resource_changes"]}
+        approved_identity = {resource["address"]: resource["change"].get("after_identity")
+                             for resource in plan["resource_changes"]}
         # A manifest may intentionally omit provider-computed values. The saved
         # plan still fixes every resulting instance: importing the right ID must
         # never excuse unrelated attributes appearing in its new State instance.
@@ -651,6 +733,7 @@ def validate_state_delta(before, after, *, manifest, environment, provider_schem
             resource_type = expected[address]["type"]
             _same(_stable_values(instance["attributes"], resource_type, provider_schema),
                   _stable_values(approved_values[address], resource_type, provider_schema), "STATE_DELTA")
+            _same(instance.get("identity"), approved_identity[address], "STATE_DELTA")
         planned_checks = _check_map(plan.get("checks", []))
         previous_checks = _check_map(before.get("check_results"), native=True)
         current_checks = _check_map(after.get("check_results"), native=True)

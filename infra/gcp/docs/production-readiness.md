@@ -68,6 +68,10 @@ cloud trust、現Environment保護、locking/recoveryの検証にはなりませ
 
 ## Source gaps before production activation
 
+共有export modulesはFunctionの既存name/memory/timeoutとSchedulerの既存nameを入力で保持できる。
+developmentの既定値・resource addressは維持し、production固有値はfresh private inputsから与える。
+このsource準備はproduction rootへの接続、import、実plan/no-op、Development Exitを証明しない。
+
 [現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)のproduction migrationは上記gateで閉鎖を維持します。
 以下のPROD_* gate/tableは旧経路のhistorical source packetです。
 `PROD_AUTHENTICATED_TERRAFORM_ENABLED` をtrueへ変えるだけでは完成しません。

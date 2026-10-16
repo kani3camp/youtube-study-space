@@ -109,6 +109,30 @@ def observation(value, *, etag="fixture-etag-2", modified=2):
     return value
 
 
+def identity_fixture():
+    saved, before, after, schema = plan(), state(), state(count=2, serial=3), provider_schema()
+    identity_schemas = {
+        "google_bigquery_table": {"version": 1, "attributes": {
+            "project": {"type": "string", "optional_for_import": True},
+            "dataset_id": {"type": "string", "required_for_import": True},
+            "table_id": {"type": "string", "required_for_import": True}}},
+        "google_pubsub_topic": {"version": 1, "attributes": {
+            "project": {"type": "string", "optional_for_import": True},
+            "name": {"type": "string", "required_for_import": True}}},
+    }
+    schema["provider_schemas"][gate.GOOGLE]["resource_identity_schemas"] = identity_schemas
+    for index, change in enumerate(saved["resource_changes"]):
+        definition = identity_schemas[change["type"]]
+        identity = {key: change["change"]["after"][key] for key in definition["attributes"]}
+        change["change"].update(before_identity=deepcopy(identity), after_identity=deepcopy(identity))
+        resource = saved["planned_values"]["root_module"]["child_modules"][index]["resources"][0]
+        resource.update(identity=deepcopy(identity), identity_schema_version=1)
+        after["resources"][index]["instances"][0].update(identity=deepcopy(identity), identity_schema_version=1)
+        if index == 0:
+            before["resources"][index]["instances"][0].update(identity=deepcopy(identity), identity_schema_version=1)
+    return saved, before, after, schema
+
+
 class MigrationContractTest(unittest.TestCase):
     def validate(self, value=None, *, environment="dev", before=None, phase="before", custom_manifest=None, schema=None):
         return gate.validate_plan(plan(environment) if value is None else value,
@@ -384,6 +408,86 @@ class MigrationContractTest(unittest.TestCase):
         self.validate(candidate)
         self.reject_plan(lambda value: value["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"][0]["values"].update(etag="different-from-current-plan"), original=candidate)
         self.reject_plan(lambda value: value["prior_state"]["values"]["root_module"]["child_modules"].clear(), original=candidate)
+
+    def test_native_identity_schema_binds_existing_and_imported_plan_and_state(self):
+        saved, before, after, schema = identity_fixture()
+        result = self.validate(saved, before=before, schema=schema)
+        self.assertEqual(result["imports"], 1)
+        args = dict(manifest=manifest(), environment="dev", provider_schema=schema,
+                    expected_imports={descriptors()[1]["address"]}, plan=saved)
+        gate.validate_state_delta(before, after, **args)
+        self.validate(observation(deepcopy(saved)), before=before, schema=schema)
+        candidate = deepcopy(saved)
+        candidate["prior_state"] = {"format_version": "1.0", "values": deepcopy(candidate["planned_values"])}
+        self.validate(candidate, before=before, schema=schema)
+        candidate["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"][0]["identity"] = None
+        candidate["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"][0]["identity_schema_version"] = 0
+        with self.assertRaises(gate.ContractError):
+            self.validate(candidate, before=before, schema=schema)
+
+    def test_changed_unknown_typed_or_deleted_identity_is_rejected(self):
+        saved, before, _, schema = identity_fixture()
+        edits = [
+            lambda value: value["resource_changes"][0]["change"]["after_identity"].update(project=None),
+            lambda value: value["resource_changes"][0]["change"]["after_identity"].update(table_id=True),
+            lambda value: value["resource_changes"][0]["change"].update(after_identity_unknown={"table_id": True}),
+            lambda value: value["resource_changes"][0]["change"]["after_identity"].update(unknown_key="unreviewed"),
+            lambda value: value["resource_changes"][0]["change"].pop("after_identity"),
+            lambda value: value["resource_changes"][0]["change"].update(before_identity=None, after_identity=None),
+            lambda value: value["planned_values"]["root_module"]["child_modules"][0]["resources"][0].update(identity_schema_version=0),
+        ]
+        for edit in edits:
+            candidate = deepcopy(saved)
+            edit(candidate)
+            with self.assertRaises(gate.ContractError):
+                self.validate(candidate, before=before, schema=schema)
+        for field in ("before_identity", "after_identity"):
+            candidate = deepcopy(saved)
+            candidate["resource_changes"][0]["change"][field].pop("dataset_id")
+            with self.assertRaises(gate.ContractError):
+                self.validate(candidate, before=before, schema=schema)
+        for edit in (
+            lambda value: value["resources"][0]["instances"][0]["identity"].update(table_id="different-resource"),
+            lambda value: value["resources"][0]["instances"][0].update(identity_schema_version=True),
+        ):
+            changed = deepcopy(before)
+            edit(changed)
+            with self.assertRaises(gate.ContractError):
+                self.validate(saved, before=changed, schema=schema)
+
+    def test_identity_schema_changes_require_review_and_import_state_cannot_drop_identity(self):
+        saved, before, after, schema = identity_fixture()
+        for edit in (
+            lambda value: value["provider_schemas"][gate.GOOGLE].pop("resource_identity_schemas"),
+            lambda value: value["provider_schemas"][gate.GOOGLE]["resource_identity_schemas"]["google_bigquery_table"].update(version=2),
+            lambda value: value["provider_schemas"][gate.GOOGLE]["resource_identity_schemas"]["google_bigquery_table"]["attributes"]["table_id"].update(type="number"),
+            lambda value: value["provider_schemas"][gate.GOOGLE]["resource_identity_schemas"]["google_bigquery_table"]["attributes"]["table_id"].update(optional_for_import=True),
+        ):
+            changed = deepcopy(schema)
+            edit(changed)
+            with self.assertRaises(gate.ContractError):
+                self.validate(saved, before=before, schema=changed)
+        for edit in (
+            lambda value: value["resources"][1]["instances"][0].update(identity=None, identity_schema_version=0),
+            lambda value: value["resources"][1]["instances"][0]["identity"].update(project=None),
+        ):
+            changed = deepcopy(after)
+            edit(changed)
+            with self.assertRaises(gate.ContractError):
+                gate.validate_state_delta(before, changed, manifest=manifest(), environment="dev", provider_schema=schema,
+                                         expected_imports={descriptors()[1]["address"]}, plan=saved)
+
+    def test_private_commitment_retains_import_identity_even_when_optional_project_is_null(self):
+        first, before, _, schema = identity_fixture()
+        second = deepcopy(first)
+        for field in ("before_identity", "after_identity"):
+            second["resource_changes"][1]["change"][field]["project"] = None
+        second["planned_values"]["root_module"]["child_modules"][1]["resources"][0]["identity"]["project"] = None
+        # Each null is known and optional in this provider identity schema. The
+        # private approved projection must nevertheless retain its exact value.
+        self.validate(second, before=before, schema=schema)
+        with self.assertRaises(gate.ContractError):
+            gate.compare_replans(first, second, manifest=manifest(), environment="dev", provider_schema=schema, state=before)
 
     def test_strict_decoder_and_failures_never_print_or_echo_private_values(self):
         for raw in ('{"private":"sentinel","private":"other"}', '{"private":NaN}', '{"private":Infinity}'):

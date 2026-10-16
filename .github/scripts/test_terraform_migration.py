@@ -191,6 +191,55 @@ class ContextAndPrivateInputTest(OfflineTest):
                 with self.subTest(target=target, role=role, missing_number=True), patch.object(migration, "aws", return_value=actual_aws), patch.object(migration, "google", return_value=actual_project), self.assertRaises(ValueError):
                     migration.verify_identity(env | {"MIGRATION_INPUTS_JSON": json.dumps(value)})
 
+    def test_import_only_permission_probe_checks_project_other_environment_and_scoped_runtime_authorities(self):
+        env = environment()
+        value = json.loads(env['MIGRATION_INPUTS_JSON'])
+        value['manifest']['project_number'] = PROJECT_NUMBER
+        env['MIGRATION_INPUTS_JSON'] = json.dumps(value)
+        allowed = {'permissions': ['resourcemanager.projects.get']}
+        with patch.object(migration, 'google', side_effect=[allowed, {}, {}, {}]) as google:
+            migration.verify_permissions(env)
+        self.assertEqual(google.call_count, 4)
+        own, other, sa, pool = google.call_args_list
+        self.assertIn('/' + migration.PROJECTS['dev'] + ':testIamPermissions', own.args[2])
+        self.assertIn('/' + migration.PROJECTS['prod'] + ':testIamPermissions', other.args[2])
+        self.assertTrue(sa.args[2].endswith('@appspot.gserviceaccount.com:testIamPermissions'))
+        self.assertTrue(pool.args[2].endswith('/aws-runtime:testIamPermissions'))
+        permissions = own.args[3]['permissions']
+        self.assertLessEqual(len(permissions), 100)
+        for forbidden in ('monitoring.alertPolicies.create', 'serviceusage.services.enable',
+                          'cloudfunctions.functions.call', 'pubsub.topics.publish', 'cloudscheduler.jobs.run',
+                          'cloudscheduler.jobs.enable'):
+            self.assertIn(forbidden, permissions)
+        self.assertNotIn('cloudscheduler.jobs.resume', permissions)
+        with patch.object(migration, 'google', return_value={'permissions': ['resourcemanager.projects.get', 'cloudscheduler.jobs.enable']}), self.assertRaises(ValueError):
+            migration.verify_permissions(env)
+        for index in range(4):
+            responses = [allowed, {}, {}, {}]
+            responses[index] = {'permissions': ['monitoring.alertPolicies.create']}
+            with self.subTest(boundary=index), patch.object(migration, 'google', side_effect=responses), self.assertRaises(ValueError):
+                migration.verify_permissions(env)
+
+    def test_other_environment_only_explicit_permission_denial_is_accepted(self):
+        env = environment()
+        value = json.loads(env['MIGRATION_INPUTS_JSON'])
+        value['manifest']['project_number'] = PROJECT_NUMBER
+        env['MIGRATION_INPUTS_JSON'] = json.dumps(value)
+        allowed = {'permissions': ['resourcemanager.projects.get']}
+        for status, body, accepted in ((403, {'error': {'status': 'PERMISSION_DENIED'}}, True),
+                                       (404, {'error': {'status': 'NOT_FOUND'}}, False),
+                                       (500, {'error': {'status': 'INTERNAL'}}, False),
+                                       (403, {'error': {'status': CANARY}}, False)):
+            error = urllib.error.HTTPError('https://fixture.invalid/' + CANARY, status, CANARY, {},
+                                           io.BytesIO(json.dumps(body).encode()))
+            self.addCleanup(error.close)
+            with self.subTest(status=status, accepted=accepted), patch.object(migration, 'google', side_effect=[allowed, error, {}, {}]):
+                if accepted:
+                    migration.verify_permissions(env)
+                else:
+                    with self.assertRaises(ValueError):
+                        migration.verify_permissions(env)
+
 
 class MetadataRouteTest(OfflineTest):
     def test_supported_resource_types_use_only_fixed_hosts_and_exact_metadata_paths(self):
@@ -383,6 +432,7 @@ class ExecuteTest(OfflineTest):
             return subprocess.CompletedProcess(args, 0, migration.canonical({"fixture": CANARY}), b"")
 
         self.stack.enter_context(patch.object(migration, "verify_identity"))
+        self.stack.enter_context(patch.object(migration, "verify_permissions"))
         self.stack.enter_context(patch.object(migration, "private_root", return_value=root))
         self.stack.enter_context(patch.object(migration, "collect_metadata", return_value={"fixture": CANARY}))
         self.stack.enter_context(patch.object(migration, "snapshot", return_value=before))
@@ -442,6 +492,41 @@ class ExecuteTest(OfflineTest):
         result, _ = self.main(env)
         self.assertEqual(result, 1)
         self.assertEqual(sum(name == "apply" for name, _ in calls), 1)
+
+    def test_rejected_plan_is_not_applied_and_failure_readback_proves_unchanged_boundaries(self):
+        env, root, calls = self.setup_execution()
+        migration.contract.validate_plan.side_effect = migration.contract.ContractError('ACTION')
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('stage=VALIDATE; reason=ACTION', output)
+        self.assertIn('"apply_attempted":false,"metadata":"SAME","state":"SAME"', output)
+        self.assertEqual([call.args[2] for call in migration.snapshot.call_args_list], ['before', 'failure'])
+        self.assertFalse(any(name == 'apply' for name, _ in calls))
+        self.assertFalse((root / 'apply-attempt').exists())
+
+    def test_failure_readback_reports_changed_and_unobserved_without_masking_original_failure(self):
+        env, _, calls = self.setup_execution()
+        before = migration.snapshot.return_value
+        migration.snapshot.side_effect = [before, {'private': CANARY}]
+        migration.collect_metadata.side_effect = [{'fixture': CANARY}, ValueError(CANARY)]
+        migration.contract.validate_plan.side_effect = migration.contract.ContractError('VALUE')
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('stage=VALIDATE; reason=VALUE', output)
+        self.assertIn('"metadata":"UNOBSERVED","state":"CHANGED"', output)
+        self.assertEqual(migration.snapshot.call_count, 2)
+        self.assertEqual(migration.collect_metadata.call_count, 2)
+        self.assertFalse(any(name == 'apply' for name, _ in calls))
+
+    def test_failure_before_state_snapshot_never_claims_state_safety(self):
+        env, _, _ = self.setup_execution()
+        migration.verify_identity.side_effect = ValueError(CANARY)
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('stage=IDENTITY; reason=EXECUTION', output)
+        self.assertIn('"metadata":"UNOBSERVED","state":"UNOBSERVED"', output)
+        migration.snapshot.assert_not_called()
+        migration.collect_metadata.assert_not_called()
 
     def test_different_commitment_prevents_any_apply(self):
         env, root, calls = self.setup_execution(commitment="0" * 64)
@@ -557,6 +642,38 @@ class WorkflowRoutingTest(OfflineTest):
             self.assertLess(stage, block.index("terraform_migration.py oidc"))
             self.assertLess(stage, block.index("uses: aws-actions/configure-aws-credentials@"))
             self.assertLess(stage, block.index("uses: google-github-actions/auth@"))
+
+
+class PublicDiagnosticTest(OfflineTest):
+    def test_failure_readback_closes_http_error_responses_without_publishing_their_reason_or_url(self):
+        streams = [io.BytesIO(CANARY.encode()), io.BytesIO(CANARY.encode())]
+        errors = [urllib.error.HTTPError('https://fixture.invalid/' + CANARY, 403, CANARY, {}, stream)
+                  for stream in streams]
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(migration, 'snapshot', side_effect=errors[0]), patch.object(migration, 'collect_metadata', side_effect=errors[1]), redirect_stdout(stdout), redirect_stderr(stderr):
+            result = migration.failure_safety(environment(), self.directory, manifest(), {}, {})
+        self.assertEqual(result, {'apply_attempted': False, 'state': 'UNOBSERVED', 'metadata': 'UNOBSERVED'})
+        self.assertTrue(all(stream.closed for stream in streams))
+        self.assertEqual(stdout.getvalue() + stderr.getvalue(), '')
+
+    def test_diagnostics_include_only_fixed_names_and_counts_even_for_private_keys_values_and_addresses(self):
+        plan = {'resource_changes': [{
+            'address': CANARY, 'type': CANARY,
+            'change': {'actions': ['update', CANARY], CANARY: CANARY,
+                       'before_identity': {'id': CANARY}, 'after_identity': {'id': CANARY},
+                       'before': {'schema': CANARY, CANARY: CANARY},
+                       'after': {'schema': 'changed', CANARY: 'changed'}}}]}
+        diagnostic = migration.plan_diagnostic(plan)
+        self.assertNotIn(CANARY, json.dumps(diagnostic))
+        self.assertEqual(diagnostic['actions']['update'], 1)
+        self.assertEqual(diagnostic['actions']['other'], 1)
+        self.assertEqual(diagnostic['changed_fields'], {'schema': 1})
+        self.assertEqual(diagnostic['other_changed_fields'], 1)
+        self.assertEqual(diagnostic['identities_present'], 1)
+        self.assertEqual(diagnostic['identities_changed'], 0)
+        self.assertEqual(diagnostic['unknown_change_keys'], len(set(plan['resource_changes'][0]['change']) - migration.contract.CHANGE_KEYS))
+        for malformed in (None, [], {'resource_changes': CANARY}):
+            self.assertEqual(migration.plan_diagnostic(malformed), {'shape_observed': False})
 
 
 if __name__ == "__main__":
