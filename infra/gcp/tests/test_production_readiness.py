@@ -181,7 +181,8 @@ class ProductionMockPlanTest(unittest.TestCase):
             shutil.copytree(GCP / "environments/prod/tests", target / "tests")
             for name in ("monitoring-notification-channels", "youtube-quota-alerts", "retained-backup-bucket",
                          "retained-bigquery-dataset", "retained-order-history", "retained-user-activity-history",
-                         "firestore-export-topic", "firestore-export-scheduler", "firestore-export-function"):
+                         "firestore-export-topic", "firestore-export-scheduler", "firestore-export-function",
+                         "runtime-aws-wif", "owned-project-apis"):
                 shutil.copytree(GCP / "modules" / name, Path(directory) / "modules" / name,
                                 ignore=shutil.ignore_patterns(".terraform", "*.tfstate*", "*.tfplan", "*.tfvars*"))
             env = credentialless_environment()
@@ -349,6 +350,9 @@ class ProductionMockPlanTest(unittest.TestCase):
         # original sensitive channel attribute and exact resource addresses.
         self.assertTrue(all(resource["change"]["after_sensitive"]["notification_channels"]
                             for resource in self.plans["quota_opt_in_is_a_create_not_an_import"]["resource_changes"]))
+
+
+from test_production_runtime_ownership import ProductionRuntimeOwnership
 
 
 if __name__ == "__main__":
