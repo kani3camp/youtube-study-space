@@ -18,6 +18,8 @@ Current Canon §10と本人の最新指示により、4 EnvironmentはRequired r
 
 Core/providerが返す `before_identity` / `after_identity` は独立したprovider identity schemaで型・required属性・versionを検査し、resource属性・planned/prior/raw State・保存plan後の全Stateと結合する。未知keyや識別子の変更/削除は拒否する。native回帰は実Core/providerとloopback GET専用ダミーAPIを使い、実認証・実Cloud・共有Stateなしでimportとno-op、計算観測保存、sensitivity-only update拒否を検証する。
 
+Google 8.5の既存API importは、設定が `false` でも `disable_on_destroy` / `disable_dependent_services` をJSON keyありの `null` としてStateへ保存する。値はpinned schemaのoptional boolに対する `null` / bool `false` だけを受理し、選択APIの各manifest instanceを通常planのstatic configurationへ結合して、review済みlocal API module・両expressionのexact `constant_value: false` を必須にする。欠落、dynamic参照、`true`、数値、未知source/treeはSTOPする。APIを含むStateDeltaにはこのconfigurationを持つ保存planを必須とし、null/falseを値・mask・identity・re-plan比較で同一視しない。実Core/provider＋GET専用loopback APIの回帰がimport、保存planのlocal apply、native null保存、通常post no-opを検証する。実Cloud/credential/backendやAPI consumerの実使用はこの回帰の対象外。
+
 失敗時は固定action名・既知field名の件数だけを診断し、address/import ID/値/未知key名を公開しない。before観測が存在する境界だけを一度再取得し、Stateと安定metadataを `SAME` / `CHANGED` / `UNOBSERVED` で報告する。取得失敗を不変の証明にせず、apply試行済みかも明記する。結果にかかわらず元の失敗で停止し、再applyしない。
 
 再plan完全比較の原因分類には、source/closure/inputs/state/metadata/planの固定6区分と鍵確認を、別domainのkeyed HMACでjob間へ渡す。詳細もplanの既知top-level field、metadataの既知resource type、Stateの固定HEAD項目/other/raw/parsedだけを別domainで比較する。公開診断は不一致区分・固定項目名と鍵一致boolのみ。unkeyed private hashや値は出さず、全6区分・詳細と従来のexecution全体HMACの一致をすべて必須にする。区分を除外したり、比較失敗をapply許可へ変えたりしない。

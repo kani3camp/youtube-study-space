@@ -80,7 +80,7 @@ classify_path() {
 	local matched=false
 
 	case "$path" in
-		.github/scripts/production_initializer.py|.github/scripts/test_production_initializer.py|.github/scripts/terraform_migration.py|.github/scripts/terraform_migration_contract.py|.github/scripts/test_terraform_migration.py|.github/scripts/test_terraform_migration_contract.py|.github/scripts/test_terraform_migration_native_fidelity.py|.github/scripts/test_order_history.py)
+		.github/scripts/production_initializer.py|.github/scripts/test_production_initializer.py|.github/scripts/terraform_migration.py|.github/scripts/terraform_migration_contract.py|.github/scripts/test_terraform_migration.py|.github/scripts/test_terraform_migration_contract.py|.github/scripts/test_terraform_migration_native_fidelity.py|.github/scripts/test_terraform_api_import_fidelity.py|.github/scripts/test_order_history.py)
 			gcp_terraform=true
 			matched=true
 			;;

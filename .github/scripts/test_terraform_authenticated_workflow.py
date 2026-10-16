@@ -122,6 +122,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true'", validation)
         for required in ("test_terraform_migration_contract.py", "test_terraform_migration.py",
                          "test_terraform_authenticated_workflow.py", "test_terraform_migration_native_fidelity.py",
+                         "test_terraform_api_import_fidelity.py",
                          "test_production_initializer.py", "test_runtime_pool_import_fidelity.py",
                          "terraform fmt -check -recursive infra/gcp", "-backend=false", "terraform_version: \"1.16.4\"",
                          "Verify multi-platform provider locks are complete", "Verify provider locks match"):
