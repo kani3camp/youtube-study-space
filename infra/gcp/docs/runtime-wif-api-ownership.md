@@ -1427,3 +1427,17 @@ CI #885のraw drift1 / no-op12、2項目だけのVALUE診断と5安全検査PASS
 新source gateだけでは実行許可にならず、同SHA previewの独立QA後、期待値B固定の別apply runを作り、
 履歴TableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変（配列順は変化可）を明示した新しい本人Env承認が必要である。
 旧run承認・期限切れprivate入力・旧issuerを流用しない。実State書込、new issuer、migration Ready、追加本人操作はいずれも現在0。
+
+
+### 履歴観測同期の専用source window（2026-10-16）
+
+M20導入時の既定false/時刻空という記録を保持し、専用2gateだけをtrueへ変更する。
+windowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` の最大24hで、延長しない。
+最終Rはこのsourceの統合後に確定する。まず同Rのpreviewを本人plan Environment承認後に実行し、
+実proofとprovenanceの独立QA後だけ、同R・同request・期待値B固定の別synchronize runを作る。
+その新しい本人apply Environment承認はTableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変
+（config/object配列順は変化可）に限定した個別許可で、旧承認を流用しない。
+source windowの有効化はactual admission/State書込許可ではなく、この変更時点で両runは未実行、
+State同期・新issuer・migration Readyは未成立である。実run作成前に本人の追加操作を求めない。
+旧4runtime gate、その他read/one-off/production、profile契約、binding/nonce、55guard/issuerは不変。
+[専用契約の現在値](history-observation-sync.md)に従い、BがCならSTOPする。
