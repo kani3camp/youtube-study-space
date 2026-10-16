@@ -26,3 +26,28 @@ run "preserve_existing_gen1_runtime_trigger_and_limits" {
     error_message = "Do not introduce source ownership, reserved labels or an HTTP trigger."
   }
 }
+
+run "preserve_production_environment_without_changing_runtime_or_trigger" {
+  command = plan
+  variables {
+    project_id  = "youtube-study-space"
+    topic_id    = "projects/youtube-study-space/topics/initiateFirestoreCollectionsExport"
+    environment = "production"
+  }
+  assert {
+    condition     = google_cloudfunctions_function.export.environment_variables == tomap({ YSS_EXPORT_ENVIRONMENT = "production", YSS_EXPORT_PROJECT_ID = "youtube-study-space" })
+    error_message = "Production must retain its own project and export runtime environment."
+  }
+  assert {
+    condition     = google_cloudfunctions_function.export.runtime == "nodejs22" && google_cloudfunctions_function.export.entry_point == "scheduledFirestoreExport" && google_cloudfunctions_function.export.event_trigger[0].resource == var.topic_id && google_cloudfunctions_function.export.event_trigger[0].failure_policy[0].retry == false && google_cloudfunctions_function.export.source_archive_bucket == null && google_cloudfunctions_function.export.source_archive_object == null && length(google_cloudfunctions_function.export.source_repository) == 0
+    error_message = "Selecting an environment must preserve the existing runtime, trigger and external source ownership."
+  }
+}
+
+run "reject_unknown_runtime_environment" {
+  command = plan
+  variables {
+    environment = "staging"
+  }
+  expect_failures = [var.environment]
+}
