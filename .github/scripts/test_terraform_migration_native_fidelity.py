@@ -28,6 +28,22 @@ ADDRESS = 'google_bigquery_table.retained[0]'
 IDENTIFIER = f'projects/{PROJECT}/datasets/fixture/tables/native_identity_witness'
 TOKEN = 'DUMMY_UNUSABLE_NATIVE_WITNESS_TOKEN'
 SCHEMA_EXPRESSION = 'jsonencode([{name="fixture",type="STRING",mode="NULLABLE"}])'
+RUNTIME_NUMBER = '111111111111'
+RUNTIME_POOL = f'projects/{RUNTIME_NUMBER}/locations/global/workloadIdentityPools/aws-runtime'
+RUNTIME_PROVIDER = RUNTIME_POOL + '/providers/aws-provider'
+RUNTIME_INVENTORY = {
+    'project_number': RUNTIME_NUMBER,
+    'pool': {'display_name': 'Dummy pool', 'description': 'Dummy fixture',
+             'disabled': False, 'mode': 'FEDERATION_ONLY'},
+    'provider': {'display_name': 'Dummy provider', 'description': 'Dummy fixture',
+                 'disabled': False, 'aws_account_id': '222222222222',
+                 'attribute_mapping': {'google.subject': 'assertion.arn',
+                                       'attribute.aws_role': 'assertion.arn',
+                                       'attribute.account': 'assertion.account'},
+                 'attribute_condition': "assertion.account == '222222222222'"},
+    'service_account_id': f'projects/{PROJECT}/serviceAccounts/{PROJECT}@appspot.gserviceaccount.com',
+    'grants': {},
+}
 
 
 class NativeMigrationFidelity(unittest.TestCase):
@@ -39,7 +55,7 @@ class NativeMigrationFidelity(unittest.TestCase):
         cls.binary = shutil.which('terraform')
         if cls.binary is None:
             raise AssertionError('Pinned Terraform is required; native witness must not skip')
-        cls.api_version, cls.requests = 1, []
+        cls.api_version, cls.requests, cls.blocked_egress = 1, [], []
 
         class DummyAPI(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -47,21 +63,45 @@ class NativeMigrationFidelity(unittest.TestCase):
 
             def do_GET(self):
                 cls.requests.append(self.command)
-                if self.path.split('?', 1)[0] != '/' + IDENTIFIER:
+                path = self.path.split('?', 1)[0]
+                if path.startswith('/iam/'):
+                    pool = '/iam/projects/' + PROJECT + '/locations/global/workloadIdentityPools/aws-runtime'
+                    if path == pool:
+                        value = {'name': RUNTIME_POOL, 'state': 'ACTIVE', 'disabled': False,
+                                 'displayName': 'Dummy pool', 'description': 'Dummy fixture',
+                                 'mode': 'FEDERATION_ONLY'}
+                    elif path == pool + ':listAttestationRules':
+                        value = {'attestationRules': []}
+                    elif path == pool + '/providers/aws-provider':
+                        provider = RUNTIME_INVENTORY['provider']
+                        value = {'name': RUNTIME_PROVIDER, 'state': 'ACTIVE', 'disabled': False,
+                                 'displayName': provider['display_name'], 'description': provider['description'],
+                                 'aws': {'accountId': provider['aws_account_id']},
+                                 'attributeMapping': provider['attribute_mapping'],
+                                 'attributeCondition': provider['attribute_condition']}
+                    else:
+                        self.send_error(404)
+                        return
+                    self.reply(value)
+                    return
+                if path not in ('/' + IDENTIFIER, '/' + IDENTIFIER + '_dependent'):
                     self.send_error(404)
                     return
-                raw = json.dumps({
+                self.reply({
                     'kind': 'bigquery#table',
                     'id': PROJECT + ':fixture.native_identity_witness',
                     'tableReference': {'projectId': PROJECT, 'datasetId': 'fixture',
-                                       'tableId': 'native_identity_witness'},
+                                       'tableId': path.rsplit('/', 1)[1]},
                     'creationTime': '1700000000000',
                     'lastModifiedTime': str(1700000000000 + cls.api_version),
                     'etag': 'DUMMY_ETAG_' + str(cls.api_version),
                     'numBytes': '0', 'numRows': '0', 'location': 'asia-southeast2',
                     'type': 'TABLE', 'schema': {'fields': [
                         {'name': 'fixture', 'type': 'STRING', 'mode': 'NULLABLE'}]},
-                }).encode()
+                })
+
+            def reply(self, value):
+                raw = json.dumps(value).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(raw)))
@@ -70,6 +110,11 @@ class NativeMigrationFidelity(unittest.TestCase):
 
             def reject_write(self):
                 cls.requests.append(self.command)
+                self.send_error(405)
+
+            def do_CONNECT(self):
+                # Separate denied proxy egress from requests to the dummy API.
+                cls.blocked_egress.append(self.path)
                 self.send_error(405)
 
             do_POST = do_PUT = do_PATCH = do_DELETE = reject_write
@@ -118,7 +163,13 @@ class NativeMigrationFidelity(unittest.TestCase):
 
     @classmethod
     def command(cls, directory, *args, codes=(0,)):
-        result = subprocess.run([cls.binary, '-chdir=' + str(directory), *args], env=cls.env,
+        env = dict(cls.env)
+        if args[0] != 'init':
+            # Init may download the public locked provider. Every later provider
+            # process also denies unknown external endpoints via loopback proxy.
+            env.update({key: cls.endpoint for key in (
+                'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')})
+        result = subprocess.run([cls.binary, '-chdir=' + str(directory), *args], env=env,
             stdin=subprocess.DEVNULL, capture_output=True, timeout=120)
         if result.returncode not in codes:
             raise AssertionError('Private native witness command failed: ' + args[0])
@@ -137,6 +188,8 @@ provider "google" {
  project = "''' + PROJECT + '''"
  access_token = "''' + TOKEN + '''"
  big_query_custom_endpoint = "''' + cls.endpoint + '''"
+ iam_custom_endpoint = "''' + cls.endpoint + '''iam/"
+ iam_beta_custom_endpoint = "''' + cls.endpoint + '''iam/"
 }
 variable "project_id" {
  default = "''' + PROJECT + '''"
@@ -223,6 +276,107 @@ output "environment" { value = "development" }
                 self.assertEqual(changed['before'], changed['after'])
                 with self.assertRaises(contract.ContractError):
                     self.validate(counterfactual, after)
+        self.assertEqual(set(self.requests), {'GET'})
+
+
+    def test_native_existing_pool_and_one_provider_import_remain_exact(self):
+        directory = self.directory('runtime-provider')
+        (directory/'terraform.tfstate').write_text(json.dumps(self.after_import))
+        source = directory/'main.tf'
+        source.write_text(source.read_text() + '''
+variable "own_provider" { default = false }
+module "runtime_wif" {
+ source = ''' + json.dumps(str(ROOT/'infra/gcp/modules/runtime-aws-wif')) + '''
+ project_id = var.project_id
+ own_pool = true
+ own_provider = var.own_provider
+ inventory = ''' + json.dumps(RUNTIME_INVENTORY) + '''
+}
+import {
+ to = module.runtime_wif.google_iam_workload_identity_pool.runtime[0]
+ id = "projects/''' + PROJECT + '''/locations/global/workloadIdentityPools/aws-runtime"
+}
+import {
+ for_each = var.own_provider ? toset(["existing"]) : toset([])
+ to = module.runtime_wif.google_iam_workload_identity_pool_provider.runtime[0]
+ id = "projects/''' + PROJECT + '''/locations/global/workloadIdentityPools/aws-runtime/providers/aws-provider"
+}
+''')
+        self.command(directory, 'init', '-backend=false', '-input=false', '-lockfile=readonly')
+        self.command(directory, 'apply', '-input=false', '-auto-approve', '-var=manage_table=true')
+        before = self.state(directory)
+        manifest = deepcopy(self.manifest)
+        for kind, suffix in (('google_iam_workload_identity_pool', ''),
+                             ('google_iam_workload_identity_pool_provider', '/providers/aws-provider')):
+            manifest['resources'].append({'address': f'module.runtime_wif.{kind}.runtime[0]', 'type': kind,
+                'import_id': f'projects/{PROJECT}/locations/global/workloadIdentityPools/aws-runtime' + suffix,
+                'schema_version': 0})
+        projections = []
+        for _ in range(12):
+            self.command(directory, 'plan', '-input=false', '-detailed-exitcode', '-var=manage_table=true',
+                         '-var=own_provider=true', '-out=' + str(directory/'saved.tfplan'), codes=(0, 2))
+            plan = json.loads(self.command(directory, 'show', '-json', str(directory/'saved.tfplan')).stdout)
+            summary = contract.validate_plan(plan, manifest=manifest, environment='dev',
+                                             provider_schema=self.schema, state=before)
+            self.assertEqual((summary['no_op'], summary['imports'], summary['mutations']), (3, 1, 0))
+            projections.append(contract.plan_commitment_payload(plan, manifest, 'dev', self.schema, state=before))
+        # No claim that Core always emits references for accepted no-ops. The
+        # genuine import witness must stay accepted and fully bound either way.
+        self.assertTrue(all(contract.canonical(item) == contract.canonical(projections[0]) for item in projections))
+        self.assertEqual(self.state(directory), before)
+        self.assertEqual(set(self.requests), {'GET'})
+
+    def test_native_reference_metadata_keeps_every_entry_but_rejects_configured_update(self):
+        directory = self.directory('reference-metadata')
+        (directory/'terraform.tfstate').write_text(json.dumps(self.after_import))
+        source = directory/'main.tf'
+        source.write_text(source.read_text() + '''
+resource "google_bigquery_table" "dependent" {
+ count = var.manage_table ? 1 : 0
+ project = google_bigquery_table.retained[0].project
+ dataset_id = google_bigquery_table.retained[0].dataset_id
+ table_id = "native_identity_witness_dependent"
+ schema = ''' + SCHEMA_EXPRESSION + '''
+ deletion_protection = google_bigquery_table.retained[0].deletion_protection
+ lifecycle { prevent_destroy = true }
+}
+import {
+ for_each = var.manage_table ? toset(["existing"]) : toset([])
+ to = google_bigquery_table.dependent[0]
+ id = "''' + IDENTIFIER + '''_dependent"
+}
+''')
+        self.command(directory, 'init', '-backend=false', '-input=false', '-lockfile=readonly')
+        self.command(directory, 'apply', '-input=false', '-auto-approve', '-var=manage_table=true')
+        before = self.state(directory)
+        manifest = deepcopy(self.manifest)
+        manifest['resources'].append({'address': 'google_bigquery_table.dependent[0]',
+            'type': 'google_bigquery_table', 'import_id': IDENTIFIER + '_dependent'})
+        # This separate native metadata producer is deliberately NOT an accepted
+        # migration: an actual schema update must fail before any apply.
+        text = source.read_text()
+        target = 'table_id = "native_identity_witness_dependent"\n schema = ' + SCHEMA_EXPRESSION
+        changed = 'table_id = "native_identity_witness_dependent"\n schema = jsonencode([{name="fixture",type="STRING",mode="NULLABLE"},{name="extra_fixture",type="STRING",mode="NULLABLE"}])'
+        self.assertEqual(text.count(target), 1)
+        source.write_text(text.replace(target, changed))
+        projections = []
+        raw_entries = []
+        for _ in range(8):
+            self.command(directory, 'plan', '-input=false', '-detailed-exitcode', '-var=manage_table=true',
+                         '-out=' + str(directory/'saved.tfplan'), codes=(0, 2))
+            plan = json.loads(self.command(directory, 'show', '-json', str(directory/'saved.tfplan')).stdout)
+            self.assertTrue(any(item['change']['actions'] == ['update'] for item in plan['resource_changes']))
+            with self.assertRaises(contract.ContractError):
+                contract.validate_plan(plan, manifest=manifest, environment='dev', provider_schema=self.schema, state=before)
+            entries = plan.get('relevant_attributes', [])
+            self.assertEqual(len(entries), 3)
+            projection = contract._comparison_projection(plan, contract.validate_manifest(manifest, 'dev'), self.schema)
+            self.assertEqual(projection['relevant_attributes'], sorted(entries, key=contract.canonical))
+            raw_entries.append(sorted(entries, key=contract.canonical))
+            projections.append(projection)
+        self.assertTrue(all(item == raw_entries[0] for item in raw_entries))
+        self.assertTrue(all(contract.canonical(item) == contract.canonical(projections[0]) for item in projections))
+        self.assertEqual(self.state(directory), before)
         self.assertEqual(set(self.requests), {'GET'})
 
 

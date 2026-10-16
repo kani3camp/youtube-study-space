@@ -516,6 +516,80 @@ class MigrationContractTest(unittest.TestCase):
         with self.assertRaises(gate.ContractError):
             gate.compare_replans(first, second, manifest=manifest(), environment="dev", provider_schema=schema, state=before)
 
+    def test_relevant_attribute_permutations_preserve_full_entry_multisets(self):
+        for environment in gate.ENVIRONMENTS:
+            first = plan(environment)
+            table, topic = [item["address"] for item in descriptors(environment)]
+            entries = [{"resource": table, "attribute": ["labels", "fixture"],
+                        "future_field": {"ordered": ["private-sentinel", 1, True]}},
+                       {"resource": topic, "attribute": []},
+                       {"resource": table, "attribute": ["schema", 0, "name"]}]
+            first["relevant_attributes"] = deepcopy([*entries, entries[0]])
+            second = deepcopy(first)
+            second["relevant_attributes"].reverse()
+            original = deepcopy(first)
+            args = dict(manifest=manifest(environment), environment=environment,
+                        provider_schema=provider_schema(), state=state(environment))
+            self.assertTrue(gate.compare_replans(first, second, **args)["matched"])
+            payload = gate.plan_commitment_payload(first, args["manifest"], environment,
+                                                   args["provider_schema"], state=args["state"])
+            self.assertEqual(payload["relevant_attributes"], sorted(first["relevant_attributes"], key=gate.canonical))
+            self.assertEqual(len(payload["relevant_attributes"]), 4)
+            self.assertEqual(first, original)
+            self.assertEqual(gate.canonical(payload), gate.canonical(gate.plan_commitment_payload(
+                second, args["manifest"], environment, args["provider_schema"], state=args["state"])))
+
+    def test_relevant_attribute_semantics_multiplicity_unknown_fields_and_presence_remain_exact(self):
+        first = plan()
+        table, topic = [item["address"] for item in descriptors()]
+        first["relevant_attributes"] = [
+            {"resource": table, "attribute": ["labels", "fixture"], "future_field": {"ordered": [True, 1]}},
+            {"resource": topic, "attribute": ["project"]}]
+        edits = [
+            lambda value: value["relevant_attributes"][0].update(resource=topic),
+            lambda value: value["relevant_attributes"][0].update(attribute=["labels", "different"]),
+            lambda value: value["relevant_attributes"][0]["attribute"].reverse(),
+            lambda value: value["relevant_attributes"].append(deepcopy(value["relevant_attributes"][0])),
+            lambda value: value["relevant_attributes"].pop(),
+            lambda value: value["relevant_attributes"][0].pop("future_field"),
+            lambda value: value["relevant_attributes"][0]["future_field"]["ordered"].reverse(),
+            lambda value: value["relevant_attributes"][0]["future_field"].update(ordered=[1, 1]),
+            lambda value: value.pop("relevant_attributes"),
+        ]
+        args = dict(manifest=manifest(), environment="dev", provider_schema=provider_schema(), state=state())
+        for edit in edits:
+            candidate = deepcopy(first)
+            edit(candidate)
+            self.validate(candidate)
+            with self.assertRaises(gate.ContractError) as error:
+                gate.compare_replans(first, candidate, **args)
+            self.assertEqual(error.exception.reason, "REPLAN")
+        absent, present = plan(), plan()
+        present["relevant_attributes"] = []
+        self.validate(present)
+        with self.assertRaises(gate.ContractError):
+            gate.compare_replans(absent, present, **args)
+
+    def test_relevant_attributes_require_typed_resource_paths_without_echoing_private_fields(self):
+        address = descriptors()[0]["address"]
+        malformed = [None, {}, "private-sentinel", [None], [{}],
+                     [{"resource": address}], [{"attribute": []}],
+                     [{"resource": True, "attribute": []}],
+                     [{"resource": "google_pubsub_topic.unowned", "attribute": []}],
+                     [{"resource": address, "attribute": "schema"}],
+                     *[[{"resource": address, "attribute": [step]}]
+                       for step in (None, True, 0.5, -1, {})]]
+        for relevant in malformed:
+            candidate = plan()
+            candidate["relevant_attributes"] = relevant
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                with self.assertRaises(gate.ContractError) as error:
+                    self.validate(candidate)
+            self.assertEqual(error.exception.reason, "SHAPE")
+            self.assertEqual(output.getvalue(), "")
+            self.assertNotIn("private-sentinel", str(error.exception))
+
     def test_strict_decoder_and_failures_never_print_or_echo_private_values(self):
         for raw in ('{"private":"sentinel","private":"other"}', '{"private":NaN}', '{"private":Infinity}'):
             with self.assertRaises(gate.ContractError):

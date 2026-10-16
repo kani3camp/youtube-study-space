@@ -603,6 +603,15 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
     need("applyable" not in plan or type(plan["applyable"]) is bool, "SHAPE")
     for field in ("deferred_changes", "action_invocations", "deferred_action_invocations"):
         need(type(plan.get(field, [])) is list and plan.get(field, []) == [], "ACTION")
+    if "relevant_attributes" in plan:
+        relevant = plan["relevant_attributes"]
+        need(type(relevant) is list, "SHAPE")
+        for entry in relevant:
+            need(type(entry) is dict and {"resource", "attribute"} <= set(entry)
+                 and type(entry["resource"]) is str and entry["resource"] in expected
+                 and type(entry["attribute"]) is list
+                 and all(type(step) is str or type(step) is int and step >= 0
+                         for step in entry["attribute"]), "SHAPE")
     _check_map(plan.get("checks", []))
     for field in ("configuration", "variables"):
         need(type(plan.get(field)) is dict, "SHAPE")
@@ -683,6 +692,11 @@ def _comparison_projection(plan, expected, provider_schema):
     # They were validated against the native State before reaching this function.
     projection.pop("resource_drift", None)
     projection["checks"] = _checks(projection.get("checks", []))
+    if "relevant_attributes" in projection:
+        # Core's heuristic reference collection is unordered. Sort complete
+        # entries only: retain path order, duplicates and all extra fields.
+        # https://github.com/hashicorp/terraform/blob/v1.16.4/internal/command/jsonplan/plan.go#L760-L776
+        projection["relevant_attributes"].sort(key=canonical)
     for field in ("resource_changes",):
         for resource in projection[field]:
             descriptor = expected[resource["address"]]
@@ -712,7 +726,8 @@ def compare_replans(first, second, *, manifest, environment, provider_schema, st
     """Compare private execution projections, retaining config/variables/checks.
 
     Only timestamps, validated BQ observation leaves and semantic ordering of
-    resource/module/check sets are normalized. No binary plan digest belongs in
+    resource/module/check collections and whole relevant-attribute entries are
+    normalized. No binary plan digest belongs in
     Terraform's JSON; the controller seals each binary immediately before apply.
     """
     before_result = validate_plan(first, manifest=manifest, environment=environment,
