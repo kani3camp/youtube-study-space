@@ -606,9 +606,15 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
     if "relevant_attributes" in plan:
         relevant = plan["relevant_attributes"]
         need(type(relevant) is list, "SHAPE")
+        relevant_resources = set(expected)
+        for address in expected:
+            match = ADDRESS.fullmatch(address)
+            # Core may reference the whole repeated resource as NoKey. Keep
+            # module instances exact and admit only this known leaf alias.
+            relevant_resources.add(match["modules"] + match["type"] + "." + match["name"])
         for entry in relevant:
             need(type(entry) is dict and {"resource", "attribute"} <= set(entry)
-                 and type(entry["resource"]) is str and entry["resource"] in expected
+                 and type(entry["resource"]) is str and entry["resource"] in relevant_resources
                  and type(entry["attribute"]) is list
                  and all(type(step) is str or type(step) is int and step >= 0
                          for step in entry["attribute"]), "SHAPE")

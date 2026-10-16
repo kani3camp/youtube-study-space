@@ -333,7 +333,7 @@ import {
         source.write_text(source.read_text() + '''
 resource "google_bigquery_table" "dependent" {
  count = var.manage_table ? 1 : 0
- project = google_bigquery_table.retained[0].project
+ project = one(google_bigquery_table.retained).project
  dataset_id = google_bigquery_table.retained[0].dataset_id
  table_id = "native_identity_witness_dependent"
  schema = ''' + SCHEMA_EXPRESSION + '''
@@ -366,10 +366,15 @@ import {
                          '-out=' + str(directory/'saved.tfplan'), codes=(0, 2))
             plan = json.loads(self.command(directory, 'show', '-json', str(directory/'saved.tfplan')).stdout)
             self.assertTrue(any(item['change']['actions'] == ['update'] for item in plan['resource_changes']))
-            with self.assertRaises(contract.ContractError):
+            with self.assertRaises(contract.ContractError) as error:
                 contract.validate_plan(plan, manifest=manifest, environment='dev', provider_schema=self.schema, state=before)
+            self.assertEqual(error.exception.reason, 'ACTION')
             entries = plan.get('relevant_attributes', [])
             self.assertEqual(len(entries), 3)
+            # one(resource) is a legitimate whole-resource reference. Core emits
+            # its NoKey form even though the State owns retained[0].
+            self.assertEqual(sum(entry['resource'] == 'google_bigquery_table.retained'
+                                 and entry['attribute'] == [] for entry in entries), 1)
             projection = contract._comparison_projection(plan, contract.validate_manifest(manifest, 'dev'), self.schema)
             self.assertEqual(projection['relevant_attributes'], sorted(entries, key=contract.canonical))
             raw_entries.append(sorted(entries, key=contract.canonical))
