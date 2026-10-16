@@ -51,6 +51,8 @@ history importは成功し、過去の独立protected planでimport0/no-op12を�
 
 その後の[current-state baseline CI #878](https://github.com/kani3camp/youtube-study-space/actions/runs/38828914021)は、本人のEnvironment承認後にStateの事前検証・init・saved planまで進み、Terraform exit codeは0でしたが、sanitizerと事後no-op検証が失敗しました。原因のfield・実action件数・事後State/lockは未確認で、cleanup成功、apply skipped、artifact0です。4つのruntime gateは閉じたまま、成功issuerは未発行です。後続sourceはこのbaseline条件だけに値を含まない固定診断を追加し、既存guardや失敗判定を保持します。今は本人の追加設定操作は不要です。[実測と診断の範囲](docs/runtime-wif-api-ownership.md#2026-10-16-current-state-baseline失敗と限定診断)を参照してください。
 
+続く[baseline CI #881](https://github.com/kani3camp/youtube-study-space/actions/runs/38832507626)は、本人承認後の固定診断でno-op12 / drift1を観測し、sanitizerはSTOPしました。State本文/HEAD不変など5つの独立safety checkはPASSでしたが、driftの対象・fieldは未確認で、成功issuerは未発行です。次のsourceはbaseline限定で対象の固定aliasと公開schema由来のtop-level field codeだけを診断へ追加します。drift0の条件を保ち、refresh applyや旧runの再試行は行いません。追加の本人操作は今は不要です。[観測と追加診断の境界](docs/runtime-wif-api-ownership.md#2026-10-16-baseline-drift1の観測と対象fieldの限定診断)を参照してください。
+
 ## Directory
 
 ```text

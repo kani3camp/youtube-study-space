@@ -15,6 +15,7 @@ from pathlib import Path
 from terraform_email_adoption_gate import CHANNEL, EXISTING, canonical, has_unknown, validate
 from terraform_plan_summary import build_summary, render_markdown, write_private
 from terraform_plan_diagnostic import Context, baseline_scope, record as record_diagnostic
+from terraform_baseline_drift_diagnostic import record as record_baseline_diagnostic
 from terraform_quota_create_gate import validate as validate_quota
 from terraform_quota_refresh_gate import validate as validate_quota_refresh
 from terraform_export_topic_gate import validate as validate_export_topic
@@ -180,7 +181,11 @@ def main():
     except Exception as error:
         if os.environ.get("OWNERSHIP_WAVE", "none") != "none" or baseline:
             try:
-                record_diagnostic(os.environ["RUNNER_TEMP"], plan, diagnostic, error)
+                if baseline:
+                    record_baseline_diagnostic(os.environ["RUNNER_TEMP"], plan, diagnostic, error,
+                        env=dict(os.environ), operation=args.operation, environment=args.environment, phase=args.phase)
+                else:
+                    record_diagnostic(os.environ["RUNNER_TEMP"], plan, diagnostic, error)
             except Exception:
                 pass  # Diagnostic failure cannot authorize the rejected plan.
         print("Protected Terraform plan STOP; private diagnostic suppressed.", file=sys.stderr)
