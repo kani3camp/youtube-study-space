@@ -47,7 +47,7 @@ Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF �
 既存plan/apply Environmentそれぞれでruntime六種metadataを読む `runtime-metadata-read` source routeは
 別default-off gateと最大8時間windowを持ち、Terraform/State/lock/receipt/artifactを扱いません。
 [source契約](docs/runtime-wif-api-ownership.md#protected-runtime-metadata-read-の-source-routedefault-off未実行)を参照してください。
-history importは成功し、過去の独立protected planでimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。current-state bootstrap契約（packet v3）は12件を新しい起点として扱い、失われた歴史証拠を復元しません。旧issuer source S18とM14入力は期限切れの履歴として残し、採用可能なfresh証拠へ読み替えません。current-state root-ready / runtime-plan / split-input / development applyはfalse、metadata-read / authority / current-state-read / productionも閉鎖を維持します。emitter / history-post-noop / 管理済み12件のownership、M13のPool4属性修正、固定診断、全guardとcatalogは保持しています。次は新sourceでfresh State HEAD sizeと既知writer静止を確認した新public safety profileを使い、別のcurrent-state baseline planを発行する経路です。新しい発行・issuer登録・fresh inventory・初回Poolのadmission/import成功はまだ成立していません。baseline発行では追加reviewed-inputs Secretをstageしないため、今は本人による2か所の更新は不要です。既存binding Secretは保持し、実shape/metadata一致はrunnerで検証します。[期限切れ後の閉鎖と再発行条件](docs/runtime-wif-api-ownership.md#2026-10-15-m14配布入力の期限切れと実行枠閉鎖)を参照してください。
+history importは成功し、過去の独立protected planでimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。current-state bootstrap契約（packet v3）は12件を新しい起点として扱い、失われた歴史証拠を復元しません。旧issuer source S18とM14入力は期限切れの履歴として残し、採用可能なfresh証拠へ読み替えません。current-state root-ready / runtime-plan / split-input / development applyはfalse、metadata-read / authority / current-state-read / productionも閉鎖を維持します。emitter / history-post-noop / 管理済み12件のownership、M13のPool4属性修正、固定診断、全guardとcatalogは保持しています。次は新source、承認する固定4MiB上限（外部の実サイズは未測定）、別途fresh確認した既知writer静止を結ぶ新public safety profileを使い、同じ保護job内のfresh HEAD検証を経てcurrent-state baseline planを発行する経路です。新しい発行・issuer登録・fresh inventory・初回Poolのadmission/import成功はまだ成立していません。baseline発行では追加reviewed-inputs Secretをstageしないため、今は本人による2か所の更新は不要です。既存binding Secretは保持し、実shape/metadata一致はrunnerで検証します。[期限切れ後の閉鎖と再発行条件](docs/runtime-wif-api-ownership.md#2026-10-15-m14配布入力の期限切れと実行枠閉鎖)を参照してください。
 
 ## Directory
 
@@ -227,10 +227,20 @@ caller input `terraform_history_plan_safety_evidence`（reusableでは`history_p
 | `schema_version` | 整数`1` |
 | `git_sha` | review・公開された実行対象の完全なSHA |
 | `issued_utc`, `expires_utc` | `YYYY-MM-DDTHH:MM:SSZ`。発行済み・期限内、発行後最大24時間。planとpost safety readの余裕を確保する |
-| `max_state_bytes` | 正整数、4 MiB以下。exact current object HEADで上限をprivateに確認する |
+| `max_state_bytes` | 整数`1..4194304`の承認上限で、実測サイズではない。今回のfresh baselineは固定`4194304`を選び、実サイズは外部未測定とする |
 | `state_writers_quiescent` | 対象state/workspace prefixの並行Terraform writerがないと確認した場合だけ`true`。BigQueryの通常writer停止は要求しない |
 
 認証前に0600/exclusiveの`history-plan-admission.json`を生成する。AWS認証後、GCP認証やstate GET/native backend initの前に、既存Environment secretのRoleIdとSTS `UserId` prefix、exact accountを照合する。history plan/applyの両jobで必須。追加grantやnegative probeを使わない。
+
+今回のcurrent-state baseline再発行では`max_state_bytes=4194304`（既存`MAX_BYTES`の4MiB）を承認上限として指定する。
+別の外部HEAD jobやbucket locatorによる事前実測は要件にしない。exact実行SHA、新しいUTC発行時刻・最大24時間の期限、
+別途fresh確認した既知writer静止は引き続き必要で、上限を選んだことから実サイズやwriter静止を推定しない。
+本人のEnvironment承認後、同じprotected jobのidentity検査は最初のState本文GETより前にfresh HEADで
+`0 < ContentLength <= 4194304`、有効なVersionId / ETag、STANDARD・既知暗号化等を検査し、bounded GET後に全HEAD応答との一致を再確認する。
+後続post-noop snapshotもprofile上限を使ったHEAD→bounded GET→全HEAD再照合をinit/plan前に行う。
+この経路ではprofileとidentityの既存固定上限が**同じ4194304のため**一致する。4MiB未満のprofileがidentity段階の上限も下げるとは扱わない。
+HEAD検証失敗なら本文GET・init/plan・成功receiptへ進まず、GETや再照合で失敗してもその時点でSTOPする。
+実サイズを観測済みと記述できるのは、runnerでこれらの検査が実際に成功し確認できた後だけである。
 
 initial stateはHEAD/GET/HEADとpositive lock/workspace LIST absenceで取得する。exact既存11 managed instance、history未登録、既知Terraform state/check envelope、current VersionIdと全bytesをprivateに検証する。STANDARD class・既知暗号化・exact sizeを確認できなければdownload/initへ進まない。403/通信失敗/欠落/truncated responseを不在と見なさない。
 

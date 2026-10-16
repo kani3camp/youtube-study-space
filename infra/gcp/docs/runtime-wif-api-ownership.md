@@ -884,8 +884,9 @@ emitter=true / history-post-noop=true / 管理済み12件、M13のPool4属性修
 既存binding・production・他windowは変更しない。閉鎖sourceは別current-state baseline planの発行経路を残すが、
 このPRで発行・State照合・新issuer登録・runtime plan/importを実行または証明したとは扱わない。
 
-再開時は下記の既存手順に従い、新source Sに実際のfresh State HEAD sizeと既知writer静止を確認した
-新しいpublic safety profileを結び、`dev / plan / history_post_noop=true / current_state_attestation=true /
+再開時は下記の既存手順に従い、新source Sに承認する固定上限`max_state_bytes=4194304`（4MiB、外部の実サイズは未測定）と、
+別途fresh確認した既知writer静止を結ぶ新しいpublic safety profileを作る。本人のEnvironment承認後に同じ保護jobで
+最初のState本文GETより前のfresh HEADを検証する経路であり、外部HEAD jobは要求しない。入力は`dev / plan / history_post_noop=true / current_state_attestation=true /
 ownership_wave=none / ownership_root_basis=original-history-import`を選ぶ。
 本人の`terraform-dev-plan`承認と実full-root no-op12、State/metadata不変、lock不存在、cleanup、apply skipped、
 唯一artifact/digest/canonical attestationを独立確認した後、別closureで成功source Sをissuerとして登録する。
@@ -893,7 +894,7 @@ ownership_wave=none / ownership_root_basis=original-history-import`を選ぶ。
 
 baselineではreviewed-inputs Secretをstageせず、既存binding envelopeをrunner内で再利用するsource経路があるため、
 事前に本人が2か所を更新する必要はない。実Secret shape/metadata一致は未読で、runner検証まで未証明である。
-nonceやbindingを読み出し・再生成せず、State sizeやwriter静止を過去値から補完しない。
+nonceやbindingを読み出し・再生成せず、実State sizeやwriter静止を過去値から補完しない。4MiBは承認上限であって実測値ではない。
 新issuerの独立確認後に別activationとfresh inventoryを最終consumer SHAへ結び、新private入力だけを改めて案内する。
 
 ### Fresh current-state の再発行から初回 Pool wave まで
@@ -902,8 +903,9 @@ nonceやbindingを読み出し・再生成せず、State sizeやwriter静止を�
 GitHub Environment の Required reviewer によるユーザー本人の承認を受ける。
 過去の source-only PR に記した未実行や別承認の説明は、現行包括承認の取り消しを意味しない。
 
-1. 現 integration HEAD と実 Environment protection / reviewer / bypass 設定、同 State の writer が静止していること、
-   fresh State HEAD の size を確認する。root-ready / runtime-plan / apply はまだ false とする。
+1. 現 integration HEAD と実 Environment protection / reviewer / bypass設定、同Stateの既知writer静止を別途fresh確認する。
+   この再発行経路は既存上限の固定4MiB（`4194304`）を承認し、外部の実State sizeは未測定と明記する。
+   外部bucket locatorや別HEAD jobでの事前測定は要求しない。root-ready / runtime-plan / applyはfalseを保つ。
 2. `ci.yml` を integration ref から fresh initial attempt で dispatch する。入力は
    `terraform_authenticated=true`, `terraform_target=dev`, `terraform_mode=plan`,
    `terraform_history_post_noop=true`, `terraform_current_state_attestation=true`,
@@ -911,12 +913,20 @@ GitHub Environment の Required reviewer によるユーザー本人の承認を
    `terraform_plan_cost_evidence` / `terraform_history_import_approval` は空、schema audit は false とする。
    `terraform_history_plan_safety_evidence` は exact schema
    `{schema_version:1, git_sha:<exact HEAD>, issued_utc:<fresh UTC>, expires_utc:<24時間以内>,
-   max_state_bytes:<fresh State size以上かつ4194304以下>, state_writers_quiescent:true}`。
-   size / quiet-writer は実測・確認した値だけを記載する。
+   max_state_bytes:4194304, state_writers_quiescent:true}`。
+   `max_state_bytes`のschemaは`1..4194304`の承認上限であり、この経路では正確に`4194304`を選ぶ。
+   実測sizeをprofileに書いたとは扱わず、`state_writers_quiescent:true`は別途fresh確認した場合だけ指定する。
 3. `terraform-dev-plan` の承認待ちへ進める。同 Environment の既存
    `GCP_RUNTIME_OWNERSHIP_PACKET_JSON` は legacy binding envelope または typed current-state envelope として再利用する。
    `stage-binding` が同 nonce / backend / history metadata を認証前に private file へ保持する。
    format 不一致、metadata 変更、no-op12 不成立は STOP。Secret を公開・平文取得する経路は追加しない。
+   本人のEnvironment承認後、同じjobのidentity captureが最初のState本文GETより前にfresh HEADで
+   `0 < size <= 4194304`、有効なVersionId / ETag、STANDARD・既知暗号化等を検査し、bounded GET後に全HEAD応答を再照合する。
+   後続post-noop snapshotもprofile上限のHEAD→bounded GET→全HEAD再照合をinit/plan前に行う。
+   この経路の上限一致はprofileが既存`MAX_BYTES`と正確に同じ4MiBであることによるもので、
+   4MiB未満のprofileが先行identity captureもその小さい上限へ制限するとは主張しない。
+   HEAD検証失敗は本文GET・init/plan・成功receiptへ進まず、GETまたは再照合の失敗もSTOPする。
+   実State sizeの観測成功を記録できるのは、runnerの実検査を独立確認した後だけである。
 4. 成功後、exact run / attempt1 / plan job / ordered critical steps / cleanup、apply skipped、
    Environment の実承認、唯一の artifact / digest / canonical attestation / expiry を GET-only で独立検証する。
    `historical_delta_attested=false` を維持し、公開証跡は counts / outcomes / opaque commitments と参照のみとする。
