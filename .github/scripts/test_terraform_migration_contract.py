@@ -602,5 +602,161 @@ class MigrationContractTest(unittest.TestCase):
         self.assertNotIn("PRIVATE-SENTINEL", str(error.exception))
 
 
+class OwnedAPIInputTest(unittest.TestCase):
+    API = "pubsub.googleapis.com"
+    OTHER_API = "logging.googleapis.com"
+    PRIVATE = "PRIVATE_API_INPUT_SENTINEL"
+
+    @staticmethod
+    def api_descriptor(environment, service):
+        return {"address": 'module.owned_apis.google_project_service.owned["' + service + '"]',
+                "type": "google_project_service",
+                "import_id": gate.ENVIRONMENTS[environment][0] + "/" + service}
+
+    def fixture(self, environment="dev"):
+        fixed = manifest(environment)
+        fixed["resources"].append(self.api_descriptor(environment, self.API))
+        tfvars = {"project_id": gate.ENVIRONMENTS[environment][0], "owned_api_keys": [self.API],
+                  "api_classification": {self.API: {
+                      "classification": "Own", "state": "ENABLED", "reason": self.PRIVATE,
+                      "dependency_addresses": [descriptors(environment)[1]["address"]]}}}
+        return tfvars, fixed
+
+    def reject(self, tfvars, fixed, environment="dev"):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(gate.ContractError) as error:
+                gate.validate_owned_api_inputs(tfvars, fixed, environment)
+        self.assertEqual(error.exception.reason, "MANIFEST")
+        self.assertEqual(str(error.exception), "GCP migration contract STOP: MANIFEST")
+        self.assertEqual(stdout.getvalue() + stderr.getvalue(), "")
+        self.assertNotIn(self.PRIVATE, str(error.exception))
+
+    def test_both_environments_bind_selected_api_to_exact_non_api_consumer_without_mutating_inputs(self):
+        for environment in gate.ENVIRONMENTS:
+            tfvars, fixed = self.fixture(environment)
+            original = deepcopy((tfvars, fixed))
+            with self.subTest(environment=environment):
+                result = gate.validate_owned_api_inputs(tfvars, fixed, environment)
+                self.assertEqual(result, {"owned_apis": 1, "dependency_edges": 1})
+                self.assertEqual((tfvars, fixed), original)
+                self.assertNotIn(self.PRIVATE, json.dumps(result))
+
+    def test_no_api_defaults_preserve_empty_root_current_twelve_and_thirteen_with_pool(self):
+        for environment in gate.ENVIRONMENTS:
+            fixed = manifest(environment)
+            for number in range(10):
+                fixed["resources"].append({
+                    "address": f"module.retained.google_bigquery_table.fixture[{number}]",
+                    "type": "google_bigquery_table",
+                    "import_id": f"projects/{fixed['project_id']}/datasets/fixture/tables/retained_{number}"})
+            self.assertEqual(len(fixed["resources"]), 12)
+            pool = {"address": "module.runtime_wif.google_iam_workload_identity_pool.runtime[0]",
+                    "type": "google_iam_workload_identity_pool",
+                    "import_id": f"projects/{fixed['project_id']}/locations/global/workloadIdentityPools/aws-runtime"}
+            for resources in ([], deepcopy(fixed["resources"]), [*deepcopy(fixed["resources"]), pool]):
+                candidate = dict(fixed, resources=resources)
+                for explicit in ({}, {"owned_api_keys": [], "api_classification": {}}):
+                    with self.subTest(environment=environment, managed=len(resources), explicit=bool(explicit)):
+                        result = gate.validate_owned_api_inputs({"project_id": fixed["project_id"], **explicit}, candidate, environment)
+                        self.assertEqual(result, {"owned_apis": 0, "dependency_edges": 0})
+
+    def test_unselected_api_classification_can_reference_future_unadopted_consumers(self):
+        for environment in gate.ENVIRONMENTS:
+            tfvars, fixed = self.fixture(environment)
+            tfvars["api_classification"][self.OTHER_API] = {
+                "classification": "Own", "state": "ENABLED", "reason": "Future candidate only",
+                "dependency_addresses": ["module.future.google_cloudfunctions_function.unadopted"]}
+            self.assertEqual(gate.validate_owned_api_inputs(tfvars, fixed, environment),
+                             {"owned_apis": 1, "dependency_edges": 1})
+            tfvars["owned_api_keys"] = []
+            fixed["resources"].pop()
+            self.assertEqual(gate.validate_owned_api_inputs(tfvars, fixed, environment),
+                             {"owned_apis": 0, "dependency_edges": 0})
+
+    def test_selection_is_a_unique_json_list_and_matches_exact_manifest_service_set(self):
+        for selected in (None, True, self.API, {}, [True], [{}], [self.API, self.API],
+                         [self.OTHER_API], [], [self.API, self.OTHER_API], [self.API + "/extra"]):
+            tfvars, fixed = self.fixture()
+            tfvars["owned_api_keys"] = selected
+            with self.subTest(selected=selected):
+                self.reject(tfvars, fixed)
+        tfvars, fixed = self.fixture()
+        fixed["resources"].pop()
+        self.reject(tfvars, fixed)
+        tfvars, fixed = self.fixture()
+        duplicate = deepcopy(fixed["resources"][-1])
+        duplicate["address"] = "module.other.google_project_service.duplicate"
+        fixed["resources"].append(duplicate)
+        self.reject(tfvars, fixed)  # Reuses manifest remote (type, exact ID) uniqueness.
+
+    def test_environment_and_service_import_project_cannot_be_substituted(self):
+        for environment in gate.ENVIRONMENTS:
+            foreign = "prod" if environment == "dev" else "dev"
+            tfvars, fixed = self.fixture(environment)
+            self.reject(tfvars, fixed, foreign)
+            for field in ("tfvars_project", "manifest_project", "service_project", "service_path"):
+                tfvars, fixed = self.fixture(environment)
+                if field == "tfvars_project":
+                    tfvars["project_id"] = gate.ENVIRONMENTS[foreign][0]
+                elif field == "manifest_project":
+                    fixed["project_id"] = gate.ENVIRONMENTS[foreign][0]
+                elif field == "service_project":
+                    fixed["resources"][-1]["import_id"] = gate.ENVIRONMENTS[foreign][0] + "/" + self.API
+                else:
+                    fixed["resources"][-1]["import_id"] += "/unreviewed"
+                with self.subTest(environment=environment, field=field):
+                    self.reject(tfvars, fixed, environment)
+
+    def test_selected_classification_requires_own_enabled_and_a_nonempty_reason(self):
+        edits = (
+            lambda value: value.pop("api_classification"),
+            lambda value: value.update(api_classification=None),
+            lambda value: value["api_classification"].pop(self.API),
+            lambda value: value["api_classification"].update({self.API: None}),
+            *[lambda value, classification=classification: value["api_classification"][self.API].update(classification=classification)
+              for classification in (None, "Investigate", "Platform/External", "Do not own")],
+            *[lambda value, state=state: value["api_classification"][self.API].update(state=state)
+              for state in (None, "DISABLED", True)],
+            *[lambda value, reason=reason: value["api_classification"][self.API].update(reason=reason)
+              for reason in (None, "", " \n\t", False)],
+        )
+        for environment in gate.ENVIRONMENTS:
+            for number, edit in enumerate(edits):
+                tfvars, fixed = self.fixture(environment)
+                edit(tfvars)
+                with self.subTest(environment=environment, case=number):
+                    self.reject(tfvars, fixed, environment)
+
+    def test_dependencies_must_be_unique_present_non_api_addresses_with_no_partial_or_future_join(self):
+        for environment in gate.ENVIRONMENTS:
+            topic = descriptors(environment)[1]["address"]
+            api_address = self.api_descriptor(environment, self.API)["address"]
+            dependencies = (None, [], [topic, topic], [False], [{}], [self.PRIVATE],
+                            ["module.runtime_wif.google_iam_workload_identity_pool_provider.runtime[0]"],
+                            ["module.foreign.google_pubsub_topic.retained"], [api_address], [topic, api_address])
+            for values in dependencies:
+                tfvars, fixed = self.fixture(environment)
+                tfvars["api_classification"][self.API]["dependency_addresses"] = values
+                with self.subTest(environment=environment, dependencies=values):
+                    self.reject(tfvars, fixed, environment)
+
+    def test_cross_api_cycles_are_rejected_even_when_both_services_are_selected(self):
+        for environment in gate.ENVIRONMENTS:
+            tfvars, fixed = self.fixture(environment)
+            fixed["resources"].append(self.api_descriptor(environment, self.OTHER_API))
+            tfvars["owned_api_keys"].append(self.OTHER_API)
+            tfvars["api_classification"][self.OTHER_API] = deepcopy(tfvars["api_classification"][self.API])
+            tfvars["api_classification"][self.API]["dependency_addresses"] = [self.api_descriptor(environment, self.OTHER_API)["address"]]
+            tfvars["api_classification"][self.OTHER_API]["dependency_addresses"] = [self.api_descriptor(environment, self.API)["address"]]
+            self.reject(tfvars, fixed, environment)
+            # Sharing an actual consumer is valid; the service-to-consumer
+            # relation is a set of edges, not a prohibition on shared ownership.
+            for service in tfvars["owned_api_keys"]:
+                tfvars["api_classification"][service]["dependency_addresses"] = [descriptors(environment)[1]["address"]]
+            self.assertEqual(gate.validate_owned_api_inputs(tfvars, fixed, environment),
+                             {"owned_apis": 2, "dependency_edges": 2})
+
+
 if __name__ == "__main__":
     unittest.main()

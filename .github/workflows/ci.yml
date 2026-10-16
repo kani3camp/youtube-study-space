@@ -131,6 +131,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   base-image-update-report-test:

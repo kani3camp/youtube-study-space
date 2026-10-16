@@ -112,6 +112,32 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("inputs.terraform_authenticated == true", self.caller)
         self.assertNotIn("secrets: inherit", self.caller)
 
+    def test_authenticated_dispatch_keeps_required_validation_and_existing_job_dependencies(self) -> None:
+        changes = self.caller.split("  changes:\n", 1)[1].split("  base-image-update-report-test:\n", 1)[0]
+        self.assertIn("CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}", changes)
+        self.assertIn("bash .github/scripts/test-detect-ci-paths.sh", changes)
+        self.assertIn("run: bash .github/scripts/detect-ci-paths.sh", changes)
+        validation = self.caller.split("  gcp-terraform-validate:\n", 1)[1].split("  gcp-terraform-authenticated:\n", 1)[0]
+        self.assertIn("needs: changes", validation)
+        self.assertIn("needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true'", validation)
+        for required in ("test_terraform_migration_contract.py", "test_terraform_migration.py",
+                         "test_terraform_authenticated_workflow.py", "test_terraform_migration_native_fidelity.py",
+                         "test_production_initializer.py", "test_runtime_pool_import_fidelity.py",
+                         "terraform fmt -check -recursive infra/gcp", "-backend=false", "terraform_version: \"1.16.4\"",
+                         "Verify multi-platform provider locks are complete", "Verify provider locks match"):
+            self.assertIn(required, validation)
+        # Keep execution dependencies unchanged: this gate does not certify an
+        # authenticated apply. Operators must also inspect its separate result.
+        authenticated = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split("  gcp-user-activity-schema-audit:\n", 1)[0]
+        self.assertNotRegex(authenticated, r"(?m)^    needs:")
+        gate = self.caller.split("  ci-gate:\n", 1)[1]
+        self.assertIn("if: always()", gate)
+        for required in ("changes", "gcp-terraform-validate", "base-image-update-report-test",
+                         "node-lts-ignore-expiry", "documentation-references"):
+            self.assertIn("      - " + required + "\n", gate)
+        self.assertNotIn("      - gcp-terraform-authenticated\n", gate)
+        self.assertIn("contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')", gate)
+
     def test_production_remains_fail_closed_and_trusted_surface_is_fixed(self) -> None:
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
         self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
