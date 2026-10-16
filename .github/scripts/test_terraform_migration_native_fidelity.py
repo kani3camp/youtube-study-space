@@ -326,6 +326,58 @@ import {
         self.assertEqual(self.state(directory), before)
         self.assertEqual(set(self.requests), {'GET'})
 
+    def test_native_inactive_output_references_keep_zero_instance_admission(self):
+        fixture = self.base / "inactive-output-reference"
+        (fixture / "environments").mkdir(parents=True)
+        directory = self.directory("inactive-output-reference/environments/dev")
+        for name in ("youtube-quota-alerts", "monitoring-notification-channels"):
+            shutil.copytree(ROOT / "infra/gcp/modules" / name, fixture / "modules" / name)
+        source = directory / "main.tf"
+        source.write_text(source.read_text() + """
+module "existing_youtube_quota_alerts" {
+ source = "../../modules/youtube-quota-alerts"
+ project_id = var.project_id
+ environment = "development"
+ manage_policies = false
+ policy_settings = {
+  minute_80 = { threshold = 0.8, duration = "60s" }
+  day_80 = { threshold = 0.8, duration = "60s" }
+  day_60 = { threshold = 0.6, duration = "60s" }
+ }
+}
+module "youtube_quota_alerts" {
+ source = "../../modules/youtube-quota-alerts"
+ project_id = var.project_id
+ environment = "development"
+ manage_policies = false
+ notification_channels = [for name in [module.notification_channels.primary_email_name] : name if name != null]
+ policy_settings = {
+  minute_80 = { threshold = 0.8, duration = "60s" }
+  day_80 = { threshold = 0.8, duration = "60s" }
+  day_60 = { threshold = 0.6, duration = "60s" }
+ }
+}
+module "notification_channels" {
+ source = "../../modules/monitoring-notification-channels"
+ project_id = var.project_id
+ environment = "development"
+ manage_primary_email = false
+}
+""")
+        self.command(directory, 'init', '-backend=false', '-input=false', '-lockfile=readonly')
+        before = deepcopy(self.before_import)
+        (directory / 'terraform.tfstate').write_text(json.dumps(before))
+        plan = self.plan(directory)
+        entries = plan.get('relevant_attributes', [])
+        catalogued = {item['resource'] for item in entries} & set(contract.INACTIVE_REFERENCES)
+        self.assertEqual(catalogued, set(contract.INACTIVE_REFERENCES))
+        result = self.validate(plan, before)
+        self.assertEqual((result['imports'], result['no_op'], result['mutations']), (1, 1, 0))
+        projection = contract.plan_commitment_payload(plan, self.manifest, 'dev', self.schema, state=before)
+        self.assertEqual(projection['relevant_attributes'], sorted(entries, key=contract.canonical))
+        self.assertEqual(self.state(directory), before)
+        self.assertEqual(set(self.requests), {'GET'})
+
     def test_native_reference_metadata_keeps_every_entry_but_rejects_configured_update(self):
         directory = self.directory('reference-metadata')
         (directory/'terraform.tfstate').write_text(json.dumps(self.after_import))
