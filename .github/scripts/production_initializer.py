@@ -32,6 +32,25 @@ def normalize_empty_plan(plan, manifest):
     return result
 
 
+def _initial_references(plan, provider_schema):
+    """Validate catalogued static hints only after the empty initial graph proof.
+
+    Keep original presence/content and multiplicity in the operation envelope.
+    Core's outer hint order alone is not semantic; use the ordinary contract's
+    same whole-entry canonical sort. Paths and unknown entry fields stay intact.
+    """
+    present = "relevant_attributes" in plan
+    entries = plan["relevant_attributes"] if present else []
+    contract.need(type(entries) is list, "SHAPE")
+    for entry in entries:
+        contract.need(type(entry) is dict and {"resource", "attribute"} <= set(entry)
+                      and type(entry["resource"]) is str and type(entry["attribute"]) is list
+                      and all(type(step) is str or type(step) is int and step >= 0
+                              for step in entry["attribute"]), "SHAPE")
+        contract._inactive_configuration_reference(entry["resource"], plan.get("configuration"), provider_schema)
+    return {"present": present, "entries": sorted(deepcopy(entries), key=contract.canonical)}
+
+
 def _projection(plan, *, manifest, environment, provider_schema, state):
     contract.need(environment == "prod" and state is None, "STATE")
     contract.need(contract.validate_manifest(manifest, environment) == {}, "MANIFEST")
@@ -44,6 +63,11 @@ def _projection(plan, *, manifest, environment, provider_schema, state):
     except (ValueError, TypeError, KeyError):
         raise contract.ContractError("OUTPUT") from None
     projected = normalize_empty_plan(plan, manifest)
+    _initial_references(projected, provider_schema)
+    # Only this proven output-only operation isolates non-executable UI hints.
+    # The operation envelope below retains every original hint and its presence;
+    # ordinary validation still requires real State to accept inactive families.
+    projected.pop("relevant_attributes", None)
     for output in projected["output_changes"].values():
         output["actions"] = ["no-op"]
         output["before"] = output["after"]
@@ -66,6 +90,7 @@ def plan_commitment_payload(plan, *, manifest, environment, provider_schema, sta
     return {
         "operation": "production-state-initialize-v1",
         "initial_output_changes": deepcopy(plan["output_changes"]),
+        "initial_relevant_attributes": _initial_references(plan, provider_schema),
         "validated_plan": contract.plan_commitment_payload(projected, manifest=manifest,
             environment=environment, provider_schema=provider_schema, state=state),
     }
