@@ -24,6 +24,7 @@ import urllib.request
 import zlib
 
 import terraform_migration_contract as contract
+import production_initializer as initializer
 from terraform_identity_smoke import FORBIDDEN_PERMISSIONS, FUNCTION_FORBIDDEN_PERMISSIONS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,11 +59,17 @@ DIAGNOSTIC_FIELDS = frozenset({
 COMMITMENT_COMPONENTS = frozenset({'source', 'closure', 'inputs', 'state', 'metadata', 'plan'})
 STATE_HEAD_FIELDS = frozenset({'ContentLength', 'ETag', 'LastModified', 'VersionId',
                                'ServerSideEncryption', 'Metadata', 'ContentType'})
+CONTROLLER_SOURCES = frozenset({
+    '.github/scripts/terraform_migration.py', '.github/scripts/terraform_migration_contract.py',
+    '.github/scripts/production_initializer.py', '.github/scripts/terraform_identity_smoke.py',
+    'infra/gcp/scripts/production_execution_contract.py',
+})
 COMMITMENT_DETAILS = frozenset(
     {'plan.' + name for name in contract.PLAN_KEYS - {'timestamp', 'resource_drift'}}
     | {'metadata.' + name for name in contract.RESOURCE_TYPES}
     | {'state.head.' + name for name in STATE_HEAD_FIELDS}
-    | {'state.raw', 'state.parsed', 'state.head.other'})
+    | {'state.raw', 'state.parsed', 'state.head.other', 'plan.operation',
+       'plan.initial_output_changes', 'plan.initial_relevant_attributes'})
 
 
 def need(condition):
@@ -395,18 +402,19 @@ def snapshot(env, root, name):
 
 
 def copy_source(env, root):
-    names = run(['git', 'ls-files', 'infra/gcp'], cwd=ROOT).stdout.decode().splitlines()
+    names = run(['git', 'ls-files', 'infra/gcp', *sorted(CONTROLLER_SOURCES)], cwd=ROOT).stdout.decode().splitlines()
     closure = {}
     for name in names:
         path = Path(name)
-        if not (path.suffix in {'.tf', '.tftpl'} or path.name in {'.terraform.lock.hcl', 'schema.json'}):
+        if not (name in CONTROLLER_SOURCES or path.suffix in {'.tf', '.tftpl'}
+                or path.name in {'.terraform.lock.hcl', 'schema.json'}):
             continue
         need(not (ROOT / path).is_symlink())
         raw = run(['git', 'show', 'HEAD:' + name], cwd=ROOT).stdout
         need((ROOT / path).read_bytes() == raw)
         write(root / 'checkout' / path, raw)
         closure[name] = hashlib.sha256(raw).hexdigest()
-    need(bool(closure))
+    need(CONTROLLER_SOURCES <= set(closure))
     return root / 'checkout/infra/gcp/environments' / env['MIGRATION_TARGET'], closure
 
 
@@ -491,8 +499,27 @@ def execution_commitment(value, payload):
                   for name in sorted(payload)}
     components['key'] = tag(b'gcp-migration-key-check-v1\0', payload['source'])
     missing = {'absent': True}
-    details = {'plan.' + name: {'present': name in payload['plan'], 'value': payload['plan'].get(name)}
+    plan = payload['plan']
+    initial = type(plan) is dict and 'operation' in plan
+    if initial:
+        need(set(plan) == {'operation', 'initial_output_changes', 'initial_relevant_attributes', 'validated_plan'}
+             and plan['operation'] == 'production-state-initialize-v1'
+             and type(plan['validated_plan']) is dict)
+    native = plan['validated_plan'] if initial else plan
+    details = {'plan.' + name: {'present': name in native, 'value': native.get(name)}
                for name in contract.PLAN_KEYS - {'timestamp', 'resource_drift'}}
+    for name in ('operation', 'initial_output_changes', 'initial_relevant_attributes'):
+        details['plan.' + name] = {'present': initial, 'value': plan[name] if initial else None}
+    if initial:
+        hints = plan['initial_relevant_attributes']
+        need(type(hints) is dict and set(hints) == {'present', 'entries'}
+             and type(hints['present']) is bool and type(hints['entries']) is list
+             and (hints['present'] or not hints['entries']))
+        # Bind original creates and every original hint, including presence.
+        # The pure adapter already sorts whole entries, preserving inner paths.
+        details['plan.output_changes'] = {'present': True, 'value': plan['initial_output_changes']}
+        details['plan.relevant_attributes'] = {'present': hints['present'],
+                                              'value': hints['entries'] if hints['present'] else None}
     for kind in contract.RESOURCE_TYPES:
         addresses = {item['address'] for item in payload['inputs']['manifest']['resources'] if item['type'] == kind}
         details['metadata.' + kind] = {address: payload['metadata'].get(address, missing) for address in addresses}
@@ -528,6 +555,7 @@ def execute(env):
     manifest = value['manifest']
     stage_name = 'IDENTITY'
     before = before_metadata = plan = None
+    initializing = False
     try:
         verify_identity(env)
         stage_name = 'PERMISSIONS'
@@ -537,6 +565,8 @@ def execute(env):
         stage_name = 'STATE_BEFORE'
         before = snapshot(env, root, 'before')
         need(before['state'] is not None or not manifest['resources'])
+        initializing = initializer.selected(target, manifest, before)
+        validator = initializer if initializing else contract
         stage_name = 'SOURCE'
         tfroot, closure = copy_source(env, root)
         write(root / 'terraform.rc', b'disable_checkpoint = true\n')
@@ -555,9 +585,10 @@ def execute(env):
         terraform(env, root, tfroot, 'plan', ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
                   '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
         need(binary.is_file() and 0 < binary.stat().st_size <= 16 * MAX_BYTES)
-        plan = decode(terraform(env, root, tfroot, 'show', ['show', '-json', str(binary)]).stdout)
+        plan = initializer.normalize_empty_plan(
+            decode(terraform(env, root, tfroot, 'show', ['show', '-json', str(binary)]).stdout), manifest)
         stage_name = 'VALIDATE'
-        summary = contract.validate_plan(plan, manifest=manifest, environment=target,
+        summary = validator.validate_plan(plan, manifest=manifest, environment=target,
                                          provider_schema=schema, state=before['state'])
         need(summary['imports'] <= 1)
         stage_name = 'FRESH_RECHECK'
@@ -566,7 +597,7 @@ def execute(env):
         payload = {'source': env['GITHUB_SHA'], 'closure': closure,
                    'inputs': value, 'state': before,
                    'metadata': before_metadata,
-                   'plan': contract.plan_commitment_payload(plan, manifest=manifest,
+                   'plan': validator.plan_commitment_payload(plan, manifest=manifest,
                         environment=target, provider_schema=schema, state=before['state'])}
         commitment, components = execution_commitment(value, payload)
         if role == 'plan':
@@ -593,9 +624,13 @@ def execute(env):
             terraform(env, root, tfroot, 'apply', ['apply', '-input=false', '-lock-timeout=60s', str(binary)])
             stage_name = 'STATE_AFTER'
             after = snapshot(env, root, 'after-apply')
-            contract.validate_state_delta(before['state'], after['state'], manifest=manifest,
-                environment=target, provider_schema=schema, plan=plan,
-                expected_imports={item['address'] for item in plan.get('resource_changes', []) if 'importing' in item['change']})
+            if initializing:
+                initializer.validate_state_delta(before['state'], after['state'], manifest=manifest,
+                    environment=target, provider_schema=schema, plan=plan)
+            else:
+                contract.validate_state_delta(before['state'], after['state'], manifest=manifest,
+                    environment=target, provider_schema=schema, plan=plan,
+                    expected_imports={item['address'] for item in plan.get('resource_changes', []) if 'importing' in item['change']})
             need(collect_metadata(env, manifest) == before_metadata)
             if before['state'] is not None:
                 if after['raw'] == before['raw']:
@@ -609,11 +644,14 @@ def execute(env):
             post_binary = root / 'post.tfplan'
             terraform(env, root, tfroot, 'post-plan', ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
                       '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(post_binary)], codes=(0, 2))
-            post = decode(terraform(env, root, tfroot, 'post-show', ['show', '-json', str(post_binary)]).stdout)
+            post = initializer.normalize_empty_plan(
+                decode(terraform(env, root, tfroot, 'post-show', ['show', '-json', str(post_binary)]).stdout), manifest)
             summary = contract.validate_plan(post, manifest=manifest, environment=target,
                 provider_schema=schema, state=after['state'], phase='post')
             need(snapshot(env, root, 'after-post') == after)
             need(collect_metadata(env, manifest) == before_metadata)
+            if initializing:
+                summary = dict(summary, production_state_initialization=True, output_creates=2)
         print('GCP_MIGRATION: PASS; role=' + role + '; target=' + target
               + '; summary=' + json.dumps(summary, sort_keys=True, separators=(',', ':')))
     except Exception as error:

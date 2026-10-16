@@ -77,6 +77,8 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_contract.py
 assert_exact_groups gcp_terraform .github/scripts/production_initializer.py
 assert_exact_groups gcp_terraform .github/scripts/test_production_initializer.py
+assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_controller.py
+assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_s3.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_native_fidelity.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_api_import_fidelity.py
 assert_exact_groups gcp_terraform infra/gcp/modules/retained-order-history/tests/contract.tftest.hcl

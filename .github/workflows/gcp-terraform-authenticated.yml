@@ -99,11 +99,10 @@ env:
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
-  # Independent steady-state protocol. Production remains blocked until a
-  # measured Development Exit is reviewed and recorded in the same source.
-  MIGRATION_PRODUCTION_READY: "false"
-  # Production activation needs its own reviewed execution contract and a fresh
-  # measured development exit. Source gates do not replace Environment approval.
+  # Development Exit and Production bootstrap passed actual independent review.
+  # The steady-state path retains first-dispatch, identity and State protections.
+  MIGRATION_PRODUCTION_READY: "true"
+  # Legacy production protocols remain closed; only the migration path is active.
   PROD_EXECUTION_CONTRACT_READY: "false"
   PROD_DEVELOPMENT_EXIT_READY: "false"
   PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"

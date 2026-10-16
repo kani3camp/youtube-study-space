@@ -2,41 +2,50 @@
 
 実行入口は [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)、設計正本は
 [Notion Current Canon](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)。
-これは実変更前のsource/test/runbook packetです。実prod inventory、承認、Infrastructure Readyを
-証明しません。private identity、既存IAM全文、raw state/plan、mailbox、business dataは記載しません。
+この文書はsource/test/runbookと現在の実証範囲を記録します。各実行の証跡はIssue #1191へ集約し、
+Infrastructure Readyは個別条件で判定します。private identity、既存IAM全文、raw state/plan、mailbox、business dataは記載しません。
 
-## Current execution boundary — 2026-10-16
+## Current execution boundary — 2026-10-17
 
 全4 Terraform EnvironmentのRequired reviewersは本人が解除済みで、GitHub実APIでも確認した。
 独立したplan/apply Environment、integration branch限定、OIDC/WIF trustは維持し、
 GitHub本人account ID 54093651・actor/triggering actor kani3campの初回workflow_dispatchだけを通す。
 各runの人間承認を再要求せず、botへの切替やrerunで制限を迂回しない。
 
-現在のmigration-plan/migration-apply経路でもproductionの実認証・backend/trust・initial State・importは未完である。
-MIGRATION_PRODUCTION_READYはfalseを維持し、Development Exitを実測してから本格移行を進める。
+Development Exitは[owner初回run 38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で、
+plan/apply両identityの31 no-op・imports0・raw drift0、State/bucket policy、完了後に観測できたworkload指標を照合し、独立reviewもPASSした。
+完了後のLambdaは3/6で自然実行・error0を観測した。quiet3件とdaily SFN/ECS・backupのcutoff後E2Eは未観測で、daily E2E成功はcutoff前の証跡である。
+Production AWS backend rolesとGCP CI foundationは実作成・readbackを完了し、独立reviewもPASSした。
+GCPの新規7 resource、保護対象5件の不変、個別policy5件へのmember追加8・削除0、read custom roleの12/3/1 permissionsを確認した。
+実行証跡は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)へ集約し、private IAM本文は公開しない。
+この実証を前提にMIGRATION_PRODUCTION_READYだけをtrueとし、旧PROD_* gateはfalseのまま維持する。
+正規Actionsの実短期認証・initial State・importは未完で、source/CI成功をこれらの完了と扱わない。
 旧PROD_* gateや過去の手動Environment承認記録は、新経路の実readinessを証明しない。
 resource0の初期StateだけでInfrastructure/MyPage ReadyGateをPASSにしない。
 
-## Output-only initializer source preparation
+## Output-only initializer controller contract
 
 [production_initializer.py](../../../.github/scripts/production_initializer.py)はcloud/State操作のないpure adapterで、
-現controller/workflowの実行経路には未接続である。CIはsynthetic fixtureとbackendのない一時local rootだけを検証する。
+既存migration-plan/apply controllerからproduction target・manifest/resources0・成功したS3 snapshotの
+head/raw/stateすべてnullの場合だけ選択する。新modeや別の実行権限は追加しない。
+不在はexpected-owner付きの成功した厳密なListObjectsV2からだけ確定する。
+403/404を含むCLIエラー、失敗read、既存State、dev、resource/import/drift/unknown/deferred actionを初期化へ流さない。
 
-比較した最小案は、新mode追加よりも既存migration-plan/apply内の厳密な条件分岐である。
-将来の接続時は、owner初回/ref/Environment/実identityの共通検査後、成功したS3 snapshotの
-head/raw/stateがすべてnullで、production targetかつmanifest/resources0の場合だけ選択する。
-失敗read、403、既存State、dev、resource/import/drift/unknown/deferred actionは初期化へ流さない。
+adapterは固定production/projectの2 output createを先に検証し、その2件だけを内部射影でno-opへ対応させる。
+通常import-only契約とsaved binaryは変更しない。Coreがresource0で省略するresource_changesだけを空listへ正規化する。
+専用operation marker、元のoutput changes、catalogued hintのpresence/content/path/重複数をprivate HMAC全体と固定名detailへ束縛する。
+hintの外側順だけをentry全体のcanonical sortで安定化し、内側順や未知fieldは捨てない。
+Terraform sourceと実行validator/adapterの追跡済みsource bytesをclosureへ含める。
 
-adapterは既存production_execution_contract.plan_shapeのinitialize契約で、固定production/projectの2 output createを先に検証する。
-その2件だけを内部の検証射影でno-op形式へ対応させ、通常full-graph契約も再利用する。
-saved binaryは変更せず、通常import-only契約自体も変更しない。public結果はoutput_creates=2を明示し、
-専用operation markerと元のoutput changesをprivate HMAC payloadへ保持する。
-Coreがresource0で省略するresource_changesだけを空listへ正規化し、その他の未知差分は隠さない。
+plan/applyは同一SHA・同一private inputsから独立planし、overall/section/detail HMACの全一致を要求する。
+source copyとsaved-plan seal、native lock、適用直前のpositive absence再確認、新VersionId/lineage・固定outputs2/resource0のState検査、
+通常post-planのresource0・output no-op、metadata/State不変・lock解放を維持する。
+新bucket/marker/dev State copyは作らない。State resource0はInfrastructure/MyPage Readyを意味しない。
 
-将来のcontroller接続には、同SHA再plan/HMAC、source copyとsaved-plan seal、native lock、
-適用直前のpositive absence再確認、新version/lineageと固定outputs/resource0のState検査、
-通常post-planのresource0・output no-op、lock解放が必要である。新bucket/marker/dev State copyは作らない。
-このsource準備はproduction activationや実State作成の許可・完了を意味しない。
+CIは通常のcontroller mockに加え、実pinned Core/Google provider・production full default rootとloopbackのfake S3/STSで検証する。
+init/plan/showのState PUT0、saved applyのみ最初のState PUT1、適用後の通常full-root no-op、conditional lockの解放・競合拒否、
+caller accountと外側expected-owner/Versioning拒否を確認する。dummy認証・隔離HOME・外向きproxy拒否を使い、実cloudへ接続しない。
+このsource接続はProduction gateや実State作成の完了を証明しない。
 
 ## Runtime WIF / API source preparation
 
