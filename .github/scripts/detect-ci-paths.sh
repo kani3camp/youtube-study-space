@@ -43,7 +43,8 @@ Usage:
 With --paths, PATH arguments are classified directly for local testing.
 Without --paths, the script resolves paths from the GitHub event:
   - pull_request: BASE_SHA...HEAD_SHA
-  - workflow_dispatch or an unsupported/incomplete event: all groups
+  - authenticated Terraform workflow_dispatch: GCP Terraform group only
+  - other workflow_dispatch or an unsupported/incomplete event: all groups
 EOF
 }
 
@@ -190,7 +191,13 @@ resolve_changed_paths() {
 
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
-		set_all_groups
+		# Only the caller's exact typed input selects this operational scope.
+		# Authentication remains the reusable workflow's separate trust boundary.
+		if [[ "${CI_AUTHENTICATED_TERRAFORM_DISPATCH:-}" == "true" ]]; then
+			gcp_terraform=true
+		else
+			set_all_groups
+		fi
 		return
 	fi
 
