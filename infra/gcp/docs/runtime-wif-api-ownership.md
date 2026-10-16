@@ -1,5 +1,24 @@
 # Phase 2A runtime WIF / API ownership 実行前 packet
 
+## 定常Plan/Applyへの移行（2026-10-16）
+
+Current Canon §10と本人の最新指示により、4 EnvironmentはRequired reviewersなし・本人GitHub ID `54093651` / `kani3camp` の初回 `workflow_dispatch`だけで運用する。旧節の毎回の人間承認、失われたhistory receipt、新issuer/catalogの期限、source activation windowは履歴・旧protocolであり、新しい `migration-plan` / `migration-apply` の実行条件には使用しない。`historical_delta_attested=false`は維持する。
+
+新経路は既存 `ci.yml` → 同一SHAのreusable workflowと同じ4 Environment/OIDC/WIF/plan・apply別identityを使用する。`dev`への直接push・merge・auto-mergeは禁止のまま。Productionの新経路も `MIGRATION_PRODUCTION_READY=false` で閉じ、実測Development Exit後の独立reviewで開く。
+
+- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
+- 本人初回・固定repo/ref/callerを認証前に検査。実OIDC claimsとAWS account/RoleId、GCP SAを照合し、同じEnvironmentの短期認証だけを使う。
+- fresh metadata、4MiB以下のHEAD→GET→HEAD同一State、lineage/serial、native lockとworkspace不在、source closureとprovider lockを確認する。通常full-root planで完全graph・既存全件no-op・候補1件以下のexact import・unknown/move/replace/予期しないaction0を必須にする。
+- BigQuery Tableの `etag` / `last_modified_time` はprovider schemaのcomputed-only性を実検査した場合だけ、**設定変更と区別した観測差分**として許す。raw drift件数は公開summaryに保持する。他field・sensitivity・未知差分を無視しない。通常Terraformにもresource変更を提案させない。
+- `migration-plan` はStateを書かない。`migration-apply` は同runの独立plan job成功後、apply Environmentで同SHAを再planする。source、固定private入力、全State/HEAD、安定metadata、private plan values/masks/import IDs/config/outputs/checksをHMACで完全比較し、保存binary sealと直前再検証後に一度だけ通常saved-plan applyする。
+- import/計算観測のState永続化後は、保存planとの全State差分、lineage/serial/version、live metadata不変、lock解放と別の通常full-root no-opを検証する。未知のapply結果では再送・force unlock・古いStateの上書きを行わない。S3 Versioningを調査・限定復旧の根拠として保持する。
+- raw State/plan/API/error/credentialsはowned0700/0600のrunner一時領域に閉じ、always cleanupする。公開artifactは作らず、出力は固定stage、件数、purpose-bound HMACのみ。履歴証跡を現在の実行成功へ読み替えない。
+
+設定担当はfull-rootで候補を1件ずつ追加し、完全manifestとbaselineをplan/apply両Environmentへ同一設定する。各adoption前に実値とrequired callers/dependenciesをreviewし、採用後の固定baselineに対して通常planでdriftを検知する。State writerは既存reusable workflowの環境別concurrencyで直列化し、operatorは別writerを走らせない。非協調writer不存在を完全に証明したとは扱わず、前後State/Versionとnative lock/stale-plan検査で異常時停止する。
+
+この節は運用契約であり、コード/CI準備だけでは移行完了を主張しない。実行結果はIssue #1191・最終PR #1251とCurrent Canon/Inventoryへ記録する。
+
+
 ## 2026-10-15 JST protected current-state metadata検証
 
 [run38606660109](https://github.com/kani3camp/youtube-study-space/actions/runs/38606660109)

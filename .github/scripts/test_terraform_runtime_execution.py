@@ -307,8 +307,12 @@ class RuntimeExecutionTest(unittest.TestCase):
                     policy_requests.append(request)
                     message = env['GCP_SMOKE_ACCESS_TOKEN'] + ' ' + sentinel
                     if failure == 'http':
-                        raise urllib.error.HTTPError(request.full_url, 403, message, {},
+                        error = urllib.error.HTTPError(request.full_url, 403, message, {},
                             io.BytesIO(json.dumps({'error': {'message': message}}).encode()))
+                        # Keep the dummy response alive until it is explicitly
+                        # closed; Python 3.14 warns when HTTPError is collected.
+                        self.addCleanup(error.close)
+                        raise error
                     if failure == 'network':
                         raise urllib.error.URLError(message)
                     response = io.BytesIO(message.encode())

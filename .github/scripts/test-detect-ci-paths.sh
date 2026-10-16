@@ -63,6 +63,12 @@ assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_scheduler.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_function.py
+assert_exact_groups gcp_terraform .github/scripts/test_order_history.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_migration.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_migration_contract.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_contract.py
+assert_exact_groups gcp_terraform infra/gcp/modules/retained-order-history/tests/contract.tftest.hcl
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-function.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-function/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-scheduler.tf

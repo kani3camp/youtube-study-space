@@ -9,6 +9,8 @@ YouTube Study Space の既存GCP resourceを、安全に段階移行するため
 
 ## 現在のscope
 
+2026-10-16の本人初回dispatch・Required reviewers不要の定常経路は、[現行Plan/Apply契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。以下の毎回Environment承認・旧issuer/windowは履歴の記述であり、新経路に適用しません。Productionの実移行gateはDevelopment Exitまで閉じます。
+
 Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceおよび `user-activity-history` のownership移行は完了しています。最新の認証付き実証は[fresh current-state run 38617630530](https://github.com/kani3camp/youtube-study-space/actions/runs/38617630530)の `import0 / no-op12 / drift0 / change0`（観測 `2026-10-14T22:18:59Z`）です。観測時点の結果として記録し、次waveではfresh Stateを再照合します。後続はIssue #1191を入口に、runtime WIF / 必要な個別IAM / 明示Own APIとdevelopment exitを完了してからproduction migrationへ進みます。
 
 dedicated development aggregate auditの実行記録・revoke手順と、development→production→MyPage releaseの証拠条件は
