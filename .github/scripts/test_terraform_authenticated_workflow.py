@@ -144,7 +144,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "GITHUB_REPOSITORY": "kani3camp/youtube-study-space", "GITHUB_REPOSITORY_ID": "340900071",
             "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
             "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ATTEMPT": "1", "TARGET": "dev", "MODE": "plan",
+            "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_ACTOR_ID": "54093651", "GITHUB_ACTOR": "kani3camp",
+            "GITHUB_TRIGGERING_ACTOR": "kani3camp", "TARGET": "dev", "MODE": "plan",
             "HISTORY_POST_NOOP": "false", "DEV_HISTORY_POST_NOOP_ENABLED": "false",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true", "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
@@ -462,6 +464,31 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.splitlines(), [".github/scripts/terraform_identity_smoke.py", expected])
+
+    def test_owner_only_first_dispatch_guards_dev_and_prod_plan_apply(self) -> None:
+        # The same credential-free preflight gates every authenticated route,
+        # including additional jobs that use plan/apply Environments.
+        preflight = self.text.split("  plan:\n", 1)[0]
+        self.assertIn('GITHUB_ACTOR_ID:-}" == "54093651"', preflight)
+        self.assertIn('GITHUB_ACTOR:-}" == "kani3camp"', preflight)
+        self.assertIn('GITHUB_TRIGGERING_ACTOR:-}" == "kani3camp"', preflight)
+        self.assertLess(preflight.index('GITHUB_ACTOR_ID:-'), preflight.index('case "${MODE}" in'))
+        self.assertNotIn("id-token: write", preflight)
+        prod = {"PROD_AUTHENTICATED_TERRAFORM_ENABLED": "true",
+                "PROD_EXECUTION_CONTRACT_READY": "true",
+                "PROD_DEVELOPMENT_EXIT_READY": "true",
+                "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true"}
+        denied = {"GITHUB_ACTOR_ID": "0", "GITHUB_ACTOR": "someone-else",
+                  "GITHUB_TRIGGERING_ACTOR": "someone-else",
+                  "GITHUB_RUN_ATTEMPT": "2"}
+        for target, flags in (("dev", {"DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "true"}),
+                              ("prod", prod)):
+            for mode in ("plan", "apply"):
+                with self.subTest(target=target, mode=mode):
+                    env = dict(flags, TARGET=target, MODE=mode)
+                    self.assertEqual(self.run_preflight(**env).returncode, 0)
+                    for key, value in denied.items():
+                        self.assertNotEqual(self.run_preflight(**(env | {key: value})).returncode, 0, key)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {
