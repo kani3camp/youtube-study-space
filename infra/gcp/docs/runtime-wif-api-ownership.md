@@ -942,11 +942,15 @@ raw planはcleanup済みであり、providerのcomputed属性や特定tableの�
 差分はlock済みGoogle 8.5.0の公開schema由来のtop-level field codeと、presence / null / value / unknown mask /
 sensitivity mask / replaceの有限分類だけを出す。nested keyやpath、列schema本文、値、address、identity、
 nonce、値の長さ・hash、例外本文は出さない。maskの比較はJSON上の差分で、実権限や原因の評価ではない。
+top-level field内にunknownがあれば、そのfieldのpresence / null / value差分は抑え、
+未知値のnull・欠落placeholderを既知の変化として出さない。UNKNOWNと独立したmask / replace観測だけを残す。
 public field mapのversion・由来hashを固定し、private値のhashは作らない。
 change / mask / replace pathの構造は[Terraform公開JSON仕様](https://developer.hashicorp.com/terraform/internals/json-format#change-representation)、
 field名は[Google provider 8.5.0](https://registry.terraform.io/providers/hashicorp/google/8.5.0/docs)の
 lock済みbinaryが出す公開provider schemaを根拠にする。公開schemaの由来pinは
 [`terraform_baseline_drift_fields.py`](../../../.github/scripts/terraform_baseline_drift_fields.py)に固定する。
+公開binaryによる架空BQ planでは一般的なmask構造との互換を確認したが、今回の限定probeでは
+nativeの`resource_drift`を生成できておらず、そのserializationや実driftの対象を実証したとは扱わない。
 file内は固定field順のbitmapとして、全12対象・全field・全分類でも既存2KiB上限内に収める。
 rendererだけが固定codeへ展開し、exclusive0600・strict JSON・既存cleanup・artifactなしを保持する。
 

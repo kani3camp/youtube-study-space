@@ -131,9 +131,12 @@ def _entry(item, budget):
     for position, field in enumerate(fields):
         b, a = (value.get(field, _MISSING) for value in sides)
         present = (b is not _MISSING, a is not _MISSING)
-        changed = present[0] != present[1] or (all(present) and _json(b) != _json(a))
-        flags = (present[0] != present[1], changed and (b is None or a is None), changed,
-            _mask_true(unknown.get(field, False)),
+        unknown_field = _mask_true(unknown.get(field, False))
+        # Terraform may omit an unknown value or serialize its placeholder as
+        # null. Neither proves a known presence/null/value change at this field.
+        changed = not unknown_field and (present[0] != present[1] or (all(present) and _json(b) != _json(a)))
+        flags = (not unknown_field and present[0] != present[1], changed and (b is None or a is None), changed,
+            unknown_field,
             _json(sensitive[0].get(field, False)) != _json(sensitive[1].get(field, False)), field in replaced)
         for kind, observed in enumerate(flags):
             if observed:

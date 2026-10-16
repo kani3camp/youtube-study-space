@@ -100,10 +100,31 @@ class BaselineDriftTest(unittest.TestCase):
             replace_paths=[['schema'], ['labels', CANARY]])
         plan = self.plan(); plan['resource_drift'] = [item]
         text = self.output(self.value(plan))
-        for part in ('PRESENCE=DESCRIPTION', 'NULL=DESCRIPTION,SCHEMA', 'VALUE=DESCRIPTION,LABELS,SCHEMA',
+        for part in ('PRESENCE=DESCRIPTION', 'NULL=DESCRIPTION', 'VALUE=DESCRIPTION',
                      'UNKNOWN=LABELS,SCHEMA', 'SENSITIVITY=SCHEMA', 'REPLACE=LABELS,SCHEMA'):
             self.assertIn(part, text)
         self.assertNotIn('before', text); self.assertNotIn('after', text)
+
+    def test_unknown_null_absent_and_nested_placeholders_never_invent_known_value_differences(self):
+        for after, mask in (({'description': None}, True), ({}, True),
+                            ({'description': {'dummy': None}}, {'dummy': True}),
+                            ({'description': [None]}, [True])):
+            with self.subTest(shape=type(mask).__name__):
+                plan = self.plan(); item = self.entry()
+                item['change'].update(before={'description': CANARY}, after=after,
+                    after_unknown={'description': mask}, before_sensitive={'description': False},
+                    after_sensitive={'description': True}, replace_paths=[['description']])
+                plan['resource_drift'] = [item]
+                text = self.output(self.value(plan))
+                for kind in ('PRESENCE', 'NULL', 'VALUE'):
+                    self.assertIn(' ' + kind + '=NONE', text)
+                for kind in ('UNKNOWN', 'SENSITIVITY', 'REPLACE'):
+                    self.assertIn(' ' + kind + '=DESCRIPTION', text)
+        # An all-false nested mask does not suppress an actually known change.
+        item['change'].update(after={'description': None}, after_unknown={'description': {'dummy': [False]}})
+        text = self.output(self.value(plan))
+        self.assertIn('NULL=DESCRIPTION', text); self.assertIn('VALUE=DESCRIPTION', text)
+        self.assertIn('UNKNOWN=NONE', text)
 
     def test_missing_versus_null_and_typed_values_are_not_normalized(self):
         item = self.entry(); item['change'].update(before={'schema': None, 'description': 1}, after={'description': True})
