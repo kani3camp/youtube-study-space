@@ -25,7 +25,7 @@ def credentialless_environment() -> dict[str, str]:
     # Do not let local credentials, Terraform inputs or CLI flags affect the mock.
     return {
         key: value for key, value in os.environ.items()
-        if not key.startswith(("AWS_", "GOOGLE_", "GCLOUD_", "GCP_", "TF_"))
+        if not key.startswith(("AWS_", "GOOGLE_", "GCLOUD_", "GCP_", "CLOUDSDK_", "TF_"))
     } | {"TF_IN_AUTOMATION": "true", "TF_INPUT": "false", "TF_WORKSPACE": "default"}
 
 
@@ -39,6 +39,7 @@ class ProductionReadinessTest(unittest.TestCase):
             output = Path(directory) / "output"
             env = credentialless_environment() | gates | {
                 "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_ACTOR": "kani3camp", "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                 "GITHUB_REPOSITORY": "kani3camp/youtube-study-space",
                 "GITHUB_REPOSITORY_ID": "340900071", "GITHUB_REPOSITORY_OWNER_ID": "54093651",
                 "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
@@ -165,7 +166,7 @@ class ProductionMockPlanTest(unittest.TestCase):
                 shutil.copyfile(source, target / source.name)
             shutil.copyfile(GCP / "environments/prod/.terraform.lock.hcl", target / ".terraform.lock.hcl")
             shutil.copytree(GCP / "environments/prod/tests", target / "tests")
-            for name in ("monitoring-notification-channels", "youtube-quota-alerts"):
+            for name in ("monitoring-notification-channels", "youtube-quota-alerts", "runtime-aws-wif", "owned-project-apis"):
                 shutil.copytree(GCP / "modules" / name, Path(directory) / "modules" / name,
                                 ignore=shutil.ignore_patterns(".terraform", "*.tfstate*", "*.tfplan", "*.tfvars*"))
             env = credentialless_environment()
@@ -207,6 +208,9 @@ class ProductionMockPlanTest(unittest.TestCase):
             f'module.youtube_quota_alerts.google_monitoring_alert_policy.quota["{key}"]'
             for key in ("minute_80", "day_80", "day_60")
         })
+
+
+from test_production_runtime_ownership import ProductionRuntimeOwnership
 
 
 if __name__ == "__main__":
