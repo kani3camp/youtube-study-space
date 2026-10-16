@@ -18,12 +18,14 @@ on:
           - dev
           - prod
       terraform_mode:
-        description: Authenticated Terraform mode
+        description: Authenticated Terraform mode (migration modes use the current import-only protocol)
         required: false
-        default: plan
+        default: migration-plan
         type: choice
         options:
           - plan
+          - migration-plan
+          - migration-apply
           - current-state-read
           - runtime-metadata-read
           - dev-history-observation-sync
@@ -666,6 +668,8 @@ jobs:
       - name: Test authenticated Terraform CI guardrails
         run: |
           python3 .github/scripts/test_terraform_plan_summary.py
+          python3 .github/scripts/test_terraform_migration_contract.py
+          python3 .github/scripts/test_terraform_migration.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
@@ -741,6 +745,7 @@ jobs:
           python3 .github/scripts/test_export_function.py
           python3 .github/scripts/test_notification_channels.py
           python3 .github/scripts/test_user_activity_history.py
+          python3 .github/scripts/test_order_history.py
 
       - name: Verify multi-platform provider locks are complete
         run: |
@@ -777,6 +782,7 @@ jobs:
       GCP_MONITORING_PRIMARY_EMAIL_CHANNEL: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
       GCP_RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
       GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}

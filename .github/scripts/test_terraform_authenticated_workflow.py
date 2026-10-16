@@ -127,8 +127,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         declared = set(re.findall(r"(?m)^      ([A-Z_]+):$", interface))
         used = set(re.findall(r"secrets\.([A-Z_]+)", self.text))
         self.assertEqual(declared, used)
-        self.assertEqual(len(declared), 10)
-        self.assertEqual(interface.count("required: false"), 10)
+        self.assertEqual(len(declared), 11)
+        self.assertEqual(interface.count("required: false"), 11)
         call = re.split(r"\n  [a-zA-Z0-9_-]+:\n",
                         self.caller.split("  gcp-terraform-authenticated:\n", 1)[1], maxsplit=1)[0]
         forwarded = re.findall(r"(?m)^      ([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$", call)
@@ -331,6 +331,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
+            "MIGRATION_PRODUCTION_READY": "false",
             "PROD_EXECUTION_CONTRACT_READY": "false",
             "PROD_DEVELOPMENT_EXIT_READY": "false",
             "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
@@ -600,7 +601,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}", plan)
+        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}", plan)
         probe = self.original_jobs.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",

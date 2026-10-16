@@ -294,6 +294,11 @@ class BaselineDiagnosticTest(unittest.TestCase):
         # Security contract snapshot: changing a guard requires a new review,
         # not updating this digest merely to make a diagnostic change pass.
         import ast,hashlib
+        # Python 3.13+ omits empty AST lists by default. Keep the reviewed dump
+        # format identical across runtimes rather than replacing guard digests.
+        def dump(node):
+            options = {'show_empty': True} if sys.version_info >= (3, 13) else {}
+            return ast.dump(node, include_attributes=False, **options)
         snapshots={
           'infra/gcp/scripts/validate_user_activity_history_plan.py':('e04d01e576ec2dfeddde493a2af7c4d47c207079a281efb968615e0126fae842','a0a777ee7e4c1fe45549aac7e8a453d9cdabbcd3d220b32ee8c0c92c59f9a142'),
           '.github/scripts/terraform_export_function_gate.py':('1187e61895854b517499740b238543a7d76287f891a4ce865974cf259a26183b','80bb22a64afd70053c672b744fad4c7e90546364edf8a99d04d9eb127a485547'),
@@ -301,12 +306,12 @@ class BaselineDiagnosticTest(unittest.TestCase):
           '.github/scripts/terraform_export_topic_gate.py':('432a650d25530ecc8dd903ac70262dd838caae2b16055b54e1cec2af3bda8127','4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945')}
         for path,(guards,delegates) in snapshots.items():
             tree=ast.parse((ROOT/path).read_text())
-            actual=[ast.dump(n.args[0],include_attributes=False) for n in ast.walk(tree)
+            actual=[dump(n.args[0]) for n in ast.walk(tree)
                 if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='require']
             calls=[]
             for n in ast.walk(tree):
                 if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id in {'validate_baseline','validate_scheduler','validate_topic'}:
-                    n.keywords=[kw for kw in n.keywords if kw.arg!='diagnostic'];calls.append(ast.dump(n,include_attributes=False))
+                    n.keywords=[kw for kw in n.keywords if kw.arg!='diagnostic'];calls.append(dump(n))
             digest=lambda v:hashlib.sha256(json.dumps(v,separators=(',',':')).encode()).hexdigest()
             self.assertEqual(digest(actual),guards);self.assertEqual(digest(calls),delegates)
 

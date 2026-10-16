@@ -75,6 +75,8 @@ on:
         required: false
       GCP_RUNTIME_OWNERSHIP_REVIEWED_INPUTS_JSON:
         required: false
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON:
+        required: false
 
 permissions: {}
 
@@ -97,6 +99,9 @@ env:
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
+  # Independent steady-state protocol. Production remains blocked until a
+  # measured Development Exit is reviewed and recorded in the same source.
+  MIGRATION_PRODUCTION_READY: "false"
   # Production activation needs its own reviewed execution contract and a fresh
   # measured development exit. Source gates do not replace Environment approval.
   PROD_EXECUTION_CONTRACT_READY: "false"
@@ -162,7 +167,7 @@ jobs:
       ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
     steps:
       - name: Checkout trusted dedicated sync preflight source
-        if: ${{ inputs.mode == 'dev-history-observation-sync' && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && github.ref == 'refs/heads/feature/gcp-terraform-iac' }}
+        if: ${{ (inputs.mode == 'dev-history-observation-sync' || startsWith(inputs.mode, 'migration-')) && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && github.ref == 'refs/heads/feature/gcp-terraform-iac' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -182,6 +187,8 @@ jobs:
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
           PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
           HISTORY_OBSERVATION_SYNC_PROFILE: ${{ inputs.history_observation_sync_profile }}
+          MIGRATION_TARGET: ${{ inputs.target }}
+          MIGRATION_MODE: ${{ inputs.mode }}
         run: |
           set -euo pipefail
 
@@ -221,7 +228,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|current-state-read|runtime-metadata-read|dev-history-observation-sync|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
+            plan|migration-plan|migration-apply|current-state-read|runtime-metadata-read|dev-history-observation-sync|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
@@ -229,6 +236,13 @@ jobs:
           esac
           if [[ "${MODE}" != "dev-history-observation-sync" && -n "${HISTORY_OBSERVATION_SYNC_PROFILE:-}" ]]; then
             echo "HISTORY_OBSERVATION_SYNC: STOP; stage=PROFILE"; exit 1
+          fi
+          if [[ "${MODE}" == migration-* ]]; then
+            [[ "${HISTORY_POST_NOOP}" == "false" && "${CURRENT_STATE_ATTESTATION}" == "false" && "${OWNERSHIP_WAVE}" == "none" && "${OWNERSHIP_ROOT_BASIS}" == "original-history-import" && -z "${HISTORY_IMPORT_APPROVAL}" && -z "${PLAN_COST_EVIDENCE}" && -z "${PLAN_SAFETY_EVIDENCE}" ]] || {
+              echo "GCP_MIGRATION: STOP; phase=LEGACY_INPUTS"; exit 1
+            }
+            python3 .github/scripts/terraform_migration.py preflight
+            exit 0
           fi
           if [[ "${MODE}" == "dev-history-observation-sync" ]]; then
             python3 .github/scripts/terraform_history_observation_sync.py --phase preflight
@@ -440,7 +454,7 @@ jobs:
   plan:
     name: Authenticated protected plan
     needs: preflight
-    if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}
+    if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -1999,3 +2013,166 @@ jobs:
       - name: Remove sanitized sync staging
         if: ${{ always() }}
         run: python3 .github/scripts/terraform_history_observation_sync.py --phase cleanup-public
+
+  migration_plan:
+    name: "Import-only migration plan (${{ inputs.target }})"
+    needs: preflight
+    if: ${{ startsWith(inputs.mode, 'migration-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: terraform-${{ inputs.target }}-plan
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      commitment: ${{ steps.migration.outputs.commitment }}
+    env:
+      MIGRATION_TARGET: ${{ inputs.target }}
+      MIGRATION_MODE: ${{ inputs.mode }}
+      MIGRATION_ROLE: plan
+      TF_WORKSPACE: default
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+    steps:
+      - name: Checkout exact migration source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate fixed private migration baseline before credentials
+        env:
+          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+        run: python3 .github/scripts/terraform_migration.py stage
+      - name: Mask private migration identity fragments
+        shell: bash
+        env:
+          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+        run: |
+          set -euo pipefail
+          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${GCP_SERVICE_ACCOUNT%%@*}" "${STATE_BUCKET}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+      - name: Verify exact migration OIDC claims
+        run: python3 .github/scripts/terraform_migration.py oidc
+      - name: Setup pinned migration Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Configure migration backend identity
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+      - name: Configure migration GCP identity
+        id: migration_gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 1800s
+      - name: Validate full-root migration plan
+        id: migration
+        env:
+          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+          GCP_ACCESS_TOKEN: ${{ steps.migration_gcp.outputs.access_token }}
+        run: python3 .github/scripts/terraform_migration.py execute
+      - name: Remove private migration files
+        if: ${{ always() }}
+        run: python3 .github/scripts/terraform_migration.py cleanup
+
+  migration_apply:
+    name: "Import-only migration apply (${{ inputs.target }})"
+    needs: [preflight, migration_plan]
+    if: ${{ inputs.mode == 'migration-apply' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: terraform-${{ inputs.target }}-apply
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MIGRATION_TARGET: ${{ inputs.target }}
+      MIGRATION_MODE: ${{ inputs.mode }}
+      MIGRATION_ROLE: apply
+      TF_WORKSPACE: default
+      AWS_MAX_ATTEMPTS: "1"
+      AWS_RETRY_MODE: standard
+      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+    steps:
+      - name: Checkout exact migration source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate fixed private migration baseline before credentials
+        env:
+          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+        run: python3 .github/scripts/terraform_migration.py stage
+      - name: Mask private migration identity fragments
+        shell: bash
+        env:
+          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+        run: |
+          set -euo pipefail
+          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${GCP_SERVICE_ACCOUNT%%@*}" "${STATE_BUCKET}"; do
+            [[ -n "${value}" ]] && echo "::add-mask::${value}"
+          done
+          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
+          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
+      - name: Verify exact migration OIDC claims
+        run: python3 .github/scripts/terraform_migration.py oidc
+      - name: Setup pinned migration Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - name: Configure migration backend identity
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+          aws-region: ${{ env.STATE_AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          retry-max-attempts: 1
+      - name: Configure migration GCP identity
+        id: migration_gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 1800s
+      - name: Validate full-root migration apply
+        id: migration
+        env:
+          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+          GCP_ACCESS_TOKEN: ${{ steps.migration_gcp.outputs.access_token }}
+          MIGRATION_EXPECTED_COMMITMENT: ${{ needs.migration_plan.outputs.commitment }}
+        run: python3 .github/scripts/terraform_migration.py execute
+      - name: Remove private migration files
+        if: ${{ always() }}
+        run: python3 .github/scripts/terraform_migration.py cleanup
