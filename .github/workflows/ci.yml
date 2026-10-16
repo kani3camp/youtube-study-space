@@ -671,6 +671,7 @@ jobs:
           python3 .github/scripts/test_terraform_plan_summary.py
           python3 .github/scripts/test_terraform_migration_contract.py
           python3 .github/scripts/test_terraform_migration.py
+          python3 .github/scripts/test_production_initializer_controller.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_history_plan_receipt.py
@@ -726,7 +727,7 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
 
-      - name: Test unconnected production initializer with pinned local Terraform
+      - name: Test pure production initializer with pinned local Terraform
         run: python3 .github/scripts/test_production_initializer.py
 
       - name: Initialize and validate roots
@@ -736,6 +737,9 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="infra/gcp/environments/$env" validate
           done
+
+      - name: Test output-only initialization with native S3 locking
+        run: python3 .github/scripts/test_production_initializer_s3.py
 
       - name: Test Pool import fidelity with credentialless mocks
         run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
