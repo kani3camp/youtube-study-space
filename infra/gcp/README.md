@@ -49,6 +49,8 @@ Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF �
 [source契約](docs/runtime-wif-api-ownership.md#protected-runtime-metadata-read-の-source-routedefault-off未実行)を参照してください。
 history importは成功し、過去の独立protected planでimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。current-state bootstrap契約（packet v3）は12件を新しい起点として扱い、失われた歴史証拠を復元しません。旧issuer source S18とM14入力は期限切れの履歴として残し、採用可能なfresh証拠へ読み替えません。current-state root-ready / runtime-plan / split-input / development applyはfalse、metadata-read / authority / current-state-read / productionも閉鎖を維持します。emitter / history-post-noop / 管理済み12件のownership、M13のPool4属性修正、固定診断、全guardとcatalogは保持しています。次は新source、承認する固定4MiB上限（外部の実サイズは未測定）、別途fresh確認した既知writer静止を結ぶ新public safety profileを使い、同じ保護job内のfresh HEAD検証を経てcurrent-state baseline planを発行する経路です。新しい発行・issuer登録・fresh inventory・初回Poolのadmission/import成功はまだ成立していません。baseline発行では追加reviewed-inputs Secretをstageしないため、今は本人による2か所の更新は不要です。既存binding Secretは保持し、実shape/metadata一致はrunnerで検証します。[期限切れ後の閉鎖と再発行条件](docs/runtime-wif-api-ownership.md#2026-10-15-m14配布入力の期限切れと実行枠閉鎖)を参照してください。
 
+その後の[current-state baseline CI #878](https://github.com/kani3camp/youtube-study-space/actions/runs/38828914021)は、本人のEnvironment承認後にStateの事前検証・init・saved planまで進み、Terraform exit codeは0でしたが、sanitizerと事後no-op検証が失敗しました。原因のfield・実action件数・事後State/lockは未確認で、cleanup成功、apply skipped、artifact0です。4つのruntime gateは閉じたまま、成功issuerは未発行です。後続sourceはこのbaseline条件だけに値を含まない固定診断を追加し、既存guardや失敗判定を保持します。今は本人の追加設定操作は不要です。[実測と診断の範囲](docs/runtime-wif-api-ownership.md#2026-10-16-current-state-baseline失敗と限定診断)を参照してください。
+
 ## Directory
 
 ```text

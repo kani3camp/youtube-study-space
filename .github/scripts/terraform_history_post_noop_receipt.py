@@ -11,6 +11,7 @@ import terraform_history_plan_receipt as receipt
 from terraform_history_table_metadata import stable_table_metadata
 from terraform_identity_smoke import google
 from terraform_plan_summary import COUNT_KEYS
+from terraform_plan_diagnostic import baseline_scope, render_post_checks
 from validate_user_activity_history_plan import TABLE, TABLE_ID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
@@ -143,6 +144,9 @@ def after(env, *, request=None, metadata_request=None):
         checks["Fresh execution evidence"] = receipt.load_policy(env) == (root, admission)
     except Exception:
         pass
+    if baseline_scope(env, operation=env.get("MODE"), environment=env.get("HISTORY_TARGET"), phase="post"):
+        for line in render_post_checks(checks):
+            print(line)
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
         output.write("Independent history post-import safety checks (final receipt still required):\n")
         for label, passed in checks.items():

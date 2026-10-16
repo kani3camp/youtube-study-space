@@ -897,6 +897,33 @@ baselineではreviewed-inputs Secretをstageせず、既存binding envelopeをru
 nonceやbindingを読み出し・再生成せず、実State sizeやwriter静止を過去値から補完しない。4MiBは承認上限であって実測値ではない。
 新issuerの独立確認後に別activationとfresh inventoryを最終consumer SHAへ結び、新private入力だけを改めて案内する。
 
+### 2026-10-16 current-state baseline失敗と限定診断
+
+[CI #878 / run 38828914021](https://github.com/kani3camp/youtube-study-space/actions/runs/38828914021)は
+M16 source `dc834056276b0987b2513c44ca754844c4652333`、attempt1、本人のplan Environment承認を確認済み。
+private binding / 認証 / identity / history metadata / 事前State検証 / init / saved plan / size検査は成功し、
+Terraformの固定exit codeは0だった。しかしsanitizerと事後no-op検証は失敗し、emitter / publisherはskipped、
+cleanupは成功した。apply job `116743294107`はskipped、artifact0 / pending0である。
+exit code 0だけで実action件数やfull-root no-op12の成功を証明しない。
+失敗したfield・実件数・事後State / lockは未確認で、原因はUNKNOWNのまま。
+新しいissuer / receiptの成功、root admission、Pool import、migration Readyとは扱わない。
+4つのruntime gateはすでにfalseで、本人の追加設定操作や旧runの再試行は今は必要ない。
+
+後続sourceでは、`dev / plan / post / ownership_wave=none / history_post_noop=true /
+current_state_attestation=true / ownership_root_basis=original-history-import / attempt1`がすべて一致した場合だけ、
+既存の固定診断sinkへhistoryと委譲先Function / Scheduler / Topicのstage・sourceで定義したfield codeを記録する。
+既存guardの条件・順序・委譲と例外を保ち、未知の依存例外は`UNCLASSIFIED`にする。
+値、生の例外、動的key、address、identity、nonce、raw plan/logを出さず、artifactも追加しない。
+既存runtime waveの診断と通常のnone / apply / productionの公開範囲は変更しない。
+9種類の件数はcompleteで上限内のresource-change projectionだけから得る補助観測であり、
+不完全・不正・未解析は`NOT_OBSERVED`とし、failed planを承認する根拠にしない。
+診断fileのexclusive0600・2KiB上限・strict JSON / enum検査とcleanup、元の失敗codeを保持する。
+
+同じ限定条件では、事後no-op検証が既にSummaryへ書く6つの固定checkも値なしのPASS / STOPとしてstdoutへ出す。
+Summary書込が失敗してもこの補助観測を残せるが、全check・receipt・cleanupの成功条件は変えない。
+個別PASSはreceipt発行・State / lock全体の成功証明ではない。sourceの架空入力テストを実runの原因確定に使わず、
+追加の実観測には独立レビュー・通常CIを経た新sourceと別の承認済みprotected runが必要である。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
