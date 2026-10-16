@@ -167,6 +167,47 @@ def validate_manifest(manifest, environment):
     return result
 
 
+def validate_owned_api_inputs(tfvars, manifest, environment):
+    """Bind selected existing APIs to non-API consumers in the fixed root graph.
+
+    This proves a concrete address join, never workload usage from API enablement
+    alone. Unselected classifications may describe future, not-yet-owned consumers.
+    """
+    _bounded(tfvars)
+    expected = validate_manifest(manifest, environment)
+    need(type(tfvars) is dict and tfvars.get("project_id") == ENVIRONMENTS[environment][0], "MANIFEST")
+    selected = tfvars.get("owned_api_keys", [])
+    service_name = re.compile(r"[a-z][a-z0-9-]*\.googleapis\.com")
+    need(type(selected) is list and all(type(service) is str and service_name.fullmatch(service)
+                                      for service in selected), "MANIFEST")
+    need(len(selected) == len(set(selected)), "MANIFEST")
+    manifest_services = set()
+    consumers = set()
+    for address, descriptor in expected.items():
+        if descriptor["type"] != "google_project_service":
+            consumers.add(address)
+            continue
+        project, separator, service = descriptor["import_id"].partition("/")
+        need(separator == "/" and project == manifest["project_id"]
+             and service_name.fullmatch(service), "MANIFEST")
+        manifest_services.add(service)
+    need(set(selected) == manifest_services, "MANIFEST")
+    classification = tfvars.get("api_classification", {})
+    need(type(classification) is dict, "MANIFEST")
+    edges = 0
+    for service in selected:
+        item = classification.get(service)
+        need(type(item) is dict and item.get("classification") == "Own"
+             and item.get("state") == "ENABLED"
+             and type(item.get("reason")) is str and bool(item["reason"].strip()), "MANIFEST")
+        dependencies = item.get("dependency_addresses")
+        need(type(dependencies) is list and bool(dependencies)
+             and all(type(address) is str and address in consumers for address in dependencies), "MANIFEST")
+        need(len(dependencies) == len(set(dependencies)), "MANIFEST")
+        edges += len(dependencies)
+    return {"owned_apis": len(selected), "dependency_edges": edges}
+
+
 def _schema(provider_schema, resource_type):
     try:
         need(type(provider_schema) is dict and provider_schema.get("format_version") == "1.0", "SCHEMA")

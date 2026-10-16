@@ -154,6 +154,7 @@ def inputs(env):
     target = env['MIGRATION_TARGET']
     contract.validate_manifest(value['manifest'], target)
     need(value['tfvars'].get('project_id') == PROJECTS[target])
+    contract.validate_owned_api_inputs(value['tfvars'], value['manifest'], target)
     return value
 
 
