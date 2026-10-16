@@ -557,7 +557,7 @@ class ExecuteTest(OfflineTest):
         env['MIGRATION_EXPECTED_COMPONENTS'] = json.dumps(components)
         result, output = self.main(env)
         self.assertEqual(result, 1)
-        self.assertIn('GCP_MIGRATION_COMPARISON: {"changed_components":["metadata"],"key_match":true}', output)
+        self.assertIn('GCP_MIGRATION_COMPARISON: {"changed_components":["metadata"],"changed_details":[],"key_match":true}', output)
         self.assertFalse(any(name == 'apply' for name, _ in calls))
         self.assertFalse((root / 'apply-attempt').exists())
 
@@ -568,7 +568,7 @@ class ExecuteTest(OfflineTest):
         overall, components = migration.execution_commitment(value, original)
         for name in original:
             changed = deepcopy(original)
-            changed[name] = {'private': CANARY}
+            changed[name] = {'private': CANARY} if name != 'inputs' else deepcopy(original['inputs']) | {'private': CANARY}
             next_overall, next_components = migration.execution_commitment(value, changed)
             result = migration.compare_commitments(json.dumps(components), next_components)
             self.assertNotEqual(overall, next_overall)
@@ -583,6 +583,17 @@ class ExecuteTest(OfflineTest):
                 migration.compare_commitments(invalid, components)
         with self.assertRaises(ValueError):
             migration.compare_commitments(json.dumps(components | {CANARY: 'd' * 64}), components | {CANARY: 'd' * 64})
+
+    def test_subsection_diagnostic_names_are_fixed_and_each_detail_still_requires_equality(self):
+        env, root, calls = self.setup_execution()
+        components = json.loads(env['MIGRATION_EXPECTED_COMPONENTS'])
+        components['plan.configuration'] = '0' * 64
+        env['MIGRATION_EXPECTED_COMPONENTS'] = json.dumps(components)
+        result, output = self.main(env)
+        self.assertEqual(result, 1)
+        self.assertIn('"changed_components":[],"changed_details":["plan.configuration"]', output)
+        self.assertFalse(any(name == 'apply' for name, _ in calls))
+        self.assertFalse((root / 'apply-attempt').exists())
 
     def test_changed_source_copy_stops_before_apply_is_reserved(self):
         env, root, calls = self.setup_execution()

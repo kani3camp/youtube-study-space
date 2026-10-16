@@ -19,7 +19,7 @@ Core/providerが返す `before_identity` / `after_identity` は独立したprovi
 
 失敗時は固定action名・既知field名の件数だけを診断し、address/import ID/値/未知key名を公開しない。before観測が存在する境界だけを一度再取得し、Stateと安定metadataを `SAME` / `CHANGED` / `UNOBSERVED` で報告する。取得失敗を不変の証明にせず、apply試行済みかも明記する。結果にかかわらず元の失敗で停止し、再applyしない。
 
-再plan完全比較の原因分類には、source/closure/inputs/state/metadata/planの固定6区分と鍵確認を、別domainのkeyed HMACでjob間へ渡す。公開診断は不一致区分名と鍵一致boolのみ。unkeyed private hashや値は出さず、全6区分と従来のexecution全体HMACの一致をすべて必須にする。区分を除外したり、比較失敗をapply許可へ変えたりしない。
+再plan完全比較の原因分類には、source/closure/inputs/state/metadata/planの固定6区分と鍵確認を、別domainのkeyed HMACでjob間へ渡す。詳細もplanの既知top-level field、metadataの既知resource type、Stateの固定HEAD項目/other/raw/parsedだけを別domainで比較する。公開診断は不一致区分・固定項目名と鍵一致boolのみ。unkeyed private hashや値は出さず、全6区分・詳細と従来のexecution全体HMACの一致をすべて必須にする。区分を除外したり、比較失敗をapply許可へ変えたりしない。
 
 設定担当はfull-rootで候補を1件ずつ追加し、完全manifestとbaselineをplan/apply両Environmentへ同一設定する。各adoption前に実値とrequired callers/dependenciesをreviewし、採用後の固定baselineに対して通常planでdriftを検知する。State writerは既存reusable workflowの環境別concurrencyで直列化し、operatorは別writerを走らせない。非協調writer不存在を完全に証明したとは扱わず、前後State/Versionとnative lock/stale-plan検査で異常時停止する。
 

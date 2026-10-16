@@ -51,6 +51,13 @@ DIAGNOSTIC_FIELDS = frozenset({
     'public_access_prevention', 'soft_delete_policy', 'retention_policy',
 })
 COMMITMENT_COMPONENTS = frozenset({'source', 'closure', 'inputs', 'state', 'metadata', 'plan'})
+STATE_HEAD_FIELDS = frozenset({'ContentLength', 'ETag', 'LastModified', 'VersionId',
+                               'ServerSideEncryption', 'Metadata', 'ContentType'})
+COMMITMENT_DETAILS = frozenset(
+    {'plan.' + name for name in contract.PLAN_KEYS - {'timestamp', 'resource_drift'}}
+    | {'metadata.' + name for name in contract.RESOURCE_TYPES}
+    | {'state.head.' + name for name in STATE_HEAD_FIELDS}
+    | {'state.raw', 'state.parsed', 'state.head.other'})
 
 
 def need(condition):
@@ -439,18 +446,36 @@ def execution_commitment(value, payload):
     components = {name: tag(b'gcp-migration-component-v1\0', {name: payload[name]})
                   for name in sorted(payload)}
     components['key'] = tag(b'gcp-migration-key-check-v1\0', payload['source'])
+    missing = {'absent': True}
+    details = {'plan.' + name: {'present': name in payload['plan'], 'value': payload['plan'].get(name)}
+               for name in contract.PLAN_KEYS - {'timestamp', 'resource_drift'}}
+    for kind in contract.RESOURCE_TYPES:
+        addresses = {item['address'] for item in payload['inputs']['manifest']['resources'] if item['type'] == kind}
+        details['metadata.' + kind] = {address: payload['metadata'].get(address, missing) for address in addresses}
+    state = payload['state']
+    head = state.get('head')
+    for name in STATE_HEAD_FIELDS:
+        details['state.head.' + name] = {'present': type(head) is dict and name in head,
+                                         'value': head.get(name) if type(head) is dict else None}
+    details['state.head.other'] = {name: item for name, item in head.items() if name not in STATE_HEAD_FIELDS} if type(head) is dict else head
+    details['state.raw'] = state.get('raw', missing)
+    details['state.parsed'] = state.get('state', missing)
+    need(set(details) == COMMITMENT_DETAILS)
+    components.update({name: tag(b'gcp-migration-detail-v1\0', {name: item}) for name, item in details.items()})
     return overall, components
 
 
 def compare_commitments(expected, current):
     """Return fixed category names only; the overall execution seal stays mandatory."""
     value = decode(expected.encode())
-    need(type(current) is dict and set(current) == COMMITMENT_COMPONENTS | {'key'})
+    need(type(current) is dict and set(current) == COMMITMENT_COMPONENTS | COMMITMENT_DETAILS | {'key'})
     need(type(value) is dict and set(value) == set(current)
          and all(type(item) is str and re.fullmatch('[0-9a-f]{64}', item) for item in value.values()))
     return {'key_match': hmac.compare_digest(value['key'], current['key']),
-            'changed_components': [name for name in sorted(current) if name != 'key'
-                                   and not hmac.compare_digest(value[name], current[name])]}
+            'changed_components': [name for name in sorted(COMMITMENT_COMPONENTS)
+                                   if not hmac.compare_digest(value[name], current[name])],
+            'changed_details': [name for name in sorted(COMMITMENT_DETAILS)
+                               if not hmac.compare_digest(value[name], current[name])]}
 
 
 def execute(env):
@@ -507,9 +532,9 @@ def execute(env):
         else:
             stage_name = 'REPLAN_MATCH'
             comparison = compare_commitments(env.get('MIGRATION_EXPECTED_COMPONENTS', ''), components)
-            if not comparison['key_match'] or comparison['changed_components']:
+            if not comparison['key_match'] or comparison['changed_components'] or comparison['changed_details']:
                 print('GCP_MIGRATION_COMPARISON: ' + canonical(comparison).decode())
-            need(comparison['key_match'] and not comparison['changed_components'])
+            need(comparison['key_match'] and not comparison['changed_components'] and not comparison['changed_details'])
             need(hmac.compare_digest(commitment, env.get('MIGRATION_EXPECTED_COMMITMENT', '')))
             stage_name = 'SEAL'
             seal = hashlib.sha256(binary.read_bytes()).hexdigest()
