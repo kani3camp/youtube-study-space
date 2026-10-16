@@ -1429,7 +1429,7 @@ CI #885のraw drift1 / no-op12、2項目だけのVALUE診断と5安全検査PASS
 旧run承認・期限切れprivate入力・旧issuerを流用しない。実State書込、new issuer、migration Ready、追加本人操作はいずれも現在0。
 
 
-### 履歴観測同期の専用source window（2026-10-16）
+### 履歴観測同期の過去の専用source window（2026-10-16、M21）
 
 M20導入時の既定false/時刻空という記録を保持し、専用2gateだけをtrueへ変更する。
 windowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` の最大24hで、延長しない。
@@ -1441,3 +1441,20 @@ source windowの有効化はactual admission/State書込許可ではなく、こ
 State同期・新issuer・migration Readyは未成立である。実run作成前に本人の追加操作を求めない。
 旧4runtime gate、その他read/one-off/production、profile契約、binding/nonce、55guard/issuerは不変。
 [専用契約の現在値](history-observation-sync.md)に従い、BがCならSTOPする。
+
+### 2026-10-16 専用preview #893の停止と実行枠閉鎖
+
+[run 38856804355](https://github.com/kani3camp/youtube-study-space/actions/runs/38856804355)は
+source `57bf51df3ffff22ec54294baa880b6dc239c83c9`、本人plan Environment承認後に認証/private binding・
+IDENTITY/METADATA/STATE_BEFORE/INITを通過し、OBSERVATIONでSTOPした。
+通常plan終了コード、show/JSON読取、strict検証のどこで失敗したかは未確定。
+candidate未観測、適用CLI予約/呼出0、専用apply skipped、cleanup/post-auth成功、artifact0を確認した。
+事後State/lock不変・同期・issuer成立を推定せず、同R同期・旧run再試行は行わない。
+専用2gateをfalse、発行/失効UTCを空へ閉じ、旧windowを延長しない。
+
+次回向けに[専用の有限失敗診断](history-observation-sync.md#preview-893の停止と実行枠閉鎖)だけを追加する。
+PLAN/SHOW/VALIDATE・有限exit/reason・完全JSONの9counts/既知field codeを表示し、未知はNOT_OBSERVED。
+通常exit2は拒否したまま、条件を満たす保存planへの失敗診断showは最大1回、必ず元のSTOPへ戻す。
+既存safety readのbefore比較は適用CLI呼出0で実比較できた場合だけの事実で、期待State反映の証明ではない。
+55guard・既存診断・通常drift0・profile/provenance/issuer・HCL・binding/nonce・旧4gate/productionは不変。
+この変更は原因修正や実再実行ではなく、本人の追加操作を今は求めない。

@@ -324,8 +324,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "DEV_HISTORY_OBSERVATION_SYNC_ENABLED": "true",
-            "DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED": "true",
+            "DEV_HISTORY_OBSERVATION_SYNC_ENABLED": "false",
+            "DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",

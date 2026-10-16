@@ -125,6 +125,7 @@ class DummyIO:
         if kwargs.get('before_send'):kwargs['before_send']()
         if kwargs.get('on_call'):kwargs['on_call']()
         self.calls.append(('terraform',args[0],name))
+        if kwargs.get('report'):kwargs['report']('EXIT',0)
         if args[0]=='init':
             directory=tfroot/'.terraform/modules';directory.mkdir(parents=True,mode=0o700)
             manifest=[dict(Key='',Dir='')]
@@ -146,7 +147,7 @@ class DummyIO:
                 directory=tfroot if not item['Key']else(tfroot/item['Dir']).resolve()
                 for path in directory.glob('*.tf'):members['tfconfig/m-'+item['Key']+'/'+path.name]=controller.read_owned(path)
             controller.write_owned(root/'refresh.tfplan',fixtures.packed(members))
-        elif name=='normal-show':return copy.deepcopy(self.normal)
+        elif name in('normal-show','normal-failure-show'):return copy.deepcopy(self.normal)
         elif name=='refresh-show':return copy.deepcopy(self.refresh)
         elif name=='post-show':
             value=copy.deepcopy(self.normal);value['resource_drift']=[];return value
@@ -327,28 +328,28 @@ class HistoryObservationControllerTest(unittest.TestCase):
         self.assertIn("inputs.mode != 'dev-history-observation-sync'",old)
         source=dict(re.findall(r'(?m)^  ([A-Z0-9_]+): "([^"]*)"$',text))
         for gate_ in ('DEV_HISTORY_OBSERVATION_SYNC_ENABLED','DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED'):
-            self.assertEqual(source[gate_],'true')
-        issued=source['DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC']
-        expires=source['DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC']
-        self.assertEqual(issued,'2026-10-16T04:29:31Z')
-        self.assertEqual(expires,'2026-10-17T04:29:31Z')
-        start,end=(controller.profiles.timestamp(value)for value in (issued,expires))
-        self.assertEqual(end-start,timedelta(hours=24))
-        # Evaluate immutable source-time semantics with an explicit test clock;
-        # a later CI date must neither extend nor invalidate this source test.
+            self.assertEqual(source[gate_],'false')
+        self.assertEqual(source['DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC'],'')
+        self.assertEqual(source['DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC'],'')
+        # Actual source denies both phases. The independent pure-window
+        # positives/negatives remain tested using an explicitly invented gate.
         for operation in ('preview','synchronize'):
             env=requests.dummy_env(operation);env.update(source)
             profile=json.loads(env['HISTORY_OBSERVATION_SYNC_PROFILE'])
-            profile.update(issued_utc=issued,expires_utc=expires)
+            profile.update(issued_utc=DUMMY_ISSUED_UTC,expires_utc=DUMMY_EXPIRES_UTC)
             env['HISTORY_OBSERVATION_SYNC_PROFILE']=json.dumps(profile)
-            self.assertEqual(controller.profiles.context(env,phase=operation,now=start)['operation'],operation)
-            for instant in (start-timedelta(seconds=1),end):
+            with self.assertRaises(ValueError):controller.profiles.context(env,phase=operation,now=FIXTURE_NOW)
+            env.update(DEV_HISTORY_OBSERVATION_SYNC_ENABLED='true',DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED='true',
+                DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC=DUMMY_ISSUED_UTC,
+                DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC=DUMMY_EXPIRES_UTC)
+            self.assertEqual(controller.profiles.context(env,phase=operation,now=FIXTURE_NOW)['operation'],operation)
+            for instant in (FIXTURE_ISSUED-timedelta(seconds=1),FIXTURE_EXPIRES):
                 with self.assertRaises(ValueError):controller.profiles.context(env,phase=operation,now=instant)
             with self.assertRaises(ValueError):
-                controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_ENABLED':'false'},phase=operation,now=start)
+                controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_ENABLED':'false'},phase=operation,now=FIXTURE_NOW)
             if operation=='synchronize':
                 with self.assertRaises(ValueError):
-                    controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED':'false'},phase=operation,now=start)
+                    controller.profiles.context(env|{'DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED':'false'},phase=operation,now=FIXTURE_NOW)
 
         for role in ('plan','apply'):
             block=text.split('\n  history_observation_sync_'+role+':',1)[1].split('\n  history_observation_sync_',1)[0]
@@ -437,6 +438,64 @@ class HistoryObservationControllerTest(unittest.TestCase):
                     self.assertEqual(count[0],2);self.assertEqual(session.write_attempts,1);self.assertEqual(session.cli_calls,0)
                     self.assertNotIn(CANARY,out.getvalue());self.assertIn('SYNC_CLI_CALL_ATTEMPTS=0',out.getvalue())
                     self.assertFalse(any(call[:2]==('terraform','apply')for call in io_.calls))
+
+    def test_observation_diagnostics_preserve_stop_no_candidate_and_failure_only_safety_facts(self):
+        for failure in ('exit2','exit2unsafe','exit2showtimeout','show','configuration'):
+            with tempfile.TemporaryDirectory()as temp:
+                env=environment(Path(temp));io_=DummyIO();io_.bind(env);controller.stage(env)
+                if failure=='configuration':
+                    function=next(item for item in io_.normal['resource_changes']if item['type']=='google_cloudfunctions_function')
+                    for side in ('before','after'):function['change'][side]['version_id']=CANARY
+                original=io_.terraform
+                def fail(root,tfroot,env,name,args,**kwargs):
+                    if failure.startswith('exit2')and name=='normal-plan':
+                        controller.write_owned(root/'normal.tfplan',b'DUMMY')
+                        if failure=='exit2unsafe':(root/'normal.tfplan').chmod(0o644)
+                        self.assertEqual(kwargs['codes'],(0,));kwargs['report']('EXIT',2);raise ValueError(CANARY)
+                    if failure=='exit2showtimeout'and name=='normal-failure-show':
+                        io_.calls.append(('terraform','show',name));kwargs['report']('TIMEOUT')
+                        raise subprocess.TimeoutExpired(args,240,output=CANARY)
+                    if failure=='show'and name=='normal-show':
+                        kwargs['report']('EXIT',0);kwargs['report']('JSON_PARSE');raise ValueError(CANARY)
+                    return original(root,tfroot,env,name,args,**kwargs)
+                io_.terraform=fail
+                with io_.patched(),patch('sys.stdout',io.StringIO())as out:
+                    self.assertEqual(controller.main(['--phase','preview'],env),3)
+                text=out.getvalue();self.assertNotIn(CANARY,text)
+                expected='OBSERVATION_PLAN'if failure.startswith('exit2')else'OBSERVATION_SHOW'if failure=='show'else'OBSERVATION_VALIDATE'
+                self.assertIn('STOP; stage='+expected,text)
+                self.assertIn('SYNC_CLI_CALL_ATTEMPTS=0',text)
+                self.assertIn('SYNC_EXPECTED_DRIFT=NOT_OBSERVED',text)
+                self.assertIn('SYNC_FAILURE_STATE_VS_BEFORE=UNCHANGED',text)
+                self.assertIn('SYNC_FAILURE_METADATA_VS_BEFORE=UNCHANGED',text)
+                self.assertFalse(any(call[0]=='terraform'and call[2]in('refresh-plan','apply')for call in io_.calls))
+                self.assertFalse((Path(temp)/controller.provenance.PUBLIC_DIRECTORY).exists())
+                if failure.startswith('exit2'):
+                    self.assertIn('plan_exit=2',text);self.assertIn('reason=EXIT_REJECTED',text)
+                    self.assertEqual(sum(call[0]=='terraform'and call[2]=='normal-failure-show'for call in io_.calls),0 if failure=='exit2unsafe'else 1)
+                    if failure=='exit2':self.assertIn('role=USER_ACTIVITY_HISTORY',text)
+                    else:self.assertIn('SYNC_DIAGNOSTIC_COUNTS=NOT_OBSERVED',text)
+                    if failure=='exit2showtimeout':self.assertIn('show_exit=TIMEOUT',text)
+                if failure=='configuration':
+                    self.assertIn('guard_stage=BASELINE_FUNCTION guard_field=VERSION_ID',text)
+                    self.assertIn('no-op:12',text);self.assertIn('role=USER_ACTIVITY_HISTORY',text)
+                controller.cleanup(env);self.assertFalse(controller.location(env).exists())
+
+    def test_failure_safety_reports_only_returned_before_comparisons_and_no_postwrite_success(self):
+        for failure in ('unchanged','changed','snapshot','metadata','postwrite'):
+            session=object.__new__(controller.Session)
+            session.raw=b'DUMMY';session.head={'VersionId':'A'};session.meta={'etag':'A'};session.fullmeta={}
+            session.cli_calls=1 if failure=='postwrite'else 0;session.diagnostic=controller.stop_diagnostic.Diagnostic()
+            head={'VersionId':'B'if failure=='changed'else'A'};meta={'etag':'B'if failure=='changed'else'A'}
+            with patch.object(session,'snapshot',return_value=(head,b'DUMMY'),
+                    side_effect=ValueError(CANARY)if failure=='snapshot'else None)as snapshot,\
+                 patch.object(session,'metadata',return_value=(meta,{}),
+                    side_effect=ValueError(CANARY)if failure=='metadata'else None)as metadata:
+                session.failure_safety()
+            self.assertEqual(snapshot.call_count,1);self.assertEqual(metadata.call_count,0 if failure=='snapshot'else 1)
+            state='NOT_OBSERVED'if failure in('snapshot','postwrite')else'CHANGED'if failure=='changed'else'UNCHANGED'
+            table='NOT_OBSERVED'if failure in('snapshot','metadata','postwrite')else'CHANGED'if failure=='changed'else'UNCHANGED'
+            self.assertEqual(session.diagnostic.state_before,state);self.assertEqual(session.diagnostic.metadata_before,table)
 
 
 if __name__=='__main__':unittest.main()
