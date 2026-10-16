@@ -11,12 +11,14 @@ import json
 import os
 from pathlib import Path
 import re
+import random
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 import urllib.error
+import zlib
 
 sys.dont_write_bytecode = True
 import terraform_migration as migration
@@ -58,6 +60,149 @@ class OfflineTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="migration-controller-contract-")
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
+
+
+class InputTransportTest(OfflineTest):
+    def raw(self, target="dev"):
+        return environment(target=target)["MIGRATION_INPUTS_JSON"].encode()
+
+    def packed(self, compressed):
+        return migration.canonical({"schema_version": migration.PACKED_INPUT_SCHEMA,
+                                    "codec": "zlib+base64",
+                                    "payload": base64.b64encode(compressed).decode()})
+
+    def assert_rejected(self, wire):
+        with self.assertRaises(ValueError) as rejected:
+            migration.decode_input_transport(wire)
+        self.assertEqual(str(rejected.exception), "migration contract rejected")
+
+    def test_plain_backward_compatibility_and_packed_roundtrip_preserve_every_input_field(self):
+        for target in ("dev", "prod"):
+            raw = self.raw(target)
+            expected = json.loads(raw)
+            wire = migration.encode_input_transport(raw)
+            self.assertNotIn(b"\n", wire)
+            self.assertNotIn(b"\r", wire)
+            self.assertLessEqual(len(wire), migration.INPUT_WIRE_BYTES)
+            decoded = migration.decode_input_transport(wire)
+            self.assertEqual(decoded, expected)
+            self.assertEqual(migration.inputs(environment(target=target) | {
+                "MIGRATION_INPUTS_JSON": wire.decode()}), migration.inputs(environment(target=target)))
+            payload = json.loads(wire)["payload"]
+            self.assertEqual(zlib.decompress(base64.b64decode(payload)), raw)
+
+    def test_large_reviewed_input_roundtrips_at_decoded_limit_without_reformatting(self):
+        value = json.loads(self.raw())
+        value["tfvars"]["private_value"] = ""
+        overhead = len(migration.canonical(value))
+        value["tfvars"]["private_value"] = "x" * (migration.MAX_BYTES - overhead)
+        raw = migration.canonical(value)
+        self.assertEqual(len(raw), migration.MAX_BYTES)
+        original = bytes(raw)
+        wire = migration.encode_input_transport(raw)
+        self.assertEqual(raw, original)
+        self.assertEqual(migration.decode_input_transport(wire), value)
+        self.assertEqual(zlib.decompress(base64.b64decode(json.loads(wire)["payload"])), original)
+        self.assertLessEqual(len(wire), migration.INPUT_WIRE_BYTES)
+
+    def test_wire_limit_is_utf8_bytes_and_encoder_rejects_incompressible_oversize(self):
+        raw = self.raw()
+        boundary = raw + b" " * (migration.INPUT_WIRE_BYTES - len(raw))
+        self.assertEqual(migration.decode_input_transport(boundary), json.loads(raw))
+        self.assert_rejected(boundary + b" ")
+        self.assert_rejected(b" " * migration.INPUT_WIRE_BYTES + "é".encode())
+        value = json.loads(raw)
+        value["tfvars"]["private_value"] = base64.b64encode(random.Random(0).randbytes(60000)).decode()
+        with self.assertRaises(ValueError):
+            migration.encode_input_transport(migration.canonical(value))
+
+    def test_packed_exact_schema_codec_one_line_and_canonical_base64_are_required(self):
+        valid = json.loads(migration.encode_input_transport(self.raw()))
+        edits = (
+            lambda value: value.update(extra=CANARY),
+            lambda value: value.update(schema_version="unknown"),
+            lambda value: value.update(codec="gzip+base64"),
+            lambda value: value.update(payload=None),
+            lambda value: value.update(payload=valid["payload"] + "\n"),
+            lambda value: value.update(payload=valid["payload"] + "="),
+            lambda value: value.update(payload="!" + valid["payload"]),
+            lambda value: value.update(payload="é"),
+        )
+        for edit in edits:
+            bad = deepcopy(valid)
+            edit(bad)
+            with self.subTest(edit=edit):
+                self.assert_rejected(migration.canonical(bad))
+        self.assert_rejected(json.dumps(valid, indent=2).encode())
+        self.assert_rejected(b'{"schema_version":"gcp-migration-inputs-packed-v1",'
+                             b'"codec":"zlib+base64","codec":"zlib+base64","payload":""}')
+        raw = self.raw()
+        while len(zlib.compress(raw)) % 3 == 0:
+            raw += b" "
+        compressed = zlib.compress(raw)
+        payload = base64.b64encode(compressed).decode()
+        padding = len(payload) - len(payload.rstrip("="))
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        pos = len(payload) - padding - 1
+        altered = payload[:pos] + alphabet[alphabet.index(payload[pos]) + 1] + payload[pos + 1:]
+        self.assertEqual(base64.b64decode(altered), compressed)
+        self.assertEqual(zlib.decompress(base64.b64decode(altered)), raw)
+        self.assert_rejected(migration.canonical(valid | {"payload": altered}))
+
+    def test_only_one_complete_zlib_stream_with_bounded_decoded_bytes_is_accepted(self):
+        compressed = zlib.compress(self.raw())
+        invalid = (b"", compressed[:-1], compressed + b"x", compressed + compressed,
+                   zlib.compress(b""), zlib.compress(b"x" * (migration.MAX_BYTES + 1)),
+                   zlib.compress(b"\xff"), zlib.compress(self.raw().decode().encode("utf-16")))
+        for candidate in invalid:
+            with self.subTest(size=len(candidate)):
+                self.assert_rejected(self.packed(candidate))
+
+    def test_nested_wrapper_duplicate_nonfinite_overflow_and_unknown_decoded_shape_are_rejected(self):
+        invalid = (migration.encode_input_transport(self.raw()), b'{"duplicate":1,"duplicate":2}',
+                   b'{"value":NaN}', b'{"value":Infinity}', b'{"value":1e999}',
+                   b'[]', migration.canonical(json.loads(self.raw()) | {"extra": CANARY}))
+        for raw in invalid:
+            with self.subTest(size=len(raw)):
+                self.assert_rejected(self.packed(zlib.compress(raw)))
+        value = json.loads(self.raw())
+        value["tfvars"]["private_value"] = CANARY
+        for literal in (b"NaN", b"Infinity", b"-Infinity", b"1e999"):
+            raw = json.dumps(value).encode().replace(json.dumps(CANARY).encode(), literal)
+            self.assert_rejected(raw)
+            self.assert_rejected(self.packed(zlib.compress(raw)))
+        deeply_nested = b"[" * 2000 + b"0" + b"]" * 2000
+        self.assert_rejected(self.packed(zlib.compress(deeply_nested)))
+
+    def test_transport_does_not_change_commitments_and_decoded_value_changes_still_do(self):
+        plain = migration.inputs(environment())
+        wire = migration.encode_input_transport(self.raw())
+        packed = migration.inputs(environment() | {"MIGRATION_INPUTS_JSON": wire.decode()})
+        def witness(value):
+            return migration.execution_commitment(value, {"source": SHA, "closure": {}, "inputs": value,
+                "state": {"head": {}}, "metadata": {}, "plan": {}})
+        self.assertEqual(witness(plain), witness(packed))
+        changed = deepcopy(plain)
+        changed["tfvars"]["private_value"] = CANARY
+        changed_wire = migration.encode_input_transport(migration.canonical(changed))
+        decoded = migration.inputs(environment() | {"MIGRATION_INPUTS_JSON": changed_wire.decode()})
+        self.assertNotEqual(witness(plain), witness(decoded))
+
+    def test_packed_admission_failures_stop_before_source_or_auth_without_private_diagnostics(self):
+        value = json.loads(self.raw())
+        value["manifest"]["project_id"] = migration.PROJECTS["prod"]
+        bad_inputs = (self.packed(zlib.compress(CANARY.encode())),
+                      migration.encode_input_transport(migration.canonical(value)))
+        for wire in bad_inputs:
+            env = environment() | {"RUNNER_TEMP": str(self.directory), "MIGRATION_INPUTS_JSON": wire.decode()}
+            out, err = io.StringIO(), io.StringIO()
+            with patch.object(migration, "run") as source, patch.object(migration, "verify_identity") as auth, redirect_stdout(out), redirect_stderr(err):
+                with self.assertRaises(ValueError) as rejected:
+                    migration.stage(env)
+                source.assert_not_called()
+                auth.assert_not_called()
+            self.assertNotIn(CANARY, str(rejected.exception) + out.getvalue() + err.getvalue())
+            self.assertFalse((self.directory / migration.PRIVATE).exists())
 
 
 class ContextAndPrivateInputTest(OfflineTest):
