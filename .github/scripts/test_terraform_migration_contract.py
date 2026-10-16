@@ -155,6 +155,33 @@ class MigrationContractTest(unittest.TestCase):
                                  before=state(environment, count=2), phase="post")
             self.assertEqual((post["imports"], post["no_op"]), (0, 2))
 
+    def test_one_remote_resource_cannot_be_owned_by_distinct_manifest_addresses(self):
+        for environment in gate.ENVIRONMENTS:
+            candidate = manifest(environment)
+            duplicate = deepcopy(candidate["resources"][0])
+            duplicate["address"] += "_another_owner"
+            candidate["resources"].append(duplicate)
+            with self.subTest(environment=environment), self.assertRaises(gate.ContractError) as error:
+                gate.validate_manifest(candidate, environment)
+            self.assertEqual(error.exception.reason, "MANIFEST")
+            self.assertEqual(str(error.exception), "GCP migration contract STOP: MANIFEST")
+
+    def test_distinct_types_or_exact_import_ids_remain_separate_remote_identities(self):
+        for environment in gate.ENVIRONMENTS:
+            candidate = manifest(environment)
+            distinct_id = deepcopy(candidate["resources"][0])
+            distinct_id["address"] += "_another_table"
+            distinct_id["import_id"] += "_another_table"
+            distinct_type = deepcopy(candidate["resources"][0])
+            distinct_type.update(address="module.topics.google_pubsub_topic.separate_type",
+                                 type="google_pubsub_topic")
+            # The manifest identifies remote ownership by (type, exact ID).
+            # Provider-specific ID syntax and value binding are checked later.
+            candidate["resources"].extend([distinct_id, distinct_type])
+            with self.subTest(environment=environment):
+                actual = gate.validate_manifest(candidate, environment)
+                self.assertEqual(actual, {item["address"]: item for item in candidate["resources"]})
+
     def test_existing_graph_and_import_ids_must_match_exact_candidate_delta(self):
         self.reject_plan(lambda value: value["resource_changes"][1]["change"].pop("importing"))
         self.reject_plan(lambda value: value["resource_changes"][0]["change"].update(importing={"id": descriptors()[0]["import_id"]}))

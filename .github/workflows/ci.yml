@@ -725,6 +725,9 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
 
+      - name: Test unconnected production initializer with pinned local Terraform
+        run: python3 .github/scripts/test_production_initializer.py
+
       - name: Initialize and validate roots
         run: |
           set -euo pipefail
