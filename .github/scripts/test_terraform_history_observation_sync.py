@@ -23,12 +23,22 @@ import test_history_observation_sync_archive as fixtures
 gate=controller.gate
 CANARY=fixtures.fixture.CANARY
 REAL_RUN=subprocess.run
+# One immutable window per test process: preview/apply share exact scope even
+# when the suite crosses a second/day boundary. Runtime TTL rules are unchanged.
+FIXTURE_NOW=controller.now().replace(microsecond=0)
+FIXTURE_ISSUED=FIXTURE_NOW-timedelta(minutes=5)
+FIXTURE_EXPIRES=FIXTURE_ISSUED+timedelta(hours=24)
+DUMMY_ISSUED_UTC=FIXTURE_ISSUED.strftime('%Y-%m-%dT%H:%M:%SZ')
+DUMMY_EXPIRES_UTC=FIXTURE_EXPIRES.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def environment(root,operation='preview'):
     env=requests.dummy_env(operation)
     sha=REAL_RUN(['git','rev-parse','HEAD'],cwd=controller.ROOT,capture_output=True,text=True,check=True).stdout.strip()
     value=json.loads(env['HISTORY_OBSERVATION_SYNC_PROFILE']);value['git_sha']=sha
+    value.update(issued_utc=DUMMY_ISSUED_UTC,expires_utc=DUMMY_EXPIRES_UTC)
+    env.update(DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC=DUMMY_ISSUED_UTC,
+        DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC=DUMMY_EXPIRES_UTC)
     if operation=='synchronize':value['preview_reference']['source_sha']=sha
     env.update(GITHUB_SHA=sha,HISTORY_OBSERVATION_SYNC_PROFILE=json.dumps(value),
         GITHUB_JOB='history_observation_sync_'+('plan'if operation=='preview'else'apply'),
@@ -283,7 +293,7 @@ class HistoryObservationControllerTest(unittest.TestCase):
                     def delayed(root,stage,**kwargs):
                         original(root,stage,**kwargs)
                         if kwargs.get('attempted'):
-                            if mutation=='expire':session.env['DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC']='2026-10-16T00:00:00Z'
+                            if mutation=='expire':session.env['DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC']=DUMMY_ISSUED_UTC
                             elif mutation=='backend':(root/'backend.hcl').write_bytes(b'DUMMY_CHANGED')
                             elif mutation=='source':io_.bad_head=True
                             elif mutation=='auxiliary':
