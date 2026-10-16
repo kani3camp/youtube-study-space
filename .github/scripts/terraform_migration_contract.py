@@ -655,6 +655,52 @@ def _native_state(state, expected, manifest, provider_schema, environment, *, ap
     return found
 
 
+def _inactive_configuration_reference(address, configuration, provider_schema):
+    """Prove one fixed literal hint against its exact source/provider schema.
+
+    This static proof supplies no claim about State or resource inactivity. The
+    caller must prove that independently: normal imports use real native State;
+    the output-only initializer proves the complete empty graph before adapting.
+    """
+    need(address in INACTIVE_REFERENCES, "SHAPE")
+    module, source, kind, name, repeat, output, literals = INACTIVE_REFERENCES[address]
+    local = kind + "." + name
+    need(type(configuration) is dict and type(configuration.get("root_module")) is dict, "SHAPE")
+    providers = configuration.get("provider_config")
+    need(type(providers) is dict and type(providers.get("google")) is dict
+         and providers["google"].get("full_name") == GOOGLE, "SHAPE")
+    calls = configuration["root_module"].get("module_calls")
+    need(type(calls) is dict and type(calls.get(module)) is dict, "SHAPE")
+    call = calls[module]
+    need(call.get("source") == source and "count_expression" not in call
+         and "for_each_expression" not in call and type(call.get("module")) is dict, "SHAPE")
+    contents = call["module"]
+    resources = contents.get("resources")
+    need(type(resources) is list and all(type(item) is dict for item in resources), "SHAPE")
+    matches = [item for item in resources if item.get("address") == local]
+    need(len(matches) == 1, "SHAPE")
+    resource = matches[0]
+    need(resource.get("mode") == "managed" and resource.get("type") == kind
+         and resource.get("name") == name and resource.get("provider_config_key") == "google"
+         and type(resource.get("schema_version")) is int
+         and resource["schema_version"] == _schema(provider_schema, kind)["version"] == 0
+         and type(resource.get(repeat)) is dict
+         and set(resource[repeat]) == {"references"}
+         and type(resource[repeat]["references"]) is list
+         and resource[repeat]["references"]
+         and all(type(item) is str for item in resource[repeat]["references"]), "SHAPE")
+    need(("count_expression" if repeat == "for_each_expression" else "for_each_expression") not in resource, "SHAPE")
+    outputs = contents.get("outputs")
+    need(type(outputs) is dict and type(outputs.get(output)) is dict, "SHAPE")
+    expression = outputs[output].get("expression")
+    need(type(expression) is dict and set(expression) == {"references"}, "SHAPE")
+    references = expression["references"]
+    need(type(references) is list and all(type(item) is str for item in references)
+         and len(references) == len(literals) and set(references) == set(literals)
+         and address.removeprefix("module." + module + ".") in references, "SHAPE")
+
+
+
 def _inactive_configured_reference(address, plan, state, expected, provider_schema):
     """Authorize only catalogued literal references with no active family."""
     need(address in INACTIVE_REFERENCES, "SHAPE")
@@ -700,40 +746,7 @@ def _inactive_configured_reference(address, plan, state, expected, provider_sche
                                        + item["type"] + "." + item["name"]))
     need(family not in active, "SHAPE")
 
-    configuration = plan.get("configuration")
-    need(type(configuration) is dict and type(configuration.get("root_module")) is dict, "SHAPE")
-    providers = configuration.get("provider_config")
-    need(type(providers) is dict and type(providers.get("google")) is dict
-         and providers["google"].get("full_name") == GOOGLE, "SHAPE")
-    calls = configuration["root_module"].get("module_calls")
-    need(type(calls) is dict and type(calls.get(module)) is dict, "SHAPE")
-    call = calls[module]
-    need(call.get("source") == source and "count_expression" not in call
-         and "for_each_expression" not in call and type(call.get("module")) is dict, "SHAPE")
-    contents = call["module"]
-    resources = contents.get("resources")
-    need(type(resources) is list and all(type(item) is dict for item in resources), "SHAPE")
-    matches = [item for item in resources if item.get("address") == local]
-    need(len(matches) == 1, "SHAPE")
-    resource = matches[0]
-    need(resource.get("mode") == "managed" and resource.get("type") == kind
-         and resource.get("name") == name and resource.get("provider_config_key") == "google"
-         and type(resource.get("schema_version")) is int
-         and resource["schema_version"] == _schema(provider_schema, kind)["version"] == 0
-         and type(resource.get(repeat)) is dict
-         and set(resource[repeat]) == {"references"}
-         and type(resource[repeat]["references"]) is list
-         and resource[repeat]["references"]
-         and all(type(item) is str for item in resource[repeat]["references"]), "SHAPE")
-    need(("count_expression" if repeat == "for_each_expression" else "for_each_expression") not in resource, "SHAPE")
-    outputs = contents.get("outputs")
-    need(type(outputs) is dict and type(outputs.get(output)) is dict, "SHAPE")
-    expression = outputs[output].get("expression")
-    need(type(expression) is dict and set(expression) == {"references"}, "SHAPE")
-    references = expression["references"]
-    need(type(references) is list and all(type(item) is str for item in references)
-         and len(references) == len(literals) and set(references) == set(literals)
-         and address.removeprefix("module." + module + ".") in references, "SHAPE")
+    _inactive_configuration_reference(address, plan.get("configuration"), provider_schema)
 
 
 def validate_plan(plan, *, manifest, environment, provider_schema, state=None, phase="before"):
