@@ -57,7 +57,7 @@ history importは成功し、過去の独立protected planでimport0/no-op12を�
 
 M20では[専用観測同期protocol](docs/history-observation-sync.md)をsource-onlyで導入し、新gateを既定falseとしました。既存通常guard・旧prototypeは不変です。完全隔離ダミーのserializer/check-set根拠とfull12検証を分け、same-SHAのpreview QA後、別apply Environmentで2属性と検査結果内容不変を明示した本人承認を必要とします。実State変更・新issuer・移行完了は未成立で、今は本人操作を求めません。
 
-専用source windowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` の最大24hです。専用2gateだけを有効にし、統合後の同じSHAでpreviewの独立QA→別synchronize runの新しい本人apply Environment承認という順序を保ちます。source有効化だけではState書込を許可せず、この変更時点で両run・State同期・新issuer・移行完了は未成立です。旧4runtime gateとproductionは閉鎖のままです。[現在のwindowと承認境界](docs/history-observation-sync.md)を参照してください。
+M21では専用source windowをUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` に固定しました。その後の[preview CI #893](https://github.com/kani3camp/youtube-study-space/actions/runs/38856804355)は、本人のplan Environment承認後に認証・private binding・metadata・事前State・initまで進み、OBSERVATIONでSTOPしました。通常plan終了コード、show/JSON読取、strict観測検証のどこで失敗したかは未確定で、candidate未観測、適用CLIの予約/呼出0、apply skipped、cleanup/post-auth成功、artifact0です。事後State/lock不変や同期成功の証拠とは扱いません。専用2gateをfalse・時刻を空へ閉じ、次回向けの値を含まない失敗診断だけを追加します。旧4runtime gate・production・全guardは不変で、旧run再試行や旧window延長を行わず、本人の追加操作は今は不要です。[停止と診断の境界](docs/history-observation-sync.md)を参照してください。
 
 ## Directory
 

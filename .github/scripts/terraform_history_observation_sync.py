@@ -34,6 +34,7 @@ sys.path.insert(0,str(ROOT/'infra/gcp/scripts'))
 import validate_history_observation_sync as gate
 import history_observation_sync_archive as archive
 import history_observation_sync_checks as checks
+import terraform_history_observation_sync_diagnostic as stop_diagnostic
 from prepare_user_activity_history_adoption import prepare
 from prepare_user_activity_history_workflow import PrivateArgumentParser, TABLE_PATH
 
@@ -50,6 +51,7 @@ MODULES = {
 }
 COUNTED_MODULES = frozenset(('export_topic','export_scheduler','export_function','user_activity_history'))
 STAGES = frozenset(('PROFILE','BINDING','SOURCE','IDENTITY','METADATA','STATE_BEFORE','INIT','OBSERVATION',
+    'OBSERVATION_PLAN','OBSERVATION_SHOW','OBSERVATION_VALIDATE',
     'CANDIDATE','ARCHIVE','FRESH_RECHECK','PREVIEW','APPROVAL','SEAL','APPLY','STATE_AFTER','POST_BASELINE','CLEANUP'))
 
 
@@ -263,7 +265,7 @@ def source_snapshot(tfroot,members):
     return snapshots
 
 
-def terraform(root,tfroot,env,name,args,*,codes=(0,),show=False,before_send=None,on_call=None):
+def terraform(root,tfroot,env,name,args,*,codes=(0,),show=False,before_send=None,on_call=None,report=None):
     need(re.fullmatch('[a-z-]+',name) is not None)
     command=['terraform','-chdir='+str(tfroot),*args]
     child=dict(env)
@@ -277,15 +279,31 @@ def terraform(root,tfroot,env,name,args,*,codes=(0,),show=False,before_send=None
     with os.fdopen(outfd,'wb') as stdout,os.fdopen(errfd,'wb') as stderr:
         if before_send is not None:before_send()
         if on_call is not None:on_call()
-        result=subprocess.run(command,env=child,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,timeout=240)
+        try:
+            result=subprocess.run(command,env=child,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,timeout=240)
+        except subprocess.TimeoutExpired:
+            if report is not None:report('TIMEOUT')
+            raise
+    if report is not None:
+        report('EXIT',result.returncode)
+        if out.stat().st_size>MAX_LOG_BYTES or err.stat().st_size>MAX_LOG_BYTES:report('OUTPUT_BOUND')
     need(out.stat().st_size<=MAX_LOG_BYTES and err.stat().st_size<=MAX_LOG_BYTES and result.returncode in codes)
-    return archive.json_value(read_owned(out,gate.MAX_PLAN_BYTES)) if show else result.returncode
+    if not show:return result.returncode
+    try:raw=read_owned(out,gate.MAX_PLAN_BYTES)
+    except Exception:
+        if report is not None:report('SHOW_READ')
+        raise
+    try:return archive.json_value(raw)
+    except Exception:
+        if report is not None:report(stop_diagnostic.json_failure(raw))
+        raise
 
 
 class Session:
     def __init__(self,env):
         self.env=dict(env);self.root,self.profile,self.binding=staged(self.env)
         self.closure=trusted_closure();self.catalog=source_catalog(self.closure);self.stage='PROFILE';self.write_attempts=0;self.cli_calls=0;self.candidate_verified=False;self.state_verified=False;self.post_verified=False
+        self.diagnostic=stop_diagnostic.Diagnostic()
 
     def check(self):
         root,profile,binding=staged(self.env)
@@ -347,11 +365,29 @@ class Session:
         self.mark('INIT')
         terraform(self.root,self.tfroot,self.env,'init',['init','-reconfigure','-input=false','-lockfile=readonly','-backend-config='+str(self.root/'backend.hcl')])
         self.backend_cache=read_owned(self.tfroot/'.terraform/terraform.tfstate')
-        self.mark('OBSERVATION')
+        self.mark('OBSERVATION_PLAN');self.diagnostic.start('OBSERVATION_PLAN')
         common=['-input=false','-lock-timeout=0s','-detailed-exitcode','-var-file='+str(self.root/'history.tfvars.json')]
-        terraform(self.root,self.tfroot,self.env,'normal-plan',['plan',*common,'-out='+str(self.root/'normal.tfplan')],codes=(0,))
-        self.normal=terraform(self.root,self.tfroot,self.env,'normal-show',['show','-json',str(self.root/'normal.tfplan')],show=True)
-        self.observation=gate.validate_observation(self.normal,metadata=self.fullmeta,execution_email=self.email,source_sha=self.env['GITHUB_SHA'])
+        try:terraform(self.root,self.tfroot,self.env,'normal-plan',['plan',*common,'-out='+str(self.root/'normal.tfplan')],codes=(0,),report=self.diagnostic.event)
+        except Exception:
+            if self.diagnostic.plan_exit=='2'and self.diagnostic.reason=='EXIT_REJECTED':
+                try:
+                    self.check()
+                    read_owned(self.root/'normal.tfplan',archive.MAX_ARCHIVE_BYTES)
+                    def fresh_diagnostic():
+                        need(encoded(context(self.env))==encoded(self.profile))
+                    failed=terraform(self.root,self.tfroot,self.env,'normal-failure-show',
+                        ['show','-json',str(self.root/'normal.tfplan')],show=True,
+                        before_send=fresh_diagnostic,report=self.diagnostic.failure_show)
+                    self.diagnostic.capture(failed)
+                except Exception:pass
+            raise
+        self.mark('OBSERVATION_SHOW');self.diagnostic.start('OBSERVATION_SHOW')
+        self.normal=terraform(self.root,self.tfroot,self.env,'normal-show',['show','-json',str(self.root/'normal.tfplan')],show=True,report=self.diagnostic.event)
+        self.mark('OBSERVATION_VALIDATE');self.diagnostic.start('OBSERVATION_VALIDATE')
+        try:self.observation=gate.validate_observation(self.normal,metadata=self.fullmeta,execution_email=self.email,source_sha=self.env['GITHUB_SHA'])
+        except Exception as error:
+            self.diagnostic.rejected(error,self.normal,metadata=self.fullmeta,execution_email=self.email)
+            raise
         self.mark('CANDIDATE')
         terraform(self.root,self.tfroot,self.env,'refresh-plan',['plan','-refresh-only',*common,'-out='+str(self.root/'refresh.tfplan')],codes=(2,))
         self.refresh=terraform(self.root,self.tfroot,self.env,'refresh-show',['show','-json',str(self.root/'refresh.tfplan')],show=True)
@@ -473,8 +509,12 @@ class Session:
         # reads may only establish bounded facts; raw diagnostics remain private.
         if not hasattr(self,'raw')or not hasattr(self,'fullmeta'):return
         try:
-            self.snapshot('failure-safety',self.fullmeta)
-            self.metadata()
+            head,raw=self.snapshot('failure-safety',self.fullmeta)
+            if self.cli_calls==0:
+                self.diagnostic.state_before='UNCHANGED'if encoded(head)==encoded(self.head)and raw==self.raw else'CHANGED'
+            metadata,_=self.metadata()
+            if self.cli_calls==0:
+                self.diagnostic.metadata_before='UNCHANGED'if encoded(metadata)==encoded(self.meta)else'CHANGED'
         except Exception:pass
 
 
@@ -569,6 +609,9 @@ def main(argv=None,env=None):
             try:
                 for line in render_outcome(session):print(line)
             except Exception:print('SYNC_OUTCOME=NOT_OBSERVED')
+            try:
+                for line in session.diagnostic.render(session.env):print(line)
+            except Exception:print('SYNC_DIAGNOSTIC=NOT_OBSERVED')
         print('HISTORY_OBSERVATION_SYNC: STOP; stage='+ (phase if phase in STAGES else 'PROFILE'))
         return 3
     os.umask(previous_umask)

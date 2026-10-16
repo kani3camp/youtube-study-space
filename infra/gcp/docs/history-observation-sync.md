@@ -9,16 +9,39 @@ CI #885の通常planはimport0 / no-op12 / drift1で停止した。対象は履�
 既存55guard、通常drift0、State不変検査、既存issuer/catalog、HCL、productionを変更しない。
 本人の追加操作や実State変更は、このsource変更では発生しない。
 
-## 最新の専用source window（2026-10-16）
+## 過去の専用source window（2026-10-16、M21）
 
-専用2gateだけをtrueにし、UTC `2026-10-16T04:29:31Z` から `2026-10-17T04:29:31Z` までの最大24hに固定する。
-最終実行SHA Rはこのsourceの統合後に確定し、同Rでpreviewを先に行う。実previewの独立QA後だけ、
-同R・同request・期待値B固定の別synchronize runを作り、TableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変
-（配列順は変化可）に限定した新しいapply Environment本人承認を必要とする。
-source windowはactual admissionやState書込許可ではない。この変更時点でpreview/applyは未実行、
-State同期・新issuer・migration Readyは未成立で、本人への実run承認依頼もまだ行わない。
-旧4runtime gate、metadata/authority/current-state read、production、profile契約、既存binding/nonceは変更しない。
-期限切れ入力や旧run承認を流用せず、このwindowを後から延長しない。
+専用2gateをtrueとしたwindowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` だった。
+統合Rでpreviewを先にQAし、同Rの別synchronize runには新しい具体的apply Environment本人承認を
+必要とする契約だった。source有効化自体はState書込許可を表さず、この期間を後から延長しない。
+
+## preview #893の停止と実行枠閉鎖
+
+[CI #893](https://github.com/kani3camp/youtube-study-space/actions/runs/38856804355)はsource
+`57bf51df3ffff22ec54294baa880b6dc239c83c9`、本人のplan Environment承認後、認証/private binding・
+IDENTITY・METADATA・STATE_BEFORE・INITを通過し、OBSERVATIONでSTOPした。
+通常planの終了コード、show/JSON読取、strict観測検証のどれが原因かは未確定である。
+candidateはNOT_OBSERVED、適用CLI予約0/呼出0、専用apply skipped、cleanup/post-auth成功、artifact0。
+事後State/HEAD/lock不変や同期成功を新たに実証したとは扱わない。同Rでの同期・旧run再試行は行わない。
+
+現在の専用2gateはfalse、発行/失効時刻は空。compiled apply機能の存在は実行許可ではない。
+旧4runtime gate・その他read/one-off・production・profile・nonce・全55guardは不変で、
+State同期・新issuer・migration Readyは未成立。今は本人の追加操作を求めない。
+
+[専用失敗診断](../../../.github/scripts/terraform_history_observation_sync_diagnostic.py)は
+PLAN/SHOW/VALIDATEの固定substage、取得できた終了コード0/1/2/OTHER又はTIMEOUTだけを区別する。
+通常exit2の拒否は維持し、安全な保存planがある場合だけ失敗診断用showを最大1回行う。
+その結果は診断専用で、元の例外を必ず再送出し、通常plan・candidate・issuerへ流さない。
+新たなplan/再送/State書込はなく、show内部のprovider動作までCloud request0と保証したとは扱わない。
+完全かつboundedな既知JSONだけから9countsと既存pure v2の固定alias/top-level field codesを作る。
+CONFIGURATION失敗時は既存55guardをメモリcopyで再検査し、固定stage/fieldだけを残す。
+失敗条件・guard・既存baseline診断のscope/出力は変えず、例外本文/値/address/path/hashは出さない。
+未知・不完全・予算超過はNOT_OBSERVED、診断objectは最大2KiBでメモリだけに置き、artifactを追加しない。
+期限切れ等で専用診断scopeが成立しなければ固定NOT_OBSERVEDへ落とす。
+
+既存failure-safety readが有効な結果を返し、適用CLI呼出0の場合だけ、事前State HEAD+bytesと安定metadataに
+対するUNCHANGED/CHANGEDを表示する。例外・未観測・適用CLI後はNOT_OBSERVEDとし、追加のCloud readを行わない。
+これは期待候補Bの反映・lock不存在・full-root成功の判定ではなく、全体STOPは維持する。
 
 ## 対象と承認
 

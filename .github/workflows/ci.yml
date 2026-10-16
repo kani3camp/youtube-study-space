@@ -689,6 +689,7 @@ jobs:
           python3 .github/scripts/test_terraform_history_observation_sync_profile.py
           python3 .github/scripts/test_terraform_history_observation_sync_provenance.py
           python3 .github/scripts/test_terraform_history_observation_sync.py
+          python3 .github/scripts/test_terraform_history_observation_sync_diagnostic.py
           python3 infra/gcp/tests/test_history_observation_sync_validation.py
           python3 infra/gcp/tests/test_history_observation_sync_archive.py
           python3 infra/gcp/tests/test_history_observation_sync_checks.py
