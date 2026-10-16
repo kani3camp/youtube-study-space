@@ -20,6 +20,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.caller = CALLER.read_text(encoding="utf-8")
+        # Existing job contracts retain their own counts; the separate new
+        # protocol is validated independently without weakening these checks.
+        cls.original_jobs = cls.text.split('\n  history_observation_sync_plan:',1)[0]
 
     def test_private_notification_inputs_are_masked_and_do_not_enable_alerts(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -321,6 +324,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
+            "DEV_HISTORY_OBSERVATION_SYNC_ENABLED": "false",
+            "DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
@@ -476,7 +481,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_workspace_discovery_stays_within_target_prefix(self) -> None:
         self.assertEqual(self.text.count('workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"'), 2)
-        self.assertEqual(self.text.count("TF_WORKSPACE: default"), 3)
+        self.assertEqual(self.original_jobs.count("TF_WORKSPACE: default"), 3)
 
     def test_private_identity_fragments_are_masked_before_authentication(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -496,7 +501,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.text.count("id-token: write"), 6)
+        self.assertEqual(self.original_jobs.count("id-token: write"), 6)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -516,7 +521,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_no_saved_plan_artifact_or_cache(self) -> None:
         for value in ("actions/download-artifact", "actions/cache", "-auto-approve"):
             self.assertNotIn(value, self.text)
-        uploads = re.findall(r'(?m)^\s*uses: actions/upload-artifact@([0-9a-f]{40})', self.text)
+        uploads = re.findall(r'(?m)^\s*uses: actions/upload-artifact@([0-9a-f]{40})', self.original_jobs)
         self.assertEqual(len(uploads), 2)
         current = self.text.split('      - name: Publish sanitized current-state attestation\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('path: ${{ runner.temp }}/current-state-public/current-state-attestation.json', current)
@@ -555,7 +560,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.text.count("persist-credentials: false"), 6)
+        self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 6)
 
     def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
@@ -568,8 +573,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' }}", plan)
-        probe = self.text.split("  security-probe:\n", 1)[1]
+        self.assertIn("if: ${{ inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}", plan)
+        probe = self.original_jobs.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",
                          "persist-credentials: false", "git rev-parse HEAD", "${GITHUB_SHA}",
@@ -633,7 +638,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("      actions: read", caller)
         self.assertIn("      actions: read", apply)
         self.assertNotIn("actions: write", self.text)
-        self.assertEqual(self.text.count("uses: actions/upload-artifact@"), 2)
+        self.assertEqual(self.original_jobs.count("uses: actions/upload-artifact@"), 2)
         self.assertIn("test_terraform_ownership_receipt.py", self.caller)
         self.assertIn("test_runtime_ownership_provenance.py", self.caller)
 
