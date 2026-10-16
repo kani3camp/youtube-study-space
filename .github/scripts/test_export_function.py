@@ -37,7 +37,7 @@ def main():
         module = base / "modules/firestore-export-function"
         shutil.copyfile(lock, module / ".terraform.lock.hcl")
         module_plans = plans(module)
-        assert len(module_plans) == 3
+        assert len(module_plans) == 10
         for plan, environment in zip(module_plans[:2], ("dev", "prod")):
             created = build_summary(plan, environment=environment, git_sha="0" * 40, policy="import-only")
             assert created["counts"]["create"] == 1 and created["counts"]["import"] == 0 and not created["policy_passed"]

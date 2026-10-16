@@ -10,13 +10,22 @@ terraform {
 variable "project_id" { type = string }
 variable "region" { type = string }
 variable "topic_id" { type = string }
+variable "name" {
+  description = "Existing Scheduler job's short name, observed from target-environment metadata."
+  type        = string
+  default     = "scheduledFirestoreCollectionsExport"
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.name))
+    error_message = "Use the existing short Scheduler job name, without a project or location path."
+  }
+}
 
 # NOTE: Preserve the observed development Pub/Sub job. No HTTP/App Engine target,
 # IAM, API, generated delivery subscription or manual execution is owned here.
 resource "google_cloud_scheduler_job" "export" {
   project   = var.project_id
   region    = var.region
-  name      = "scheduledFirestoreCollectionsExport"
+  name      = var.name
   schedule  = "0 0 * * *"
   time_zone = "Asia/Tokyo"
   paused    = false
