@@ -752,7 +752,7 @@ jobs:
             echo "summary_digest=${digest}" >> "${GITHUB_OUTPUT}"
           fi
           if [[ "${rc}" -ne 0 ]]; then
-            if [[ "${OWNERSHIP_WAVE}" != "none" ]]; then
+            if [[ "${OWNERSHIP_WAVE}" != "none" ]] || [[ "${OWNERSHIP_WAVE}" == "none" && "${HISTORY_TARGET}" == "dev" && "${MODE}" == "plan" && "${history_phase}" == "post" && "${HISTORY_POST_NOOP}" == "true" && "${CURRENT_STATE_ATTESTATION}" == "true" && "${OWNERSHIP_ROOT_BASIS}" == "original-history-import" && "${GITHUB_RUN_ATTEMPT}" == "1" ]]; then
               python3 .github/scripts/terraform_plan_diagnostic.py || true
             fi
             echo "::error::Terraform plan violated the protected policy. See the sanitized Job Summary."

@@ -23,6 +23,48 @@ FIELDS = frozenset(('NOT_OBSERVED', 'UNCLASSIFIED', 'CONTRACT', 'FORMAT', 'COMPL
     'AWS', 'OIDC', 'SAML', 'X509', 'SERVICE_ACCOUNT_ID', 'ROLE', 'MEMBER', 'CONDITION', 'SERVICE',
     'DISABLE_ON_DESTROY', 'DISABLE_DEPENDENT_SERVICES'))
 
+
+# Keys come only from fixed validator source dictionaries/tuples. Arbitrary
+# metadata/plan keys never become a public field code.
+_BASELINE_SOURCE_FIELDS = {key: key.upper() for key in (
+    'id', 'project', 'dataset_id', 'table_id', 'location', 'deletion_protection',
+    'region', 'name', 'runtime', 'entry_point', 'available_memory_mb', 'timeout',
+    'min_instances', 'max_instances', 'service_account_email', 'ingress_settings',
+    'status', 'version_id', 'environment_variables', 'effective_labels', 'event_trigger',
+    'description', 'labels', 'terraform_labels', 'source_archive_bucket', 'source_archive_object',
+    'source_repository', 'https_trigger_url', 'trigger_http', 'vpc_connector',
+    'vpc_connector_egress_settings', 'kms_key_name', 'docker_repository', 'build_worker_pool',
+    'build_environment_variables', 'schedule', 'time_zone', 'friendly_name', 'resource_tags',
+    'time_partitioning', 'range_partitioning', 'clustering', 'expiration_time', 'encryption_configuration',
+    'external_data_configuration', 'view', 'materialized_view', 'snapshot_definition', 'clone_definition',
+    'table_constraints', 'biglake_configuration', 'max_staleness', 'require_partition_filter')}
+FIELDS = FIELDS | frozenset(_BASELINE_SOURCE_FIELDS.values()) | frozenset((
+    'IDENTITY', 'PAUSED', 'DEADLINE', 'TARGET', 'RETRY_CONFIG', 'DATA', 'OUTPUTS', 'SCHEMA', 'COUNTS'))
+STAGES = STAGES | frozenset(('HISTORY_PLAN', 'HISTORY_METADATA', 'HISTORY_INPUTS', 'HISTORY_COUNTS',
+    'HISTORY_TABLE', 'HISTORY_SCHEMA', 'HISTORY_FORBIDDEN', 'BASELINE_FUNCTION',
+    'BASELINE_SCHEDULER', 'BASELINE_TOPIC', 'BASELINE_OUTPUTS'))
+POST_CHECKS = ('Persistent state invariant', 'Stable table metadata invariant',
+    'Exact native lock absence', 'Workspace absence', 'Full-root no-op12 and job outcomes',
+    'Fresh execution evidence')
+
+
+def baseline_scope(env, *, operation, environment, phase):
+    return (operation == 'plan' and environment == 'dev' and phase == 'post'
+        and all(env.get(key) == expected for key, expected in {
+            'MODE': 'plan', 'HISTORY_TARGET': 'dev', 'OWNERSHIP_WAVE': 'none',
+            'HISTORY_POST_NOOP': 'true', 'CURRENT_STATE_ATTESTATION': 'true',
+            'OWNERSHIP_ROOT_BASIS': 'original-history-import', 'GITHUB_RUN_ATTEMPT': '1'}.items()))
+
+
+def source_field(key):
+    return _BASELINE_SOURCE_FIELDS.get(key, 'VALUE')
+
+
+def render_post_checks(checks):
+    if type(checks) is not dict or set(checks) != set(POST_CHECKS) or not all(type(checks[key]) is bool for key in POST_CHECKS):
+        raise ValueError('Fixed safety checks rejected')
+    return ['Current-state safety: '+key+': '+('PASS' if checks[key] else 'STOP') for key in POST_CHECKS]
+
 class Rejected(ValueError):
     def __init__(self, stage, field):
         super().__init__('Runtime plan contract rejected')
@@ -31,10 +73,17 @@ class Rejected(ValueError):
 class Context:
     def __init__(self):
         self.stage = 'INPUT'
-    def mark(self, stage):
+        self.field = None
+    def mark(self, stage, field=None):
         if stage not in STAGES:
             raise ValueError('Diagnostic stage rejected')
-        self.stage = stage
+        if field is not None and field not in FIELDS:
+            raise ValueError('Diagnostic field rejected')
+        self.stage, self.field = stage, field
+    def note_failure(self, field):
+        if field not in FIELDS:
+            raise ValueError('Diagnostic field rejected')
+        self.field = field
     def require(self, condition, field='CONTRACT'):
         if field not in FIELDS:
             raise ValueError('Diagnostic field rejected')
@@ -87,7 +136,7 @@ def validate(value):
 
 def record(directory, plan, context, error):
     value = validate(dict(schema_version=1, outcome='STOP', stage=context.stage,
-        field=error.field if type(error) is Rejected else 'UNCLASSIFIED', counts=counts(plan)))
+        field=error.field if type(error) is Rejected else (context.field or 'UNCLASSIFIED'), counts=counts(plan)))
     raw = (json.dumps(value, sort_keys=True, separators=(',', ':'))+'\n').encode()
     if len(raw) > MAX_BYTES:
         raise ValueError('Diagnostic bound rejected')

@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / ".github/scripts"))
 from terraform_email_adoption_gate import canonical, has_unknown
 from terraform_export_function_gate import validate as validate_baseline
 from terraform_plan_summary import build_summary
+from terraform_plan_diagnostic import source_field
 
 TABLE = "module.user_activity_history[0].google_bigquery_table.retained"
 TABLE_ID = "projects/test-youtube-study-space/datasets/firestore_export/tables/user-activity-history"
@@ -31,53 +32,76 @@ def require(condition: bool) -> None:
         raise ValueError("History plan contract STOP; private diagnostic suppressed.")
 
 
-def validate(plan: object, *, metadata: object, phase: str, execution_email: str) -> None:
+_legacy_require = require
+
+
+def validate(plan: object, *, metadata: object, phase: str, execution_email: str, diagnostic=None) -> None:
+    def require(condition, field="CONTRACT"):
+        if diagnostic is not None and not condition:
+            diagnostic.note_failure(field)
+        _legacy_require(condition)
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_PLAN")
     require(phase in {"before", "post"} and type(plan) is dict)
     # Terraform 1.16.4 serializes provider actions outside resource_changes.
     # Import/no-op resources cannot authorize a side-effecting action or one
     # deferred until apply. Omitted or empty arrays are the only accepted forms.
     for key in ("action_invocations", "deferred_action_invocations"):
-        require(type(plan.get(key, [])) is list and not plan.get(key, []))
+        require(type(plan.get(key, [])) is list and not plan.get(key, []), "EMPTY_LIST")
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_METADATA")
     order = prepare(metadata)["user_activity_history_field_order"]
     expected_schema = [normalize_field(field) for field in metadata["schema"]["fields"]]
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_PLAN")
     changes = plan.get("resource_changes")
-    require(type(changes) is list and len(changes) == 12 and all(type(resource) is dict for resource in changes))
+    require(type(changes) is list and len(changes) == 12 and all(type(resource) is dict for resource in changes), "GRAPH")
     # A moved address can be reported with no-op actions; this adoption must
     # preserve every existing state address as well as its remote values.
-    require(all("previous_address" not in resource for resource in changes))
+    require(all("previous_address" not in resource for resource in changes), "MOVE")
     selected = [resource for resource in changes if resource.get("address") == TABLE]
-    require(len(selected) == 1)
+    require(len(selected) == 1, "GRAPH")
+    if diagnostic is not None:
+        diagnostic.mark("BASELINE")
     validate_baseline(dict(plan, resource_changes=[resource for resource in changes if resource.get("address") != TABLE]),
-                      phase="post", execution_email=execution_email)
+                      phase="post", execution_email=execution_email, diagnostic=diagnostic)
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_COUNTS")
     summary = build_summary(plan, environment="dev", git_sha="offline", policy="import-only")
     require(summary["policy_passed"] and summary["counts"] == {
         "import": 1 if phase == "before" else 0, "create": 0, "update": 0,
         "delete": 0, "replace": 0, "read": 0, "no-op": 12,
         "drift": 0, "other": 0,
-    })
+    }, "COUNTS")
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_TABLE")
     resource = selected[0]
-    require(resource.get("mode") == "managed" and resource.get("type") == "google_bigquery_table")
-    require(resource.get("provider_name") == "registry.terraform.io/hashicorp/google")
+    require(resource.get("mode") == "managed" and resource.get("type") == "google_bigquery_table", "TYPE")
+    require(resource.get("provider_name") == "registry.terraform.io/hashicorp/google", "PROVIDER")
     change = resource.get("change", {})
-    require(change.get("actions") == ["no-op"] and not has_unknown(change.get("after_unknown", {})))
-    require(canonical(change.get("before")) == canonical(change.get("after")))
-    require(change.get("importing") == {"id": TABLE_ID} if summary["counts"]["import"] else "importing" not in change)
+    require(change.get("actions") == ["no-op"] and not has_unknown(change.get("after_unknown", {})), "ACTION" if change.get("actions") != ["no-op"] else "UNKNOWN")
+    require(canonical(change.get("before")) == canonical(change.get("after")), "VALUE")
+    require(change.get("importing") == {"id": TABLE_ID} if summary["counts"]["import"] else "importing" not in change, "IMPORT")
     value = change.get("after")
-    require(type(value) is dict)
+    require(type(value) is dict, "SHAPE")
     for key, expected in {"id": TABLE_ID, "project": "test-youtube-study-space", "dataset_id": "firestore_export",
                           "table_id": "user-activity-history", "location": "asia-southeast2", "deletion_protection": True}.items():
-        require(value.get(key) == expected)
-    require(type(value.get("schema")) is str)
+        require(value.get(key) == expected, source_field(key))
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_SCHEMA")
+    require(type(value.get("schema")) is str, "SCHEMA")
     fields = json.loads(value["schema"], object_pairs_hook=unique_object)
-    require(type(fields) is list)
+    require(type(fields) is list, "SCHEMA")
     actual = [normalize_field(field) for field in fields]
     # Keep column descriptions in this comparison, including nested fields.
-    require([field["name"] for field in actual] == order and actual == expected_schema)
+    require([field["name"] for field in actual] == order and actual == expected_schema, "SCHEMA")
+    if diagnostic is not None:
+        diagnostic.mark("HISTORY_FORBIDDEN")
     for key in ("description", "friendly_name", "labels", "effective_labels", "terraform_labels", "resource_tags",
                 "time_partitioning", "range_partitioning", "clustering", "expiration_time", "encryption_configuration",
                 "external_data_configuration", "view", "materialized_view", "snapshot_definition", "clone_definition",
                 "table_constraints", "biglake_configuration", "max_staleness", "require_partition_filter"):
-        require(not value.get(key))
+        require(not value.get(key), source_field(key))
 
 
 class PrivateArgumentParser(argparse.ArgumentParser):

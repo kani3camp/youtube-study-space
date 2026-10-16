@@ -14,7 +14,7 @@ from pathlib import Path
 
 from terraform_email_adoption_gate import CHANNEL, EXISTING, canonical, has_unknown, validate
 from terraform_plan_summary import build_summary, render_markdown, write_private
-from terraform_plan_diagnostic import Context, record as record_diagnostic
+from terraform_plan_diagnostic import Context, baseline_scope, record as record_diagnostic
 from terraform_quota_create_gate import validate as validate_quota
 from terraform_quota_refresh_gate import validate as validate_quota_refresh
 from terraform_export_topic_gate import validate as validate_export_topic
@@ -70,8 +70,14 @@ def main():
     parser.add_argument("--markdown-output", required=True, type=Path)
     args = parser.parse_args()
     diagnostic, plan = Context(), None
+    baseline = baseline_scope(dict(os.environ), operation=args.operation, environment=args.environment, phase=args.phase)
     try:
-        plan = json.load(sys.stdin, object_pairs_hook=unique_object)
+        try:
+            plan = json.load(sys.stdin, object_pairs_hook=unique_object)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            if baseline:
+                diagnostic.note_failure("FORMAT")
+            raise
         diagnostic.mark("ADMISSION")
         history = os.environ.get("TF_VAR_manage_user_activity_history", "false")
         wave = os.environ.get("OWNERSHIP_WAVE", "none")
@@ -98,13 +104,18 @@ def main():
             diagnostic.mark("HISTORY")
             metadata = private_json(str(directory / f"user-history-{args.phase}.json"))
             inputs = private_json(str(directory / f"user-history-{args.phase}.tfvars.json"))
+            if baseline:
+                diagnostic.mark("HISTORY_INPUTS")
             expected_inputs = {key: value for key, value in prepare(metadata).items()
                                if key != "manage_user_activity_history"}
             if type(inputs) is not dict or inputs != expected_inputs:
+                if baseline:
+                    diagnostic.note_failure("VALUE")
                 raise ValueError("Fresh history field order and descriptions required")
             if wave == "none":
                 validate_history(plan, metadata=metadata, phase=args.phase,
-                                 execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
+                                 execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""),
+                                 diagnostic=diagnostic if baseline else None)
                 summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
             else:
                 packet = private_json(str(directory / "runtime-ownership-packet.json"))
@@ -167,7 +178,7 @@ def main():
         write_private(args.markdown_output, render_markdown(dict(summary, resources=[]) if wave != "none" else summary))
         return 0 if summary["policy_passed"] else 3
     except Exception as error:
-        if os.environ.get("OWNERSHIP_WAVE", "none") != "none":
+        if os.environ.get("OWNERSHIP_WAVE", "none") != "none" or baseline:
             try:
                 record_diagnostic(os.environ["RUNNER_TEMP"], plan, diagnostic, error)
             except Exception:
