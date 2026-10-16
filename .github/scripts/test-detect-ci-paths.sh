@@ -5,24 +5,31 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 detector="$script_dir/detect-ci-paths.sh"
 
-assert_exact_groups() {
+assert_output_groups() {
 	local expected_groups="$1"
-	shift
-	local output
+	local output="$2"
+	local context="$3"
 	local group
 	local expected
 
-	output="$($detector --paths "$@")"
 	for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
 		expected=false
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
 		esac
 		if ! grep -Fxq "$group=$expected" <<< "$output"; then
-			echo "Expected $group=$expected for paths: $*" >&2
+			echo "Expected $group=$expected for $context" >&2
 			exit 1
 		fi
 	done
+}
+
+assert_exact_groups() {
+	local expected_groups="$1"
+	shift
+	local output
+	output="$($detector --paths "$@")"
+	assert_output_groups "$expected_groups" "$output" "paths: $*"
 }
 
 assert_exact_groups "" README.md
@@ -120,13 +127,28 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.test.mjs
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
-manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
-	if ! printf '%s\n' "$manual_output" | grep -Fxq "$group=true"; then
-		echo "Expected workflow_dispatch to select $group" >&2
-		exit 1
-	fi
+all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
+manual_output="$(env -u CI_AUTHENTICATED_TERRAFORM_DISPATCH GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
+assert_output_groups "$all_groups" "$manual_output" "manual dispatch with absent Terraform marker"
+for marker in "" false FALSE 1 yes malformed; do
+	manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH="$marker" "$detector")"
+	assert_output_groups "$all_groups" "$manual_output" "manual dispatch with non-true Terraform marker: $marker"
 done
+
+authenticated_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector")"
+assert_output_groups gcp_terraform "$authenticated_output" "authenticated Terraform dispatch"
+
+# A marker cannot narrow other events, incomplete PRs, or explicit path tests.
+for event_name in pull_request push schedule unsupported; do
+	fallback_output="$(GITHUB_EVENT_NAME="$event_name" CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA= HEAD_SHA= "$detector")"
+	assert_output_groups "$all_groups" "$fallback_output" "non-dispatch event: $event_name"
+done
+unchanged_pr_output="$(GITHUB_EVENT_NAME=pull_request CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA=HEAD HEAD_SHA=HEAD "$detector")"
+assert_output_groups "" "$unchanged_pr_output" "unchanged PR with ignored Terraform marker"
+explicit_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths system/core/app.go)"
+assert_output_groups "system firestore_integration" "$explicit_paths_output" "explicit paths override dispatch scope"
+ci_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths .github/workflows/ci.yml)"
+assert_output_groups "$all_groups" "$ci_paths_output" "CI source paths still select all groups"
 
 fallback_output="$(GITHUB_EVENT_NAME=pull_request "$detector")"
 if ! printf '%s\n' "$fallback_output" | grep -Fxq 'all=true'; then
