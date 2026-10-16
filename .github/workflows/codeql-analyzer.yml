@@ -1,4 +1,4 @@
-# Staged-disabled reusable source; its own gate also blocks any other caller.
+# Fixed reusable analyzer: no caller-selectable Environment, secrets, or cloud identity.
 name: CodeQL Analyzer
 
 on:
@@ -9,8 +9,6 @@ permissions: {}
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # Evaluated before the matrix: no runner, deployment, or analysis token is issued.
-    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # Fixed, dedicated, secretless Environment. No caller input can select another.

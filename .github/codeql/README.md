@@ -1,4 +1,18 @@
-# CodeQL advanced setup: staged-disabled source
+# CodeQL advanced setup
+
+## 現行sourceと切替（2026-10-17）
+
+repository OIDC subjectの既存7 claimsには `environment` と `job_workflow_ref` が必須です。managed default setupはEnvironmentを持たず、最終PR #1251の3言語が同じclaim欠損で失敗したため、既存のsame-tree caller → reusable analyzerを有効にします。固定 `codeql-analysis` Environmentを使用し、global OIDC設定、Terraformの4 Environment、AWS/GCP trustは変更しません。GitHub公式仕様でも、[environment claimを要求するjobにはEnvironmentが必要](https://docs.github.com/en/actions/reference/security/oidc#custom-claims-provided-by-github)です。
+
+source validatorは両jobの条件によるskipを拒否し、3言語、default queries / remote sources、全PRと既定・対象branchのcoverage、固定Environment、最小権限、pinned action、compile-only Go、secret継承・cloud認証・database artifactなしを引き続き強制します。actionlintの旧constant-false例外は削除しました。`id-token: none`を維持し、CodeQL内部の認証成功は実解析で確認します。
+
+ownerが専用Environmentのsecret/variable0・reviewerなし・5 branch policiesをfresh確認してから、[正規のdefault→advanced切替](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)としてdefault設定を `not-configured` に変更し、同じ切替windowでこのsourceを実行します。`refs/pull/*/merge` policyによりPRで検証でき、新しい作業branchをEnvironment policyへ追加する必要はありません。default停止だけでは修復完了とせず、全3言語のinit・Go compile・analyze・SARIF processing・head/merge SHA・language categoryを確認するまでsecurity/release holdを維持します。実結果はこの節へ追記します。
+
+integration上の解析成功を、未反映のdev/main/MyPageの継続実行成功へ読み替えません。scheduleはdefault branchで動くため、最終devマージはユーザー本人へ残します。既存alerts/analysesやrequired checksを削除せず、失敗はskip・緑alias・continue-on-errorへ変えません。fork/Dependabotの権限差は実結果として記録します。
+
+以下は旧staged-disabled準備の履歴です。両false gateや別承認の記述は当時の契約であり、今回の包括承認内のCI修復に適用しません。
+
+# 2026-10-09: staged-disabled sourceの履歴
 
 caller/callee を `.github/workflows` に配置した準備段階です。**両方の解析 job は `if: ${{ false }}` のままです。**
 手動・push・PR・schedule、または別 caller の `workflow_call` のどの経路でも解析 job は起動しません。
