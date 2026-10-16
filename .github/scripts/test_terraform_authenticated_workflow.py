@@ -468,7 +468,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_owner_only_first_dispatch_guards_dev_and_prod_plan_apply(self) -> None:
         # The same credential-free preflight gates every authenticated route,
         # including additional jobs that use plan/apply Environments.
-        preflight = self.text.split("  plan:\\n", 1)[0]
+        preflight = self.text.split("  plan:\n", 1)[0]
         self.assertIn('GITHUB_ACTOR_ID:-}" == "54093651"', preflight)
         self.assertIn('GITHUB_ACTOR:-}" == "kani3camp"', preflight)
         self.assertIn('GITHUB_TRIGGERING_ACTOR:-}" == "kani3camp"', preflight)
