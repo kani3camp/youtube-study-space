@@ -1418,3 +1418,12 @@ history tableを含むfresh full7 metadataの再取得、root admission、import
 使用済み`DEV_RUNTIME_METADATA_READ_ENABLED`をfalse、発行・失効UTCを空へ閉鎖する。
 authority/current-state/root/ownership/split/apply/productionの既存gate、Environment、OIDC、Secret、read/negative条件を変更しない。
 追加runや使用済みwindowの延長・再試行を行わない。
+
+
+### 履歴Tableの観測属性同期protocol（source-only・既定無効）
+
+CI #885のraw drift1 / no-op12、2項目だけのVALUE診断と5安全検査PASS、full-root STOPという記録は保持する。
+[別protocol](history-observation-sync.md)を既定無効で準備し、既存55guard / 通常drift0 / issuerと分離する。
+新source gateだけでは実行許可にならず、同SHA previewの独立QA後、期待値B固定の別apply runを作り、
+履歴TableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変（配列順は変化可）を明示した新しい本人Env承認が必要である。
+旧run承認・期限切れprivate入力・旧issuerを流用しない。実State書込、new issuer、migration Ready、追加本人操作はいずれも現在0。

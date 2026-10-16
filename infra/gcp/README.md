@@ -55,6 +55,8 @@ history importは成功し、過去の独立protected planでimport0/no-op12を�
 
 [CI #885](https://github.com/kani3camp/youtube-study-space/actions/runs/38836240227)では、drift1がhistory Tableの`etag` / `last_modified_time`だけと分かり、strict guardは引き続きSTOPしました。この2項目をStateへ同期する[実行不可の設計・pure prototype](docs/history-observation-sync-prototype.md)を用意しています。refresh-onlyの実保存planと2leafだけの永続化は未証明で、成功結果も実行許可を返しません。既存workflow・gateは変更せず、State書込の追加許可や本人操作を今は求めません。
 
+後段の[専用観測同期protocol](docs/history-observation-sync.md)をsource-onlyで追加しました。既存通常guard・旧prototypeは不変で、新gateは既定falseです。完全隔離ダミーのserializer/check-set根拠とfull12検証を分け、same-SHAのpreview QA後、別apply Environmentで2属性と検査結果内容不変を明示した本人承認を必要とします。実State変更・新issuer・移行完了は未成立で、今は本人操作を求めません。
+
 ## Directory
 
 ```text
