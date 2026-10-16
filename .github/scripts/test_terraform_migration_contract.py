@@ -539,6 +539,53 @@ class MigrationContractTest(unittest.TestCase):
             self.assertEqual(gate.canonical(payload), gate.canonical(gate.plan_commitment_payload(
                 second, args["manifest"], environment, args["provider_schema"], state=args["state"])))
 
+    def test_relevant_nokey_alias_keeps_module_instances_and_strict_entry_content(self):
+        # Whole-resource references lose only the resource instance key, never
+        # their containing module's instance key. Exercise string-key resources.
+        def indexed_module(value):
+            if type(value) is dict:
+                return {key: indexed_module(item) for key, item in value.items()}
+            if type(value) is list:
+                return [indexed_module(item) for item in value]
+            return value.replace("module.topics", 'module.topics["fixture"]') if type(value) is str else value
+
+        for environment in gate.ENVIRONMENTS:
+            first = indexed_module(plan(environment))
+            fixed = indexed_module(manifest(environment))
+            address = fixed["resources"][1]["address"]
+            alias = 'module.topics["fixture"].google_pubsub_topic.retained'
+            first["relevant_attributes"] = [{"resource": alias, "attribute": [],
+                                             "future_field": {"ordered": [True, 1]}}]
+            self.validate(first, custom_manifest=fixed, environment=environment)
+            args = dict(manifest=fixed, environment=environment, provider_schema=provider_schema(), state=state(environment))
+            original = deepcopy(first)
+            self.assertTrue(gate.compare_replans(first, deepcopy(first), **args)["matched"])
+            self.assertEqual(first, original)
+            for invalid in ('module.topics.google_pubsub_topic.retained',
+                            'module.topics["other"].google_pubsub_topic.retained',
+                            'module.foreign["fixture"].google_pubsub_topic.retained',
+                            alias + '[0]', alias + '["unowned"]', alias + '.unknown',
+                            'google_pubsub_topic.retained'):
+                candidate = deepcopy(first)
+                candidate["relevant_attributes"][0]["resource"] = invalid
+                with self.assertRaises(gate.ContractError) as error:
+                    self.validate(candidate, custom_manifest=fixed, environment=environment)
+                self.assertEqual(error.exception.reason, "SHAPE")
+            edits = [
+                lambda value: value["relevant_attributes"][0].update(resource=address),
+                lambda value: value["relevant_attributes"][0].update(attribute=["project"]),
+                lambda value: value["relevant_attributes"][0].pop("future_field"),
+                lambda value: value["relevant_attributes"][0]["future_field"].update(ordered=[1, 1]),
+                lambda value: value["relevant_attributes"].append(deepcopy(value["relevant_attributes"][0])),
+            ]
+            for edit in edits:
+                candidate = deepcopy(first)
+                edit(candidate)
+                self.validate(candidate, custom_manifest=fixed, environment=environment)
+                with self.assertRaises(gate.ContractError) as error:
+                    gate.compare_replans(first, candidate, **args)
+                self.assertEqual(error.exception.reason, "REPLAN")
+
     def test_relevant_attribute_semantics_multiplicity_unknown_fields_and_presence_remain_exact(self):
         first = plan()
         table, topic = [item["address"] for item in descriptors()]
