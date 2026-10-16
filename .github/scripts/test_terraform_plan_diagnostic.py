@@ -12,6 +12,7 @@ import textwrap
 import unittest
 from unittest.mock import patch
 import terraform_plan_diagnostic as diagnostic
+import terraform_baseline_drift_diagnostic as baseline_diagnostic
 import terraform_protected_plan as protected
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -202,7 +203,9 @@ class BaselineDiagnosticTest(unittest.TestCase):
             result=dict(rc=rc,stdout=out.getvalue(),stderr=err.getvalue(),
                 json=(root/'summary.json').read_text() if (root/'summary.json').exists() else None,
                 markdown=(root/'summary.md').read_text() if (root/'summary.md').exists() else None,
-                diagnostic=diagnostic.read(root) if (root/diagnostic.FILE).exists() else None)
+                diagnostic=(baseline_diagnostic.read(root, env=env, operation=operation, environment=environment, phase=phase)
+                    if diagnostic.baseline_scope(env, operation=operation, environment=environment, phase=phase)
+                    else diagnostic.read(root)) if (root/diagnostic.FILE).exists() else None)
             self.assertNotIn(CANARY, json.dumps(result))
             return result
 

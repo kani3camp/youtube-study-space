@@ -924,6 +924,41 @@ Summary書込が失敗してもこの補助観測を残せるが、全check・re
 個別PASSはreceipt発行・State / lock全体の成功証明ではない。sourceの架空入力テストを実runの原因確定に使わず、
 追加の実観測には独立レビュー・通常CIを経た新sourceと別の承認済みprotected runが必要である。
 
+### 2026-10-16 baseline drift1の観測と対象fieldの限定診断
+
+本人のplan Environment承認を確認した[CI #881 / run 38832507626](https://github.com/kani3camp/youtube-study-space/actions/runs/38832507626)は、
+source `af8e00359672bb02cbdde743b0c522ec4b02de40`、attempt1、plan job `116754254991`で失敗した。
+Terraform exit code 0に加え、今回の固定診断は`BASELINE_TOPIC / EMPTY_LIST`と
+`import0 / create0 / update0 / delete0 / replace0 / read0 / no-op12 / other0 / drift1`を観測した。
+State本文・HEAD不変、安定table metadata不変、native lock不存在、workspace不存在、fresh policyの5 checkはPASS、
+full-root no-op / job outcomesはSTOPだった。post-auth / cleanupは成功、applyはskipped、pending0 / artifact0である。
+driftはresource-changeのno-op12とは別のrefresh差分で、対象・fieldは記録されていない。
+raw planはcleanup済みであり、providerのcomputed属性や特定tableの変化を実原因に補完しない。
+成功issuer / admission / import / migration Readyは未成立のまま。4つのruntime gateはfalseを維持する。
+
+後続sourceは上記のexact baseline条件に限り、同じprivate診断fileへ別schema 2を記録する。
+既存runtime用schema 1のwriter / reader / rendererは変更せず、schema 2の記録・読取・表示すべてでbaseline条件を確認する。
+12管理対象のaddress / type / provider / modeと重複のない全graphを照合し、対象はsource固定のrole aliasだけに変換する。
+差分はlock済みGoogle 8.5.0の公開schema由来のtop-level field codeと、presence / null / value / unknown mask /
+sensitivity mask / replaceの有限分類だけを出す。nested keyやpath、列schema本文、値、address、identity、
+nonce、値の長さ・hash、例外本文は出さない。maskの比較はJSON上の差分で、実権限や原因の評価ではない。
+public field mapのversion・由来hashを固定し、private値のhashは作らない。
+change / mask / replace pathの構造は[Terraform公開JSON仕様](https://developer.hashicorp.com/terraform/internals/json-format#change-representation)、
+field名は[Google provider 8.5.0](https://registry.terraform.io/providers/hashicorp/google/8.5.0/docs)の
+lock済みbinaryが出す公開provider schemaを根拠にする。公開schemaの由来pinは
+[`terraform_baseline_drift_fields.py`](../../../.github/scripts/terraform_baseline_drift_fields.py)に固定する。
+file内は固定field順のbitmapとして、全12対象・全field・全分類でも既存2KiB上限内に収める。
+rendererだけが固定codeへ展開し、exclusive0600・strict JSON・既存cleanup・artifactなしを保持する。
+
+不完全なplan、不足・未知・moved・重複graph、不一致type/provider、未知field、不正mask/path、上限超過は
+drift projection全体を`NOT_OBSERVED`とし、一部だけを全対象の観測として出さない。
+一般的なmaskの`false` / `{}`、既知top-level field以下のnested bool / list / dictを扱い、
+optional fieldを特定できないwhole-object `true` maskや空のreplace pathは未観測にする。
+全guardの条件・順序・委譲、drift0、元の失敗code、receipt条件を変更しない。
+固定fieldがcomputedであってもdriftを許可する根拠にせず、refresh applyや旧runの再実行を追加しない。
+このsource追加はCI #881の未知targetを遡及的に特定せず、実観測には別の承認済みprotected runが必要である。
+今は本人の追加設定操作を求めない。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
