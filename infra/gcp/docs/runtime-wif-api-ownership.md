@@ -963,6 +963,10 @@ optional fieldを特定できないwhole-object `true` maskや空のreplace path
 このsource追加はCI #881の未知targetを遡及的に特定せず、実観測には別の承認済みprotected runが必要である。
 今は本人の追加設定操作を求めない。
 
+CI #885では上記診断がhistory Tableの`ETAG` / `LAST_MODIFIED_TIME`だけのdrift1を示し、strict判定はSTOPした。
+Stateを変更しない[限定同期の設計・pure prototype](history-observation-sync-prototype.md)で候補を具体化している。
+refresh-only候補はserializer未証明のため常に拒否し、既存実行mode・gate・issuerを変更しない。
+
 ### Fresh current-state の再発行から初回 Pool wave まで
 
 最新 Current Canon の包括承認内では Chat の再承認は不要。以下の各 protected job は
