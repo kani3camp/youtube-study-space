@@ -79,6 +79,8 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_diagnostic
 assert_exact_groups gcp_terraform .github/scripts/terraform_baseline_drift_fields.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_baseline_drift_diagnostic.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_baseline_drift_diagnostic.py
+assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync_prototype.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync_prototype.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_email_adoption_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_email_adoption_gate.py
 assert_exact_groups docs_site docs-site/docs/intro.md

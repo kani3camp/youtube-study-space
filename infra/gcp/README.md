@@ -53,6 +53,8 @@ history importは成功し、過去の独立protected planでimport0/no-op12を�
 
 続く[baseline CI #881](https://github.com/kani3camp/youtube-study-space/actions/runs/38832507626)は、本人承認後の固定診断でno-op12 / drift1を観測し、sanitizerはSTOPしました。State本文/HEAD不変など5つの独立safety checkはPASSでしたが、driftの対象・fieldは未確認で、成功issuerは未発行です。次のsourceはbaseline限定で対象の固定aliasと公開schema由来のtop-level field codeだけを診断へ追加します。drift0の条件を保ち、refresh applyや旧runの再試行は行いません。追加の本人操作は今は不要です。[観測と追加診断の境界](docs/runtime-wif-api-ownership.md#2026-10-16-baseline-drift1の観測と対象fieldの限定診断)を参照してください。
 
+[CI #885](https://github.com/kani3camp/youtube-study-space/actions/runs/38836240227)では、drift1がhistory Tableの`etag` / `last_modified_time`だけと分かり、strict guardは引き続きSTOPしました。この2項目をStateへ同期する[実行不可の設計・pure prototype](docs/history-observation-sync-prototype.md)を用意しています。refresh-onlyの実保存planと2leafだけの永続化は未証明で、成功結果も実行許可を返しません。既存workflow・gateは変更せず、State書込の追加許可や本人操作を今は求めません。
+
 ## Directory
 
 ```text
