@@ -127,8 +127,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn("needs: changes", validation)
         self.assertIn("needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true'", validation)
         for required in ("test_terraform_migration_contract.py", "test_terraform_migration.py",
-                         "test_terraform_authenticated_workflow.py", "test_terraform_migration_native_fidelity.py",
-                         "test_terraform_api_import_fidelity.py",
+                         "test_terraform_authenticated_workflow.py", "run_terraform_native_tests.py",
+                         "test_terraform_native_runner.py",
                          "test_production_initializer.py", "test_production_initializer_controller.py",
                          "test_production_initializer_s3.py", "test_runtime_pool_import_fidelity.py",
                          "terraform fmt -check -recursive infra/gcp", "-backend=false", "terraform_version: \"1.16.4\"",
