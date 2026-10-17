@@ -58,6 +58,8 @@ assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_pool_import_fidel
 assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_authenticated_workflow.py
+assert_exact_groups gcp_terraform .github/scripts/run_terraform_native_tests.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_native_runner.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_diagnostics.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
