@@ -8,6 +8,8 @@ source validatorは両jobの条件によるskipを拒否し、3言語、default 
 
 ownerが専用Environmentのsecret/variable0・reviewerなし・5 branch policiesをfresh確認してから、[正規のdefault→advanced切替](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning)としてdefault設定を `not-configured` に変更し、同じ切替windowでこのsourceを実行します。`refs/pull/*/merge` policyによりPRで検証でき、新しい作業branchをEnvironment policyへ追加する必要はありません。default停止だけでは修復完了とせず、全3言語のinit・Go compile・analyze・SARIF processing・head/merge SHA・language categoryを確認するまでsecurity/release holdを維持します。実結果はこの節へ追記します。
 
+2026-10-17、本人の明示承認後にDefault setupを `not-configured` へ変更し、管理APIで読戻し確認しました。[PR #1362のrun38942869203 attempt2](https://github.com/kani3camp/youtube-study-space/actions/runs/38942869203)では、PRイベントの失敗CodeQL jobだけを再実行し、3言語すべてのinit・解析・SARIF受付とGo全module compileが成功しました。code-scanning APIの受付3件/error0、既存open alert1件の保持も確認済みです。実解析は元PR merge snapshot `55e3c307`（base `bbf4b9e2` ＋ head `7fb8a54e`）で、後続integration上の実行とは区別します。最新source/runと統合後の検証結果は[PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)と[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)へ集約します。
+
 integration上の解析成功を、未反映のdev/main/MyPageの継続実行成功へ読み替えません。scheduleはdefault branchで動くため、最終devマージはユーザー本人へ残します。既存alerts/analysesやrequired checksを削除せず、失敗はskip・緑alias・continue-on-errorへ変えません。fork/Dependabotの権限差は実結果として記録します。
 
 以下は旧staged-disabled準備の履歴です。両false gateや別承認の記述は当時の契約であり、今回の包括承認内のCI修復に適用しません。
