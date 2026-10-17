@@ -14,12 +14,15 @@ GitHub本人account ID 54093651・actor/triggering actor kani3campの初回workf
 
 Development Exitは[owner初回run 38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で、
 plan/apply両identityの31 no-op・imports0・raw drift0、State/bucket policy、完了後に観測できたworkload指標を照合し、独立reviewもPASSした。
-完了後のLambdaは3/6で自然実行・error0を観測した。quiet3件とdaily SFN/ECS・backupのcutoff後E2Eは未観測で、daily E2E成功はcutoff前の証跡である。
-Production AWS backend rolesとGCP CI foundationは実作成・readbackを完了し、独立reviewもPASSした。
+DevExit後fresh自然回帰（`2026-10-17T05:08:26Z`）は27 reads・全5 stage・finding0を独立review済み。Lambda3/6で1,338実行・Errors/Throttles0、quiet3はNoneのまま。daily SFN/ECS・backupのcutoff後E2Eは未観測で、先行daily E2Eはcutoff前の証跡である。
+Production AWS backend roles2・inline policies2とGCP CI foundationは実作成・readbackを完了し、独立reviewもPASSした。
 GCPの新規7 resource、保護対象5件の不変、個別policy5件へのmember追加8・削除0、read custom roleの12/3/1 permissionsを確認した。
 実行証跡は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)へ集約し、private IAM本文は公開しない。
 この実証を前提にMIGRATION_PRODUCTION_READYだけをtrueとし、旧PROD_* gateはfalseのまま維持する。
-正規Actionsの実短期認証・initial State・importは未完で、source/CI成功をこれらの完了と扱わない。
+Prod2 Environmentへ6参照と固定managed0入力の計7種ずつ、合計14設定を保存し、値を読まずに設定名・保護条件・実行journalを独立照合した。
+H2当時の[初期化run38961710157](https://github.com/kani3camp/youtube-study-space/actions/runs/38961710157)はplan/apply成功・固定outputs2件/resource0。H3で初版State0のversion指定GET・FULL_OBJECT checksum・controls9・Dev不変・lock不在を直接監査し、独立review PASSした。初版監査を、後続import後も空Stateという主張へ流用しない。
+H3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで既存9件のownership・post no-op・全CI成功を検証済み。sourceH4（`93121ab6`）の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗した。第10波後のState10/直前9のversion固定GET・checksum・native差分を独立確認し、追加1件・既存値/identity/checks・同lineage/serial増・controls9/DevHEAD不変・live lock/workspace0はPASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。実State11は未照合で調査中、第12波は未発行・再送0です。全30件・両identityの最終通常no-op・最終State/Production healthは未完了で、Infrastructure ReadyはHOLD。
+実移行・検証の記録にはH5（`d79d1cc4`）を使用しています。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4の[#1364](https://github.com/kani3camp/youtube-study-space/pull/1364)はnative10 caseの上限2並列化とrouting/回帰を追加し、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)でnative runnerと回帰テストを修正した。#1366は30 checks（12 success/18 skipped）・独立review後に統合済み。runtime controller5ファイル・認証workflow・HCLはH3/H4と同一で、H2初期化/H3監査・9件/H4第10波の実証を各時点の記録として保持する。
 旧PROD_* gateや過去の手動Environment承認記録は、新経路の実readinessを証明しない。
 resource0の初期StateだけでInfrastructure/MyPage ReadyGateをPASSにしない。
 
@@ -47,7 +50,7 @@ init/plan/showのState PUT0、saved applyのみ最初のState PUT1、適用後�
 caller accountと外側expected-owner/Versioning拒否を確認する。dummy認証・隔離HOME・外向きproxy拒否を使い、実cloudへ接続しない。
 このsource接続はProduction gateや実State作成の完了を証明しない。
 
-## Runtime WIF / API source preparation
+## Runtime WIF / API定義と採用条件
 
 [production runtime-ownership.tf](../environments/prod/runtime-ownership.tf)はdevelopmentと同じ
 共有modules、public grant alias、resource address、private inventory形式とimport ID組立を使う。
@@ -63,7 +66,7 @@ APIはenabled一覧から一括選択せず、productionの実callerとdependenc
 既存readinessテスト入口は、資格情報/HOME/backendを使わないnative mockでproduction full rootと
 development runtime定義のdefault0、累積address/import、values/sensitivity不変、順序/分類の拒否を検証する。
 synthetic inventoryによるsource検証であり、production実inventory・caller分類・ownership・CI activationの
-証明ではない。実行workflow、production gate、initializerへの接続はこの変更に含めない。
+証明ではない。実行source準備当時の証明範囲を示すものである。現行migrationへの接続・gateの状態は冒頭の実行境界を優先する。
 
 ## Historical offline packet scope and evidence
 
@@ -93,44 +96,26 @@ source準備、credentialless tests、最小read-only inventory整理はそれ�
 これらはmocked plan/source guardの証明です。pinned providerのprod実Read、remote no-op、
 cloud trust、現Environment保護、locking/recoveryの検証にはなりません。
 
-## Source gaps before production activation
+## 現在の定義・実行・残件
 
-共有export modulesはFunctionの既存name/memory/timeoutとSchedulerの既存nameを入力で保持できる。
-developmentの既定値・resource addressは維持し、production固有値はfresh private inputsから与える。
-このsource準備はproduction実行経路への接続、import、実plan/no-op、Development Exitを証明しない。
+共有export modulesはFunction/Schedulerの既存name、Functionのmemory/timeout/environmentをprivate metadataから保持する。
+Production rootの `existing-resources.tf` はnative backup、backup bucket、retained dataset、履歴table2件、export topic/Scheduler/Function、quota3件の計11件を個別選択できる。
+Runtime Pool・Provider・個別grant7・明示Own API10を合わせた移行対象は30件である。
+rootの既定選択は空のままとし、実運用では完全manifestとreview済み固定baselineを用いる。Developmentの地域、保持期間、列順、IAM member、API分類をコピーしない。
 
-prod rootの`existing-resources.tf`は、既存resourceだけの取り込み用定義を持つ。
-公開選択`existing_resources`は既定空集合、実ID/name/location/retention/列順/説明文/実行identity等は
-sensitiveな`existing_resource_inputs`から与え、repositoryには保存しない。
-選択は累積とし、各waveでは新規aliasを1件だけ追加して、既存所有分を残す。
-候補はnative backup、backup bucket、retained dataset、履歴table2件、export topic/Scheduler/Function、
-quota3件の計11件。tableやexport chainの参照はprivate metadataを使い、依存resourceを自動で取り込まない。
+quotaは既存3件をimport専用定義で扱い、dangling通知先も現設定のまま保存する。
+Production Email channelの作成・検証・通知修復は行わない。legacy Email/quota作成用opt-inとは混在させない。
+Pool→Provider→個別grant→依存するOwn APIの順で、それまでの所有を保持して1件ずつ取り込む。
+API enable/disable、SA本体・全IAM policy・CI federationのTerraform ownershipは追加しない。
 
-quota importは共有moduleのdefault-offな`google_monitoring_alert_policy.existing`を使用する。
-既存`quota`resourceとsensitive入力は維持し、import専用metadataの通知先・説明文のみproviderの
-未マーク属性を保つ。現在のdangling通知参照もそのまま保存し、channel作成・検証・修復を行わない。
-legacy Email/quota作成opt-inとの混在は拒否する。mockで各1件と累積11件のimport/no-opを検証するが、
-実inventoryの鮮度、provider実Read、State ownership、CI activation、MyPage Readyは別の未完条件である。
-
-[現行workflow](../../../.github/workflows/gcp-terraform-authenticated.yml)のproduction migrationは上記gateで閉鎖を維持します。
-以下のPROD_* gate/tableは旧経路のhistorical source packetです。
-`PROD_AUTHENTICATED_TERRAFORM_ENABLED` をtrueへ変えるだけでは完成しません。
-本packetは独立gate/routing、offline backend proposalとoffline execution validatorまでです。`PROD_EXECUTION_CONTRACT_READY` と
-`PROD_DEVELOPMENT_EXIT_READY` はfalseを維持します。fresh inventory後のsource PRでprod専用
-identity smoke・initial-state・exact wave検証を完成し、実測development exit後にactivationをreviewします。
-
-| Remaining source work | Current evidence / required result |
+| 項目 | 2026-10-17の実証 / 残件 |
 | --- | --- |
-| Independent prod plan/apply gates | source準備済み。`PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED=false`。plan enableから独立し、Environment承認も別 |
-| Production mode routing | source準備済み。通常plan/import-only applyのみ。全ownership inputを明示false、dev専用入力/例外mode/rerunを拒否 |
-| Actual prod identity smoke | planのidentity smokeはdev条件付き。既存scriptはdev project/keyと既存stateを前提にする。prod plan/apply双方の実identity/negative probeが必要 |
-| Initial-state handling | offline output-only/positive absence/state shape validatorを準備。実prod keyのabsent/empty/existing判定、authenticated collector、initial writeのprotected実行は未完。dev Stateはcopyしない |
-| Import definitions and exact wave validators | offline exact1 import/full-root no-op/state delta/metadata不変 validatorを準備。実Own inventory、resource-specific定義/metadata adapter、authenticated collectorとsame-SHA workflow接続は未完 |
-| Protected execution evidence | same-SHA再plan/projection一致、独立Environment approvals、post no-op、lock/version/lineage、public output監査をprodで実測する |
-
-初回empty graphだけではGCP providerが認証/Readを行った保証がありません。token交換・plan/apply SA
-impersonationと無害なexact metadata Readを明示的に証明します。resource0をInfrastructure Readyと
-扱わず、想定ownershipの完了を別に判断します。
+| Development Exit | 通常plan/apply両identityの31 no-op・import0・rawdrift0、State/version/lock、観測可能な回帰、独立review PASS |
+| Production backend / trust / settings | AWS roles2/policies2、GCP resources7・個別policies5/member追加8、設定14件を実readback・独立review済み。旧UNKNOWNは読み取りreconciliationと残り操作の別実行をjoinし、過去の成功responseを捏造しない |
+| 実移行・検証Source / routing | H5 `d79d1cc4`の第11波はAuth成功・full CI失敗、State11未照合。最新の運用Source/runはIssue #1191。本人初回dispatch・専用integration・plan/apply別identity。`MIGRATION_PRODUCTION_READY=true`のみ有効、旧 `PROD_*` gateはfalseを保持。都度Environment人間承認なし |
+| Production initial State | H2の[run38961710157](https://github.com/kani3camp/youtube-study-space/actions/runs/38961710157)で固定outputs2件/resource0作成、H3の初版version GET/checksum・controls9/Dev不変の直接監査と独立reviewもPASS。dev Stateはcopyしない |
+| Production ownership / Exit | H3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件・全CI成功を検証済み。H4第10波は認証付きPlan/Apply・post10成功後に静的CIとGateで失敗。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。実State11は未照合で調査中、第12波は未発行・再送0です。全30件・両identityの最終full-root no-op30・State/Production health・公開出力監査は未完了 |
+| Infrastructure / MyPage | Infrastructure ReadyはHOLD。既存ownershipの移行基盤ReadyとMyPage provisioning/releaseを分離し、後続PRでtype/schema・create/update専用workflow/検証契約・最小IAM/API・費用/rollbackを整える |
 
 ## One minimal private read-only inventory packet
 
@@ -185,21 +170,22 @@ trusted integration ref、caller/reusable workflow、event、plan/apply Environm
 repo名やEnvironment名だけでworkflow限定済みとみなしません。repo OIDC templateを変更する案は
 既存dev/AWS/GCP/CodeQLへの影響を含む別判断です。このpacketは既存templateを変更しません。
 
-本人が選ぶreviewer/self-review/bypass設定を実API値と照合します。会話内のaction-time承認と
-GitHub Environment approvalは別です。既存secret名を再利用する場合もEnvironmentごとの実role/SAを
+現行の4 EnvironmentはRequired reviewersなし・admin bypass=false・integration限定を実API値と照合します。
+本人初回dispatch制限を保ち、都度のEnvironment人間承認を再要求しません。既存secret名を再利用する場合もEnvironmentごとの実role/SAを
 privateに照合し、planとapplyを同じidentityへ暗黙にまとめません。承認範囲内のEnvironment/Secrets構築は実値をprivateに保ち、保護条件を維持して実施します。
 
 ## Separate protected execution units
 
-dev exitが実測完了するまで、以下のproduction実操作は開始しません。source PRのreview/mergeは
-実Environment approvalやlive readinessを兼ねません。各packetはexact targets/before-after/impact/window/rollback/verificationを
-完成させてから親へ渡します。包括承認A内でもRequired reviewersとbranch/trust保護を維持します。
+Development Exitは実測完了済みです。以下のunit順でProductionを進めます。source PRのreview/mergeは
+live readinessを兼ねません。各packetはexact targets/before-after/impact/window/rollback/verificationを
+完成させてから実行します。包括承認A内は都度Chat/Environment人間承認不要とし、
+本人初回dispatch、branch/trust/必要CIと独立レビューを維持します。
 
 | Unit | Concrete reviewed execution packet | Result needed before next unit |
 | --- | --- | --- |
 | P1 Backend/security bootstrap | 共通bucket再利用、prod backend role/trust/policyのexact diff、Environmentとprivate inputs、GCP CI trust/SA/grantsのexact diff。新bucket/accountは含めない | 設定read-back、dev/他product不変、各roleの境界証拠。失敗時は追加grant/trust/inputsだけを撤回 |
-| P2 Authenticated plan / initial state | 別reviewed source PRのprod plan routing/smoke、必要ならempty state/output初期化とlockの最大diff | 実AWS/GCP identity、prod state snapshot/version/lineage/resources0、実lock解放、negative probes、public output監査。apply-enableは閉鎖 |
-| P3 Exact import wave | Fresh Own候補、exact definition/import ID、full-root pre-plan、provider実Read、state before/after manifest、独立apply activation/approvals | Same-SHA再plan/projection一致、import-only state更新、post import0/no-op、remote metadata不変、lock解放 |
+| P2 Authenticated plan / initial state | 別reviewed source PRのprod plan routing/smoke、必要ならempty state/output初期化とlockの最大diff | 実AWS/GCP identity、prod state snapshot/version/lineage/resources0、実lock解放、negative probes、public output監査。一般resource createは閉鎖 |
+| P3 Exact import wave | Fresh Own候補、exact definition/import ID、full-root pre-plan、provider実Read、state before/after manifest、独立review・本人初回dispatch | Same-SHA再plan/projection一致、import-only state更新、post import0/no-op、remote metadata不変、lock解放 |
 | P4 Exit verification | Approved ownership一覧と未完項目判断、dev/prod通常full-root、trust/state/recovery証拠、正本同期 | Infrastructure Readyを親が判定。MyPage deploy/releaseは別gate |
 
 P1はIAM/Environment/backend/GCP trustの対象別diffを同じ判断packetへ束ねます。実行権限・rollbackが
@@ -211,17 +197,17 @@ stateの復旧は単なる古いversionのcopyではありません。fresh post
 
 devと同じresource数/順序/retention/region/IDを機械的にコピーしません。
 fresh inventory → Own/External/Google-managed/Investigate分類 → exact定義 → full-root import-only plan →
-独立protected approvals/same-SHA再plan → exact import-only apply → post通常full-root no-opの順です。
+独立review・本人初回dispatch → plan/apply別identityでsame-SHAの全HMACを照合する再plan → exact import-only apply → post通常full-root no-opの順です。
 
-- 1件でもcreate/update/delete/replace/drift/unknown/説明不能actionならSTOP。
+- configured change、create/update/delete/replace、unknown、説明不能action、未許可driftはSTOP。許可されたBigQuery computed-only2leafの観測差分は現行定常契約に従い、post通常planではraw drift0を確認する。
 - exact expected importだけを許可し、既存managed resource全件はno-op。import数だけでPASSにしない。
 - full-rootにdeferred/action invocation/address move/output変化等があればwave契約で説明・拒否する。
 - 原則1 resourceまたは分離不可能な最小unit。resource typeのdev実績を先に確立する。
 - generated subscription/artifact/source bucket/service agents、project IAM全体、用途不明resourceは巻き込まない。
 - notification repair、schema mutation、API enable/disable、Function rebuild/deploy、manual triggerを混ぜない。
 
-production Email channel0 / quota3 dangling refsはIssueの記録であり、ここではfresh未確認です。
-現行prod modulesをenableするとcreateを提案するため、import準備や修復としてenableしません。
+quota3の通知先参照はreview済み既存metadataどおり保持します。Email channelの新規作成・delivery/receipt検証・通知修復は今回行いません。
+legacy Email/quotaの作成用opt-inはcreateを提案するため、import準備や修復としてenableしません。既存resourceは上記のimport専用選択を使います。
 通知修復はprivate field-mask/rollbackを揃えた別operator waveです。
 #983/#1165/#1166は別Issue、D01のholdはこのscope外です。
 
@@ -274,7 +260,7 @@ SDK sourceからruntime権限を推定するpacketではなく、上表で明示
 
 [production_execution_contract.py](../scripts/production_execution_contract.py) の作成基点は
 integration `18d41d08bd8221e11db51d5f9f093d19784327e3` です。このscriptはcloud/CLI/Terraformを
-呼ばず、private collector inputを検証するだけです。protected execution workflowへ未接続で、production全gateはfalse。
+呼ばず、private collector inputを検証するだけです。このbundle CLI自体はprotected executionの入口ではありません。現controllerはinitializerで一部pure検証を再利用しますが、CLI単体から実認証・State操作は行いません。
 結果の `live_readiness_attested=false` を維持し、offline PASSを実認証・Environment approval・
 import完了・Infrastructure Readyの証拠として使いません。
 
@@ -327,10 +313,10 @@ non-finite値を拒否します。stdoutはprivate値を含まないcountsとoff
 `resource_change_actions=0` は検証したplanのresource action数であり、実cloud変更件数を報告しません。
 scriptはStateやreceiptをwriteせず、誤ったStateのrestore・lock削除・API操作を行いません。
 
-**残るlive requirements:** actual AWS/GCP identityとnegative probes、expected bucket owner/roleの検証、
+**このoffline CLIが証明しない範囲:** actual AWS/GCP identityとnegative probes、expected bucket owner/roleの検証、
 complete metadataとprovider valuesを結ぶresource-specific adapter、authenticated HEAD/GET/HEAD/LIST collector、
-same-SHA re-plan/保存plan sealと独立Environment approval、post full-root/no-opと実workload回帰、private cleanupが
-未接続です。渡されたsnapshotの真正性・full-root実行・writer静止をこのoffline scriptは証明しません。
+same-SHA re-plan/保存plan sealとplan/apply別identity、post full-root/no-opと実workload回帰、private cleanupが
+このoffline CLIだけでは確認できません。現行controllerの実結果は冒頭の実行境界とIssue #1191で判断します。渡されたsnapshotの真正性・full-root実行・writer静止をこのoffline scriptは証明しません。
 APIのOwn classification/dependency provenance、WIF trust/mapping、SA IAM grantの必要性と実caller/targetのjoinは
 typed waveの残条件です。このvalidatorのtype/shape PASSからOwn分類を自動判定しません。
 metadataのvolatile差分や候補check追加が必要なら、exact候補の別reviewed adapterを実装するまでSTOPを保持します。
@@ -339,19 +325,27 @@ metadataのvolatile差分や候補check追加が必要なら、exact候補の別
 ## Critical path and remaining work
 
 **実測Development Exit → P1 → P2 → P3各wave → P4** を維持します。
-source PRやprovider-mocked resource0をInfrastructure Readyとして扱いません。
+Development ExitとP1/P2は実証・独立review済みです。P2はH2初期化とH3初版Stateの直接監査を区別して記録しました。
+P3はH3で9件・全CI成功を検証済みです。H4第10波は認証付きPlan/Apply・post10成功後に静的CIとGateで失敗しました。State10/直前9のversion固定GET・厳密差分照合は独立PASSで、元runの静的CI失敗を保持します。H5の#1366を統合し、State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。実State11は未照合で調査中、第12波は未発行・再送0です。native並列化による実運用時間の改善完了とは扱いません。P4の最終通常full-root・State/version/lock・Production回帰・正本同期は未完了です。
+resource0、source PR、provider-mocked planだけではInfrastructure Readyにしません。
 
-- P1: private metadataをfresh収集し、prod backend roles/trust/policy、GCP CI trust/SA/grants、
-  GitHub Environment/Secretsのexact差分を作る。既存devや共通bucket全policyを上書きしない。
-- P2 source: prod専用AWS/GCP identity smoke、initial state不在の安全な契約、nonmutating negative probes、
-  state version/lineage/native-lock/recovery証拠を作る。現source-ready gateの解除にはこれらが必要。
-- P2 live: 本人が各GitHub Environmentで承認後、実identity/plan/lock/stateを検証する。apply gateは閉じる。
-- P3: fresh Own分類とexact import definition/validatorを作り、1件または最小unitずつsame-SHA import-onlyと
-  post full-root no-op、metadata不変を検証する。通知修復は別wave。
-- P4: 通常full-root no-op、drift/unknown0、回帰、public出力監査、正本同期、ReadyGate判断。
+[ReadyGate](phase2-approval-and-readiness.md#development--production--mypage-readygate)は、各実証と未完項目の判定を揃えて更新します。
+MyPageのInfrastructure追加準備は、既存ownershipと正規CI/Stateの安定性を確認する判定です。
+現在のmigration workflowは13type・exact import ID・resource no-opを扱い、create/updateを拒否します。新規MyPage resourceは後続normal-change PRでtype/schema、専用の実行・検証契約とworkflow、最小IAM/API、費用・rollbackを整えます。
+MyPage provisioning・Production release・data migration/機能検証を移行完了から自動承認しません。
 
-既知private参照や包括承認範囲は聞き直しません。個人しか決められない未確定reviewer/復旧責任者等だけを
-既存private情報の確認後に提示します。#1165/#1166/#983の未完項目と費用・削除のscopeは別に保持します。
+### 移行を止めない独立残件
+
+以下はすべてOPEN・Acceptance未達です。今回の既存ownership移行のblockerにはせず、完了扱いもしません。
+
+- [#1165 最新判断](https://github.com/kani3camp/youtube-study-space/issues/1165#issuecomment-6223368027): contacts・MFA実運用・独立break-glass・復旧責任をMyPage Production release前に判断。State current/prior GETとVersioning確認は復旧訓練ではない。
+- [#1166 最新判断](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703): durable CloudTrail/S3 data eventsの保存先・範囲・retention・費用は別途判断。今回のimportのためだけに継続費用を追加しない。
+- [#983 最新判断](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320): 過去raw-chat/混在GCS exportの破壊的cleanupは対象外。Privacy/DRの独立laneで継続し、保持設定を今回のimportで変更しない。
+
+Production quotaのdangling通知先、Emailのdelivery/receiptは未修復・未検証です。通知経路Readyの主張には使いません。
+CodeQL [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は本人の明示承認後にDefault setupを `not-configured` へ切り替えました。H2追随候補Q2（`92b5ea29`）の全31 CIと[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語解析・SARIF受付が成功し、analysis ID3件・error0、既存open alert1件の保持を確認済みです。
+候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の正規Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
+integration refの未解決CodeQL finding6件（critical1/high3/medium2、既存1＋新検出5）は別対応で、dismiss/suppressしません。受付成功を脆弱性0と扱わず、実移行・検証Source H5とH3の解析実証を区別します。
 
 ## Offline verification
 

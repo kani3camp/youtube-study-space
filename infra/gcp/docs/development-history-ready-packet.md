@@ -10,13 +10,20 @@ IAM inventory、raw plan/state、実集計値はprivate operator packetへ保存
 入口は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。
 [auditの意味とschema修復方針](user-activity-history-canonicalization.md)は維持する。
 
-## Current bounded history execution window
+## 完了済みhistory adoptionの旧実行枠
 
-Owner-approved history-only activation is staged in the
-[execution window contract](development-history-execution-window.md). This permits a fresh
-protected plan and, only after exact plan/run and Environment reviews, one state-only
-import with its sanitized root receipt and independent no-op12. Earlier false-gate
-records below are historical preparation evidence; runtime/probe/production stay closed.
+history Tableは既に12件目としてTerraform-ownedで、canonical8列を実metadata/Stateで確認済みです。
+再DROP・再importは行いません。original apply final receipt欠落と
+`historical_delta_attested=false`は保持し、現行運用は
+[定常Plan/Apply](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を優先します。
+
+[execution window contract](development-history-execution-window.md)は、当時の本人承認付きhistory-only
+importと独立no-op12を扱った旧手順です。過去のgate/Environment承認/receiptを
+現行運用の追加条件へ読み替えず、欠落した歴史証拠は現在の再検証で復元しません。
+
+Developmentの現行ownershipは[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で31件・import0/no-op31/rawdrift0をplan/apply両identityで検証済みです。DevExit後のfresh自然回帰はLambda3/6で1,338実行・Errors/Throttles0、全5 stage・finding0を独立review済みで、quiet3/未観測の限界を保持します。
+以下のschema repair、deployment候補、one-shot承認、旧Environment review手順は当時のpacketです。現在のhistory再DROP・再importや、ユーザーへの再入力依頼を要求しません。
+現行の運用は[定常Plan/Apply](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)、最終判断は[ReadyGate](phase2-approval-and-readiness.md#development--production--mypage-readygate)を優先します。
 
 ## Evidence needed for a decision
 
@@ -205,17 +212,22 @@ reviewし直します。resource数だけ緩めたり、rootの一部planで迂�
 
 ## Production and MyPage dependencies
 
-dev history完了だけでInfrastructure Readyにはしない。dev history → runtime WIF/IAM exact
-ownership + owned API分類 → dev通常full-root完全no-op → production fresh backend/trust準備 →
-approved import-only ownership → dev/prodのno-op/negative probes/state-lock-recovery → Infrastructure
-Ready → MyPage固有のrelease gate、という依存を保つ。
-
-本番を先に用意できるのは、既存operatorアクセス経路、予定ownershipとcost/retention条件、
-承認者・実行windowの情報まで。production bootstrap/IAM/OIDC/apply/deployは別承認。
-Issue記録だけのEmail channel/dangling policyは付随して修復しない。
-詳細は[Phase 2 readiness](phase2-approval-and-readiness.md#development--production--mypage-readygate)。
+Development Exitは実証済み、Production backend/CI foundationと2 Environmentへの設定は実readback・独立review済みです。
+Productionの正規State初期化はH2当時の[run38961710157](https://github.com/kani3camp/youtube-study-space/actions/runs/38961710157)のplan/applyで成功しました。
+H3で初版State0のversion GET/checksum・controls9・Dev不変を直接監査／独立PASS。H3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件のownershipと全CI成功を検証済みです。実行Source H4（`93121ab6`）の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗しました。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。実State11は未照合で調査中、第12波は未発行・再送0です。全30件・両identityの最終通常no-op・最終State/Production healthは未完了で、Infrastructure ReadyはHOLDです。
+包括承認内の作業へ都度Chat/Environment人間承認を戻さず、本人初回dispatch・exact source・独立review・State保護を維持します。
+通知先の修復や古いraw dataの破壊的cleanupをimportへ混ぜません。MyPage固有のprovisioning/releaseは別gateです。
+現在の判定は[Phase 2 readiness](phase2-approval-and-readiness.md#development--production--mypage-readygate)へ集約します。
 
 ## CodeQL and mandatory OIDC claims
+
+2026-10-17時点の[PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は、本人の明示承認後にDefault setupを `not-configured` へ切り替え、実readbackを確認しました。
+H2追随候補Q2（`92b5ea29`）は全31 CI成功、[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語の解析・SARIF受付成功、analysis ID3件・error0、既存open alert1件の保持を確認済みです。この解析はPR merge commit `6922b666`（parents H2 / Q2）で実行しました。
+Q2と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[CodeQL run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)も3言語の解析・SARIF受付成功を確認しました。H3のGCP source closureはH2と完全一致し、H2当時のProduction初期化証拠をH3での再実行成功へ読み替えません。
+先行[pull_request run38942869203](https://github.com/kani3camp/youtube-study-space/actions/runs/38942869203)のattempt2も3言語の解析・SARIF受付・Go全package compileに成功しています。当時の解析sourceはPR merge commit `55e3c307`（parents `bbf4b9e2` / `7fb8a54e`）でした。
+先行attempt1のDefault setup併用によるupload失敗と、本人の個別承認前に自動承認審査が設定変更を拒否した履歴は保持します。Terraformの実Plan/Applyとは別に評価し、OIDC trustやTerraform Environmentを緩めていません。
+実移行・検証の記録にはH5（`d79d1cc4`）を使用しています。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4のnative10 case上限2並列化とrouting/回帰、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)のrunner/回帰修正は、runtime controller5ファイル・認証workflow・HCLを変更していません。integration refの未解決finding6件（critical1/high3/medium2、既存1＋新検出5）は保持し、dismiss/suppressしません。受付成功は脆弱性0を意味しません。
+以下は旧OIDC failureの経緯と設計検討です。
 
 確認済みの[CodeQL run 37494025459](https://github.com/kani3camp/youtube-study-space/actions/runs/37494025459)
 は全3jobが開始前fail。errorは `OIDC error: the claim 'environment' cannot be null or empty`。
