@@ -137,23 +137,7 @@ func (s *FirestoreSupportStore) Reissue(ctx context.Context, requestRef string, 
 		if err != nil {
 			return err
 		}
-		next, err := reissueSupportRecord(value, s.Environment, digest(challenge), now)
-		if err != nil {
-			return err
-		}
-		if !validOpaque(value.ChallengeHash) {
-			return apiError("SUPPORT_CHALLENGE_INVALID")
-		}
-		if err := tx.Delete(s.Client.Collection("support-challenges").Doc(value.ChallengeHash)); err != nil {
-			return fmt.Errorf("remove previous support challenge: %w", err)
-		}
-		if err := tx.Create(s.Client.Collection("support-challenges").Doc(next.ChallengeHash), supportChallengeIndex{RequestRef: requestRef, Environment: s.Environment}); err != nil {
-			return fmt.Errorf("create replacement support challenge: %w", err)
-		}
-		if err := tx.Set(ref, next); err != nil {
-			return fmt.Errorf("reissue support record: %w", err)
-		}
-		return nil
+		return stageSupportReissue(tx, ref, value, s.Environment, challenge, now, s.Client)
 	})
 	if err != nil {
 		return "", fmt.Errorf("reissue support challenge: %w", err)
@@ -188,6 +172,26 @@ func (s *FirestoreSupportStore) CheckBinding(ctx context.Context, binding Suppor
 	}, firestore.ReadOnly)
 	if err != nil {
 		return fmt.Errorf("check bound support request: %w", err)
+	}
+	return nil
+}
+
+func stageSupportReissue(tx *firestore.Transaction, ref *firestore.DocumentRef, value SupportRequest, environment, challenge string, now time.Time, client *firestore.Client) error {
+	next, err := reissueSupportRecord(value, environment, digest(challenge), now)
+	if err != nil {
+		return err
+	}
+	if !validOpaque(value.ChallengeHash) {
+		return apiError("SUPPORT_CHALLENGE_INVALID")
+	}
+	if err := tx.Delete(client.Collection("support-challenges").Doc(value.ChallengeHash)); err != nil {
+		return fmt.Errorf("remove previous support challenge: %w", err)
+	}
+	if err := tx.Create(client.Collection("support-challenges").Doc(next.ChallengeHash), supportChallengeIndex{RequestRef: ref.ID, Environment: environment}); err != nil {
+		return fmt.Errorf("create replacement support challenge: %w", err)
+	}
+	if err := tx.Set(ref, next); err != nil {
+		return fmt.Errorf("reissue support record: %w", err)
 	}
 	return nil
 }

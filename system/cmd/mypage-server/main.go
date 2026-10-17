@@ -47,6 +47,11 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 		return fail()
 	}
 	config := configuration{server: mypage.ServerConfig{Environment: environment, ProjectID: get("GOOGLE_CLOUD_PROJECT"), ProjectNumber: get("MYPAGE_PROJECT_NUMBER"), WebAppID: get("MYPAGE_WEB_APP_ID"), PublicOrigin: get("MYPAGE_PUBLIC_ORIGIN"), Policy: mypage.Policy{Privacy: get("MYPAGE_PRIVACY_VERSION"), Terms: get("MYPAGE_TERMS_VERSION")}}, signer: get("MYPAGE_SIGNER_EMAIL"), clientID: get("MYPAGE_OAUTH_CLIENT_ID"), clientSecret: get("MYPAGE_OAUTH_CLIENT_SECRET"), metadataKey: get("MYPAGE_YOUTUBE_API_KEY"), port: get("PORT")}
+	coverage, err := parseHistoryCoverage(get("MYPAGE_HISTORY_COVERAGE"))
+	if err != nil {
+		return fail()
+	}
+	config.server.Coverage = coverage
 	if config.port == "" {
 		config.port = "8080"
 	}
