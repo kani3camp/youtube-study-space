@@ -68,12 +68,12 @@ class NativeRunnerTest(unittest.TestCase):
             with socket.socket() as connection:
                 connection.settimeout(min(0.1, remaining))
                 error = connection.connect_ex(("127.0.0.1", port))
+            self.assertIs(type(error), int, "invalid loopback cleanup probe result type")
+            self.assertGreaterEqual(error, 0, "invalid negative loopback cleanup probe result")
             if error == errno.ECONNREFUSED:
                 return
-            # POSIX timed connect_ex can return EAGAIN/EWOULDBLOCK while
-            # pending. Neither that result nor an open socket proves closure.
-            self.assertIn(error, (0, errno.EAGAIN, errno.EWOULDBLOCK),
-                          "unexpected loopback cleanup probe error")
+            # No other result proves closure, including open, pending, reset,
+            # or an unfamiliar errno. Observe again only until this deadline.
             time.sleep(min(0.01, max(0, deadline - time.monotonic())))
 
     @staticmethod
@@ -302,29 +302,42 @@ class NativeRunnerTest(unittest.TestCase):
         self.assertEqual(connection.connect_ex.call_count, 1)
         sleep.assert_called_once_with(0.005)
 
-    def test_pending_probes_require_observed_refusal_before_success(self):
-        for pending in (errno.EAGAIN, errno.EWOULDBLOCK):
-            with self.subTest(pending=pending), patch.object(socket, "socket") as factory, \
+    def test_all_connection_results_require_observed_refusal_before_success(self):
+        for result in (0, errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET,
+                       errno.ENETUNREACH, 123456):
+            with self.subTest(result=result), patch.object(socket, "socket") as factory, \
                     patch.object(time, "sleep") as sleep:
                 connection = factory.return_value.__enter__.return_value
-                connection.connect_ex.side_effect = (pending, 0, pending, errno.ECONNREFUSED)
+                connection.connect_ex.side_effect = (result, 0, result, errno.ECONNREFUSED)
                 self.assert_listener_closed(12345)
                 self.assertEqual(connection.connect_ex.call_count, 4)
                 self.assertEqual(sleep.call_count, 3)
 
-    def test_persistent_pending_probes_fail_at_the_monotonic_deadline(self):
-        for pending in (errno.EAGAIN, errno.EWOULDBLOCK):
-            with self.subTest(pending=pending), patch.object(socket, "socket") as factory, \
+    def test_every_persistent_result_fails_at_the_monotonic_deadline(self):
+        for result in (0, errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET,
+                       errno.ENETUNREACH, 123456):
+            with self.subTest(result=result), patch.object(socket, "socket") as factory, \
                     patch.object(time, "sleep") as sleep, \
                     patch.object(time, "monotonic", side_effect=(0, 0.001, 0.005, 0.02)):
                 connection = factory.return_value.__enter__.return_value
-                connection.connect_ex.return_value = pending
+                connection.connect_ex.return_value = result
                 with self.assertRaisesRegex(AssertionError, "listener remained open"):
                     self.assert_listener_closed(12345, timeout=0.01)
                 self.assertEqual(connection.connect_ex.call_count, 1)
                 sleep.assert_called_once_with(0.005)
 
-    def test_real_unaccepted_backlog_is_pending_until_the_listener_closes(self):
+    def test_connection_and_poll_timeouts_never_exceed_the_remaining_deadline(self):
+        with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep, \
+                patch.object(time, "monotonic", side_effect=(0, 0.095, 0.098, 0.101)):
+            connection = factory.return_value.__enter__.return_value
+            connection.connect_ex.return_value = errno.ECONNRESET
+            with self.assertRaisesRegex(AssertionError, "listener remained open"):
+                self.assert_listener_closed(12345, timeout=0.1)
+        self.assertEqual(connection.connect_ex.call_count, 1)
+        self.assertAlmostEqual(connection.settimeout.call_args.args[0], 0.005)
+        self.assertAlmostEqual(sleep.call_args.args[0], 0.002)
+
+    def test_real_unaccepted_backlog_never_proves_closure_until_listener_closes(self):
         clients = []
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
@@ -336,35 +349,53 @@ class NativeRunnerTest(unittest.TestCase):
                     clients.append(client)
                     client.settimeout(0.01)
                     error = client.connect_ex(("127.0.0.1", port))
-                    self.assertIn(error, (0, errno.EAGAIN, errno.EWOULDBLOCK))
+                    self.assertIs(type(error), int)
+                    self.assertGreaterEqual(error, 0)
+                    self.assertNotEqual(error, errno.ECONNREFUSED)
                     if error:
                         break
                 else:
-                    self.fail("fixture listen backlog did not produce a pending connection")
-                # This is a real pending connect, with no errno mock. An open,
-                # saturated listener must still fail at the observation bound.
+                    self.fail("fixture listen backlog did not produce a nonzero connection result")
+                # Real unconfirmed results, with no errno mock, cannot prove
+                # that this open saturated listener has closed.
                 with self.assertRaisesRegex(AssertionError, "listener remained open"):
                     self.assert_listener_closed(port, timeout=0.03)
                 real_sleep = time.sleep
                 closed = Event()
-                def close_after_pending(seconds):
+                def close_after_probe(seconds):
                     listener.close()
                     closed.set()
                     real_sleep(seconds)
-                # Close only after the first real pending probe has returned;
-                # the next probe must observe refusal rather than accept pending.
-                with patch.object(time, "sleep", side_effect=close_after_pending):
+                # Close after a real probe returns without proving closure;
+                # the next probe must observe refusal to succeed.
+                with patch.object(time, "sleep", side_effect=close_after_probe):
                     self.assert_listener_closed(port)
                 self.assertTrue(closed.is_set())
             finally:
                 for client in clients:
                     client.close()
 
-    def test_unexpected_socket_error_never_counts_as_cleanup_success(self):
+    def test_malformed_probe_results_fail_immediately_even_if_equal_to_refusal(self):
+        class IntegerSubclass(int):
+            pass
+        for result in (False, True, None, str(errno.ECONNREFUSED),
+                       float(errno.ECONNREFUSED), IntegerSubclass(errno.ECONNREFUSED), -1):
+            with self.subTest(result=result), patch.object(socket, "socket") as factory, \
+                    patch.object(time, "sleep") as sleep:
+                connection = factory.return_value.__enter__.return_value
+                connection.connect_ex.return_value = result
+                with self.assertRaisesRegex(AssertionError, "invalid .*loopback cleanup probe result"):
+                    self.assert_listener_closed(12345)
+                self.assertEqual(connection.connect_ex.call_count, 1)
+                sleep.assert_not_called()
+
+    def test_probe_exceptions_fail_immediately_without_becoming_closure(self):
         with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep:
-            factory.return_value.__enter__.return_value.connect_ex.return_value = errno.ENETUNREACH
-            with self.assertRaisesRegex(AssertionError, "unexpected loopback"):
+            connection = factory.return_value.__enter__.return_value
+            connection.connect_ex.side_effect = OSError("synthetic probe failure")
+            with self.assertRaisesRegex(OSError, "synthetic probe failure"):
                 self.assert_listener_closed(12345)
+        self.assertEqual(connection.connect_ex.call_count, 1)
         sleep.assert_not_called()
 
     def test_invalid_worker_counts_and_missing_mirror_fail_closed(self):
