@@ -282,7 +282,7 @@ class NativeRunnerTest(unittest.TestCase):
         try:
             with patch.object(runner.os, "killpg", side_effect=delayed):
                 self.test_interruption_during_partial_submission_stops_the_started_case()
-            self.assertTrue(delivered.is_set())
+            self.assertTrue(delivered.wait(timeout=2))
         finally:
             for timer in timers:
                 timer.join(timeout=2)
