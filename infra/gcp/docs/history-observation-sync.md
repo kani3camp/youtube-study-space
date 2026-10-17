@@ -4,7 +4,8 @@
 [run38921685248](https://github.com/kani3camp/youtube-study-space/actions/runs/38921685248)のState-onlyの通常saved-plan applyにより
 computed-only観測をStateへ反映し、事後full-root no-op12/rawdrift0を確認しました。
 旧previewの停止結果を遡及成功へ読み替えず、旧gate/windowは再利用しません。
-最新の[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)はplan/apply両identityで31所有・import0/no-op31/rawdrift0を検証済みです。原history final receipt欠落と`historical_delta_attested=false`は保持します。
+DevExit時の[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)はplan/apply両identityで31所有・import0/no-op31/rawdrift0を検証済みです。原history final receipt欠落と`historical_delta_attested=false`は保持します。
+H7の[最終run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)も両identityでimport0/no-op31/rawdrift0でした。直接State監査では旧current35が直前版となり、current36への進行はserialとtyped check_resultsの並びだけ、その他の属性・private・identity・mask・outputは同一と独立検証しました。これは旧専用同期の成功や欠落receiptの復元ではありません。最終統合Sourceと回帰の判定は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照します。
 以下は専用mode当時の契約・停止結果であり、現行migrationの追加承認条件ではありません。
 
 CI #885の通常planはimport0 / no-op12 / drift1で停止した。対象は履歴Tableの`etag`と
