@@ -88,6 +88,8 @@ def stop_group(process: subprocess.Popen) -> None:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    # This wait reaps the case leader. Descendant SIGKILL delivery and resource
+    # closure are asynchronous; cleanup witnesses observe their own resources.
     process.wait()
 
 
@@ -173,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         results = run_suite(ROOT, mirror, workers=args.workers)
     except KeyboardInterrupt:
-        print("TERRAFORM_NATIVE_TESTS: STOP; interrupted; child groups terminated")
+        print("TERRAFORM_NATIVE_TESTS: STOP; interrupted; process-group termination requested")
         return 130
     except Exception:
         print("TERRAFORM_NATIVE_TESTS: STOP; suite preflight or execution failed")

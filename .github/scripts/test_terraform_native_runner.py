@@ -6,6 +6,7 @@ from collections import Counter
 from contextlib import redirect_stdout
 from concurrent.futures import ThreadPoolExecutor
 import importlib.util
+import errno
 import io
 import json
 import os
@@ -15,6 +16,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from threading import Event, Timer
 import time
 import unittest
 from unittest.mock import patch
@@ -54,6 +56,22 @@ class NativeRunnerTest(unittest.TestCase):
                 "v['end']=time.monotonic()\n"
                 "(p/(pathlib.Path(__file__).stem+'.json')).write_text(json.dumps(v))\n"
             )
+
+    def assert_listener_closed(self, port, *, timeout=2):
+        # A sent SIGKILL is not a synchronous completion barrier for a
+        # grandchild. Require observed refusal, with a strict monotonic bound.
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self.fail("descendant listener remained open after group cleanup")
+            with socket.socket() as connection:
+                connection.settimeout(min(0.1, remaining))
+                error = connection.connect_ex(("127.0.0.1", port))
+            if error == errno.ECONNREFUSED:
+                return
+            self.assertEqual(error, 0, "unexpected loopback cleanup probe error")
+            time.sleep(min(0.01, max(0, deadline - time.monotonic())))
 
     def test_exact_original_ten_witnesses_are_preserved(self):
         self.assertEqual(runner.CASES, EXPECTED)
@@ -146,7 +164,8 @@ class NativeRunnerTest(unittest.TestCase):
             "import pathlib,signal,socket,time,json;"
             "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
             "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"pathlib.Path({str(marker)!r}).write_text(json.dumps(s.getsockname()[1]));"
+            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
+            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
             "time.sleep(30)"
         )
         (self.scripts / EXPECTED[0]).write_text(
@@ -158,8 +177,7 @@ class NativeRunnerTest(unittest.TestCase):
         self.assertEqual(sum(r.status == "PASS" for r in rows), 9)
         self.assertTrue(marker.exists())
         port = json.loads(marker.read_text())
-        with socket.socket() as connection:
-            self.assertNotEqual(connection.connect_ex(("127.0.0.1", port)), 0)
+        self.assert_listener_closed(port)
 
     def test_sigterm_cancels_queued_cases_and_kills_active_grandchildren(self):
         marker = self.root / "cancel-port.json"
@@ -167,7 +185,8 @@ class NativeRunnerTest(unittest.TestCase):
             "import pathlib,signal,socket,time,json;"
             "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
             "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"pathlib.Path({str(marker)!r}).write_text(json.dumps(s.getsockname()[1]));"
+            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
+            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
             "time.sleep(30)"
         )
         (self.scripts / EXPECTED[-2]).write_text(
@@ -194,10 +213,9 @@ class NativeRunnerTest(unittest.TestCase):
             process.send_signal(signal.SIGTERM)
             stdout, stderr = process.communicate(timeout=5)
             self.assertEqual(process.returncode, 130)
-            self.assertIn(b"child groups terminated", stdout)
+            self.assertIn(b"process-group termination requested", stdout)
             self.assertEqual(stderr, b"")
-            with socket.socket() as connection:
-                self.assertNotEqual(connection.connect_ex(("127.0.0.1", json.loads(marker.read_text()))), 0)
+            self.assert_listener_closed(json.loads(marker.read_text()))
         finally:
             if process.poll() is None:
                 process.kill()
@@ -209,7 +227,8 @@ class NativeRunnerTest(unittest.TestCase):
             "import pathlib,signal,socket,time,json;"
             "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
             "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"pathlib.Path({str(marker)!r}).write_text(json.dumps(s.getsockname()[1]));"
+            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
+            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
             "time.sleep(30)"
         )
         (self.scripts / EXPECTED[-2]).write_text(
@@ -241,8 +260,56 @@ class NativeRunnerTest(unittest.TestCase):
             runner.run_suite(self.root, self.mirror)
         self.assertLess(time.monotonic() - started, 5)
         self.assertEqual(list(self.observed.iterdir()), [])
-        with socket.socket() as connection:
-            self.assertNotEqual(connection.connect_ex(("127.0.0.1", json.loads(marker.read_text()))), 0)
+        self.assert_listener_closed(json.loads(marker.read_text()))
+
+    def test_delayed_sigkill_completion_still_requires_actual_listener_closure(self):
+        real_killpg = runner.os.killpg
+        delivered = Event()
+        timers = []
+        def delayed(group, sig):
+            if sig != signal.SIGKILL:
+                return real_killpg(group, sig)
+            def complete():
+                try:
+                    real_killpg(group, sig)
+                except ProcessLookupError:
+                    pass
+                finally:
+                    delivered.set()
+            timer = Timer(0.15, complete)
+            timers.append(timer)
+            timer.start()
+        try:
+            with patch.object(runner.os, "killpg", side_effect=delayed):
+                self.test_interruption_during_partial_submission_stops_the_started_case()
+            self.assertTrue(delivered.is_set())
+        finally:
+            for timer in timers:
+                timer.join(timeout=2)
+
+    def test_observed_refusal_is_required_after_an_initially_open_listener(self):
+        with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep:
+            connection = factory.return_value.__enter__.return_value
+            connection.connect_ex.side_effect = (0, errno.ECONNREFUSED)
+            self.assert_listener_closed(12345)
+        self.assertEqual(connection.connect_ex.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_listener_that_stays_open_fails_at_the_monotonic_deadline(self):
+        with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep,                 patch.object(time, "monotonic", side_effect=(0, 0.001, 0.005, 0.02)):
+            connection = factory.return_value.__enter__.return_value
+            connection.connect_ex.return_value = 0
+            with self.assertRaisesRegex(AssertionError, "listener remained open"):
+                self.assert_listener_closed(12345, timeout=0.01)
+        self.assertEqual(connection.connect_ex.call_count, 1)
+        sleep.assert_called_once_with(0.005)
+
+    def test_unexpected_socket_error_never_counts_as_cleanup_success(self):
+        with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep:
+            factory.return_value.__enter__.return_value.connect_ex.return_value = errno.ENETUNREACH
+            with self.assertRaisesRegex(AssertionError, "unexpected loopback"):
+                self.assert_listener_closed(12345)
+        sleep.assert_not_called()
 
     def test_invalid_worker_counts_and_missing_mirror_fail_closed(self):
         for count in (0, 3, 5, 10):
