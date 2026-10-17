@@ -70,8 +70,27 @@ class NativeRunnerTest(unittest.TestCase):
                 error = connection.connect_ex(("127.0.0.1", port))
             if error == errno.ECONNREFUSED:
                 return
-            self.assertEqual(error, 0, "unexpected loopback cleanup probe error")
+            # POSIX timed connect_ex can return EAGAIN/EWOULDBLOCK while
+            # pending. Neither that result nor an open socket proves closure.
+            self.assertIn(error, (0, errno.EAGAIN, errno.EWOULDBLOCK),
+                          "unexpected loopback cleanup probe error")
             time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+
+    @staticmethod
+    def listener_program(marker):
+        # Drain probes so the witness does not fill its own listen backlog.
+        # Ignore TERM to require group KILL; idle timeout bounds a broken test.
+        return (
+            "import pathlib,signal,socket,json\n"
+            "signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+            "s=socket.socket();s.bind(('127.0.0.1',0));s.listen()\n"
+            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp')\n"
+            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p)\n"
+            "s.settimeout(30)\n"
+            "while True:\n"
+            " c,_=s.accept()\n"
+            " c.close()\n"
+        )
 
     def test_exact_original_ten_witnesses_are_preserved(self):
         self.assertEqual(runner.CASES, EXPECTED)
@@ -160,14 +179,7 @@ class NativeRunnerTest(unittest.TestCase):
 
     def test_timeout_kills_grandchildren_and_remaining_cases_complete(self):
         marker = self.root / "port.json"
-        grandchild = (
-            "import pathlib,signal,socket,time,json;"
-            "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
-            "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
-            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
-            "time.sleep(30)"
-        )
+        grandchild = self.listener_program(marker)
         (self.scripts / EXPECTED[0]).write_text(
             "import subprocess,sys,time\n"
             f"subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
@@ -181,14 +193,7 @@ class NativeRunnerTest(unittest.TestCase):
 
     def test_sigterm_cancels_queued_cases_and_kills_active_grandchildren(self):
         marker = self.root / "cancel-port.json"
-        grandchild = (
-            "import pathlib,signal,socket,time,json;"
-            "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
-            "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
-            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
-            "time.sleep(30)"
-        )
+        grandchild = self.listener_program(marker)
         (self.scripts / EXPECTED[-2]).write_text(
             "import subprocess,sys,time\n"
             f"subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
@@ -223,14 +228,7 @@ class NativeRunnerTest(unittest.TestCase):
 
     def test_interruption_during_partial_submission_stops_the_started_case(self):
         marker = self.root / "submit-port.json"
-        grandchild = (
-            "import pathlib,signal,socket,time,json;"
-            "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
-            "s=socket.socket();s.bind(('127.0.0.1',0));s.listen();"
-            f"p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');"
-            "q.write_text(json.dumps(s.getsockname()[1]));q.replace(p);"
-            "time.sleep(30)"
-        )
+        grandchild = self.listener_program(marker)
         (self.scripts / EXPECTED[-2]).write_text(
             "import subprocess,sys,time\n"
             f"subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
@@ -303,6 +301,64 @@ class NativeRunnerTest(unittest.TestCase):
                 self.assert_listener_closed(12345, timeout=0.01)
         self.assertEqual(connection.connect_ex.call_count, 1)
         sleep.assert_called_once_with(0.005)
+
+    def test_pending_probes_require_observed_refusal_before_success(self):
+        for pending in (errno.EAGAIN, errno.EWOULDBLOCK):
+            with self.subTest(pending=pending), patch.object(socket, "socket") as factory, \
+                    patch.object(time, "sleep") as sleep:
+                connection = factory.return_value.__enter__.return_value
+                connection.connect_ex.side_effect = (pending, 0, pending, errno.ECONNREFUSED)
+                self.assert_listener_closed(12345)
+                self.assertEqual(connection.connect_ex.call_count, 4)
+                self.assertEqual(sleep.call_count, 3)
+
+    def test_persistent_pending_probes_fail_at_the_monotonic_deadline(self):
+        for pending in (errno.EAGAIN, errno.EWOULDBLOCK):
+            with self.subTest(pending=pending), patch.object(socket, "socket") as factory, \
+                    patch.object(time, "sleep") as sleep, \
+                    patch.object(time, "monotonic", side_effect=(0, 0.001, 0.005, 0.02)):
+                connection = factory.return_value.__enter__.return_value
+                connection.connect_ex.return_value = pending
+                with self.assertRaisesRegex(AssertionError, "listener remained open"):
+                    self.assert_listener_closed(12345, timeout=0.01)
+                self.assertEqual(connection.connect_ex.call_count, 1)
+                sleep.assert_called_once_with(0.005)
+
+    def test_real_unaccepted_backlog_is_pending_until_the_listener_closes(self):
+        clients = []
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            port = listener.getsockname()[1]
+            try:
+                for _ in range(16):
+                    client = socket.socket()
+                    clients.append(client)
+                    client.settimeout(0.01)
+                    error = client.connect_ex(("127.0.0.1", port))
+                    self.assertIn(error, (0, errno.EAGAIN, errno.EWOULDBLOCK))
+                    if error:
+                        break
+                else:
+                    self.fail("fixture listen backlog did not produce a pending connection")
+                # This is a real pending connect, with no errno mock. An open,
+                # saturated listener must still fail at the observation bound.
+                with self.assertRaisesRegex(AssertionError, "listener remained open"):
+                    self.assert_listener_closed(port, timeout=0.03)
+                real_sleep = time.sleep
+                closed = Event()
+                def close_after_pending(seconds):
+                    listener.close()
+                    closed.set()
+                    real_sleep(seconds)
+                # Close only after the first real pending probe has returned;
+                # the next probe must observe refusal rather than accept pending.
+                with patch.object(time, "sleep", side_effect=close_after_pending):
+                    self.assert_listener_closed(port)
+                self.assertTrue(closed.is_set())
+            finally:
+                for client in clients:
+                    client.close()
 
     def test_unexpected_socket_error_never_counts_as_cleanup_success(self):
         with patch.object(socket, "socket") as factory, patch.object(time, "sleep") as sleep:
