@@ -1,12 +1,12 @@
-# Phase 2A runtime WIF / API ownership 実行前 packet
+# GCP Terraform 定常Plan/Applyとruntime WIF / API ownership
 
 ## 定常Plan/Applyへの移行（2026-10-16）
 
 Current Canon §10と本人の最新指示により、4 EnvironmentはRequired reviewersなし・本人GitHub ID `54093651` / `kani3camp` の初回 `workflow_dispatch`だけで運用する。旧節の毎回の人間承認、失われたhistory receipt、新issuer/catalogの期限、source activation windowは履歴・旧protocolであり、新しい `migration-plan` / `migration-apply` の実行条件には使用しない。`historical_delta_attested=false`は維持する。
 
-新経路は既存 `ci.yml` → 同一SHAのreusable workflowと同じ4 Environment/OIDC/WIF/plan・apply別identityを使用する。`dev`への直接push・merge・auto-mergeは禁止のまま。Productionの新経路も `MIGRATION_PRODUCTION_READY=false` で閉じ、実測Development Exit後の独立reviewで開く。
+新経路は既存 `ci.yml` → 同一SHAのreusable workflowと同じ4 Environment/OIDC/WIF/plan・apply別identityを使用する。`dev`への直接push・merge・auto-mergeは禁止のまま。Productionの `MIGRATION_PRODUCTION_READY` は、Development Exitと実backend/CI foundationの独立review後にtrueとなった。旧 `PROD_*` gateはfalseのまま、現行のmigration経路だけを使う。ProductionのState/ownership完了は[現在の実行境界](production-readiness.md#current-execution-boundary--2026-10-17)で別に確認する。
 
-- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。同じtype/import IDを複数addressへ採用する重複ownershipは拒否する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
+- 各Environmentの `GCP_TERRAFORM_MANAGED_INPUTS_JSON` に、review済み固定tfvars、address/type/import IDの完全manifest、比較専用HMAC鍵を保存する。同じtype/import IDを複数addressへ採用する重複ownershipは拒否する。平文と圧縮wrapperのどちらもSecretのwireは1行JSONとする。複数行では構造文字がrunner maskへ登録されjob出力を抑止するため、parsed入力・全比較条件を変えずに1行へ保存する。これはdesired baselineであり、実行ごとにlive metadataへ追従して書き換えない。旧Secret/receipt binding/nonceは読み出し・置換しない。
 - 固定入力がGitHub Secretの[48KB上限](https://docs.github.com/en/actions/reference/security/secrets#limits-for-secrets)を超える場合、`terraform_migration.encode_input_transport` でreview済み元JSON bytesをlosslessに圧縮する。wireはUTF-8で48KiB以下・改行なしのJSONとし、exact keysは `schema_version: "gcp-migration-inputs-packed-v1"`、`codec: "zlib+base64"`、`payload`。canonical Base64の単一zlib streamだけを受理し、復元4MiB上限、EOF、末尾・連結streamなし、JSON重複key/nonfiniteなし、元4field schemaを認証前に検査する。入れ子wrapper・未知key/codec・切れたstream・展開bombはSTOPする。平文JSONもwire上限内で引き続き受理する。圧縮は秘匿化ではないため既存private経路に留め、元candidate fileは変更しない。plan/apply両Environmentへ同じwireを保存し、HMACと全Terraform検証には復元した元4fieldだけを使う。
 - 選択した `owned_api_keys` はmanifest内の `google_project_service` のservice集合と完全一致させ、分類を `Own` / `ENABLED`・理由ありとする。選択APIの `dependency_addresses` は重複のない非空listとし、すべて同じmanifest内の非API resourceへ解決することを認証前に検証する。未採用consumer、API自身・API間循環を依存根拠にせず、後段のfull-root planとState照合で実際のownershipを確認する。未選択APIの将来consumerはこの入力検証では拒否しない。
 - 本人初回・固定repo/ref/callerを認証前に検査。実OIDC claimsとAWS account/RoleId、GCP SAを照合し、同じEnvironmentの短期認証だけを使う。
@@ -29,6 +29,36 @@ Google 8.5の既存API importは、設定が `false` でも `disable_on_destroy`
 
 この節は運用契約であり、コード/CI準備だけでは移行完了を主張しない。実行結果はIssue #1191・最終PR #1251とCurrent Canon/Inventoryへ記録する。
 
+
+## 起動と運用上の判定
+
+現行CIのtrustは専用integration refに固定しています。最終devマージ後もこの運用refを必要な間保持し、ref移行・branch削除はworkflow、Environment、cloud trustを整合させる別reviewで判断します。
+
+第30波と両環境の最終通常Plan/Apply・State監査の実行SourceはH7（`0ed7486b`）です。SHAは実証に用いるSourceの記録であり、文書自体のHEADではありません。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4でnative10 caseの上限2並列化とrouting/回帰を追加し、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)でnative runnerと回帰テストを修正しました。H7（`0ed7486b`）の[#1370](https://github.com/kani3camp/youtube-study-space/pull/1370)で観測テストを修正し、後続waveと最終no-opを実行しました。runtime controller5ファイル・認証workflow・HCLはH3/H4から不変です。
+既存の `ci.yml` を本人accountから初回dispatchする。現固定baselineに対する通常full-root監査planの例は次のとおりで、Productionはtargetだけを `prod` にする。
+
+```sh
+gh workflow run ci.yml --ref feature/gcp-terraform-iac \
+  -f terraform_authenticated=true -f terraform_target=dev -f terraform_mode=migration-plan
+```
+
+この経路のapplyは、既存ownershipのimport/no-op・許容されたState同期に限ります。
+適用時は `terraform_mode=migration-apply` を選ぶ。同じrun内の独立plan成功後、apply identityが同SHA・同baselineで再planし、全HMAC一致を確認して一度だけsaved applyする。
+過去のplan runをそのまま適用したり、失敗runをrerunしたりしない。未知結果ではState/metadataを読み取りで照合し、元のUNKNOWN記録を保持する。
+`migration-plan`もnative `.tflock`の一時作成・削除を行うが、State本体を書かない。State versionの調査・復旧はoperatorの別scopeで、CIへversion削除権限を追加しない。
+
+各Environmentはbackend role ARN/RoleId・State bucket/account、GCP WIF provider・専用SAの6参照と固定managed入力の計7種だけを使う。
+認証はOIDC/WIFの短期credentialで、参照値やHMAC鍵を長期credentialと扱わない。値、mailbox、IAM本文を公開しない。
+初期State例外はProductionの正規不在・manifest0・固定outputs2件だけで、既存Stateや通常resource createへ拡張しない。
+
+DevExit時のDevelopmentは[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で31所有のfull-root監査planとState-only saved-plan applyの両identityがimport0/no-op31/rawdrift0。DevExit後のfresh自然回帰はLambda3/6で1,338実行・Errors/Throttles0、5 stage・finding0を独立review済みです。quiet/未観測の範囲を保持します。
+ProductionはH3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件を全CI成功とともに検証済みです。H4の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗し、sequenceを停止しました。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。State11/直前10のversion固定GET・厳密差分照合も独立PASSで、直前10の本文/HEADは第10波の独立確認済みcurrentと完全一致します。元R11の静的CI失敗を保持します。H6の[第12波run39022399909](https://github.com/kani3camp/youtube-study-space/actions/runs/39022399909)は全34 jobと両Auth成功、Plan import1/managed12、Apply post import0/no-op12/rawdrift0/mutation0、cleanup/artifact0/pending0を独立確認済みです。観測テストの修正[#1370](https://github.com/kani3camp/youtube-study-space/pull/1370)はrequired CI・独立review後に統合済みです。H7（`0ed7486b`）で第13波以降へ進み、[第30波run39029269335](https://github.com/kani3camp/youtube-study-space/actions/runs/39029269335)まで30件のownershipを確認しました。元失敗runは再送せず、その失敗判定を保持します。H7の最終通常実証はDevelopment [run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)・Production [run39029874116](https://github.com/kani3camp/youtube-study-space/actions/runs/39029874116)で、各plan/apply両identityのimport0・no-op31/30・rawdrift/leaf/mutation0、全34 jobの検証（選択job成功・非対象skip）・cleanup・artifact0/pending0を確認しました。独立した通常full-root planも31/30 no-opです。version固定GETでDev serial36/35・Prod32/31を照合し、同lineage・controls9・live lock/workspace0・安定GCP metadata不変を直接監査して独立review PASSです。 H7の最終no-op後healthも両環境の全5 stage・finding0を確認しました。これはH7の実証時点の記録です。最終統合Sourceでの同等性・authority/State closeout・正本同期とInfrastructure Readyの最終判断は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照します。
+実証の判定は[ReadyGate](phase2-approval-and-readiness.md#development--production--mypage-readygate)へ集約します。MyPage provisioning/releaseはHOLDで、後続PRにtype/schema・create/update専用workflow/検証契約・exact IAM/API・費用/rollbackが必要です。現在の13type・exact import ID・resource no-op契約へcreate/update権限を追加するだけでは実行できません。
+
+## 以下は旧protocolの履歴
+
+現行の起動・権限・比較・State条件は上記定常Plan/Apply節を優先する。
+旧issuer/window/毎回Environment承認は当時の履歴であり、現行経路へ再導入しない。
 
 ## 2026-10-15 JST protected current-state metadata検証
 

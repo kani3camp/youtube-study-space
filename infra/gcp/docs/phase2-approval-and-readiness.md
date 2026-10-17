@@ -11,7 +11,8 @@ dev historyの判断材料、本人の先行準備、offline import検査、prod
 code/tests/specは一つのbundleでreviewし、実行はdeployment/schema/state/securityの影響境界で分けます。
 
 実run `37475212059` はsuccess。ユーザー貼付のsanitized Summaryはlegacy列present yes、
-4集計すべてis-zero yesでした。監査時点のlegacy値backfillは不要ですが、列は未削除です。
+4集計すべてis-zero yesでした。監査当時は列未削除でしたが、その後のmetadata/Stateで
+canonical8列とhistory ownershipを確認済みです。再DROP・再import・不要なbackfillは行いません。
 runtime temporary access撤回はoperator readback報告、source gate=falseは#1238で完了。
 判定のSQL上の意味、offline canonical preparation、未承認のschema修復→別wave importは
 [`user-activity-history-canonicalization.md`](user-activity-history-canonicalization.md) を参照してください。
@@ -106,26 +107,41 @@ project/table/SAのpolicy全体を古いsnapshotへ上書きしません。専�
 
 ## Development → production → MyPage ReadyGate
 
-2026-10-06の#1191最新記録はdev full-root `no-op11 / drift0`、resources11、serial13です。
-これは記録の引用であり、このcheckoutでのauthenticated revalidationではありません。
-#1192–#1197のsource統合だけではruntime deployやschema修復を意味しません。
-専用auditは上記runで成功・cleanup済み。schema修復/importとguardのactual runtime deploymentは別gateです。
+現行は[定常Plan/Apply](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)と
+[Productionの実行境界](production-readiness.md#current-execution-boundary--2026-10-17)を優先します。
+全4 EnvironmentはRequired reviewersなし・admin bypass=false・integration限定、本人ID54093651の初回dispatchだけを通します。
+包括承認内の作業へ都度Chat/Environment人間承認を再導入せず、exact source・独立review・State保護を維持します。
 
-| Gate | Required fresh evidence before advancing | Separate approval boundary |
+| 判定対象 | 現在の実証 | 判定 |
 | --- | --- | --- |
-| Dev audit | 1回audit成功、sanitized判定はユーザー貼付、runtime/source cleanup完了。外部consumerは未確定 | この実行waveは完了。再実行は未承認 |
-| Dev schema repair | schema guardの対象runtimeへの反映、external BI/cross-project/manual SQL/wildcard/view確認、tmp canonical、recovery期限とrollback、audit意味の判定 | runtime deploy、DROP/backfillは各exact diffで別承認 |
-| Dev history adoption | repair完了後のfresh canonical8 field/order。exact table import1 + existing11 no-op、drift/unknown/other0 → post no-op12 | import-only別wave。schema mutationと混ぜない |
-| Dev runtime WIF/IAM | pool/provider mapping/condition/AWS account/SA IAM exact memberのprivate fresh GET、provider実Read権限、ownership分類 | CI permission追加/importは別承認。project IAM/SA本体をownershipしない |
-| Dev APIs | fresh enabled servicesとdependency分類、Own exact serviceだけ、destroy/disable semantics確認 | import-only。enable/disableを混ぜない |
-| Dev exit | 上記実行結果とactual SHA一致の通常full-root完全no-op、unknown/drift0、state recovery/lock証拠 | 想定外差分時STOP。resource数を11に固定しない |
-| Prod backend/trust | fresh S3 key/account/roles/trust/lock/version/recovery、prod Environment/OIDC、GCP WIF/plan/apply最小権限、public output guard | bootstrap/IAM/trust/security変更を対象別packetで承認 |
-| Prod imports | fresh inventory→classification→定義→small import-only full-root→independent protected approvals/same-SHA再plan→post no-op | each wave。create/update/delete/replace/drift/unknownが1件でもSTOP |
-| Infrastructure Ready | dev/prodのapproved ownership、fresh normal full-root no-op、実trust/negative probes、state/lock/recovery、未完了項目の明示判定、記録と実測SHA一致 | code/tests/docs PASSだけではReadyにしない |
-| MyPage release ReadyGate | Infrastructure Ready証拠を親/MyPage taskへ渡し、MyPage固有IAM/API/Cloud Run/Hosting/data migration・機能検証の別gateと照合 | MyPage release/deploy承認はinfra承認から継承しない |
+| Development ownership / Exit | DevExit [run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)に加え、H7 [run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)で両identityのimport0/no-op31/rawdrift0・全34 jobの検証完了（選択job成功・非対象skip）。独立native full-root no-op31・State36/35・version/lock監査も独立PASS | H7時点のownership/State/観測回帰はPASS。quiet/null・未観測とoriginal history final receipt欠落は保持 |
+| Production backend / CI foundation | AWS roles2/policies2、GCP resources7・個別policies5/member追加8・削除0、Prod2 Environmentの設定14件をreadback・独立review | PASS。既存runtime資産・共通bucket policyを上書きせず、業務resource変更なし |
+| Production State / ownership / Exit | H2の[初期化run38961710157](https://github.com/kani3camp/youtube-study-space/actions/runs/38961710157)とH3の初版version GET/checksum・controls9・Dev不変の直接監査／独立PASS。H3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件のownershipを検証済み | H7で30所有・最終両identityのno-op30/通常full-root/State監査PASS。H4の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗。State10/直前9のversion固定GET・厳密差分照合は独立PASSで、元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。State11/直前10のversion固定GET・厳密差分照合も独立PASSで、直前10の本文/HEADは第10波の独立確認済みcurrentと完全一致します。元R11の静的CI失敗を保持します。H6の[第12波run39022399909](https://github.com/kani3camp/youtube-study-space/actions/runs/39022399909)は全34 jobと両Auth成功、Plan import1/managed12、Apply post import0/no-op12/rawdrift0/mutation0、cleanup/artifact0/pending0を独立確認済みです。観測テストの修正[#1370](https://github.com/kani3camp/youtube-study-space/pull/1370)はrequired CI・独立review後に統合済みです。H7（`0ed7486b`）で第13波以降へ進み、[第30波run39029269335](https://github.com/kani3camp/youtube-study-space/actions/runs/39029269335)まで30件のownershipを確認しました。元失敗runは再送せず、その失敗判定を保持します。H7の最終通常実証はDevelopment [run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)・Production [run39029874116](https://github.com/kani3camp/youtube-study-space/actions/runs/39029874116)で、各plan/apply両identityのimport0・no-op31/30・rawdrift/leaf/mutation0、全34 jobの検証（選択job成功・非対象skip）・cleanup・artifact0/pending0を確認しました。独立した通常full-root planも31/30 no-opです。version固定GETでDev serial36/35・Prod32/31を照合し、同lineage・controls9・live lock/workspace0・安定GCP metadata不変を直接監査して独立review PASSです。 H7の最終no-op後healthも両環境の全5 stage・finding0を確認しました。これはH7の実証時点の記録です。最終統合Sourceでの同等性・authority/State closeout・正本同期とInfrastructure Readyの最終判断は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照します。 |
+| Infrastructure Ready / IaC拡張の前提 | 両環境のapproved ownership、通常full-root import0/no-op、実trust/negative checks、State/version/lock/recovery境界、回帰、未完項目の明示判断と正本同期が必要 | H7の既存ownership移行・技術実証はPASS。最終統合Sourceの同等性・authority/State closeout・正本同期を含む最終判定はIssue #1191を入口にする |
+| MyPage provisioning / release | MyPage固有のexact IAM/API・Cloud Run/Hosting等、data migration、費用/rollback、機能/Privacy検証は未実行 | HOLD。Infrastructure Readyから自動的にprovision/deployしない |
 
-順序はdev残件完了→production基盤→MyPage release ReadyGateです。MyPageの独立source/tests準備は並行できます。
-productionのEmail channel0/quota policy3 dangling refsはIssue記録だけで、fresh再確認していません。
-notification repairはfresh metadata/minimal field-mask/rollbackを揃えた別operator承認waveです。
-production importsへ混ぜず、通知経路Readyの判定が必要なら未検証のままPASSにしません。
-#983 cleanup、#1165 recovery、#1166 durable auditは別Issueとして残し、今回へ吸収しません。
+Infrastructure Readyが成立すれば、MyPageの新規infraをreviewするnormal-change PRへ進むための移行基盤は整います。
+現migration workflowはimport-onlyで、一般create権限・MyPageのcreate承認を持ちません。
+後続PRで、現行13type・exact import ID・全resource no-op契約とは分離したcreate/update実行経路と検証契約、必要なtype/schema・最小IAM/API・費用・rollbackを整えます。ここでのInfrastructure ReadyはCanonの既存ownership・CI/State・回帰証拠を満たした判定であり、その後続実装やMyPage provisioningの完了を意味しません。
+一方、既存workflowのままMyPageを直ちにprovisionできるとも報告しません。
+
+### 回帰証拠の範囲
+
+DevExit cutoff `2026-10-16T18:18:57Z`に対するfresh自然回帰を `2026-10-17T05:08:26Z`に取得し、27 reads・全5 stage・finding0を独立review済みです。Lambda3/6で1,338実行・Errors/Throttles0、quiet3はNone/未観測のままです。
+日次SFNの最新成功はcutoff前、5件listはtruncatedです。fresh ECS STOPPED該当0で、cutoff後の日次SFN/ECSや新規native backupは未観測、直接execution/task joinはfalseを保持します。READY backup29件はすべてcutoff前です。先行日次E2E/当時のECS exit0と今回の観測を混同しません。
+この05:08採取時のLambda6/role7/ECS定義/caller設定、Function ACTIVE/Node22、Scheduler ENABLED、backupScheduleは一致し、公開docs HEAD200は補助観測です。この結果はDevExit後のfresh回帰であり、後段のH7最終no-op後healthとは別の証跡です。
+H7の最終no-op後回帰は、各runの実updated_at（Dev `2026-10-17T11:43:21Z`、Prod `2026-10-17T11:48:24Z`）をcutoffに別採取しました。Prodは `11:52:23Z`に27 reads・全5 stage・finding0、1 complete minuteのLambda2/6・計2実行・Errors/Throttles0、quiet4はnullのままで独立review PASSです。Devは `11:55:24Z`に全5 stage・finding0を独立review済みで、11:44–11:53のwindowでLambda3/6・計19実行・Errors/Throttles0、quiet3はnullのままです。先行 `11:47:18Z`は全5 stage・2実行、その後 `11:52:22Z`の長窓再取得はAWSconfig STOP・依存2 stage停止でした。別の局所read-only照合後にfull collectionを新規実行して成功し、元STOPの詳細原因は未観測のまま保持します。両環境ともcutoff後の日次SFN/ECS・native backupは未観測、直接execution/task joinはfalse、公開docs HEAD200は補助観測です。過去の日次E2Eを最終no-op後へ読み替えず、quiet/null・list打切り・未観測・取得不能を成功や0件で補完しません。
+
+### 移行と独立して残す判断
+
+以下の最新判断は今回のexisting ownership移行のnon-blockerですが、すべてOPEN・Acceptance未達です。
+
+- [#1165 contacts / recovery](https://github.com/kani3camp/youtube-study-space/issues/1165#issuecomment-6223368027): MyPage Production release前の運用判断。State Versioning/過去version GETは独立break-glass・MFA・復旧訓練の証明ではない。
+- [#1166 durable audit](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703): 永続S3 data-event監査・retention・継続費用は別判断。今回のCI証跡と混同しない。
+- [#983 Privacy cleanup](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320): 旧raw-chat/混在GCS backupの削除は今回の対象外。新規MyPageデータの保持/削除はrelease gateで検証する。
+
+Production Email channel/dangling quota通知先の修復は別waveで、通知経路Readyは未検証です。
+CodeQL [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は本人の明示承認でDefault setupを `not-configured` へ切り替えました。H2追随候補Q2（`92b5ea29`）の全31 CIと[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語解析・SARIF受付が成功し、analysis ID3件・error0、既存open alert1件の保持を確認済みです。
+候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の実Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
+integration refのCodeQL未解決finding6件（critical1/high3/medium2、既存1＋新検出5）は別対応で、dismiss/suppressしません。受付成功を脆弱性0と扱わず、第12波Source H6・最終移行実証Source H7とH3の解析実証を区別します。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。
+最終dev mergeはユーザー本人だけが行います。

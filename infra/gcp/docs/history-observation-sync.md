@@ -1,5 +1,13 @@
 # 開発履歴Tableの観測属性を同期する別契約
 
+この文書は閉鎖した旧専用modeの履歴です。新しい[定常Plan/Apply](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)では、
+[run38921685248](https://github.com/kani3camp/youtube-study-space/actions/runs/38921685248)のState-onlyの通常saved-plan applyにより
+computed-only観測をStateへ反映し、事後full-root no-op12/rawdrift0を確認しました。
+旧previewの停止結果を遡及成功へ読み替えず、旧gate/windowは再利用しません。
+DevExit時の[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)はplan/apply両identityで31所有・import0/no-op31/rawdrift0を検証済みです。原history final receipt欠落と`historical_delta_attested=false`は保持します。
+H7の[最終run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)も両identityでimport0/no-op31/rawdrift0でした。直接State監査では旧current35が直前版となり、current36への進行はserialとtyped check_resultsの並びだけ、その他の属性・private・identity・mask・outputは同一と独立検証しました。これは旧専用同期の成功や欠落receiptの復元ではありません。最終統合Sourceと回帰の判定は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照します。
+以下は専用mode当時の契約・停止結果であり、現行migrationの追加承認条件ではありません。
+
 CI #885の通常planはimport0 / no-op12 / drift1で停止した。対象は履歴Tableの`etag`と
 `last_modified_time`だけだった。State/HEAD不変、安定Table設定不変、lock/workspace不存在、freshnessの
 5検査はPASSしたが、通常full-root no-opはSTOPで、issuerはない。この結果を成功へ読み替えない。
@@ -26,7 +34,7 @@ candidateはNOT_OBSERVED、適用CLI予約0/呼出0、専用apply skipped、clea
 
 現在の専用2gateはfalse、発行/失効時刻は空。compiled apply機能の存在は実行許可ではない。
 旧4runtime gate・その他read/one-off・production・profile・nonce・全55guardは不変で、
-State同期・新issuer・migration Readyは未成立。今は本人の追加操作を求めない。
+この旧専用modeによるState同期・新issuer・migration Readyは未成立でした。現行の通常apply成功は上記の別証跡で判断し、このwindowを再開しません。
 
 [専用失敗診断](../../../.github/scripts/terraform_history_observation_sync_diagnostic.py)は
 PLAN/SHOW/VALIDATEの固定substage、取得できた終了コード0/1/2/OTHER又はTIMEOUTだけを区別する。
