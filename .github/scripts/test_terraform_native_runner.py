@@ -96,6 +96,19 @@ class NativeRunnerTest(unittest.TestCase):
             self.assertEqual(env["TF_WORKSPACE"], "default")
         self.assertEqual((self.mirror / "immutable").read_text(), "read-only fixture")
 
+    def test_long_parent_temp_directory_does_not_lengthen_native_ipc_paths(self):
+        long_parent = self.root / ("long-parent-" * 12)
+        long_parent.mkdir()
+        with patch.object(runner.tempfile, "tempdir", str(long_parent)):
+            rows = runner.run_suite(self.root, self.mirror, workers=2)
+        self.assertTrue(all(row.status == "PASS" for row in rows))
+        for file in self.observed.iterdir():
+            env = json.loads(file.read_text())["environment"]
+            for key in ("HOME", "TMPDIR", "TF_PLUGIN_CACHE_DIR"):
+                value = Path(env[key])
+                self.assertTrue(value.is_relative_to(Path("/tmp").resolve()))
+                self.assertLess(len(str(value)), 70)
+
     def test_home_mirror_survives_legacy_tf_environment_rebuild(self):
         with tempfile.TemporaryDirectory() as location:
             env = runner.environment(Path(location), self.mirror)

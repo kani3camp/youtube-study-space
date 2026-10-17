@@ -96,7 +96,9 @@ def run_case(root: Path, name: str, mirror: Path, timeout: float, cancelled: Eve
     if cancelled.is_set():
         return Result(name, "CANCELLED", None, 0, "")
     status, code, text = "FAIL", None, ""
-    with tempfile.TemporaryDirectory(prefix="gcp-native-case-") as location:
+    # Native fixtures nest another temporary directory. Keep their IPC paths
+    # short even when macOS supplies a long per-user parent TMPDIR.
+    with tempfile.TemporaryDirectory(prefix="gcp-native-", dir=Path("/tmp").resolve()) as location:
         directory = Path(location).resolve()
         env = environment(directory, mirror)
         with tempfile.TemporaryFile() as output:
