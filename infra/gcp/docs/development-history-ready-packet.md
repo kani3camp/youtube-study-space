@@ -17,7 +17,7 @@ history Tableは既に12件目としてTerraform-ownedで、canonical8列を実m
 `historical_delta_attested=false`は保持し、現行運用は
 [定常Plan/Apply](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を優先します。
 
-[execution window contract](development-history-execution-window.md)は、当時の本人承認付きhistory-only
+[execution window contract（旧版の固定履歴）](https://github.com/kani3camp/youtube-study-space/blob/a94eea6474ae6f89c679e306b291701209607718/infra/gcp/docs/development-history-execution-window.md)は、当時の本人承認付きhistory-only
 importと独立no-op12を扱った旧手順です。過去のgate/Environment承認/receiptを
 現行運用の追加条件へ読み替えず、欠落した歴史証拠は現在の再検証で復元しません。
 
