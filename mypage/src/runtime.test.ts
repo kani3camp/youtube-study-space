@@ -54,6 +54,62 @@ afterEach(() => {
 
 describe('browser authentication runtime', () => {
 	it.each([
+		false,
+		true,
+	])('channel confirmation during root mount rejects only an actual identity change (%s)', async (changeIdentity) => {
+		browserFixture()
+		const { session, setUID } = sessionFixture()
+		let release: (response: Response) => void = () => {}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			async () =>
+				new Promise<Response>((resolve) => {
+					release = resolve
+				}),
+		)
+		// React child effects request channel metadata before the root effect
+		// subscribes to the initial auth state on a full callback navigation.
+		const done = runtime.channel(new AbortController().signal)
+		await settle()
+		const dispose = runtime.mount()
+		if (changeIdentity) setUID('synthetic-new-identity')
+		release(
+			Response.json({
+				purpose: 'login',
+				displayName: 'Synthetic channel',
+				handle: null,
+				avatarUrl: null,
+				confirmationRef: 'a'.repeat(64),
+			}),
+		)
+		if (changeIdentity)
+			await expect(done).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
+		else await expect(done).resolves.toMatchObject({ purpose: 'login' })
+		dispose()
+	})
+	it('calls a fetch dependency without assigning the runtime as its receiver', async () => {
+		const { session } = sessionFixture()
+		const request: typeof fetch = async function (this: unknown, path, init) {
+			if (this !== undefined) throw new TypeError('Invalid fetch receiver')
+			expect(path).toBe('/api/auth/youtube/start')
+			expect(init?.method).toBe('POST')
+			return Response.json({
+				authorizationUrl:
+					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+			})
+		}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		await expect(runtime.start(new AbortController().signal)).resolves.toBe(
+			'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+		)
+		runtime.memory.dispose()
+	})
+	it.each([
 		'login',
 		'support',
 	])('delayed %s channel metadata respects a restriction epoch while support proof remains available', async (purpose) => {
