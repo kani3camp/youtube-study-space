@@ -34,7 +34,7 @@ Google 8.5の既存API importは、設定が `false` でも `disable_on_destroy`
 
 現行CIのtrustは専用integration refに固定しています。最終devマージ後もこの運用refを必要な間保持し、ref移行・branch削除はworkflow、Environment、cloud trustを整合させる別reviewで判断します。
 
-実移行・検証の記録にはH5（`d79d1cc4`）を使用しています。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4でnative10 caseの上限2並列化とrouting/回帰を追加し、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)でnative runnerと回帰テストを修正しました。runtime controller5ファイル・認証workflow・HCLはH3/H4から不変です。
+以降の移行は、CI修正[#1368](https://github.com/kani3camp/youtube-study-space/pull/1368)を統合したH6（`5418c687`）から再開します。SHAは実証に用いるSourceの記録であり、文書自体のHEADではありません。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4でnative10 caseの上限2並列化とrouting/回帰を追加し、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)でnative runnerと回帰テストを修正しました。runtime controller5ファイル・認証workflow・HCLはH3/H4から不変です。
 既存の `ci.yml` を本人accountから初回dispatchする。現固定baselineに対する通常full-root監査planの例は次のとおりで、Productionはtargetだけを `prod` にする。
 
 ```sh
@@ -52,7 +52,7 @@ gh workflow run ci.yml --ref feature/gcp-terraform-iac \
 初期State例外はProductionの正規不在・manifest0・固定outputs2件だけで、既存Stateや通常resource createへ拡張しない。
 
 Developmentは[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で31所有のfull-root監査planとState-only saved-plan applyの両identityがimport0/no-op31/rawdrift0。DevExit後のfresh自然回帰はLambda3/6で1,338実行・Errors/Throttles0、5 stage・finding0を独立review済みです。quiet/未観測の範囲を保持します。
-ProductionはH3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件を全CI成功とともに検証済みです。H4の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗し、sequenceを停止しました。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。State11/直前10のversion固定GET・厳密差分照合も独立PASSで、直前10の本文/HEADは第10波の独立確認済みcurrentと完全一致します。元runの静的CI失敗を保持し、第12波は未発行・再送0です。全30件・最終no-op・State/Production healthは未完了で、認証付きjobやsource準備の成功だけではReadyにしません。
+ProductionはH3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件を全CI成功とともに検証済みです。H4の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗し、sequenceを停止しました。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。State11/直前10のversion固定GET・厳密差分照合も独立PASSで、直前10の本文/HEADは第10波の独立確認済みcurrentと完全一致します。元runの静的CI失敗を保持します。#1368はrequired CI・独立review後に統合済みで、H6から第12波の再開へ進みます。開始結果は未判定・元run再送0です。全30件・最終no-op・State/Production healthは未完了で、認証付きjobやsource準備の成功だけではReadyにしません。
 実証の判定は[ReadyGate](phase2-approval-and-readiness.md#development--production--mypage-readygate)へ集約します。MyPage provisioning/releaseはHOLDで、後続PRにtype/schema・create/update専用workflow/検証契約・exact IAM/API・費用/rollbackが必要です。現在の13type・exact import ID・resource no-op契約へcreate/update権限を追加するだけでは実行できません。
 
 ## 以下は旧protocolの履歴
