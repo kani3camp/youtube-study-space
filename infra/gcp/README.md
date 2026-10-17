@@ -136,12 +136,12 @@ GitHubと別に管理権限でログイン済みの端末で必要な設定だ�
 [`設定を読むツールの手順`](docs/runtime-operator-metadata-collector.md)を参照してください。
 この設定読取ツールは権限を追加せず、取得結果や実データを公開しません。
 
-既存CIに不足するRuntime読取権限の設定候補は、
+当時不足していたCIのRuntime読取権限について用意した設定候補は、
 [`一度だけの設定をレビューするための準備物`](docs/runtime-reader-bootstrap.md)にまとめています。
 既定は認証・HTTP・変更なしのoffline検査です。通常GCPログイン経由の作業は本人が継続的に許可しており、具体的な対象・差分・実行条件はレビュー済みpacketで限定します。
 
 設定後の両CI identityによるRuntime6種の前後readは[run38712857940](https://github.com/kani3camp/youtube-study-space/actions/runs/38712857940)でPASSとなり、使用済みmetadata実行枠を閉鎖しました。
-fresh full7 metadata、root admission、import準備完了は別条件です。[結果と範囲](docs/runtime-wif-api-ownership.md)を参照してください。
+このrun単体はfresh full7 metadata、root admission、import準備完了の証明ではありません。現行実証は上部の[現在のscope](#現在のscope2026-10-17)を参照してください。[当時の結果と範囲](docs/runtime-wif-api-ownership.md)は保持します。
 
 既存の専用Codex dev metadata SAへ同じRuntime読取と保持history Tableのmetadata読取だけを追加する別の準備物は、
 [`専用の設定読取SA向けの限定差分`](docs/codex-metadata-reader-bootstrap.md)を参照してください。既定はofflineで、先行設定を再実行せず、全policyのIAM etagを必須にします。
