@@ -41,68 +41,16 @@ TerraformによるIaC拡張の準備と、MyPage固有resourceのprovisioning・
 MyPageのProduction release前の運用判断とPrivacyの独立laneへ残します。
 CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）があり、dismiss/suppressしません。解析・SARIF受付成功を脆弱性0と扱わず、[別対応の境界](docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)を保持します。
 
-## 旧protocolの経緯（現行の実行条件ではない）
+## 旧protocolの経緯（履歴・現行の実行条件ではない）
 
-<details>
-<summary>2026-10-16以前のhistory adoption、issuer、専用windowの記録</summary>
+2026-10-16以前のhistory import、issuer、期限付きwindow、個別Environment承認は**移行当時の手順**です。現在のDev31／Prod30件の運用条件には適用しません。
+履歴・再現条件は次の既存資料とGitHub実行証拠から参照してください。
 
-以下は当時の記録です。旧gateのfalse/未完・人間承認の記述を現在のmigration運用へ適用しません。
-
-2026-10-16の本人初回dispatch・Required reviewers不要の定常経路は、[現行Plan/Apply契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。以下の毎回Environment承認・旧issuer/windowは履歴の記述であり、新経路に適用しません。Productionの実移行gateはDevelopment Exitまで閉じます。
-
-Phase 1のscaffold / S3 state / protected CIと、developmentの主要11 resourceおよび `user-activity-history` のownership移行は完了しています。2026-10-15時点の認証付き実証は[fresh current-state run 38617630530](https://github.com/kani3camp/youtube-study-space/actions/runs/38617630530)の `import0 / no-op12 / drift0 / change0`（観測 `2026-10-14T22:18:59Z`）です。観測時点の結果として記録し、次waveではfresh Stateを再照合します。後続はIssue #1191を入口に、runtime WIF / 必要な個別IAM / 明示Own APIとdevelopment exitを完了してからproduction migrationへ進みます。
-
-dedicated development aggregate auditの実行記録・revoke手順と、development→production→MyPage releaseの証拠条件は
-[`docs/phase2-approval-and-readiness.md`](docs/phase2-approval-and-readiness.md) を参照してください。
-source準備や過去のno-op記録を、fresh実環境検証・実行承認・Infrastructure Readyと扱いません。
-history tableは既に12件目としてStateへ追加済みです。legacy列の旧監査記録と修復条件は
-[`docs/user-activity-history-canonicalization.md`](docs/user-activity-history-canonicalization.md)を参照し、
-fresh `tables.get`と現Stateを照合します。canonical8列なら再DROP・再importを行いません。
-original history applyのfinal receiptは失われており、current-state証跡はその履歴を遡及証明しません。
-
-Notion Current Canonの[2026-10-15 条件付き包括承認案A](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)
-の範囲内は、作業ごとのChat再承認を求めず進めます。2026-10-16のCurrent Canon §10を優先し、
-全4 Terraform EnvironmentはRequired reviewersなしで運用します。本人ID54093651 / kani3campの
-初回workflow_dispatchを認証前に検証し、integration branch制限・必要CI・OIDC/WIF trustと
-技術的STOP条件を維持します。AWS CLI/gcloudのログインと最終devマージは本人が行います。
-古い文書の別Chat承認という記述は案Aの対象範囲で更新されましたが、fresh inventory、exact SHA、
-import-only、same-SHA re-plan、post no-op等の技術的STOP条件は変わりません。
-`dev`へのmerge、直接push、auto-mergeはCodexやbotでは行いません。
-
-通常のmigration pathでは以下を行いません。bounded normal-change / state-only例外は、別validator・別approvalで明示的に隔離します。
-
-- 未承認のproduction resource import / apply
-- 想定外のworkload create / update / delete / replacement
-- manual Scheduler / Pub/Sub / Firestore export trigger
-- importと同時のAPI enable / disable
-- broad IAM role追加
-- Service Account JSON keyの作成
-- MyPage resourceのprovisioning
-
-Firestore export FunctionのNode.js 22自然実行E2Eはdevelopment / productionともPASSし、#1173はcompletedでclose済みです。developmentのPub/Sub topic / Cloud Scheduler / Gen1 Functionもそれぞれprotected import-only waveでownership移行済みで、当時のpost-planはno-op11 / drift0です。generated subscription / build artifact / source deploymentはownership外を維持します。
-
-runtime WIF/APIの後続source-only配線と累積graph validatorは
-[`docs/runtime-wif-api-ownership.md`](docs/runtime-wif-api-ownership.md#2026-10-10-後続-source-package-protected-選択と累積-graph)を参照してください。
-既存bindingを保つ追加入力には、同じEnvironment Secret内の可逆圧縮形式も用意しています。
-[`圧縮・private handoffの契約`](docs/runtime-wif-api-ownership.md#同じ追加入力-secret-に収める可逆圧縮)によるM14 consumer `bea636351f3d315d5b2012e2d5cc2f9c866d354f`の配布入力とissuerは、`2026-10-15T18:43:51Z`で初回消費期限を過ぎました。protected dispatchは行わず、本人への追加Secret2か所の保存依頼を撤回し、4つのruntime実行ゲートを閉じています。旧入力は履歴だけとして保持し、期限や観測時刻を更新しません。
-Codex Cloud の既存調査用 keys / scoped AWS ReadOnlyRole / 専用 GCP WIF の再利用手順と現在の metadata gap は
-[read-only 認証 runbook](docs/runtime-wif-api-ownership.md#codex-cloud-の調査用-read-only-認証経路)に記録しています。
-既存plan/apply Environmentそれぞれでruntime六種metadataを読む `runtime-metadata-read` source routeは
-別default-off gateと最大8時間windowを持ち、Terraform/State/lock/receipt/artifactを扱いません。
-[source契約](docs/runtime-wif-api-ownership.md#protected-runtime-metadata-read-の-source-routedefault-off未実行)を参照してください。
-history importは成功し、過去の独立protected planでimport0/no-op12を確認済みですが、original applyのfinal receiptは失敗し、当時のprivate captureは失われています。current-state bootstrap契約（packet v3）は12件を新しい起点として扱い、失われた歴史証拠を復元しません。旧issuer source S18とM14入力は期限切れの履歴として残し、採用可能なfresh証拠へ読み替えません。current-state root-ready / runtime-plan / split-input / development applyはfalse、metadata-read / authority / current-state-read / productionも閉鎖を維持します。emitter / history-post-noop / 管理済み12件のownership、M13のPool4属性修正、固定診断、全guardとcatalogは保持しています。次は新source、承認する固定4MiB上限（外部の実サイズは未測定）、別途fresh確認した既知writer静止を結ぶ新public safety profileを使い、同じ保護job内のfresh HEAD検証を経てcurrent-state baseline planを発行する経路です。新しい発行・issuer登録・fresh inventory・初回Poolのadmission/import成功はまだ成立していません。baseline発行では追加reviewed-inputs Secretをstageしないため、今は本人による2か所の更新は不要です。既存binding Secretは保持し、実shape/metadata一致はrunnerで検証します。[期限切れ後の閉鎖と再発行条件](docs/runtime-wif-api-ownership.md#2026-10-15-m14配布入力の期限切れと実行枠閉鎖)を参照してください。
-
-その後の[current-state baseline CI #878](https://github.com/kani3camp/youtube-study-space/actions/runs/38828914021)は、本人のEnvironment承認後にStateの事前検証・init・saved planまで進み、Terraform exit codeは0でしたが、sanitizerと事後no-op検証が失敗しました。原因のfield・実action件数・事後State/lockは未確認で、cleanup成功、apply skipped、artifact0です。4つのruntime gateは閉じたまま、成功issuerは未発行です。後続sourceはこのbaseline条件だけに値を含まない固定診断を追加し、既存guardや失敗判定を保持します。今は本人の追加設定操作は不要です。[実測と診断の範囲](docs/runtime-wif-api-ownership.md#2026-10-16-current-state-baseline失敗と限定診断)を参照してください。
-
-続く[baseline CI #881](https://github.com/kani3camp/youtube-study-space/actions/runs/38832507626)は、本人承認後の固定診断でno-op12 / drift1を観測し、sanitizerはSTOPしました。State本文/HEAD不変など5つの独立safety checkはPASSでしたが、driftの対象・fieldは未確認で、成功issuerは未発行です。次のsourceはbaseline限定で対象の固定aliasと公開schema由来のtop-level field codeだけを診断へ追加します。drift0の条件を保ち、refresh applyや旧runの再試行は行いません。追加の本人操作は今は不要です。[観測と追加診断の境界](docs/runtime-wif-api-ownership.md#2026-10-16-baseline-drift1の観測と対象fieldの限定診断)を参照してください。
-
-[CI #885](https://github.com/kani3camp/youtube-study-space/actions/runs/38836240227)では、drift1がhistory Tableの`etag` / `last_modified_time`だけと分かり、strict guardは引き続きSTOPしました。この2項目をStateへ同期する[実行不可の設計・pure prototype](docs/history-observation-sync-prototype.md)を用意しています。refresh-onlyの実保存planと2leafだけの永続化は未証明で、成功結果も実行許可を返しません。既存workflow・gateは変更せず、State書込の追加許可や本人操作を今は求めません。
-
-M20では[専用観測同期protocol](docs/history-observation-sync.md)をsource-onlyで導入し、新gateを既定falseとしました。既存通常guard・旧prototypeは不変です。完全隔離ダミーのserializer/check-set根拠とfull12検証を分け、same-SHAのpreview QA後、別apply Environmentで2属性と検査結果内容不変を明示した本人承認を必要とします。実State変更・新issuer・移行完了は未成立で、今は本人操作を求めません。
-
-M21では専用source windowをUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` に固定しました。その後の[preview CI #893](https://github.com/kani3camp/youtube-study-space/actions/runs/38856804355)は、本人のplan Environment承認後に認証・private binding・metadata・事前State・initまで進み、OBSERVATIONでSTOPしました。通常plan終了コード、show/JSON読取、strict観測検証のどこで失敗したかは未確定で、candidate未観測、適用CLIの予約/呼出0、apply skipped、cleanup/post-auth成功、artifact0です。事後State/lock不変や同期成功の証拠とは扱いません。専用2gateをfalse・時刻を空へ閉じ、次回向けの値を含まない失敗診断だけを追加します。旧4runtime gate・production・全guardは不変で、旧run再試行や旧window延長を行わず、本人の追加操作は今は不要です。[停止と診断の境界](docs/history-observation-sync.md)を参照してください。
-
-</details>
+- [history schema修復・一回限りのimportと欠落証跡](docs/development-history-ready-packet.md)
+- [State観測属性同期の旧手順と停止記録](docs/history-observation-sync.md)
+- [旧Development history execution windowの固定履歴](https://github.com/kani3camp/youtube-study-space/blob/a94eea6474ae6f89c679e306b291701209607718/infra/gcp/docs/development-history-execution-window.md)
+- [現行の定常Plan/Applyと所有範囲](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)
+- [移行最終結果・不確実性・残件（Issue #1191）](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)
 
 ## Directory
 
