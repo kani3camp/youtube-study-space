@@ -157,6 +157,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Test document link guardrails
+        run: python3 .github/scripts/test_check_doc_references.py
       - name: Check repository-relative documentation links
         run: python3 .github/scripts/check-doc-references.py
 
@@ -666,6 +668,7 @@ jobs:
           python3 .github/scripts/test_terraform_plan_diagnostic.py
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
+          python3 infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
