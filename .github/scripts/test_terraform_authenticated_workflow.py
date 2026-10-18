@@ -354,8 +354,6 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_source_emission_window_preserves_baseline_and_denies_other_waves(self) -> None:
         gates = self.source_gates()
         # Exact-runtime activation has an independent bounded source contract.
-        gates.pop("DEV_RUNTIME_METADATA_READ_ENABLED")
-        gates.pop("DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED")
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
@@ -377,7 +375,6 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_HISTORY_POST_NOOP12_READY": "false",
             "DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED": "true",
             "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
-            "DEV_CURRENT_STATE_READ_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
@@ -621,6 +618,18 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_checkout_does_not_persist_github_token(self) -> None:
         self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 6)
 
+    def test_retired_metadata_read_routes_are_absent_and_denied(self) -> None:
+        for mode, job in (("current-state-read", "  current_state_read:"),
+                          ("runtime-metadata-read", "  runtime_metadata_read_plan:")):
+            with self.subTest(mode=mode):
+                self.assertNotIn("          - " + mode + "\n", self.caller)
+                self.assertNotIn(job, self.text)
+                self.assertNotEqual(self.run_preflight(MODE=mode).returncode, 0)
+                self.assertNotEqual(self.run_preflight(MODE=mode, TARGET="prod").returncode, 0)
+        self.assertNotIn("  runtime_metadata_read_apply:", self.text)
+        self.assertNotIn("DEV_CURRENT_STATE_READ_ENABLED:", self.text)
+        self.assertNotIn("DEV_RUNTIME_METADATA_READ_ENABLED:", self.text)
+
     def test_retired_history_sync_cannot_be_dispatched_or_reenabled(self) -> None:
         # Historical synchronization is no longer compiled as a protected route.
         # A malicious direct workflow_call must still fail preflight before OIDC.
@@ -643,7 +652,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' }}", plan)
+        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' }}", plan)
         probe = self.original_jobs.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",

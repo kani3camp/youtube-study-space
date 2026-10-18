@@ -177,45 +177,15 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_current_state_a
 assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_artifact_fixture.py
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/pack_runtime_reviewed_inputs.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_runtime_read_scope.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_runtime_read_scope.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_runtime_read_scope_reviewed_targets.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/bootstrap_runtime_readers.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_bootstrap_runtime_readers.py
-assert_exact_groups gcp_terraform infra/gcp/docs/runtime-reader-bootstrap.md
-assert_exact_groups gcp_terraform infra/gcp/scripts/bootstrap_codex_metadata_readers.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_bootstrap_codex_metadata_readers.py
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-metadata-reader-bootstrap.md
-assert_exact_groups gcp_terraform infra/gcp/scripts/complete_codex_history_reader.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_complete_codex_history_reader.py
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-history-reader-completion.md
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
 
 # Metadata-only source/test edits must retain the authenticated Terraform checks.
-assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_metadata_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read_workflow.py
 
 # Authority observations must retain authenticated Terraform validation.
-assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_iam_authority_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read_workflow.py
 
 # Historical task projections and fresh version anchors retain Terraform checks.
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_aws_runtime_versioned_config.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/prepare_runtime_versioned_caller_map.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_versioned_caller_map.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_aws_runtime_list_functions_projection.py
-assert_exact_groups gcp_terraform infra/gcp/tests/requirements.txt
 
 # Optional original-user metadata transport must retain dummy SDK validation.
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_codex_runtime_metadata.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_codex_runtime_metadata.py
-assert_exact_groups gcp_terraform infra/gcp/requirements/codex-runtime-metadata.txt
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-runtime-metadata-collector.md
 

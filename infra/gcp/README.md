@@ -109,6 +109,10 @@ secret非漏出・import-only/no-op/unknown/drift拒否の実行コードと対�
 復旧・監査は[State account recovery](docs/state-account-recovery.md)、[durable audit](docs/state-durable-audit.md)、
 [現行の運用契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。
 
+**終了済み観測ジョブ**：`current-state-read` / `runtime-metadata-read` とIAM authority readの
+旧短期Environment経路も撤去済みです。今後必要なState/認証照合は、新しい用途と権限を独立レビューして設計し、
+Git履歴の読取用workflowを再有効化する方法は採りません。
+
 ## Remote state bootstrap
 
 State infrastructureはTerraform本体の外側にある one-time bootstrap exception とします。
