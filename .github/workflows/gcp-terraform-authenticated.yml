@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: Current full-root import-only plan/apply
+        description: Existing-resource adoption/no-op only (not general create/update)
         required: true
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -127,7 +127,7 @@ jobs:
           python3 .github/scripts/terraform_migration.py preflight
 
   migration_plan:
-    name: "Import-only migration plan (${{ inputs.target }})"
+    name: "Terraform Existing Resources Plan (${{ inputs.target }})"
     needs: preflight
     if: ${{ inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' }}
     runs-on: ubuntu-latest
@@ -199,7 +199,7 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Validate full-root migration plan
+      - name: Validate bounded existing-resource Terraform plan
         id: migration
         env:
           MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
@@ -210,7 +210,7 @@ jobs:
         run: python3 .github/scripts/terraform_migration.py cleanup
 
   migration_apply:
-    name: "Import-only migration apply (${{ inputs.target }})"
+    name: "Terraform Existing Resources Apply (${{ inputs.target }})"
     needs: [preflight, migration_plan]
     if: ${{ inputs.mode == 'migration-apply' }}
     runs-on: ubuntu-latest
@@ -279,7 +279,7 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Validate full-root migration apply
+      - name: Validate bounded existing-resource Terraform apply
         id: migration
         env:
           MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}

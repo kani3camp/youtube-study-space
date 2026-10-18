@@ -76,6 +76,21 @@ AWSのbranch wildcardを含むsubjectも独立したwildcard同士のbranch一�
 branch protectionはコード改変経路を制限し、Environment reviewは実行時の確認を加える別の制御です。
 owner自体の侵害や管理者による意図した設定変更を、これらだけで防げるとは主張しません。
 
+## 通常変更（create/update）への段階移行案（未実装）
+
+現在のGitHub Actionsジョブ表示名は `Terraform Existing Resources Plan/Apply` とします。旧表示名の `Import-only migration ...` は利用者に古い移行工程と誤解させるため更新しますが、**`migration-plan` / `migration-apply` は当面、認証済みコントローラーの内部モードとして残す**方針です。表示変更のみで動作対象やGCP IAMが拡張されたと解釈しません。
+
+既存の `terraform_migration_contract.py` は全resourceの既存no-opと限定import、観測値だけのState同期を検証する専用契約です。ここから `create/update` 禁止条件を削って一般用に転用すると、検証済みの安全境界を壊すため行いません。以下は次期実装の受入条件であり、現時点では**実行不可**です。
+
+1. **設計とPR**：MyPage等で必要なresource type、Terraform root／module、依存関係、dev/prodの差分、create/update許容対象、想定費用、rollbackを[MyPage基盤 #864](https://github.com/kani3camp/youtube-study-space/issues/864)と[Terraform移行 #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)に照らして別PRでレビューする。既存31/30 resourceを無関係な更新に巻き込まない。
+2. **独立実行経路**：通常変更用のPlanとApplyの入口・実行契約を新設し、当初はDevの非認証offline fixture／credentialless Terraform validateのみ通す。現在のimport専用ルート、`migration-*` selectors、State・Secretsを変更しない。切替を示す明示的なdispatch inputとdefault-off gateを設け、PR/forkへのcredential配布を禁止する。
+3. **認証と権限**：本人の初回dispatch、同一SHA caller/reusable、trusted branchとEnvironment制限、AWS backend Plan/Apply別role、GCP WIF/Service Account別identityを保持する。create/updateに必要なGCP IAM permissionは**管理するresource typeと個別操作を列挙して最小化**し、既存のread-only/import-only identityへ一括で権限を追加しない。最初は非破壊的な小さなresourceに限定する。
+4. **差分とApplyの保護**：Planでcreate/updateとresource address・属性変化・依存graphをレビューし、初期契約でdelete/replace・IAM policy全体の上書き・秘密値のログ出力・未承認resource typeを拒否する。PlanとApplyは独立Environmentと権限、同一review済みcommit・inputs・State/metadata・planの整合を確認する。Apply直前の再plan、S3 versioning/native lock、失敗時の復旧とpost-apply再検証を必須とする。
+5. **実証と段階拡張**：credentialless negative/contract/native試験、CodeQL/CIを通し、**明示的な本人承認後に限り**GitHub Environment／AWS IAM／GCP WIF／SA IAMの実値readbackと限定Dev認証Plan、必要時のApply実証を行う。本番はDevの実証後に別途通常リリースと最小権限審査で開放する。
+6. **最終的な名称統一**：一般用Plan/Applyの実行成功と旧consumerの参照廃止が確認できてから、内部`migration-plan` / `migration-apply` を退役・統一する。既存import専用契約を運用中に無条件で緩和しない。
+
+この段階では表示名と設計文書の変更だけで、Terraform HCL、内部job ID、mode値、OIDC claims、IAM／Environment／State、workflow実行は変更しません。
+
 ## リリース前の残件
 
 本人によるdev向けPRの最終review/merge、通常のdev→main昇格、実際のIAM/WIF/SA IAM/Environmentとの整合readbackが必要です。
