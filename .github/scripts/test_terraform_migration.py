@@ -864,10 +864,10 @@ def evaluate_condition(expression, mode):
 
 
 class WorkflowRoutingTest(OfflineTest):
-    def test_new_and_legacy_execution_jobs_are_mutually_exclusive(self):
+    def test_only_current_execution_jobs_are_routed(self):
         source = (migration.ROOT / ".github/workflows/gcp-terraform-authenticated.yml").read_text()
         jobs = {}
-        for job in ("plan", "apply", "migration_plan", "migration_apply"):
+        for job in ("migration_plan", "migration_apply"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [A-Za-z_]+:|\Z)", source, re.MULTILINE | re.DOTALL).group(1)
             jobs[job] = re.search(r"^    if: (.+)$", block, re.MULTILINE).group(1)
         for mode in ("migration-plan", "migration-apply", "plan", "apply", "email-adoption", "quota-plan", "quota-create", "quota-refresh", "current-state-read", "runtime-metadata-read", "security-probe", "dev-history-observation-sync"):
@@ -878,7 +878,7 @@ class WorkflowRoutingTest(OfflineTest):
                 elif mode == "migration-apply":
                     self.assertEqual(admitted, {"migration_plan", "migration_apply"})
                 else:
-                    self.assertFalse(admitted & {"migration_plan", "migration_apply"})
+                    self.assertEqual(admitted, set())
         for job in ("migration_plan", "migration_apply"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [A-Za-z_]+:|\Z)", source, re.MULTILINE | re.DOTALL).group(1)
             stage = block.index("terraform_migration.py stage")

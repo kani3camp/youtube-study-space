@@ -43,9 +43,6 @@ FIELDS = FIELDS | frozenset(_BASELINE_SOURCE_FIELDS.values()) | frozenset((
 STAGES = STAGES | frozenset(('HISTORY_PLAN', 'HISTORY_METADATA', 'HISTORY_INPUTS', 'HISTORY_COUNTS',
     'HISTORY_TABLE', 'HISTORY_SCHEMA', 'HISTORY_FORBIDDEN', 'BASELINE_FUNCTION',
     'BASELINE_SCHEDULER', 'BASELINE_TOPIC', 'BASELINE_OUTPUTS'))
-POST_CHECKS = ('Persistent state invariant', 'Stable table metadata invariant',
-    'Exact native lock absence', 'Workspace absence', 'Full-root no-op12 and job outcomes',
-    'Fresh execution evidence')
 
 
 def baseline_scope(env, *, operation, environment, phase):
@@ -59,11 +56,6 @@ def baseline_scope(env, *, operation, environment, phase):
 def source_field(key):
     return _BASELINE_SOURCE_FIELDS.get(key, 'VALUE')
 
-
-def render_post_checks(checks):
-    if type(checks) is not dict or set(checks) != set(POST_CHECKS) or not all(type(checks[key]) is bool for key in POST_CHECKS):
-        raise ValueError('Fixed safety checks rejected')
-    return ['Current-state safety: '+key+': '+('PASS' if checks[key] else 'STOP') for key in POST_CHECKS]
 
 class Rejected(ValueError):
     def __init__(self, stage, field):

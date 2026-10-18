@@ -9,7 +9,7 @@ import re
 
 from prepare_runtime_ownership import PROJECT, ROLE
 from terraform_plan_diagnostic import Context, FIELDS
-from runtime_ownership_packet import validate_packet
+from runtime_plan_selection import validate_selection
 from validate_user_activity_history_plan import validate as validate_history
 from terraform_email_adoption_gate import canonical, has_unknown
 from terraform_plan_summary import build_summary
@@ -63,12 +63,12 @@ def identities(candidate):
     return result
 
 
-def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, now=None, state_phase=None, diagnostic=None):
+def validate(plan, *, packet, wave, git_sha, metadata, phase, execution_email, state_phase=None, diagnostic=None):
     diagnostic = diagnostic if diagnostic is not None else Context()
     diagnostic.mark("RUNTIME_PACKET")
     require = diagnostic.require
     require(phase in {"before", "post"} and type(plan) is dict)
-    candidate = validate_packet(packet, wave=wave, git_sha=git_sha, now=now)
+    candidate = validate_selection(packet, wave=wave)
     # The independent full-state verifier reuses these exact value/schema
     # guards for the adopted or selected graph, always with import0.
     require(state_phase in {None, "adopted", "selected"})

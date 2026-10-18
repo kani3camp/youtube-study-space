@@ -87,10 +87,6 @@ classify_path() {
 			gcp_terraform=true
 			matched=true
 			;;
-		.github/scripts/terraform_current_state_attestation.py|.github/scripts/test_terraform_current_state_attestation.py|.github/scripts/terraform_current_state_artifact_fixture.py|.github/terraform/current-state-attestation-sources.json)
-			gcp_terraform=true
-			matched=true
-			;;
 	esac
 
 	if path_is_ci_config "$path"; then
@@ -120,7 +116,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/terraform_ownership_receipt.py|.github/scripts/terraform_receipt_artifact_fixture.py|.github/scripts/test_terraform_ownership_receipt.py|.github/scripts/terraform_history_import_verifier.py|.github/scripts/test_terraform_history_import_verifier.py|.github/terraform/runtime-receipt-sources.json|.github/scripts/terraform_history_plan_receipt.py|.github/scripts/test_terraform_history_plan_receipt.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_runtime_execution.py|.github/scripts/test_terraform_runtime_execution.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py|.github/scripts/terraform_history_post_noop_receipt.py|.github/scripts/test_terraform_history_post_noop_receipt.py)
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
 			gcp_terraform=true
 			matched=true
 			;;
