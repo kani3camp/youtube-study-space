@@ -27,7 +27,7 @@ class SourceContracts(unittest.TestCase):
             workflows.update(active)
         contract.validate(self.caller, self.callee, self.static, workflows, self.config)
 
-    def test_preparation_is_inert_and_complete(self):
+    def test_active_analysis_has_all_bounded_security_and_coverage_contracts(self):
         self.validate()
 
     def test_permission_expansion_rejected_at_each_boundary(self):
@@ -70,26 +70,32 @@ class SourceContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "direct trigger"):
             self.validate()
 
-    def test_enabled_caller_rejected(self):
-        self.caller["jobs"]["analyze"]["if"] = "${{ true }}"
-        with self.assertRaisesRegex(ValueError, "disabled"):
-            self.validate()
+    def test_oidc_environment_cannot_be_omitted_or_replaced(self):
+        job = self.callee["jobs"]["analyze"]
+        for environment in (None, "terraform-dev-plan", "other-environment"):
+            with self.subTest(environment=environment):
+                if environment is None:
+                    job.pop("environment", None)
+                else:
+                    job["environment"] = environment
+                with self.assertRaisesRegex(ValueError, "dedicated Environment"):
+                    self.validate()
+        job["environment"] = "codeql-analysis"
+        self.validate()
 
-    def test_either_gate_cannot_be_removed_or_enabled_by_any_event(self):
+    def test_caller_or_callee_cannot_skip_events_or_languages_with_job_conditions(self):
         for document in [self.caller, self.callee]:
             job = document["jobs"]["analyze"]
-            for condition in [None, True, "${{ true }}", "${{ always() }}"] + [
+            for condition in [None, True, False, "${{ false }}", "${{ true }}", "${{ always() }}"] + [
                 "${{ github.event_name == '" + event + "' }}" for event in
                 ["workflow_dispatch", "push", "pull_request", "schedule", "workflow_call"]
             ]:
                 with self.subTest(workflow=document["name"], condition=condition):
-                    if condition is None:
-                        del job["if"]
-                    else:
-                        job["if"] = condition
-                    with self.assertRaisesRegex(ValueError, "explicitly disabled"):
+                    job["if"] = condition
+                    with self.assertRaisesRegex(ValueError, "without a job condition"):
                         self.validate()
-                    job["if"] = contract.DISABLED
+                    del job["if"]
+            self.validate()
 
     def test_extra_caller_or_callee_job_rejected_even_if_disabled(self):
         for document in [self.caller, self.callee]:
@@ -207,7 +213,7 @@ class SourceContracts(unittest.TestCase):
     def test_static_ci_cannot_skip_hide_or_remove_required_checks(self):
         job = self.static["jobs"]["source-contracts"]
         for target in [job, job["steps"][3]]:
-            for key, value in [("if", contract.DISABLED), ("continue-on-error", True), ("env", {"BASH_ENV": "override.sh"})]:
+            for key, value in [("if", "${{ false }}"), ("continue-on-error", True), ("env", {"BASH_ENV": "override.sh"})]:
                 target[key] = value
                 with self.assertRaisesRegex(ValueError, "bypass"):
                     self.validate()

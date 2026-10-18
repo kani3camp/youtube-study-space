@@ -1,0 +1,36 @@
+# Inert fixture: this directory is outside .github/workflows.
+name: Synthetic reusable environment secret handoff
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    environment:
+      name: synthetic-secret-handoff
+    steps:
+      - name: Classify synthetic inputs without revealing values
+        shell: bash
+        env:
+          SYNTHETIC_A: ${{ secrets.SYNTHETIC_A }}
+          SYNTHETIC_B: ${{ secrets.SYNTHETIC_B }}
+        run: |
+          set +x
+          set -euo pipefail
+          classify() {
+            if [[ -z "$1" ]]; then
+              printf 'absent'
+            elif [[ "$1" == "$2" ]]; then
+              printf 'expected'
+            else
+              printf 'unexpected'
+            fi
+          }
+          {
+            printf -- '- SYNTHETIC_A: %s\n' "$(classify "${SYNTHETIC_A-}" 'synthetic-alpha')"
+            printf -- '- SYNTHETIC_B: %s\n' "$(classify "${SYNTHETIC_B-}" 'synthetic-beta')"
+          } >> "${GITHUB_STEP_SUMMARY:?missing summary path}"

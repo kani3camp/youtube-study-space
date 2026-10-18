@@ -12,6 +12,7 @@ readonly CI_GROUPS=(
 	mypage
 	docs_site
 	aws_cdk
+	gcp_terraform
 	node_projects
 	firestore_integration
 	formal_spec
@@ -27,6 +28,7 @@ youtube_monitor=false
 mypage=false
 docs_site=false
 aws_cdk=false
+gcp_terraform=false
 node_projects=false
 firestore_integration=false
 formal_spec=false
@@ -43,7 +45,8 @@ Usage:
 With --paths, PATH arguments are classified directly for local testing.
 Without --paths, the script resolves paths from the GitHub event:
   - pull_request: BASE_SHA...HEAD_SHA
-  - workflow_dispatch or an unsupported/incomplete event: all groups
+  - authenticated Terraform workflow_dispatch: GCP Terraform group only
+  - other workflow_dispatch or an unsupported/incomplete event: all groups
 EOF
 }
 
@@ -57,6 +60,7 @@ set_all_groups() {
 	mypage=true
 	docs_site=true
 	aws_cdk=true
+	gcp_terraform=true
 	node_projects=true
 	firestore_integration=true
 	formal_spec=true
@@ -77,6 +81,17 @@ path_is_ci_config() {
 classify_path() {
 	local path="$1"
 	local matched=false
+
+	case "$path" in
+		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/production_initializer.py|.github/scripts/test_production_initializer.py|.github/scripts/test_production_initializer_controller.py|.github/scripts/test_production_initializer_s3.py|.github/scripts/terraform_migration.py|.github/scripts/terraform_migration_contract.py|.github/scripts/test_terraform_migration.py|.github/scripts/test_terraform_migration_contract.py|.github/scripts/test_terraform_migration_native_fidelity.py|.github/scripts/test_terraform_api_import_fidelity.py|.github/scripts/test_order_history.py)
+			gcp_terraform=true
+			matched=true
+			;;
+		.github/scripts/terraform_current_state_attestation.py|.github/scripts/test_terraform_current_state_attestation.py|.github/scripts/terraform_current_state_artifact_fixture.py|.github/terraform/current-state-attestation-sources.json)
+			gcp_terraform=true
+			matched=true
+			;;
+	esac
 
 	if path_is_ci_config "$path"; then
 		set_all_groups
@@ -105,6 +120,10 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/terraform_ownership_receipt.py|.github/scripts/terraform_receipt_artifact_fixture.py|.github/scripts/test_terraform_ownership_receipt.py|.github/scripts/terraform_history_import_verifier.py|.github/scripts/test_terraform_history_import_verifier.py|.github/terraform/runtime-receipt-sources.json|.github/scripts/terraform_history_plan_receipt.py|.github/scripts/test_terraform_history_plan_receipt.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_runtime_execution.py|.github/scripts/test_terraform_runtime_execution.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py|.github/scripts/terraform_history_post_noop_receipt.py|.github/scripts/test_terraform_history_post_noop_receipt.py)
+			gcp_terraform=true
+			matched=true
+			;;
 		.agents/skills/room-art-direction/references/*|tools/room-image-prompt/*)
 			room_image_prompt=true
 			matched=true
@@ -129,6 +148,11 @@ classify_path() {
 			mypage=true
 			matched=true
 			;;
+		biome.json)
+			youtube_monitor=true
+			mypage=true
+			matched=true
+			;;
 		docs-site/*)
 			docs_site=true
 			matched=true
@@ -141,9 +165,8 @@ classify_path() {
 			aws_cdk=true
 			matched=true
 			;;
-		biome.json)
-			youtube_monitor=true
-			mypage=true
+		infra/gcp/*)
+			gcp_terraform=true
 			matched=true
 			;;
 		.node-version|.nvmrc)
@@ -176,7 +199,13 @@ resolve_changed_paths() {
 
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
-		set_all_groups
+		# Only the caller's exact typed input selects this operational scope.
+		# Authentication remains the reusable workflow's separate trust boundary.
+		if [[ "${CI_AUTHENTICATED_TERRAFORM_DISPATCH:-}" == "true" ]]; then
+			gcp_terraform=true
+		else
+			set_all_groups
+		fi
 		return
 	fi
 
@@ -217,6 +246,7 @@ group_value() {
 		mypage) printf '%s' "$mypage" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
+		gcp_terraform) printf '%s' "$gcp_terraform" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
 		formal_spec) printf '%s' "$formal_spec" ;;
