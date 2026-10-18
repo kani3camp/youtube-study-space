@@ -48,7 +48,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         # Keep the public dispatch values and fail-closed controller selectors stable.
         self.assertIn('default: migration-plan', self.caller)
         self.assertIn('migration-plan|migration-apply) ;;', self.text)
-        self.assertIn("self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply'})", self.text)
+        self.assertIn('  migration_plan:', self.text)
+        self.assertIn('  migration_apply:', self.text)
 
     def test_current_modes_admit_same_branch_dev_and_main_only_prod(self):
         for mode in ('migration-plan', 'migration-apply'):
