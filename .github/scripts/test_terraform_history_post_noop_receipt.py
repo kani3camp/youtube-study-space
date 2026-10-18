@@ -28,7 +28,7 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
                              lastModifiedTime="123456789", numCurrentPhysicalBytes="84")
         self.env = self.fixture.env | {
             "HISTORY_POST_NOOP": "true", "DEV_HISTORY_POST_NOOP_ENABLED": "true",
-            "HISTORY_TARGET": "dev", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
+            "HISTORY_TARGET": "dev", "GITHUB_REF": "refs/heads/dev",
             "PLAN_EXIT_CODE": "0"}
         state = state_fixtures.state_fixture()
         state["serial"] += 1
@@ -72,7 +72,7 @@ class IndependentHistoryPostNoopTest(unittest.TestCase):
     def test_closed_gate_or_unimported_state_stops_before_plan(self):
         for change in ({"DEV_HISTORY_POST_NOOP_ENABLED": "false"},
                        {"HISTORY_POST_NOOP": "false"}, {"HISTORY_TARGET": "prod"},
-                       {"GITHUB_REF": "refs/heads/dev"}):
+                       {"GITHUB_REF": "refs/heads/feature/gcp-terraform-iac"}):
             with self.subTest(change=change), self.assertRaises(Exception):
                 gate.before(self.env | change, request=self.aws)
         self.assertEqual(self.aws.calls, [])

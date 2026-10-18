@@ -168,7 +168,7 @@ class OwnershipReceiptTest(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 gate.authenticate(fake.ref, dummy_catalog(), request=fake)
         for mutation in (dict(id=99), dict(repository_id=99), dict(head_repository_id=99),
-                         dict(id=True), dict(head_sha='b'*40), dict(head_branch='dev')):
+                         dict(id=True), dict(head_sha='b'*40), dict(head_branch='feature/gcp-terraform-iac')):
             fake = GitHubFixture()
             fake.responses[fake.artifact_path]['workflow_run'].update(mutation)
             with self.subTest(run=mutation), self.assertRaises(ValueError):
@@ -283,16 +283,16 @@ class OwnershipReceiptTest(unittest.TestCase):
         self.assertEqual(len(fake.calls), 10)
 
     def test_documented_caller_path_at_branch_authenticates(self):
-        self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
-            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac')
+        self.assert_authenticated_paths('.github/workflows/ci.yml@dev',
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev')
 
     def test_documented_reusable_path_at_branch_with_exact_ref_and_sha_authenticates(self):
         self.assert_authenticated_paths('.github/workflows/ci.yml',
-            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@dev')
 
     def test_both_documented_path_at_branch_forms_authenticate(self):
-        self.assert_authenticated_paths('.github/workflows/ci.yml@feature/gcp-terraform-iac',
-            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+        self.assert_authenticated_paths('.github/workflows/ci.yml@dev',
+            'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@dev')
 
     def test_actual_exact_sha_and_reviewed_companion_metadata_authenticate(self):
         for suffix in (SHA, gate.BRANCH, 'refs/heads/' + gate.BRANCH):
@@ -316,7 +316,7 @@ class OwnershipReceiptTest(unittest.TestCase):
     def test_companion_requires_exact_schema_repository_source_and_ref(self):
         good = dict(path=f'{gate.REPOSITORY}/{gate.COMPANION}@{SHA}', sha=SHA, ref='refs/heads/' + gate.BRANCH)
         changes = [dict(path=good['path'].replace(SHA, 'b'*40)), dict(sha='b'*40),
-            dict(ref='refs/heads/dev'), dict(path=good['path'].replace('kani3camp/', 'other-owner/')),
+            dict(ref='refs/heads/feature/gcp-terraform-iac'), dict(path=good['path'].replace('kani3camp/', 'other-owner/')),
             dict(path=good['path'].replace('youtube-study-space/', 'other-repo/')),
             dict(path=good['path'].replace('gcp-user-activity-schema-audit.yml', 'other.yml')),
             dict(path=good['path'] + '/'), dict(path=good['path'] + '?ref=dev'), dict(extra=True)]
@@ -357,8 +357,8 @@ class OwnershipReceiptTest(unittest.TestCase):
 
     def test_caller_path_suffix_and_file_mismatches_rejected_before_jobs(self):
         caller = '.github/workflows/ci.yml'
-        branch = 'feature/gcp-terraform-iac'
-        paths = [caller + '@dev', caller + '@refs/tags/' + branch, caller + '@' + SHA,
+        branch = 'dev'
+        paths = [caller + '@feature/gcp-terraform-iac', caller + '@refs/tags/' + branch, caller + '@' + SHA,
             caller + '@dev@' + branch, caller + '@' + branch + '?ref=dev',
             caller + '@' + branch + '#dev', caller + '@' + branch + '/',
             '.github/workflows/other.yml@' + branch, '../' + caller + '@' + branch,
@@ -372,16 +372,16 @@ class OwnershipReceiptTest(unittest.TestCase):
 
     def test_documented_reusable_path_ref_sha_and_schema_mismatches_rejected_before_jobs(self):
         path = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml'
-        branch = 'feature/gcp-terraform-iac'
+        branch = 'dev'
         expected = dict(path=path + '@' + branch, sha=SHA, ref='refs/heads/' + branch)
-        bad_paths = [path, path + '@dev', path + '@refs/tags/' + branch, path + '@' + 'b'*40,
+        bad_paths = [path, path + '@feature/gcp-terraform-iac', path + '@refs/tags/' + branch, path + '@' + 'b'*40,
             path + '@dev@' + branch, path + '@' + branch + '?ref=dev',
             path + '@' + branch + '#dev', path + '@' + branch + '/',
             path.replace('kani3camp/', 'other-owner/') + '@' + branch,
             path.replace('youtube-study-space/', 'other-repo/') + '@' + branch,
             path.replace('gcp-terraform-authenticated.yml', 'other.yml') + '@' + branch]
         mutations = [[dict(expected, path=p)] for p in bad_paths]
-        mutations += [[dict(expected, ref=ref)] for ref in ('refs/heads/dev', 'refs/tags/' + branch, branch, None)]
+        mutations += [[dict(expected, ref=ref)] for ref in ('refs/heads/feature/gcp-terraform-iac', 'refs/tags/' + branch, branch, None)]
         mutations += [[dict(expected, sha='b'*40)], [dict(expected, sha=SHA.upper())],
             [dict(expected, unreviewed='value')], [{k: v for k, v in expected.items() if k != 'ref'}],
             [expected, expected], expected, None]
@@ -398,19 +398,19 @@ class OwnershipReceiptTest(unittest.TestCase):
             for field in ('caller', 'reusable_path', 'reusable_ref', 'source_sha', 'reusable_sha'):
                 fake = GitHubFixture()
                 for key in (fake.base, fake.base + '/attempts/1'):
-                    fake.responses[key]['path'] = '.github/workflows/ci.yml@feature/gcp-terraform-iac'
+                    fake.responses[key]['path'] = '.github/workflows/ci.yml@dev'
                     fake.responses[key]['referenced_workflows'][0]['path'] = (
-                        'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@feature/gcp-terraform-iac')
+                        'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@dev')
                 def request(path, **kwargs):
                     value = fake(path, **kwargs)
                     if ((endpoint == 'attempt' and path == fake.base + '/attempts/1')
                             or (endpoint == 'final' and path == fake.base and len(fake.calls) > 1)):
                         if field == 'caller':
-                            value['path'] = '.github/workflows/ci.yml@dev'
+                            value['path'] = '.github/workflows/ci.yml@feature/gcp-terraform-iac'
                         elif field == 'reusable_path':
-                            value['referenced_workflows'][0]['path'] = value['referenced_workflows'][0]['path'].replace('@feature/gcp-terraform-iac', '@dev')
+                            value['referenced_workflows'][0]['path'] = value['referenced_workflows'][0]['path'].replace('@dev', '@feature/gcp-terraform-iac')
                         elif field == 'reusable_ref':
-                            value['referenced_workflows'][0]['ref'] = 'refs/heads/dev'
+                            value['referenced_workflows'][0]['ref'] = 'refs/heads/feature/gcp-terraform-iac'
                         elif field == 'source_sha':
                             value['head_sha'] = 'b'*40
                         else:
@@ -432,7 +432,7 @@ class OwnershipReceiptTest(unittest.TestCase):
 
     def test_wrong_source_repository_owner_event_branch_caller_and_reusable_rejected(self):
         changes = [dict(id=102), dict(run_attempt=2), dict(status='in_progress'), dict(conclusion='skipped'),
-            dict(event='pull_request'), dict(head_sha='b'*40), dict(head_branch='dev'), dict(path='other.yml'), dict(workflow_id=20),
+            dict(event='pull_request'), dict(head_sha='b'*40), dict(head_branch='feature/gcp-terraform-iac'), dict(path='other.yml'), dict(workflow_id=20),
             dict(repository=dict(id=99, full_name=gate.REPOSITORY, owner=dict(id=gate.OWNER_ID))),
             dict(head_repository=dict(id=gate.REPOSITORY_ID, full_name=gate.REPOSITORY, owner=dict(id=99))),
             dict(referenced_workflows=[]), dict(referenced_workflows=[dict(path='wrong', sha=SHA, ref='refs/heads/' + gate.BRANCH)])]

@@ -85,7 +85,7 @@ class ProductionBackendPacketTest(unittest.TestCase):
                 "repository_id:340900071": "repository_id:999999999",
                 "repository_owner_id:54093651": "repository_owner_id:999999999",
                 f"environment:terraform-prod-{kind}": f"environment:terraform-dev-{kind}",
-                "ref:refs/heads/feature/gcp-terraform-iac": "ref:refs/heads/dev",
+                "ref:refs/heads/main": "ref:refs/heads/dev",
                 "workflow_ref:kani3camp/youtube-study-space/.github/workflows/ci.yml@": "workflow_ref:kani3camp/youtube-study-space/.github/workflows/other.yml@",
                 "job_workflow_ref:kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@": "job_workflow_ref:kani3camp/youtube-study-space/.github/workflows/other.yml@",
                 "event_name:workflow_dispatch": "event_name:pull_request",
