@@ -31,11 +31,6 @@ on:
         required: false
         default: false
         type: boolean
-      history_observation_sync_profile:
-        description: Separate immutable <=24h request; never an issuer or ordinary apply approval
-        required: false
-        default: ""
-        type: string
       ownership_wave:
         description: Disabled source-only cumulative runtime ownership plan/apply selection
         required: false
@@ -91,11 +86,6 @@ env:
   # Expired initial Pool window is closed. Fresh current-state issuance uses
   # the separate baseline plan contract before a new runtime activation.
   DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED: "false"
-  # Separate protocol only. Compiled capability never authorizes a State write.
-  DEV_HISTORY_OBSERVATION_SYNC_ENABLED: "false"
-  DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED: "false"
-  DEV_HISTORY_OBSERVATION_SYNC_ISSUED_UTC: ""
-  DEV_HISTORY_OBSERVATION_SYNC_EXPIRES_UTC: ""
   DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"
   DEV_HISTORY_POST_NOOP_ENABLED: "true"
   PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"
@@ -153,7 +143,6 @@ jobs:
     permissions:
       contents: read
     outputs:
-      sync_operation: ${{ steps.guard.outputs.sync_operation }}
       terraform_root: ${{ steps.guard.outputs.terraform_root }}
       state_key: ${{ steps.guard.outputs.state_key }}
       project_id: ${{ steps.guard.outputs.project_id }}
@@ -165,8 +154,8 @@ jobs:
       manage_user_activity_history: ${{ steps.guard.outputs.manage_user_activity_history }}
       ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
     steps:
-      - name: Checkout trusted dedicated sync preflight source
-        if: ${{ (inputs.mode == 'dev-history-observation-sync' || startsWith(inputs.mode, 'migration-')) && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && github.ref == 'refs/heads/feature/gcp-terraform-iac' }}
+      - name: Checkout trusted migration preflight source
+        if: ${{ startsWith(inputs.mode, 'migration-') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && github.ref == 'refs/heads/feature/gcp-terraform-iac' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -185,7 +174,6 @@ jobs:
           HISTORY_PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
           PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
           PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
-          HISTORY_OBSERVATION_SYNC_PROFILE: ${{ inputs.history_observation_sync_profile }}
           MIGRATION_TARGET: ${{ inputs.target }}
           MIGRATION_MODE: ${{ inputs.mode }}
         run: |
@@ -227,26 +215,17 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            plan|migration-plan|migration-apply|current-state-read|runtime-metadata-read|dev-history-observation-sync|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
+            plan|migration-plan|migration-apply|current-state-read|runtime-metadata-read|security-probe|apply|email-adoption|quota-plan|quota-create|quota-refresh) ;;
             *)
               echo "::error::Unsupported mode."
               exit 1
               ;;
           esac
-          if [[ "${MODE}" != "dev-history-observation-sync" && -n "${HISTORY_OBSERVATION_SYNC_PROFILE:-}" ]]; then
-            echo "HISTORY_OBSERVATION_SYNC: STOP; stage=PROFILE"; exit 1
-          fi
           if [[ "${MODE}" == migration-* ]]; then
             [[ "${HISTORY_POST_NOOP}" == "false" && "${CURRENT_STATE_ATTESTATION}" == "false" && "${OWNERSHIP_WAVE}" == "none" && "${OWNERSHIP_ROOT_BASIS}" == "original-history-import" && -z "${HISTORY_IMPORT_APPROVAL}" && -z "${PLAN_COST_EVIDENCE}" && -z "${PLAN_SAFETY_EVIDENCE}" ]] || {
               echo "GCP_MIGRATION: STOP; phase=LEGACY_INPUTS"; exit 1
             }
             python3 .github/scripts/terraform_migration.py preflight
-            exit 0
-          fi
-          if [[ "${MODE}" == "dev-history-observation-sync" ]]; then
-            python3 .github/scripts/terraform_history_observation_sync.py --phase preflight
-            echo "project_id=test-youtube-study-space" >> "${GITHUB_OUTPUT}"
-            echo "ownership_wave=none" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
           if [[ "${MODE}" == "runtime-metadata-read" ]]; then
@@ -453,7 +432,7 @@ jobs:
   plan:
     name: Authenticated protected plan
     needs: preflight
-    if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}
+    if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -1782,236 +1761,6 @@ jobs:
           BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
           BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
         run: python3 .github/scripts/terraform_identity_smoke.py security-probe
-
-  history_observation_sync_plan:
-    name: "History observation sync preview (dev)"
-    needs: preflight
-    if: ${{ inputs.mode == 'dev-history-observation-sync' && needs.preflight.outputs.sync_operation == 'preview' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: terraform-dev-plan
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    env:
-      MODE: dev-history-observation-sync
-      HISTORY_OBSERVATION_SYNC_OPERATION: preview
-      HISTORY_OBSERVATION_SYNC_PROFILE: ${{ inputs.history_observation_sync_profile }}
-      TARGET: ${{ inputs.target }}
-      HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
-      CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
-      OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
-      OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
-      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
-      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
-      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
-      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      STATE_KEY: youtube-study-space/dev/terraform.tfstate
-      AWS_MAX_ATTEMPTS: "1"
-      AWS_RETRY_MODE: standard
-      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      TF_WORKSPACE: default
-      TF_VAR_project_id: test-youtube-study-space
-      TF_VAR_manage_primary_email: "true"
-      TF_VAR_manage_youtube_quota_alerts: "true"
-      TF_VAR_manage_export_topic: "true"
-      TF_VAR_manage_export_scheduler: "true"
-      TF_VAR_manage_export_function: "true"
-      TF_VAR_manage_user_activity_history: "true"
-      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
-      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
-    steps:
-      - name: Checkout trusted sync commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Mask private sync fragments
-        shell: bash
-        env:
-          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          PRIVATE_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-        run: |
-          set -euo pipefail
-          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${PRIVATE_SA%%@*}" "${TF_VAR_primary_email_address}" "${TF_VAR_primary_email_address%%@*}" "${TF_VAR_primary_email_channel_name}" "${TF_VAR_primary_email_channel_name##*/}"; do
-            [[ -n "${value}" ]] && echo "::add-mask::${value}"
-          done
-          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
-          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
-      - name: Setup exact sync Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-      - name: Validate dedicated sync profile and private binding
-        env:
-          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase stage
-      - name: Verify dedicated sync OIDC identity
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase oidc
-      - name: Configure sync AWS backend credential
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-          aws-region: ${{ env.STATE_AWS_REGION }}
-          mask-aws-account-id: true
-          unset-current-credentials: true
-          retry-max-attempts: 1
-      - name: Verify exact sync AWS identity
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase aws
-      - name: Configure sync GCP provider credential
-        id: sync_gcp_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 1200s
-      - name: Build and verify private observation preview
-        id: sync_run
-        env:
-          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.sync_gcp_auth.outputs.access_token }}
-          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase preview
-      - name: Remove all private sync material
-        id: sync_cleanup
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase cleanup
-      - name: Validate sanitized sync preview freshness before publish
-        if: ${{ steps.sync_run.outcome == 'success' && steps.sync_cleanup.outcome == 'success' }}
-        id: sync_publish_check
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase publish-check
-      - name: Publish dedicated sanitized sync preview
-        if: ${{ steps.sync_publish_check.outcome == 'success' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: history-observation-sync-preview-v1-${{ github.run_id }}-1-${{ github.sha }}
-          path: ${{ runner.temp }}/history-observation-sync-public/history-observation-sync-preview.json
-          archive: true
-          overwrite: false
-          include-hidden-files: false
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 6
-      - name: Remove sanitized sync staging
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase cleanup-public
-
-  history_observation_sync_apply:
-    name: "History observation sync apply: ETAG + LAST_MODIFIED_TIME; check contents unchanged (dev)"
-    needs: preflight
-    if: ${{ inputs.mode == 'dev-history-observation-sync' && needs.preflight.outputs.sync_operation == 'synchronize' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: terraform-dev-apply
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    env:
-      MODE: dev-history-observation-sync
-      HISTORY_OBSERVATION_SYNC_OPERATION: synchronize
-      HISTORY_OBSERVATION_SYNC_PROFILE: ${{ inputs.history_observation_sync_profile }}
-      TARGET: ${{ inputs.target }}
-      HISTORY_POST_NOOP: ${{ inputs.history_post_noop }}
-      CURRENT_STATE_ATTESTATION: ${{ inputs.current_state_attestation }}
-      OWNERSHIP_WAVE: ${{ inputs.ownership_wave }}
-      OWNERSHIP_ROOT_BASIS: ${{ inputs.ownership_root_basis }}
-      HISTORY_IMPORT_APPROVAL: ${{ inputs.history_import_approval }}
-      PLAN_COST_EVIDENCE: ${{ inputs.plan_cost_evidence }}
-      PLAN_SAFETY_EVIDENCE: ${{ inputs.history_plan_safety_evidence }}
-      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      STATE_KEY: youtube-study-space/dev/terraform.tfstate
-      AWS_MAX_ATTEMPTS: "1"
-      AWS_RETRY_MODE: standard
-      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      TF_WORKSPACE: default
-      TF_VAR_project_id: test-youtube-study-space
-      TF_VAR_manage_primary_email: "true"
-      TF_VAR_manage_youtube_quota_alerts: "true"
-      TF_VAR_manage_export_topic: "true"
-      TF_VAR_manage_export_scheduler: "true"
-      TF_VAR_manage_export_function: "true"
-      TF_VAR_manage_user_activity_history: "true"
-      TF_VAR_primary_email_address: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL }}
-      TF_VAR_primary_email_channel_name: ${{ secrets.GCP_MONITORING_PRIMARY_EMAIL_CHANNEL }}
-    steps:
-      - name: Checkout trusted sync commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Mask private sync fragments
-        shell: bash
-        env:
-          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          PRIVATE_SA: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-        run: |
-          set -euo pipefail
-          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${PRIVATE_SA%%@*}" "${TF_VAR_primary_email_address}" "${TF_VAR_primary_email_address%%@*}" "${TF_VAR_primary_email_channel_name}" "${TF_VAR_primary_email_channel_name##*/}"; do
-            [[ -n "${value}" ]] && echo "::add-mask::${value}"
-          done
-          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
-          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
-      - name: Setup exact sync Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-      - name: Validate dedicated sync profile and private binding
-        env:
-          RUNTIME_OWNERSHIP_PACKET_JSON: ${{ secrets.GCP_RUNTIME_OWNERSHIP_PACKET_JSON }}
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase stage
-      - name: Verify dedicated sync OIDC identity
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase oidc
-      - name: Configure sync AWS backend credential
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-          aws-region: ${{ env.STATE_AWS_REGION }}
-          mask-aws-account-id: true
-          unset-current-credentials: true
-          retry-max-attempts: 1
-      - name: Verify exact sync AWS identity
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase aws
-      - name: Configure sync GCP provider credential
-        id: sync_gcp_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 1200s
-      - name: Verify exact preview and synchronize only approved observation
-        id: sync_run
-        env:
-          GCP_SMOKE_ACCESS_TOKEN: ${{ steps.sync_gcp_auth.outputs.access_token }}
-          GCP_SMOKE_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase apply
-      - name: Remove all private sync material
-        id: sync_cleanup
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase cleanup
-      - name: Remove sanitized sync staging
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_history_observation_sync.py --phase cleanup-public
 
   migration_plan:
     name: "Import-only migration plan (${{ inputs.target }})"

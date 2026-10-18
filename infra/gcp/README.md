@@ -45,6 +45,11 @@ CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）�
 
 ## 旧protocolの経緯（履歴・現行の実行条件ではない）
 
+**退役済みの専用実行経路**：`dev-history-observation-sync` の手動dispatch入力、認証付きpreview/applyジョブおよび旧validatorは
+2026-10-18の整理で現行treeから削除しました。固定コミットの当時の資料は監査履歴であり、実行手順ではありません。
+通常の `migration-plan` / `migration-apply` とS3 State/認証/secret/no-op契約は継続します。
+
+
 2026-10-16以前のhistory import、issuer、期限付きwindow、個別Environment承認は**移行当時の手順**です。現在のDev31／Prod30件の運用条件には適用しません。
 履歴・再現条件は次の既存資料とGitHub実行証拠から参照してください。
 

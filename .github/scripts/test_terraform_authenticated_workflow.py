@@ -20,9 +20,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.caller = CALLER.read_text(encoding="utf-8")
-        # Existing job contracts retain their own counts; the separate new
-        # protocol is validated independently without weakening these checks.
-        cls.original_jobs = cls.text.split('\n  history_observation_sync_plan:',1)[0]
+        # Scope the legacy execution tests to the non-migration jobs only.
+        cls.original_jobs = cls.text.split('\n  migration_plan:', 1)[0]
 
     def test_private_notification_inputs_are_masked_and_do_not_enable_alerts(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -360,8 +359,6 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "DEV_HISTORY_OBSERVATION_SYNC_ENABLED": "false",
-            "DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
@@ -624,6 +621,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_checkout_does_not_persist_github_token(self) -> None:
         self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 6)
 
+    def test_retired_history_sync_cannot_be_dispatched_or_reenabled(self) -> None:
+        # Historical synchronization is no longer compiled as a protected route.
+        # A malicious direct workflow_call must still fail preflight before OIDC.
+        self.assertNotIn("          - dev-history-observation-sync\n", self.caller)
+        self.assertNotIn("history_observation_sync_profile:", self.text)
+        self.assertNotIn("  history_observation_sync_plan:", self.text)
+        self.assertNotIn("  history_observation_sync_apply:", self.text)
+        for target in ("dev", "prod"):
+            with self.subTest(target=target):
+                self.assertNotEqual(self.run_preflight(MODE="dev-history-observation-sync", TARGET=target).returncode, 0)
+
     def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
         self.assertIn("          - security-probe\n", self.caller)
@@ -635,7 +643,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}", plan)
+        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' }}", plan)
         probe = self.original_jobs.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",
