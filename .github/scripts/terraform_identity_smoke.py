@@ -69,9 +69,9 @@ def verify_oidc_claims(claims: dict, env: dict[str, str], *, expected_identity: 
         raise SmokeFailure("github-environment-target")
     expected = {
         "repository_id": "340900071", "repository_owner_id": "54093651",
-        "environment": f"terraform-dev-{expected_identity}", "ref": "refs/heads/feature/gcp-terraform-iac",
-        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+        "environment": f"terraform-dev-{expected_identity}", "ref": "refs/heads/dev",
+        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
         "event_name": "workflow_dispatch",
     }
     subject = ":".join(f"{key}:{value.replace(':', '%3A')}" for key, value in expected.items())

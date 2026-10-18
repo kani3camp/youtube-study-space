@@ -29,7 +29,7 @@ def context(env, *, fresh=True):
     receipt.require(env.get("HISTORY_POST_NOOP") == "true"
                     and env.get("DEV_HISTORY_POST_NOOP_ENABLED") == "true"
                     and env.get("HISTORY_TARGET") == "dev"
-                    and env.get("GITHUB_REF") == "refs/heads/feature/gcp-terraform-iac",
+                    and env.get("GITHUB_REF") == "refs/heads/dev",
                     "post-noop-context")
     return receipt.load_policy(env, fresh=fresh)
 

@@ -26,7 +26,7 @@ from prepare_user_activity_history_adoption import private_json, unique_object
 
 REPOSITORY = "kani3camp/youtube-study-space"
 REPOSITORY_ID, OWNER_ID = 340900071, 54093651
-BRANCH = "feature/gcp-terraform-iac"
+BRANCH = "dev"
 CALLER = ".github/workflows/ci.yml"
 REUSABLE = ".github/workflows/gcp-terraform-authenticated.yml"
 COMPANION = ".github/workflows/gcp-user-activity-schema-audit.yml"

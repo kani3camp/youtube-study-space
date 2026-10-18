@@ -147,13 +147,13 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_legacy_production_remains_closed_and_trusted_surface_is_fixed(self) -> None:
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
-        self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
+        self.assertIn('expected_ref="refs/heads/dev"', self.text)
+        self.assertIn('expected_ref="refs/heads/main"', self.text)
+        self.assertNotIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
         self.assertIn('GITHUB_REPOSITORY_OWNER_ID}" == "54093651"', self.text)
-        self.assertIn(
-            'GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac"',
-            self.text,
-        )
+        self.assertIn('GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}"', self.text)
+        self.assertIn('GITHUB_REF}" == "${expected_ref}"', self.text)
 
     def test_environment_secret_interface_is_explicit_without_inheritance(self) -> None:
         interface = self.text.split("    secrets:\n", 1)[1].split("\npermissions:", 1)[0]
@@ -175,8 +175,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         env = {
             "PATH": os.environ["PATH"], "GITHUB_EVENT_NAME": "workflow_dispatch",
             "GITHUB_REPOSITORY": "kani3camp/youtube-study-space", "GITHUB_REPOSITORY_ID": "340900071",
-            "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
-            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+            "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_REF": "refs/heads/dev",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
             "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ATTEMPT": "1",
             "GITHUB_ACTOR_ID": "54093651", "GITHUB_ACTOR": "kani3camp",
             "GITHUB_TRIGGERING_ACTOR": "kani3camp", "TARGET": "dev", "MODE": "plan",
@@ -393,7 +393,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 self.assertNotEqual(self.run_preflight(**(gates | {"OWNERSHIP_WAVE": wave})).returncode, 0)
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY_ID": "0",
-            "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
+            "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac", "GITHUB_WORKFLOW_REF": "wrong/workflow",
             "TARGET": "prod", "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
             "GITHUB_RUN_ATTEMPT": "2", "PLAN_COST_EVIDENCE": "legacy",
         }.items():
@@ -515,15 +515,38 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             for mode in ("plan", "apply"):
                 with self.subTest(target=target, mode=mode):
                     env = dict(flags, TARGET=target, MODE=mode)
+                    if target == "prod":
+                        env.update(GITHUB_REF="refs/heads/main",
+                            GITHUB_WORKFLOW_REF="kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main")
                     self.assertEqual(self.run_preflight(**env).returncode, 0)
                     for key, value in denied.items():
                         self.assertNotEqual(self.run_preflight(**(env | {key: value})).returncode, 0, key)
+
+    def test_exact_branch_target_pair_rejects_cross_target_and_feature_before_auth(self) -> None:
+        prod_flags = {"PROD_AUTHENTICATED_TERRAFORM_ENABLED": "true",
+                      "PROD_EXECUTION_CONTRACT_READY": "true",
+                      "PROD_DEVELOPMENT_EXIT_READY": "true"}
+        for target, correct_branch in (("dev", "dev"), ("prod", "main")):
+            for branch in ("dev", "main", "feature/gcp-terraform-iac", "feature/unreviewed"):
+                with self.subTest(target=target, branch=branch):
+                    env = {"TARGET": target, "MODE": "plan",
+                           "GITHUB_REF": "refs/heads/" + branch,
+                           "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + branch}
+                    if target == "prod":
+                        env.update(prod_flags)
+                    got = self.run_preflight(**env)
+                    if branch == correct_branch:
+                        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+                    else:
+                        self.assertNotEqual(got.returncode, 0)
+                        self.assertEqual(got.outputs, "")
+                        self.assertIn("Authenticated Terraform branch does not match its target", got.stdout)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {
             "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REPOSITORY": "attacker/repo",
             "GITHUB_REPOSITORY_ID": "0", "GITHUB_REPOSITORY_OWNER_ID": "0",
-            "GITHUB_REF": "refs/heads/dev", "GITHUB_WORKFLOW_REF": "wrong/workflow",
+            "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac", "GITHUB_WORKFLOW_REF": "wrong/workflow",
             "GITHUB_SHA": "not-a-sha", "TARGET": "prod", "MODE": "destroy",
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "false",
         }.items():

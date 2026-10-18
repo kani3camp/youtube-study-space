@@ -257,3 +257,14 @@ Audit logging/継続課金は未有効化で、設計案を実装完了と扱い
 - 今後の管理対象とMyPage向けcreate/updateは別の変更承認／権限／検証契約として設計する。現在のimport-only guardを迂回しない
 
 古いSourceに含まれる手順をそのまま実行せず、現在のGitHub・認証済み実環境・Notion Current Canonから最新の安全条件を照合します。
+
+## Terraform認証実行のブランチ移行（段階的cutover、2026-10-18）
+
+- **目標**：Development の実クラウドPlan/Applyは `dev`、Production は `main` を唯一の認証付き実行元とする。各jobでtarget / ref / caller workflow / reusable workflow / exact SHA / 本人初回dispatch / Environment / Plan・Apply独立identityを照合し、認証前に不一致をSTOPする。
+- **任意ブランチ**：PR・手動CIのTerraform fmt / credentialless init（`-backend=false`）/ validate / mock・negativeテストを許可するが、任意ブランチにAWS/GCP OIDC・State read/writeを付与しない。Devの別ブランチから実Planが必要になった場合は、対象・ブランチ・権限・期限を別レビューして明示承認する。任意ブランチへの包括権限は作らない。
+- **このPRの境界**：`dev`にソース・テストがマージされても、AWS trust policy、GCP WIF attribute condition / SA IAM、GitHub Environmentのbranch restriction/secret/required reviewerは自動更新されない。既存 `feature/gcp-terraform-iac` の実運用sourceも自動更新されない。**PRのマージだけでcutoverが完了したとは判定しない**。
+- **前提**：現行 `main` にはTerraform rootとauthenticated workflowが未導入。通常の `dev → main` 昇格PRでレビュー・CIを通してからProductionで使う。昇格とIAM trust切替の順序・ロールバック・停止期間を別の運用reviewで決める。
+- **本番・開発共通の手順**：①既存trusted実行とState/version・lock・protected Environment/role/SA/issuerを読み取り確認、②新しいdev/main参照の厳密なtrust/Environment設定を別途提案・承認、③credentialless negativeテストとread-only OIDC/Planの独立確認、④必要なApplyの別承認とno-op/safety確認、⑤旧featureのOIDC/WIF trustおよび参照を失効させてからブランチ退役を判断。
+- **変更禁止の範囲**：このソースPRでは `main` への直接push、`dev`のbotマージ、Cloud IAM/WIF、remote Terraform State、live Plan/Apply、workflow dispatch、ブランチ削除を実行しない。cloud trustの設定readが不可の場合は未確認と明示し、推測したまま切り替えない。
+
+監査入口：[PR #1251](https://github.com/kani3camp/youtube-study-space/pull/1251)・[PR #1372](https://github.com/kani3camp/youtube-study-space/pull/1372)・[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。

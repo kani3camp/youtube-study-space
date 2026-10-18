@@ -540,8 +540,8 @@ class WorkflowContracts(unittest.TestCase):
         script = self.text.split('      - name: Enforce trusted execution surface', 1)[1].split('        run: |\n', 1)[1].split('\n  plan:\n', 1)[0]
         env = dict(PATH=os.environ['PATH'], GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REPOSITORY='kani3camp/youtube-study-space',
                    GITHUB_REPOSITORY_ID='340900071', GITHUB_REPOSITORY_OWNER_ID='54093651',
-                   GITHUB_REF='refs/heads/feature/gcp-terraform-iac',
-                   GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
+                   GITHUB_REF='refs/heads/dev',
+                   GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
                    GITHUB_SHA=SHA, GITHUB_RUN_ATTEMPT='1', GITHUB_ACTOR_ID='54093651',
                    GITHUB_ACTOR='kani3camp', GITHUB_TRIGGERING_ACTOR='kani3camp',
                    TARGET='dev', MODE='plan', OWNERSHIP_WAVE='pool',

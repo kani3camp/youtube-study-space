@@ -145,7 +145,7 @@ jobs:
       ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
     steps:
       - name: Checkout trusted migration preflight source
-        if: ${{ startsWith(inputs.mode, 'migration-') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && github.ref == 'refs/heads/feature/gcp-terraform-iac' }}
+        if: ${{ startsWith(inputs.mode, 'migration-') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && github.ref == 'refs/heads/dev') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -192,12 +192,22 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
-            echo "::error::Authenticated Terraform must be called from ci.yml at the trusted integration ref."
+          # Exact target/ref pairing, before jobs can request OIDC or read secrets.
+          # No arbitrary-branch credentialed plan/apply. PR CI stays credentialless.
+          case "${TARGET}" in
+            dev) expected_ref="refs/heads/dev" ;;
+            prod) expected_ref="refs/heads/main" ;;
+            *)
+              echo "::error::Unknown Terraform target."
+              exit 1
+              ;;
+          esac
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}" ]] || {
+            echo "::error::Authenticated Terraform requires the target's reviewed CI caller."
             exit 1
           }
-          [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
-            echo "::error::Authenticated Terraform is restricted to the current integration branch."
+          [[ "${GITHUB_REF}" == "${expected_ref}" ]] || {
+            echo "::error::Authenticated Terraform branch does not match its target."
             exit 1
           }
           [[ "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]] || {

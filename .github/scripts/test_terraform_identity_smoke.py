@@ -346,9 +346,9 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
         project = "test-youtube-study-space"
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
-            "environment": "terraform-dev-plan", "ref": "refs/heads/feature/gcp-terraform-iac",
-            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+            "environment": "terraform-dev-plan", "ref": "refs/heads/dev",
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
             "event_name": "workflow_dispatch",
         }
         claims["sub"] = ":".join(f"{k}:{v.replace(':', '%3A')}" for k, v in claims.items())
@@ -947,9 +947,9 @@ class HistoryPlanSubprocessCliTest(unittest.TestCase):
     def test_script_entrypoint_keeps_history_stage_and_secret_boundary(self):
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
-            "environment": "terraform-dev-plan", "ref": "refs/heads/feature/gcp-terraform-iac",
-            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+            "environment": "terraform-dev-plan", "ref": "refs/heads/dev",
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
             "event_name": "workflow_dispatch",
         }
         claims["sub"] = ":".join(f"{key}:{value.replace(':', '%3A')}" for key, value in claims.items())
