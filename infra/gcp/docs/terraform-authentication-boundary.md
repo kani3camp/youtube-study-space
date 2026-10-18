@@ -76,7 +76,33 @@ AWSのbranch wildcardを含むsubjectも独立したwildcard同士のbranch一�
 branch protectionはコード改変経路を制限し、Environment reviewは実行時の確認を加える別の制御です。
 owner自体の侵害や管理者による意図した設定変更を、これらだけで防げるとは主張しません。
 
-## 通常変更（create/update）への段階移行案（未実装）
+## 通常変更（create/update）への段階移行案（第1段階：offline-only実装）
+
+2026-10-18：`infra/gcp/scripts/terraform_normal_change_contract.py` と純粋なnegative-firstテストを追加しました。これらは **認証情報なし・クラウド呼出しなし・State操作なし** の専用プロトタイプです。既存`migration-*` 経路へは接続せず、実行許可を増やしません。
+
+現時点の検証器は、Terraform 1.16.4の`terraform show -json`形式、明示的にレビューした最大3件の`google_cloud_run_v2_service`作成・更新と、それ以外の既存no-opを照合します。確認できないdelete/replace/move/import、想定外のcreate/update、data read、drift、未承認output変更、未知のupdate値や不完全planは拒否します。公開出力は固定コードと件数のみで、値・address・Plan JSONを表示しません。
+
+初期review manifestの形（**以下はsynthetic例であり、実際の実行承認ではない**）：
+
+```json
+{
+  "schema_version": "gcp-normal-change-review-v1",
+  "environment": "dev",
+  "changes": [
+    {
+      "address": "module.mypage.google_cloud_run_v2_service.api",
+      "type": "google_cloud_run_v2_service",
+      "action": "create"
+    }
+  ]
+}
+```
+
+検証は`python3 -B infra/gcp/tests/test_terraform_normal_change_contract.py` で実行し、`ci.yml`のcredentialless GCP Terraform Validateにも登録しています。実Plan JSONとmanifestを外部ファイルに置いた場合は`python3 infra/gcp/scripts/terraform_normal_change_contract.py --plan <private-plan.json> --review <private-review.json>`で読み取りだけ行います。生Planとmanifestには実ID・秘密値が含まれ得るためpublic artifactへ公開しません。
+
+**未実装の安全条件**：review manifestとGitHubの承認済みSHAの結合、HCL/metadata/Stateと全resource graphの厳密検証、create/updateの値・変更属性・未知値のreview、Dev専用のcredentialed Plan/ApplyとGCP最小IAM、アカウント分離・復旧・費用評価。このoffline検証成功だけでクラウド実行は許可しません。最終的なPlan/Apply提供には、これらの条件を別レビューで実装する必要があります。
+
+### 次の実装境界
 
 現在のGitHub Actionsジョブ表示名は `Terraform Existing Resources Plan/Apply` とします。旧表示名の `Import-only migration ...` は利用者に古い移行工程と誤解させるため更新しますが、**`migration-plan` / `migration-apply` は当面、認証済みコントローラーの内部モードとして残す**方針です。表示変更のみで動作対象やGCP IAMが拡張されたと解釈しません。
 

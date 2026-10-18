@@ -15,6 +15,8 @@ PR #1373では独自Attestation/Ownership Receipt/issuer catalog/期限付き証
 
 現行運用はDev31件・Prod30件の固定baselineのfull-root監査planと、承認済みimport/no-op・State-only saved applyを扱う [`migration-plan` / `migration-apply`](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)です。
 
+将来の一般create/update用には認証経路へ未接続の[offline検証器](scripts/terraform_normal_change_contract.py)とnegative-firstテストを追加しました（Cloud Run v2のみ、Dev向け、実行権限なし）。これを利用したPlan/Applyは**まだ起動できません**。
+
 GitHub Actionsのジョブ表示名は `Terraform Existing Resources Plan/Apply` とします。`terraform_mode` の `migration-plan` / `migration-apply` は既存の認証・失敗時拒否契約に結びついた内部選択値のため、今回変更しません。**新規resource作成・既存resourceの通常update/deleteは不可**です。一般的なTerraform変更を扱う次期経路は[認証境界の段階移行案](docs/terraform-authentication-boundary.md)に分離して整理しています。
 入口は既存 `ci.yml` の本人初回 `workflow_dispatch`です。Devは各Environmentの選択branch、Prodは`main`だけを許可します。
 両環境の最終実行・検証証跡は実証Source H7（`0ed7486b`）に紐付きます。PR #1251の`dev`マージと最終Sourceの扱いを含む実績は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)を参照してください。現在のcommitで同じTerraformを再実行した証拠とは扱いません。
