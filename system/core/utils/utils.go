@@ -90,7 +90,7 @@ func cachedRegex(pattern string) (*regexp.Regexp, error) {
 
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, fmt.Errorf("compile regex %q: %w", pattern, err)
+		return nil, err
 	}
 
 	actual, _ := compiledRegexCache.LoadOrStore(pattern, compiled)
