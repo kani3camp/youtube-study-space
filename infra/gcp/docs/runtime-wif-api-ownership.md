@@ -1243,7 +1243,9 @@ secure credential storeがなければ`gh`は設定fileへ平文保存し得る�
 
 ### Private handoff 不足中の protected metadata-only read
 
-[`terraform_current_state_read.py`](../../../.github/scripts/terraform_current_state_read.py) は
+> 2026-10-18の整理により、以下の専用read mode・job・helperは退役済みです。当時の検証条件・制限を記録した歴史であり、現在の実行手順ではありません。
+
+[移行時の`terraform_current_state_read.py`（固定Source）](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/.github/scripts/terraform_current_state_read.py) は
 専用 `current-state-read` mode / `current_state_read` job の source helper。
 workflow 配線・限定 gate activation・GitHub Environment approval は別途必要で、この追加自体は実行結果ではない。
 既存 `terraform-dev-plan` identity / trust / reviewer を使い、production は許可しない。
