@@ -307,8 +307,10 @@ class BaselineDriftTest(unittest.TestCase):
         # Synthetic canary only: this does not fill in actual run881's target.
 
     def test_legacy_runtime_module_bytes_and_guard_sources_remain_pinned(self):
+        # Only the unreachable Attestation post-check renderer was removed.
+        # The remaining diagnostic AST and all guard sources are unchanged.
         pins = {
-            '.github/scripts/terraform_plan_diagnostic.py': 'd37e4f038f761ac413a6304f214cc28e6346e2615e961b971f50b2a1cf00f494',
+            '.github/scripts/terraform_plan_diagnostic.py': '90956dabe89c3c75d21076adfc1fa30576b5f166391cbbd1b3fe3a23c7c587cc',
             '.github/scripts/terraform_export_function_gate.py': 'f1dda0f59fde3f2184542fe6d880357ab51bcd4154a1a40486b39787da2443bf',
             '.github/scripts/terraform_export_scheduler_gate.py': '9fbf44c3c26b866595e61425dc82bb57ff12aa5f913b95aa912bc8f2081f4e2f',
             '.github/scripts/terraform_export_topic_gate.py': 'd325f9f58c95793ef9b1e1a6a18a568f6482b4cfa3a66dc8ad8595e769c4b6bd',

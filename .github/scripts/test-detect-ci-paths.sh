@@ -63,10 +63,6 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_native_runner.p
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_diagnostics.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_identity_smoke.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_identity_smoke.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_plan_receipt.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_plan_receipt.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_post_noop_receipt.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_post_noop_receipt.py
 assert_exact_groups gcp_terraform .github/scripts/test_youtube_quota_alerts.py
 assert_exact_groups gcp_terraform .github/scripts/test_backup_bucket.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
@@ -162,22 +158,10 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_g
 assert_exact_groups gcp_terraform .github/scripts/terraform_export_scheduler_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_scheduler_gate.py
 
-# Protected receipt source, catalog and dummy checks must route to Terraform CI.
-assert_exact_groups gcp_terraform .github/scripts/terraform_ownership_receipt.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_receipt_artifact_fixture.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_ownership_receipt.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_import_verifier.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_import_verifier.py
-assert_exact_groups gcp_terraform .github/terraform/runtime-receipt-sources.json
-assert_exact_groups gcp_terraform .github/terraform/current-state-attestation-sources.json
-assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_attestation.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_current_state_attestation.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_artifact_fixture.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
+# Independent Terraform contracts must route to Terraform CI.
 
-assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
 
 echo "detect-ci-paths.sh tests passed"
+
+assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
