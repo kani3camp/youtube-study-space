@@ -3,7 +3,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
-terraform fmt -check -recursive infra/mypage-platform
+terraform fmt -check -diff -recursive infra/mypage-platform
 
 cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/mypage-platform/environments/dev/.terraform.lock.hcl
 cmp infra/mypage-platform/environments/dev/.terraform.lock.hcl infra/mypage-platform/environments/prod/.terraform.lock.hcl
