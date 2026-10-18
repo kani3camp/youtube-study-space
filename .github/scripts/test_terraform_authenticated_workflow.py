@@ -537,7 +537,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_workspace_discovery_stays_within_target_prefix(self) -> None:
         self.assertEqual(self.text.count('workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"'), 2)
-        self.assertEqual(self.original_jobs.count("TF_WORKSPACE: default"), 3)
+        self.assertEqual(self.original_jobs.count("TF_WORKSPACE: default"), 2)
+        for job in ("plan", "apply"):
+            match = re.search(r"(?ms)^  " + job + r":\n(.*?)(?=^  [A-Za-z_]+:|\Z)", self.original_jobs)
+            self.assertIsNotNone(match)
+            self.assertIn("TF_WORKSPACE: default", match.group(1))
 
     def test_private_identity_fragments_are_masked_before_authentication(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -557,7 +561,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.original_jobs.count("id-token: write"), 6)
+        # Three legacy jobs (plan/apply/negative probe) and two current migration jobs.
+        self.assertEqual(self.original_jobs.count("id-token: write"), 3)
+        self.assertEqual(self.text.count("id-token: write"), 5)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -616,7 +622,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 6)
+        self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 3)
+        for job in ("plan", "apply", "security-probe"):
+            match = re.search(r"(?ms)^  " + job.replace("-", "[-]") + r":\n(.*?)(?=^  [A-Za-z_-]+:|\Z)", self.original_jobs)
+            self.assertIsNotNone(match)
+            self.assertIn("persist-credentials: false", match.group(1))
 
     def test_retired_metadata_read_routes_are_absent_and_denied(self) -> None:
         for mode, job in (("current-state-read", "  current_state_read:"),
