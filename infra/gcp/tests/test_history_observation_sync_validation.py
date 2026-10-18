@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(ROOT/'.github/scripts'), str(ROOT/'infra/gcp/scripts')]
 import validate_history_observation_sync as gate
 import test_terraform_plan_diagnostic as legacy_fixture
-import test_terraform_history_observation_sync_prototype as state_fixture
+import history_observation_state_fixture as state_fixture
 
 CANARY = state_fixture.CANARY
 SHA = 'a'*40
