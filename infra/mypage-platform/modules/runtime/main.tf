@@ -42,8 +42,8 @@ variable "runtime_settings" {
 }
 
 locals {
-  deploy_api = contains(["runtime_private", "runtime_public"], var.stage)
-  public_api = var.stage == "runtime_public"
+  deploy_api        = contains(["runtime_private", "runtime_public"], var.stage)
+  public_api        = var.stage == "runtime_public"
   runtime_principal = "serviceAccount:${google_service_account.runtime.email}"
 }
 
@@ -60,8 +60,8 @@ resource "google_service_account" "runtime" {
 }
 
 resource "google_secret_manager_secret" "oauth_client_id" {
-  project           = var.project_id
-  secret_id         = "mypage-oauth-client-id"
+  project             = var.project_id
+  secret_id           = "mypage-oauth-client-id"
   deletion_protection = true
   replication {
     auto {}
@@ -144,8 +144,8 @@ resource "google_cloud_run_v2_service" "api" {
   deletion_protection = true
 
   template {
-    service_account                 = google_service_account.runtime.email
-    timeout                         = "30s"
+    service_account                  = google_service_account.runtime.email
+    timeout                          = "30s"
     max_instance_request_concurrency = 40
 
     scaling {
