@@ -90,7 +90,7 @@ def validate(plan: dict, review: dict) -> dict:
     allowed = reviewed_changes(review)
     need(type(plan) is dict and plan.get("format_version") == "1.2"
          and plan.get("terraform_version") == TERRAFORM_VERSION
-         and plan.get("complete") is True and plan.get("errored", False) is False, "PLAN")
+         and plan.get("complete") is True and plan.get("errored") is False, "PLAN")
     if "applyable" in plan:
         need(type(plan["applyable"]) is bool, "PLAN")
     for key in ("deferred_changes", "action_invocations", "deferred_action_invocations",
@@ -103,7 +103,8 @@ def validate(plan: dict, review: dict) -> dict:
     need(type(outputs) is dict, "OUTPUT")
     for output in outputs.values():
         need(type(output) is dict and output.get("actions") == ["no-op"], "OUTPUT")
-        need(_same_json(output.get("before"), output.get("after")), "OUTPUT")
+        need("before" in output and "after" in output
+             and _same_json(output["before"], output["after"]), "OUTPUT")
         need(output.get("after_unknown", {}) == {}, "OUTPUT")
         need(_same_json(output.get("before_sensitive", {}),
                         output.get("after_sensitive", {})), "OUTPUT")
@@ -122,7 +123,8 @@ def validate(plan: dict, review: dict) -> dict:
         actions = change["actions"]
         if actions == ["no-op"]:
             need(address not in allowed, "UNAPPROVED")
-            need(_same_json(change.get("before"), change.get("after")), "ACTION")
+            need("before" in change and "after" in change
+                 and _same_json(change["before"], change["after"]), "ACTION")
             need(change.get("after_unknown", {}) == {}, "UNKNOWN")
             need(_same_json(change.get("before_sensitive", {}),
                             change.get("after_sensitive", {})), "ACTION")

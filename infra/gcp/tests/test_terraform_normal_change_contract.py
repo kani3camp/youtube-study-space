@@ -77,6 +77,8 @@ class OfflinePolicyTest(unittest.TestCase):
     def test_noop_values_masks_and_unknowns_must_be_consistent(self):
         mutations = [
             lambda c: c["resource_changes"][0]["change"]["after"].update(private="inconsistent"),
+            lambda c: c["resource_changes"][0]["change"].pop("before"),
+            lambda c: c["resource_changes"][0]["change"].pop("after"),
             lambda c: c["resource_changes"][0]["change"].update(after_unknown={"id": True}),
             lambda c: c["resource_changes"][0]["change"].update(after_unknown={"id": False}),
             lambda c: c["resource_changes"][0]["change"].update(after_unknown=None),
@@ -104,6 +106,8 @@ class OfflinePolicyTest(unittest.TestCase):
         self.assertEqual(policy.validate(baseline, review())["create"], 1)
         changes = [
             lambda o: o.update(after="changed"),
+            lambda o: o.pop("before"),
+            lambda o: o.pop("after"),
             lambda o: o.update(after_unknown={"value": True}),
             lambda o: o.update(after_unknown={"value": False}),
             lambda o: o.update(before_sensitive=True, after_sensitive=False),
@@ -158,6 +162,7 @@ class OfflinePolicyTest(unittest.TestCase):
             lambda p: p.update(terraform_version="1.16.3"),
             lambda p: p.update(complete=False),
             lambda p: p.update(errored=True),
+            lambda p: p.pop("errored"),
             lambda p: p.update(resource_drift=[{"address": ADDRESS, "change": {"actions": ["update"]}}]),
             lambda p: p.update(deferred_changes=[{}]),
             lambda p: p.update(action_invocations=[{}]),
