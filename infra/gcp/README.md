@@ -1,7 +1,9 @@
 # GCP Terraform
 
+> 2026-10-18: #1251のdevマージ後、完了済みの一回限りの補助コード・旧手順書を退役。証跡は[固定コミット](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)と[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6244637630)に保持します。
+
 development履歴tableのまとまった判断packet・本人の先行準備・本番への依存は
-[`docs/development-history-ready-packet.md`](docs/development-history-ready-packet.md)を参照してください。
+[`docs/development-history-ready-packet.md`](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md)を参照してください。
 
 YouTube Study Space の既存GCP resourceを、安全に段階移行するためのTerraform rootです。
 
@@ -39,15 +41,15 @@ TerraformによるIaC拡張の準備と、MyPage固有resourceのprovisioning・
 [durable audit #1166](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703)、
 [Privacy cleanup #983](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320)はすべてOPEN・Acceptance未達で、今回のexisting ownership移行のblockerにはしません。
 MyPageのProduction release前の運用判断とPrivacyの独立laneへ残します。
-CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）があり、dismiss/suppressしません。解析・SARIF受付成功を脆弱性0と扱わず、[別対応の境界](docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)を保持します。
+CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）があり、dismiss/suppressしません。解析・SARIF受付成功を脆弱性0と扱わず、[別対応の境界](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)を保持します。
 
 ## 旧protocolの経緯（履歴・現行の実行条件ではない）
 
 2026-10-16以前のhistory import、issuer、期限付きwindow、個別Environment承認は**移行当時の手順**です。現在のDev31／Prod30件の運用条件には適用しません。
 履歴・再現条件は次の既存資料とGitHub実行証拠から参照してください。
 
-- [history schema修復・一回限りのimportと欠落証跡](docs/development-history-ready-packet.md)
-- [State観測属性同期の旧手順と停止記録](docs/history-observation-sync.md)
+- [history schema修復・一回限りのimportと欠落証跡](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md)
+- [State観測属性同期の旧手順と停止記録](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync.md)
 - [旧Development history execution windowの固定履歴](https://github.com/kani3camp/youtube-study-space/blob/a94eea6474ae6f89c679e306b291701209607718/infra/gcp/docs/development-history-execution-window.md)
 - [現行の定常Plan/Applyと所有範囲](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)
 - [移行最終結果・不確実性・残件（Issue #1191）](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)
@@ -78,53 +80,29 @@ dev / prodは別root moduleです。Terraform workspaceで環境を切り替え�
 - version更新は通常のdependency変更としてPRでreviewする
 - Notionにはpatch versionを複製しない
 
-## Local validation
+## ローカル検証（移行後）
 
-GitHubと別に管理権限でログイン済みの端末で必要な設定だけを取得する場合は、
-[`設定を読むツールの手順`](docs/runtime-operator-metadata-collector.md)を参照してください。
-この設定読取ツールは権限を追加せず、取得結果や実データを公開しません。
-
-当時不足していたCIのRuntime読取権限について用意した設定候補は、
-[`一度だけの設定をレビューするための準備物`](docs/runtime-reader-bootstrap.md)にまとめています。
-既定は認証・HTTP・変更なしのoffline検査です。通常GCPログイン経由の作業は本人が継続的に許可しており、具体的な対象・差分・実行条件はレビュー済みpacketで限定します。
-
-設定後の両CI identityによるRuntime6種の前後readは[run38712857940](https://github.com/kani3camp/youtube-study-space/actions/runs/38712857940)でPASSとなり、使用済みmetadata実行枠を閉鎖しました。
-このrun単体はfresh full7 metadata、root admission、import準備完了の証明ではありません。現行実証は上部の[現在のscope](#現在のscope2026-10-17)を参照してください。[当時の結果と範囲](docs/runtime-wif-api-ownership.md)は保持します。
-
-既存の専用Codex dev metadata SAへ同じRuntime読取と保持history Tableのmetadata読取だけを追加する別の準備物は、
-[`専用の設定読取SA向けの限定差分`](docs/codex-metadata-reader-bootstrap.md)を参照してください。既定はofflineで、先行設定を再実行せず、全policyのIAM etagを必須にします。
-その先行結果で残ったTable設定だけを扱う別の準備物は、[`history Tableだけの完了候補`](docs/codex-history-reader-completion.md)に記載しています。既存3変更を再実行せず、Table native version 1と最大1試行を要求します。
-
-専用SAでの読取を行う任意の[Codex向けcollector](docs/codex-runtime-metadata-collector.md)も既定はofflineです。
-レビュー済みprivate pinsと短い実行枠を必要とし、既存operator用CLIやprotected CIの実行条件は変更しません。
-
-AWS設定読取ツールのCLI投影テストは、固定6関数以外の値を保存しないことを実際のJMESPath parserで検査します。
-本体の依存は標準ライブラリーのみです。テスト専用のhash固定依存を隔離環境へ入れて実行します。
-通常PRのGCP Terraform CIも同じrequirementsから導入し、省略せず実行します。
-
-```sh
-GCP_TEST_VENV="$(mktemp -d /tmp/gcp-contract-tests-XXXXXX)"
-python3 -m venv "$GCP_TEST_VENV"
-"$GCP_TEST_VENV/bin/python" -m pip install --no-cache-dir --require-hashes --only-binary=:all: -r infra/gcp/tests/requirements.txt
-"$GCP_TEST_VENV/bin/python" infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
-"$GCP_TEST_VENV/bin/python" infra/gcp/tests/test_aws_runtime_list_functions_projection.py
-```
-
-credentialやbackendを使わない構文・provider validation:
+通常の検証はcredentiallessです。移行時だけ利用したmetadata collector、IAM bootstrap、
+reviewed-input packer、disconnected prototypeとその専用テストは現行treeから退役しました。
+[移行時の固定Source](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)は証跡として参照できますが、
+**固定履歴の旧実行ツールを現在の承認で再実行してはいけません**。
 
 ```bash
+python3 .github/scripts/test_terraform_migration.py
+python3 .github/scripts/test_terraform_migration_contract.py
+python3 .github/scripts/test_terraform_runtime_execution.py
+python3 .github/scripts/test_terraform_identity_smoke.py
 terraform fmt -check -recursive infra/gcp
-
 for env in dev prod; do
-  (
-    cd "infra/gcp/environments/$env"
-    terraform init -backend=false -lockfile=readonly
-    terraform validate
-  )
+  (cd "infra/gcp/environments/$env" && terraform init -backend=false -lockfile=readonly && terraform validate)
 done
 ```
 
-`terraform init -lockfile=readonly` を通常validationに使い、provider lockの変更を暗黙に許可しません。dependency更新時は `terraform providers lock -platform=linux_amd64 -platform=darwin_arm64` でdev / prod両rootのlockを更新し、差分をreviewします。
+PRでは **GCP Terraform Validate** が必要な安全契約・Terraform root/module・nativeテストを検証します。
+`migration-plan` / `migration-apply`、S3 State/Versioning/locking、OIDC/WIF・分離identity、
+secret非漏出・import-only/no-op/unknown/drift拒否の実行コードと対応テストは維持します。
+復旧・監査は[State account recovery](docs/state-account-recovery.md)、[durable audit](docs/state-durable-audit.md)、
+[現行の運用契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。
 
 ## Remote state bootstrap
 
@@ -253,7 +231,7 @@ initial stateはHEAD/GET/HEADとpositive lock/workspace LIST absenceで取得す
 
 init/plan/sanitizer後は`always()`で再snapshot、stable/未知fieldのstrict tables.get比較、volatile観測値のprivate記録、exact native lockのpositive LIST absenceを行う。期限切れや失敗でも保存済みadmissionの上限でpost safety readを試みるが、fresh evidence・全step成功・strict import1/既存11 no-op/他action0だけが成功receiptを作れる。独立post-noop routeも同じ安全入力を使い、import0/no-op12/他0を要求する。
 
-public Summaryは固定PASS/STOP、sanitized action数、waiverとactual cost unknownだけ。raw state、VersionId/serial/lineage、complete metadata、binary planは0600のprivateファイルで扱い、artifact/cacheへ保存せずalways cleanupする。強制停止・権限不足等で完全receiptが得られなければclosureしない。初回history applyではauthentic root emitterを必須にする。具体的な承認v2、source freeze、独立post-noopとSTOP/recoveryは[history packet](docs/development-history-ready-packet.md#one-shot-import-source-contract-not-execution-approval)を参照する。
+public Summaryは固定PASS/STOP、sanitized action数、waiverとactual cost unknownだけ。raw state、VersionId/serial/lineage、complete metadata、binary planは0600のprivateファイルで扱い、artifact/cacheへ保存せずalways cleanupする。強制停止・権限不足等で完全receiptが得られなければclosureしない。初回history applyではauthentic root emitterを必須にする。具体的な承認v2、source freeze、独立post-noopとSTOP/recoveryは[history packet](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#one-shot-import-source-contract-not-execution-approval)を参照する。
 
 旧`cost_policy()`と`dev-history-plan-monthly-2026-10-09-v1`は過去のoffline ledger解釈用だけに保持する。live admissionから呼ばない。S3 lock version/delete markerの残存や後月保管費は0・削除済みと見なさない。
 

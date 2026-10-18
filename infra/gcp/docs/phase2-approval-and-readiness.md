@@ -7,7 +7,7 @@ account number、WIF principal全文、既存policy、実集計値、state/plan�
 ## Recorded audit and next boundary
 
 dev historyの判断材料、本人の先行準備、offline import検査、production依存とCodeQL/OIDC制約は
-[`development-history-ready-packet.md`](development-history-ready-packet.md)へ集約します。
+[`development-history-ready-packet.md`](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md)へ集約します。
 code/tests/specは一つのbundleでreviewし、実行はdeployment/schema/state/securityの影響境界で分けます。
 
 実run `37475212059` はsuccess。ユーザー貼付のsanitized Summaryはlegacy列present yes、
@@ -142,6 +142,6 @@ H7の最終no-op後回帰は、各runの実updated_at（Dev `2026-10-17T11:43:21
 
 Production Email channel/dangling quota通知先の修復は別waveで、通知経路Readyは未検証です。
 CodeQL [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は本人の明示承認でDefault setupを `not-configured` へ切り替えました。H2追随候補Q2（`92b5ea29`）の全31 CIと[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語解析・SARIF受付が成功し、analysis ID3件・error0、既存open alert1件の保持を確認済みです。
-候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の実Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
+候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の実Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
 integration refのCodeQL未解決finding6件（critical1/high3/medium2、既存1＋新検出5）は別対応で、dismiss/suppressしません。受付成功を脆弱性0と扱わず、第12波Source H6・最終移行実証Source H7とH3の解析実証を区別します。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。
 最終dev mergeはユーザー本人だけが行います。
