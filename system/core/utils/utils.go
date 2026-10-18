@@ -90,7 +90,8 @@ func cachedRegex(pattern string) (*regexp.Regexp, error) {
 
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, err
+		// Wrap the external error without changing the legacy caller-visible text.
+		return nil, fmt.Errorf("%w", err)
 	}
 
 	actual, _ := compiledRegexCache.LoadOrStore(pattern, compiled)

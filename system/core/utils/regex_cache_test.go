@@ -104,7 +104,8 @@ func TestContainsRegexWithIndex_NoMatchOrPatterns(t *testing.T) {
 func TestContainsRegexWithIndex_InvalidRegexStillReturnsCompileError(t *testing.T) {
 	compiledRegexCache.Clear()
 
-	found, index, err := ContainsRegexWithIndex([]string{"ok", "["}, "no match")
+	patterns := []string{"ok", "["}
+	found, index, err := ContainsRegexWithIndex(patterns, "no match")
 	if err == nil {
 		t.Fatal("ContainsRegexWithIndex() error = nil, want compile error")
 	}
@@ -112,7 +113,7 @@ func TestContainsRegexWithIndex_InvalidRegexStillReturnsCompileError(t *testing.
 		t.Fatalf("ContainsRegexWithIndex() = (%t, %d), want (false, 0) on error", found, index)
 	}
 
-	_, rawErr := regexp.Compile("[")
+	_, rawErr := regexp.Compile(patterns[1])
 	want := fmt.Sprintf("compile regex at index 1: %v", rawErr)
 	if err.Error() != want {
 		t.Fatalf("ContainsRegexWithIndex() error = %q, want %q", err, want)
