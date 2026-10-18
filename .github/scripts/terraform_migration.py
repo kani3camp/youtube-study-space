@@ -115,14 +115,19 @@ def run(args, *, cwd=None, env=None, codes=(0,), timeout=90):
 def context(env, role=None):
     target = env.get('MIGRATION_TARGET')
     need(target in PROJECTS and env.get('MIGRATION_MODE') in {'migration-plan', 'migration-apply'})
+    expected_ref = env.get('GITHUB_REF', '') if target == 'dev' else 'refs/heads/main'
+    if target == 'dev':
+        need(isinstance(expected_ref, str)
+             and re.fullmatch(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*', expected_ref) is not None
+             and expected_ref not in {'refs/heads/main', 'refs/heads/feature/gcp-terraform-iac'})
     exact = {
         'GITHUB_EVENT_NAME': 'workflow_dispatch',
         'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
         'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_ACTOR': 'kani3camp',
         'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-        'GITHUB_REF': 'refs/heads/feature/gcp-terraform-iac',
-        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
+        'GITHUB_REF': expected_ref,
+        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + expected_ref,
     }
     need(all(env.get(key) == value for key, value in exact.items()))
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
@@ -226,12 +231,13 @@ def verify_oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = decode(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+    expected_ref = env['GITHUB_REF'] if target == 'dev' else 'refs/heads/main'
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': f'terraform-{target}-{role}',
-        'ref': 'refs/heads/feature/gcp-terraform-iac',
-        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac',
-        'job_workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac',
+        'ref': expected_ref,
+        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + expected_ref,
+        'job_workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + expected_ref,
         'event_name': 'workflow_dispatch',
     }
     subject = ':'.join(f'{key}:{value.replace(":", "%3A")}' for key, value in expected.items())

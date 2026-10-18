@@ -30,29 +30,15 @@ def credentialless_environment() -> dict[str, str]:
 
 
 class ProductionReadinessTest(unittest.TestCase):
-    def preflight(self, mode="plan", **overrides):
-        source = WORKFLOW.read_text()
-        preflight = source.split("      - name: Enforce trusted execution surface\n", 1)[1]
-        script = textwrap.dedent(preflight.split("        run: |\n", 1)[1].split("\n  plan:\n", 1)[0])
-        gates = dict(re.findall(r'(?m)^  ([A-Z_0-9]+): "(true|false)"$', source))
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "output"
-            env = credentialless_environment() | gates | {
-                "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_RUN_ATTEMPT": "1",
-                "GITHUB_ACTOR": "kani3camp", "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
-                "GITHUB_REPOSITORY": "kani3camp/youtube-study-space",
-                "GITHUB_REPOSITORY_ID": "340900071", "GITHUB_REPOSITORY_OWNER_ID": "54093651",
-                "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-                "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac", "GITHUB_SHA": "a" * 40,
-                "GITHUB_OUTPUT": str(output), "TARGET": "prod", "MODE": mode,
-                "HISTORY_POST_NOOP": "false", "CURRENT_STATE_ATTESTATION": "false",
-                "OWNERSHIP_WAVE": "none", "OWNERSHIP_ROOT_BASIS": "original-history-import",
-                "HISTORY_IMPORT_APPROVAL": "", "HISTORY_PLAN_SAFETY_EVIDENCE": "",
-                "PLAN_COST_EVIDENCE": "",
-            } | overrides
-            result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
-            outputs = dict(line.split("=", 1) for line in output.read_text().splitlines()) if output.exists() else {}
-            return result, outputs
+    def preflight(self, mode="migration-plan", **overrides):
+        from test_terraform_authenticated_workflow import TerraformAuthenticatedWorkflowTest
+        guard = TerraformAuthenticatedWorkflowTest()
+        guard.text = WORKFLOW.read_text()
+        result = guard.run_preflight(**({
+            "TARGET": "prod", "MODE": mode, "GITHUB_REF": "refs/heads/main",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main",
+        } | overrides))
+        return result, dict(line.split("=", 1) for line in result.outputs.splitlines())
 
     def assert_stops_before_job_inputs(self, mode="plan", **overrides):
         result, outputs = self.preflight(mode, **overrides)
@@ -72,74 +58,15 @@ class ProductionReadinessTest(unittest.TestCase):
             "allowed_account_ids": '["REPLACE_WITH_STATE_AWS_ACCOUNT_ID"]',
         })
 
-    def test_every_production_mode_stops_in_preflight_before_authentication(self):
-        source = WORKFLOW.read_text()
-        self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', source)
-        modes = ("plan", "apply", "security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh", "current-state-read")
-        for mode in modes:
-            with self.subTest(mode=mode):
-                result = self.assert_stops_before_job_inputs(mode)
-                if mode != "current-state-read":
-                    self.assertIn("Production authenticated Terraform is intentionally disabled", result.stdout)
-
-    def test_single_production_plan_gate_cannot_bypass_missing_contract_or_development_exit(self):
-        for ready in ({}, {"PROD_EXECUTION_CONTRACT_READY": "true"}, {"PROD_DEVELOPMENT_EXIT_READY": "true"}):
-            with self.subTest(ready=ready):
-                result = self.assert_stops_before_job_inputs(PROD_AUTHENTICATED_TERRAFORM_ENABLED="true", **ready)
-                self.assertIn("Production execution contract and measured development exit are not ready", result.stdout)
-
-    def test_plan_activation_keeps_apply_independently_closed_and_outputs_exact_prod_inputs(self):
-        gates = {"PROD_AUTHENTICATED_TERRAFORM_ENABLED": "true", "PROD_EXECUTION_CONTRACT_READY": "true",
-                 "PROD_DEVELOPMENT_EXIT_READY": "true"}
-        result, outputs = self.preflight(**gates)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(outputs, {
-            "terraform_root": "infra/gcp/environments/prod", "project_id": "youtube-study-space",
-            "state_key": "youtube-study-space/prod/terraform.tfstate", "ownership_wave": "none",
-            **{name: "false" for name in ("manage_primary_email", "manage_quota", "manage_export_topic",
-                                          "manage_export_scheduler", "manage_export_function", "manage_user_activity_history")},
-        })
-        result = self.assert_stops_before_job_inputs("apply", **gates)
-        self.assertIn("Production apply is independently disabled", result.stdout)
-        result, apply_outputs = self.preflight("apply", **gates, PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED="true")
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(apply_outputs, outputs)
-
-    def test_production_rejects_development_modes_inputs_and_reruns_even_when_all_gates_are_open(self):
-        gates = {name: "true" for name in ("PROD_AUTHENTICATED_TERRAFORM_ENABLED", "PROD_EXECUTION_CONTRACT_READY",
-                                          "PROD_DEVELOPMENT_EXIT_READY", "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED")}
-        for mode in ("security-probe", "email-adoption", "quota-plan", "quota-create", "quota-refresh", "current-state-read"):
-            with self.subTest(mode=mode):
-                self.assert_stops_before_job_inputs(mode, **gates)
-        for key, value in (("HISTORY_POST_NOOP", "true"), ("CURRENT_STATE_ATTESTATION", "true"),
-                           ("OWNERSHIP_WAVE", "pool"), ("OWNERSHIP_ROOT_BASIS", "current-state-bootstrap"),
-                           ("HISTORY_IMPORT_APPROVAL", "development-receipt"),
-                           ("HISTORY_PLAN_SAFETY_EVIDENCE", "development-safety"),
-                           ("PLAN_COST_EVIDENCE", "legacy"), ("GITHUB_RUN_ATTEMPT", "2")):
-            with self.subTest(key=key):
-                self.assert_stops_before_job_inputs(**gates, **{key: value})
-
-    def test_production_gates_do_not_change_development_plan_routing(self):
-        closed_runtime = {name: "false" for name in (
-            "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED", "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY",
-            "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED", "DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED")}
-        production_open = {name: "true" for name in (
-            "PROD_AUTHENTICATED_TERRAFORM_ENABLED", "PROD_EXECUTION_CONTRACT_READY",
-            "PROD_DEVELOPMENT_EXIT_READY", "PROD_AUTHENTICATED_TERRAFORM_APPLY_ENABLED")}
-        for wave, development in (("none", closed_runtime), ("pool", {**{name: "true" for name in closed_runtime},
-                "OWNERSHIP_WAVE": "pool", "OWNERSHIP_ROOT_BASIS": "current-state-bootstrap"})):
-            for production in ({}, production_open):
-                with self.subTest(wave=wave, production=production):
-                    result, outputs = self.preflight(TARGET="dev", **development, **production)
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    self.assertEqual(outputs, {
-                        "terraform_root": "infra/gcp/environments/dev", "project_id": "test-youtube-study-space",
-                        "state_key": "youtube-study-space/dev/terraform.tfstate", "ownership_wave": wave,
-                        **{name: "true" for name in ("manage_primary_email", "manage_quota", "manage_export_topic",
-                                                      "manage_export_scheduler", "manage_export_function", "manage_user_activity_history")},
-                    })
-        # Runtime activation requires a selection before any job inputs.
-        self.assert_stops_before_job_inputs(TARGET="dev", DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED="true")
+    def test_production_migration_requires_readiness_and_main_before_authentication(self):
+        for mode in ("migration-plan", "migration-apply"):
+            result, _ = self.preflight(mode)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assert_stops_before_job_inputs(mode, MIGRATION_PRODUCTION_READY="false")
+            self.assert_stops_before_job_inputs(mode, GITHUB_RUN_ATTEMPT="2")
+            self.assert_stops_before_job_inputs(mode, GITHUB_REF="refs/heads/dev")
+        for mode in ("plan", "apply", "security-probe", "email-adoption", "quota-create", "current-state-read"):
+            self.assert_stops_before_job_inputs(mode)
 
     def test_readiness_ci_has_no_cloud_authorization_or_state_operations(self):
         source = (ROOT / ".github/workflows/gcp-production-readiness.yml").read_text()

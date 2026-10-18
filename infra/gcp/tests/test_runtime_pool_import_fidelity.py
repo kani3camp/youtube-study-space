@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / '.github/scripts'))
 sys.path.insert(0, str(ROOT / 'infra/gcp/scripts'))
 from test_runtime_ownership import inventory, prepare_module
-from test_runtime_ownership_package import fixture, planned_values, PROJECT, SHA, NOW, EMAIL
+from test_runtime_plan_contract import fixture, planned_values, PROJECT, SHA, EMAIL
 import prepare_runtime_ownership as preparer
 import validate_runtime_ownership_plan as gate
 import terraform_plan_diagnostic as diagnostic
@@ -179,7 +179,7 @@ module "runtime_wif" {
 
     def review(self, plan, metadata, packet):
         return gate.validate(plan, packet=packet, wave=packet['wave'], git_sha=SHA,
-            metadata=metadata, phase='before', execution_email=EMAIL, now=NOW)
+            metadata=metadata, phase='before', execution_email=EMAIL)
 
     def test_import_is_a_genuine_noop_with_identical_values_and_masks(self):
         change = self.resource(self.fixed)['change']
@@ -238,7 +238,7 @@ module "runtime_wif" {
         context = diagnostic.Context()
         with self.assertRaises(diagnostic.Rejected) as rejected:
             gate.validate(plan, packet=packet, wave=packet['wave'], git_sha=SHA, metadata=metadata,
-                phase='before', execution_email=EMAIL, now=NOW, diagnostic=context)
+                phase='before', execution_email=EMAIL, diagnostic=context)
         with tempfile.TemporaryDirectory() as directory:
             diagnostic.record(directory, plan, context, rejected.exception)
             output = diagnostic.render(diagnostic.read(directory))
@@ -377,7 +377,7 @@ module "runtime_wif" {
 
     def review(self, plan, metadata, packet):
         return gate.validate(plan, packet=packet, wave=packet['wave'], git_sha=SHA,
-            metadata=metadata, phase='before', execution_email=EMAIL, now=NOW)
+            metadata=metadata, phase='before', execution_email=EMAIL)
 
     def test_provider_and_both_grant_imports_are_noop_with_equal_masks(self):
         for index in (1, 2, 3):

@@ -79,9 +79,9 @@ def validate(inventory):
 def trust_policy(account_id, kind):
     claims = {
         "repository_id": "340900071", "repository_owner_id": "54093651",
-        "environment": f"terraform-prod-{kind}", "ref": "refs/heads/feature/gcp-terraform-iac",
-        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+        "environment": f"terraform-prod-{kind}", "ref": "refs/heads/main",
+        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main",
+        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/main",
         "event_name": "workflow_dispatch",
     }
     subject = ":".join(f"{key}:{claims[key].replace(':', '%3A')}" for key in CLAIM_KEYS)
