@@ -63,6 +63,11 @@ assert_exact_groups "system firestore_integration formal_spec" system/core/timeu
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/README.md
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/dev/main.tf
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/prod/tests/safety.tftest.hcl
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime/main.tf
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/scripts/check-local.sh
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf

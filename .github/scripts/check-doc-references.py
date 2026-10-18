@@ -27,6 +27,7 @@ TARGETS = (
     "docs/mypage/release/owner-packet.md",
     "docs/mypage/release/e2e.md",
     "infra/mypage-oauth-ttl/README.md",
+    "infra/mypage-platform/README.md",
     "firebase/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",

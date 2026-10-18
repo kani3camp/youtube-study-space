@@ -165,6 +165,11 @@ classify_path() {
 			aws_cdk=true
 			matched=true
 			;;
+		infra/mypage-platform/*)
+			gcp_terraform=true
+			mypage=true
+			matched=true
+			;;
 		infra/gcp/*)
 			gcp_terraform=true
 			matched=true
